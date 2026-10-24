@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCommand, setupTempDir } from '@atc/test-utils';
 import { readRelatedTests, runRelatedTests } from './run-related-tests';
@@ -136,9 +136,12 @@ test('it leaves out a listed test and runs the rest of its file', async () => {
     "import { expect, test } from 'bun:test';\nimport { writeFileSync } from 'node:fs';\n\ntest('it trims the hedge', () => {\n  expect(1 + 1).toBe(3);\n});\n\ntest('it rakes the leaves', () => {\n  writeFileSync('raked', '');\n});\n",
   );
 
-  const exitCode = await runRelatedTests(['src/a.test.ts'], ctx.directory, [
-    { file: 'src/a.test.ts', test: 'it trims the hedge', issue: 'GEO-18' },
-  ]);
+  const exitCode = await runRelatedTests(
+    ['src/a.test.ts'],
+    ctx.directory,
+    [{ file: 'src/a.test.ts', test: 'it trims the hedge', issue: 'GEO-18' }],
+    1,
+  );
 
   expect(exitCode).toBe(0);
   expect(existsSync(join(ctx.directory, 'raked'))).toBeTrue();
@@ -157,9 +160,12 @@ test('it runs a test whose name only starts with a listed name', async () => {
     "import { expect, test } from 'bun:test';\n\ntest('it trims the hedge twice', () => {\n  expect(1 + 1).toBe(3);\n});\n",
   );
 
-  const exitCode = await runRelatedTests(['src/a.test.ts'], ctx.directory, [
-    { file: 'src/a.test.ts', test: 'it trims the hedge', issue: 'GEO-18' },
-  ]);
+  const exitCode = await runRelatedTests(
+    ['src/a.test.ts'],
+    ctx.directory,
+    [{ file: 'src/a.test.ts', test: 'it trims the hedge', issue: 'GEO-18' }],
+    1,
+  );
 
   expect(exitCode).toBe(1);
 });
@@ -182,10 +188,32 @@ test('it runs every planned run and returns the failure of an earlier one', asyn
     "import { test } from 'bun:test';\nimport { writeFileSync } from 'node:fs';\n\ntest('it trims the hedge', () => {});\n\ntest('it rakes the leaves', () => {\n  writeFileSync('raked', '');\n});\n",
   );
 
-  const exitCode = await runRelatedTests(['src/a.test.ts', 'src/b.test.ts'], ctx.directory, [
-    { file: 'src/b.test.ts', test: 'it trims the hedge', issue: 'GEO-18' },
-  ]);
+  const exitCode = await runRelatedTests(
+    ['src/a.test.ts', 'src/b.test.ts'],
+    ctx.directory,
+    [{ file: 'src/b.test.ts', test: 'it trims the hedge', issue: 'GEO-18' }],
+    1,
+  );
 
   expect(exitCode).toBe(1);
   expect(existsSync(join(ctx.directory, 'raked'))).toBeTrue();
+});
+
+test('it runs the test script with the worker count it is given', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.directory, 'package.json'),
+    JSON.stringify({ scripts: { test: 'echo > args.txt' } }),
+  );
+
+  writeFileSync(join(ctx.directory, 'src/a.test.ts'), '');
+
+  const exitCode = await runRelatedTests(['src/a.test.ts'], ctx.directory, [], 3);
+
+  expect(exitCode).toBe(0);
+
+  expect(readFileSync(join(ctx.directory, 'args.txt'), 'utf8')).toBe(
+    'src/a.test.ts --parallel=3\n',
+  );
 });

@@ -67,14 +67,18 @@ state. The `testing` and `project-testing` skills hold the conventions. No test 
 | `bun run test:isolation`      | the suite in a canary home, failing when a test touches a real home  |
 | `bun run test:timings`        | the suite, rewriting the timings that start the slowest files first  |
 
-The pre-push hook runs `bun run test:related` over the files the branch changes. That script leaves
-out each test in `scripts/pre-push-test-skips.json` and prints the Linear issue of each one it
-leaves out. The list holds tests that fail on a developer host and pass in CI. Each entry holds the
-test file, the test's full name, and the Linear issue that tracks the failure, and the loader
-refuses an entry without an issue ID. CI runs `bun run test:isolation`, which ignores the list, so
-every listed test still runs there. When a test fails on your host and passes in CI, open an issue
-and add an entry rather than skipping the hook's test job, and remove the entry when the issue's fix
-lands.
+The pre-push hook runs `bun run test:related` over the files the branch changes. That script runs
+one test worker on a host with 2 or fewer CPUs or 2 GiB or less of memory, and one worker per CPU on
+a larger host. On a 2-CPU, 2 GiB host, two workers and the processes their tests spawn keep the
+slowest tests near the 5 s timeout. CI keeps one worker per CPU.
+
+`bun run test:related` leaves out each test in `scripts/pre-push-test-skips.json` and prints the
+Linear issue of each one it leaves out. The list holds tests that fail on a developer host and pass
+in CI. Each entry holds the test file, the test's full name, and the Linear issue that tracks the
+failure, and the loader refuses an entry without an issue ID. CI runs `bun run test:isolation`,
+which ignores the list, so every listed test still runs there. When a test fails on your host and
+passes in CI, open an issue and add an entry rather than skipping the hook's test job, and remove
+the entry when the issue's fix lands.
 
 `bun run build:binaries` compiles the release binaries into `dist/`, and `bun run build:atc-bridge`
 regenerates the mod's embedded copy after a change to `mods/atc-bridge/`. `bun run demo:record`
