@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Runs the command before `--` on the e2e test files after it, or on the
-# binary smoke suites when none follows. It takes only files under e2e/ and
-# refuses anything else, flags included, so `bun run test:e2e` never runs a
-# test outside e2e/ under the e2e lane limit.
+# Runs the command before `--` on the arguments after it, adding the binary
+# smoke suites when no e2e test file follows. It takes only e2e test files and
+# the `bun test` options listed below, and refuses anything else, so `bun run
+# test:e2e` never runs a test outside e2e/ under the e2e lane limit.
 set -euo pipefail
 
 command=()
@@ -14,18 +14,42 @@ done
 
 [ "$#" -gt 0 ] && shift
 
-root="$(pwd -P)/e2e/"
+refuse() {
+  echo "with-e2e-paths: $1 is not an e2e test file or a supported option; pass e2e test files and -t, --bail, --rerun-each, --only, --todo, --reporter, or --reporter-outfile" >&2
+  exit 2
+}
 
-for argument in "$@"; do
-  if [[ "$argument" != *.test.ts || ! -f "$argument" ||
-    "$(cd "$(dirname "$argument")" && pwd -P)/" != "$root"* ]]; then
-    echo "with-e2e-paths: $argument is not a test file under e2e/; pass only e2e test files" >&2
-    exit 2
-  fi
+root="$(pwd -P)/e2e/"
+options=()
+files=()
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -t | --test-name-pattern | --rerun-each | --reporter | --reporter-outfile)
+      [ "$#" -ge 2 ] || refuse "$1"
+      options+=("$1" "$2")
+      shift 2
+      ;;
+    --test-name-pattern=* | --rerun-each=* | --reporter=* | --reporter-outfile=* | --bail | --bail=* | --only | --todo)
+      options+=("$1")
+      shift
+      ;;
+    -*)
+      refuse "$1"
+      ;;
+    *)
+      if [[ "$1" != *.test.ts || ! -f "$1" ||
+        "$(cd "$(dirname "$1")" && pwd -P)/" != "$root"* ]]; then
+        refuse "$1"
+      fi
+      files+=("$1")
+      shift
+      ;;
+  esac
 done
 
-if [ "$#" -eq 0 ]; then
-  set -- e2e/daemon-*.test.ts e2e/gateway-*.test.ts
+if [ "${#files[@]}" -eq 0 ]; then
+  files=(e2e/daemon-*.test.ts e2e/gateway-*.test.ts)
 fi
 
-exec "${command[@]}" "$@"
+exec "${command[@]}" ${options[@]+"${options[@]}"} "${files[@]}"

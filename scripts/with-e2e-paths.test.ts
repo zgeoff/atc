@@ -48,8 +48,54 @@ test('it runs the command on the e2e files that follow', async () => {
   });
 });
 
+test('it adds the binary smoke suites after options when no e2e file follows', async () => {
+  const ctx = setupTest();
+
+  const run = await runCommand(
+    [
+      'bash',
+      join(import.meta.dir, 'with-e2e-paths.sh'),
+      'echo',
+      '--',
+      '-t',
+      'attaches a client',
+      '--reporter-outfile',
+      'e2e/results.xml',
+      '--bail',
+    ],
+    { cwd: ctx.directory },
+  );
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
+    exitCode: 0,
+    stdout:
+      '-t attaches a client --reporter-outfile e2e/results.xml --bail e2e/daemon-boot.test.ts e2e/gateway-serve.test.ts\n',
+  });
+});
+
+test('it keeps options beside the e2e files that follow', async () => {
+  const ctx = setupTest();
+
+  const run = await runCommand(
+    [
+      'bash',
+      join(import.meta.dir, 'with-e2e-paths.sh'),
+      'echo',
+      '--',
+      'e2e/tui-quit.test.ts',
+      '--test-name-pattern=quits',
+    ],
+    { cwd: ctx.directory },
+  );
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
+    exitCode: 0,
+    stdout: '--test-name-pattern=quits e2e/tui-quit.test.ts\n',
+  });
+});
+
 test.each([
-  ['a flag', '--bail'],
+  ['an option it does not list', '--env-file'],
   ['a path filter', 'e2e/daemon-'],
   ['a test file outside e2e/', 'src/a.test.ts'],
   ['a path that climbs out of e2e/', 'e2e/../src/a.test.ts'],
@@ -64,6 +110,6 @@ test.each([
   expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
     exitCode: 2,
     stdout: '',
-    stderr: `with-e2e-paths: ${argument} is not a test file under e2e/; pass only e2e test files\n`,
+    stderr: `with-e2e-paths: ${argument} is not an e2e test file or a supported option; pass e2e test files and -t, --bail, --rerun-each, --only, --todo, --reporter, or --reporter-outfile\n`,
   });
 });

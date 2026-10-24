@@ -56,10 +56,10 @@ so a lane suite never skips itself when the system is missing: it fails.
 
 `test:e2e` is the `e2e` lane script: it gives each test the e2e lane limit of 15 s. CI passes it the
 `e2e/daemon-*` suites with `ATC_BIN` set to the compiled binary, and the `e2e/gateway-*` suites with
-`ATC_GATEWAY_BIN` set to the compiled gateway. With no files it runs both of those sets, and it
-refuses a flag, a filter, or a file outside `e2e/`, so it never runs the whole repo. On macOS, the
-smoke job first warms the `/usr/bin/git` shim, whose first run takes about 1.5 s inside a daemon's
-first spawn.
+`ATC_GATEWAY_BIN` set to the compiled gateway. With no `e2e/` test file it runs both of those sets.
+It takes a few `bun test` options, such as `-t`, and refuses any other option, a filter, or a file
+outside `e2e/`, so it never runs the whole repo. On macOS, the smoke job first warms the
+`/usr/bin/git` shim, whose first run takes about 1.5 s inside a daemon's first spawn.
 
 ## The PTY harness
 
