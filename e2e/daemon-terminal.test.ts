@@ -49,13 +49,24 @@ test('it attaches a client at the size it asks for', async () => {
     }),
   );
 
+  const probeStart = performance.now();
+
+  const probe = (stage: string) =>
+    process.stderr.write(`PROBE ${stage} ${(performance.now() - probeStart).toFixed(0)}ms\n`);
+
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
   const client = await daemon.openClient();
 
+  probe('openClient');
+
   await client.sendHello('atc/test');
 
+  probe('hello');
+
   const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  probe('spawn');
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
@@ -64,6 +75,8 @@ test('it attaches a client at the size it asks for', async () => {
     cols: 100,
     rows: 30,
   });
+
+  probe('attach');
 
   expect(attached).toStrictEqual({ cols: 100, rows: 30 });
 });
