@@ -120,7 +120,6 @@
     "packages/app/src/grants.test.ts": 642,
     "packages/test-utils/src/spawn-daemon-session.test.ts": 633,
     "packages/test-utils/src/open-agent-step.test.ts": 633,
-    "scripts/run-wave-move.test.ts": 625,
     "packages/daemon/src/sessions/create-spawn-service.test.ts": 613,
     "e2e/daemon-quit.test.ts": 612,
     "packages/lifecycle/src/write-restart-event.test.ts": 603,
