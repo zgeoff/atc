@@ -836,6 +836,7 @@ test('it gives events at one cursor on two daemons, under one subscription key, 
 
   const first = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: laptop,
     send: receiver.send,
     clock: ctx.clock,
@@ -858,6 +859,7 @@ test('it gives events at one cursor on two daemons, under one subscription key, 
 
   const second = createEventDeliverer({
     db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
     caller: desktop,
     send: receiver.send,
     clock: ctx.clock,
