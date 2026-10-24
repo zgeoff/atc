@@ -835,6 +835,69 @@ test('it logs the first failed read of the trail with its cause, and the read th
   ]);
 });
 
+test('it logs a gateway page with no event and an unavailable daemon as a failed read, and waits before the next', async () => {
+  const ctx = await setupTest();
+
+  const log = mock<(line: string) => void>();
+
+  const caller = buildStubFleetCaller({
+    answer: (request) =>
+      new Map<string, () => Promise<Readonly<Record<string, unknown>>>>([
+        [
+          'cursor-one',
+          () =>
+            Promise.resolve({
+              events: [],
+              cursor: 'cursor-two',
+              more: false,
+              unavailable: ['cloud', 'laptop'],
+            }),
+        ],
+      ]).get(String(request.params?.['cursor']))?.() ??
+      Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
+  });
+
+  await ctx.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub_0123456789abcdef0123456789abcdef',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+      position: 'cursor-one',
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    })
+    .execute();
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    caller,
+    send: buildStubWebhookReceiver().send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
+    log,
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  expect(caller.requests).toHaveLength(1);
+
+  expect(log.mock.calls).toStrictEqual([
+    [
+      'atc events: the watcher of sub_0123456789abcdef0123456789abcdef cannot read the trail: Error: the gateway could not reach cloud, laptop',
+    ],
+  ]);
+});
+
 test('it waits before it starts a failed watcher again', async () => {
   const ctx = await setupTest();
 

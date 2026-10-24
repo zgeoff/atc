@@ -6,6 +6,7 @@ import type { Kysely } from 'kysely';
 import invariant from 'tiny-invariant';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
+import { z } from 'zod';
 import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 import { normalizeClientName } from '../auth/normalize-client-name';
 import { readClientName } from '../auth/read-client-name';
@@ -138,6 +139,11 @@ async function readLiveSubscription(
 const READ_WAIT_MS = 30_000;
 const READ_LIMIT = 50;
 
+// A gateway's page lists the daemons that did not answer the read.
+const GATEWAY_PAGE_SCHEMA = EVENTS_PAGE_SCHEMA.extend({
+  unavailable: z.array(z.string()).optional(),
+});
+
 async function readTrailPage(deps: DelivererContext, row: SubscriptionRow): Promise<TrailPage> {
   const storedName = await readClientName(deps.db, row.client_id);
 
@@ -147,10 +153,19 @@ async function readTrailPage(deps: DelivererContext, row: SubscriptionRow): Prom
     { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
   );
 
-  const parsed = EVENTS_PAGE_SCHEMA.safeParse(answer);
+  const parsed = GATEWAY_PAGE_SCHEMA.safeParse(answer);
 
   if (!parsed.success) {
     throw new Error(`the daemon answered with no page: ${parsed.error.message}`);
+  }
+
+  const unavailable = parsed.data.unavailable ?? [];
+
+  // A gateway skips its wait when no daemon it reaches can wait, so a page
+  // with no event from an outage reads as a failure, which the watcher logs
+  // and waits out before it reads again.
+  if (parsed.data.events.length === 0 && unavailable.length > 0) {
+    throw new Error(`the gateway could not reach ${unavailable.join(', ')}`);
   }
 
   return parsed.data;
