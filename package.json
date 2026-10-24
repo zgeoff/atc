@@ -43,7 +43,7 @@
       "@zgeoff/bun-test-extended": "0.2.1",
       "@zgeoff/format-codemod": "0.3.2",
       "@zgeoff/kysely-bun-sqlite": "0.3.0",
-      "@zgeoff/oxlint-config": "0.6.4",
+      "@zgeoff/oxlint-config": "0.7.0",
       "@zgeoff/skill-gate": "0.2.7",
       "@zgeoff/std": "0.3.0",
       "better-auth": "1.7.7",
