@@ -12,6 +12,7 @@ minimumReleaseAge = 604800
 # behind it. Renovate bumps @zgeoff packages as soon as they publish, so each
 # one atc installs, directly or through another first-party package, needs an
 # entry here, or bun install refuses the bump.
+# body-parser 2.4.0 (published 2026-10-22, patches GHSA-27r3-jxmh-p828) ages past the gate ~2026-10-29 — remove then (audit-fix)
 minimumReleaseAgeExcludes = [
   "@impz/client",
   "@zgeoff/bun-test-extended",
@@ -28,6 +29,7 @@ minimumReleaseAgeExcludes = [
   "@tsrs/linux-arm64-musl",
   "@tsrs/linux-x64-gnu",
   "@tsrs/linux-x64-musl",
+  "body-parser",
 ]
 
 [test]
@@ -42,5 +44,6 @@ pathIgnorePatterns = ["mods/**", "**/*.codex.test.ts"]
 preload = [
   "./packages/test-utils/src/isolate-home.ts",
   "./packages/test-utils/src/seed-faker.ts",
+  "./packages/mcp/src/testing/load-web-authn-early.ts",
   "@zgeoff/bun-test-extended",
 ]

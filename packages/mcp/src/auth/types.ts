@@ -1,4 +1,8 @@
 import type { Clock } from '@atc/core';
+import type { EventDeliverer } from '../events/create-event-deliverer';
+import type { WebhookSender } from '../events/types';
+import type { ModernMCPHandler } from '../http/create-modern-mcp-handler';
+import type { GrantScope } from '../tools/grant-scope';
 import type { FleetCaller } from '../tools/types';
 import type { ApprovalState } from './create-approval-state';
 import type { EnrollmentState } from './create-enrollment-state';
@@ -83,6 +87,14 @@ export type SecurityEvent = SecurityOutcome & {
   readonly correlationID?: string;
 };
 
+// What a valid bearer token grants: the client it was issued to, and the
+// scopes it holds.
+export interface VerifiedAccess {
+  readonly clientID: string;
+  readonly clientName: string;
+  readonly scopes: readonly GrantScope[];
+}
+
 type MCPAuth = Awaited<ReturnType<typeof openMCPAuth>>;
 
 // What every HTTP route reads: the daemon, the server's own identity, the
@@ -106,4 +118,12 @@ export interface HTTPServerContext {
 
   // The time the routes stamp and check expiries against.
   readonly clock: Clock;
+
+  // Serves the requests of the stateless protocol revision.
+  readonly modern: ModernMCPHandler;
+
+  // Delivers each MCP Events subscription's events, and posts a subscribe's
+  // verification challenge.
+  readonly deliverer: EventDeliverer;
+  readonly sendWebhook: WebhookSender;
 }

@@ -30,5 +30,6 @@
       "ignoreDependencies": ["better-auth"]
     }
   },
-  "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/skill-gate"]
+  "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/skill-gate"],
+  "ignoreBinaries": ["openssl"]
 }

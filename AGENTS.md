@@ -107,6 +107,8 @@ prints its own reason, and the rules live where each bullet points.
     name as a JS plugin.
   - `better-auth` in `packages/test-utils`: the telemetry collector's test loads it inside a spawned
     `bun -e` script.
+  - The `openssl` binary: the test certificate helper runs it to make a self-signed certificate, and
+    no package provides it.
 
 ## Runtime rules
 

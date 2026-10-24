@@ -83,6 +83,7 @@ test("it interleaves daemons by timestamp and keeps a daemon's own order when it
       at: 7,
       session: 'pc.9a1b2c3d.s9',
       kind: 'state',
+      origin: { daemon: 'pc', incarnation: '9a1b2c3d', cursor: 'WyJldmVudHMiLDExXQ' },
     },
     {
       cursor:
@@ -90,6 +91,7 @@ test("it interleaves daemons by timestamp and keeps a daemon's own order when it
       at: 10,
       session: 'cloud.0f6c2a8e.s1',
       kind: 'state',
+      origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'WyJldmVudHMiLDFd' },
     },
     {
       cursor:
@@ -97,6 +99,7 @@ test("it interleaves daemons by timestamp and keeps a daemon's own order when it
       at: 5,
       session: 'cloud.0f6c2a8e.s1',
       kind: 'state',
+      origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'WyJldmVudHMiLDJd' },
     },
   ]);
 
@@ -137,12 +140,14 @@ test('it gives events of one timestamp to the daemon whose name sorts first', ()
         'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXdYUSIsImNsb3VkLjBmNmMyYThlIjoiV3lKbGRtVnVkSE1pTERGZCJ9fQ',
       at: 7,
       session: 'cloud.0f6c2a8e.s1',
+      origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'WyJldmVudHMiLDFd' },
     },
     {
       cursor:
         'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSIsImNsb3VkLjBmNmMyYThlIjoiV3lKbGRtVnVkSE1pTERGZCJ9fQ',
       at: 7,
       session: 'pc.9a1b2c3d.s9',
+      origin: { daemon: 'pc', incarnation: '9a1b2c3d', cursor: 'WyJldmVudHMiLDExXQ' },
     },
   ]);
 });
@@ -195,12 +200,14 @@ test('it advances each daemon only past the events that made the page and reads 
         'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxERmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSJ9fQ',
       at: 1,
       session: 'cloud.0f6c2a8e.s1',
+      origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'WyJldmVudHMiLDFd' },
     },
     {
       cursor:
         'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxERmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXlYUSJ9fQ',
       at: 2,
       session: 'pc.9a1b2c3d.s9',
+      origin: { daemon: 'pc', incarnation: '9a1b2c3d', cursor: 'WyJldmVudHMiLDEyXQ' },
     },
   ]);
 
@@ -420,6 +427,7 @@ test('it rewrites the session and message of each event for its daemon', () => {
       message: 'cloud.0f6c2a8e.m-1',
       kind: 'message',
       detail: 'answered',
+      origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'WyJldmVudHMiLDFd' },
     },
   ]);
 
@@ -792,6 +800,7 @@ test("it gives a note event its daemon's own cursor as a qualified note handle b
       label: 'decision',
       detail: 'done',
       note: 'pc.9a1b2c3d.WyJldmVudHMiLDdd',
+      origin: { daemon: 'pc', incarnation: '9a1b2c3d', cursor: 'WyJldmVudHMiLDdd' },
     },
   ]);
 });
@@ -833,6 +842,45 @@ test("it gives a message-answered event its daemon's own cursor as a qualified a
       message: 'pc.9a1b2c3d.m-1',
       detail: 'done',
       answer: 'pc.9a1b2c3d.WyJldmVudHMiLDdd',
+      origin: { daemon: 'pc', incarnation: '9a1b2c3d', cursor: 'WyJldmVudHMiLDdd' },
     },
   ]);
+});
+
+test("it gives a replayed event the same origin though another daemon's place changed its merged cursor", () => {
+  const merged = [{ cursor: 'p0' }, { cursor: 'WyJldmVudHMiLDEyXQ' }].map((before) =>
+    mergeEventPages(
+      [
+        {
+          daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+          before: { cursor: 'c0' },
+          page: {
+            kind: 'read',
+            events: [{ cursor: 'WyJldmVudHMiLDFd', at: 1, session: 's1' }],
+            cursor: 'WyJldmVudHMiLDFd',
+            more: false,
+          },
+        },
+        {
+          daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+          before,
+          page: { kind: 'unavailable' },
+        },
+      ],
+      'f',
+      10,
+    ),
+  );
+
+  const [first, replayed] = merged.map((page) => page.events[0]);
+
+  expect(replayed?.['cursor']).not.toBe(first?.['cursor']);
+
+  expect(first?.['origin']).toStrictEqual({
+    daemon: 'cloud',
+    incarnation: '0f6c2a8e',
+    cursor: 'WyJldmVudHMiLDFd',
+  });
+
+  expect(replayed?.['origin']).toStrictEqual(first?.['origin']);
 });

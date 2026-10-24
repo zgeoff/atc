@@ -4,8 +4,8 @@ import { AGENT_LIST_SCHEMA } from './agent-list';
 import { ANSWER_VIEW_SCHEMA } from './answer-view';
 import { DAEMON_ERROR_MAP } from './daemon-error-map';
 import { DAEMON_EVENT_SCHEMA } from './daemon-event';
+import { EVENTS_PAGE_SCHEMA } from './events-page';
 import { FLEET_ENTRY_VIEW_SCHEMA } from './fleet-entry-view';
-import { FLEET_EVENT_SCHEMA } from './fleet-event';
 import { GIT_PROBE_RESULT_SCHEMA } from './git-probe-result';
 import { HELLO_RESULT_SCHEMA } from './hello-result';
 import { MENU_VIEW_SCHEMA } from './menu-view';
@@ -193,16 +193,7 @@ export const DAEMON_CONTRACT = {
     respond: base.input(PARAMS['permission.respond']).output(EMPTY),
   },
   events: {
-    read: base
-      .meta(READ)
-      .input(PARAMS['events.read'])
-      .output(
-        z.object({
-          events: z.array(FLEET_EVENT_SCHEMA).readonly(),
-          cursor: z.string(),
-          more: z.boolean(),
-        }),
-      ),
+    read: base.meta(READ).input(PARAMS['events.read']).output(EVENTS_PAGE_SCHEMA),
 
     // The live events of one connection: session views, terminal output for
     // attached sessions, permission prompts, and inbox traffic.

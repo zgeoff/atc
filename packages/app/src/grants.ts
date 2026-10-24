@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { mcpAuthDBFile } from '@atc/config';
+import { systemClock } from '@atc/core';
 import { openMCPAuth, readGrantViews, revokeGrant } from '@atc/mcp';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { PROCESS_IO } from './process-io';
@@ -17,7 +18,7 @@ export async function runGrants(
 
   try {
     if (revoke !== null) {
-      const revoked = await revokeGrant(store.db, revoke);
+      const revoked = await revokeGrant(store.db, revoke, systemClock.now());
 
       if (!revoked) {
         io.printError(`atc grants: no grant has the ID '${revoke}'`);
