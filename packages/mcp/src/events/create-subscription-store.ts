@@ -1,4 +1,5 @@
 import type { Kysely } from 'kysely';
+import invariant from 'tiny-invariant';
 import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 
 export type SubscriptionRow = MCPAuthSchema['atc_event_subscription'];
@@ -53,6 +54,8 @@ export function createSubscriptionStore(db: Kysely<MCPAuthSchema>): Subscription
       return rows.map((row) => row.id);
     },
     start: async (row, now) => {
+      checkDestination('start', row.refresh_before, now);
+
       const bound = getStateBound('start', now);
 
       const written = await db
@@ -74,6 +77,8 @@ export function createSubscriptionStore(db: Kysely<MCPAuthSchema>): Subscription
       return (written.numInsertedOrUpdatedRows ?? 0n) > 0n;
     },
     refresh: async (subscriptionID, change, now) => {
+      checkDestination('refresh', change.refresh_before, now);
+
       const bound = getStateBound('refresh', now);
 
       const updated = await db
@@ -135,11 +140,6 @@ function pickState(refreshBefore: string, now: number): SubscriptionState {
   return Date.parse(refreshBefore) > now ? 'live' : 'expired';
 }
 
-interface StateBound {
-  readonly operator: '>' | '<=';
-  readonly at: string;
-}
-
 interface SubscriptionMove {
   readonly from: readonly (SubscriptionState | 'absent')[];
   readonly to: SubscriptionState | 'removed';
@@ -157,6 +157,20 @@ const SUBSCRIPTION_MOVES = {
   endForClient: { from: ['live', 'expired'], to: 'removed' },
   drop: { from: ['live', 'expired'], to: 'removed' },
 } as const satisfies Record<string, SubscriptionMove>;
+
+// A move that writes a new refreshBefore leaves the row in the state that new
+// refreshBefore tells, so the value must put the row where the move ends.
+function checkDestination(move: 'start' | 'refresh', refreshBefore: string, now: number): void {
+  invariant(
+    pickState(refreshBefore, now) === SUBSCRIPTION_MOVES[move].to,
+    `a subscription ${move} wrote a refreshBefore that leaves the row outside the state its move ends in`,
+  );
+}
+
+interface StateBound {
+  readonly operator: '>' | '<=';
+  readonly at: string;
+}
 
 type SubscriptionMoveName = keyof typeof SUBSCRIPTION_MOVES;
 

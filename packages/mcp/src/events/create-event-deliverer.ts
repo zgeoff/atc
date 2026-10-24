@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
+import { toTimerClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { EVENTS_PAGE_SCHEMA } from '@atc/protocol';
 import type { Kysely } from 'kysely';
 import invariant from 'tiny-invariant';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
+import { z } from 'zod';
 import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 import { normalizeClientName } from '../auth/normalize-client-name';
 import { readClientName } from '../auth/read-client-name';
@@ -17,6 +19,7 @@ import { EVENT_TYPES } from './event-types';
 import { parseWebhookSecret } from './parse-webhook-secret';
 import { pickAccessStep } from './pick-access-step';
 import { pickDeliveryStep } from './pick-delivery-step';
+import { pickEventStep } from './pick-event-step';
 import type { WebhookOutcome, WebhookRequest, WebhookSender } from './types';
 
 interface EventDelivererDeps {
@@ -64,32 +67,7 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
   const watchers = new Map<string, Actor<typeof machine>>();
 
   const state = { stopped: false };
-
-  // xstate's clock takes a timer id, and the server's clock hands back a cancel
-  const cancels = new Map<number, () => void>();
-
-  let nextTimerID = 0;
-
-  const clock = {
-    setTimeout: (fn: () => void, timeout: number) => {
-      const timerID = nextTimerID++;
-
-      cancels.set(
-        timerID,
-        deps.clock.schedule(() => {
-          cancels.delete(timerID);
-
-          fn();
-        }, timeout),
-      );
-
-      return timerID;
-    },
-    clearTimeout: (timerID: number) => {
-      cancels.get(timerID)?.();
-      cancels.delete(timerID);
-    },
-  };
+  const clock = toTimerClock(deps.clock);
 
   const watch = (subscriptionID: string) => {
     if (state.stopped) {
@@ -168,6 +146,11 @@ async function readLiveSubscription(
 const READ_WAIT_MS = 30_000;
 const READ_LIMIT = 50;
 
+// A gateway's page lists the daemons that did not answer the read.
+const GATEWAY_PAGE_SCHEMA = EVENTS_PAGE_SCHEMA.extend({
+  unavailable: z.array(z.string()).optional(),
+});
+
 async function readTrailPage(deps: EventDelivererDeps, row: SubscriptionRow): Promise<TrailPage> {
   const storedName = await readClientName(deps.db, row.client_id);
 
@@ -177,10 +160,19 @@ async function readTrailPage(deps: EventDelivererDeps, row: SubscriptionRow): Pr
     { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
   );
 
-  const parsed = EVENTS_PAGE_SCHEMA.safeParse(answer);
+  const parsed = GATEWAY_PAGE_SCHEMA.safeParse(answer);
 
   if (!parsed.success) {
     throw new Error(`the daemon answered with no page: ${parsed.error.message}`);
+  }
+
+  const unavailable = parsed.data.unavailable ?? [];
+
+  // A gateway skips its wait when no daemon it reaches can wait, so a page
+  // with no event from an outage reads as a failure, which the watcher logs
+  // and waits out before it reads again.
+  if (parsed.data.events.length === 0 && unavailable.length > 0) {
+    throw new Error(`the gateway could not reach ${unavailable.join(', ')}`);
   }
 
   return parsed.data;
@@ -190,12 +182,22 @@ async function deliverPage(deps: EventDelivererDeps, delivery: PageDelivery): Pr
   for (const event of delivery.page.events) {
     const row = await readLiveSubscription(deps, delivery.subscriptionID);
 
-    if (row === null || delivery.signal.aborted) {
+    const isStopped = delivery.signal.aborted;
+    const reads = row === null || isStopped ? false : await deps.probeAccess(row.client_id);
+    const type = EVENT_TYPES.find((candidate) => candidate.name === row?.name);
+
+    const step = pickEventStep({
+      isGone: row === null,
+      isStopped,
+      reads,
+      isMatch: type?.kind === event.kind,
+    });
+
+    if (step.kind === 'stop') {
       return;
     }
 
-    const type = EVENT_TYPES.find((candidate) => candidate.name === row.name);
-    const settled = type?.kind === event.kind ? await deliverEvent(deps, delivery, event) : true;
+    const settled = step.kind === 'deliver' ? await deliverEvent(deps, delivery, event) : true;
 
     // A delivery that a stop or a lost grant cut short leaves the position
     // before the event, so a restarted server or the watcher's next turn
