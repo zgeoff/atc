@@ -19,6 +19,7 @@ test('it posts the request to the checked address through the transport it is gi
     resolveHost: () => Promise.resolve(['93.184.215.14']),
     isAllowedAddress: isPublicAddress,
     transport: ctx.transport,
+    timeoutMs: 10_000,
   });
 
   const outcome = await send({
@@ -63,6 +64,7 @@ test('it delivers the POST over TLS to the address it checked, under the callbac
     resolveHost: () => Promise.resolve(['127.0.0.1']),
     isAllowedAddress: (address) => address === '127.0.0.1',
     transport: makeTrustingTransport(certificate.cert),
+    timeoutMs: 10_000,
   });
 
   const outcome = await send({
@@ -96,6 +98,7 @@ test('it reports a certificate for another host as a TLS failure and posts nothi
     resolveHost: () => Promise.resolve(['127.0.0.1']),
     isAllowedAddress: (address) => address === '127.0.0.1',
     transport: makeTrustingTransport(certificate.cert),
+    timeoutMs: 10_000,
   });
 
   const outcome = await send({
@@ -108,6 +111,37 @@ test('it reports a certificate for another host as a TLS failure and posts nothi
   expect(received).not.toHaveBeenCalled();
 });
 
+test('it reports a TLS callback that never answers as a timeout', async () => {
+  const certificate = await createTestCertificate('hooks.example.test');
+
+  const received = mock(() => Promise.withResolvers<Response>().promise);
+
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    tls: { cert: certificate.cert, key: certificate.key },
+    fetch: received,
+  });
+
+  registerTestCleanup(() => server.stop(true));
+
+  const send = createWebhookSender({
+    resolveHost: () => Promise.resolve(['127.0.0.1']),
+    isAllowedAddress: (address) => address === '127.0.0.1',
+    transport: makeTrustingTransport(certificate.cert),
+    timeoutMs: 200,
+  });
+
+  const outcome = await send({
+    url: `https://hooks.example.test:${server.port}/hook`,
+    headers: {},
+    body: '{}',
+  });
+
+  expect(outcome).toStrictEqual({ kind: 'failed', reason: 'timeout' });
+  expect(received).toHaveBeenCalledOnce();
+});
+
 test('it refuses a host that resolves to a loopback address without connecting', async () => {
   const ctx = setupTest();
 
@@ -115,6 +149,7 @@ test('it refuses a host that resolves to a loopback address without connecting',
     resolveHost: () => Promise.resolve(['127.0.0.1']),
     isAllowedAddress: isPublicAddress,
     transport: ctx.transport,
+    timeoutMs: 10_000,
   });
 
   const outcome = await send({ url: 'https://hooks.example.com/hook', headers: {}, body: '{}' });
@@ -130,6 +165,7 @@ test('it refuses a host when any of its addresses is private', async () => {
     resolveHost: () => Promise.resolve(['93.184.215.14', '10.0.0.8']),
     isAllowedAddress: isPublicAddress,
     transport: ctx.transport,
+    timeoutMs: 10_000,
   });
 
   const outcome = await send({ url: 'https://hooks.example.com/hook', headers: {}, body: '{}' });
@@ -146,6 +182,7 @@ test('it refuses a callback written as a loopback address without resolving it',
     resolveHost,
     isAllowedAddress: isPublicAddress,
     transport: ctx.transport,
+    timeoutMs: 10_000,
   });
 
   const outcome = await send({ url: 'https://127.0.0.1:8443/hook', headers: {}, body: '{}' });
@@ -162,6 +199,7 @@ test('it refuses a plain http callback', async () => {
     resolveHost: () => Promise.resolve(['93.184.215.14']),
     isAllowedAddress: isPublicAddress,
     transport: ctx.transport,
+    timeoutMs: 10_000,
   });
 
   const outcome = await send({ url: 'http://hooks.example.com/hook', headers: {}, body: '{}' });
@@ -177,6 +215,7 @@ test('it reports a host that does not resolve as refused', async () => {
     resolveHost: () => Promise.reject(new Error('getaddrinfo ENOTFOUND hooks.example.com')),
     isAllowedAddress: isPublicAddress,
     transport: ctx.transport,
+    timeoutMs: 10_000,
   });
 
   const outcome = await send({ url: 'https://hooks.example.com/hook', headers: {}, body: '{}' });

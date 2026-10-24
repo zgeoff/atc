@@ -1,3 +1,4 @@
+import { toTimerClock } from '@atc/core';
 import { createActor } from 'xstate';
 import { createPickerMachine } from './create-picker-machine';
 import type { SpawnPickerDeps } from './picker-flow';
@@ -13,34 +14,7 @@ export interface SpawnPicker {
 export function createSpawnPicker<TMirror extends { readonly id: string }>(
   deps: SpawnPickerDeps<TMirror>,
 ): SpawnPicker {
-  const timers = new Map<number, () => void>();
-
-  let nextTimerID = 0;
-
-  const actor = createActor(createPickerMachine(deps), {
-    clock: {
-      setTimeout: (fire: () => void, timeoutMs: number) => {
-        nextTimerID += 1;
-
-        const timerID = nextTimerID;
-
-        timers.set(
-          timerID,
-          deps.clock.schedule(() => {
-            timers.delete(timerID);
-
-            fire();
-          }, timeoutMs),
-        );
-
-        return timerID;
-      },
-      clearTimeout: (timerID: number) => {
-        timers.get(timerID)?.();
-        timers.delete(timerID);
-      },
-    },
-  });
+  const actor = createActor(createPickerMachine(deps), { clock: toTimerClock(deps.clock) });
 
   actor.start();
 
