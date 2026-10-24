@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs the command before `--` on the arguments after it, adding the binary
-# smoke suites when none of them is a test path or filter, so `bun run
-# test:e2e` with only flags never runs the whole repo under the e2e lane limit.
+# smoke suites when none of them is a path under e2e/, so `bun run test:e2e`
+# with no paths or only flags never runs the whole repo under the e2e lane limit.
 set -euo pipefail
 
 command=()
@@ -13,18 +13,12 @@ done
 
 [ "$#" -gt 0 ] && shift
 
-# The `bun test --help` options whose value can follow as the next argument.
-valued=" --timeout --rerun-each --retry --seed --coverage-reporter --coverage-dir -t --test-name-pattern --reporter --reporter-outfile --max-concurrency --path-ignore-patterns --parallel-delay --shard --timings --preload -r "
-
+# Only an argument under e2e/ counts as a path, so a flag, its value, or a
+# filter outside e2e/ never stops the run from taking the e2e suites.
 named=false
-skip=false
 
 for argument in "$@"; do
-  if [ "$skip" = true ]; then
-    skip=false
-  elif [[ "$argument" == -* ]]; then
-    [[ "$argument" != *=* && "$valued" == *" $argument "* ]] && skip=true
-  else
+  if [[ "$argument" == e2e/* || "$argument" == ./e2e/* ]]; then
     named=true
   fi
 done

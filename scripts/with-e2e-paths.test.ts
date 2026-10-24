@@ -73,6 +73,8 @@ test('it adds the binary smoke suites when every word that follows is a flag or 
       '--reporter-outfile',
       '/tmp/e2e.xml',
       '--timeout=9000',
+      '--env-file',
+      '.env.test',
     ],
     { cwd: ctx.directory },
   );
@@ -80,7 +82,7 @@ test('it adds the binary smoke suites when every word that follows is a flag or 
   expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
     exitCode: 0,
     stdout:
-      '--reporter junit --reporter-outfile /tmp/e2e.xml --timeout=9000 e2e/daemon-boot.test.ts e2e/gateway-serve.test.ts\n',
+      '--reporter junit --reporter-outfile /tmp/e2e.xml --timeout=9000 --env-file .env.test e2e/daemon-boot.test.ts e2e/gateway-serve.test.ts\n',
   });
 });
 
