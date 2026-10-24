@@ -4,20 +4,23 @@ import { join } from 'node:path';
 import { runCommand, setupTempDir } from '@atc/test-utils';
 
 // A temp directory standing in for a repo root, with one suite of each kind
-// under e2e/.
+// under e2e/ and one unit test outside it.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-with-e2e-paths-');
 
   mkdirSync(join(temporaryDirectory.path, 'e2e'));
+  mkdirSync(join(temporaryDirectory.path, 'src'));
 
   for (const name of ['daemon-boot', 'gateway-serve', 'tui-quit']) {
     writeFileSync(join(temporaryDirectory.path, 'e2e', `${name}.test.ts`), '');
   }
 
+  writeFileSync(join(temporaryDirectory.path, 'src', 'a.test.ts'), '');
+
   return { directory: temporaryDirectory.path };
 }
 
-test('it runs the command on the binary smoke suites when no path follows', async () => {
+test('it runs the command on the binary smoke suites when no file follows', async () => {
   const ctx = setupTest();
 
   const run = await runCommand(
@@ -31,62 +34,7 @@ test('it runs the command on the binary smoke suites when no path follows', asyn
   });
 });
 
-test('it keeps the flags that follow and adds the binary smoke suites', async () => {
-  const ctx = setupTest();
-
-  const run = await runCommand(
-    ['bash', join(import.meta.dir, 'with-e2e-paths.sh'), 'echo', '--', '--bail', '-t', 'attach'],
-    { cwd: ctx.directory },
-  );
-
-  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
-    exitCode: 0,
-    stdout: '--bail -t attach e2e/daemon-boot.test.ts e2e/gateway-serve.test.ts\n',
-  });
-});
-
-test('it keeps a path filter that follows without adding the binary smoke suites', async () => {
-  const ctx = setupTest();
-
-  const run = await runCommand(
-    ['bash', join(import.meta.dir, 'with-e2e-paths.sh'), 'echo', '--', 'e2e/daemon-'],
-    { cwd: ctx.directory },
-  );
-
-  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
-    exitCode: 0,
-    stdout: 'e2e/daemon-\n',
-  });
-});
-
-test('it adds the binary smoke suites when every word that follows is a flag or its value', async () => {
-  const ctx = setupTest();
-
-  const run = await runCommand(
-    [
-      'bash',
-      join(import.meta.dir, 'with-e2e-paths.sh'),
-      'echo',
-      '--',
-      '--reporter',
-      'junit',
-      '--reporter-outfile',
-      '/tmp/e2e.xml',
-      '--timeout=9000',
-      '--env-file',
-      '.env.test',
-    ],
-    { cwd: ctx.directory },
-  );
-
-  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
-    exitCode: 0,
-    stdout:
-      '--reporter junit --reporter-outfile /tmp/e2e.xml --timeout=9000 --env-file .env.test e2e/daemon-boot.test.ts e2e/gateway-serve.test.ts\n',
-  });
-});
-
-test('it runs the command on the paths that follow', async () => {
+test('it runs the command on the e2e files that follow', async () => {
   const ctx = setupTest();
 
   const run = await runCommand(
@@ -97,5 +45,25 @@ test('it runs the command on the paths that follow', async () => {
   expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
     exitCode: 0,
     stdout: 'e2e/tui-quit.test.ts\n',
+  });
+});
+
+test.each([
+  ['a flag', '--bail'],
+  ['a path filter', 'e2e/daemon-'],
+  ['a test file outside e2e/', 'src/a.test.ts'],
+  ['a path that climbs out of e2e/', 'e2e/../src/a.test.ts'],
+])('it refuses %s and runs nothing', async (_label, argument) => {
+  const ctx = setupTest();
+
+  const run = await runCommand(
+    ['bash', join(import.meta.dir, 'with-e2e-paths.sh'), 'echo', '--', argument],
+    { cwd: ctx.directory },
+  );
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
+    exitCode: 2,
+    stdout: '',
+    stderr: `with-e2e-paths: ${argument} is not a test file under e2e/; pass only e2e test files\n`,
   });
 });

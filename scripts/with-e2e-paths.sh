@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Runs the command before `--` on the arguments after it, adding the binary
-# smoke suites when none of them is a path under e2e/, so `bun run test:e2e`
-# with no paths or only flags never runs the whole repo under the e2e lane limit.
+# Runs the command before `--` on the e2e test files after it, or on the
+# binary smoke suites when none follows. It takes only files under e2e/ and
+# refuses anything else, flags included, so `bun run test:e2e` never runs a
+# test outside e2e/ under the e2e lane limit.
 set -euo pipefail
 
 command=()
@@ -13,18 +14,18 @@ done
 
 [ "$#" -gt 0 ] && shift
 
-# Only an argument under e2e/ counts as a path, so a flag, its value, or a
-# filter outside e2e/ never stops the run from taking the e2e suites.
-named=false
+root="$(pwd -P)/e2e/"
 
 for argument in "$@"; do
-  if [[ "$argument" == e2e/* || "$argument" == ./e2e/* ]]; then
-    named=true
+  if [[ "$argument" != *.test.ts || ! -f "$argument" ||
+    "$(cd "$(dirname "$argument")" && pwd -P)/" != "$root"* ]]; then
+    echo "with-e2e-paths: $argument is not a test file under e2e/; pass only e2e test files" >&2
+    exit 2
   fi
 done
 
-if [ "$named" = false ]; then
-  set -- "$@" e2e/daemon-*.test.ts e2e/gateway-*.test.ts
+if [ "$#" -eq 0 ]; then
+  set -- e2e/daemon-*.test.ts e2e/gateway-*.test.ts
 fi
 
 exec "${command[@]}" "$@"
