@@ -563,7 +563,7 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
     },
     { timeoutMs: 5000, progress: () => inbox.messages.length },
   );
-}, 120_000);
+}, 15_000);
 
 test('it drains a backlog larger than the outbound queue without dropping the tap', async () => {
   const daemon = await startTestDaemon({
