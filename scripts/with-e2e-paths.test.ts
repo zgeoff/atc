@@ -31,6 +31,20 @@ test('it runs the command on the binary smoke suites when no path follows', asyn
   });
 });
 
+test('it keeps the flags that follow and adds the binary smoke suites', async () => {
+  const ctx = setupTest();
+
+  const run = await runCommand(
+    ['bash', join(import.meta.dir, 'with-e2e-paths.sh'), 'echo', '--', '--bail', '-t', 'attach'],
+    { cwd: ctx.directory },
+  );
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
+    exitCode: 0,
+    stdout: '--bail -t attach e2e/daemon-boot.test.ts e2e/gateway-serve.test.ts\n',
+  });
+});
+
 test('it runs the command on the paths that follow', async () => {
   const ctx = setupTest();
 
