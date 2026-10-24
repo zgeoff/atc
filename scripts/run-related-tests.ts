@@ -24,8 +24,11 @@ export function readRelatedTests(paths: readonly string[], cwd: string): string[
     }
   }
 
-  return [...selected];
+  return [...selected].filter((test) => !test.endsWith(LANE_SUFFIX));
 }
+
+// A lane suite runs a real system through its own script, such as `test:codex`.
+const LANE_SUFFIX = '.codex.test.ts';
 
 export async function runRelatedTests(
   paths: readonly string[],

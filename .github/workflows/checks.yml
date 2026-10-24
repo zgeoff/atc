@@ -135,8 +135,7 @@ jobs:
           codex --version
 
       - name: Test Codex Bridge
-        run:
-          bun run test packages/harnesses/codex/src/app-server/start-codex-app-server-bridge.test.ts
+        run: bun run test:codex
 
   # the suite runs once, inside a home of canary files, and fails when a test
   # reads, changes, or adds to a home it does not own

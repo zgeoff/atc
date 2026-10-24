@@ -44,6 +44,23 @@ home a preload sets never reaches a test's subprocesses.
 - The Claude config lock's test runs against `proper-lockfile`, the lock library Claude Code
   bundles, because no test runs Claude itself.
 
+## Lanes
+
+A lane suite runs one real system that the default run cannot reach. Its suffix identifies that
+system, and [`bunfig.toml`](../../../bunfig.toml) leaves its files out of `bun run test` by pattern,
+so a lane suite never skips itself when the system is missing: it fails.
+
+| Suffix   | Real system                                                     | Script       | Test timeout              |
+| -------- | --------------------------------------------------------------- | ------------ | ------------------------- |
+| `.codex` | the Codex CLI's App Server, at the version `CODEX_VERSION` pins | `test:codex` | 5 s default (0.3 s on CI) |
+
+`test:e2e` is the `e2e` lane script: it gives each test the e2e lane limit of 15 s. CI passes it the
+`e2e/daemon-*` suites with `ATC_BIN` set to the compiled binary, and the `e2e/gateway-*` suites with
+`ATC_GATEWAY_BIN` set to the compiled gateway. With no `e2e/` test file it runs both of those sets.
+It takes a few `bun test` options, such as `-t`, and refuses any other option, a filter, or a file
+outside `e2e/`, so it never runs the whole repo. On macOS, the smoke job first warms the
+`/usr/bin/git` shim, whose first run takes about 1.5 s inside a daemon's first spawn.
+
 ## The PTY harness
 
 [`startTUIHarness`](../../../packages/test-utils/src/start-tui-harness.ts) runs the real `atc`
