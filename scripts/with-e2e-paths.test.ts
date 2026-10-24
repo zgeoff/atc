@@ -59,6 +59,31 @@ test('it keeps a path filter that follows without adding the binary smoke suites
   });
 });
 
+test('it adds the binary smoke suites when every word that follows is a flag or its value', async () => {
+  const ctx = setupTest();
+
+  const run = await runCommand(
+    [
+      'bash',
+      join(import.meta.dir, 'with-e2e-paths.sh'),
+      'echo',
+      '--',
+      '--reporter',
+      'junit',
+      '--reporter-outfile',
+      '/tmp/e2e.xml',
+      '--timeout=9000',
+    ],
+    { cwd: ctx.directory },
+  );
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
+    exitCode: 0,
+    stdout:
+      '--reporter junit --reporter-outfile /tmp/e2e.xml --timeout=9000 e2e/daemon-boot.test.ts e2e/gateway-serve.test.ts\n',
+  });
+});
+
 test('it runs the command on the paths that follow', async () => {
   const ctx = setupTest();
 
