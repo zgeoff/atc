@@ -92,6 +92,9 @@ prints its own reason, and the rules live where each bullet points.
 - `bun run check:disable-baseline`: the count of directives that switch off an import rule, against
   `scripts/disable-baseline.json`.
 - `bun run check:raw-escapes`: a raw ESC byte in source, which the TUI writes as a `\u001B` escape.
+- `bun run check:guest-scripts`: shellcheck over the shell scripts that atc runs with `sh -c`,
+  mostly in a guest, and an exported `*_SCRIPT` constant missing from a package's `guest-scripts`
+  entry, in `scripts/check-guest-scripts.ts`.
 - `bun run check:source-entries`: a test helper that hard-codes a source entry that
   `scripts/with-test-home.sh` exports.
 - `bun run deadcode`: knip, configured in `knip.json`.

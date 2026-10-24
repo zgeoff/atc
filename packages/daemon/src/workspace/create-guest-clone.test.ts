@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createGitFixture, runShellcheck } from '@atc/test-utils';
+import { createGitFixture } from '@atc/test-utils';
 import { $ } from 'bun';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { runLocalCommand } from '../testing/run-local-command';
-import { GUEST_CLONE_SCRIPT, createGuestClone } from './create-guest-clone';
+import { createGuestClone } from './create-guest-clone';
 
 // A bare upstream holding one pushed commit, and the empty directory a
 // clone lands in, on this machine standing in for the host.
@@ -75,10 +75,4 @@ test('it empties the directory and returns the reason when the pinned commit is 
 
   expect(clone).toMatchObject({ ok: false });
   expect(readdirSync(ctx.directory)).toStrictEqual([]);
-});
-
-test('it clones through a script that passes shellcheck', async () => {
-  const result = await runShellcheck(GUEST_CLONE_SCRIPT);
-
-  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });

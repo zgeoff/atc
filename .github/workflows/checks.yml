@@ -96,6 +96,9 @@ jobs:
       - name: Shell Lint
         run: bun run lint:shell
 
+      - name: Guest Shell Scripts
+        run: bun run check:guest-scripts
+
       - name: Lint
         run: bun run lint:full
 
