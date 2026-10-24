@@ -1,4 +1,5 @@
 import type { EVENTS_PAGE_SCHEMA } from '@atc/protocol';
+import { DaemonError } from '@atc/protocol/wire';
 import { machineTypes } from '@zgeoff/std';
 import invariant from 'tiny-invariant';
 import { assign, fromPromise, setup } from 'xstate';
@@ -107,6 +108,11 @@ export function createSubscriptionWatcherMachine(deps: WatcherMachineDeps) {
           `atc events: the watcher of ${args.context.subscriptionID} cannot read the trail: ${String(params.error)}`,
         );
       },
+      logCursorRefusal: (args, params: FailureParams) => {
+        deps.log(
+          `atc events: the trail refused the position of ${args.context.subscriptionID}, so the subscription ends: ${String(params.error)}`,
+        );
+      },
       logReadRecovery: (args) => {
         deps.log(`atc events: the watcher of ${args.context.subscriptionID} reads the trail again`);
       },
@@ -204,6 +210,17 @@ export function createSubscriptionWatcherMachine(deps: WatcherMachineDeps) {
             { target: 'delivering', actions: assign({ page: (args) => args.event.output }) },
           ],
           onError: [
+            // A refused cursor stays refused, as after a daemon behind a
+            // gateway starts a new incarnation, so the subscription ends and
+            // the client's next subscribe starts again from its own cursor.
+            {
+              guard: (args) => isCursorRefusal(args.event.error),
+              target: 'removing',
+              actions: {
+                type: 'logCursorRefusal',
+                params: (args) => ({ error: args.event.error }),
+              },
+            },
             { guard: 'isReadFailing', target: 'awaitingRead' },
             {
               target: 'awaitingRead',
@@ -244,6 +261,10 @@ function getRow(context: WatcherContext): SubscriptionRow {
   invariant(context.row, 'a watcher reached a state that reads its row before it read one');
 
   return context.row;
+}
+
+function isCursorRefusal(error: unknown): boolean {
+  return error instanceof DaemonError && error.code === 'bad_args';
 }
 
 function getPage(context: WatcherContext): TrailPage {

@@ -107,6 +107,48 @@ test("it ends a removed client's event subscriptions", async () => {
   expect(subscriptions).toStrictEqual([]);
 });
 
+test("it removes a removed client's verified callbacks and keeps another client's", async () => {
+  const ctx = await setupTest();
+
+  const removed = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const kept = await ctx.store.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  await ctx.store.db
+    .insertInto('atc_event_callback')
+    .values([
+      {
+        client_id: removed.clientID,
+        url: 'https://hooks.example.com/hook',
+        verified_at: '2026-10-23T12:00:00.000Z',
+      },
+      {
+        client_id: kept.clientID,
+        url: 'https://hooks.example.com/hook',
+        verified_at: '2026-10-23T12:00:00.000Z',
+      },
+    ])
+    .execute();
+
+  await removeClient(ctx.store.db, removed.clientID);
+
+  const callbacks = await ctx.store.db
+    .selectFrom('atc_event_callback')
+    .select(['client_id', 'url'])
+    .execute();
+
+  expect(callbacks).toStrictEqual([
+    { client_id: kept.clientID, url: 'https://hooks.example.com/hook' },
+  ]);
+});
+
 test('it reports an unknown client id as not removed', async () => {
   const ctx = await setupTest();
   const removed = await removeClient(ctx.store.db, 'unknown-client');
