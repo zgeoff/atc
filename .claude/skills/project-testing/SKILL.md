@@ -20,7 +20,7 @@ with the default 5 s timeout and no raised one.
 - `e2e/` holds a suite that drives atc from outside: it starts the CLI, the daemon, or the gateway
   as a process, through `runATC`, `startDaemonProcess`, `startMCPStdio`, `startTUIHarness`, or the
   gateway command. CI runs the `e2e/daemon-*` and `e2e/gateway-*` suites a second time against each
-  compiled binary, through `bun run test:binary` and `bun run test:gateway-binary`.
+  compiled binary, through `bun run test:e2e`.
 - `integration/` holds one flow across several packages that runs in the test's own process, with
   per-run fixtures and stand-ins such as `startTestDaemon`, `startStubAgentDaemon`, and
   `createStubExecutionProvider`. A test that starts none of atc's own processes goes here, never in
