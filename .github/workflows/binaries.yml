@@ -85,7 +85,7 @@ jobs:
         run: |
           chmod +x "$ATC_BIN"
           "$ATC_BIN" --version
-          bun run test:e2e
+          bun run test:e2e e2e/daemon-*.test.ts
 
       # The checks workflow runs the provider tests on Linux alone, and these
       # are the only macOS runners CI starts.
@@ -101,4 +101,4 @@ jobs:
         run: |
           chmod +x "$ATC_GATEWAY_BIN"
           "$ATC_GATEWAY_BIN" --version
-          bun run test:e2e-gateway
+          bun run test:e2e e2e/gateway-*.test.ts

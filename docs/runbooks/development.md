@@ -58,14 +58,14 @@ release binary never reads one.
 state. The `testing` and `project-testing` skills hold the conventions. No test spawns the real
 `claude` binary, except the mod checks below, which start no session.
 
-| Script                     | Runs                                                                 |
-| -------------------------- | -------------------------------------------------------------------- |
-| `bun run test:related`     | the tests beside the files you pass, less the pre-push skip list     |
-| `bun run test:e2e`         | the daemon suite against a compiled binary, with `ATC_BIN` set       |
-| `bun run test:e2e-gateway` | the gateway suite against a compiled gateway, with `ATC_GATEWAY_BIN` |
-| `bun run test:atc-bridge`  | `claude plugin validate` and `claude plugin test` on the mod         |
-| `bun run test:isolation`   | the suite in a canary home, failing when a test touches a real home  |
-| `bun run test:timings`     | the suite, rewriting the timings that start the slowest files first  |
+| Script                                   | Runs                                                                 |
+| ---------------------------------------- | -------------------------------------------------------------------- |
+| `bun run test:related`                   | the tests beside the files you pass, less the pre-push skip list     |
+| `bun run test:e2e e2e/daemon-*.test.ts`  | the daemon suite against a compiled binary, with `ATC_BIN` set       |
+| `bun run test:e2e e2e/gateway-*.test.ts` | the gateway suite against a compiled gateway, with `ATC_GATEWAY_BIN` |
+| `bun run test:atc-bridge`                | `claude plugin validate` and `claude plugin test` on the mod         |
+| `bun run test:isolation`                 | the suite in a canary home, failing when a test touches a real home  |
+| `bun run test:timings`                   | the suite, rewriting the timings that start the slowest files first  |
 
 The pre-push hook runs `bun run test:related` over the files the branch changes. That script leaves
 out each test in `scripts/pre-push-test-skips.json` and prints the Linear issue of each one it
