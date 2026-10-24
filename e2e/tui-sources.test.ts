@@ -48,7 +48,7 @@ test('it keeps paths and slash filters in the local directory step', async () =>
   await ctx.waitFor('> atc/src');
 
   expect(ctx.read()).not.toInclude('spawn: GitHub repository');
-}, 15_000);
+});
 
 test('it offers the next source on the directory step and cycles the sources on tab', async () => {
   const ctx = setupTest();
@@ -82,7 +82,7 @@ test('it offers the next source on the directory step and cycles the sources on 
   ctx.write(KEYS.tab);
 
   await ctx.waitFor('spawn: directory on the daemon host');
-}, 15_000);
+});
 
 test('it switches the directory step to the GitHub source on a pasted URL', async () => {
   const ctx = setupTest();
@@ -105,7 +105,7 @@ test('it switches the directory step to the GitHub source on a pasted URL', asyn
   await ctx.waitFor('spawn: GitHub repository');
 
   expect(ctx.read()).toInclude('> https://github.com/acme/app.git');
-}, 15_000);
+});
 
 test('it drives a source from its candidates to the confirm screen', async () => {
   const ctx = setupTest();
@@ -157,7 +157,7 @@ test('it drives a source from its candidates to the confirm screen', async () =>
   await ctx.waitFor('spawn: confirm');
 
   expect(ctx.read()).toInclude('source  https://github.com/acme/app.git');
-}, 15_000);
+});
 
 test('it spawns the repository a source reads typed text as, through to its workspace', async () => {
   const ctx = setupTest();
@@ -231,7 +231,7 @@ test('it spawns the repository a source reads typed text as, through to its work
       workspace: { repoURL: fixture.upstream, sha: fixture.sha, ref: 'main' },
     },
   ]);
-}, 15_000);
+});
 
 test('it lists the scope a source reads from a directory step once, after the target step', async () => {
   const ctx = setupTest();
@@ -279,7 +279,7 @@ test('it lists the scope a source reads from a directory step once, after the ta
     .filter((line) => line.startsWith('repo list acme '));
 
   expect(lists).toHaveLength(1);
-}, 15_000);
+});
 
 test('it refuses a spawn when the config offers no sources', async () => {
   const ctx = setupTest();
@@ -299,7 +299,7 @@ test('it refuses a spawn when the config offers no sources', async () => {
   await ctx.waitFor('the daemon offers no sources');
 
   expect(ctx.read()).not.toInclude('spawn: directory');
-}, 15_000);
+});
 
 test('it lists an owner typed in the directory step through the source that reads it', async () => {
   const ctx = setupTest();
@@ -321,7 +321,7 @@ test('it lists an owner typed in the directory step through the source that read
 
   await ctx.waitFor('spawn: GitHub repository · acme');
   await ctx.waitFor('acme/app  private');
-}, 15_000);
+});
 
 test('it probes a repository typed in the directory step at the URL its source reads it as', async () => {
   const ctx = setupTest();
@@ -361,7 +361,7 @@ test('it probes a repository typed in the directory step at the URL its source r
   ctx.write(KEYS.enter);
 
   await ctx.waitFor('source  https://github.com/acme/app.git');
-}, 15_000);
+});
 
 test('it opens the sources in the order the config gives', async () => {
   const ctx = setupTest();
@@ -398,4 +398,4 @@ test('it opens the sources in the order the config gives', async () => {
   await ctx.waitFor('spawn: directory on the daemon host');
 
   expect(ctx.read()).not.toInclude('GitHub');
-}, 15_000);
+});

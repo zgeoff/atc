@@ -166,7 +166,7 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
   expect(listed['sessions']).toMatchObject([
     { name: 'elsewhere', cwd: ctx.home, locator: { targetID: 'alt' } },
   ]);
-}, 15_000);
+});
 
 test('it keeps the target step open on a target whose provider the daemon lacks', async () => {
   const ctx = setupTest();
@@ -278,7 +278,7 @@ test('it sends a dirty local directory to a target off the daemon machine as a p
 
   expect(ctx.read()).not.toInclude('workspace_dirty');
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
-}, 15_000);
+});
 
 test('it starts claude with the settings file atc generates', async () => {
   const ctx = setupTest();

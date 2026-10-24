@@ -246,7 +246,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
   const listed = await daemon.sendRequest('session.list');
 
   expect(listed['sessions']).toBeArrayOfSize(1);
-}, 15_000);
+});
 
 test('it stays where the user moved when a directory listing answers late', async () => {
   const ctx = setupTest();
@@ -411,4 +411,4 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
   expect(listed['sessions']).toMatchObject([
     { name: 'raced', workspace: { repoURL: url, sha: fixture.sha, ref: 'main' } },
   ]);
-}, 15_000);
+});

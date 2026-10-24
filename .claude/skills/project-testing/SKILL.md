@@ -14,17 +14,17 @@ a test author needs to follow those rules here.
 ## Where a suite lives
 
 Beside the unit tests in each package's `src/`, two root folders hold the suites that cross
-packages. `bun run test` runs both in the one parallel run, so both follow every unit test rule,
-with the default 5 s timeout and no raised one.
+packages.
 
 - `e2e/` holds a suite that drives atc from outside: it starts the CLI, the daemon, or the gateway
   as a process, through `runATC`, `startDaemonProcess`, `startMCPStdio`, `startTUIHarness`, or the
-  gateway command. CI runs the `e2e/daemon-*` and `e2e/gateway-*` suites a second time against each
-  compiled binary, through `bun run test:e2e` with those files.
+  gateway command. `bun run test` leaves `e2e/` out; the `e2e` lane runs it, as [Lanes](#lanes)
+  says.
 - `integration/` holds one flow across several packages that runs in the test's own process, with
   per-run fixtures and stand-ins such as `startTestDaemon`, `startStubAgentDaemon`, and
   `createStubExecutionProvider`. A test that starts none of atc's own processes goes here, never in
-  `e2e/`.
+  `e2e/`. `bun run test` runs it, so it follows every unit test rule, with the default 5 s timeout
+  and no raised one.
 
 ## The test home
 
@@ -61,20 +61,24 @@ home a preload sets never reaches a test's subprocesses.
 
 ## Lanes
 
-A lane suite runs one real system that the default run cannot reach. Its suffix identifies that
-system, and [`bunfig.toml`](../../../bunfig.toml) leaves its files out of `bun run test` by pattern,
-so a lane suite never skips itself when the system is missing: it fails.
+A lane suite runs one real system that the default run cannot reach. Its suffix or folder identifies
+that system, and [`bunfig.toml`](../../../bunfig.toml) leaves its files out of `bun run test` by
+pattern, so a lane suite never skips itself when the system is missing: it fails.
 
-| Suffix   | Real system                                                     | Script       | Test timeout |
-| -------- | --------------------------------------------------------------- | ------------ | ------------ |
-| `.codex` | the Codex CLI's App Server, at the version `CODEX_VERSION` pins | `test:codex` | 5 s default  |
+| Suffix or folder | Real system                                                     | Script       | Test timeout |
+| ---------------- | --------------------------------------------------------------- | ------------ | ------------ |
+| `.codex`         | the Codex CLI's App Server, at the version `CODEX_VERSION` pins | `test:codex` | 5 s default  |
+| `e2e/`           | atc's own CLI, daemon, and gateway, each started as a process   | `test:e2e`   | 15 s         |
 
-`test:e2e` is the `e2e` lane script: it gives each test the e2e lane limit of 15 s. CI passes it the
+`test:e2e` is the `e2e` lane script: it gives each test the e2e lane limit of 15 s, so a test in
+`e2e/` takes no timeout of its own. The CI test job passes it every `e2e/` suite except the
+`e2e/daemon-*` and `e2e/gateway-*` ones, on 4 workers in random order. The smoke job passes it the
 `e2e/daemon-*` suites with `ATC_BIN` set to the compiled binary, and the `e2e/gateway-*` suites with
 `ATC_GATEWAY_BIN` set to the compiled gateway. With no `e2e/` test file it runs both of those sets.
-It takes a few `bun test` options, such as `-t`, and refuses any other option, a filter, or a file
-outside `e2e/`, so it never runs the whole repo. On macOS, the smoke job first warms the
-`/usr/bin/git` shim, whose slow first run would otherwise land inside a daemon's first spawn.
+`test:related`, and so the pre-push hook, leaves `e2e/` out. It takes a few `bun test` options, such
+as `-t`, and refuses any other option, a filter, or a file outside `e2e/`, so it never runs the
+whole repo. On macOS, the smoke job first warms the `/usr/bin/git` shim, whose slow first run would
+otherwise land inside a daemon's first spawn.
 
 ## Shared workers
 

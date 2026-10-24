@@ -62,6 +62,7 @@ state. The `testing` and `project-testing` skills hold the conventions. No test 
 | Script                                   | Runs                                                                 |
 | ---------------------------------------- | -------------------------------------------------------------------- |
 | `bun run test:related`                   | the tests beside the files you pass, less the pre-push skip list     |
+| `bun run test:e2e e2e/tui-*.test.ts`     | the e2e suites you pass, under the e2e lane limit of 15 s            |
 | `bun run test:e2e e2e/daemon-*.test.ts`  | the daemon suite against a compiled binary, with `ATC_BIN` set       |
 | `bun run test:e2e e2e/gateway-*.test.ts` | the gateway suite against a compiled gateway, with `ATC_GATEWAY_BIN` |
 | `bun run test:atc-bridge`                | `claude plugin validate` and `claude plugin test` on the mod         |
