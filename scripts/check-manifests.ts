@@ -72,7 +72,7 @@ function main(): void {
 }
 
 // The root package's own source directories.
-const ROOT_DIRS = ['e2e', 'scripts'];
+const ROOT_DIRS = ['e2e', 'integration', 'scripts'];
 const DEPENDENCIES_SCHEMA = z.record(z.string(), z.string()).optional();
 
 const WORKSPACES_SCHEMA = z
@@ -483,8 +483,9 @@ function checkDeclared(pkg: WorkspacePackage, file: string, name: string): strin
   ];
 }
 
-// The root package's e2e journeys and scripts reach into the app by path,
-// for the app modules and test helpers that no package exports yet.
+// The root package's e2e journeys, integration flows, and scripts reach into
+// the app by path, for the app modules and test helpers that no package
+// exports yet.
 const ROOT_REACHES = ['packages/app'];
 
 // Tests of shared helpers that drive the helper against app modules no

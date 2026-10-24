@@ -51,6 +51,12 @@
   },
   "overrides": [
     {
+      // an integration flow crosses packages, so it sits beside no one module;
+      // the shared rule exempts only the root e2e/ and evals/ folders
+      "files": ["integration/**"],
+      "rules": { "zgeoff/test-beside-module": "off" }
+    },
+    {
       // the system clock itself, tests, test helpers (a package's testing
       // folder among them), and tooling read the
       // wall clock directly; an override replaces the rule's options, so it
@@ -63,6 +69,7 @@
         "packages/*/src/testing/**",
         "packages/*/*/src/testing/**",
         "e2e/**",
+        "integration/**",
         "scripts/**"
       ],
       "rules": {
