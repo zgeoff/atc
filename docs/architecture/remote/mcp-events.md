@@ -94,13 +94,13 @@ For each event of its type, the watcher posts one signed JSON body: the event id
 the event happened, the session id in `data`, and the cursor past the event. The headers follow the
 Standard Webhooks profile the draft defines: a `webhook-id`, the signing time, an HMAC-SHA256
 signature over the id, the time and the exact body bytes, and the subscription id. The event id
-derives from the event's place in the trail the server reads, and the `webhook-id` from the
-subscription and that place, so a retry, or a delivery again after a restart, carries the same ids.
-On one daemon, that place is the event's cursor. Behind a gateway, the merged cursor changes when
-another daemon's place moves, so the server takes the place from the `origin` the gateway puts on
-each merged event: its daemon, that daemon's incarnation and that daemon's cursor. The event id is
-unique only among the events one server delivers, because the daemons behind two servers can each
-hold an event at the same place.
+derives from the event's session and its place in the daemon's trail, and the `webhook-id` from the
+subscription and that pair, so a retry, or a delivery again after a restart, carries the same ids.
+On one daemon, that place is the event's cursor, and the session tells it apart from an event at the
+same cursor on another daemon, because each daemon mints its session ids at random. Behind a
+gateway, the merged cursor changes when another daemon's place moves, so the server takes the place
+from the `origin` the gateway puts on each merged event: its daemon, that daemon's incarnation and
+that daemon's cursor.
 
 The server posts only to a callback whose host resolves to public addresses, and connects to the
 address it checked, with the URL's host name for TLS, so a DNS answer that changes between the check
@@ -117,7 +117,6 @@ event at a time, so a retry holds back the events after it.
 ## What a subscriber does
 
 A subscriber treats a delivery as a wake. It reads the trail from the cursor its own last read
-returned, keeps the cursor that read returns, and drops an event id it has seen from the same
-subscription. A lost delivery then costs nothing while the next read falls inside the trail's
-retention window, because that read returns the missed event, and a repeated delivery repeats no
-work.
+returned, keeps the cursor that read returns, and drops an event id it has seen. A lost delivery
+then costs nothing while the next read falls inside the trail's retention window, because that read
+returns the missed event, and a repeated delivery repeats no work.
