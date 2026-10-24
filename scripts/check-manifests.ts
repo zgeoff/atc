@@ -494,8 +494,10 @@ const APP_TESTS: ReadonlySet<string> = new Set([
   'packages/test-utils/src/build-stub-daemon-requests.test.ts',
   'packages/test-utils/src/keys.test.ts',
   'packages/test-utils/src/run-mcp-authorization.test.ts',
+  'packages/test-utils/src/run-mcp-token-grant.test.ts',
   'packages/test-utils/src/run-passkey-enrollment.test.ts',
   'packages/test-utils/src/run-passkey-sign-in.test.ts',
+  'packages/test-utils/src/send-modern-mcp-request.test.ts',
   'packages/test-utils/src/spawn-claude-session.test.ts',
   'packages/test-utils/src/spawn-grok-session.test.ts',
   'packages/test-utils/src/start-cut-proxy.test.ts',
@@ -508,8 +510,10 @@ const APP_TESTS: ReadonlySet<string> = new Set([
 // against the real authorization server, so each reaches into it by path.
 const OAUTH_HELPER_TESTS: ReadonlySet<string> = new Set([
   'packages/test-utils/src/run-mcp-authorization.test.ts',
+  'packages/test-utils/src/run-mcp-token-grant.test.ts',
   'packages/test-utils/src/run-passkey-enrollment.test.ts',
   'packages/test-utils/src/run-passkey-sign-in.test.ts',
+  'packages/test-utils/src/send-modern-mcp-request.test.ts',
 ]);
 
 function getOwner(packages: readonly WorkspacePackage[], path: string): WorkspacePackage {

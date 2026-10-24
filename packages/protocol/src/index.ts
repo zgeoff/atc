@@ -10,6 +10,7 @@ export * from './daemon-event';
 export type * from './daemon-paths';
 export * from './decode-cursor';
 export * from './encode-cursor';
+export * from './events-page';
 export * from './find-answer-schema';
 export * from './format-protocol-mismatch';
 export * from './is-client-behind';

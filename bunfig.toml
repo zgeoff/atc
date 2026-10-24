@@ -42,5 +42,6 @@ pathIgnorePatterns = ["mods/**"]
 preload = [
   "./packages/test-utils/src/isolate-home.ts",
   "./packages/test-utils/src/seed-faker.ts",
+  "./packages/mcp/src/testing/load-web-authn-early.ts",
   "@zgeoff/bun-test-extended",
 ]

@@ -1,14 +1,20 @@
 import { isRecord } from '@atc/core';
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
+import {
+  OAuthError,
+  OAuthErrorCode,
+  WebStandardStreamableHTTPServerTransport,
+  bearerAuthChallengeResponse,
+  isLegacyRequest,
+} from '@modelcontextprotocol/server';
+import type { AuthInfo } from '@modelcontextprotocol/server';
 import { isAPIError } from 'better-auth/api';
 import { deriveTokenHash } from '../auth/derive-token-hash';
 import { normalizeClientName } from '../auth/normalize-client-name';
 import { readClientName } from '../auth/read-client-name';
-import type { BearerReason, HTTPServerContext, Requester } from '../auth/types';
+import type { BearerReason, HTTPServerContext, Requester, VerifiedAccess } from '../auth/types';
 import { buildPrincipalCaller } from '../tools/build-principal-caller';
 import { createMCPServer } from '../tools/create-mcp-server';
 import { GRANT_SCOPES } from '../tools/grant-scope';
-import type { GrantScope } from '../tools/grant-scope';
 
 // `requester` is where the request came from, for its security events.
 export async function answerMCPRequest(
@@ -49,6 +55,30 @@ export async function answerMCPRequest(
     });
   }
 
+  const authInfo: AuthInfo = {
+    token,
+    clientId: access.clientID,
+    scopes: [...access.scopes],
+    resourceMetadataUrl: metadataURL,
+  };
+
+  const isLegacy = await isLegacyRequest(request);
+
+  if (!isLegacy) {
+    const method = await readRPCMethod(request);
+
+    // The SDK checks the scope of a tool call itself, and knows nothing of
+    // the event methods, each of which needs read.
+    if (!access.scopes.includes('read') && method?.startsWith('events/') === true) {
+      return bearerAuthChallengeResponse(
+        new OAuthError(OAuthErrorCode.InsufficientScope, 'Insufficient scope'),
+        { requiredScopes: ['read'], resourceMetadataUrl: metadataURL },
+      );
+    }
+
+    return ctx.modern.answer(request, access, authInfo);
+  }
+
   // Each request gets a server of its own, so the tools it lists and the
   // scopes it checks are the token's.
   const server = createMCPServer({
@@ -66,14 +96,7 @@ export async function answerMCPRequest(
   await server.connect(transport);
 
   try {
-    return await transport.handleRequest(request, {
-      authInfo: {
-        token,
-        clientId: access.clientID,
-        scopes: [...access.scopes],
-        resourceMetadataUrl: metadataURL,
-      },
-    });
+    return await transport.handleRequest(request, { authInfo });
   } finally {
     await server.close();
   }
@@ -87,12 +110,6 @@ function recordRefusedBearer(
   reason: BearerReason,
 ): void {
   ctx.security.record({ kind: 'bearer', outcome: 'rejected', reason, path, requester });
-}
-
-interface VerifiedAccess {
-  readonly clientID: string;
-  readonly clientName: string;
-  readonly scopes: readonly GrantScope[];
 }
 
 // An inactive, unknown, or revoked token, one bound to another resource, or
@@ -155,4 +172,20 @@ async function upsertGrantUse(ctx: HTTPServerContext, token: string): Promise<vo
     .values({ grant_id: grantID, last_used_at: now })
     .onConflict((conflict) => conflict.column('grant_id').doUpdateSet({ last_used_at: now }))
     .execute();
+}
+
+// The JSON-RPC method of a request, read from a copy of its body, so the
+// handler still reads the body itself.
+async function readRPCMethod(request: Request): Promise<string | null> {
+  const body = await request.clone().text();
+
+  let message: unknown;
+
+  try {
+    message = JSON.parse(body);
+  } catch {
+    return null;
+  }
+
+  return isRecord(message) && typeof message['method'] === 'string' ? message['method'] : null;
 }
