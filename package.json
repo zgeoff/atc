@@ -41,7 +41,7 @@
       "@xterm/addon-serialize": "0.14.0",
       "@xterm/headless": "6.0.0",
       "@zgeoff/bun-test-extended": "0.2.1",
-      "@zgeoff/format-codemod": "0.3.1",
+      "@zgeoff/format-codemod": "0.3.2",
       "@zgeoff/kysely-bun-sqlite": "0.3.0",
       "@zgeoff/oxlint-config": "0.6.3",
       "@zgeoff/skill-gate": "0.2.7",
