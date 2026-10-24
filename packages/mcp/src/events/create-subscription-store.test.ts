@@ -205,6 +205,33 @@ test('it refreshes a live subscription', async () => {
   ]);
 });
 
+test('it refuses a refresh whose new refresh time leaves the subscription expired', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.start(
+    {
+      id: 'sub_one',
+      client_id: 'client-one',
+      url: 'https://hooks.example.com/hook',
+      name: 'session.needs_input',
+      arguments: '{}',
+      secret: 'secret-one',
+      position: 'cursor-one',
+      refresh_before: '2026-10-24T12:00:00.000Z',
+      created_at: '2026-10-23T12:00:00.000Z',
+    },
+    Date.parse('2026-10-23T12:00:00.000Z'),
+  );
+
+  const refreshed = ctx.store.refresh(
+    'sub_one',
+    { secret: 'secret-two', refresh_before: '2026-10-23T13:00:00.000Z' },
+    Date.parse('2026-10-23T13:00:00.000Z'),
+  );
+
+  expect(refreshed).rejects.toThrow('outside the state its move ends in');
+});
+
 test('it refuses to refresh an expired subscription', async () => {
   const ctx = await setupTest();
 
