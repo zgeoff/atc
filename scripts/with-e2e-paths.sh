@@ -15,7 +15,7 @@ done
 [ "$#" -gt 0 ] && shift
 
 refuse() {
-  echo "with-e2e-paths: $1 is not an e2e test file or a supported option; pass e2e test files and -t, --bail, --rerun-each, --only, --todo, --randomize, --seed, --parallel, --reporter, or --reporter-outfile" >&2
+  echo "with-e2e-paths: $1 is not an e2e test file or a supported option; pass e2e test files and -t, --bail, --rerun-each, --only, --todo, --randomize, --seed, --parallel, --no-isolate, --reporter, or --reporter-outfile" >&2
   exit 2
 }
 
@@ -30,7 +30,7 @@ while [ "$#" -gt 0 ]; do
       options+=("$1" "$2")
       shift 2
       ;;
-    --test-name-pattern=* | --rerun-each=* | --reporter=* | --reporter-outfile=* | --seed=* | --parallel=* | --bail | --bail=* | --only | --todo | --randomize)
+    --test-name-pattern=* | --rerun-each=* | --reporter=* | --reporter-outfile=* | --seed=* | --parallel=* | --bail | --bail=* | --only | --todo | --randomize | --no-isolate)
       options+=("$1")
       shift
       ;;

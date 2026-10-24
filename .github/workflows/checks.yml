@@ -178,7 +178,7 @@ jobs:
           TMPDIR: /dev/shm
         run: |
           mapfile -t suites < <(find e2e -maxdepth 1 -name '*.test.ts' ! -name 'daemon-*' ! -name 'gateway-*' | sort)
-          bun run test:isolation bun run test:e2e --parallel=4 --randomize --reporter=junit \
+          bun run test:isolation bun run test:e2e --parallel=4 --no-isolate --randomize --reporter=junit \
             --reporter-outfile="$RUNNER_TEMP/test-times-e2e.xml" "${suites[@]}"
 
       # the per-test times of each run on main, which the weekly audit reads

@@ -72,13 +72,13 @@ pattern, so a lane suite never skips itself when the system is missing: it fails
 
 `test:e2e` is the `e2e` lane script: it gives each test the e2e lane limit of 15 s, so a test in
 `e2e/` takes no timeout of its own. The CI test job passes it every `e2e/` suite except the
-`e2e/daemon-*` and `e2e/gateway-*` ones, on 4 workers in random order. The smoke job passes it the
-`e2e/daemon-*` suites with `ATC_BIN` set to the compiled binary, and the `e2e/gateway-*` suites with
-`ATC_GATEWAY_BIN` set to the compiled gateway. With no `e2e/` test file it runs both of those sets.
-`test:related`, and so the pre-push hook, leaves `e2e/` out. It takes a few `bun test` options, such
-as `-t`, and refuses any other option, a filter, or a file outside `e2e/`, so it never runs the
-whole repo. On macOS, the smoke job first warms the `/usr/bin/git` shim, whose slow first run would
-otherwise land inside a daemon's first spawn.
+`e2e/daemon-*` and `e2e/gateway-*` ones, on 4 shared workers (`--no-isolate`) in random order. The
+smoke job passes it the `e2e/daemon-*` suites with `ATC_BIN` set to the compiled binary, and the
+`e2e/gateway-*` suites with `ATC_GATEWAY_BIN` set to the compiled gateway. With no `e2e/` test file
+it runs both of those sets. `test:related`, and so the pre-push hook, leaves `e2e/` out. It takes a
+few `bun test` options, such as `-t`, and refuses any other option, a filter, or a file outside
+`e2e/`, so it never runs the whole repo. On macOS, the smoke job first warms the `/usr/bin/git`
+shim, whose slow first run would otherwise land inside a daemon's first spawn.
 
 ## Shared workers
 

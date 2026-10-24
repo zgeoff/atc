@@ -104,6 +104,7 @@ test('it keeps the order and worker options of the CI e2e run', async () => {
       'echo',
       '--',
       '--parallel=4',
+      '--no-isolate',
       '--randomize',
       '--seed',
       '42',
@@ -114,7 +115,7 @@ test('it keeps the order and worker options of the CI e2e run', async () => {
 
   expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
     exitCode: 0,
-    stdout: '--parallel=4 --randomize --seed 42 e2e/tui-quit.test.ts\n',
+    stdout: '--parallel=4 --no-isolate --randomize --seed 42 e2e/tui-quit.test.ts\n',
   });
 });
 
@@ -134,6 +135,6 @@ test.each([
   expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
     exitCode: 2,
     stdout: '',
-    stderr: `with-e2e-paths: ${argument} is not an e2e test file or a supported option; pass e2e test files and -t, --bail, --rerun-each, --only, --todo, --randomize, --seed, --parallel, --reporter, or --reporter-outfile\n`,
+    stderr: `with-e2e-paths: ${argument} is not an e2e test file or a supported option; pass e2e test files and -t, --bail, --rerun-each, --only, --todo, --randomize, --seed, --parallel, --no-isolate, --reporter, or --reporter-outfile\n`,
   });
 });
