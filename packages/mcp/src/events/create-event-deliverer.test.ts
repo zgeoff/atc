@@ -676,6 +676,121 @@ test('it logs a delivery the endpoint refused', async () => {
   });
 });
 
+test('it gives events at one cursor on two daemons, under one subscription key, different eventIds', async () => {
+  const ctx = await setupTest();
+
+  const receiver = buildStubWebhookReceiver();
+
+  const subscription = {
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: 'cursor-one',
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  };
+
+  const laptop = buildStubFleetCaller({
+    answer: (request) =>
+      new Map<string, () => Promise<Readonly<Record<string, unknown>>>>([
+        [
+          'cursor-one',
+          () =>
+            Promise.resolve({
+              events: [
+                {
+                  cursor: 'cursor-two',
+                  at: 1,
+                  session: '6f1d2c3b-4a59-4e8f-9d0c-1b2a3c4d5e6f',
+                  name: null,
+                  kind: 'turn-done',
+                  detail: null,
+                },
+              ],
+              cursor: 'cursor-two',
+              more: false,
+            }),
+        ],
+      ]).get(String(request.params?.['cursor']))?.() ??
+      Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
+  });
+
+  const desktop = buildStubFleetCaller({
+    answer: (request) =>
+      new Map<string, () => Promise<Readonly<Record<string, unknown>>>>([
+        [
+          'cursor-one',
+          () =>
+            Promise.resolve({
+              events: [
+                {
+                  cursor: 'cursor-two',
+                  at: 1,
+                  session: 'a0b1c2d3-e4f5-4a6b-8c7d-9e0f1a2b3c4d',
+                  name: null,
+                  kind: 'turn-done',
+                  detail: null,
+                },
+              ],
+              cursor: 'cursor-two',
+              more: false,
+            }),
+        ],
+      ]).get(String(request.params?.['cursor']))?.() ??
+      Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
+  });
+
+  await ctx.db.insertInto('atc_event_subscription').values(subscription).execute();
+
+  const first = createEventDeliverer({
+    db: ctx.db,
+    caller: laptop,
+    send: receiver.send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
+    log: () => {},
+  });
+
+  registerTestCleanup(first.stop);
+
+  await first.start();
+
+  await waitFor(() => {
+    expect(receiver.received).toHaveLength(1);
+  });
+
+  first.stop();
+
+  await ctx.db.deleteFrom('atc_event_subscription').execute();
+  await ctx.db.insertInto('atc_event_subscription').values(subscription).execute();
+
+  const second = createEventDeliverer({
+    db: ctx.db,
+    caller: desktop,
+    send: receiver.send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
+    log: () => {},
+  });
+
+  registerTestCleanup(second.stop);
+
+  await second.start();
+
+  await waitFor(() => {
+    expect(receiver.received).toHaveLength(2);
+  });
+
+  const eventIDs = receiver.received.map(
+    (delivery) => z.object({ eventId: z.string() }).parse(JSON.parse(delivery.body)).eventId,
+  );
+
+  expect(eventIDs[1]).not.toBe(eventIDs[0]);
+});
+
 test('it gives an event a gateway replays under a new merged cursor the ids it had, from its origin', async () => {
   const ctx = await setupTest();
 
