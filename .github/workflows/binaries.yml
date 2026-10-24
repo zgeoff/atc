@@ -87,7 +87,9 @@ jobs:
           now() { perl -MTime::HiRes=time -e 'printf "%.0f", time*1000'; }
           for i in 1 2 3; do s=$(now); "$ATC_BIN" --version >/dev/null; echo "PROBE version run $i $(( $(now) - s ))ms"; done
           for i in 1 2; do s=$(now); bun -e 1; echo "PROBE bun -e run $i $(( $(now) - s ))ms"; done
-          for i in 1 2 3; do bun run test:e2e e2e/daemon-terminal.test.ts -t 'it attaches a client at the size' 2>&1 | grep -E 'PROBE|\((pass|fail)\)'; done
+          if [ "$RUNNER_OS" = macOS ]; then codesign -dv "$ATC_BIN" 2>&1 | sed 's/^/PROBE codesign /' || true; fi
+          for i in 1 2; do s=$(now); (cd packages/execution/local && bun -e "const {spawn}=require('bun-pty'); const p=spawn('/bin/echo',['hi'],{name:'xterm',cols:80,rows:24,cwd:'/',env:{}}); p.onExit(()=>process.exit(0))"); echo "PROBE node_modules pty run $i $(( $(now) - s ))ms"; done
+          for i in 1 2; do bun run test:e2e e2e/daemon-terminal.test.ts -t 'it attaches a client at the size' 2>&1 | grep -E 'PROBE|\((pass|fail)\)'; done
           bun run test:e2e e2e/daemon-*.test.ts
 
       # The checks workflow runs the provider tests on Linux alone, and these
