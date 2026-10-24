@@ -20,7 +20,7 @@ with the default 5 s timeout and no raised one.
 - `e2e/` holds a suite that drives atc from outside: it starts the CLI, the daemon, or the gateway
   as a process, through `runATC`, `startDaemonProcess`, `startMCPStdio`, `startTUIHarness`, or the
   gateway command. CI runs the `e2e/daemon-*` and `e2e/gateway-*` suites a second time against each
-  compiled binary, through `bun run test:e2e`.
+  compiled binary, through `bun run test:e2e` with those files.
 - `integration/` holds one flow across several packages that runs in the test's own process, with
   per-run fixtures and stand-ins such as `startTestDaemon`, `startStubAgentDaemon`, and
   `createStubExecutionProvider`. A test that starts none of atc's own processes goes here, never in
@@ -65,16 +65,28 @@ A lane suite runs one real system that the default run cannot reach. Its suffix 
 system, and [`bunfig.toml`](../../../bunfig.toml) leaves its files out of `bun run test` by pattern,
 so a lane suite never skips itself when the system is missing: it fails.
 
-| Suffix   | Real system                                                     | Script       | Test timeout              |
-| -------- | --------------------------------------------------------------- | ------------ | ------------------------- |
-| `.codex` | the Codex CLI's App Server, at the version `CODEX_VERSION` pins | `test:codex` | 5 s default (0.3 s on CI) |
+| Suffix   | Real system                                                     | Script       | Test timeout |
+| -------- | --------------------------------------------------------------- | ------------ | ------------ |
+| `.codex` | the Codex CLI's App Server, at the version `CODEX_VERSION` pins | `test:codex` | 5 s default  |
 
 `test:e2e` is the `e2e` lane script: it gives each test the e2e lane limit of 15 s. CI passes it the
 `e2e/daemon-*` suites with `ATC_BIN` set to the compiled binary, and the `e2e/gateway-*` suites with
 `ATC_GATEWAY_BIN` set to the compiled gateway. With no `e2e/` test file it runs both of those sets.
 It takes a few `bun test` options, such as `-t`, and refuses any other option, a filter, or a file
 outside `e2e/`, so it never runs the whole repo. On macOS, the smoke job first warms the
-`/usr/bin/git` shim, whose first run takes about 1.5 s inside a daemon's first spawn.
+`/usr/bin/git` shim, whose slow first run would otherwise land inside a daemon's first spawn.
+
+## Shared workers
+
+`bun run test` runs the files on 4 workers with `--no-isolate`, so each worker keeps one global
+scope and one module registry across every file it runs. Shared workers finish the suite sooner than
+isolated ones, with no higher memory peak. A file that leaves a timer, a handle, a global, a mock,
+or a module's state behind can break a later file in the same worker. The preload's resets after
+each test are the contract; when a later file fails from state an earlier one left, fix the file
+that leaks, never turn isolation back on. CI runs the suite with `--randomize`, so a leak that
+depends on file order fails there rather than waiting for an unlucky order.
+
+`TEST_WORKERS` sets the worker count, with 4 when it is unset.
 
 ## The PTY harness
 
