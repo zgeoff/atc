@@ -11,6 +11,21 @@ description:
 The shared testing skill holds every rule. This skill holds only the facts of atc's own harness that
 a test author needs to follow those rules here.
 
+## Where a suite lives
+
+Beside the unit tests in each package's `src/`, two root folders hold the suites that cross
+packages. `bun run test` runs both in the one parallel run, so both follow every unit test rule,
+with the default 5 s timeout and no raised one.
+
+- `e2e/` holds a suite that drives atc from outside: it starts the CLI, the daemon, or the gateway
+  as a process, through `runATC`, `startDaemonProcess`, `startTUIHarness`, or the gateway command.
+  CI runs the `e2e/daemon-*` and `e2e/gateway-*` suites a second time against each compiled binary,
+  through `bun run test:binary` and `bun run test:gateway-binary`.
+- `integration/` holds one flow across several packages that runs in the test's own process, with
+  per-run fixtures and stand-ins such as `startTestDaemon`, `startStubAgentDaemon`, and
+  `createStubExecutionProvider`. A test that starts none of atc's own processes goes here, never in
+  `e2e/`.
+
 ## The test home
 
 Every test run gets its own home, so no test reads or writes your real config, state, sockets, agent

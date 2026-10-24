@@ -43,7 +43,8 @@ packages/
   config/ core/ lifecycle/ protocol/ store/
                  the shared layers; each package.json describes its own
   test-utils/    the generic test helpers, stand-ins, factories, and the test preload
-e2e/             end-to-end suites
+e2e/             the end-to-end suites, which start atc or the gateway as a process
+integration/     the flows across packages that run in process, under the unit test rules
 mods/atc-bridge/ the Claude Code mod
 bin/atc          the dev shim that runs the CLI from a checkout
 scripts/         the repo tooling and the checks
