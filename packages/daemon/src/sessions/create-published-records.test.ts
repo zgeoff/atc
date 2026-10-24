@@ -14,7 +14,7 @@ import { $ } from 'bun';
 import { z } from 'zod';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { runLocalCommand } from '../testing/run-local-command';
-import { PLACE_COPY, createPublishedRecords } from './create-published-records';
+import { PLACE_COPY_SCRIPT, createPublishedRecords } from './create-published-records';
 
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-records-' });
@@ -872,7 +872,7 @@ test("it places a remote copy in the records folder of the host's guest folder",
     null,
   );
 
-  const placed = provider.commands.find((command) => command.argv[2] === PLACE_COPY);
+  const placed = provider.commands.find((command) => command.argv[2] === PLACE_COPY_SCRIPT);
 
   expect(placed?.argv.slice(3, 6)).toStrictEqual([
     'sh',

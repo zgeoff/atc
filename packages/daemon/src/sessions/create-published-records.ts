@@ -53,15 +53,15 @@ const EMPTY_SCOPE: CheckedScope = { worktrees: [], branches: [], pullRequests: [
 
 // Writes a record copy into a directory on a remote host: the content to a
 // staged file, made read-only, then renamed over the copy.
-export const PLACE_COPY =
+export const PLACE_COPY_SCRIPT =
   'umask 022 && mkdir -p "$1" && printf "%s" "$4" > "$1/$3" && chmod 0444 "$1/$3" && mv -f "$1/$3" "$1/$2"';
 
-// The exit code of REFRESH_COPY when the directory holds no copy to refresh.
+// The exit code of REFRESH_COPY_SCRIPT when the directory holds no copy to refresh.
 const NO_COPY_CODE = 3;
 
-// Writes a record copy as PLACE_COPY does, but only over a copy already in
+// Writes a record copy as PLACE_COPY_SCRIPT does, but only over a copy already in
 // place, and exits NO_COPY_CODE when there is none.
-export const REFRESH_COPY = `[ -e "$1/$2" ] || exit ${NO_COPY_CODE}; ${PLACE_COPY}`;
+export const REFRESH_COPY_SCRIPT = `[ -e "$1/$2" ] || exit ${NO_COPY_CODE}; ${PLACE_COPY_SCRIPT}`;
 
 export interface PublishedRecords {
   // Checks a spawn's declared scope on its readied host, records it with
@@ -157,7 +157,16 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
     const directory = await readGuestDir(subject);
 
     const refreshed = await subject.provider.runCommand({
-      argv: ['sh', '-c', REFRESH_COPY, 'sh', directory, name, `.${name}.${randomUUID()}`, content],
+      argv: [
+        'sh',
+        '-c',
+        REFRESH_COPY_SCRIPT,
+        'sh',
+        directory,
+        name,
+        `.${name}.${randomUUID()}`,
+        content,
+      ],
       cwd: '/',
       host: subject.host,
     });
@@ -215,7 +224,16 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
     withoutGuestCopy.delete(subject.session);
 
     const placed = await subject.provider.runCommand({
-      argv: ['sh', '-c', PLACE_COPY, 'sh', directory, name, `.${name}.${randomUUID()}`, content],
+      argv: [
+        'sh',
+        '-c',
+        PLACE_COPY_SCRIPT,
+        'sh',
+        directory,
+        name,
+        `.${name}.${randomUUID()}`,
+        content,
+      ],
       cwd: '/',
       host: subject.host,
     });

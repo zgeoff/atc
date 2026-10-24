@@ -1,26 +1,15 @@
 // Runs shellcheck over the POSIX sh scripts that atc runs through `sh -c`,
 // mostly in a guest. lint:shell sees only tracked `.sh` files, so a script
 // held in a string would otherwise go unchecked.
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import {
-  ASKPASS_SCRIPT,
-  CLAIM_DIR_SCRIPT,
-  GUEST_CLONE_SCRIPT,
-  PLACE_COPY,
-  READ_PROJECT_SETTINGS_SCRIPT,
-  REFRESH_COPY,
-  REMOVE_DIR_SCRIPT,
-  RESOLVE_DIR_SCRIPT,
-  RESOLVE_HOME_SCRIPT,
-  RESOLVE_UNLINKED_DIR_SCRIPT,
-  VERIFY_SCRIPT,
-} from '@atc/daemon';
-import { ENTER_FROM_HOME_SCRIPT } from '@atc/execution-imp';
-import { buildClaudeGuestLaunch, buildScratchLaunch } from '@atc/harness-claude';
-import { buildCodexGuestLaunch } from '@atc/harness-codex';
+import { dirname, join, resolve } from 'node:path';
+import { DAEMON_GUEST_SCRIPTS } from '@atc/daemon/guest-scripts';
+import { IMP_GUEST_SCRIPTS } from '@atc/execution-imp/guest-scripts';
+import { buildClaudeGuestLaunch, buildScratchLaunch } from '@atc/harness-claude/guest-scripts';
+import { buildCodexGuestLaunch } from '@atc/harness-codex/guest-scripts';
 import invariant from 'tiny-invariant';
+import { readSourceFiles } from './read-source-files';
 
 async function main(): Promise<void> {
   if (Bun.which('shellcheck') === null) {
@@ -28,8 +17,26 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const root = join(import.meta.dir, '..');
+  const root = resolve(process.argv[2] ?? join(import.meta.dir, '..'));
+  const sources = readSourceFiles(root, 'packages').filter((file) => !TEST_FILE.test(file));
   const scripts = collectGuestScripts();
+
+  const uncovered = sources.flatMap((file) =>
+    collectExportedScripts(readFileSync(join(root, file), 'utf8'))
+      .filter((name) => !(name in scripts))
+      .map((name) => `${file} exports ${name}`),
+  );
+
+  for (const hit of uncovered) {
+    console.error(`unchecked script: ${hit}; re-export it from its package's guest-scripts entry`);
+  }
+
+  const scriptFiles = sources.flatMap((file) =>
+    collectTextImports(readFileSync(join(root, file), 'utf8')).map((specifier) =>
+      join(root, dirname(file), specifier),
+    ),
+  );
+
   const directory = mkdtempSync(join(tmpdir(), 'check-guest-scripts-'));
 
   try {
@@ -39,12 +46,10 @@ async function main(): Promise<void> {
       writeFileSync(join(directory, `${name}.sh`), script);
     }
 
-    const files = [
-      ...Object.keys(scripts).map((name) => join(directory, `${name}.sh`)),
-      ...SCRIPT_FILES.map((file) => join(root, file)),
-    ];
+    const files = [...Object.keys(scripts).map((name) => `${name}.sh`), ...new Set(scriptFiles)];
 
     const shellcheck = Bun.spawn(['shellcheck', '--norc', '--shell=sh', '--format=gcc', ...files], {
+      cwd: directory,
       stdout: 'pipe',
       stderr: 'inherit',
     });
@@ -56,15 +61,17 @@ async function main(): Promise<void> {
     const findings = output
       .split('\n')
       .filter((line) => line !== '')
-      .map((line) => line.replace(`${directory}/`, '').replace(`${root}/`, ''));
+      .map((line) => line.replace(`${root}/`, ''));
 
     for (const finding of findings) {
       console.error(finding);
     }
 
-    console.log(`check-guest-scripts: ${files.length} scripts, ${findings.length} findings`);
+    console.log(
+      `check-guest-scripts: ${files.length} scripts, ${findings.length} findings, ${uncovered.length} unchecked`,
+    );
 
-    if (exitCode !== 0) {
+    if (exitCode !== 0 || uncovered.length > 0) {
       process.exitCode = 1;
     }
   } finally {
@@ -72,33 +79,14 @@ async function main(): Promise<void> {
   }
 }
 
-// The imp provider's scripts, which it imports as text and runs through
-// `sh -c`.
-const SCRIPT_FILES = [
-  'packages/execution/imp/src/check-guest-atc.sh',
-  'packages/execution/imp/src/install-guest-atc.sh',
-  'packages/execution/imp/src/link-guest-atc.sh',
-  'packages/execution/imp/src/read-guest-atc.sh',
-  'packages/execution/imp/src/ready-guest-dir.sh',
-  'packages/execution/imp/src/unpack-archive.sh',
-];
+const TEST_FILE = /\.test\.[cm]?[jt]sx?$|\/testing\//u;
 
 // A script that a function builds is checked as built from fixed sample
 // inputs, which fill only its arguments and the variable names it unsets.
 function collectGuestScripts(): Record<string, string> {
   return {
-    ASKPASS_SCRIPT,
-    CLAIM_DIR_SCRIPT,
-    ENTER_FROM_HOME_SCRIPT,
-    GUEST_CLONE_SCRIPT,
-    PLACE_COPY,
-    READ_PROJECT_SETTINGS_SCRIPT,
-    REFRESH_COPY,
-    REMOVE_DIR_SCRIPT,
-    RESOLVE_DIR_SCRIPT,
-    RESOLVE_HOME_SCRIPT,
-    RESOLVE_UNLINKED_DIR_SCRIPT,
-    VERIFY_SCRIPT,
+    ...DAEMON_GUEST_SCRIPTS,
+    ...IMP_GUEST_SCRIPTS,
     buildClaudeGuestLaunch: getLaunchScript(
       buildClaudeGuestLaunch('/home/u/.atc/guest', ['claude', '--resume'], {
         refusedEnv: ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'],
@@ -121,6 +109,22 @@ function getLaunchScript(args: readonly string[]): string {
   invariant(flag === '-c' && script !== undefined, 'a launch runs sh -c with a script');
 
   return script;
+}
+
+// The names of the string constants a module exports as `*_SCRIPT`.
+function collectExportedScripts(source: string): string[] {
+  return [
+    ...source.matchAll(
+      /^export const (?<name>[A-Z][A-Z0-9_]*_SCRIPT)(?::\s*string)?\s*=\s*(?:String\.raw\s*)?[`'"]/gmu,
+    ),
+  ].map((match) => match.groups?.['name'] ?? '');
+}
+
+// The `.sh` files a module imports as text, relative to the module.
+function collectTextImports(source: string): string[] {
+  return [...source.matchAll(/from '(?<specifier>\.[^']*\.sh)' with \{ type: 'text' \}/gu)].map(
+    (match) => match.groups?.['specifier'] ?? '',
+  );
 }
 
 await main();
