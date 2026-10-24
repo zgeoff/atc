@@ -7,6 +7,24 @@ test('it plans one run of every file when nothing is skipped', () => {
   ]);
 });
 
+test('it runs the e2e files with one worker after the other files', () => {
+  expect(
+    planTestRuns(['e2e/daemon-tcp.test.ts', 'src/a.test.ts', 'e2e/fleet-restart.test.ts'], []),
+  ).toStrictEqual([
+    { args: ['src/a.test.ts'], skips: [] },
+    {
+      args: ['--parallel=1', 'e2e/daemon-tcp.test.ts', 'e2e/fleet-restart.test.ts'],
+      skips: [],
+    },
+  ]);
+});
+
+test('it plans only the one-worker run when every selected file is an e2e file', () => {
+  expect(planTestRuns(['e2e/daemon-tcp.test.ts'], [])).toStrictEqual([
+    { args: ['--parallel=1', 'e2e/daemon-tcp.test.ts'], skips: [] },
+  ]);
+});
+
 test('it ignores an entry for a file that is not selected', () => {
   expect(
     planTestRuns(

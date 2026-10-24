@@ -76,6 +76,10 @@ every listed test still runs there. When a test fails on your host and passes in
 and add an entry rather than skipping the hook's test job, and remove the entry when the issue's fix
 lands.
 
+`bun run test:related` runs the `e2e/` files in a run of their own with one worker. Each end-to-end
+test starts a daemon and its sessions from source, and two workers on a 2-CPU host stretch those
+start-ups past the per-test time limit.
+
 `bun run build:binaries` compiles the release binaries into `dist/`, and `bun run build:atc-bridge`
 regenerates the mod's embedded copy after a change to `mods/atc-bridge/`. `bun run demo:record`
 records `docs/assets/demo.gif` against an isolated daemon, and needs vhs, ttyd, ffmpeg, zoxide and a

@@ -11,7 +11,15 @@ export interface TestRun {
 
 export function planTestRuns(files: readonly string[], skips: readonly TestSkip[]): TestRun[] {
   const plain = files.filter((file) => !skips.some((skip) => skip.file === file));
-  const runs: TestRun[] = plain.length > 0 ? [{ args: [...plain], skips: [] }] : [];
+  const unit = plain.filter((file) => !file.startsWith('e2e/'));
+  const journeys = plain.filter((file) => file.startsWith('e2e/'));
+
+  // Each e2e test starts a daemon and its sessions from source, and two
+  // workers on a 2-CPU host stretch those start-ups past the 5 s test limit
+  const runs: TestRun[] = [
+    ...(unit.length > 0 ? [{ args: unit, skips: [] }] : []),
+    ...(journeys.length > 0 ? [{ args: ['--parallel=1', ...journeys], skips: [] }] : []),
+  ];
 
   for (const file of files) {
     const fileSkips = skips.filter((skip) => skip.file === file);
