@@ -167,7 +167,7 @@ jobs:
         env:
           TMPDIR: /dev/shm
         run:
-          bun run test:isolation bun run test --reporter=junit
+          bun run test:isolation bun run test --randomize --reporter=junit
           --reporter-outfile="$RUNNER_TEMP/test-times.xml"
 
       # the per-test times of each run on main, which the weekly audit reads
