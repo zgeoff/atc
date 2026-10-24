@@ -25,9 +25,6 @@ export interface SubscriptionStore {
     now: number,
   ) => Promise<boolean>;
   readonly advance: (subscriptionID: string, position: string, now: number) => Promise<boolean>;
-
-  // Removes the subscription only while it is still expired at `now`, so one
-  // that a subscribe renewed since the caller's read stays.
   readonly expire: (subscriptionID: string, now: number) => Promise<boolean>;
   readonly end: (subscriptionID: string) => Promise<boolean>;
 
