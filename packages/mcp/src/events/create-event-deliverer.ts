@@ -244,11 +244,12 @@ async function deliverEvent(
   }
 }
 
-// A gateway's merged cursor changes when another daemon's place moves, so an
-// event a gateway merged takes its identity from the daemon that wrote it.
+// Two daemons can hold events at one cursor, but each mints session ids at
+// random; a gateway's merged cursor moves with other daemons, so its origin
+// gives the daemon's own cursor.
 function formatEventSource(event: TrailPage['events'][number]): string {
   return event.origin === undefined
-    ? event.cursor
+    ? `${event.session}.${event.cursor}`
     : `${event.origin.daemon}.${event.origin.incarnation}.${event.origin.cursor}`;
 }
 
