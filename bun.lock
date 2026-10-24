@@ -443,7 +443,7 @@
     "@zgeoff/format-codemod": "0.3.1",
     "@zgeoff/kysely-bun-sqlite": "0.3.0",
     "@zgeoff/oxlint-config": "0.6.3",
-    "@zgeoff/skill-gate": "0.2.6",
+    "@zgeoff/skill-gate": "0.2.7",
     "@zgeoff/std": "0.3.0",
     "better-auth": "1.7.7",
     "bun-pty": "0.5.1",
@@ -990,7 +990,7 @@
 
     "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.6.3", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-EWPa1Sa5FsjINdolCRIXbzdlFur6wFQwSbtjm7wwl+TEyhNFFdOndzhQ/oBTCnGKOxqAXR2KnAgK224R/6JRdw=="],
 
-    "@zgeoff/skill-gate": ["@zgeoff/skill-gate@0.2.6", "", {}, "sha512-9ccggI/DFRZaSO1LBM4kOB1vk1AoutU65x79tBk7j15f+bNxCNxyMG+JPIVtpVHDx7EPlJiMrCX5NuMJBG+6SQ=="],
+    "@zgeoff/skill-gate": ["@zgeoff/skill-gate@0.2.7", "", {}, "sha512-sYtzVcU5BTRnG34kZtKAdQt08G/9UaZTLe1Ee/cHqviup6aaDBBc12T8l2+s72PsLBzm5/Ykldr5dx489Hcvnw=="],
 
     "@zgeoff/std": ["@zgeoff/std@0.3.0", "", {}, "sha512-I9LBwkMr8uuNCAQ9/tIoObp09b8ixnNDp1f85T9Mm1Ox10nWbVrbiqoWkf+hATCt4iyYxvYIVXl4eUFLwZaU/g=="],
 
