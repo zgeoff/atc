@@ -2,7 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { toSessionID } from '@atc/core';
-import { runShellcheck, setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/test-utils';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
@@ -11,8 +11,6 @@ import { buildStubStaleRelativeProvider } from '../testing/build-stub-stale-rela
 import {
   REMOVE_DIR_SCRIPT,
   RESOLVE_DIR_SCRIPT,
-  RESOLVE_HOME_SCRIPT,
-  RESOLVE_UNLINKED_DIR_SCRIPT,
   createHostDirClaims,
 } from './create-host-dir-claims';
 import { createSessionRegistry } from './create-session-registry';
@@ -34,17 +32,6 @@ function setupTest(config: SetupConfig) {
 
   return { registry, claims };
 }
-
-test.each([
-  ['resolves a host directory', RESOLVE_DIR_SCRIPT],
-  ['removes a host directory', REMOVE_DIR_SCRIPT],
-  ['resolves the host home', RESOLVE_HOME_SCRIPT],
-  ['resolves a host directory without a symlink in its missing parts', RESOLVE_UNLINKED_DIR_SCRIPT],
-])('it %s through a script that passes shellcheck', async (_label, script) => {
-  const result = await runShellcheck(script);
-
-  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
-});
 
 test('it refuses a workspace inside the directory of a session listed on the same host', () => {
   const ctx = setupTest({

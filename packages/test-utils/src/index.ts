@@ -87,7 +87,6 @@ export * from './run-command';
 export * from './run-mcp-authorization';
 export * from './run-passkey-enrollment';
 export * from './run-passkey-sign-in';
-export * from './run-shellcheck';
 export * from './send-lines-before-handshake';
 export * from './send-mcp-request';
 export * from './setup-temp-dir';

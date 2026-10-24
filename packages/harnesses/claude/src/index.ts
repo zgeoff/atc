@@ -1,10 +1,12 @@
 export * from './build-claude-plugin';
+export { buildScratchLaunch } from './build-scratch-launch';
 export type * from './claude-adapter-options';
 export type * from './claude-host-paths';
 export * from './config/collect-claude-auth';
 export * from './config/collect-gateways';
 export * from './create-claude-adapter';
 export * from './gateway/create-gateway-adapter';
+export { buildClaudeGuestLaunch } from './guest/build-claude-guest-launch';
 export * from './headless/make-claude-headless-runner';
 export * from './headless/start-claude-headless-run';
 export * from './parse-claude-transcript-line';

@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand, runShellcheck, setupTempDir } from '@atc/test-utils';
-import invariant from 'tiny-invariant';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 import { buildClaudeGuestLaunch } from './build-claude-guest-launch';
 
 // The guest folder a launch stages its bundle under and runs in.
@@ -297,21 +296,4 @@ test("it adds the outside-read offer's seen mark to an empty config an earlier r
 
   expect(run.exitCode).toBe(0);
   expect(merged).toStrictEqual({ hasSeenAutoModeOutsideReadPrompt: true });
-});
-
-test('it builds a launch script that passes shellcheck', async () => {
-  const launch = buildClaudeGuestLaunch('/home/u/.atc/guest', ['claude', '--resume'], {
-    refusedEnv: ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'],
-    bundleKey: 'k1',
-    unsetEnv: ['CODEX_API_KEY', 'OPENAI_API_KEY'],
-  });
-
-  const [flag, script] = launch.args;
-
-  invariant(script !== undefined);
-
-  const result = await runShellcheck(script);
-
-  expect(flag).toBe('-c');
-  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });

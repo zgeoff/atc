@@ -77,6 +77,7 @@
     "check:bundle": "bun scripts/check-bundle.ts",
     "check:imports": "bun scripts/check-imports.ts",
     "check:disable-baseline": "bun scripts/check-disable-baseline.ts",
+    "check:guest-scripts": "bun scripts/check-guest-scripts.ts",
     "check:manifests": "bun scripts/check-manifests.ts",
     "check:raw-escapes": "bun scripts/check-raw-escapes.ts",
     "check:reach": "bun scripts/check-reach.ts",
