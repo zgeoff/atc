@@ -90,7 +90,7 @@ jobs:
           if [ "$RUNNER_OS" = macOS ]; then codesign -dv "$ATC_BIN" 2>&1 | sed 's/^/PROBE codesign /' || true; fi
           for i in 1 2; do s=$(now); (cd packages/execution/local && bun -e "const {spawn}=require('bun-pty'); const p=spawn('/bin/echo',['hi'],{name:'xterm',cols:80,rows:24,cwd:'/',env:{}}); p.onExit(()=>process.exit(0))"); echo "PROBE node_modules pty run $i $(( $(now) - s ))ms"; done
           one() { bun run test:e2e e2e/daemon-terminal.test.ts -t 'it attaches a client at the size' 2>&1 | grep -E 'PROBE (spawn|attach)|\((pass|fail)\)'; }
-          t() { s=$(now); "$@" >/dev/null 2>&1; echo "PROBE cmd $* $(( $(now) - s ))ms"; }
+          t() { s=$(now); "$@" >/dev/null 2>&1 || true; echo "PROBE cmd $* $(( $(now) - s ))ms"; }
           echo "PROBE which git $(command -v git) sh $(command -v sh) bash $(command -v bash)"
           t git -C "$HOME" rev-parse --show-toplevel; t git -C "$HOME" rev-parse --show-toplevel
           t /usr/bin/git --version; t /usr/bin/git --version
