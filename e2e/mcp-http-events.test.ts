@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/testing';
 import {
@@ -9,6 +9,7 @@ import {
 } from '@atc/mcp';
 import type { WebhookSender } from '@atc/mcp';
 import { buildStubWebhookReceiver } from '@atc/mcp/testing';
+import type { AgentAdapter } from '@atc/plugin-api';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -30,13 +31,11 @@ import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database'
 // The subscriber's endpoint is the receiver each test passes, because a test
 // cannot reach an endpoint across the internet.
 async function setupTest() {
+  const planHookEvents = mock<AgentAdapter['planHookEvents']>();
+
   const daemon = await startTestDaemon({
     prefix: 'atc-mcp-http-events-',
-    options: () => ({
-      adapter: buildMockAgentAdapter({
-        planHookEvents: () => ({ events: [{ kind: 'turn-done' }] }),
-      }),
-    }),
+    options: () => ({ adapter: buildMockAgentAdapter({ planHookEvents }) }),
   });
 
   const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
@@ -74,11 +73,13 @@ async function setupTest() {
     return { server, store };
   };
 
-  return { daemon, clock, directory: daemon.directory, startServer };
+  return { daemon, planHookEvents, clock, directory: daemon.directory, startServer };
 }
 
 test('it lets a subscriber that lost a notification find its event by reading the trail from its saved cursor', async () => {
   const ctx = await setupTest();
+
+  ctx.planHookEvents.mockReturnValue({ events: [{ kind: 'turn-done' }] });
 
   const receiver = buildStubWebhookReceiver();
   const authenticator = buildStubAuthenticator();
@@ -166,6 +167,8 @@ test('it lets a subscriber that lost a notification find its event by reading th
 
 test('it repeats a notification whose answer was lost with its eventId, after which the trail holds no new work', async () => {
   const ctx = await setupTest();
+
+  ctx.planHookEvents.mockReturnValue({ events: [{ kind: 'turn-done' }] });
 
   const receiver = buildStubWebhookReceiver({ answers: [{ failure: 'timeout' }] });
   const authenticator = buildStubAuthenticator();
