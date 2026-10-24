@@ -22,14 +22,9 @@ function setupTest() {
   };
 }
 
-// These tests run the installed Codex CLI, whose App Server API changes between
-// releases: CI's Test Codex Bridge step runs them on the build CODEX_VERSION pins,
-// and a machine without one skips them (Bun 1.4.2's skipIf takes only a boolean).
-const codexMissing = Bun.which('codex') === null;
-
 // The Codex version the CI job pins beside the Claude Code pin is unset on a
 // local run, where no pin names the installed build.
-const codexUnpinned = codexMissing || process.env['CODEX_VERSION'] === undefined;
+const codexUnpinned = process.env['CODEX_VERSION'] === undefined;
 
 test.skipIf(codexUnpinned)('it matches the installed Codex to the pinned version', async () => {
   const codexOnPath = Bun.which('codex');
@@ -45,7 +40,7 @@ test.skipIf(codexUnpinned)('it matches the installed Codex to the pinned version
   expect(printed.trim()).toBe(`codex-cli ${pinnedCodexVersion}`);
 });
 
-test.skipIf(codexMissing)('it starts a thread on the installed Codex App Server', async () => {
+test('it starts a thread on the installed Codex App Server', async () => {
   const ctx = setupTest();
   const codexOnPath = Bun.which('codex');
 
@@ -74,56 +69,53 @@ test.skipIf(codexMissing)('it starts a thread on the installed Codex App Server'
   );
 });
 
-test.skipIf(codexMissing)(
-  'it resumes on the installed Codex App Server the thread an earlier bridge started',
-  async () => {
-    const ctx = setupTest();
-    const codexOnPath = Bun.which('codex');
+test('it resumes on the installed Codex App Server the thread an earlier bridge started', async () => {
+  const ctx = setupTest();
+  const codexOnPath = Bun.which('codex');
 
-    invariant(typeof codexOnPath === 'string', 'no codex on PATH');
+  invariant(typeof codexOnPath === 'string', 'no codex on PATH');
 
-    const first = await startCodexAppServerBridge(
-      {
-        session: toSessionID('s-real'),
-        cwd: ctx.directory,
-        env: { CODEX_HOME: ctx.codexHome },
-        withheldEnv: [],
-        options: { prompt: '', resume: false },
-        directory: ctx.bridgeDir,
-        host: buildStubMessageBridgeHost().host,
-      },
-      {
-        bin: codexOnPath,
-        planTerminal: (remote, thread) => ({ bin: codexOnPath, args: [remote, thread] }),
-      },
-    );
+  const first = await startCodexAppServerBridge(
+    {
+      session: toSessionID('s-real'),
+      cwd: ctx.directory,
+      env: { CODEX_HOME: ctx.codexHome },
+      withheldEnv: [],
+      options: { prompt: '', resume: false },
+      directory: ctx.bridgeDir,
+      host: buildStubMessageBridgeHost().host,
+    },
+    {
+      bin: codexOnPath,
+      planTerminal: (remote, thread) => ({ bin: codexOnPath, args: [remote, thread] }),
+    },
+  );
 
-    registerTestCleanup(() => first.stop());
+  registerTestCleanup(() => first.stop());
 
-    const [, thread] = first.plan.args;
+  const [, thread] = first.plan.args;
 
-    invariant(typeof thread === 'string');
+  invariant(typeof thread === 'string');
 
-    await first.stop();
+  await first.stop();
 
-    const second = await startCodexAppServerBridge(
-      {
-        session: toSessionID('s-real'),
-        cwd: ctx.directory,
-        env: { CODEX_HOME: ctx.codexHome },
-        withheldEnv: [],
-        options: { prompt: '', resume: toAgentSessionID(thread) },
-        directory: ctx.bridgeDir,
-        host: buildStubMessageBridgeHost().host,
-      },
-      {
-        bin: codexOnPath,
-        planTerminal: (remote, resuming) => ({ bin: codexOnPath, args: [remote, resuming] }),
-      },
-    );
+  const second = await startCodexAppServerBridge(
+    {
+      session: toSessionID('s-real'),
+      cwd: ctx.directory,
+      env: { CODEX_HOME: ctx.codexHome },
+      withheldEnv: [],
+      options: { prompt: '', resume: toAgentSessionID(thread) },
+      directory: ctx.bridgeDir,
+      host: buildStubMessageBridgeHost().host,
+    },
+    {
+      bin: codexOnPath,
+      planTerminal: (remote, resuming) => ({ bin: codexOnPath, args: [remote, resuming] }),
+    },
+  );
 
-    registerTestCleanup(() => second.stop());
+  registerTestCleanup(() => second.stop());
 
-    expect(second.plan.args[1]).toBe(thread);
-  },
-);
+  expect(second.plan.args[1]).toBe(thread);
+});

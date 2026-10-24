@@ -44,6 +44,16 @@ home a preload sets never reaches a test's subprocesses.
 - The Claude config lock's test runs against `proper-lockfile`, the lock library Claude Code
   bundles, because no test runs Claude itself.
 
+## Lanes
+
+A lane suite runs one real system that the default run cannot reach. Its suffix identifies that
+system, and [`bunfig.toml`](../../../bunfig.toml) leaves its files out of `bun run test` by pattern,
+so a lane suite never skips itself when the system is missing: it fails.
+
+| Suffix   | Real system                                                     | Script       | Test timeout              |
+| -------- | --------------------------------------------------------------- | ------------ | ------------------------- |
+| `.codex` | the Codex CLI's App Server, at the version `CODEX_VERSION` pins | `test:codex` | 5 s default (0.3 s on CI) |
+
 ## The PTY harness
 
 [`startTUIHarness`](../../../packages/test-utils/src/start-tui-harness.ts) runs the real `atc`

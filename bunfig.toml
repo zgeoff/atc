@@ -32,8 +32,10 @@ minimumReleaseAgeExcludes = [
 
 [test]
 # the atc-bridge mod's tests run on Claude Code's engine through
-# `bun run test:atc-bridge`, never under bun test
-pathIgnorePatterns = ["mods/**"]
+# `bun run test:atc-bridge`, never under bun test, and a `.codex.test.ts` suite
+# runs the installed Codex CLI only in `bun run test:codex`, which replaces this
+# list with one that keeps `mods/**`
+pathIgnorePatterns = ["mods/**", "**/*.codex.test.ts"]
 
 # isolates every test run from the real home and runtime directories, seeds
 # faker once, then registers jest-extended matchers for `bun test`
