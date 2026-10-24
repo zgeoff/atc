@@ -1,6 +1,6 @@
-import type { SessionID } from '@atc/core';
-import type { DeclaredScope, PublishedRecord } from '@atc/protocol';
+import type { DeclaredScope } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
+import type { PublishedRecord, SessionID } from '@atcx/contract';
 import { buildRecordSubject } from './build-record-subject';
 import type { PublishedRecords } from './create-published-records';
 import type { SessionRegistry } from './create-session-registry';

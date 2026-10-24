@@ -1,5 +1,5 @@
-import type { SessionID } from '@atc/core';
-import { toSessionID } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
+import { toSessionID } from '@atcx/contract';
 import type { Kysely } from 'kysely';
 import { parseWithheldEnv } from './parse-withheld-env';
 import type { StateStoreSchema } from './sqlite/state-store-schema';

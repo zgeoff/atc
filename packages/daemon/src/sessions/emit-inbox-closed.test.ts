@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { toSessionID } from '@atcx/contract';
 import type { TapClient } from '../daemon-context';
 import { emitInboxClosed } from './emit-inbox-closed';
 

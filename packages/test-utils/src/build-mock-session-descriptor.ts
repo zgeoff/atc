@@ -1,5 +1,5 @@
-import { toDaemonID, toSessionID } from '@atc/core';
-import type { SessionDescriptor } from '@atc/protocol';
+import { toDaemonID, toSessionID } from '@atcx/contract';
+import type { SessionDescriptor } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
 import type { MockOverrides } from './mock-overrides';

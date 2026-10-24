@@ -1,4 +1,4 @@
-import { DAEMON_EVENT_SCHEMA } from '@atc/protocol';
+import { DAEMON_EVENT_SCHEMA } from '@atcx/contract';
 
 // An event as a client received it, before its contract parsed it.
 interface ReceivedEvent {

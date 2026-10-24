@@ -1,4 +1,4 @@
-import type { SessionLifecycle } from '@atc/protocol';
+import type { SessionLifecycle } from '@atcx/contract';
 
 type SessionState = 'running' | 'needs_you' | 'done' | 'exited';
 

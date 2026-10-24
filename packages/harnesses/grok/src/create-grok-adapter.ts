@@ -1,6 +1,6 @@
 import type { AgentEntry } from '@atc/config';
 import { resolveAgentHome } from '@atc/config/host';
-import type { AgentID, AgentSessionID } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import { toShellArg } from '@atc/core';
 import type {
   AgentAdapter,
@@ -9,7 +9,7 @@ import type {
   TerminalInputModes,
 } from '@atc/plugin-api';
 import { planPastedLineInput } from '@atc/plugin-api';
-import type { SpawnOptionSpec } from '@atc/protocol';
+import type { AgentSessionID, SpawnOptionSpec } from '@atcx/contract';
 import { loadGrokName } from './load-grok-name';
 import { planGrokHookEvents } from './plan-grok-hook-events';
 

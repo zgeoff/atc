@@ -1,7 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { isRecord, toMessageID, toSessionID } from '@atc/core';
+import { isRecord } from '@atc/core';
 import { createClaudeAdapter } from '@atc/harness-claude';
-import type { DaemonEvent } from '@atc/protocol';
 import { createStateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
@@ -13,6 +12,8 @@ import {
   startStubTap,
   waitFor,
 } from '@atc/test-utils';
+import { toMessageID, toSessionID } from '@atcx/contract';
+import type { DaemonEvent } from '@atcx/contract';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest(

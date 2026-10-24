@@ -1,5 +1,6 @@
-import type { Clock, SessionID } from '@atc/core';
+import type { Clock } from '@atc/core';
 import type { StateStore } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 import type { SessionManager } from '../sessions/create-session-manager';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
 import { restoreFleet } from './restore-fleet';

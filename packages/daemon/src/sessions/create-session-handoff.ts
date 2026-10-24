@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { SessionManager } from './create-session-manager';

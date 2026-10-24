@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { existsSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
-import { toSessionID } from '@atc/core';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
@@ -19,6 +18,7 @@ import {
   updateEnv,
   waitFor,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 

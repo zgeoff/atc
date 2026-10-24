@@ -1,7 +1,7 @@
-import type { AgentSessionID, MessageID, SessionID } from '@atc/core';
-import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
-import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
-import type { MessageSender } from '@atc/protocol/wire';
+import type { AgentSessionID, MessageID, SessionID } from '@atcx/contract';
+import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
+import { MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
+import type { MessageSender } from '@atcx/contract/light';
 import { sql } from 'kysely';
 import type { Expression, ExpressionBuilder, Kysely, SqlBool } from 'kysely';
 import { getMessageSources } from './get-message-sources';

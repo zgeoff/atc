@@ -1,6 +1,5 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
 import {
@@ -9,6 +8,7 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';

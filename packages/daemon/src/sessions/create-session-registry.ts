@@ -1,11 +1,12 @@
 import type { TargetConfigError } from '@atc/config';
 import { LOCAL_TARGET } from '@atc/config';
-import type { AgentID, SessionID } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import type { AgentAdapter, ExecutionCapability, ExecutionProvider } from '@atc/plugin-api';
 import type { SessionState } from '@atc/protocol';
 import { countSessionStates, sortSessionViews } from '@atc/protocol';
 import type { DaemonError } from '@atc/protocol/wire';
 import { buildTargetIdentity } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { findExecutionRefusal } from '../fleet/find-execution-refusal';
 import type { Session } from './session';

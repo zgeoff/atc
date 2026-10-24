@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import { updateEnv } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { buildHeadlessEnv } from './build-headless-env';
 
 test('it loads the mod and names the session and socket for a session run', () => {

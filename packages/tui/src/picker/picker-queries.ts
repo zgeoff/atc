@@ -1,5 +1,5 @@
 import { isGitURL, isPathInput } from '@atc/core';
-import type { GitRef, SourceEntry } from '@atc/protocol';
+import type { GitRef, SourceEntry } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import type { TargetPick } from '../collect-target-picks';
 import { pickMatches } from '../dirs';

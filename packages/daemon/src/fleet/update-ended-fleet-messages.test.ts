@@ -1,11 +1,11 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { toAgentSessionID, toSessionID } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import { createStateStore } from '@atc/store';
 import type { MessageOwner } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { createMigratedStateDB, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import { updateEndedFleetMessages } from './update-ended-fleet-messages';
 
 async function setupTest() {

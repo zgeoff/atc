@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
 import type { SessionManager } from './create-session-manager';
 
 // The sessions the check reads, with their agents and hosts.

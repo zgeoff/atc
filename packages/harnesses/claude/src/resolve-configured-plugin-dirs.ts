@@ -1,5 +1,5 @@
-import { resolveHomeDir } from '@atc/config/host';
 import { normalizePluginDir } from '@atc/plugin-api';
+import { resolveHomeDir } from '@atcx/contract/light';
 
 export function resolveConfiguredPluginDirs(
   dirs: readonly string[] | undefined,

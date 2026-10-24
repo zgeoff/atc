@@ -1,5 +1,5 @@
 import { userInfo } from 'node:os';
-import { resolveStateDir } from '@atc/config/host';
+import { resolveStateDir } from '@atcx/contract/light';
 import { isDaemonCommandLine } from './is-daemon-command-line';
 import { readProcProcess } from './read-proc-process';
 

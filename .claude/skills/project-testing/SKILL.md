@@ -22,9 +22,10 @@ The [`isolate-home`](../../../packages/test-utils/src/isolate-home.ts) preload s
 `bun test` before any test runs: Bun hands a spawned child the environment it started with, so a
 home a preload sets never reaches a test's subprocesses.
 
-- Derive a home path from [`resolveHomeDir`](../../../packages/config/src/host/resolve-home-dir.ts),
-  never `os.homedir()`: Bun reads `HOME` for `os.homedir()` once at startup, so a home set after
-  startup never moves it.
+- Derive a home path from
+  [`resolveHomeDir`](../../../packages/contract/src/light/resolve-home-dir.ts), never
+  `os.homedir()`: Bun reads `HOME` for `os.homedir()` once at startup, so a home set after startup
+  never moves it.
 - Change an environment variable through
   [`updateEnv`](../../../packages/test-utils/src/update-env.ts), never by assigning or deleting
   `process.env` keys. It records the value from before the test's first change, and the isolate-home

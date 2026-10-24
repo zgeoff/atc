@@ -1,4 +1,4 @@
-import type { MessageID, SessionID } from '@atc/core';
+import type { MessageID, SessionID } from '@atcx/contract';
 
 interface TapEntry<TClient> {
   readonly client: TClient;

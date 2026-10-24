@@ -1,0 +1,3313 @@
+// agent-list.d.ts
+import { z } from 'zod';
+export declare const AGENT_ENTRY_SCHEMA: z.ZodObject<{
+    id: z.ZodString;
+    label: z.ZodString;
+    kind: z.ZodString;
+    installed: z.ZodBoolean;
+    brokerAuth: z.ZodBoolean;
+    brokerRequired: z.ZodBoolean;
+    spawnTargets: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+    capabilities: z.ZodObject<{
+        spawn: z.ZodBoolean;
+        readTranscript: z.ZodBoolean;
+        message: z.ZodBoolean;
+        attach: z.ZodBoolean;
+        screen: z.ZodBoolean;
+        input: z.ZodBoolean;
+    }, z.core.$strip>;
+    models: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodString>>;
+    spawnOptions: z.ZodObject<{
+        model: z.ZodObject<{
+            supported: z.ZodBoolean;
+            values: z.ZodNullable<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+            examples: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                value: z.ZodString;
+                resolvesTo: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>>>;
+            default: z.ZodNullable<z.ZodString>;
+            backendEffect: z.ZodNullable<z.ZodEnum<{
+                applied: "applied";
+                unverified: "unverified";
+            }>>;
+            note: z.ZodNullable<z.ZodString>;
+            available: z.ZodBoolean;
+        }, z.core.$strip>;
+        effort: z.ZodObject<{
+            supported: z.ZodBoolean;
+            values: z.ZodNullable<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+            examples: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                value: z.ZodString;
+                resolvesTo: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>>>;
+            default: z.ZodNullable<z.ZodString>;
+            backendEffect: z.ZodNullable<z.ZodEnum<{
+                applied: "applied";
+                unverified: "unverified";
+            }>>;
+            note: z.ZodNullable<z.ZodString>;
+            available: z.ZodBoolean;
+        }, z.core.$strip>;
+        pluginDirs: z.ZodObject<{
+            supported: z.ZodBoolean;
+            values: z.ZodNullable<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+            examples: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                value: z.ZodString;
+                resolvesTo: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>>>;
+            default: z.ZodNullable<z.ZodString>;
+            backendEffect: z.ZodNullable<z.ZodEnum<{
+                applied: "applied";
+                unverified: "unverified";
+            }>>;
+            note: z.ZodNullable<z.ZodString>;
+            available: z.ZodBoolean;
+        }, z.core.$strip>;
+    }, z.core.$strip>;
+}, z.core.$strip>;
+export type AgentEntry = z.output<typeof AGENT_ENTRY_SCHEMA>;
+declare const TARGET_ENTRY_SCHEMA: z.ZodObject<{
+    id: z.ZodString;
+    provider: z.ZodString;
+    identity: z.ZodString;
+    available: z.ZodBoolean;
+    remote: z.ZodBoolean;
+    default: z.ZodBoolean;
+    capabilities: z.ZodObject<{
+        spawn: z.ZodBoolean;
+        attach: z.ZodBoolean;
+        input: z.ZodBoolean;
+        resize: z.ZodBoolean;
+        kill: z.ZodBoolean;
+        transfer: z.ZodBoolean;
+        run: z.ZodBoolean;
+        headless: z.ZodBoolean;
+        suspend: z.ZodBoolean;
+        destroy: z.ZodBoolean;
+    }, z.core.$strip>;
+    brokerAuth: z.ZodBoolean;
+}, z.core.$strip>;
+export type TargetEntry = z.output<typeof TARGET_ENTRY_SCHEMA>;
+export declare const AGENT_LIST_SCHEMA: z.ZodObject<{
+    daemon: z.ZodObject<{
+        hostname: z.ZodString;
+        platform: z.ZodString;
+        arch: z.ZodString;
+        build: z.ZodString;
+    }, z.core.$strip>;
+    agents: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        label: z.ZodString;
+        kind: z.ZodString;
+        installed: z.ZodBoolean;
+        brokerAuth: z.ZodBoolean;
+        brokerRequired: z.ZodBoolean;
+        spawnTargets: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+        capabilities: z.ZodObject<{
+            spawn: z.ZodBoolean;
+            readTranscript: z.ZodBoolean;
+            message: z.ZodBoolean;
+            attach: z.ZodBoolean;
+            screen: z.ZodBoolean;
+            input: z.ZodBoolean;
+        }, z.core.$strip>;
+        models: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodString>>;
+        spawnOptions: z.ZodObject<{
+            model: z.ZodObject<{
+                supported: z.ZodBoolean;
+                values: z.ZodNullable<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                examples: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                    value: z.ZodString;
+                    resolvesTo: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>>;
+                default: z.ZodNullable<z.ZodString>;
+                backendEffect: z.ZodNullable<z.ZodEnum<{
+                    applied: "applied";
+                    unverified: "unverified";
+                }>>;
+                note: z.ZodNullable<z.ZodString>;
+                available: z.ZodBoolean;
+            }, z.core.$strip>;
+            effort: z.ZodObject<{
+                supported: z.ZodBoolean;
+                values: z.ZodNullable<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                examples: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                    value: z.ZodString;
+                    resolvesTo: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>>;
+                default: z.ZodNullable<z.ZodString>;
+                backendEffect: z.ZodNullable<z.ZodEnum<{
+                    applied: "applied";
+                    unverified: "unverified";
+                }>>;
+                note: z.ZodNullable<z.ZodString>;
+                available: z.ZodBoolean;
+            }, z.core.$strip>;
+            pluginDirs: z.ZodObject<{
+                supported: z.ZodBoolean;
+                values: z.ZodNullable<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                examples: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                    value: z.ZodString;
+                    resolvesTo: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>>;
+                default: z.ZodNullable<z.ZodString>;
+                backendEffect: z.ZodNullable<z.ZodEnum<{
+                    applied: "applied";
+                    unverified: "unverified";
+                }>>;
+                note: z.ZodNullable<z.ZodString>;
+                available: z.ZodBoolean;
+            }, z.core.$strip>;
+        }, z.core.$strip>;
+    }, z.core.$strip>>>;
+    targets: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        provider: z.ZodString;
+        identity: z.ZodString;
+        available: z.ZodBoolean;
+        remote: z.ZodBoolean;
+        default: z.ZodBoolean;
+        capabilities: z.ZodObject<{
+            spawn: z.ZodBoolean;
+            attach: z.ZodBoolean;
+            input: z.ZodBoolean;
+            resize: z.ZodBoolean;
+            kill: z.ZodBoolean;
+            transfer: z.ZodBoolean;
+            run: z.ZodBoolean;
+            headless: z.ZodBoolean;
+            suspend: z.ZodBoolean;
+            destroy: z.ZodBoolean;
+        }, z.core.$strip>;
+        brokerAuth: z.ZodBoolean;
+    }, z.core.$strip>>>;
+    spawnDefaults: z.ZodObject<{
+        agent: z.ZodString;
+        target: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>;
+    configRevision: z.ZodString;
+    targetErrors: z.ZodReadonly<z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
+        scope: z.ZodEnum<{
+            defaultTarget: "defaultTarget";
+            target: "target";
+            targets: "targets";
+        }>;
+        target: z.ZodOptional<z.ZodString>;
+        problem: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        scope: z.ZodLiteral<"config">;
+        problem: z.ZodEnum<{
+            config_malformed: "config_malformed";
+            config_unreadable: "config_unreadable";
+        }>;
+        path: z.ZodString;
+        detail: z.ZodString;
+    }, z.core.$strip>]>>>;
+    sources: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        label: z.ZodString;
+        kind: z.ZodEnum<{
+            git: "git";
+            path: "path";
+        }>;
+    }, z.core.$strip>>>;
+}, z.core.$strip>;
+export type AgentList = z.output<typeof AGENT_LIST_SCHEMA>;
+export {};
+
+// agent-session-id.d.ts
+import type { z } from 'zod';
+export type AgentSessionID = string & z.$brand<'AgentSessionID'>;
+
+// answer-view.d.ts
+import { z } from 'zod';
+export declare const ANSWER_VIEW_SCHEMA: z.ZodObject<{
+    answer: z.ZodString;
+    at: z.ZodNumber;
+    session: z.ZodString;
+    name: z.ZodNullable<z.ZodString>;
+    message: z.ZodString;
+    text: z.ZodString;
+    complete: z.ZodBoolean;
+}, z.core.$strip>;
+
+// check-daemon.d.ts
+import type { DaemonFeature } from './daemon-features.js';
+import type { HelloResult } from './hello-result.js';
+export type DaemonCheck = {
+    readonly verdict: 'match';
+    readonly missing: readonly DaemonFeature[];
+    readonly added: readonly string[];
+} | {
+    readonly verdict: 'older' | 'newer';
+    readonly daemonMajor: number;
+    readonly contractMajor: number;
+} | {
+    readonly verdict: 'unreadable';
+    readonly daemon: string;
+};
+export declare function checkDaemon(hello: Pick<HelloResult, 'daemon' | 'features'>, contractVersion?: string): DaemonCheck;
+
+// commit-id-pattern.d.ts
+export declare const COMMIT_ID_PATTERN: RegExp;
+
+// config-file-schema.d.ts
+import { z } from 'zod';
+export declare const CONFIG_FILE_SCHEMA: z.ZodObject<{
+    agents: z.ZodOptional<z.ZodUnknown>;
+    dirs: z.ZodOptional<z.ZodUnknown>;
+    workspaces: z.ZodOptional<z.ZodUnknown>;
+    authProfiles: z.ZodOptional<z.ZodUnknown>;
+    hooks: z.ZodOptional<z.ZodUnknown>;
+    leader: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+    targets: z.ZodOptional<z.ZodUnknown>;
+    defaultTarget: z.ZodOptional<z.ZodUnknown>;
+    principals: z.ZodOptional<z.ZodUnknown>;
+    daemons: z.ZodOptional<z.ZodUnknown>;
+    restoreFleetOnRestart: z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
+}, z.core.$strip>;
+export type ConfigFile = z.output<typeof CONFIG_FILE_SCHEMA>;
+
+// contract-version.d.ts
+export declare const CONTRACT_VERSION: string;
+
+// daemon-contract.d.ts
+import { z } from 'zod';
+export declare const DAEMON_CONTRACT: {
+    daemon: {
+        hello: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            client: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+            protocol: z.ZodOptional<z.ZodNumber>;
+            principal: z.ZodOptional<z.ZodString>;
+            session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{
+            daemon: z.ZodString;
+            daemonID: z.ZodString;
+            limits: z.ZodObject<{
+                maxLine: z.ZodNumber;
+                maxChunk: z.ZodNumber;
+            }, z.core.$strip>;
+            idempotency: z.ZodObject<{
+                completedRetentionMs: z.ZodNumber;
+            }, z.core.$strip>;
+            lastUsedAgent: z.ZodString;
+            peerSession: z.ZodNullable<z.ZodString>;
+            features: z.ZodDefault<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        ping: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        quit: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        restarted: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            result: z.ZodObject<{
+                runID: z.ZodString;
+                code: z.ZodNumber;
+                pid: z.ZodNullable<z.ZodNumber>;
+                build: z.ZodNullable<z.ZodString>;
+                listenPort: z.ZodNullable<z.ZodNumber>;
+                restored: z.ZodNumber;
+                total: z.ZodNumber;
+                failed: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                    name: z.ZodString;
+                    id: z.ZodString;
+                    reason: z.ZodString;
+                }, z.core.$strip>>>;
+                interrupted: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                    name: z.ZodString;
+                    id: z.ZodString;
+                }, z.core.$strip>>>;
+                error: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>;
+        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        backup: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            path: z.ZodString;
+        }, z.core.$strip>, z.ZodObject<{
+            path: z.ZodString;
+            bytes: z.ZodNumber;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    dirs: {
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, z.ZodObject<{
+            dirs: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    agents: {
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, z.ZodObject<{
+            daemon: z.ZodObject<{
+                hostname: z.ZodString;
+                platform: z.ZodString;
+                arch: z.ZodString;
+                build: z.ZodString;
+            }, z.core.$strip>;
+            agents: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                id: z.ZodString;
+                label: z.ZodString;
+                kind: z.ZodString;
+                installed: z.ZodBoolean;
+                brokerAuth: z.ZodBoolean;
+                brokerRequired: z.ZodBoolean;
+                spawnTargets: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+                capabilities: z.ZodObject<{
+                    spawn: z.ZodBoolean;
+                    readTranscript: z.ZodBoolean;
+                    message: z.ZodBoolean;
+                    attach: z.ZodBoolean;
+                    screen: z.ZodBoolean;
+                    input: z.ZodBoolean;
+                }, z.core.$strip>;
+                models: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodString>>;
+                spawnOptions: z.ZodObject<{
+                    model: z.ZodObject<{
+                        supported: z.ZodBoolean;
+                        values: z.ZodNullable<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                        examples: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                            value: z.ZodString;
+                            resolvesTo: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>>;
+                        default: z.ZodNullable<z.ZodString>;
+                        backendEffect: z.ZodNullable<z.ZodEnum<{
+                            applied: "applied";
+                            unverified: "unverified";
+                        }>>;
+                        note: z.ZodNullable<z.ZodString>;
+                        available: z.ZodBoolean;
+                    }, z.core.$strip>;
+                    effort: z.ZodObject<{
+                        supported: z.ZodBoolean;
+                        values: z.ZodNullable<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                        examples: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                            value: z.ZodString;
+                            resolvesTo: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>>;
+                        default: z.ZodNullable<z.ZodString>;
+                        backendEffect: z.ZodNullable<z.ZodEnum<{
+                            applied: "applied";
+                            unverified: "unverified";
+                        }>>;
+                        note: z.ZodNullable<z.ZodString>;
+                        available: z.ZodBoolean;
+                    }, z.core.$strip>;
+                    pluginDirs: z.ZodObject<{
+                        supported: z.ZodBoolean;
+                        values: z.ZodNullable<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                        examples: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                            value: z.ZodString;
+                            resolvesTo: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>>;
+                        default: z.ZodNullable<z.ZodString>;
+                        backendEffect: z.ZodNullable<z.ZodEnum<{
+                            applied: "applied";
+                            unverified: "unverified";
+                        }>>;
+                        note: z.ZodNullable<z.ZodString>;
+                        available: z.ZodBoolean;
+                    }, z.core.$strip>;
+                }, z.core.$strip>;
+            }, z.core.$strip>>>;
+            targets: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                id: z.ZodString;
+                provider: z.ZodString;
+                identity: z.ZodString;
+                available: z.ZodBoolean;
+                remote: z.ZodBoolean;
+                default: z.ZodBoolean;
+                capabilities: z.ZodObject<{
+                    spawn: z.ZodBoolean;
+                    attach: z.ZodBoolean;
+                    input: z.ZodBoolean;
+                    resize: z.ZodBoolean;
+                    kill: z.ZodBoolean;
+                    transfer: z.ZodBoolean;
+                    run: z.ZodBoolean;
+                    headless: z.ZodBoolean;
+                    suspend: z.ZodBoolean;
+                    destroy: z.ZodBoolean;
+                }, z.core.$strip>;
+                brokerAuth: z.ZodBoolean;
+            }, z.core.$strip>>>;
+            spawnDefaults: z.ZodObject<{
+                agent: z.ZodString;
+                target: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>;
+            configRevision: z.ZodString;
+            targetErrors: z.ZodReadonly<z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
+                scope: z.ZodEnum<{
+                    defaultTarget: "defaultTarget";
+                    target: "target";
+                    targets: "targets";
+                }>;
+                target: z.ZodOptional<z.ZodString>;
+                problem: z.ZodString;
+            }, z.core.$strip>, z.ZodObject<{
+                scope: z.ZodLiteral<"config">;
+                problem: z.ZodEnum<{
+                    config_malformed: "config_malformed";
+                    config_unreadable: "config_unreadable";
+                }>;
+                path: z.ZodString;
+                detail: z.ZodString;
+            }, z.core.$strip>]>>>;
+            sources: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                id: z.ZodString;
+                label: z.ZodString;
+                kind: z.ZodEnum<{
+                    git: "git";
+                    path: "path";
+                }>;
+            }, z.core.$strip>>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    sources: {
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            source: z.ZodString;
+            target: z.ZodOptional<z.ZodString>;
+            scope: z.ZodOptional<z.ZodString>;
+            text: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>, z.ZodObject<{
+            source: z.ZodString;
+            scope: z.ZodNullable<z.ZodString>;
+            candidates: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                label: z.ZodString;
+                detail: z.ZodOptional<z.ZodString>;
+                pick: z.ZodDiscriminatedUnion<[z.ZodObject<{
+                    kind: z.ZodLiteral<"path">;
+                    directory: z.ZodString;
+                }, z.core.$strip>, z.ZodObject<{
+                    kind: z.ZodLiteral<"git">;
+                    url: z.ZodString;
+                }, z.core.$strip>], "kind">;
+            }, z.core.$strip>>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        interpret: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            source: z.ZodString;
+            input: z.ZodString;
+            target: z.ZodOptional<z.ZodString>;
+            clientCwd: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>, z.ZodUnion<readonly [z.ZodObject<{
+            kind: z.ZodLiteral<"browse">;
+            scope: z.ZodString;
+        }, z.core.$strip>, z.ZodDiscriminatedUnion<[z.ZodObject<{
+            kind: z.ZodLiteral<"path">;
+            directory: z.ZodString;
+        }, z.core.$strip>, z.ZodObject<{
+            kind: z.ZodLiteral<"git">;
+            url: z.ZodString;
+        }, z.core.$strip>], "kind">, z.ZodObject<{
+            kind: z.ZodLiteral<"none">;
+        }, z.core.$strip>]>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        complete: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            source: z.ZodString;
+            input: z.ZodString;
+            target: z.ZodOptional<z.ZodString>;
+            clientCwd: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>, z.ZodObject<{
+            completions: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                label: z.ZodString;
+                detail: z.ZodOptional<z.ZodString>;
+                pick: z.ZodDiscriminatedUnion<[z.ZodObject<{
+                    kind: z.ZodLiteral<"path">;
+                    directory: z.ZodString;
+                }, z.core.$strip>, z.ZodObject<{
+                    kind: z.ZodLiteral<"git">;
+                    url: z.ZodString;
+                }, z.core.$strip>], "kind">;
+            }, z.core.$strip>>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    git: {
+        probe: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            url: z.ZodString;
+            ref: z.ZodOptional<z.ZodString>;
+            sha: z.ZodOptional<z.ZodString>;
+            credentialRef: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodLiteral<"env">;
+                name: z.ZodString;
+            }, z.core.$strict>>;
+            target: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>, z.ZodObject<{
+            url: z.ZodString;
+            head: z.ZodNullable<z.ZodString>;
+            refs: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                kind: z.ZodEnum<{
+                    branch: "branch";
+                    tag: "tag";
+                }>;
+                sha: z.ZodString;
+            }, z.core.$strip>>>;
+            resolved: z.ZodNullable<z.ZodObject<{
+                sha: z.ZodString;
+                branch: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    fleet: {
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, z.ZodObject<{
+            fleet: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                sessionID: z.ZodString;
+                name: z.ZodString;
+                cwd: z.ZodString;
+                agentSessionID: z.ZodOptional<z.ZodString>;
+                agent: z.ZodString;
+                pinned: z.ZodOptional<z.ZodBoolean>;
+                lastAttachedAt: z.ZodOptional<z.ZodNumber>;
+                exited: z.ZodOptional<z.ZodBoolean>;
+                parent: z.ZodOptional<z.ZodString>;
+                prompt: z.ZodOptional<z.ZodString>;
+                result: z.ZodOptional<z.ZodString>;
+                transcriptPath: z.ZodOptional<z.ZodString>;
+                model: z.ZodOptional<z.ZodString>;
+                effort: z.ZodOptional<z.ZodString>;
+                pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                target: z.ZodOptional<z.ZodString>;
+                targetIdentity: z.ZodOptional<z.ZodString>;
+                workspace: z.ZodOptional<z.ZodObject<{
+                    repoURL: z.ZodString;
+                    sha: z.ZodString;
+                    ref: z.ZodOptional<z.ZodString>;
+                    materializedAt: z.ZodNumber;
+                }, z.core.$strip>>;
+                withheldEnv: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                desired: z.ZodOptional<z.ZodEnum<{
+                    sleep: "sleep";
+                    stop: "stop";
+                }>>;
+                hostKey: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        restore: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+            rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{
+            restored: z.ZodNumber;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    session: {
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, z.ZodObject<{
+            sessions: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                id: z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+                name: z.ZodString;
+                cwd: z.ZodString;
+                state: z.ZodEnum<{
+                    done: "done";
+                    exited: "exited";
+                    needs_you: "needs_you";
+                    running: "running";
+                }>;
+                unread: z.ZodBoolean;
+                lastMsg: z.ZodString;
+                lastDetail: z.ZodOptional<z.ZodString>;
+                restoreRefusal: z.ZodOptional<z.ZodString>;
+                agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./agent-session-id.js").AgentSessionID, string>>>;
+                agent: z.ZodString;
+                pinned: z.ZodBoolean;
+                lastAttachedAt: z.ZodNumber;
+                repoRoot: z.ZodString;
+                namedBy: z.ZodEnum<{
+                    agent: "agent";
+                    auto: "auto";
+                    user: "user";
+                }>;
+                createdAt: z.ZodNumber;
+                kind: z.ZodEnum<{
+                    headless: "headless";
+                    pty: "pty";
+                }>;
+                alive: z.ZodBoolean;
+                canEject: z.ZodBoolean;
+                parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>;
+                locator: z.ZodObject<{
+                    daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("./daemon-id.js").DaemonID, string>>;
+                    targetID: z.ZodString;
+                }, z.core.$strip>;
+                workspace: z.ZodOptional<z.ZodObject<{
+                    repoURL: z.ZodString;
+                    sha: z.ZodString;
+                    ref: z.ZodOptional<z.ZodString>;
+                    materializedAt: z.ZodNumber;
+                }, z.core.$strip>>;
+                lifecycle: z.ZodObject<{
+                    desired: z.ZodEnum<{
+                        run: "run";
+                        sleep: "sleep";
+                        stop: "stop";
+                    }>;
+                    vm: z.ZodEnum<{
+                        asleep: "asleep";
+                        awake: "awake";
+                        none: "none";
+                        unknown: "unknown";
+                    }>;
+                    harness: z.ZodEnum<{
+                        exited: "exited";
+                        running: "running";
+                        suspended: "suspended";
+                    }>;
+                    attachment: z.ZodEnum<{
+                        attached: "attached";
+                        detached: "detached";
+                        local: "local";
+                        reattaching: "reattaching";
+                    }>;
+                }, z.core.$strip>;
+                model: z.ZodOptional<z.ZodString>;
+                pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+            }, z.core.$strip>>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        spawn: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            cwd: z.ZodOptional<z.ZodString>;
+            name: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+            prompt: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+            cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+            rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+            resume: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodUnion<readonly [z.ZodBoolean, z.ZodString]>>, unknown>, z.ZodTransform<boolean | import("./agent-session-id.js").AgentSessionID, string | boolean>>;
+            agent: z.ZodOptional<z.ZodString>;
+            model: z.ZodOptional<z.ZodString>;
+            effort: z.ZodOptional<z.ZodString>;
+            pluginDirs: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            idempotencyKey: z.ZodOptional<z.ZodString>;
+            replayOnly: z.ZodOptional<z.ZodBoolean>;
+            target: z.ZodOptional<z.ZodString>;
+            workspace: z.ZodOptional<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                kind: z.ZodLiteral<"path">;
+                path: z.ZodString;
+                allowDirty: z.ZodOptional<z.ZodEnum<{
+                    refuse: "refuse";
+                    warn: "warn";
+                }>>;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"git">;
+                url: z.ZodString;
+                ref: z.ZodOptional<z.ZodString>;
+                sha: z.ZodOptional<z.ZodString>;
+                credentialRef: z.ZodOptional<z.ZodObject<{
+                    kind: z.ZodLiteral<"env">;
+                    name: z.ZodString;
+                }, z.core.$strict>>;
+            }, z.core.$strict>], "kind">>;
+            trustClonedWorkspace: z.ZodOptional<z.ZodBoolean>;
+            scope: z.ZodOptional<z.ZodUnknown>;
+            parent: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{
+            session: z.ZodObject<{
+                id: z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+                name: z.ZodString;
+                cwd: z.ZodString;
+                state: z.ZodEnum<{
+                    done: "done";
+                    exited: "exited";
+                    needs_you: "needs_you";
+                    running: "running";
+                }>;
+                unread: z.ZodBoolean;
+                lastMsg: z.ZodString;
+                lastDetail: z.ZodOptional<z.ZodString>;
+                restoreRefusal: z.ZodOptional<z.ZodString>;
+                agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./agent-session-id.js").AgentSessionID, string>>>;
+                agent: z.ZodString;
+                pinned: z.ZodBoolean;
+                lastAttachedAt: z.ZodNumber;
+                repoRoot: z.ZodString;
+                namedBy: z.ZodEnum<{
+                    agent: "agent";
+                    auto: "auto";
+                    user: "user";
+                }>;
+                createdAt: z.ZodNumber;
+                kind: z.ZodEnum<{
+                    headless: "headless";
+                    pty: "pty";
+                }>;
+                alive: z.ZodBoolean;
+                canEject: z.ZodBoolean;
+                parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>;
+                locator: z.ZodObject<{
+                    daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("./daemon-id.js").DaemonID, string>>;
+                    targetID: z.ZodString;
+                }, z.core.$strip>;
+                workspace: z.ZodOptional<z.ZodObject<{
+                    repoURL: z.ZodString;
+                    sha: z.ZodString;
+                    ref: z.ZodOptional<z.ZodString>;
+                    materializedAt: z.ZodNumber;
+                }, z.core.$strip>>;
+                lifecycle: z.ZodObject<{
+                    desired: z.ZodEnum<{
+                        run: "run";
+                        sleep: "sleep";
+                        stop: "stop";
+                    }>;
+                    vm: z.ZodEnum<{
+                        asleep: "asleep";
+                        awake: "awake";
+                        none: "none";
+                        unknown: "unknown";
+                    }>;
+                    harness: z.ZodEnum<{
+                        exited: "exited";
+                        running: "running";
+                        suspended: "suspended";
+                    }>;
+                    attachment: z.ZodEnum<{
+                        attached: "attached";
+                        detached: "detached";
+                        local: "local";
+                        reattaching: "reattaching";
+                    }>;
+                }, z.core.$strip>;
+                model: z.ZodOptional<z.ZodString>;
+                pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+            }, z.core.$strip>;
+            warnings: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        kill: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            stopOnly: z.ZodOptional<z.ZodBoolean>;
+        }, z.core.$strip>, z.ZodObject<{
+            stopped: z.ZodOptional<z.ZodBoolean>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        ack: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        forget: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            confirmToken: z.ZodOptional<z.ZodString>;
+            refusePinned: z.ZodOptional<z.ZodBoolean>;
+            refuseLive: z.ZodOptional<z.ZodBoolean>;
+        }, z.core.$strip>, z.ZodUnion<readonly [z.ZodObject<{
+            confirmToken: z.ZodString;
+            expiresAt: z.ZodNumber;
+        }, z.core.$strip>, z.ZodObject<{
+            forgotten: z.ZodLiteral<true>;
+            destroyed: z.ZodBoolean;
+        }, z.core.$strip>]>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        resumeCommand: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        }, z.core.$strip>, z.ZodObject<{
+            command: z.ZodString;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        auth: {
+            revoke: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+                session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            }, z.core.$strip>, z.ZodObject<{
+                revoked: z.ZodLiteral<true>;
+            }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+                access: "owner" | "principal";
+                readOnly: boolean;
+                keyed: boolean;
+            }> & Record<never, never>>;
+            rebind: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+                session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            }, z.core.$strip>, z.ZodObject<{
+                revision: z.ZodNumber;
+                restartPending: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+            }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+                access: "owner" | "principal";
+                readOnly: boolean;
+                keyed: boolean;
+            }> & Record<never, never>>;
+        };
+        update: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            name: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+            pinned: z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
+            parent: z.ZodOptional<z.ZodNull>;
+        }, z.core.$strip>, z.ZodObject<{
+            renameSkipped: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        scope: {
+            add: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+                session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+                scope: z.ZodUnknown;
+            }, z.core.$strip>, z.ZodObject<{
+                record: z.ZodType<import("./published-record.js").PublishedRecord, import("./published-record.js").PublishedRecord, z.core.$ZodTypeInternals<import("./published-record.js").PublishedRecord, import("./published-record.js").PublishedRecord>>;
+            }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+                access: "owner" | "principal";
+                readOnly: boolean;
+                keyed: boolean;
+            }> & Record<never, never>>;
+        };
+        attach: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+            rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{
+            cols: z.ZodNumber;
+            rows: z.ZodNumber;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        detach: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        input: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            data: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        submit: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            text: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        resize: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+            rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        screen: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        }, z.core.$strip>, z.ZodObject<{
+            text: z.ZodString;
+            cols: z.ZodNumber;
+            rows: z.ZodNumber;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        menu: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        }, z.core.$strip>, z.ZodObject<{
+            menu: z.ZodNullable<z.ZodObject<{
+                text: z.ZodString;
+                options: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                    option: z.ZodNumber;
+                    label: z.ZodString;
+                    checked: z.ZodNullable<z.ZodBoolean>;
+                    highlighted: z.ZodBoolean;
+                }, z.core.$strip>>>;
+                menuToken: z.ZodString;
+            }, z.core.$strip>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        choose: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            menuToken: z.ZodString;
+            option: z.ZodOptional<z.ZodNumber>;
+            label: z.ZodOptional<z.ZodString>;
+            key: z.ZodOptional<z.ZodLiteral<"escape">>;
+        }, z.core.$strip>, z.ZodObject<{
+            pressed: z.ZodString;
+            menu: z.ZodNullable<z.ZodObject<{
+                text: z.ZodString;
+                options: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                    option: z.ZodNumber;
+                    label: z.ZodString;
+                    checked: z.ZodNullable<z.ZodBoolean>;
+                    highlighted: z.ZodBoolean;
+                }, z.core.$strip>>>;
+                menuToken: z.ZodString;
+            }, z.core.$strip>>;
+            partial: z.ZodOptional<z.ZodLiteral<true>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        eject: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            prompt: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        adopt: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+            rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        }, z.core.$strip>, z.ZodObject<{
+            session: z.ZodObject<{
+                id: z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+                name: z.ZodString;
+                cwd: z.ZodString;
+                state: z.ZodEnum<{
+                    done: "done";
+                    exited: "exited";
+                    needs_you: "needs_you";
+                    running: "running";
+                }>;
+                unread: z.ZodBoolean;
+                lastMsg: z.ZodString;
+                lastDetail: z.ZodOptional<z.ZodString>;
+                restoreRefusal: z.ZodOptional<z.ZodString>;
+                agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./agent-session-id.js").AgentSessionID, string>>>;
+                agent: z.ZodString;
+                pinned: z.ZodBoolean;
+                lastAttachedAt: z.ZodNumber;
+                repoRoot: z.ZodString;
+                namedBy: z.ZodEnum<{
+                    agent: "agent";
+                    auto: "auto";
+                    user: "user";
+                }>;
+                createdAt: z.ZodNumber;
+                kind: z.ZodEnum<{
+                    headless: "headless";
+                    pty: "pty";
+                }>;
+                alive: z.ZodBoolean;
+                canEject: z.ZodBoolean;
+                parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>;
+                locator: z.ZodObject<{
+                    daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("./daemon-id.js").DaemonID, string>>;
+                    targetID: z.ZodString;
+                }, z.core.$strip>;
+                workspace: z.ZodOptional<z.ZodObject<{
+                    repoURL: z.ZodString;
+                    sha: z.ZodString;
+                    ref: z.ZodOptional<z.ZodString>;
+                    materializedAt: z.ZodNumber;
+                }, z.core.$strip>>;
+                lifecycle: z.ZodObject<{
+                    desired: z.ZodEnum<{
+                        run: "run";
+                        sleep: "sleep";
+                        stop: "stop";
+                    }>;
+                    vm: z.ZodEnum<{
+                        asleep: "asleep";
+                        awake: "awake";
+                        none: "none";
+                        unknown: "unknown";
+                    }>;
+                    harness: z.ZodEnum<{
+                        exited: "exited";
+                        running: "running";
+                        suspended: "suspended";
+                    }>;
+                    attachment: z.ZodEnum<{
+                        attached: "attached";
+                        detached: "detached";
+                        local: "local";
+                        reattaching: "reattaching";
+                    }>;
+                }, z.core.$strip>;
+                model: z.ZodOptional<z.ZodString>;
+                pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+            }, z.core.$strip>;
+            prompt: z.ZodNullable<z.ZodString>;
+            lastActivityAt: z.ZodNumber;
+            pending: z.ZodNullable<z.ZodObject<{
+                message: z.ZodString;
+            }, z.core.$strip>>;
+            result: z.ZodNullable<z.ZodString>;
+            sessionRecord: z.ZodNullable<z.ZodType<import("./published-record.js").PublishedRecord, import("./published-record.js").PublishedRecord, z.core.$ZodTypeInternals<import("./published-record.js").PublishedRecord, import("./published-record.js").PublishedRecord>>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        read: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            cursor: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+            limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
+        }, z.core.$strip>, z.ZodObject<{
+            rows: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                role: z.ZodEnum<{
+                    assistant: "assistant";
+                    user: "user";
+                }>;
+                text: z.ZodString;
+                tools: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                    name: z.ZodString;
+                    input: z.ZodString;
+                }, z.core.$strip>>>;
+                at: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strip>>>;
+            cursor: z.ZodString;
+            more: z.ZodBoolean;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        message: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            text: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+            idempotencyKey: z.ZodOptional<z.ZodString>;
+            replayOnly: z.ZodOptional<z.ZodBoolean>;
+            from: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+            notice: z.ZodOptional<z.ZodBoolean>;
+        }, z.core.$strip>, z.ZodObject<{
+            message: z.ZodString;
+            status: z.ZodEnum<{
+                answered: "answered";
+                delivered: "delivered";
+                queued: "queued";
+                unanswered: "unanswered";
+            }>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        tap: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            notices: z.ZodDefault<z.ZodBoolean>;
+        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    permission: {
+        respond: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            request: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+            decision: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    events: {
+        read: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            cursor: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+            from: z.ZodOptional<z.ZodLiteral<"start">>;
+            limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
+            waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
+            session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{
+            events: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                cursor: z.ZodString;
+                at: z.ZodNumber;
+                session: z.ZodString;
+                name: z.ZodNullable<z.ZodString>;
+                kind: z.ZodString;
+                detail: z.ZodNullable<z.ZodString>;
+                message: z.ZodOptional<z.ZodString>;
+                label: z.ZodOptional<z.ZodString>;
+                result: z.ZodOptional<z.ZodObject<{
+                    runID: z.ZodString;
+                    code: z.ZodNumber;
+                    pid: z.ZodNullable<z.ZodNumber>;
+                    build: z.ZodNullable<z.ZodString>;
+                    listenPort: z.ZodNullable<z.ZodNumber>;
+                    restored: z.ZodNumber;
+                    total: z.ZodNumber;
+                    failed: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        id: z.ZodString;
+                        reason: z.ZodString;
+                    }, z.core.$strip>>>;
+                    interrupted: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        id: z.ZodString;
+                    }, z.core.$strip>>>;
+                    error: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>>>;
+            cursor: z.ZodString;
+            more: z.ZodBoolean;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        subscribe: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").Schema<AsyncIteratorObject<{
+            ev: "SessionRenamed";
+            sessionID: string;
+            name: string;
+            namedBy: "agent" | "auto" | "user";
+        } | {
+            ev: "SessionRemoved";
+            sessionID: string;
+        } | {
+            ev: "SessionResized";
+            sessionID: string;
+            cols: number;
+            rows: number;
+        } | {
+            ev: "SessionOutput";
+            sessionID: string;
+            seq: number;
+            data: string;
+        } | {
+            ev: "SessionDesync";
+            sessionID: string;
+            dropped: number;
+        } | {
+            ev: "PermissionRequested";
+            request: string;
+            sessionID: string;
+            message: string;
+            respondable: boolean;
+        } | {
+            ev: "PermissionResolved";
+            request: string;
+            decision: string;
+        } | {
+            ev: "SessionMessage";
+            sessionID: string;
+            message: string;
+            status: "answered" | "delivered" | "queued" | "unanswered";
+            from: string;
+            sender?: {
+                kind: "connector";
+                client: string;
+                name: string;
+            } | {
+                kind: "session";
+                session: string;
+                name: string;
+            } | {
+                kind: "local";
+                name: string;
+            } | {
+                kind: "owner";
+                name: string;
+            } | undefined;
+            textPreview: string;
+            sentAt: number;
+            deliveredAt?: number | undefined;
+            answeredAt?: number | undefined;
+            answerPreview?: string | undefined;
+            unansweredAt?: number | undefined;
+            unansweredReason?: string | undefined;
+        } | {
+            ev: "SessionNote";
+            sessionID: string;
+            kind: string;
+            text: string;
+            sentAt: number;
+        } | {
+            ev: "InboxMessage";
+            sessionID: string;
+            message: string;
+            from: string;
+            sender?: {
+                kind: "connector";
+                client: string;
+                name: string;
+            } | {
+                kind: "session";
+                session: string;
+                name: string;
+            } | {
+                kind: "local";
+                name: string;
+            } | {
+                kind: "owner";
+                name: string;
+            } | undefined;
+            text: string;
+            sentAt: number;
+        } | {
+            ev: "InboxNotice";
+            sessionID: string;
+            message: string;
+            from: string;
+            status: "answered" | "unanswered";
+            answer?: string | undefined;
+            reason?: string | undefined;
+            at: number;
+        } | {
+            ev: "InboxClosed";
+            sessionID: string;
+            reason: "removed" | "replaced";
+        } | {
+            ev: "DaemonRestarted";
+            result: {
+                runID: string;
+                code: number;
+                pid: number | null;
+                build: string | null;
+                listenPort: number | null;
+                restored: number;
+                total: number;
+                failed: readonly {
+                    name: string;
+                    id: string;
+                    reason: string;
+                }[];
+                interrupted: readonly {
+                    name: string;
+                    id: string;
+                }[];
+                error: string | null;
+            };
+        } | {
+            session: {
+                id: string;
+                name: string;
+                cwd: string;
+                state: "done" | "exited" | "needs_you" | "running";
+                unread: boolean;
+                lastMsg: string;
+                lastDetail?: string | undefined;
+                restoreRefusal?: string | undefined;
+                agentSessionID?: string | undefined;
+                agent: string;
+                pinned: boolean;
+                lastAttachedAt: number;
+                repoRoot: string;
+                namedBy: "agent" | "auto" | "user";
+                createdAt: number;
+                kind: "headless" | "pty";
+                alive: boolean;
+                canEject: boolean;
+                parent?: string | undefined;
+                locator: {
+                    daemonID: string;
+                    targetID: string;
+                };
+                workspace?: {
+                    repoURL: string;
+                    sha: string;
+                    ref?: string | undefined;
+                    materializedAt: number;
+                } | undefined;
+                lifecycle: {
+                    desired: "run" | "sleep" | "stop";
+                    vm: "asleep" | "awake" | "none" | "unknown";
+                    harness: "exited" | "running" | "suspended";
+                    attachment: "attached" | "detached" | "local" | "reattaching";
+                };
+                model?: string | undefined;
+                pluginDirs?: readonly string[] | undefined;
+            };
+            ev: "SessionAdded";
+        } | {
+            session: {
+                id: string;
+                name: string;
+                cwd: string;
+                state: "done" | "exited" | "needs_you" | "running";
+                unread: boolean;
+                lastMsg: string;
+                lastDetail?: string | undefined;
+                restoreRefusal?: string | undefined;
+                agentSessionID?: string | undefined;
+                agent: string;
+                pinned: boolean;
+                lastAttachedAt: number;
+                repoRoot: string;
+                namedBy: "agent" | "auto" | "user";
+                createdAt: number;
+                kind: "headless" | "pty";
+                alive: boolean;
+                canEject: boolean;
+                parent?: string | undefined;
+                locator: {
+                    daemonID: string;
+                    targetID: string;
+                };
+                workspace?: {
+                    repoURL: string;
+                    sha: string;
+                    ref?: string | undefined;
+                    materializedAt: number;
+                } | undefined;
+                lifecycle: {
+                    desired: "run" | "sleep" | "stop";
+                    vm: "asleep" | "awake" | "none" | "unknown";
+                    harness: "exited" | "running" | "suspended";
+                    attachment: "attached" | "detached" | "local" | "reattaching";
+                };
+                model?: string | undefined;
+                pluginDirs?: readonly string[] | undefined;
+            };
+            ev: "SessionState";
+        } | {
+            session: {
+                id: string;
+                name: string;
+                cwd: string;
+                state: "done" | "exited" | "needs_you" | "running";
+                unread: boolean;
+                lastMsg: string;
+                lastDetail?: string | undefined;
+                restoreRefusal?: string | undefined;
+                agentSessionID?: string | undefined;
+                agent: string;
+                pinned: boolean;
+                lastAttachedAt: number;
+                repoRoot: string;
+                namedBy: "agent" | "auto" | "user";
+                createdAt: number;
+                kind: "headless" | "pty";
+                alive: boolean;
+                canEject: boolean;
+                parent?: string | undefined;
+                locator: {
+                    daemonID: string;
+                    targetID: string;
+                };
+                workspace?: {
+                    repoURL: string;
+                    sha: string;
+                    ref?: string | undefined;
+                    materializedAt: number;
+                } | undefined;
+                lifecycle: {
+                    desired: "run" | "sleep" | "stop";
+                    vm: "asleep" | "awake" | "none" | "unknown";
+                    harness: "exited" | "running" | "suspended";
+                    attachment: "attached" | "detached" | "local" | "reattaching";
+                };
+                model?: string | undefined;
+                pluginDirs?: readonly string[] | undefined;
+            };
+            ev: "SessionAttached";
+        } | {
+            session: {
+                id: string;
+                name: string;
+                cwd: string;
+                state: "done" | "exited" | "needs_you" | "running";
+                unread: boolean;
+                lastMsg: string;
+                lastDetail?: string | undefined;
+                restoreRefusal?: string | undefined;
+                agentSessionID?: string | undefined;
+                agent: string;
+                pinned: boolean;
+                lastAttachedAt: number;
+                repoRoot: string;
+                namedBy: "agent" | "auto" | "user";
+                createdAt: number;
+                kind: "headless" | "pty";
+                alive: boolean;
+                canEject: boolean;
+                parent?: string | undefined;
+                locator: {
+                    daemonID: string;
+                    targetID: string;
+                };
+                workspace?: {
+                    repoURL: string;
+                    sha: string;
+                    ref?: string | undefined;
+                    materializedAt: number;
+                } | undefined;
+                lifecycle: {
+                    desired: "run" | "sleep" | "stop";
+                    vm: "asleep" | "awake" | "none" | "unknown";
+                    harness: "exited" | "running" | "suspended";
+                    attachment: "attached" | "detached" | "local" | "reattaching";
+                };
+                model?: string | undefined;
+                pluginDirs?: readonly string[] | undefined;
+            };
+            ev: "SessionDetached";
+        }, unknown, void>, import("@orpc/contract").AsyncIteratorClass<{
+            ev: "SessionRenamed";
+            sessionID: string;
+            name: string;
+            namedBy: "agent" | "auto" | "user";
+        } | {
+            ev: "SessionRemoved";
+            sessionID: string;
+        } | {
+            ev: "SessionResized";
+            sessionID: string;
+            cols: number;
+            rows: number;
+        } | {
+            ev: "SessionOutput";
+            sessionID: string;
+            seq: number;
+            data: string;
+        } | {
+            ev: "SessionDesync";
+            sessionID: string;
+            dropped: number;
+        } | {
+            ev: "PermissionRequested";
+            request: string;
+            sessionID: string;
+            message: string;
+            respondable: boolean;
+        } | {
+            ev: "PermissionResolved";
+            request: string;
+            decision: string;
+        } | {
+            ev: "SessionMessage";
+            sessionID: string;
+            message: string;
+            status: "answered" | "delivered" | "queued" | "unanswered";
+            from: string;
+            sender?: {
+                kind: "connector";
+                client: string;
+                name: string;
+            } | {
+                kind: "session";
+                session: string;
+                name: string;
+            } | {
+                kind: "local";
+                name: string;
+            } | {
+                kind: "owner";
+                name: string;
+            } | undefined;
+            textPreview: string;
+            sentAt: number;
+            deliveredAt?: number | undefined;
+            answeredAt?: number | undefined;
+            answerPreview?: string | undefined;
+            unansweredAt?: number | undefined;
+            unansweredReason?: string | undefined;
+        } | {
+            ev: "SessionNote";
+            sessionID: string;
+            kind: string;
+            text: string;
+            sentAt: number;
+        } | {
+            ev: "InboxMessage";
+            sessionID: string;
+            message: string;
+            from: string;
+            sender?: {
+                kind: "connector";
+                client: string;
+                name: string;
+            } | {
+                kind: "session";
+                session: string;
+                name: string;
+            } | {
+                kind: "local";
+                name: string;
+            } | {
+                kind: "owner";
+                name: string;
+            } | undefined;
+            text: string;
+            sentAt: number;
+        } | {
+            ev: "InboxNotice";
+            sessionID: string;
+            message: string;
+            from: string;
+            status: "answered" | "unanswered";
+            answer?: string | undefined;
+            reason?: string | undefined;
+            at: number;
+        } | {
+            ev: "InboxClosed";
+            sessionID: string;
+            reason: "removed" | "replaced";
+        } | {
+            ev: "DaemonRestarted";
+            result: {
+                runID: string;
+                code: number;
+                pid: number | null;
+                build: string | null;
+                listenPort: number | null;
+                restored: number;
+                total: number;
+                failed: readonly {
+                    name: string;
+                    id: string;
+                    reason: string;
+                }[];
+                interrupted: readonly {
+                    name: string;
+                    id: string;
+                }[];
+                error: string | null;
+            };
+        } | {
+            session: {
+                id: import("./session-id.js").SessionID;
+                name: string;
+                cwd: string;
+                state: "done" | "exited" | "needs_you" | "running";
+                unread: boolean;
+                lastMsg: string;
+                lastDetail?: string | undefined;
+                restoreRefusal?: string | undefined;
+                agentSessionID?: import("./agent-session-id.js").AgentSessionID | undefined;
+                agent: string;
+                pinned: boolean;
+                lastAttachedAt: number;
+                repoRoot: string;
+                namedBy: "agent" | "auto" | "user";
+                createdAt: number;
+                kind: "headless" | "pty";
+                alive: boolean;
+                canEject: boolean;
+                parent?: import("./session-id.js").SessionID | undefined;
+                locator: {
+                    daemonID: import("./daemon-id.js").DaemonID;
+                    targetID: string;
+                };
+                workspace?: {
+                    repoURL: string;
+                    sha: string;
+                    ref?: string | undefined;
+                    materializedAt: number;
+                } | undefined;
+                lifecycle: {
+                    desired: "run" | "sleep" | "stop";
+                    vm: "asleep" | "awake" | "none" | "unknown";
+                    harness: "exited" | "running" | "suspended";
+                    attachment: "attached" | "detached" | "local" | "reattaching";
+                };
+                model?: string | undefined;
+                pluginDirs?: readonly string[] | undefined;
+            };
+            ev: "SessionAdded";
+        } | {
+            session: {
+                id: import("./session-id.js").SessionID;
+                name: string;
+                cwd: string;
+                state: "done" | "exited" | "needs_you" | "running";
+                unread: boolean;
+                lastMsg: string;
+                lastDetail?: string | undefined;
+                restoreRefusal?: string | undefined;
+                agentSessionID?: import("./agent-session-id.js").AgentSessionID | undefined;
+                agent: string;
+                pinned: boolean;
+                lastAttachedAt: number;
+                repoRoot: string;
+                namedBy: "agent" | "auto" | "user";
+                createdAt: number;
+                kind: "headless" | "pty";
+                alive: boolean;
+                canEject: boolean;
+                parent?: import("./session-id.js").SessionID | undefined;
+                locator: {
+                    daemonID: import("./daemon-id.js").DaemonID;
+                    targetID: string;
+                };
+                workspace?: {
+                    repoURL: string;
+                    sha: string;
+                    ref?: string | undefined;
+                    materializedAt: number;
+                } | undefined;
+                lifecycle: {
+                    desired: "run" | "sleep" | "stop";
+                    vm: "asleep" | "awake" | "none" | "unknown";
+                    harness: "exited" | "running" | "suspended";
+                    attachment: "attached" | "detached" | "local" | "reattaching";
+                };
+                model?: string | undefined;
+                pluginDirs?: readonly string[] | undefined;
+            };
+            ev: "SessionState";
+        } | {
+            session: {
+                id: import("./session-id.js").SessionID;
+                name: string;
+                cwd: string;
+                state: "done" | "exited" | "needs_you" | "running";
+                unread: boolean;
+                lastMsg: string;
+                lastDetail?: string | undefined;
+                restoreRefusal?: string | undefined;
+                agentSessionID?: import("./agent-session-id.js").AgentSessionID | undefined;
+                agent: string;
+                pinned: boolean;
+                lastAttachedAt: number;
+                repoRoot: string;
+                namedBy: "agent" | "auto" | "user";
+                createdAt: number;
+                kind: "headless" | "pty";
+                alive: boolean;
+                canEject: boolean;
+                parent?: import("./session-id.js").SessionID | undefined;
+                locator: {
+                    daemonID: import("./daemon-id.js").DaemonID;
+                    targetID: string;
+                };
+                workspace?: {
+                    repoURL: string;
+                    sha: string;
+                    ref?: string | undefined;
+                    materializedAt: number;
+                } | undefined;
+                lifecycle: {
+                    desired: "run" | "sleep" | "stop";
+                    vm: "asleep" | "awake" | "none" | "unknown";
+                    harness: "exited" | "running" | "suspended";
+                    attachment: "attached" | "detached" | "local" | "reattaching";
+                };
+                model?: string | undefined;
+                pluginDirs?: readonly string[] | undefined;
+            };
+            ev: "SessionAttached";
+        } | {
+            session: {
+                id: import("./session-id.js").SessionID;
+                name: string;
+                cwd: string;
+                state: "done" | "exited" | "needs_you" | "running";
+                unread: boolean;
+                lastMsg: string;
+                lastDetail?: string | undefined;
+                restoreRefusal?: string | undefined;
+                agentSessionID?: import("./agent-session-id.js").AgentSessionID | undefined;
+                agent: string;
+                pinned: boolean;
+                lastAttachedAt: number;
+                repoRoot: string;
+                namedBy: "agent" | "auto" | "user";
+                createdAt: number;
+                kind: "headless" | "pty";
+                alive: boolean;
+                canEject: boolean;
+                parent?: import("./session-id.js").SessionID | undefined;
+                locator: {
+                    daemonID: import("./daemon-id.js").DaemonID;
+                    targetID: string;
+                };
+                workspace?: {
+                    repoURL: string;
+                    sha: string;
+                    ref?: string | undefined;
+                    materializedAt: number;
+                } | undefined;
+                lifecycle: {
+                    desired: "run" | "sleep" | "stop";
+                    vm: "asleep" | "awake" | "none" | "unknown";
+                    harness: "exited" | "running" | "suspended";
+                    attachment: "attached" | "detached" | "local" | "reattaching";
+                };
+                model?: string | undefined;
+                pluginDirs?: readonly string[] | undefined;
+            };
+            ev: "SessionDetached";
+        }, unknown, void>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    message: {
+        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./message-id.js").MessageID, string>>;
+            waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
+        }, z.core.$strip>, z.ZodObject<{
+            message: z.ZodString;
+            session: z.ZodString;
+            from: z.ZodString;
+            sender: z.ZodOptional<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                kind: z.ZodLiteral<"connector">;
+                client: z.ZodString;
+                name: z.ZodString;
+            }, z.core.$strip>, z.ZodObject<{
+                kind: z.ZodLiteral<"session">;
+                session: z.ZodString;
+                name: z.ZodString;
+            }, z.core.$strip>, z.ZodObject<{
+                kind: z.ZodLiteral<"local">;
+                name: z.ZodString;
+            }, z.core.$strip>, z.ZodObject<{
+                kind: z.ZodLiteral<"owner">;
+                name: z.ZodString;
+            }, z.core.$strip>], "kind">>;
+            text: z.ZodString;
+            status: z.ZodEnum<{
+                answered: "answered";
+                delivered: "delivered";
+                queued: "queued";
+                unanswered: "unanswered";
+            }>;
+            sentAt: z.ZodNumber;
+            deliveredAt: z.ZodOptional<z.ZodNumber>;
+            answeredAt: z.ZodOptional<z.ZodNumber>;
+            answer: z.ZodOptional<z.ZodString>;
+            unansweredAt: z.ZodOptional<z.ZodNumber>;
+            unansweredReason: z.ZodOptional<z.ZodString>;
+            turn: z.ZodNullable<z.ZodString>;
+            answeredWith: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+        ack: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./message-id.js").MessageID, string>>;
+        }, z.core.$strip>, z.ZodObject<{
+            message: z.ZodString;
+            status: z.ZodEnum<{
+                answered: "answered";
+                delivered: "delivered";
+                queued: "queued";
+                unanswered: "unanswered";
+            }>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    notice: {
+        ack: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+            message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./message-id.js").MessageID, string>>;
+        }, z.core.$strip>, z.ZodObject<{
+            message: z.ZodString;
+            status: z.ZodEnum<{
+                answered: "answered";
+                delivered: "delivered";
+                queued: "queued";
+                unanswered: "unanswered";
+            }>;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    note: {
+        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            note: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{
+            note: z.ZodString;
+            at: z.ZodNumber;
+            session: z.ZodString;
+            name: z.ZodNullable<z.ZodString>;
+            label: z.ZodString;
+            text: z.ZodString;
+            complete: z.ZodBoolean;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+    answer: {
+        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            answer: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        }, z.core.$strip>, z.ZodObject<{
+            answer: z.ZodString;
+            at: z.ZodNumber;
+            session: z.ZodString;
+            name: z.ZodNullable<z.ZodString>;
+            message: z.ZodString;
+            text: z.ZodString;
+            complete: z.ZodBoolean;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
+    };
+};
+
+// daemon-error-map.d.ts
+import { z } from 'zod';
+import type { ErrorCode } from './light/error-codes.js';
+declare const ERROR_DATA_SCHEMA: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+export interface DaemonErrorMap extends Readonly<Record<ErrorCode, {
+    readonly data: typeof ERROR_DATA_SCHEMA;
+}>> {
+}
+export declare const DAEMON_ERROR_MAP: DaemonErrorMap;
+export {};
+
+// daemon-event.d.ts
+import { z } from 'zod';
+export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    session: z.ZodObject<{
+        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        name: z.ZodString;
+        cwd: z.ZodString;
+        state: z.ZodEnum<{
+            done: "done";
+            exited: "exited";
+            needs_you: "needs_you";
+            running: "running";
+        }>;
+        unread: z.ZodBoolean;
+        lastMsg: z.ZodString;
+        lastDetail: z.ZodOptional<z.ZodString>;
+        restoreRefusal: z.ZodOptional<z.ZodString>;
+        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./agent-session-id.js").AgentSessionID, string>>>;
+        agent: z.ZodString;
+        pinned: z.ZodBoolean;
+        lastAttachedAt: z.ZodNumber;
+        repoRoot: z.ZodString;
+        namedBy: z.ZodEnum<{
+            agent: "agent";
+            auto: "auto";
+            user: "user";
+        }>;
+        createdAt: z.ZodNumber;
+        kind: z.ZodEnum<{
+            headless: "headless";
+            pty: "pty";
+        }>;
+        alive: z.ZodBoolean;
+        canEject: z.ZodBoolean;
+        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>;
+        locator: z.ZodObject<{
+            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("./daemon-id.js").DaemonID, string>>;
+            targetID: z.ZodString;
+        }, z.core.$strip>;
+        workspace: z.ZodOptional<z.ZodObject<{
+            repoURL: z.ZodString;
+            sha: z.ZodString;
+            ref: z.ZodOptional<z.ZodString>;
+            materializedAt: z.ZodNumber;
+        }, z.core.$strip>>;
+        lifecycle: z.ZodObject<{
+            desired: z.ZodEnum<{
+                run: "run";
+                sleep: "sleep";
+                stop: "stop";
+            }>;
+            vm: z.ZodEnum<{
+                asleep: "asleep";
+                awake: "awake";
+                none: "none";
+                unknown: "unknown";
+            }>;
+            harness: z.ZodEnum<{
+                exited: "exited";
+                running: "running";
+                suspended: "suspended";
+            }>;
+            attachment: z.ZodEnum<{
+                attached: "attached";
+                detached: "detached";
+                local: "local";
+                reattaching: "reattaching";
+            }>;
+        }, z.core.$strip>;
+        model: z.ZodOptional<z.ZodString>;
+        pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+    }, z.core.$strip>;
+    ev: z.ZodLiteral<"SessionAdded">;
+}, z.core.$strip>, z.ZodObject<{
+    session: z.ZodObject<{
+        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        name: z.ZodString;
+        cwd: z.ZodString;
+        state: z.ZodEnum<{
+            done: "done";
+            exited: "exited";
+            needs_you: "needs_you";
+            running: "running";
+        }>;
+        unread: z.ZodBoolean;
+        lastMsg: z.ZodString;
+        lastDetail: z.ZodOptional<z.ZodString>;
+        restoreRefusal: z.ZodOptional<z.ZodString>;
+        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./agent-session-id.js").AgentSessionID, string>>>;
+        agent: z.ZodString;
+        pinned: z.ZodBoolean;
+        lastAttachedAt: z.ZodNumber;
+        repoRoot: z.ZodString;
+        namedBy: z.ZodEnum<{
+            agent: "agent";
+            auto: "auto";
+            user: "user";
+        }>;
+        createdAt: z.ZodNumber;
+        kind: z.ZodEnum<{
+            headless: "headless";
+            pty: "pty";
+        }>;
+        alive: z.ZodBoolean;
+        canEject: z.ZodBoolean;
+        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>;
+        locator: z.ZodObject<{
+            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("./daemon-id.js").DaemonID, string>>;
+            targetID: z.ZodString;
+        }, z.core.$strip>;
+        workspace: z.ZodOptional<z.ZodObject<{
+            repoURL: z.ZodString;
+            sha: z.ZodString;
+            ref: z.ZodOptional<z.ZodString>;
+            materializedAt: z.ZodNumber;
+        }, z.core.$strip>>;
+        lifecycle: z.ZodObject<{
+            desired: z.ZodEnum<{
+                run: "run";
+                sleep: "sleep";
+                stop: "stop";
+            }>;
+            vm: z.ZodEnum<{
+                asleep: "asleep";
+                awake: "awake";
+                none: "none";
+                unknown: "unknown";
+            }>;
+            harness: z.ZodEnum<{
+                exited: "exited";
+                running: "running";
+                suspended: "suspended";
+            }>;
+            attachment: z.ZodEnum<{
+                attached: "attached";
+                detached: "detached";
+                local: "local";
+                reattaching: "reattaching";
+            }>;
+        }, z.core.$strip>;
+        model: z.ZodOptional<z.ZodString>;
+        pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+    }, z.core.$strip>;
+    ev: z.ZodLiteral<"SessionState">;
+}, z.core.$strip>, z.ZodObject<{
+    session: z.ZodObject<{
+        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        name: z.ZodString;
+        cwd: z.ZodString;
+        state: z.ZodEnum<{
+            done: "done";
+            exited: "exited";
+            needs_you: "needs_you";
+            running: "running";
+        }>;
+        unread: z.ZodBoolean;
+        lastMsg: z.ZodString;
+        lastDetail: z.ZodOptional<z.ZodString>;
+        restoreRefusal: z.ZodOptional<z.ZodString>;
+        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./agent-session-id.js").AgentSessionID, string>>>;
+        agent: z.ZodString;
+        pinned: z.ZodBoolean;
+        lastAttachedAt: z.ZodNumber;
+        repoRoot: z.ZodString;
+        namedBy: z.ZodEnum<{
+            agent: "agent";
+            auto: "auto";
+            user: "user";
+        }>;
+        createdAt: z.ZodNumber;
+        kind: z.ZodEnum<{
+            headless: "headless";
+            pty: "pty";
+        }>;
+        alive: z.ZodBoolean;
+        canEject: z.ZodBoolean;
+        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>;
+        locator: z.ZodObject<{
+            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("./daemon-id.js").DaemonID, string>>;
+            targetID: z.ZodString;
+        }, z.core.$strip>;
+        workspace: z.ZodOptional<z.ZodObject<{
+            repoURL: z.ZodString;
+            sha: z.ZodString;
+            ref: z.ZodOptional<z.ZodString>;
+            materializedAt: z.ZodNumber;
+        }, z.core.$strip>>;
+        lifecycle: z.ZodObject<{
+            desired: z.ZodEnum<{
+                run: "run";
+                sleep: "sleep";
+                stop: "stop";
+            }>;
+            vm: z.ZodEnum<{
+                asleep: "asleep";
+                awake: "awake";
+                none: "none";
+                unknown: "unknown";
+            }>;
+            harness: z.ZodEnum<{
+                exited: "exited";
+                running: "running";
+                suspended: "suspended";
+            }>;
+            attachment: z.ZodEnum<{
+                attached: "attached";
+                detached: "detached";
+                local: "local";
+                reattaching: "reattaching";
+            }>;
+        }, z.core.$strip>;
+        model: z.ZodOptional<z.ZodString>;
+        pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+    }, z.core.$strip>;
+    ev: z.ZodLiteral<"SessionAttached">;
+}, z.core.$strip>, z.ZodObject<{
+    session: z.ZodObject<{
+        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        name: z.ZodString;
+        cwd: z.ZodString;
+        state: z.ZodEnum<{
+            done: "done";
+            exited: "exited";
+            needs_you: "needs_you";
+            running: "running";
+        }>;
+        unread: z.ZodBoolean;
+        lastMsg: z.ZodString;
+        lastDetail: z.ZodOptional<z.ZodString>;
+        restoreRefusal: z.ZodOptional<z.ZodString>;
+        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./agent-session-id.js").AgentSessionID, string>>>;
+        agent: z.ZodString;
+        pinned: z.ZodBoolean;
+        lastAttachedAt: z.ZodNumber;
+        repoRoot: z.ZodString;
+        namedBy: z.ZodEnum<{
+            agent: "agent";
+            auto: "auto";
+            user: "user";
+        }>;
+        createdAt: z.ZodNumber;
+        kind: z.ZodEnum<{
+            headless: "headless";
+            pty: "pty";
+        }>;
+        alive: z.ZodBoolean;
+        canEject: z.ZodBoolean;
+        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>;
+        locator: z.ZodObject<{
+            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("./daemon-id.js").DaemonID, string>>;
+            targetID: z.ZodString;
+        }, z.core.$strip>;
+        workspace: z.ZodOptional<z.ZodObject<{
+            repoURL: z.ZodString;
+            sha: z.ZodString;
+            ref: z.ZodOptional<z.ZodString>;
+            materializedAt: z.ZodNumber;
+        }, z.core.$strip>>;
+        lifecycle: z.ZodObject<{
+            desired: z.ZodEnum<{
+                run: "run";
+                sleep: "sleep";
+                stop: "stop";
+            }>;
+            vm: z.ZodEnum<{
+                asleep: "asleep";
+                awake: "awake";
+                none: "none";
+                unknown: "unknown";
+            }>;
+            harness: z.ZodEnum<{
+                exited: "exited";
+                running: "running";
+                suspended: "suspended";
+            }>;
+            attachment: z.ZodEnum<{
+                attached: "attached";
+                detached: "detached";
+                local: "local";
+                reattaching: "reattaching";
+            }>;
+        }, z.core.$strip>;
+        model: z.ZodOptional<z.ZodString>;
+        pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+    }, z.core.$strip>;
+    ev: z.ZodLiteral<"SessionDetached">;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"SessionRenamed">;
+    sessionID: z.ZodString;
+    name: z.ZodString;
+    namedBy: z.ZodEnum<{
+        agent: "agent";
+        auto: "auto";
+        user: "user";
+    }>;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"SessionRemoved">;
+    sessionID: z.ZodString;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"SessionResized">;
+    sessionID: z.ZodString;
+    cols: z.ZodNumber;
+    rows: z.ZodNumber;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"SessionOutput">;
+    sessionID: z.ZodString;
+    seq: z.ZodNumber;
+    data: z.ZodString;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"SessionDesync">;
+    sessionID: z.ZodString;
+    dropped: z.ZodNumber;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"PermissionRequested">;
+    request: z.ZodString;
+    sessionID: z.ZodString;
+    message: z.ZodString;
+    respondable: z.ZodBoolean;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"PermissionResolved">;
+    request: z.ZodString;
+    decision: z.ZodString;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"SessionMessage">;
+    sessionID: z.ZodString;
+    message: z.ZodString;
+    status: z.ZodEnum<{
+        answered: "answered";
+        delivered: "delivered";
+        queued: "queued";
+        unanswered: "unanswered";
+    }>;
+    from: z.ZodString;
+    sender: z.ZodOptional<z.ZodDiscriminatedUnion<[z.ZodObject<{
+        kind: z.ZodLiteral<"connector">;
+        client: z.ZodString;
+        name: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"session">;
+        session: z.ZodString;
+        name: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"local">;
+        name: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"owner">;
+        name: z.ZodString;
+    }, z.core.$strip>], "kind">>;
+    textPreview: z.ZodString;
+    sentAt: z.ZodNumber;
+    deliveredAt: z.ZodOptional<z.ZodNumber>;
+    answeredAt: z.ZodOptional<z.ZodNumber>;
+    answerPreview: z.ZodOptional<z.ZodString>;
+    unansweredAt: z.ZodOptional<z.ZodNumber>;
+    unansweredReason: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"SessionNote">;
+    sessionID: z.ZodString;
+    kind: z.ZodString;
+    text: z.ZodString;
+    sentAt: z.ZodNumber;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"InboxMessage">;
+    sessionID: z.ZodString;
+    message: z.ZodString;
+    from: z.ZodString;
+    sender: z.ZodOptional<z.ZodDiscriminatedUnion<[z.ZodObject<{
+        kind: z.ZodLiteral<"connector">;
+        client: z.ZodString;
+        name: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"session">;
+        session: z.ZodString;
+        name: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"local">;
+        name: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"owner">;
+        name: z.ZodString;
+    }, z.core.$strip>], "kind">>;
+    text: z.ZodString;
+    sentAt: z.ZodNumber;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"InboxNotice">;
+    sessionID: z.ZodString;
+    message: z.ZodString;
+    from: z.ZodString;
+    status: z.ZodEnum<{
+        answered: "answered";
+        unanswered: "unanswered";
+    }>;
+    answer: z.ZodOptional<z.ZodString>;
+    reason: z.ZodOptional<z.ZodString>;
+    at: z.ZodNumber;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"InboxClosed">;
+    sessionID: z.ZodString;
+    reason: z.ZodEnum<{
+        removed: "removed";
+        replaced: "replaced";
+    }>;
+}, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"DaemonRestarted">;
+    result: z.ZodObject<{
+        runID: z.ZodString;
+        code: z.ZodNumber;
+        pid: z.ZodNullable<z.ZodNumber>;
+        build: z.ZodNullable<z.ZodString>;
+        listenPort: z.ZodNullable<z.ZodNumber>;
+        restored: z.ZodNumber;
+        total: z.ZodNumber;
+        failed: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            id: z.ZodString;
+            reason: z.ZodString;
+        }, z.core.$strip>>>;
+        interrupted: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            id: z.ZodString;
+        }, z.core.$strip>>>;
+        error: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>;
+}, z.core.$strip>], "ev">;
+export type DaemonEvent = z.output<typeof DAEMON_EVENT_SCHEMA>;
+
+// daemon-features.d.ts
+export declare const DAEMON_FEATURES: readonly ['events.read.from-start'];
+export type DaemonFeature = (typeof DAEMON_FEATURES)[number];
+
+// daemon-id.d.ts
+import type { z } from 'zod';
+export type DaemonID = string & z.$brand<'DaemonID'>;
+
+// fleet-entry-view.d.ts
+import { z } from 'zod';
+export declare const FLEET_ENTRY_VIEW_SCHEMA: z.ZodObject<{
+    sessionID: z.ZodString;
+    name: z.ZodString;
+    cwd: z.ZodString;
+    agentSessionID: z.ZodOptional<z.ZodString>;
+    agent: z.ZodString;
+    pinned: z.ZodOptional<z.ZodBoolean>;
+    lastAttachedAt: z.ZodOptional<z.ZodNumber>;
+    exited: z.ZodOptional<z.ZodBoolean>;
+    parent: z.ZodOptional<z.ZodString>;
+    prompt: z.ZodOptional<z.ZodString>;
+    result: z.ZodOptional<z.ZodString>;
+    transcriptPath: z.ZodOptional<z.ZodString>;
+    model: z.ZodOptional<z.ZodString>;
+    effort: z.ZodOptional<z.ZodString>;
+    pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+    target: z.ZodOptional<z.ZodString>;
+    targetIdentity: z.ZodOptional<z.ZodString>;
+    workspace: z.ZodOptional<z.ZodObject<{
+        repoURL: z.ZodString;
+        sha: z.ZodString;
+        ref: z.ZodOptional<z.ZodString>;
+        materializedAt: z.ZodNumber;
+    }, z.core.$strip>>;
+    withheldEnv: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+    desired: z.ZodOptional<z.ZodEnum<{
+        sleep: "sleep";
+        stop: "stop";
+    }>>;
+    hostKey: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+
+// fleet-event.d.ts
+import { z } from 'zod';
+export declare const FLEET_EVENT_SCHEMA: z.ZodObject<{
+    cursor: z.ZodString;
+    at: z.ZodNumber;
+    session: z.ZodString;
+    name: z.ZodNullable<z.ZodString>;
+    kind: z.ZodString;
+    detail: z.ZodNullable<z.ZodString>;
+    message: z.ZodOptional<z.ZodString>;
+    label: z.ZodOptional<z.ZodString>;
+    result: z.ZodOptional<z.ZodObject<{
+        runID: z.ZodString;
+        code: z.ZodNumber;
+        pid: z.ZodNullable<z.ZodNumber>;
+        build: z.ZodNullable<z.ZodString>;
+        listenPort: z.ZodNullable<z.ZodNumber>;
+        restored: z.ZodNumber;
+        total: z.ZodNumber;
+        failed: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            id: z.ZodString;
+            reason: z.ZodString;
+        }, z.core.$strip>>>;
+        interrupted: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            id: z.ZodString;
+        }, z.core.$strip>>>;
+        error: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+
+// git-probe-result.d.ts
+import { z } from 'zod';
+export declare const GIT_PROBE_RESULT_SCHEMA: z.ZodObject<{
+    url: z.ZodString;
+    head: z.ZodNullable<z.ZodString>;
+    refs: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        kind: z.ZodEnum<{
+            branch: "branch";
+            tag: "tag";
+        }>;
+        sha: z.ZodString;
+    }, z.core.$strip>>>;
+    resolved: z.ZodNullable<z.ZodObject<{
+        sha: z.ZodString;
+        branch: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+export type GitProbeResult = z.output<typeof GIT_PROBE_RESULT_SCHEMA>;
+
+// git-ref.d.ts
+import { z } from 'zod';
+export declare const GIT_REF_SCHEMA: z.ZodObject<{
+    name: z.ZodString;
+    kind: z.ZodEnum<{
+        branch: "branch";
+        tag: "tag";
+    }>;
+    sha: z.ZodString;
+}, z.core.$strip>;
+export type GitRef = z.output<typeof GIT_REF_SCHEMA>;
+
+// hello-result.d.ts
+import { z } from 'zod';
+export declare const HELLO_RESULT_SCHEMA: z.ZodObject<{
+    daemon: z.ZodString;
+    daemonID: z.ZodString;
+    limits: z.ZodObject<{
+        maxLine: z.ZodNumber;
+        maxChunk: z.ZodNumber;
+    }, z.core.$strip>;
+    idempotency: z.ZodObject<{
+        completedRetentionMs: z.ZodNumber;
+    }, z.core.$strip>;
+    lastUsedAgent: z.ZodString;
+    peerSession: z.ZodNullable<z.ZodString>;
+    features: z.ZodDefault<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+}, z.core.$strip>;
+export type HelloResult = z.output<typeof HELLO_RESULT_SCHEMA>;
+
+// index.d.ts
+export type * from './agent-session-id.js';
+export * from './agent-list.js';
+export * from './answer-view.js';
+export * from './check-daemon.js';
+export * from './commit-id-pattern.js';
+export * from './config-file-schema.js';
+export * from './contract-version.js';
+export * from './daemon-contract.js';
+export * from './daemon-error-map.js';
+export * from './daemon-event.js';
+export * from './daemon-features.js';
+export type * from './daemon-id.js';
+export * from './fleet-entry-view.js';
+export * from './fleet-event.js';
+export * from './git-probe-result.js';
+export * from './git-ref.js';
+export * from './hello-result.js';
+export * from './light/index.js';
+export * from './menu-view.js';
+export * from './message-answer.js';
+export type * from './message-id.js';
+export * from './message-status.js';
+export * from './message-view.js';
+export * from './note-view.js';
+export * from './procedure-meta.js';
+export type * from './published-record.js';
+export * from './published-record-schema.js';
+export * from './request-param-schemas.js';
+export * from './restart-result.js';
+export * from './session-descriptor.js';
+export type * from './session-id.js';
+export * from './session-lifecycle.js';
+export * from './session-workspace.js';
+export * from './source-candidate.js';
+export * from './source-entry.js';
+export * from './source-interpretation.js';
+export * from './source-pick.js';
+export * from './spawn-answer.js';
+export * from './spawn-option-spec.js';
+export * from './to-agent-session-id.js';
+export * from './to-daemon-id.js';
+export * from './to-message-id.js';
+export * from './to-session-id.js';
+export * from './transcript-row.js';
+
+// light/error-codes.d.ts
+export declare const ERROR_CODES: readonly ['protocol_mismatch', 'unauthorized', 'unknown_method', 'bad_args', 'no_such_session', 'session_dead', 'permission_pending', 'menu_changed', 'menu_label_mismatch', 'menu_busy', 'unsupported', 'unsupported_operation', 'unknown_target', 'target_unavailable', 'target_changed', 'target_config_invalid', 'target_forbidden', 'not_a_git_repo', 'no_commits', 'unreadable_tree', 'has_submodules', 'lfs_unsupported', 'workspace_dirty', 'no_origin', 'invalid_git_url', 'git_transports_invalid', 'unpushed_head', 'credential_in_url', 'credential_missing', 'ref_not_found', 'clone_failed', 'git_output_open', 'sanitize_failed', 'tar_failed', 'workspace_exists', 'workspace_overlap', 'transfer_failed', 'workspace_mismatch', 'scope_invalid', 'github_unavailable', 'host_unavailable', 'auth_not_configured', 'auth_target_unsupported', 'auth_signin_needed', 'auth_token_scope', 'auth_token_too_broad', 'auth_host_out_of_scope', 'auth_secret_not_grantable', 'auth_secret_mismatch', 'auth_runtime_mismatch', 'auth_runtime_exists', 'auth_grant_missing', 'auth_grants_mismatch', 'auth_rebind_required', 'auth_blocked', 'auth_binding_mismatch', 'auth_binding_invalid', 'auth_revocation_pending', 'broker_not_ready', 'auth_placeholder_unsupported', 'host_leased', 'confirmation_required', 'confirm_token_invalid', 'session_pinned', 'session_live', 'already_answered', 'too_slow', 'stale_epoch', 'idempotency_conflict', 'outcome_unknown', 'idempotency_key_unknown', 'internal'];
+export type ErrorCode = (typeof ERROR_CODES)[number];
+
+// light/index.d.ts
+export * from './error-codes.js';
+export * from './message-sender.js';
+export * from './resolve-atc-paths.js';
+export * from './resolve-home-dir.js';
+export * from './resolve-state-dir.js';
+export * from './session-env-names.js';
+
+// light/message-sender.d.ts
+import { z } from 'zod';
+export declare const MESSAGE_SENDER_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    kind: z.ZodLiteral<"connector">;
+    client: z.ZodString;
+    name: z.ZodString;
+}, z.core.$strip>, z.ZodObject<{
+    kind: z.ZodLiteral<"session">;
+    session: z.ZodString;
+    name: z.ZodString;
+}, z.core.$strip>, z.ZodObject<{
+    kind: z.ZodLiteral<"local">;
+    name: z.ZodString;
+}, z.core.$strip>, z.ZodObject<{
+    kind: z.ZodLiteral<"owner">;
+    name: z.ZodString;
+}, z.core.$strip>], "kind">;
+export type MessageSender = z.output<typeof MESSAGE_SENDER_SCHEMA>;
+
+// light/resolve-atc-paths.d.ts
+export interface AtcPaths {
+    readonly configFile: string;
+    readonly stateDir: string;
+    readonly socketPath: string;
+    readonly daemonSocketPath: string;
+    readonly eventsSocketPath: string;
+    readonly daemonPidFile: string;
+    readonly daemonRecordFile: string;
+    readonly statusFile: string;
+}
+export declare function resolveAtcPaths(env: Readonly<Record<string, string | undefined>>): AtcPaths;
+
+// light/resolve-home-dir.d.ts
+export declare function resolveHomeDir(env?: Readonly<Record<string, string | undefined>>): string;
+
+// light/resolve-state-dir.d.ts
+export declare function resolveStateDir(home: string): string;
+
+// light/session-env-names.d.ts
+export declare const SESSION_ENV_NAMES: {
+    readonly sessionID: 'ATC_SESSION_ID';
+    readonly socket: 'ATC_SOCKET';
+    readonly bridge: 'ATC_BRIDGE';
+    readonly outbox: 'ATC_OUTBOX';
+    readonly sessionRecord: 'ATC_SESSION_RECORD';
+};
+
+// menu-view.d.ts
+import { z } from 'zod';
+export declare const MENU_VIEW_SCHEMA: z.ZodObject<{
+    text: z.ZodString;
+    options: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+        option: z.ZodNumber;
+        label: z.ZodString;
+        checked: z.ZodNullable<z.ZodBoolean>;
+        highlighted: z.ZodBoolean;
+    }, z.core.$strip>>>;
+    menuToken: z.ZodString;
+}, z.core.$strip>;
+export type MenuView = z.output<typeof MENU_VIEW_SCHEMA>;
+
+// message-answer.d.ts
+import { z } from 'zod';
+export declare const MESSAGE_ANSWER_SCHEMA: z.ZodObject<{
+    message: z.ZodString;
+    status: z.ZodEnum<{
+        answered: "answered";
+        delivered: "delivered";
+        queued: "queued";
+        unanswered: "unanswered";
+    }>;
+}, z.core.$strip>;
+
+// message-id.d.ts
+import type { z } from 'zod';
+export type MessageID = string & z.$brand<'MessageID'>;
+
+// message-status.d.ts
+import { z } from 'zod';
+export declare const MESSAGE_STATUS_SCHEMA: z.ZodEnum<{
+    answered: "answered";
+    delivered: "delivered";
+    queued: "queued";
+    unanswered: "unanswered";
+}>;
+
+// message-view.d.ts
+import { z } from 'zod';
+export declare const MESSAGE_VIEW_SCHEMA: z.ZodObject<{
+    message: z.ZodString;
+    session: z.ZodString;
+    from: z.ZodString;
+    sender: z.ZodOptional<z.ZodDiscriminatedUnion<[z.ZodObject<{
+        kind: z.ZodLiteral<"connector">;
+        client: z.ZodString;
+        name: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"session">;
+        session: z.ZodString;
+        name: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"local">;
+        name: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"owner">;
+        name: z.ZodString;
+    }, z.core.$strip>], "kind">>;
+    text: z.ZodString;
+    status: z.ZodEnum<{
+        answered: "answered";
+        delivered: "delivered";
+        queued: "queued";
+        unanswered: "unanswered";
+    }>;
+    sentAt: z.ZodNumber;
+    deliveredAt: z.ZodOptional<z.ZodNumber>;
+    answeredAt: z.ZodOptional<z.ZodNumber>;
+    answer: z.ZodOptional<z.ZodString>;
+    unansweredAt: z.ZodOptional<z.ZodNumber>;
+    unansweredReason: z.ZodOptional<z.ZodString>;
+    turn: z.ZodNullable<z.ZodString>;
+    answeredWith: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+}, z.core.$strip>;
+
+// note-view.d.ts
+import { z } from 'zod';
+export declare const NOTE_VIEW_SCHEMA: z.ZodObject<{
+    note: z.ZodString;
+    at: z.ZodNumber;
+    session: z.ZodString;
+    name: z.ZodNullable<z.ZodString>;
+    label: z.ZodString;
+    text: z.ZodString;
+    complete: z.ZodBoolean;
+}, z.core.$strip>;
+
+// procedure-meta.d.ts
+import { z } from 'zod';
+export declare const PROCEDURE_META_SCHEMA: z.ZodObject<{
+    access: z.ZodEnum<{
+        owner: "owner";
+        principal: "principal";
+    }>;
+    readOnly: z.ZodBoolean;
+    keyed: z.ZodBoolean;
+}, z.core.$strip>;
+export type ProcedureMeta = Readonly<z.infer<typeof PROCEDURE_META_SCHEMA>>;
+
+// published-record-schema.d.ts
+import { z } from 'zod';
+import type { PublishedRecord } from './published-record.js';
+export declare const PUBLISHED_RECORD_SCHEMA: z.ZodType<PublishedRecord, PublishedRecord>;
+
+// published-record.d.ts
+export interface PublishedRecord {
+    readonly format: 'atc.session-record';
+    readonly version: 1;
+    readonly session: string;
+    readonly daemonID: string;
+    readonly target: string;
+    readonly revision: number;
+    readonly updatedAt: string;
+    readonly name: string | null;
+    readonly transcriptPath: string | null;
+    readonly scope: RecordedScope;
+}
+export interface RecordedScope {
+    readonly workspace: RecordedWorkspace;
+    readonly worktrees: readonly RecordedWorktree[];
+    readonly branches: readonly RecordedBranch[];
+    readonly pullRequests: readonly RecordedPullRequest[];
+}
+interface RecordedWorkspace {
+    readonly path: string;
+    readonly branch: string | null;
+    readonly repoURL: string | null;
+    readonly sha: string | null;
+}
+export interface RecordedWorktree {
+    readonly path: string;
+    readonly branch: string | null;
+}
+export interface RecordedBranch {
+    readonly name: string;
+    readonly repo: string;
+}
+export interface RecordedPullRequest {
+    readonly repo: string;
+    readonly number: number;
+    readonly url: string;
+    readonly branch: string;
+}
+export {};
+
+// request-param-schemas.d.ts
+import { z } from 'zod';
+declare const WORKSPACE_SOURCE: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    kind: z.ZodLiteral<"path">;
+    path: z.ZodString;
+    allowDirty: z.ZodOptional<z.ZodEnum<{
+        refuse: "refuse";
+        warn: "warn";
+    }>>;
+}, z.core.$strict>, z.ZodObject<{
+    kind: z.ZodLiteral<"git">;
+    url: z.ZodString;
+    ref: z.ZodOptional<z.ZodString>;
+    sha: z.ZodOptional<z.ZodString>;
+    credentialRef: z.ZodOptional<z.ZodObject<{
+        kind: z.ZodLiteral<"env">;
+        name: z.ZodString;
+    }, z.core.$strict>>;
+}, z.core.$strict>], "kind">;
+export type SpawnWorkspaceSource = z.infer<typeof WORKSPACE_SOURCE>;
+export declare const REQUEST_PARAM_SCHEMAS: {
+    readonly 'daemon.hello': z.ZodObject<{
+        client: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        protocol: z.ZodOptional<z.ZodNumber>;
+        principal: z.ZodOptional<z.ZodString>;
+        session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>, unknown>;
+    }, z.core.$strip>;
+    readonly 'daemon.ping': z.ZodObject<{}, z.core.$strip>;
+    readonly 'daemon.quit': z.ZodObject<{}, z.core.$strip>;
+    readonly 'daemon.backup': z.ZodObject<{
+        path: z.ZodString;
+    }, z.core.$strip>;
+    readonly 'daemon.restarted': z.ZodObject<{
+        result: z.ZodObject<{
+            runID: z.ZodString;
+            code: z.ZodNumber;
+            pid: z.ZodNullable<z.ZodNumber>;
+            build: z.ZodNullable<z.ZodString>;
+            listenPort: z.ZodNullable<z.ZodNumber>;
+            restored: z.ZodNumber;
+            total: z.ZodNumber;
+            failed: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                id: z.ZodString;
+                reason: z.ZodString;
+            }, z.core.$strip>>>;
+            interrupted: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                id: z.ZodString;
+            }, z.core.$strip>>>;
+            error: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
+    }, z.core.$strip>;
+    readonly 'session.list': z.ZodObject<{}, z.core.$strip>;
+    readonly 'dirs.list': z.ZodObject<{}, z.core.$strip>;
+    readonly 'agents.list': z.ZodObject<{}, z.core.$strip>;
+    readonly 'sources.list': z.ZodObject<{
+        source: z.ZodString;
+        target: z.ZodOptional<z.ZodString>;
+        scope: z.ZodOptional<z.ZodString>;
+        text: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>;
+    readonly 'sources.interpret': z.ZodObject<{
+        source: z.ZodString;
+        input: z.ZodString;
+        target: z.ZodOptional<z.ZodString>;
+        clientCwd: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>;
+    readonly 'sources.complete': z.ZodObject<{
+        source: z.ZodString;
+        input: z.ZodString;
+        target: z.ZodOptional<z.ZodString>;
+        clientCwd: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>;
+    readonly 'git.probe': z.ZodObject<{
+        url: z.ZodString;
+        ref: z.ZodOptional<z.ZodString>;
+        sha: z.ZodOptional<z.ZodString>;
+        credentialRef: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodLiteral<"env">;
+            name: z.ZodString;
+        }, z.core.$strict>>;
+        target: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>;
+    readonly 'fleet.list': z.ZodObject<{}, z.core.$strip>;
+    readonly 'fleet.restore': z.ZodObject<{
+        cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+    }, z.core.$strip>;
+    readonly 'session.spawn': z.ZodObject<{
+        cwd: z.ZodOptional<z.ZodString>;
+        name: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        prompt: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        resume: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodUnion<readonly [z.ZodBoolean, z.ZodString]>>, unknown>, z.ZodTransform<boolean | import("./agent-session-id.js").AgentSessionID, string | boolean>>;
+        agent: z.ZodOptional<z.ZodString>;
+        model: z.ZodOptional<z.ZodString>;
+        effort: z.ZodOptional<z.ZodString>;
+        pluginDirs: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        idempotencyKey: z.ZodOptional<z.ZodString>;
+        replayOnly: z.ZodOptional<z.ZodBoolean>;
+        target: z.ZodOptional<z.ZodString>;
+        workspace: z.ZodOptional<z.ZodDiscriminatedUnion<[z.ZodObject<{
+            kind: z.ZodLiteral<"path">;
+            path: z.ZodString;
+            allowDirty: z.ZodOptional<z.ZodEnum<{
+                refuse: "refuse";
+                warn: "warn";
+            }>>;
+        }, z.core.$strict>, z.ZodObject<{
+            kind: z.ZodLiteral<"git">;
+            url: z.ZodString;
+            ref: z.ZodOptional<z.ZodString>;
+            sha: z.ZodOptional<z.ZodString>;
+            credentialRef: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodLiteral<"env">;
+                name: z.ZodString;
+            }, z.core.$strict>>;
+        }, z.core.$strict>], "kind">>;
+        trustClonedWorkspace: z.ZodOptional<z.ZodBoolean>;
+        scope: z.ZodOptional<z.ZodUnknown>;
+        parent: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>, unknown>;
+    }, z.core.$strip>;
+    readonly 'session.kill': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        stopOnly: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strip>;
+    readonly 'session.ack': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+    }, z.core.$strip>;
+    readonly 'session.forget': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        confirmToken: z.ZodOptional<z.ZodString>;
+        refusePinned: z.ZodOptional<z.ZodBoolean>;
+        refuseLive: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strip>;
+    readonly 'session.auth.revoke': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+    }, z.core.$strip>;
+    readonly 'session.auth.rebind': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+    }, z.core.$strip>;
+    readonly 'session.scope.add': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        scope: z.ZodUnknown;
+    }, z.core.$strip>;
+    readonly 'session.update': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        name: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+        pinned: z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
+        parent: z.ZodOptional<z.ZodNull>;
+    }, z.core.$strip>;
+    readonly 'session.attach': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+    }, z.core.$strip>;
+    readonly 'session.detach': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+    }, z.core.$strip>;
+    readonly 'session.input': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        data: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+    }, z.core.$strip>;
+    readonly 'session.submit': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        text: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+    }, z.core.$strip>;
+    readonly 'session.resize': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+    }, z.core.$strip>;
+    readonly 'session.resumeCommand': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+    }, z.core.$strip>;
+    readonly 'session.screen': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+    }, z.core.$strip>;
+    readonly 'session.menu': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+    }, z.core.$strip>;
+    readonly 'session.choose': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        menuToken: z.ZodString;
+        option: z.ZodOptional<z.ZodNumber>;
+        label: z.ZodOptional<z.ZodString>;
+        key: z.ZodOptional<z.ZodLiteral<"escape">>;
+    }, z.core.$strip>;
+    readonly 'session.eject': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        prompt: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+    }, z.core.$strip>;
+    readonly 'session.adopt': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+    }, z.core.$strip>;
+    readonly 'permission.respond': z.ZodObject<{
+        request: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        decision: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+    }, z.core.$strip>;
+    readonly 'session.get': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+    }, z.core.$strip>;
+    readonly 'session.read': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        cursor: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+        limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
+    }, z.core.$strip>;
+    readonly 'events.read': z.ZodObject<{
+        cursor: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+        from: z.ZodOptional<z.ZodLiteral<"start">>;
+        limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
+        waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
+        session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>, unknown>;
+    }, z.core.$strip>;
+    readonly 'session.message': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        text: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+        idempotencyKey: z.ZodOptional<z.ZodString>;
+        replayOnly: z.ZodOptional<z.ZodBoolean>;
+        from: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+        notice: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strip>;
+    readonly 'session.tap': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        notices: z.ZodDefault<z.ZodBoolean>;
+    }, z.core.$strip>;
+    readonly 'message.get': z.ZodObject<{
+        message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./message-id.js").MessageID, string>>;
+        waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
+    }, z.core.$strip>;
+    readonly 'note.get': z.ZodObject<{
+        note: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+    }, z.core.$strip>;
+    readonly 'answer.get': z.ZodObject<{
+        answer: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
+    }, z.core.$strip>;
+    readonly 'message.ack': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./message-id.js").MessageID, string>>;
+    }, z.core.$strip>;
+    readonly 'notice.ack': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./message-id.js").MessageID, string>>;
+    }, z.core.$strip>;
+};
+export {};
+
+// restart-result.d.ts
+import { z } from 'zod';
+declare const RESTART_FAILED_ROW_SCHEMA: z.ZodObject<{
+    name: z.ZodString;
+    id: z.ZodString;
+    reason: z.ZodString;
+}, z.core.$strip>;
+export declare const RESTART_RESULT_SCHEMA: z.ZodObject<{
+    runID: z.ZodString;
+    code: z.ZodNumber;
+    pid: z.ZodNullable<z.ZodNumber>;
+    build: z.ZodNullable<z.ZodString>;
+    listenPort: z.ZodNullable<z.ZodNumber>;
+    restored: z.ZodNumber;
+    total: z.ZodNumber;
+    failed: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        id: z.ZodString;
+        reason: z.ZodString;
+    }, z.core.$strip>>>;
+    interrupted: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        id: z.ZodString;
+    }, z.core.$strip>>>;
+    error: z.ZodNullable<z.ZodString>;
+}, z.core.$strip>;
+export type RestartResult = Readonly<z.output<typeof RESTART_RESULT_SCHEMA>>;
+export type RestartFailedRow = Readonly<z.output<typeof RESTART_FAILED_ROW_SCHEMA>>;
+export {};
+
+// schema/build-optional-boolean.d.ts
+import { z } from 'zod';
+export declare function buildOptionalBoolean(): z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
+
+// schema/build-optional-non-empty-string.d.ts
+import { z } from 'zod';
+export declare function buildOptionalNonEmptyString(): z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+
+// schema/build-optional-string-array.d.ts
+import { z } from 'zod';
+export declare function buildOptionalStringArray(): z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodString>>, unknown>;
+
+// schema/build-optional-string.d.ts
+import { z } from 'zod';
+export declare function buildOptionalString(): z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+
+// schema/index.d.ts
+export * from './build-optional-boolean.js';
+export * from './build-optional-non-empty-string.js';
+export * from './build-optional-string.js';
+export * from './build-optional-string-array.js';
+
+// session-descriptor.d.ts
+import { z } from 'zod';
+export declare const SESSION_DESCRIPTOR_SCHEMA: z.ZodObject<{
+    id: z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+    name: z.ZodString;
+    cwd: z.ZodString;
+    state: z.ZodEnum<{
+        done: "done";
+        exited: "exited";
+        needs_you: "needs_you";
+        running: "running";
+    }>;
+    unread: z.ZodBoolean;
+    lastMsg: z.ZodString;
+    lastDetail: z.ZodOptional<z.ZodString>;
+    restoreRefusal: z.ZodOptional<z.ZodString>;
+    agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./agent-session-id.js").AgentSessionID, string>>>;
+    agent: z.ZodString;
+    pinned: z.ZodBoolean;
+    lastAttachedAt: z.ZodNumber;
+    repoRoot: z.ZodString;
+    namedBy: z.ZodEnum<{
+        agent: "agent";
+        auto: "auto";
+        user: "user";
+    }>;
+    createdAt: z.ZodNumber;
+    kind: z.ZodEnum<{
+        headless: "headless";
+        pty: "pty";
+    }>;
+    alive: z.ZodBoolean;
+    canEject: z.ZodBoolean;
+    parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>;
+    locator: z.ZodObject<{
+        daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("./daemon-id.js").DaemonID, string>>;
+        targetID: z.ZodString;
+    }, z.core.$strip>;
+    workspace: z.ZodOptional<z.ZodObject<{
+        repoURL: z.ZodString;
+        sha: z.ZodString;
+        ref: z.ZodOptional<z.ZodString>;
+        materializedAt: z.ZodNumber;
+    }, z.core.$strip>>;
+    lifecycle: z.ZodObject<{
+        desired: z.ZodEnum<{
+            run: "run";
+            sleep: "sleep";
+            stop: "stop";
+        }>;
+        vm: z.ZodEnum<{
+            asleep: "asleep";
+            awake: "awake";
+            none: "none";
+            unknown: "unknown";
+        }>;
+        harness: z.ZodEnum<{
+            exited: "exited";
+            running: "running";
+            suspended: "suspended";
+        }>;
+        attachment: z.ZodEnum<{
+            attached: "attached";
+            detached: "detached";
+            local: "local";
+            reattaching: "reattaching";
+        }>;
+    }, z.core.$strip>;
+    model: z.ZodOptional<z.ZodString>;
+    pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+}, z.core.$strip>;
+export type SessionDescriptor = Readonly<z.output<typeof SESSION_DESCRIPTOR_SCHEMA>>;
+
+// session-id.d.ts
+import type { z } from 'zod';
+export type SessionID = string & z.$brand<'SessionID'>;
+
+// session-lifecycle.d.ts
+import { z } from 'zod';
+export declare const SESSION_LIFECYCLE_SCHEMA: z.ZodObject<{
+    desired: z.ZodEnum<{
+        run: "run";
+        sleep: "sleep";
+        stop: "stop";
+    }>;
+    vm: z.ZodEnum<{
+        asleep: "asleep";
+        awake: "awake";
+        none: "none";
+        unknown: "unknown";
+    }>;
+    harness: z.ZodEnum<{
+        exited: "exited";
+        running: "running";
+        suspended: "suspended";
+    }>;
+    attachment: z.ZodEnum<{
+        attached: "attached";
+        detached: "detached";
+        local: "local";
+        reattaching: "reattaching";
+    }>;
+}, z.core.$strip>;
+export type SessionLifecycle = Readonly<z.output<typeof SESSION_LIFECYCLE_SCHEMA>>;
+
+// session-workspace.d.ts
+import { z } from 'zod';
+export declare const SESSION_WORKSPACE_SCHEMA: z.ZodObject<{
+    repoURL: z.ZodString;
+    sha: z.ZodString;
+    ref: z.ZodOptional<z.ZodString>;
+    materializedAt: z.ZodNumber;
+}, z.core.$strip>;
+export type SessionWorkspace = Readonly<z.output<typeof SESSION_WORKSPACE_SCHEMA>>;
+
+// source-candidate.d.ts
+import { z } from 'zod';
+export declare const SOURCE_CANDIDATE_SCHEMA: z.ZodObject<{
+    label: z.ZodString;
+    detail: z.ZodOptional<z.ZodString>;
+    pick: z.ZodDiscriminatedUnion<[z.ZodObject<{
+        kind: z.ZodLiteral<"path">;
+        directory: z.ZodString;
+    }, z.core.$strip>, z.ZodObject<{
+        kind: z.ZodLiteral<"git">;
+        url: z.ZodString;
+    }, z.core.$strip>], "kind">;
+}, z.core.$strip>;
+export type SourceCandidate = z.output<typeof SOURCE_CANDIDATE_SCHEMA>;
+
+// source-entry.d.ts
+import { z } from 'zod';
+export declare const SOURCE_ENTRY_SCHEMA: z.ZodObject<{
+    id: z.ZodString;
+    label: z.ZodString;
+    kind: z.ZodEnum<{
+        git: "git";
+        path: "path";
+    }>;
+}, z.core.$strip>;
+export type SourceEntry = z.output<typeof SOURCE_ENTRY_SCHEMA>;
+
+// source-interpretation.d.ts
+import { z } from 'zod';
+export declare const SOURCE_INTERPRETATION_SCHEMA: z.ZodUnion<readonly [z.ZodObject<{
+    kind: z.ZodLiteral<"browse">;
+    scope: z.ZodString;
+}, z.core.$strip>, z.ZodDiscriminatedUnion<[z.ZodObject<{
+    kind: z.ZodLiteral<"path">;
+    directory: z.ZodString;
+}, z.core.$strip>, z.ZodObject<{
+    kind: z.ZodLiteral<"git">;
+    url: z.ZodString;
+}, z.core.$strip>], "kind">, z.ZodObject<{
+    kind: z.ZodLiteral<"none">;
+}, z.core.$strip>]>;
+export type SourceInterpretation = z.output<typeof SOURCE_INTERPRETATION_SCHEMA>;
+
+// source-pick.d.ts
+import { z } from 'zod';
+export declare const SOURCE_PICK_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    kind: z.ZodLiteral<"path">;
+    directory: z.ZodString;
+}, z.core.$strip>, z.ZodObject<{
+    kind: z.ZodLiteral<"git">;
+    url: z.ZodString;
+}, z.core.$strip>], "kind">;
+export type SourcePick = z.output<typeof SOURCE_PICK_SCHEMA>;
+
+// spawn-answer.d.ts
+import { z } from 'zod';
+export declare const SPAWN_ANSWER_SCHEMA: z.ZodObject<{
+    session: z.ZodObject<{
+        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        name: z.ZodString;
+        cwd: z.ZodString;
+        state: z.ZodEnum<{
+            done: "done";
+            exited: "exited";
+            needs_you: "needs_you";
+            running: "running";
+        }>;
+        unread: z.ZodBoolean;
+        lastMsg: z.ZodString;
+        lastDetail: z.ZodOptional<z.ZodString>;
+        restoreRefusal: z.ZodOptional<z.ZodString>;
+        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./agent-session-id.js").AgentSessionID, string>>>;
+        agent: z.ZodString;
+        pinned: z.ZodBoolean;
+        lastAttachedAt: z.ZodNumber;
+        repoRoot: z.ZodString;
+        namedBy: z.ZodEnum<{
+            agent: "agent";
+            auto: "auto";
+            user: "user";
+        }>;
+        createdAt: z.ZodNumber;
+        kind: z.ZodEnum<{
+            headless: "headless";
+            pty: "pty";
+        }>;
+        alive: z.ZodBoolean;
+        canEject: z.ZodBoolean;
+        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>;
+        locator: z.ZodObject<{
+            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("./daemon-id.js").DaemonID, string>>;
+            targetID: z.ZodString;
+        }, z.core.$strip>;
+        workspace: z.ZodOptional<z.ZodObject<{
+            repoURL: z.ZodString;
+            sha: z.ZodString;
+            ref: z.ZodOptional<z.ZodString>;
+            materializedAt: z.ZodNumber;
+        }, z.core.$strip>>;
+        lifecycle: z.ZodObject<{
+            desired: z.ZodEnum<{
+                run: "run";
+                sleep: "sleep";
+                stop: "stop";
+            }>;
+            vm: z.ZodEnum<{
+                asleep: "asleep";
+                awake: "awake";
+                none: "none";
+                unknown: "unknown";
+            }>;
+            harness: z.ZodEnum<{
+                exited: "exited";
+                running: "running";
+                suspended: "suspended";
+            }>;
+            attachment: z.ZodEnum<{
+                attached: "attached";
+                detached: "detached";
+                local: "local";
+                reattaching: "reattaching";
+            }>;
+        }, z.core.$strip>;
+        model: z.ZodOptional<z.ZodString>;
+        pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+    }, z.core.$strip>;
+    warnings: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+}, z.core.$strip>;
+
+// spawn-option-spec.d.ts
+import { z } from 'zod';
+export declare const SPAWN_OPTION_SPEC_SCHEMA: z.ZodObject<{
+    supported: z.ZodBoolean;
+    values: z.ZodNullable<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+    examples: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+        value: z.ZodString;
+        resolvesTo: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>>;
+    default: z.ZodNullable<z.ZodString>;
+    backendEffect: z.ZodNullable<z.ZodEnum<{
+        applied: "applied";
+        unverified: "unverified";
+    }>>;
+    note: z.ZodNullable<z.ZodString>;
+}, z.core.$strip>;
+export type SpawnOptionSpec = Readonly<z.output<typeof SPAWN_OPTION_SPEC_SCHEMA>>;
+
+// to-agent-session-id.d.ts
+import type { AgentSessionID } from './agent-session-id.js';
+export declare function toAgentSessionID(id: string): AgentSessionID;
+
+// to-daemon-id.d.ts
+import type { DaemonID } from './daemon-id.js';
+export declare function toDaemonID(id: string): DaemonID;
+
+// to-message-id.d.ts
+import type { MessageID } from './message-id.js';
+export declare function toMessageID(id: string): MessageID;
+
+// to-session-id.d.ts
+import type { SessionID } from './session-id.js';
+export declare function toSessionID(id: string): SessionID;
+
+// transcript-row.d.ts
+import { z } from 'zod';
+export declare const TRANSCRIPT_ROW_SCHEMA: z.ZodObject<{
+    role: z.ZodEnum<{
+        assistant: "assistant";
+        user: "user";
+    }>;
+    text: z.ZodString;
+    tools: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        input: z.ZodString;
+    }, z.core.$strip>>>;
+    at: z.ZodNullable<z.ZodNumber>;
+}, z.core.$strip>;
+export type TranscriptRow = Readonly<z.output<typeof TRANSCRIPT_ROW_SCHEMA>>;

@@ -1,7 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { LEGACY_BROKER_PLACEHOLDER } from '@atc/config';
-import { toSessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { AuthProfile, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
@@ -12,6 +11,7 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { buildMockAuthBinding } from '../testing/build-mock-auth-binding';
 import { buildStubBinderBroker } from '../testing/build-stub-binder-broker';

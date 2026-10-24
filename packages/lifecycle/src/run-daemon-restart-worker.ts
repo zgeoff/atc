@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import type { RestartResult } from '@atc/protocol';
+import type { RestartResult } from '@atcx/contract';
 import { buildRestartFailure } from './build-restart-failure';
 import { claimDaemonLock } from './claim-daemon-lock';
 import { formatRestartReport } from './format-restart-report';

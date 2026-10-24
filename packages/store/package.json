@@ -12,6 +12,7 @@
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "@zgeoff/kysely-bun-sqlite": "catalog:",
     "kysely": "catalog:",
     "zod": "catalog:"

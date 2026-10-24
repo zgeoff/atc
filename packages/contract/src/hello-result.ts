@@ -7,6 +7,9 @@ export const HELLO_RESULT_SCHEMA = z.object({
   idempotency: z.object({ completedRetentionMs: z.number() }),
   lastUsedAgent: z.string(),
   peerSession: z.string().nullable(),
+
+  // A daemon released before features existed sends none.
+  features: z.array(z.string()).readonly().default([]),
 });
 
 export type HelloResult = z.output<typeof HELLO_RESULT_SCHEMA>;

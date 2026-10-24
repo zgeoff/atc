@@ -1,4 +1,4 @@
-import { SESSION_ENV_NAMES } from '@atc/protocol/session';
+import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 
 // The variables atc sets for the harness of a session it hosts.
 const SESSION_VARIABLES: ReadonlySet<string> = new Set(Object.values(SESSION_ENV_NAMES));

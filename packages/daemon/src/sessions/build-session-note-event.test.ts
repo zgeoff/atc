@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
+import { toSessionID } from '@atcx/contract';
 import { buildSessionNoteEvent } from './build-session-note-event';
 
 test('it builds a note event carrying the note label as its kind', () => {
@@ -10,7 +10,7 @@ test('it builds a note event carrying the note label as its kind', () => {
   );
 
   expect(event).toStrictEqual({
-    version: 11,
+    version: 12,
     ev: 'SessionNote',
     sessionID: 's1',
     kind: 'blocked',

@@ -1,9 +1,9 @@
 import type { Clock } from '@atc/core';
-import { HELLO_RESULT_SCHEMA } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
+import { HELLO_RESULT_SCHEMA } from '@atcx/contract';
 
 const HELLO_FIELDS = HELLO_RESULT_SCHEMA.pick({ daemon: true, daemonID: true });
 

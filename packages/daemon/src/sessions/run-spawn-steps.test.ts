@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
+import { toSessionID } from '@atcx/contract';
 import { runSpawnSteps } from './run-spawn-steps';
 
 test('it resolves with what the body returns and runs no undo', async () => {

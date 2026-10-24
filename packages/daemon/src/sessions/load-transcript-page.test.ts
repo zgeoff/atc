@@ -1,8 +1,8 @@
 import { expect, mock, test } from 'bun:test';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { TranscriptRow } from '@atc/protocol';
 import { setupTempDir } from '@atc/test-utils';
+import type { TranscriptRow } from '@atcx/contract';
 import { loadTranscriptPage } from './load-transcript-page';
 
 function setupTest() {

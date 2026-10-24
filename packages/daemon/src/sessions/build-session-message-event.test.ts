@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { toMessageID, toSessionID } from '@atc/core';
 import { buildMockMessageRecord } from '@atc/store/testing';
+import { toMessageID, toSessionID } from '@atcx/contract';
 import { buildSessionMessageEvent } from './build-session-message-event';
 
 test('it builds a queued event without delivery or answer fields', () => {
@@ -16,7 +16,7 @@ test('it builds a queued event without delivery or answer fields', () => {
   );
 
   expect(event).toStrictEqual({
-    version: 11,
+    version: 12,
     ev: 'SessionMessage',
     sessionID: 's1',
     message: 'm-1',
@@ -44,7 +44,7 @@ test('it builds an answered event with the answer and both timestamps', () => {
   );
 
   expect(event).toStrictEqual({
-    version: 11,
+    version: 12,
     ev: 'SessionMessage',
     sessionID: 's2',
     message: 'm-1',
@@ -73,7 +73,7 @@ test('it carries only a preview of a long text and a long answer', () => {
   );
 
   expect(event).toStrictEqual({
-    version: 11,
+    version: 12,
     ev: 'SessionMessage',
     sessionID: 's1',
     message: 'm-1',
@@ -102,7 +102,7 @@ test('it builds an unanswered event with the reason and the unanswered time', ()
   );
 
   expect(event).toStrictEqual({
-    version: 11,
+    version: 12,
     ev: 'SessionMessage',
     sessionID: 's1',
     message: 'm-1',
@@ -129,7 +129,7 @@ test('it carries the sender of a message that holds one', () => {
   );
 
   expect(event).toStrictEqual({
-    version: 11,
+    version: 12,
     ev: 'SessionMessage',
     sessionID: 's1',
     message: 'm-1',

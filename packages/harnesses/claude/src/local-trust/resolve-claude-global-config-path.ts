@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { resolveHomeDir } from '@atc/config/host';
+import { resolveHomeDir } from '@atcx/contract/light';
 
 // A config left at Claude's older `.config.json` location is never read.
 export function resolveClaudeGlobalConfigPath(homeDir: string = resolveHomeDir()): string {

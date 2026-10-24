@@ -1,4 +1,4 @@
-import type { AgentSessionID, SessionID } from '@atc/core';
+import type { AgentSessionID, SessionID } from '@atcx/contract';
 
 // Which session a message belongs to: the atc id it was sent to, or the
 // agent session id, which links rows written under an earlier atc id.

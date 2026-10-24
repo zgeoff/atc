@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config';
-import { resolveHomeDir } from '@atc/config/host';
 import { DaemonError } from '@atc/protocol/wire';
 import {
   KEYS,
@@ -11,6 +10,7 @@ import {
   buildStubHarnessPlugins,
   buildStubTerminal,
 } from '@atc/test-utils';
+import { resolveHomeDir } from '@atcx/contract/light';
 import { buildStubListingCache } from '../testing/build-stub-listing-cache';
 import { buildStubPickerHost } from '../testing/build-stub-picker-host';
 import { toMirrorSession } from '../to-mirror-session';

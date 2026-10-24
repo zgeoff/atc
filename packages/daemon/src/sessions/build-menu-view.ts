@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { ScreenMenu } from '@atc/plugin-api';
-import type { MenuView } from '@atc/protocol';
+import type { MenuView } from '@atcx/contract';
 
 export function buildMenuView(menu: ScreenMenu): MenuView {
   // the highlight stays out of the token, so a choice that walks the cursor still matches it

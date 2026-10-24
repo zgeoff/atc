@@ -1,9 +1,10 @@
 import { join } from 'node:path';
 import type { InvalidGitTransports, TargetConfigError } from '@atc/config';
 import { parseRestoreBootTimeoutMs } from '@atc/config';
-import type { Clock, SessionID } from '@atc/core';
+import type { Clock } from '@atc/core';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 import { createRuntimeAuthBinder } from './auth/create-runtime-auth-binder';
 import type { RuntimeAuthBinder } from './auth/create-runtime-auth-binder';
 import { tryReconcileAuthBindings } from './auth/try-reconcile-auth-bindings';

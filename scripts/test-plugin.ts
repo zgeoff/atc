@@ -54,7 +54,7 @@ async function main(): Promise<void> {
   const directory = mkdtempSync(join(tmpdir(), `atc-test-plugin-${plugin.name}-`));
 
   try {
-    createPluginWorkspace(repo, directory, plugin, packages);
+    createPluginWorkspace({ repo, directory, plugin, packages, workspace });
 
     const steps: readonly (readonly string[])[] = [
       ['bun', 'install'],
@@ -105,34 +105,37 @@ function printUsage(plugins: readonly WorkspacePackage[]): void {
 // The workspace's type check covers the plugin and the production files of
 // the packages it reaches. The other packages' own tests may import the
 // app, which the workspace leaves out.
-function createPluginWorkspace(
-  repo: string,
-  directory: string,
-  plugin: WorkspacePackage,
-  packages: readonly WorkspacePackage[],
-): void {
-  for (const rule of packages) {
-    cpSync(join(repo, rule.directory), join(directory, rule.directory), {
+interface CreatePluginWorkspaceOptions {
+  readonly repo: string;
+  readonly directory: string;
+  readonly plugin: WorkspacePackage;
+  readonly packages: readonly WorkspacePackage[];
+  readonly workspace: readonly WorkspacePackage[];
+}
+
+function createPluginWorkspace(options: CreatePluginWorkspaceOptions): void {
+  for (const rule of options.packages) {
+    cpSync(join(options.repo, rule.directory), join(options.directory, rule.directory), {
       recursive: true,
       filter: (source) => !source.includes('/node_modules'),
     });
   }
 
   for (const path of SETUP_PATHS) {
-    cpSync(join(repo, path), join(directory, path), { recursive: true });
+    cpSync(join(options.repo, path), join(options.directory, path), { recursive: true });
   }
 
-  writeWorkspaceManifest(repo, directory, packages);
+  writeWorkspaceManifest(options.repo, options.directory, options.packages, options.workspace);
 
   writeFileSync(
-    join(directory, 'tsconfig.json'),
+    join(options.directory, 'tsconfig.json'),
     `${JSON.stringify(
       {
         extends: './tsconfig.base.json',
         compilerOptions: { types: ['bun', '@zgeoff/bun-test-extended'] },
-        include: packages.map((rule) => `${rule.directory}/src/**/*.ts`),
-        exclude: packages
-          .filter((rule) => rule !== plugin)
+        include: options.packages.map((rule) => `${rule.directory}/src/**/*.ts`),
+        exclude: options.packages
+          .filter((rule) => rule !== options.plugin)
           .map((rule) => `${rule.directory}/src/**/*.test.ts`),
       },
       null,
@@ -148,18 +151,20 @@ function writeWorkspaceManifest(
   repo: string,
   directory: string,
   packages: readonly WorkspacePackage[],
+  workspace: readonly WorkspacePackage[],
 ): void {
   const text = readFileSync(join(repo, 'package.json'), 'utf8');
   const manifest = z.record(z.string(), z.unknown()).parse(JSON.parse(text));
 
-  const copied = new Set(packages.map((rule) => `@atc/${rule.name}`));
+  const copied = new Set(packages.map((rule) => rule.packageName));
+  const internal = new Set(workspace.map((rule) => rule.packageName));
 
   const declared = manifest['devDependencies'];
   const devDependencies = isStringRecord(declared) ? declared : {};
 
   const kept = Object.fromEntries(
     Object.entries(devDependencies).filter(
-      ([name]) => !TOOLING.has(name) && (!name.startsWith('@atc/') || copied.has(name)),
+      ([name]) => !TOOLING.has(name) && (!internal.has(name) || copied.has(name)),
     ),
   );
 

@@ -1,6 +1,6 @@
 import type { Config, WorkspacesConfig } from '@atc/config';
 import type { AgentID, Clock } from '@atc/core';
-import type { AgentEntry, GitRef, SourceEntry, SourcePick } from '@atc/protocol';
+import type { AgentEntry, GitRef, SourceEntry, SourcePick } from '@atcx/contract';
 import type { TargetPick } from '../collect-target-picks';
 import type { ListingCache } from '../listing-cache';
 

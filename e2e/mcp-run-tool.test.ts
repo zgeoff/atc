@@ -2,7 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord, toAgentSessionID, toSessionID } from '@atc/core';
+import { isRecord } from '@atc/core';
 import { buildPayloadHash } from '@atc/daemon';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
@@ -13,7 +13,6 @@ import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/t
 import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { buildStubFleetCaller } from '@atc/mcp/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { createStateStore } from '@atc/store';
 import {
@@ -25,6 +24,7 @@ import {
   spawnNamedSession,
   waitFor,
 } from '@atc/test-utils';
+import { REQUEST_PARAM_SCHEMAS, toAgentSessionID, toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';

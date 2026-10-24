@@ -1,8 +1,8 @@
 import { getSettledValue } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import type { BrokerHost, CredentialBroker } from '@atc/plugin-api';
 import { CredentialBrokerError } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
 import type { AuthBinding } from './build-auth-binding';
 import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 

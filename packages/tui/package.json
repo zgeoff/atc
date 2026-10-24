@@ -10,6 +10,7 @@
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "@zgeoff/std": "catalog:",
     "ts-pattern": "catalog:",
     "xstate": "catalog:",

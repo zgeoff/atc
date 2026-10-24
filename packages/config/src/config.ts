@@ -2,9 +2,9 @@ import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { dirname } from 'node:path';
 import type { AgentID } from '@atc/core';
 import { isRecord } from '@atc/core';
-import { buildOptionalBoolean, buildOptionalString } from '@atc/core/schema';
 import type { AuthProfile } from '@atc/plugin-api';
-import { z } from 'zod';
+import { CONFIG_FILE_SCHEMA } from '@atcx/contract';
+import { resolveHomeDir } from '@atcx/contract/light';
 import type { AgentConfigPlugin, AgentEntry } from './agent-entry';
 import { buildCurrentPlaceholderConfig } from './build-current-placeholder-config';
 import { collectAgents } from './collect-agents';
@@ -24,7 +24,6 @@ import { formatJSONKind } from './format-json-kind';
 import { formatLegacyAgentKeys } from './format-legacy-agent-keys';
 import { formatMixedAgentKeys } from './format-mixed-agent-keys';
 import { configFile, stateDir } from './host/process-paths';
-import { resolveHomeDir } from './host/resolve-home-dir';
 import { LEGACY_AGENT_KEYS } from './legacy-agent-keys';
 import { LOCAL_TARGET } from './local-target';
 import { pickDefaultAgent } from './pick-default-agent';
@@ -121,23 +120,6 @@ const DEFAULTS: Omit<Config, 'agents' | 'agentErrors' | 'defaultAgent'> = {
   removedKeys: [],
   deprecations: [],
 };
-
-// A user-written config.json's top-level keys. An absent or wrong-typed
-// field parses to undefined rather than failing the file, so a bad config
-// falls back to a default instead of refusing to start atc.
-const CONFIG_SCHEMA = z.object({
-  agents: z.unknown().optional(),
-  dirs: z.unknown().optional(),
-  workspaces: z.unknown().optional(),
-  authProfiles: z.unknown().optional(),
-  hooks: z.unknown().optional(),
-  leader: buildOptionalString(),
-  targets: z.unknown().optional(),
-  defaultTarget: z.unknown().optional(),
-  principals: z.unknown().optional(),
-  daemons: z.unknown().optional(),
-  restoreFleetOnRestart: buildOptionalBoolean(),
-});
 
 // never throws: a file it cannot read or parse loads with no targets.
 export function loadConfig(
@@ -284,7 +266,7 @@ export function parseConfig(
   }
 
   const replacement = buildCurrentPlaceholderConfig(raw);
-  const parsed = CONFIG_SCHEMA.safeParse(replacement.config);
+  const parsed = CONFIG_FILE_SCHEMA.safeParse(replacement.config);
 
   if (!parsed.success) {
     return buildUnusableConfig(

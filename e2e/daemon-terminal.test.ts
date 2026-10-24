@@ -1,9 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import type { DaemonEvent } from '@atc/protocol';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -20,6 +18,8 @@ import {
   waitFor,
   waitForEvent,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
+import type { DaemonEvent } from '@atcx/contract';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-terminal-');

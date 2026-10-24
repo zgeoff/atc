@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import {
   KEYS,
   buildMockHostServices,
@@ -11,6 +10,7 @@ import {
   setupTempDir,
   updateEnv,
 } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { ATC_BRIDGE_FILES } from '../bridge/atc-bridge-files';
 import { CLAUDE_PLUGIN } from '../claude-plugin';

@@ -1,4 +1,4 @@
-import type { SpawnOptionSpec } from '@atc/protocol';
+import type { SpawnOptionSpec } from '@atcx/contract';
 
 export function buildPluginDirsOption(): SpawnOptionSpec {
   return {

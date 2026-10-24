@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildTargetOptionsFromConfig } from '@atc/daemon/testing';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { createStateStore } from '@atc/store';
@@ -11,6 +10,7 @@ import {
   registerTestCleanup,
   waitFor,
 } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {

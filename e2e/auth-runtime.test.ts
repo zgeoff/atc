@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock, toSessionID } from '@atc/core';
+import { systemClock } from '@atc/core';
 import { createRuntimeAuthBinder } from '@atc/daemon';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
@@ -17,6 +17,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 

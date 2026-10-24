@@ -1,6 +1,6 @@
 import type { TargetConfigError } from '@atc/config';
 import { socketPath, statusFile } from '@atc/config';
-import type { AgentID, Clock, SessionID } from '@atc/core';
+import type { AgentID, Clock } from '@atc/core';
 import { systemClock, truncateDetail, truncateToBytes } from '@atc/core';
 import type {
   AgentAdapter,
@@ -10,15 +10,11 @@ import type {
   HookPlan,
   SpawnPlan,
 } from '@atc/plugin-api';
-import type {
-  DeclaredScope,
-  PublishedRecord,
-  SessionDescriptor,
-  SessionState,
-} from '@atc/protocol';
+import type { DeclaredScope, SessionState } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import type { DaemonError } from '@atc/protocol/wire';
 import type { FleetEntry, FleetStore } from '@atc/store';
+import type { PublishedRecord, SessionDescriptor, SessionID } from '@atcx/contract';
 import { createAuthSetup } from '../auth/create-auth-setup';
 import type { AuthRebound } from '../auth/create-auth-setup';
 import type { RuntimeAuthBinder } from '../auth/create-runtime-auth-binder';

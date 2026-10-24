@@ -1,6 +1,6 @@
-import type { SessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api';
+import type { SessionID } from '@atcx/contract';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { HostDirClaims } from './create-host-dir-claims';
 import type { SessionHarnesses } from './create-session-harnesses';

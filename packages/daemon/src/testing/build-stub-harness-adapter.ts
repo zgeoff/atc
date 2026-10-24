@@ -1,7 +1,8 @@
-import type { AgentID, SessionID } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import type { AgentAdapter, SpawnOptions } from '@atc/plugin-api';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
+import type { SessionID } from '@atcx/contract';
 
 interface StubHarnessAdapterConfig {
   // The adapter's id; `claude` when absent.

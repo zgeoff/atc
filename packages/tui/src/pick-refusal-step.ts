@@ -1,4 +1,4 @@
-import type { ErrorCode } from '@atc/protocol/wire';
+import type { ErrorCode } from '@atcx/contract/light';
 
 // The steps of the git spawn flow a refused spawn can return to.
 type RefusalStep = 'confirm' | 'destination' | 'ref' | 'source';
