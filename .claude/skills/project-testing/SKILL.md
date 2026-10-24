@@ -54,10 +54,11 @@ so a lane suite never skips itself when the system is missing: it fails.
 | -------- | --------------------------------------------------------------- | ------------ | ------------------------- |
 | `.codex` | the Codex CLI's App Server, at the version `CODEX_VERSION` pins | `test:codex` | 5 s default (0.3 s on CI) |
 
-`test:e2e` is the `e2e` lane script: it gives each test the e2e lane limit of 15 s, because the
-first case of a suite on the macOS Intel runner has taken 7.4 s. CI passes it the `e2e/daemon-*`
-suites with `ATC_BIN` set to the compiled binary, and the `e2e/gateway-*` suites with
-`ATC_GATEWAY_BIN` set to the compiled gateway. Without paths it runs the whole suite.
+`test:e2e` is the `e2e` lane script: it gives each test the e2e lane limit of 15 s. CI passes it the
+`e2e/daemon-*` suites with `ATC_BIN` set to the compiled binary, and the `e2e/gateway-*` suites with
+`ATC_GATEWAY_BIN` set to the compiled gateway. Without paths it runs the whole suite. On macOS, the
+smoke job first warms the `/usr/bin/git` shim, whose first run takes about 1.5 s inside a daemon's
+first spawn.
 
 ## The PTY harness
 

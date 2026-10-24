@@ -79,24 +79,19 @@ jobs:
           name: binaries
           path: dist
 
+      # The first run of macOS's /usr/bin/git shim looks up the Xcode tools for
+      # about 1.5 s, and a daemon's first spawn runs that git, so a warm shim
+      # keeps the first case's time to its own work.
+      - name: Warm the git shim
+        if: runner.os == 'macOS'
+        run: /usr/bin/git --version
+
       - name: Smoke test the compiled binary
         env:
           ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
         run: |
           chmod +x "$ATC_BIN"
-          now() { perl -MTime::HiRes=time -e 'printf "%.0f", time*1000'; }
-          for i in 1 2 3; do s=$(now); "$ATC_BIN" --version >/dev/null; echo "PROBE version run $i $(( $(now) - s ))ms"; done
-          for i in 1 2; do s=$(now); bun -e 1; echo "PROBE bun -e run $i $(( $(now) - s ))ms"; done
-          if [ "$RUNNER_OS" = macOS ]; then codesign -dv "$ATC_BIN" 2>&1 | sed 's/^/PROBE codesign /' || true; fi
-          for i in 1 2; do s=$(now); (cd packages/execution/local && bun -e "const {spawn}=require('bun-pty'); const p=spawn('/bin/echo',['hi'],{name:'xterm',cols:80,rows:24,cwd:'/',env:{}}); p.onExit(()=>process.exit(0))"); echo "PROBE node_modules pty run $i $(( $(now) - s ))ms"; done
-          one() { bun run test:e2e e2e/daemon-terminal.test.ts -t 'it attaches a client at the size' 2>&1 | grep -E 'PROBE (spawn|attach)|\((pass|fail)\)'; }
-          t() { s=$(now); "$@" >/dev/null 2>&1 || true; echo "PROBE cmd $* $(( $(now) - s ))ms"; }
-          echo "PROBE which git $(command -v git) sh $(command -v sh) bash $(command -v bash)"
-          t git -C "$HOME" rev-parse --show-toplevel; t git -C "$HOME" rev-parse --show-toplevel
-          t /usr/bin/git --version; t /usr/bin/git --version
-          t sh -c true; t sh -c true
-          t /usr/bin/env bash -c true; t /usr/bin/env bash -c true
-          one; one
+          "$ATC_BIN" --version
           bun run test:e2e e2e/daemon-*.test.ts
 
       # The checks workflow runs the provider tests on Linux alone, and these
