@@ -18,6 +18,7 @@ import { createSubscriptionWatcherMachine } from './create-subscription-watcher-
 import type { PageDelivery, TrailPage } from './create-subscription-watcher-machine';
 import { EVENT_TYPES } from './event-types';
 import { parseWebhookSecret } from './parse-webhook-secret';
+import { pickEventStep } from './pick-event-step';
 import type { WebhookOutcome, WebhookSender } from './types';
 
 interface EventDelivererDeps {
@@ -177,21 +178,24 @@ async function deliverPage(deps: DelivererContext, delivery: PageDelivery): Prom
     // the next delivery and a removed subscription gets none.
     const row = await readLiveSubscription(deps, delivery.subscriptionID);
 
-    if (row === null || delivery.signal.aborted) {
+    const isStopped = delivery.signal.aborted;
+    const reads = row === null || isStopped ? false : await deps.probeAccess(row.client_id);
+    const type = EVENT_TYPES.find((candidate) => candidate.name === row?.name);
+
+    const step = pickEventStep({
+      isGone: row === null,
+      isStopped,
+      reads,
+      isMatch: type?.kind === event.kind,
+    });
+
+    if (step.kind === 'stop') {
       return;
     }
 
-    // A client that lost read gets no delivery, and the position stays before
-    // the event, so the watcher's next turn decides whether access is gone.
-    const reads = await deps.probeAccess(row.client_id);
+    if (step.kind === 'deliver') {
+      invariant(row, 'a delivery picked a send for a subscription that is gone');
 
-    if (!reads) {
-      return;
-    }
-
-    const type = EVENT_TYPES.find((candidate) => candidate.name === row.name);
-
-    if (type?.kind === event.kind) {
       await deliverEvent(deps, row, event);
     }
 
