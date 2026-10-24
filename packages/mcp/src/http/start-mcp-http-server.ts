@@ -88,6 +88,10 @@ interface RPCLabel {
   readonly tool: string | null;
 }
 
+// A callback that holds a post open past this fails it, so one slow endpoint
+// cannot hold its watcher.
+const WEBHOOK_TIMEOUT_MS = 10_000;
+
 export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise<MCPHTTPServer> {
   const clock = options.clock ?? systemClock;
 
@@ -216,6 +220,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
       resolveHost: resolveAddresses,
       isAllowedAddress: isPublicAddress,
       transport: (target, init) => fetch(target, init),
+      timeoutMs: WEBHOOK_TIMEOUT_MS,
     });
 
   const deliverer = createEventDeliverer({

@@ -11,9 +11,10 @@ interface WebhookSenderDeps {
 
   // Posts the pinned request.
   readonly transport: (target: string, init: BunFetchRequestInit) => Promise<Response>;
-}
 
-const SEND_TIMEOUT_MS = 10_000;
+  // How long a post may take, its answer's body included, before it fails.
+  readonly timeoutMs: number;
+}
 
 // The sender refuses a callback whose host resolves to any address the
 // policy refuses, before it connects, so a subscriber cannot aim atc at a
@@ -37,7 +38,7 @@ export function createWebhookSender(deps: WebhookSenderDeps): WebhookSender {
       return { kind: 'failed', reason: 'connection_refused' };
     }
 
-    const pinned = buildPinnedRequest(request, address, AbortSignal.timeout(SEND_TIMEOUT_MS));
+    const pinned = buildPinnedRequest(request, address, AbortSignal.timeout(deps.timeoutMs));
 
     try {
       const response = await deps.transport(pinned.target, pinned.init);
