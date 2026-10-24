@@ -116,7 +116,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
   ]);
 
   expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe('hello\n');
-}, 30_000);
+});
 
 test('it filters refs by name on the ref step', async () => {
   const ctx = setupTest();
@@ -144,7 +144,7 @@ test('it filters refs by name on the ref step', async () => {
 
   expect(ctx.read()).toInclude(`beta  ${fixture.sha.slice(0, 7)}`);
   expect(ctx.read()).not.toInclude('main  default');
-}, 20_000);
+});
 
 test('it refuses an abbreviated commit id on the ref step', async () => {
   const ctx = setupTest();
@@ -169,7 +169,7 @@ test('it refuses an abbreviated commit id on the ref step', async () => {
   await ctx.waitFor('full commit id required');
 
   expect(ctx.read()).not.toInclude('spawn: confirm');
-}, 20_000);
+});
 
 test("it lists the gh account's repositories and an owner's on request, and leaves on esc", async () => {
   const ctx = setupTest();
@@ -199,7 +199,7 @@ test("it lists the gh account's repositories and an owner's on request, and leav
   ctx.write(KEYS.esc);
 
   await ctx.waitFor('spawn: agent');
-}, 20_000);
+});
 
 test('it shows a repository the daemon cannot read on the repository step', async () => {
   const ctx = setupTest();
@@ -219,7 +219,7 @@ test('it shows a repository the daemon cannot read on the repository step', asyn
 
   expect(ctx.read()).toInclude('spawn: GitHub repository');
   expect(ctx.read()).not.toInclude('spawn: ref');
-}, 20_000);
+});
 
 test('it opens github mode on a target that takes a workspace when the default cannot, and esc at the target step returns to the directory', async () => {
   const ctx = setupTest();
@@ -294,7 +294,7 @@ test('it opens github mode on a target that takes a workspace when the default c
   ctx.write(KEYS.enter);
 
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
-}, 30_000);
+});
 
 test('it opens github mode on the one target that takes a workspace without a target step, and esc returns to the agent', async () => {
   const ctx = setupTest();
@@ -403,7 +403,7 @@ test("it builds each target's own default destination when the target changes", 
   await ctx.waitFor(ctx.formatInput(join(ctx.home, 'alt-ws', name)));
 
   expect(ctx.read()).toInclude('target  alt (local-pty)');
-}, 30_000);
+});
 
 test('it leaves a destination under a ~ root to a remote target and refuses a typed one that relies on ~', async () => {
   const ctx = setupTest();
@@ -465,7 +465,7 @@ test('it leaves a destination under a ~ root to a remote target and refuses a ty
   await ctx.waitFor('~ is not expanded there');
 
   expect(ctx.read()).not.toInclude('spawn: name');
-}, 30_000);
+});
 
 test('it offers the other URL form after a failed probe and checks that form on request', async () => {
   const ctx = setupTest();
@@ -509,7 +509,7 @@ test('it offers the other URL form after a failed probe and checks that form on 
   ctx.write(KEYS.enter);
 
   await ctx.waitFor('source  git@github.com:acme/app.git');
-}, 30_000);
+});
 
 test('it drops a typed destination when the repository changes', async () => {
   const ctx = setupTest();
@@ -583,4 +583,4 @@ test('it drops a typed destination when the repository changes', async () => {
 
   expect(ctx.read()).toInclude(`other-main-${fixture.sha.slice(0, 7)}`);
   expect(ctx.read()).not.toInclude(custom);
-}, 30_000);
+});

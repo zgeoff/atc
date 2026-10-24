@@ -99,7 +99,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
 
   expect(readFileSync(join(`${destination}-2`, 'notes.md'), 'utf8')).toBe('from the upstream\n');
-}, 30_000);
+});
 
 test('it returns a spawn whose clone fails to the repository step', async () => {
   const ctx = await setupTest();
@@ -134,7 +134,7 @@ test('it returns a spawn whose clone fails to the repository step', async () => 
   await ctx.waitFor('clone_failed', 10_000);
 
   expect(ctx.read()).toInclude('spawn: GitHub repository');
-}, 30_000);
+});
 
 test('it returns a spawn whose commit left the upstream to the ref step with the refs re-read', async () => {
   const ctx = await setupTest();
@@ -219,4 +219,4 @@ test('it returns a spawn whose commit left the upstream to the ref step with the
   ctx.write(KEYS.enter);
 
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
-}, 40_000);
+});
