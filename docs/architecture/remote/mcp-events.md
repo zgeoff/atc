@@ -84,7 +84,9 @@ Each subscription has a watcher in the server that reads the trail as the subscr
 way the client's own `atc_events_read` call reads it, so the watcher sees only the sessions the
 client's principal reaches ([principals](../protocol/principals.md)). The watcher holds its read
 open until an event arrives, and stores the cursor past each event once it has dealt with it, so a
-restarted server resumes from the first event it had not reached.
+restarted server resumes from the first event it had not reached. When the trail refuses the stored
+cursor, as after a daemon behind a gateway starts a new incarnation, the watcher removes the
+subscription, so the client's next subscribe starts a new one from the cursor it sends.
 
 For each event of its type, the watcher posts one signed JSON body: the event id, the type, the time
 the event happened, the session id in `data`, and the cursor past the event. The headers follow the
