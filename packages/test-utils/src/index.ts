@@ -91,7 +91,6 @@ export * from './run-mcp-token-grant';
 export * from './send-modern-mcp-request';
 export * from './run-passkey-enrollment';
 export * from './run-passkey-sign-in';
-export * from './run-shellcheck';
 export * from './send-lines-before-handshake';
 export * from './send-mcp-request';
 export * from './setup-temp-dir';

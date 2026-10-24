@@ -79,13 +79,20 @@ jobs:
           name: binaries
           path: dist
 
+      # The first run of macOS's /usr/bin/git shim looks up the Xcode tools for
+      # about 1.5 s, and a daemon's first spawn runs that git, so a warm shim
+      # keeps the first case's time to its own work.
+      - name: Warm the git shim
+        if: runner.os == 'macOS'
+        run: /usr/bin/git --version
+
       - name: Smoke test the compiled binary
         env:
           ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
         run: |
           chmod +x "$ATC_BIN"
           "$ATC_BIN" --version
-          bun run test:binary
+          bun run test:e2e e2e/daemon-*.test.ts
 
       # The checks workflow runs the provider tests on Linux alone, and these
       # are the only macOS runners CI starts.
@@ -101,4 +108,4 @@ jobs:
         run: |
           chmod +x "$ATC_GATEWAY_BIN"
           "$ATC_GATEWAY_BIN" --version
-          bun run test:gateway-binary
+          bun run test:e2e e2e/gateway-*.test.ts

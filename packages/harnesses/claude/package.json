@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./config": "./src/config/index.ts",
+    "./guest-scripts": "./src/guest-scripts/index.ts",
     "./testing": "./src/testing/index.ts"
   },
   "dependencies": {
