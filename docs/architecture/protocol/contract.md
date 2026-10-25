@@ -19,8 +19,8 @@ error codes and the message sender's schema. A hook reporter starts once per eve
 so it imports the light entry, which skips the request contract and the schemas it builds on.
 
 A third entry holds the field builders the schemas parse with, which read a wrong-typed field as
-absent. atc's config and hook parsers take them from it too, so one parser serves every lenient
-field.
+absent. atc's config and hook parsers import these builders and keep no copies of them, so a field
+that one of them parses reads the same way in every parser.
 
 npm installs only the contract's own dependencies, Zod and oRPC's contract library, beside it.
 `bun run check:reach` therefore refuses any module that either entry reaches outside the package,
