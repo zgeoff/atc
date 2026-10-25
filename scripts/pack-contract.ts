@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { buildPublishedManifest } from './build-published-manifest';
+import { buildPublishedReadme } from './build-published-readme';
 import { DECLARATION_TOOLS } from './declaration-tools';
 import { writeContractDeclarations } from './write-contract-declarations';
 
@@ -27,8 +28,11 @@ async function main(): Promise<void> {
     readJSON(join(root, CONTRACT_DIR, 'package.json')),
   );
 
-  const catalog = ROOT_MANIFEST_SCHEMA.parse(readJSON(join(root, 'package.json'))).workspaces
-    .catalog;
+  const rootManifest = ROOT_MANIFEST_SCHEMA.parse(readJSON(join(root, 'package.json')));
+  const catalog = rootManifest.workspaces.catalog;
+
+  // release-please tags each release as <root package name>@<version>
+  const treeURL = `${rootManifest.repository.url.replace(/^git\+/u, '').replace(/\.git$/u, '')}/blob/${encodeURIComponent(`${rootManifest.name}@${rootManifest.version}`)}`;
 
   mkdirSync(staged, { recursive: true });
 
@@ -49,7 +53,9 @@ async function main(): Promise<void> {
     `${JSON.stringify(buildPublishedManifest(manifest, catalog), null, 2)}\n`,
   );
 
-  copyFileSync(join(root, CONTRACT_DIR, 'README.md'), join(staged, 'README.md'));
+  const readme = readFileSync(join(root, CONTRACT_DIR, 'README.md'), 'utf8');
+
+  writeFileSync(join(staged, 'README.md'), buildPublishedReadme(readme, treeURL, CONTRACT_DIR));
   copyFileSync(join(root, 'LICENSE'), join(staged, 'LICENSE'));
 
   // npm packs a plain folder as it publishes it, and the staged manifest names
@@ -77,7 +83,12 @@ const WORKSPACE_MANIFEST_SCHEMA = z.looseObject({
   dependencies: NAMES_SCHEMA,
 });
 
-const ROOT_MANIFEST_SCHEMA = z.object({ workspaces: z.object({ catalog: NAMES_SCHEMA }) });
+const ROOT_MANIFEST_SCHEMA = z.object({
+  name: z.string(),
+  version: z.string(),
+  repository: z.object({ url: z.string() }),
+  workspaces: z.object({ catalog: NAMES_SCHEMA }),
+});
 
 function readJSON(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8'));
