@@ -2,9 +2,11 @@
 // and a source file runs its sibling test file. The tests on the pre-push
 // skip list stay out, each with a printed line that holds its Linear issue.
 import { existsSync } from 'node:fs';
+import { availableParallelism, totalmem } from 'node:os';
 import { join } from 'node:path';
 import type { TestSkip } from './load-test-skips';
 import { loadTestSkips } from './load-test-skips';
+import { pickTestWorkers } from './pick-test-workers';
 import { planTestRuns } from './plan-test-runs';
 
 export function readRelatedTests(paths: readonly string[], cwd: string): string[] {
@@ -38,6 +40,7 @@ export async function runRelatedTests(
   paths: readonly string[],
   cwd: string,
   skips: readonly TestSkip[],
+  workers: number | null,
 ): Promise<number> {
   const tests = readRelatedTests(paths, cwd);
 
@@ -58,6 +61,8 @@ export async function runRelatedTests(
 
     const child = Bun.spawn(['bun', 'run', 'test', ...run.args], {
       cwd,
+      env:
+        workers === null ? { ...process.env } : { ...process.env, TEST_WORKERS: String(workers) },
       stdin: 'inherit',
       stdout: 'inherit',
       stderr: 'inherit',
@@ -76,7 +81,13 @@ export async function runRelatedTests(
 if (import.meta.main) {
   const skips = loadTestSkips(join(import.meta.dir, 'pre-push-test-skips.json'));
 
-  const exitCode = await runRelatedTests(process.argv.slice(2), process.cwd(), skips);
+  const workers = pickTestWorkers({
+    cpus: availableParallelism(),
+    memoryBytes: totalmem(),
+    requested: process.env['TEST_WORKERS'],
+  });
+
+  const exitCode = await runRelatedTests(process.argv.slice(2), process.cwd(), skips, workers);
 
   process.exit(exitCode);
 }
