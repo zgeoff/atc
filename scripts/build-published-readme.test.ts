@@ -13,6 +13,18 @@ test('it points a relative link at the file in the repository at the release', (
   );
 });
 
+test('it points a relative link in an HTML header at the file in the repository', () => {
+  expect(
+    buildPublishedReadme(
+      '<a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue"></a>\n',
+      'https://github.com/zgeoff/atc/blob/main',
+      'packages/contract',
+    ),
+  ).toBe(
+    '<a href="https://github.com/zgeoff/atc/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue"></a>\n',
+  );
+});
+
 test('it keeps a link to the section of a file', () => {
   expect(
     buildPublishedReadme(
@@ -29,6 +41,7 @@ test.each([
   ['a web link', '[npm](https://www.npmjs.com/package/@atcx/contract)\n'],
   ['a mail link', '[mail](mailto:atc@example.com)\n'],
   ['an anchor in the README', '[usage](#usage)\n'],
+  ['an HTML link to the web', '<a href="https://www.npmjs.com/package/@atcx/contract">npm</a>\n'],
   ['a link out of the repository', '[outside](../../../elsewhere.md)\n'],
 ])('it leaves %s as it is', (_label, markdown) => {
   expect(
