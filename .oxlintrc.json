@@ -44,9 +44,18 @@
     // atc is ES modules throughout, so a module loads through an import
     "typescript/no-require-imports": "error",
     // GEO-1196 splits the 19 files over the shared 500-line limit
-    "max-lines": "off"
+    "max-lines": "off",
+    // a `<module>.codex.test.ts` suite runs the installed Codex CLI in the
+    // test:codex lane, and tests the module beside it
+    "zgeoff/test-beside-module": ["error", { "lanes": ["codex"] }]
   },
   "overrides": [
+    {
+      // an integration flow crosses packages, so it sits beside no one module;
+      // the shared rule exempts only the root e2e/ and evals/ folders
+      "files": ["integration/**"],
+      "rules": { "zgeoff/test-beside-module": "off" }
+    },
     {
       // the system clock itself, tests, test helpers (a package's testing
       // folder among them), and tooling read the
@@ -60,6 +69,7 @@
         "packages/*/src/testing/**",
         "packages/*/*/src/testing/**",
         "e2e/**",
+        "integration/**",
         "scripts/**"
       ],
       "rules": {

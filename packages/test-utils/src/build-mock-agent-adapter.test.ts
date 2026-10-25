@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { RequiredKeysOf } from 'type-fest';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 

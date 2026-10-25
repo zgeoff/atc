@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord, toAgentID, toSessionID } from '@atc/core';
-import { SESSION_ENV_NAMES, normalizeHookEventName } from '@atc/protocol/session';
+import { isRecord, toAgentID } from '@atc/core';
+import { normalizeHookEventName } from '@atc/protocol/session';
 import type { HookEvent } from '@atc/protocol/session';
 import { createStubBin } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
+import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 import type { Socket } from 'bun';
 import type { StubMemoryHarness } from './build-stub-memory-provider';
 

@@ -1,6 +1,6 @@
 import { afterEach } from 'bun:test';
 import { join, normalize } from 'node:path';
-import { SESSION_ENV_NAMES } from '@atc/protocol/session';
+import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 import { removeEnvOverrides } from './remove-env-overrides';
 
 // Bun hands a spawned child the environment it started with, not one a preload

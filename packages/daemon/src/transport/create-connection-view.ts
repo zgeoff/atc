@@ -1,7 +1,8 @@
-import type { SessionID } from '@atc/core';
-import { isRecord, toSessionID } from '@atc/core';
+import { isRecord } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
+import { toSessionID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import type { DaemonContext } from '../daemon-context';
 

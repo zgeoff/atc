@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toMessageID, toSessionID } from '@atc/core';
+import { toMessageID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { createTapRegistry } from './create-tap-registry';
 

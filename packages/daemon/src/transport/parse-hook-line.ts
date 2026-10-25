@@ -1,5 +1,6 @@
-import { isRecord, toSessionID } from '@atc/core';
+import { isRecord } from '@atc/core';
 import type { HookEvent } from '@atc/protocol/session';
+import { toSessionID } from '@atcx/contract';
 
 export function parseHookLine(line: string): HookEvent | null {
   let parsed: unknown;

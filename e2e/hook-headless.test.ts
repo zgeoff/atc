@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import { createGrokAdapter } from '@atc/harness-grok';
 import { DaemonError } from '@atc/protocol/wire';
 import {
@@ -16,6 +15,7 @@ import {
   updateEnv,
   waitFor,
 } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 

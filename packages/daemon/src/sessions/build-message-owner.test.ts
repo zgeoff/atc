@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID, toSessionID } from '@atc/core';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildMessageOwner } from './build-message-owner';
 

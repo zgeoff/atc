@@ -1,8 +1,9 @@
-import type { SessionID } from '@atc/core';
 import { isRecord } from '@atc/core';
 import { parseRequestParams } from '@atc/protocol';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import type { ErrorCode, RequestMsg } from '@atc/protocol/wire';
+import type { RequestMsg } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
+import type { ErrorCode } from '@atcx/contract/light';
 import type { TCPPeer } from './tcp-peer';
 
 interface TCPHelloChecks {

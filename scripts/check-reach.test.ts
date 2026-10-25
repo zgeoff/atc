@@ -1163,3 +1163,168 @@ test('it passes a daemon module that names mcp-auth.db only in a comment', async
     stderr: '',
   });
 });
+
+test('it passes a contract that imports only its own files, zod, @orpc/contract and builtins', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      exports: { '.': './src/index.ts', './light': './src/light/index.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/index.ts'),
+    "import { oc } from '@orpc/contract';\nimport { z } from 'zod';\n\nexport * from './light';\nexport const CONTRACT = oc.output(z.string());\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/light/index.ts'),
+    "import { join } from 'node:path';\n\nexport const SOCKET = join('/run', 'atc.sock');\n",
+  );
+
+  await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 0 findings\n',
+    stderr: '',
+  });
+});
+
+test('it fails on a contract that reaches a private workspace package', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      exports: { '.': './src/index.ts', './light': './src/light/index.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/package.json'),
+    JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(join(ctx.directory, 'packages/core/src/index.ts'), 'export const CORE = 1;\n');
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/index.ts'),
+    "import type { CORE } from '@atc/core';\n\nexport type Contract = typeof CORE;\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/light/index.ts'),
+    'export const SOCKET = 1;\n',
+  );
+
+  await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 2 findings\n',
+    stderr:
+      'undeclared package: packages/contract/src/index.ts imports @atc/core, which @atcx/contract does not depend on\nunpublished module: packages/contract/src/index.ts reaches packages/core/src/index.ts, which npm never holds\n',
+  });
+});
+
+test('it fails on a contract file that imports a package the contract does not depend on', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      exports: { '.': './src/index.ts', './light': './src/light/index.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/index.ts'),
+    "export * from './session-id';\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/session-id.ts'),
+    "import type { Tagged } from 'type-fest';\n\nexport type SessionID = Tagged<string, 'SessionID'>;\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/light/index.ts'),
+    'export const SOCKET = 1;\n',
+  );
+
+  await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
+    stderr:
+      'undeclared package: packages/contract/src/session-id.ts imports type-fest, which @atcx/contract does not depend on\n',
+  });
+});
+
+test('it fails on a contract package with no light entry', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      exports: { '.': './src/index.ts', './light': './src/light/index.ts' },
+    }),
+  );
+
+  await Bun.write(join(ctx.directory, 'packages/contract/src/index.ts'), 'export const A = 1;\n');
+  await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
+    stderr: 'missing contract entry: packages/contract/src/light/index.ts does not exist\n',
+  });
+});

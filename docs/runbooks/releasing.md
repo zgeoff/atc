@@ -2,9 +2,10 @@
 
 A release happens when someone merges the release PR by hand. release-please keeps one release PR
 open on `main`, and each releasable commit that lands updates its version bump and changelog. No
-workflow merges that PR. Its merge tags the release, attaches the compiled binaries and pushes the
-Homebrew formula. `main.yml` holds every step. This runbook covers what the automation does not: its
-one-time setup, cutting a release, and the recoveries a failed release needs.
+workflow merges that PR. Its merge tags the release, attaches the compiled binaries, pushes the
+Homebrew formula and publishes `@atcx/contract` to npm. `main.yml` holds every step. This runbook
+covers what the automation does not: its one-time setup, cutting a release, and the recoveries a
+failed release needs.
 
 ## One-time setup
 
@@ -33,6 +34,19 @@ Install the App on the tap before you set the variable: with the variable set an
 there, the release job fails when it mints the tap token. With the variable unset, the release job
 leaves the formula alone and runs every other step.
 
+### The npm trusted publisher
+
+The release job publishes `@atcx/contract` through npm's trusted publishing, so no npm token exists.
+npm takes the job's GitHub identity in place of one, and records where the package was built.
+
+1. On npmjs.com, open the `@atcx/contract` package settings.
+2. Add a trusted publisher of type GitHub Actions, with the repository `zgeoff/atc` and the workflow
+   file `main.yml`.
+3. Run `npm trust list @atcx/contract`. Expect one entry for `zgeoff/atc` and `main.yml`.
+
+npm sets a trusted publisher only on a package that exists, so a new package needs one publish by
+hand before step 1.
+
 ## Cutting a release
 
 1. Open the release PR, the one release-please opened from the
@@ -45,15 +59,16 @@ leaves the formula alone and runs every other step.
 - **The release PR has no checks.** `RELEASE_APP_ID` is unset, so the release job skipped the App
   token step, and release-please opened the PR with `GITHUB_TOKEN`, which starts no workflow. Set up
   the App, then close and reopen the PR to start its checks.
-- **The release is tagged, but its binaries or formula are missing.** Run the release steps again
-  for the current version:
+- **The release is tagged, but its binaries, formula or npm package are missing.** Run the release
+  steps again for the current version:
 
   ```bash
   gh workflow run main.yml
   ```
 
-  Each step replaces what the failed run left. A re-run of the failed job does not help when the
-  failure is deterministic, since a re-run uses the workflow file of the original commit.
+  Each step replaces what the failed run left, and the publish skips a version npm holds already. A
+  re-run of the failed job does not help when the failure is deterministic, since a re-run uses the
+  workflow file of the original commit.
 
 - **A release needs a specific version.** Put `Release-As: <version>` in the footer of a commit that
   lands on `main`. A squash merge takes the footer from the squash body, so pass it there:

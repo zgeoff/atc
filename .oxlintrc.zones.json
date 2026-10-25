@@ -11,6 +11,7 @@
         "workspaces": ["packages/*", "packages/*/*"],
         "zones": {
           "packages": ["packages/**"],
+          "contract": ["packages/contract{,/**}"],
           "core": ["packages/core{,/**}"],
           "protocol": ["packages/protocol{,/**}"],
           "plugin-api": ["packages/plugin-api{,/**}"],
@@ -53,6 +54,7 @@
             "packages/test-utils/**",
             "packages/app/src/test-utils/**",
             "e2e/**",
+            "integration/**",
             "scripts/**"
           ],
 
@@ -78,6 +80,7 @@
             "packages/harnesses/claude/src/local-trust/with-claude-config-lock.test.ts"
           ],
           "e2e": ["e2e/**"],
+          "integration": ["integration/**"],
           "scripts": ["scripts/**"],
           "mods": ["mods/**"]
         },
@@ -86,6 +89,7 @@
             "name": "package-zones",
             "from": ["packages"],
             "zones": [
+              "contract",
               "core",
               "protocol",
               "plugin-api",
@@ -102,7 +106,9 @@
         ],
         // a package name with no entry for the subpath, a deep import into a
         // package's src/, and a computed specifier all fail here
-        "unresolved": [{ "name": "entry-points", "from": ["packages", "e2e", "scripts"] }],
+        "unresolved": [
+          { "name": "entry-points", "from": ["packages", "e2e", "integration", "scripts"] }
+        ],
         "selfImports": [
           {
             "name": "self-import",
@@ -116,45 +122,53 @@
         "edges": [
           {
             "name": "package-deps",
+            "from": ["contract"],
+            "allow": [],
+            "allowWithin": "packages/*",
+            "reason": "@atcx/contract is published, and npm holds no other workspace package"
+          },
+          {
+            "name": "package-deps",
             "from": ["core"],
-            "allow": ["test-utils"],
+            "allow": ["contract", "test-utils"],
             "allowWithin": "packages/*",
             "reason": "@atc/core depends on no workspace package"
           },
           {
             "name": "package-deps",
             "from": ["protocol"],
-            "allow": ["core", "test-utils"],
+            "allow": ["contract", "core", "test-utils"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["plugin-api"],
-            "allow": ["core", "protocol", "test-utils"],
+            "allow": ["contract", "core", "protocol", "test-utils"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["config"],
-            "allow": ["core", "plugin-api", "test-utils"],
+            "allow": ["contract", "core", "plugin-api", "test-utils"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["store"],
-            "allow": ["core", "protocol", "config", "test-utils"],
+            "allow": ["contract", "core", "protocol", "config", "test-utils"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["lifecycle"],
-            "allow": ["core", "protocol", "config", "store", "test-utils"],
+            "allow": ["contract", "core", "protocol", "config", "store", "test-utils"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["daemon"],
             "allow": [
+              "contract",
               "core",
               "protocol",
               "plugin-api",
@@ -168,20 +182,20 @@
           {
             "name": "package-deps",
             "from": ["plugins"],
-            "allow": ["core", "protocol", "plugin-api", "config", "test-utils"],
+            "allow": ["contract", "core", "protocol", "plugin-api", "config", "test-utils"],
             "allowWithin": "packages/*/*"
           },
           {
             "name": "package-deps",
             "from": ["front-ends"],
-            "allow": ["core", "protocol", "config", "test-utils", "daemon-testing"],
+            "allow": ["contract", "core", "protocol", "config", "test-utils", "daemon-testing"],
             "allowWithin": "packages/*"
           },
           // check-manifests limits the test helpers that reach into the app by path
           {
             "name": "package-deps",
             "from": ["test-utils"],
-            "allow": ["core", "protocol", "plugin-api", "config", "app"],
+            "allow": ["contract", "core", "protocol", "plugin-api", "config", "app"],
             "allowWithin": "packages/*",
             "ignore": [
               "packages/test-utils/src/{run-mcp-authorization,run-mcp-token-grant,run-passkey-*,send-modern-mcp-request}.test.ts"
@@ -192,7 +206,7 @@
           {
             "name": "package-deps",
             "from": ["oauth-helper-tests"],
-            "allow": ["core", "protocol", "plugin-api", "config", "app", "mcp"],
+            "allow": ["contract", "core", "protocol", "plugin-api", "config", "app", "mcp"],
             "allowWithin": "packages/*"
           },
           {
@@ -289,7 +303,8 @@
             "modules": ["@anthropic-ai/claude-agent-sdk"],
             "allow": ["claude-sdk-files"]
           },
-          // tests and e2e journeys open a state database to check what a run wrote
+          // tests, e2e journeys, and integration flows open a state database to
+          // check what a run wrote
           {
             "name": "confinement",
             "modules": ["bun:sqlite", "@zgeoff/kysely-bun-sqlite"],

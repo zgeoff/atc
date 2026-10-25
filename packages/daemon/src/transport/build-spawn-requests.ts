@@ -1,10 +1,11 @@
 import { basename, isAbsolute } from 'node:path';
-import type { AgentID, SessionID } from '@atc/core';
-import { toSessionID } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import type { SourceInputRequest, SourceProvider } from '@atc/plugin-api';
 import { CONTROL_CHARACTER, parseDeclaredScope } from '@atc/protocol';
 import type { DaemonAnswer, DeclaredScope, RequestParams } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
+import { toSessionID } from '@atcx/contract';
 import { buildTargetForbiddenError } from '../auth/build-target-forbidden-error';
 import type { DaemonContext, SpawnParams } from '../daemon-context';
 import { parseSpawnOverrides } from '../sessions/parse-spawn-overrides';

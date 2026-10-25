@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
-import type { DaemonEvent } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import {
@@ -11,6 +10,7 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
+import type { DaemonEvent } from '@atcx/contract';
 import type { Socket } from 'bun';
 import { startDaemon } from '../daemon';
 import type { DaemonHandle } from '../daemon';

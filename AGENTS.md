@@ -36,6 +36,8 @@ packages/
                  its authorization server; the tools reach no module of the authorization server
   gateway/       the gateway's federation: the daemon registry, one connection per daemon, and the
                  routing steps that rewrite ids, pick a daemon, and bind idempotency keys
+  contract/      @atcx/contract, the one package npm publishes: the request contract, the public
+                 schemas, the error codes, the session env names and the state paths
   plugin-api/    the contracts a plugin implements, among them the AgentAdapter interface
   harnesses/     one package per agent CLI: claude, codex, grok
   execution/     one package per execution provider: local, imp
@@ -43,7 +45,8 @@ packages/
   config/ core/ lifecycle/ protocol/ store/
                  the shared layers; each package.json describes its own
   test-utils/    the generic test helpers, stand-ins, factories, and the test preload
-e2e/             end-to-end suites
+e2e/             the end-to-end suites, which start atc or the gateway as a process
+integration/     the flows across packages that run in process, under the unit test rules
 mods/atc-bridge/ the Claude Code mod
 bin/atc          the dev shim that runs the CLI from a checkout
 scripts/         the repo tooling and the checks
@@ -55,9 +58,12 @@ docs/
 
 ## Packages
 
-- Every workspace package is private and named `@atc/<name>`. The `zgeoff/import-zones` rule in
-  `.oxlintrc.zones.json` gives each package a zone, the internal packages it may depend on, the
-  folder rules inside the daemon, and the files that may import each confined external package.
+- Every workspace package is private and named `@atc/<name>`. One exception: `@atcx/contract` is
+  published to npm at atc's version, so it depends on no other workspace package, and
+  [the published contract](docs/architecture/protocol/contract.md) covers what it holds. The
+  `zgeoff/import-zones` rule in `.oxlintrc.zones.json` gives each package a zone, the internal
+  packages it may depend on, the folder rules inside the daemon, and the files that may import each
+  confined external package.
 - Give a package a second entry point only for a reason, never one per file. The usual reason is
   start-up time: a hook or statusline reporter starts once per event, so it imports a light entry
   that skips the Zod schemas, the protocol contract, and the store.
@@ -85,13 +91,18 @@ prints its own reason, and the rules live where each bullet points.
 - `bun run check:manifests`: each package's manifest, `exports` map, and import specifiers, in
   `scripts/check-manifests.ts`. It also checks each declared workspace dependency against the edges
   in `.oxlintrc.zones.json`, since the lint rule sees only the imports a file holds.
-- `bun run check:reach`: what the gateway entry, the reporters, and `cli.ts` may reach, in
-  `scripts/check-reach.ts`.
+- `bun run check:reach`: what the gateway entry, the reporters, `cli.ts`, and the contract's entries
+  may reach, in `scripts/check-reach.ts`.
+- `bun run check:contract`: the contract's declarations against the committed snapshot, in
+  `scripts/check-contract.ts`. Pass `--update` after a change to the published types.
 - `bun run check:bundle`: the execution providers the atc bundle carries, in
   `scripts/check-bundle.ts`.
 - `bun run check:disable-baseline`: the count of directives that switch off an import rule, against
   `scripts/disable-baseline.json`.
 - `bun run check:raw-escapes`: a raw ESC byte in source, which the TUI writes as a `\u001B` escape.
+- `bun run check:guest-scripts`: shellcheck over the shell scripts that atc runs with `sh -c`,
+  mostly in a guest, and an exported `*_SCRIPT` constant missing from a package's `guest-scripts`
+  entry, in `scripts/check-guest-scripts.ts`.
 - `bun run check:source-entries`: a test helper that hard-codes a source entry that
   `scripts/with-test-home.sh` exports.
 - `bun run deadcode`: knip, configured in `knip.json`.

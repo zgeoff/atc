@@ -1,5 +1,4 @@
-import type { SessionID } from '@atc/core';
-import type { PublishedRecord } from '@atc/protocol';
+import type { PublishedRecord, SessionID } from '@atcx/contract';
 import type { Kysely } from 'kysely';
 import { parsePublishedRecord } from './parse-published-record';
 import type { StateStoreSchema } from './sqlite/state-store-schema';

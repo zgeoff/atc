@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig, parseConfig } from '@atc/config';
-import { toSessionID } from '@atc/core';
 import { buildStubTargets } from '@atc/daemon/testing';
 import { createCodexAdapter } from '@atc/harness-codex';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
@@ -15,6 +14,7 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 

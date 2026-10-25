@@ -1,4 +1,4 @@
-import type { SourceEntry, SourceInterpretation } from '@atc/protocol';
+import type { SourceEntry, SourceInterpretation } from '@atcx/contract';
 
 export function canTakeReading(
   kind: SourceEntry['kind'] | undefined,

@@ -11,6 +11,7 @@
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

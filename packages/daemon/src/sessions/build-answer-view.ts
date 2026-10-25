@@ -1,6 +1,6 @@
 import { encodeCursor } from '@atc/protocol';
-import type { SessionDescriptor } from '@atc/protocol';
 import type { StoredAnswer } from '@atc/store';
+import type { SessionDescriptor } from '@atcx/contract';
 
 export interface AnswerView {
   readonly answer: string;

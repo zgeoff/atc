@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core';
-import { resolveHomeDir } from './host/resolve-home-dir';
+import { resolveHomeDir } from '@atcx/contract/light';
 import { normalizeConfigDir } from './normalize-config-dir';
 
 export function collectDirRoots(raw: unknown, home: string = resolveHomeDir()): readonly string[] {

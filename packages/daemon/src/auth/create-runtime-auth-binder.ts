@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { getSettledValue, makeKeyedLock, systemClock } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import type { CredentialBroker, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { RuntimeAuthBinding } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 import { z } from 'zod';
 import { assertRecordedHostName } from './assert-recorded-host-name';
 import { BrokerAuthorityError } from './broker-authority-error';

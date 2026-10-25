@@ -26,6 +26,15 @@ function setupTest() {
   return { directory: temporaryDirectory.path, bin, lines: reporter.lines };
 }
 
+test('it keeps the read loop free of command substitution, so a SIGWINCH cannot break the paint trap', () => {
+  const loop = /^\s*for [^\n]*; do\n(?:[^\n]*\n)*?\s*done$/mu.exec(
+    buildStubTUIClaude(readSourceEntry('atc')),
+  )?.[0];
+
+  expect(loop).toInclude('read -t');
+  expect(loop).not.toMatch(/\$\(|`/u);
+});
+
 test('it prints its marker with its arguments', async () => {
   const ctx = setupTest();
 

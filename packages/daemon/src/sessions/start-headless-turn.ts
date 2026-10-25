@@ -1,6 +1,6 @@
-import type { SessionID } from '@atc/core';
 import { truncateDetail, truncateSummary } from '@atc/core';
 import type { AdapterEvent } from '@atc/protocol';
+import type { SessionID } from '@atcx/contract';
 import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 

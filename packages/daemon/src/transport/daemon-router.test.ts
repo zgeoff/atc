@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import { buildMockPublishedRecord } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { call } from '@orpc/server';
 import type { DaemonContext } from '../daemon-context';
 import { buildMockProcedureContext } from '../testing/build-mock-procedure-context';

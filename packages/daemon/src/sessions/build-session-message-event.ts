@@ -1,8 +1,8 @@
-import type { SessionID } from '@atc/core';
 import { truncateDetail } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { MessageRecord } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 
 export function buildSessionMessageEvent(sessionID: SessionID, record: MessageRecord): EventMsg {
   return {

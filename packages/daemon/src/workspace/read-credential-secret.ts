@@ -1,4 +1,4 @@
-import type { SpawnWorkspaceSource } from '@atc/protocol';
+import type { SpawnWorkspaceSource } from '@atcx/contract';
 
 // The credential's value, which every message leaving this module is
 // scrubbed of; null for a source without one.

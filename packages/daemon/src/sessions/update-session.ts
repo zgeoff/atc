@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { SessionRegistry } from './create-session-registry';
 import type { SessionCallbacks } from './session-callbacks';

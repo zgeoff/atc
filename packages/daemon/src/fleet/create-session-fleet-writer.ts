@@ -1,7 +1,7 @@
 import { renameSync, rmSync, writeFileSync } from 'node:fs';
-import type { SessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 import type { SessionRegistry } from '../sessions/create-session-registry';
 import type { SessionCallbacks } from '../sessions/session-callbacks';
 import { toDaemonError } from '../sessions/to-daemon-error';

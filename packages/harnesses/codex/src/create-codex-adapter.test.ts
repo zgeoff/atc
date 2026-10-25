@@ -2,7 +2,6 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
@@ -10,6 +9,7 @@ import {
   setupTempDir,
   updateEnv,
 } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { CODEX_PLUGIN } from './codex-plugin';
 import { createCodexAdapter } from './create-codex-adapter';

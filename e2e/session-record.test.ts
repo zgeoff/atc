@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildMockExecutionTarget } from '@atc/daemon/testing';
 import { createStubDirProvider } from '@atc/execution-local/testing';
 import { createStateStore } from '@atc/store';
@@ -14,6 +13,7 @@ import {
   registerTestCleanup,
   waitFor,
 } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';

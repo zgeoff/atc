@@ -1,14 +1,14 @@
 import { expect, mock, test } from 'bun:test';
-import { createStepTimer, toDaemonID, toSessionID } from '@atc/core';
+import { createStepTimer } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { buildMockAgentAdapter, runShellcheck } from '@atc/test-utils';
+import { buildMockAgentAdapter } from '@atc/test-utils';
+import { toDaemonID, toSessionID } from '@atcx/contract';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionRegistry } from '../sessions/create-session-registry';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createAuthSetup } from './create-auth-setup';
-import { READ_PROJECT_SETTINGS_SCRIPT } from './read-project-settings-script';
 
 interface SetupConfig {
   readonly adapters: readonly AgentAdapter[];
@@ -42,15 +42,6 @@ function setupTest(config: SetupConfig) {
 
   return { registry, auth };
 }
-
-test.each([['reads the project settings', READ_PROJECT_SETTINGS_SCRIPT]])(
-  'it %s through a script that passes shellcheck',
-  async (_label, script) => {
-    const result = await runShellcheck(script);
-
-    expect(result).toStrictEqual({ exitCode: 0, findings: [] });
-  },
-);
 
 test('it passes an agent with no auth selection on any target', () => {
   const ctx = setupTest({

@@ -1,4 +1,5 @@
-import { PROCEDURE_TRAITS, REQUEST_PARAM_SCHEMAS } from '@atc/protocol';
+import { PROCEDURE_TRAITS } from '@atc/protocol';
+import { REQUEST_PARAM_SCHEMAS } from '@atcx/contract';
 
 export function isOwnerOnlyMethod(method: string): boolean {
   return (

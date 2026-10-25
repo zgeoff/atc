@@ -1,5 +1,5 @@
 import { LOCAL_TARGET } from '@atc/config';
-import type { GitRef } from '@atc/protocol';
+import type { GitRef } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import type { TargetPick } from '../collect-target-picks';
 import { formatDir, formatDirName } from '../dirs';

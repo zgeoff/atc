@@ -1,5 +1,5 @@
+import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 import type { SessionEnv } from './session-env';
-import { SESSION_ENV_NAMES } from './session-env-names';
 
 export function readSessionEnv(env: Readonly<Record<string, string | undefined>>): SessionEnv {
   const read = (name: string): string | undefined => {

@@ -1,5 +1,4 @@
-import type { SessionID } from '@atc/core';
-import type { SpawnWorkspaceSource } from '@atc/protocol';
+import type { SessionID, SpawnWorkspaceSource } from '@atcx/contract';
 
 export interface MaterializeRequest {
   readonly sessionID: SessionID;

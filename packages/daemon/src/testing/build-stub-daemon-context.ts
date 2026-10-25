@@ -1,4 +1,4 @@
-import { toDaemonID } from '@atc/core';
+import { toDaemonID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { DaemonContext } from '../daemon-context';
 

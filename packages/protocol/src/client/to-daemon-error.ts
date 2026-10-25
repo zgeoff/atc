@@ -1,7 +1,7 @@
 import { isRecord } from '@atc/core';
+import { ERROR_CODES } from '@atcx/contract/light';
 import { ORPCError } from '@orpc/client';
 import { DaemonError } from '../wire/daemon-error';
-import { ERROR_CODES } from '../wire/protocol';
 
 // The daemon's own error for one a peer call failed with: a refusal keeps
 // its code, message and data, and any other failure is internal.

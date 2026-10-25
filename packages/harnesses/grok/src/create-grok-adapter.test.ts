@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import { getAgentEntry, setupTempDir } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { createGrokAdapter } from './create-grok-adapter';
 import { GROK_PLUGIN } from './grok-plugin';
 

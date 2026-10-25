@@ -1,6 +1,6 @@
 import { basename } from 'node:path';
-import { resolveHomeDir } from '@atc/config/host';
 import { formatHomePath } from '@atc/core';
+import { resolveHomeDir } from '@atcx/contract/light';
 
 export function pickMatches(items: readonly string[], filter: string): string[] {
   if (filter === '') {

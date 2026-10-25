@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID } from '@atc/core';
+import { toAgentSessionID } from '@atcx/contract';
 import { buildHeartbeatEvent } from './build-heartbeat-event';
 
 test("it holds the agent's session id the line held", () => {

@@ -12,7 +12,6 @@ import {
 } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildMockExecutionTarget } from '@atc/daemon/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubDirProvider, createStubExecutionProvider } from '@atc/execution-local/testing';
@@ -30,6 +29,7 @@ import {
   updateEnv,
   waitFor,
 } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';

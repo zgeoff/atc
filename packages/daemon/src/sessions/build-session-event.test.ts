@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
 import { createStateStore } from '@atc/store';
 import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildSessionEvent } from './build-session-event';
 import { createSessionManager } from './create-session-manager';

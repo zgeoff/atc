@@ -1,4 +1,4 @@
-import type { AgentEntry, GitProbeResult, SourceEntry, SourceInterpretation } from '@atc/protocol';
+import type { AgentEntry, GitProbeResult, SourceEntry, SourceInterpretation } from '@atcx/contract';
 import { fromPromise } from 'xstate';
 import { collectTargetPicks } from '../collect-target-picks';
 import type { TargetPick } from '../collect-target-picks';

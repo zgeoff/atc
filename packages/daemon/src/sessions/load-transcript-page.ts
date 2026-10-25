@@ -1,4 +1,4 @@
-import type { TranscriptRow } from '@atc/protocol';
+import type { TranscriptRow } from '@atcx/contract';
 
 export interface TranscriptPosition {
   readonly path: string;

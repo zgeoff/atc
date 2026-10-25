@@ -1,5 +1,4 @@
-import type { SessionID } from '@atc/core';
-import type { SessionDescriptor } from '@atc/protocol';
+import type { SessionDescriptor, SessionID } from '@atcx/contract';
 import type { SessionManager } from './create-session-manager';
 
 // The manager as the lookup reads it.

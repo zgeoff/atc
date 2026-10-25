@@ -1,5 +1,4 @@
-import type { AgentSessionID, MessageID, SessionID } from '@atc/core';
-import type { RestartResult } from '@atc/protocol';
+import type { AgentSessionID, MessageID, RestartResult, SessionID } from '@atcx/contract';
 
 export interface EventScope {
   readonly atcIDs: readonly SessionID[];

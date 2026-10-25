@@ -1,8 +1,9 @@
-import type { SessionID, StepTimer } from '@atc/core';
+import type { StepTimer } from '@atc/core';
 import { buildTarArchive } from '@atc/core';
 import type { AgentAdapter, ExecutionProvider, GuestSpawnPlan } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { FleetStore } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 import type { SessionHarnesses } from '../sessions/create-session-harnesses';
 import type { SessionCallbacks } from '../sessions/session-callbacks';
 

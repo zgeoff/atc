@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand, runShellcheck, setupTempDir } from '@atc/test-utils';
-import invariant from 'tiny-invariant';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 import { buildScratchLaunch } from './build-scratch-launch';
 
 function setupTest() {
@@ -49,16 +48,4 @@ test('it gives the CLI the scratch folder as its temporary folder', () => {
   expect(buildScratchLaunch('/tmp/atc/sessions/s1/scratch', ['claude']).env).toStrictEqual({
     TMPDIR: '/tmp/atc/sessions/s1/scratch',
   });
-});
-
-test('it builds a launch script that passes shellcheck', async () => {
-  const launch = buildScratchLaunch('/tmp/atc/sessions/s1/scratch', ['claude']);
-  const [flag, script] = launch.args;
-
-  invariant(script !== undefined);
-
-  const result = await runShellcheck(script);
-
-  expect(flag).toBe('-c');
-  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });

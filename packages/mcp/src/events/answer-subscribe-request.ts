@@ -1,6 +1,6 @@
 import type { Clock } from '@atc/core';
-import { EVENTS_PAGE_SCHEMA } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
+import { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
 import { ProtocolError } from '@modelcontextprotocol/server';
 import type { Kysely } from 'kysely';
 import type { z } from 'zod';

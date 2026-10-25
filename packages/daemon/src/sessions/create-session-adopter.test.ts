@@ -1,11 +1,12 @@
 import { expect, mock, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock, toAgentSessionID, toSessionID } from '@atc/core';
-import type { SessionID } from '@atc/core';
+import { systemClock } from '@atc/core';
 import type { AgentAdapter, SpawnPlan } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import { createAuthSetup } from '../auth/create-auth-setup';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';

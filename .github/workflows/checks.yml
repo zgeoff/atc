@@ -58,6 +58,15 @@ jobs:
       - name: Provider Bundle
         run: bun run check:bundle
 
+      - name: Contract Declarations
+        run: bun run check:contract
+
+      # packs @atcx/contract as the release publishes it, installs the tarball
+      # into a Node project that imports it and type-checks against it, and
+      # runs npm's publish as a dry run
+      - name: Contract Package
+        run: bash scripts/publish-contract.sh --dry-run
+
       - name: Import Rule Disables
         run: bun run check:disable-baseline
 
@@ -96,6 +105,9 @@ jobs:
       - name: Shell Lint
         run: bun run lint:shell
 
+      - name: Guest Shell Scripts
+        run: bun run check:guest-scripts
+
       - name: Lint
         run: bun run lint:full
 
@@ -132,8 +144,7 @@ jobs:
           codex --version
 
       - name: Test Codex Bridge
-        run:
-          bun run test packages/harnesses/codex/src/app-server/start-codex-app-server-bridge.test.ts
+        run: bun run test:codex
 
   # the suite runs once, inside a home of canary files, and fails when a test
   # reads, changes, or adds to a home it does not own
@@ -165,8 +176,19 @@ jobs:
         env:
           TMPDIR: /dev/shm
         run:
-          bun run test:isolation bun run test --reporter=junit
+          bun run test:isolation bun run test --randomize --reporter=junit
           --reporter-outfile="$RUNNER_TEMP/test-times.xml"
+
+      # the e2e lane, on the suites the binaries workflow does not run against
+      # a compiled binary; the unit run above leaves e2e/ out
+      - name: Test e2e
+        if: ${{ !cancelled() }}
+        env:
+          TMPDIR: /dev/shm
+        run: |
+          mapfile -t suites < <(find e2e -maxdepth 1 -name '*.test.ts' ! -name 'daemon-*' ! -name 'gateway-*' | sort)
+          bun run test:isolation bun run test:e2e --parallel=4 --no-isolate --randomize --reporter=junit \
+            --reporter-outfile="$RUNNER_TEMP/test-times-e2e.xml" "${suites[@]}"
 
       # the per-test times of each run on main, which the weekly audit reads
       - name: Upload test times
@@ -174,5 +196,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-times
-          path: ${{ runner.temp }}/test-times.xml
+          path: |
+            ${{ runner.temp }}/test-times.xml
+            ${{ runner.temp }}/test-times-e2e.xml
           if-no-files-found: error

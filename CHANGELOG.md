@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.3.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.2.0...@zgeoff/atc@7.3.0) (2026-10-24)
+
+### Features
+
+- **mcp:** deliver events to a hosted assistant by signed webhook
+  ([#940](https://github.com/zgeoff/atc/issues/940))
+  ([e022947](https://github.com/zgeoff/atc/commit/e022947e545f4e82633f5f3b0a816a7632b310d7))
+
+### Bug Fixes
+
+- **deps:** update body-parser, ignore 4 unfixed advisories
+  ([#941](https://github.com/zgeoff/atc/issues/941))
+  ([c6e5258](https://github.com/zgeoff/atc/commit/c6e525869298adede56fa7e56e575cfe1213e533))
+
 ## [7.2.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.1.0...@zgeoff/atc@7.2.0) (2026-10-23)
 
 ### Features

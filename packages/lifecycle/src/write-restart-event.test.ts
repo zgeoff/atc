@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { resolvePaths } from '@atc/config/host';
-import type { DaemonEvent } from '@atc/protocol';
 import { resolveATCCommand, setupTempDir, waitFor } from '@atc/test-utils';
+import type { DaemonEvent } from '@atcx/contract';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 import { startDaemonProcess } from './testing/start-daemon-process';
 import { writeRestartEvent } from './write-restart-event';

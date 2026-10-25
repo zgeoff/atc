@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import { buildStubClock, registerTestCleanup, waitFor } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import type { TapClient } from '../daemon-context';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';

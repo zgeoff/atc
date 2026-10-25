@@ -1,7 +1,5 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { toMessageID } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import type { HookEvent } from '@atc/protocol/session';
 import { createStateStore } from '@atc/store';
 import { buildMockMessageRecord } from '@atc/store/testing';
@@ -11,6 +9,8 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
+import { toMessageID } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import type { TapClient } from '../daemon-context';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';

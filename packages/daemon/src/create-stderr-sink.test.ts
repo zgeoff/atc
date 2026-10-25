@@ -1,7 +1,7 @@
 import { expect, jest, onTestFinished, test } from 'bun:test';
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir, waitFor } from '@atc/test-utils';
 import { createStderrSink } from './create-stderr-sink';
 
 // Faked timers let a test decide when the sink reports the records it dropped.
@@ -71,6 +71,20 @@ test('it starts the next write with one dropped line that counts the records it 
     });
   }
 
+  // The sink writes its first batch and holds the rest until the interval
+  // ends. Fake timers stop Bun.sleep, so the wait turns the loop instead.
+  await waitFor(
+    () => {
+      expect(readFileSync(ctx.outputPath, 'utf8').split('\n')).toHaveLength(513);
+    },
+    {
+      wait: () =>
+        new Promise((resolve) => {
+          setImmediate(resolve);
+        }),
+    },
+  );
+
   // LogTape reports the drops of each interval once it ends.
   jest.advanceTimersByTime(100);
 
@@ -78,12 +92,12 @@ test('it starts the next write with one dropped line that counts the records it 
 
   expect(readFileSync(ctx.outputPath, 'utf8')).toBe(
     [
-      'atc log dropped=5\n',
       ...Array.from(
         { length: 512 },
         (_, index) =>
           `atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=${String(index + 1)}\n`,
       ),
+      'atc log dropped=5\n',
       ...Array.from(
         { length: 1024 },
         (_, index) =>
@@ -150,14 +164,30 @@ test('it holds a batch it is given in place of the default one', async () => {
     });
   }
 
+  await waitFor(
+    () => {
+      expect(readFileSync(ctx.outputPath, 'utf8').split('\n')).toHaveLength(5);
+    },
+    {
+      wait: () =>
+        new Promise((resolve) => {
+          setImmediate(resolve);
+        }),
+    },
+  );
+
   jest.advanceTimersByTime(100);
 
   await sink[Symbol.asyncDispose]();
 
   expect(readFileSync(ctx.outputPath, 'utf8')).toBe(
     [
+      ...[1, 2, 3, 4].map(
+        (count) =>
+          `atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=${String(count)}\n`,
+      ),
       'atc log dropped=1\n',
-      ...[1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13].map(
+      ...[6, 7, 8, 9, 10, 11, 12, 13].map(
         (count) =>
           `atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=${String(count)}\n`,
       ),

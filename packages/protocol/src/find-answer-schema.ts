@@ -1,7 +1,7 @@
 import { isRecord } from '@atc/core';
+import { DAEMON_CONTRACT } from '@atcx/contract';
 import { isContractProcedure } from '@orpc/contract';
 import { z } from 'zod';
-import { DAEMON_CONTRACT } from './daemon-contract';
 
 export function findAnswerSchema(method: string): z.ZodType | null {
   let node: unknown = DAEMON_CONTRACT;

@@ -1,5 +1,5 @@
-import type { SessionDescriptor, SessionLifecycle } from '@atc/protocol';
 import type { FleetStore } from '@atc/store';
+import type { SessionDescriptor, SessionLifecycle } from '@atcx/contract';
 import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionRegistry } from './create-session-registry';
 import { pickSessionState } from './pick-session-state';

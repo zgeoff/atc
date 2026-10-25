@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildMockSessionDescriptor } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { createConnectionView } from './create-connection-view';
 

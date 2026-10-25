@@ -8,7 +8,7 @@ import {
   formatMixedAgentKeys,
 } from '@atc/config';
 import { isRecord } from '@atc/core';
-import { buildOptionalString, buildOptionalStringArray } from '@atc/core/schema';
+import { buildOptionalString, buildOptionalStringArray } from '@atcx/contract/schema';
 import { z } from 'zod';
 import { collectLegacyAgents } from './shared/collect-legacy-agents';
 

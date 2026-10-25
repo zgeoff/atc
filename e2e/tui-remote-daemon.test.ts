@@ -157,7 +157,7 @@ test("it lists only the remote daemon's directories and spawns in the first of t
 
     expect(listed['sessions']).toPartiallyContain(spawned);
   });
-}, 20_000);
+});
 
 test("it completes and resolves a typed ~ path on the remote daemon's host", async () => {
   const ctx = setupTest();
@@ -231,7 +231,7 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
 
     expect(listed['sessions']).toPartiallyContain(spawned);
   });
-}, 20_000);
+});
 
 test('it exits with the refusal when a reconnect to the remote daemon is refused its token', async () => {
   const ctx = setupTest();

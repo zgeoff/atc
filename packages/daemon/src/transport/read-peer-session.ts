@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
 import { readParentPID } from './read-parent-pid';
 
 // More steps than any real process tree is deep, so a cycle a reused pid

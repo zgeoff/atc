@@ -1,4 +1,4 @@
-import type { RestartResult } from '@atc/protocol';
+import type { RestartResult } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
 import type { MockOverrides } from './mock-overrides';

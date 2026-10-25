@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
-import type { SessionID } from '@atc/core';
-import { toSessionID } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { buildMockAgentAdapter, getRecord, registerTestCleanup, waitFor } from '@atc/test-utils';
+import type { SessionID } from '@atcx/contract';
+import { toSessionID } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 

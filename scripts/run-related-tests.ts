@@ -26,8 +26,15 @@ export function readRelatedTests(paths: readonly string[], cwd: string): string[
     }
   }
 
-  return [...selected];
+  return [...selected].filter(
+    (test) => !test.endsWith(LANE_SUFFIX) && !test.startsWith(E2E_DIRECTORY),
+  );
 }
+
+// A lane suite runs a real system through its own script, such as `test:codex`
+// or, for every suite under `e2e/`, `test:e2e`.
+const LANE_SUFFIX = '.codex.test.ts';
+const E2E_DIRECTORY = 'e2e/';
 
 export async function runRelatedTests(
   paths: readonly string[],

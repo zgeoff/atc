@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { resolveHomeDir } from './resolve-home-dir';
+import { resolveHomeDir } from '@atcx/contract/light';
 
 export function resolveAgentHome(
   envVar: string,

@@ -1,9 +1,9 @@
-import { resolveHomeDir } from '@atc/config/host';
 import type { AgentID } from '@atc/core';
 import { ansi, makeSingleFlight, systemClock } from '@atc/core';
 import { countSessionStates, sortSessionViews } from '@atc/protocol';
 import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
+import { resolveHomeDir } from '@atcx/contract/light';
 import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { applyDaemonEvent } from './apply-daemon-event';

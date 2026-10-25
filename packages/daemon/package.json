@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./guest-scripts": "./src/guest-scripts/index.ts",
     "./testing": "./src/testing/index.ts"
   },
   "dependencies": {
@@ -14,6 +15,7 @@
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atc/store": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "@logtape/logtape": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",

@@ -5,13 +5,15 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./config": "./src/config/index.ts"
+    "./config": "./src/config/index.ts",
+    "./guest-scripts": "./src/guest-scripts/index.ts"
   },
   "dependencies": {
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

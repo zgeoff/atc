@@ -1,5 +1,5 @@
-import { RESTART_RESULT_SCHEMA } from '@atc/protocol';
-import type { RestartResult } from '@atc/protocol';
+import { RESTART_RESULT_SCHEMA } from '@atcx/contract';
+import type { RestartResult } from '@atcx/contract';
 
 export function parseRestartResult(line: string): RestartResult | null {
   let raw: unknown;

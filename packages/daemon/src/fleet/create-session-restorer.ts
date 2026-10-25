@@ -1,8 +1,7 @@
 import { LOCAL_TARGET } from '@atc/config';
-import type { SessionID } from '@atc/core';
-import type { SessionLifecycle } from '@atc/protocol';
-import type { ErrorCode } from '@atc/protocol/wire';
 import type { FleetEntry } from '@atc/store';
+import type { SessionID, SessionLifecycle } from '@atcx/contract';
+import type { ErrorCode } from '@atcx/contract/light';
 import { LOCAL_TARGET_IDENTITY } from '../sessions/create-session-registry';
 import type { SessionRegistry } from '../sessions/create-session-registry';
 import { resolveRepoRoot } from '../sessions/resolve-repo-root';

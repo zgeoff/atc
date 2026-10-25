@@ -19,9 +19,10 @@ Agent SDK all speak JSON already.
 
 ## Messages
 
-The daemon's procedures and their schemas come from one oRPC contract in the protocol module, and
-the client and the daemon both build on it. A procedure is named `noun.verb`, and a request names it
-as a path, so `session.spawn` travels as `/session/spawn`:
+The daemon's procedures and their schemas come from one oRPC contract in the
+[published contract package](./contract.md), and the client and the daemon both build on it. A
+procedure is named `noun.verb`, and a request names it as a path, so `session.spawn` travels as
+`/session/spawn`:
 
 ```jsonc
 // request (client to daemon): the client picks a message id
@@ -80,6 +81,10 @@ where the platform gives no pid. The daemon never fills it from the session a he
 client learns which session it runs in from the kernel and not from a variable that any process can
 set.
 
+The answer lists the daemon's features too: the capabilities a release added within its major
+version, which a client outside the repo reads to learn what an older daemon lacks
+([the published contract](./contract.md#checking-a-daemon)).
+
 A connection takes one handshake, because a second could change the principal under the connection's
 attachments. A second hello gets `unauthorized`, and the connection stays open with the identity the
 first one gave.
@@ -122,7 +127,7 @@ still waiting for a response, and decides for itself whether to resend it.
 
 ## Versions
 
-The protocol version is one integer compared for equality, and the current version is 11. The daemon
+The protocol version is one integer compared for equality, and the current version is 12. The daemon
 records it in `daemon.json` beside its socket paths, and a client sends its own in the hello. A
 daemon on another version refuses the handshake with `protocol_mismatch`, so a client and a daemon
 on different versions never talk, and the two install together. The error holds both versions and
@@ -136,8 +141,8 @@ daemon that pass the handshake therefore serve the same procedures and fields, s
 every tool and input without asking the daemon what it serves. A peer ignores a field it does not
 know, in a request or in an answer.
 
-Version 11 differs from version 10 in one answer field. The `daemon.hello` answer holds the peer
-session as `peerSession` ([The handshake](#the-handshake)).
+Version 12 differs from version 11 in one answer field. The `daemon.hello` answer holds the daemon's
+features as `features` ([The handshake](#the-handshake)).
 
 ## Events
 
