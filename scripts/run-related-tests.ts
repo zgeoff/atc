@@ -40,7 +40,7 @@ export async function runRelatedTests(
   paths: readonly string[],
   cwd: string,
   skips: readonly TestSkip[],
-  workers: number,
+  workers: number | null,
 ): Promise<number> {
   const tests = readRelatedTests(paths, cwd);
 
@@ -59,9 +59,10 @@ export async function runRelatedTests(
       );
     }
 
-    // the test script passes a bare --parallel, and bun takes the last value
-    const child = Bun.spawn(['bun', 'run', 'test', ...run.args, `--parallel=${workers}`], {
+    const child = Bun.spawn(['bun', 'run', 'test', ...run.args], {
       cwd,
+      env:
+        workers === null ? { ...process.env } : { ...process.env, TEST_WORKERS: String(workers) },
       stdin: 'inherit',
       stdout: 'inherit',
       stderr: 'inherit',
@@ -79,7 +80,12 @@ export async function runRelatedTests(
 
 if (import.meta.main) {
   const skips = loadTestSkips(join(import.meta.dir, 'pre-push-test-skips.json'));
-  const workers = pickTestWorkers({ cpus: availableParallelism(), memoryBytes: totalmem() });
+
+  const workers = pickTestWorkers({
+    cpus: availableParallelism(),
+    memoryBytes: totalmem(),
+    requested: process.env['TEST_WORKERS'],
+  });
 
   const exitCode = await runRelatedTests(process.argv.slice(2), process.cwd(), skips, workers);
 

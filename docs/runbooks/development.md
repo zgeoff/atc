@@ -69,10 +69,10 @@ state. The `testing` and `project-testing` skills hold the conventions. No test 
 | `bun run test:isolation`                 | the suite in a canary home, failing when a test touches a real home  |
 | `bun run test:timings`                   | the suite, rewriting the timings that start the slowest files first  |
 
-The pre-push hook runs `bun run test:related` over the files the branch changes. That script runs
-one test worker on a host with 2 or fewer CPUs or 2 GiB or less of memory, and one worker per CPU on
-a larger host. On a 2-CPU, 2 GiB host, two workers and the processes their tests spawn keep the
-slowest tests near the 5 s timeout. CI keeps one worker per CPU.
+The pre-push hook runs `bun run test:related` over the files the branch changes. On a host with 2 or
+fewer CPUs or 2 GiB or less of memory, that script sets `TEST_WORKERS` to 1, because more workers
+and the processes their tests spawn keep the slowest tests near the 5 s timeout there. Every other
+host runs the test script's default of 4 workers. A `TEST_WORKERS` that you set always wins.
 
 `bun run test:related` leaves out each test in `scripts/pre-push-test-skips.json` and prints the
 Linear issue of each one it leaves out. The list holds tests that fail on a developer host and pass

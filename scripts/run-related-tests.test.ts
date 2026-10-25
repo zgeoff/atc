@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand, setupTempDir } from '@atc/test-utils';
+import { runCommand, setupTempDir, updateEnv } from '@atc/test-utils';
 import { readRelatedTests, runRelatedTests } from './run-related-tests';
 
 // A temp directory standing in for a repo root.
@@ -157,7 +157,7 @@ test('it leaves out a listed test and runs the rest of its file', async () => {
     ['src/a.test.ts'],
     ctx.directory,
     [{ file: 'src/a.test.ts', test: 'it trims the hedge', issue: 'GEO-18' }],
-    1,
+    null,
   );
 
   expect(exitCode).toBe(0);
@@ -181,7 +181,7 @@ test('it runs a test whose name only starts with a listed name', async () => {
     ['src/a.test.ts'],
     ctx.directory,
     [{ file: 'src/a.test.ts', test: 'it trims the hedge', issue: 'GEO-18' }],
-    1,
+    null,
   );
 
   expect(exitCode).toBe(1);
@@ -209,28 +209,45 @@ test('it runs every planned run and returns the failure of an earlier one', asyn
     ['src/a.test.ts', 'src/b.test.ts'],
     ctx.directory,
     [{ file: 'src/b.test.ts', test: 'it trims the hedge', issue: 'GEO-18' }],
-    1,
+    null,
   );
 
   expect(exitCode).toBe(1);
   expect(existsSync(join(ctx.directory, 'raked'))).toBeTrue();
 });
 
-test('it runs the test script with the worker count it is given', async () => {
+test('it runs the test script with TEST_WORKERS set to the worker count it is given', async () => {
   const ctx = setupTest();
+
+  updateEnv('TEST_WORKERS', undefined);
 
   writeFileSync(
     join(ctx.directory, 'package.json'),
-    JSON.stringify({ scripts: { test: 'echo > args.txt' } }),
+    JSON.stringify({ scripts: { test: 'echo "$TEST_WORKERS" > workers.txt' } }),
   );
 
   writeFileSync(join(ctx.directory, 'src/a.test.ts'), '');
 
-  const exitCode = await runRelatedTests(['src/a.test.ts'], ctx.directory, [], 3);
+  const exitCode = await runRelatedTests(['src/a.test.ts'], ctx.directory, [], 1);
 
   expect(exitCode).toBe(0);
+  expect(readFileSync(join(ctx.directory, 'workers.txt'), 'utf8')).toBe('1 src/a.test.ts\n');
+});
 
-  expect(readFileSync(join(ctx.directory, 'args.txt'), 'utf8')).toBe(
-    'src/a.test.ts --parallel=3\n',
+test('it keeps the TEST_WORKERS the environment holds when it is given no worker count', async () => {
+  const ctx = setupTest();
+
+  updateEnv('TEST_WORKERS', '3');
+
+  writeFileSync(
+    join(ctx.directory, 'package.json'),
+    JSON.stringify({ scripts: { test: 'echo "$TEST_WORKERS" > workers.txt' } }),
   );
+
+  writeFileSync(join(ctx.directory, 'src/a.test.ts'), '');
+
+  const exitCode = await runRelatedTests(['src/a.test.ts'], ctx.directory, [], null);
+
+  expect(exitCode).toBe(0);
+  expect(readFileSync(join(ctx.directory, 'workers.txt'), 'utf8')).toBe('3 src/a.test.ts\n');
 });
