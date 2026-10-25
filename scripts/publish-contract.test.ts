@@ -40,6 +40,84 @@ test.each([
   expect(existsSync(join(ctx.directory, 'npm.log'))).toBeFalse();
 });
 
+test.each(['catalog:', 'workspace:*'])(
+  'it refuses a packed manifest that names a %s version before npm runs',
+  async (version) => {
+    const ctx = setupTest();
+
+    await Bun.write(
+      join(ctx.directory, 'tarball/package/package.json'),
+      JSON.stringify({ name: '@atcx/contract', version: '7.3.0', dependencies: { zod: version } }),
+    );
+
+    await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
+      cwd: join(ctx.directory, 'tarball'),
+    });
+
+    await Bun.write(
+      join(ctx.directory, 'scripts/pack-contract.ts'),
+      `console.log(${JSON.stringify(join(ctx.directory, 'tarball/contract.tgz'))});\n`,
+    );
+
+    createStubBin(
+      join(ctx.directory, 'bin'),
+      'npm',
+      buildStubNpm(join(ctx.directory, 'npm.log'), null),
+    );
+
+    const published = await runCommand(
+      ['bash', join(ctx.directory, 'scripts/publish-contract.sh')],
+      { env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` } },
+    );
+
+    expect({ exitCode: published.exitCode, stdout: published.stdout }).toStrictEqual({
+      exitCode: 1,
+      stdout: '::error::the packed @atcx/contract still names a catalog: or workspace: version\n',
+    });
+
+    expect(existsSync(join(ctx.directory, 'npm.log'))).toBeFalse();
+  },
+);
+
+test('it refuses a packed archive that holds TypeScript source before npm runs', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/package/package.json'),
+    JSON.stringify({ name: '@atcx/contract', version: '7.3.0', files: ['dist'] }),
+  );
+
+  await Bun.write(join(ctx.directory, 'tarball/package/dist/index.d.ts'), 'export {};\n');
+  await Bun.write(join(ctx.directory, 'tarball/package/dist/index.ts'), 'export {};\n');
+
+  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
+    cwd: join(ctx.directory, 'tarball'),
+  });
+
+  await Bun.write(
+    join(ctx.directory, 'scripts/pack-contract.ts'),
+    `console.log(${JSON.stringify(join(ctx.directory, 'tarball/contract.tgz'))});\n`,
+  );
+
+  createStubBin(
+    join(ctx.directory, 'bin'),
+    'npm',
+    buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  );
+
+  const published = await runCommand(['bash', join(ctx.directory, 'scripts/publish-contract.sh')], {
+    env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` },
+  });
+
+  expect({ exitCode: published.exitCode, stdout: published.stdout }).toStrictEqual({
+    exitCode: 1,
+    stdout:
+      'package/dist/index.ts\n::error::the packed @atcx/contract holds the TypeScript source above\n',
+  });
+
+  expect(existsSync(join(ctx.directory, 'npm.log'))).toBeFalse();
+});
+
 test('it publishes the packed contract with provenance when npm lacks its version', async () => {
   const ctx = setupTest();
 
