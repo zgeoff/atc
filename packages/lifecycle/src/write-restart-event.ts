@@ -1,5 +1,5 @@
-import type { RestartResult } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
+import type { RestartResult } from '@atcx/contract';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
 import type { LifecycleHost } from './lifecycle-host';
 import { readDaemonSocketPaths } from './read-daemon-socket-paths';

@@ -1,4 +1,4 @@
-import { SESSION_ENV_NAMES } from '@atc/protocol/session';
+import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 
 // The PATH a guest harness runs with: the guest's standard one, never the
 // daemon's.

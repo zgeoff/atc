@@ -1,7 +1,7 @@
 {
   "name": "@atc/protocol",
   "private": true,
-  "description": "The wire contract between atc's processes: the request and event schemas, the line framing, and the daemon client",
+  "description": "What atc's own processes share to talk to the daemon: the line framing, the wire helpers, the session helpers, and the daemon client",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@atc/core": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/standard-server-peer": "catalog:",

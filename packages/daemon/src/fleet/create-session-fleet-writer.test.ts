@@ -3,7 +3,6 @@ import { expect, mock, test } from 'bun:test';
 import { linkSync, readdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
@@ -12,6 +11,7 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { createSessionRegistry } from '../sessions/create-session-registry';
 import { buildMockSession } from '../testing/build-mock-session';
 import { createSessionFleetWriter } from './create-session-fleet-writer';

@@ -9,6 +9,7 @@
   "dependencies": {
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "ts-pattern": "catalog:",
     "zod": "catalog:"
   },

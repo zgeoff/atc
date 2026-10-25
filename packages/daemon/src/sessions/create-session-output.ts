@@ -1,7 +1,8 @@
-import type { Clock, SessionID } from '@atc/core';
+import type { Clock } from '@atc/core';
 import { ansi } from '@atc/core';
 import { MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
 import type { OutputClient } from '../daemon-context';
 import { createAttachRegistry } from './create-attach-registry';
 import type { Dims } from './create-attach-registry';

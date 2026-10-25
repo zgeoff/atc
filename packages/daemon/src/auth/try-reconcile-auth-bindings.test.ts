@@ -1,9 +1,9 @@
 import { expect, mock, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import type { CredentialBroker } from '@atc/plugin-api';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { buildStubLog } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { resolvePaths } from './resolve-paths';
 
-test('it puts the sockets and the pid file in the runtime folder the environment sets', () => {
+test('it adds the internal state files to the paths a client reads', () => {
   expect(resolvePaths({ HOME: '/home/u', XDG_RUNTIME_DIR: '/run/user/1000' })).toStrictEqual({
     configFile: '/home/u/.config/atc/config.json',
     stateDir: '/home/u/.local/state/atc',
@@ -17,26 +17,4 @@ test('it puts the sockets and the pid file in the runtime folder the environment
     restartLockFile: '/home/u/.local/state/atc/daemon-restart.lock',
     listingCacheFile: '/home/u/.local/state/atc/listing-cache.json',
   });
-});
-
-test('it puts the sockets and the pid file in the state folder when the environment sets no runtime folder', () => {
-  const paths = resolvePaths({ HOME: '/home/u' });
-
-  expect([
-    paths.socketPath,
-    paths.daemonSocketPath,
-    paths.eventsSocketPath,
-    paths.daemonPidFile,
-  ]).toStrictEqual([
-    '/home/u/.local/state/atc/atc.sock',
-    '/home/u/.local/state/atc/atc-daemon.sock',
-    '/home/u/.local/state/atc/atc-events.sock',
-    '/home/u/.local/state/atc/atc-daemon.pid',
-  ]);
-});
-
-test('it reads the home from the environment it is given, not from the process', () => {
-  expect(resolvePaths({ HOME: '/elsewhere' }).configFile).toBe(
-    '/elsewhere/.config/atc/config.json',
-  );
 });

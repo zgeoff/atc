@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID, toMessageID } from '@atc/core';
+import { toAgentSessionID, toMessageID } from '@atcx/contract';
 import { buildMockMessageRecord } from './build-mock-message-record';
 
 test('it builds a default message record', () => {

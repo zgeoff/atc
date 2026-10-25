@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
+import { toSessionID } from '@atcx/contract';
 import { buildMockFleetEntry } from './build-mock-fleet-entry';
 
 test('it builds a default fleet entry', () => {

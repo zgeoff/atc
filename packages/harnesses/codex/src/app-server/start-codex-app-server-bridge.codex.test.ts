@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { toAgentSessionID, toSessionID } from '@atc/core';
 import { buildStubMessageBridgeHost, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { startCodexAppServerBridge } from './start-codex-app-server-bridge';
 

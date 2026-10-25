@@ -1,6 +1,6 @@
-import type { SessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
 import type { SentNote } from './parse-note';
 
 export function buildSessionNoteEvent(

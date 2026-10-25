@@ -1,5 +1,5 @@
 import type { AgentAdapter } from '@atc/plugin-api';
-import type { SpawnOptionSpec } from '@atc/protocol';
+import type { SpawnOptionSpec } from '@atcx/contract';
 
 interface AgentCapabilities {
   // Whether some target can start a session of the agent.

@@ -8,7 +8,6 @@ import { buildStubTargets } from '@atc/daemon/testing';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { encodeCursor } from '@atc/protocol';
-import type { DaemonEvent } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
 import {
@@ -22,6 +21,7 @@ import {
   trySendRequest,
   waitFor,
 } from '@atc/test-utils';
+import type { DaemonEvent } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';

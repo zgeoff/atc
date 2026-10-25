@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildStubClock } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { createConfirmTokens } from './create-confirm-tokens';
 
 // The tokens on a clock the test steps, each usable for a minute.

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
+import { toSessionID } from '@atcx/contract';
 import { buildConnectionRequests } from '../transport/build-connection-requests';
 import { buildMockProcedureContext } from './build-mock-procedure-context';
 import { buildStubDaemonContext } from './build-stub-daemon-context';

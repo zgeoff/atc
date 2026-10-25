@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import { buildMockMessageRecord } from '@atc/store/testing';
+import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import { buildNoticeTrailEntry } from './build-notice-trail-entry';
 
 test('it builds a queued notice entry for the sender, stamped with the queue time and an answer preview', () => {

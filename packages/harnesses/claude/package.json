@@ -15,6 +15,7 @@
     "@atc/core": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
     "ts-pattern": "catalog:",
     "zod": "catalog:"

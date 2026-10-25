@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildOptionalString } from '@atc/core/schema';
 import type { NameUpdate } from '@atc/plugin-api';
+import { buildOptionalString } from '@atcx/contract/schema';
 import { z } from 'zod';
 
 export function loadGrokName(

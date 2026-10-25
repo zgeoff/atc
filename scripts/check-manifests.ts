@@ -136,6 +136,15 @@ function readManifest(root: string, directory: string): Manifest {
 const EXACT_VERSION =
   /^(?:npm:(?:@[^/@]+\/)?[^/@]+@)?\d+\.\d+\.\d+(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/u;
 
+// A workspace package is private in the @atc/ scope, or published to npm in
+// the @atcx/ scope.
+const PRIVATE_SCOPE = '@atc/';
+const PUBLISHED_SCOPE = '@atcx/';
+
+function isWorkspaceName(name: string): boolean {
+  return name.startsWith(PRIVATE_SCOPE) || name.startsWith(PUBLISHED_SCOPE);
+}
+
 function checkManifest(pkg: WorkspacePackage): string[] {
   const findings: string[] = [];
   const manifestPath = pkg.directory === '.' ? 'package.json' : `${pkg.directory}/package.json`;
@@ -145,7 +154,7 @@ function checkManifest(pkg: WorkspacePackage): string[] {
     ['devDependencies', pkg.manifest.devDependencies ?? {}],
   ] as const) {
     for (const [name, version] of Object.entries(entries)) {
-      const expected = name.startsWith('@atc/') ? 'workspace:*' : 'catalog:';
+      const expected = isWorkspaceName(name) ? 'workspace:*' : 'catalog:';
 
       if (version !== expected) {
         findings.push(
@@ -167,10 +176,22 @@ function checkManifest(pkg: WorkspacePackage): string[] {
     return findings;
   }
 
-  if (pkg.manifest.name?.startsWith('@atc/') !== true) {
+  if (pkg.manifest.name === undefined || !isWorkspaceName(pkg.manifest.name)) {
     findings.push(
-      `package name: ${manifestPath} is named ${pkg.manifest.name ?? '(none)'}, outside the @atc/ scope`,
+      `package name: ${manifestPath} is named ${pkg.manifest.name ?? '(none)'}, outside the @atc/ and @atcx/ scopes`,
     );
+  }
+
+  // npm holds only the published scope, so a published package that names a
+  // private one installs nowhere
+  if (pkg.manifest.name?.startsWith(PUBLISHED_SCOPE) === true) {
+    for (const name of Object.keys(pkg.manifest.dependencies ?? {})) {
+      if (isWorkspaceName(name) && !name.startsWith(PUBLISHED_SCOPE)) {
+        findings.push(
+          `published dependency: ${manifestPath} depends on ${name}, which npm never holds`,
+        );
+      }
+    }
   }
 
   // an empty map is explicit too: it leaves a package, such as the app,

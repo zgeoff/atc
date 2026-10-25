@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
 import { createStateStore } from '@atc/store';
 import {
   buildStubClock,
@@ -9,6 +8,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { startEventSweep } from './start-event-sweep';
 
 // A real state store, a trail clock on a fixed day, and a sweep clock of

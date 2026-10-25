@@ -24,6 +24,7 @@
         "@atc/source-github": "workspace:*",
         "@atc/store": "workspace:*",
         "@atc/test-utils": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@commitlint/cli": "catalog:",
         "@faker-js/faker": "catalog:",
         "@stylistic/eslint-plugin": "catalog:",
@@ -68,6 +69,7 @@
         "@atc/source-github": "workspace:*",
         "@atc/store": "workspace:*",
         "@atc/tui": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@zgeoff/kysely-bun-sqlite": "catalog:",
         "gunshi": "catalog:",
         "zod": "catalog:",
@@ -84,19 +86,23 @@
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
       },
     },
-    "packages/core": {
-      "name": "@atc/core",
+    "packages/contract": {
+      "name": "@atcx/contract",
+      "version": "7.3.0",
       "dependencies": {
-        "@zgeoff/std": "catalog:",
-        "type-fest": "catalog:",
+        "@orpc/contract": "catalog:",
         "zod": "catalog:",
       },
+    },
+    "packages/core": {
+      "name": "@atc/core",
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
       },
@@ -110,6 +116,7 @@
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
         "@atc/store": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@logtape/logtape": "catalog:",
         "@orpc/client": "catalog:",
         "@orpc/server": "catalog:",
@@ -136,6 +143,7 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@impz/client": "catalog:",
         "@zgeoff/std": "catalog:",
         "tiny-invariant": "catalog:",
@@ -187,6 +195,7 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@modelcontextprotocol/sdk": "catalog:",
         "ts-pattern": "catalog:",
         "zod": "catalog:",
@@ -207,6 +216,7 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -221,6 +231,7 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "ts-pattern": "catalog:",
         "zod": "catalog:",
       },
@@ -235,6 +246,7 @@
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
         "@atc/store": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -249,6 +261,7 @@
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@better-auth/mcp": "catalog:",
         "@better-auth/oauth-provider": "catalog:",
         "@modelcontextprotocol/server": "catalog:",
@@ -274,6 +287,7 @@
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "ts-pattern": "catalog:",
         "zod": "catalog:",
       },
@@ -286,6 +300,7 @@
       "name": "@atc/protocol",
       "dependencies": {
         "@atc/core": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@orpc/client": "catalog:",
         "@orpc/contract": "catalog:",
         "@orpc/standard-server-peer": "catalog:",
@@ -303,6 +318,7 @@
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -350,6 +366,7 @@
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@zgeoff/kysely-bun-sqlite": "catalog:",
         "kysely": "catalog:",
         "zod": "catalog:",
@@ -368,6 +385,7 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@faker-js/faker": "catalog:",
         "@orpc/client": "catalog:",
         "@orpc/standard-server": "catalog:",
@@ -391,6 +409,7 @@
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@zgeoff/std": "catalog:",
         "ts-pattern": "catalog:",
         "xstate": "catalog:",
@@ -529,6 +548,8 @@
     "@atc/test-utils": ["@atc/test-utils@workspace:packages/test-utils"],
 
     "@atc/tui": ["@atc/tui@workspace:packages/tui"],
+
+    "@atcx/contract": ["@atcx/contract@workspace:packages/contract"],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 

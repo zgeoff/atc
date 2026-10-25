@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { toTimerClock } from '@atc/core';
 import type { Clock } from '@atc/core';
-import { EVENTS_PAGE_SCHEMA } from '@atc/protocol';
+import { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
 import type { Kysely } from 'kysely';
 import invariant from 'tiny-invariant';
 import { createActor } from 'xstate';

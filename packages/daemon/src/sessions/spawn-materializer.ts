@@ -1,5 +1,5 @@
-import type { SessionID, StepTimer } from '@atc/core';
-import type { SessionWorkspace } from '@atc/protocol';
+import type { StepTimer } from '@atc/core';
+import type { SessionID, SessionWorkspace } from '@atcx/contract';
 
 // A session's ready workspace and the variables its harnesses go without.
 export interface MaterializedSpawn {

@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import type { Stats } from 'node:fs';
 import { basename, join, relative, sep } from 'node:path';
-import { resolveHomeDir } from '@atc/config/host';
 import type { GuestFile } from '@atc/plugin-api';
+import { resolveHomeDir } from '@atcx/contract/light';
 import { buildClaudeBundleSettings } from './build-claude-bundle-settings';
 
 // only the listed entries ship, so the host's account state, history, credentials, backups and

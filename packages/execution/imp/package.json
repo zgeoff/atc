@@ -13,6 +13,7 @@
     "@atc/core": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "@impz/client": "catalog:",
     "@zgeoff/std": "catalog:",
     "tiny-invariant": "catalog:",

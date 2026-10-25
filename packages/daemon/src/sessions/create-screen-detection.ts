@@ -1,4 +1,5 @@
-import type { Clock, SessionID } from '@atc/core';
+import type { Clock } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
 import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 

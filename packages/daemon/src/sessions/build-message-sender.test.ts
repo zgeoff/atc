@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
+import { toSessionID } from '@atcx/contract';
 import { buildMessageSender } from './build-message-sender';
 
 test('it labels a connector with its client id and name', () => {

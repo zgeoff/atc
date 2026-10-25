@@ -1,5 +1,5 @@
-import type { SessionID } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
+import type { SessionID } from '@atcx/contract';
 
 export type SpawnStepName =
   | 'claim'

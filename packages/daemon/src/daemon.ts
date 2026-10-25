@@ -1,12 +1,12 @@
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { DEFAULT_GIT_TRANSPORTS, LOCAL_TARGET, loadListenerTokens } from '@atc/config';
-import type { SessionID } from '@atc/core';
 import { systemClock } from '@atc/core';
 import { claimDaemonLock, readDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 import { getLogger } from '@logtape/logtape';
 import { buildDaemonContext } from './build-daemon-context';
 import type { TapClient } from './daemon-context';

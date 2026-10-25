@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
 import type { CommandSpec } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
@@ -12,6 +11,7 @@ import {
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { runLocalCommand } from '../testing/run-local-command';

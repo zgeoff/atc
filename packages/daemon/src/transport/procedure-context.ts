@@ -1,4 +1,5 @@
-import type { DaemonAnswer, DaemonEvent, RequestParams } from '@atc/protocol';
+import type { DaemonAnswer, RequestParams } from '@atc/protocol';
+import type { DaemonEvent } from '@atcx/contract';
 import type { DaemonContext } from '../daemon-context';
 import type { ConnectionRequests } from './build-connection-requests';
 import type { RequestPrincipal } from './request-deps';

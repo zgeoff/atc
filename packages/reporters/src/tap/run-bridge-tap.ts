@@ -4,7 +4,7 @@ import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { openBridgeSocket } from '@atc/protocol/session';
 import type { BridgeSocket } from '@atc/protocol/session';
-import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
+import { MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
 import { z } from 'zod';
 import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';

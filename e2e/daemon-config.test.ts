@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toAgentSessionID } from '@atc/core';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
@@ -18,6 +17,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { toAgentSessionID } from '@atcx/contract';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-config-');

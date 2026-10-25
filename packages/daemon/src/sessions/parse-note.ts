@@ -1,5 +1,5 @@
-import type { MessageID } from '@atc/core';
-import { toMessageID } from '@atc/core';
+import type { MessageID } from '@atcx/contract';
+import { toMessageID } from '@atcx/contract';
 import { z } from 'zod';
 
 interface TurnAnswer {

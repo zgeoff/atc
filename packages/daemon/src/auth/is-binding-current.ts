@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
 
 export interface BridgeBinding {
   readonly sessionID: SessionID;

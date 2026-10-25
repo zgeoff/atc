@@ -1,5 +1,5 @@
-import type { SessionID } from '@atc/core';
 import type { StateStore } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import type { SessionRecord, SessionTranscriptRead } from '../daemon-context';
 import type { PublishedRecords } from './create-published-records';

@@ -1,8 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { isRecord } from '@atc/core';
-import type { SessionID } from '@atc/core';
-import type { DaemonEvent } from '@atc/protocol';
 import { buildMockAgentAdapter, getRecord, waitFor } from '@atc/test-utils';
+import type { DaemonEvent, SessionID } from '@atcx/contract';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it flags a hook-less agent waiting at a prompt via the screen detector', async () => {

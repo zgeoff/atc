@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID, toSessionID } from '@atc/core';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { buildStubHarnessAdapter } from './build-stub-harness-adapter';
 
 test('it builds an adapter with no optional members by default', () => {

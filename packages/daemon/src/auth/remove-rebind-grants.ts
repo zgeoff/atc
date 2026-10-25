@@ -1,5 +1,5 @@
-import type { SessionID } from '@atc/core';
 import type { CredentialBroker } from '@atc/plugin-api';
+import type { SessionID } from '@atcx/contract';
 import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 import { tryRevokeGrant } from './try-revoke-grant';
 

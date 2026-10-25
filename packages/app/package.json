@@ -25,6 +25,7 @@
     "@atc/source-github": "workspace:*",
     "@atc/store": "workspace:*",
     "@atc/tui": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "@zgeoff/kysely-bun-sqlite": "catalog:",
     "gunshi": "catalog:",
     "zod": "catalog:"

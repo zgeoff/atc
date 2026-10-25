@@ -11,6 +11,7 @@
   "dependencies": {
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "@better-auth/mcp": "catalog:",
     "@better-auth/oauth-provider": "catalog:",
     "@modelcontextprotocol/server": "catalog:",

@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
 import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
@@ -10,6 +9,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { z } from 'zod';
 import { startCodexAppServerBridge } from './start-codex-app-server-bridge';
 

@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
 import { findReplacement } from './find-replacement';
 import type { FleetEntry } from './fleet-entry';
 

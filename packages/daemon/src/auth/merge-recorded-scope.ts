@@ -1,4 +1,4 @@
-import type { RecordedScope } from '@atc/protocol';
+import type { RecordedScope } from '@atcx/contract';
 import type { CheckedScope } from './check-session-scope';
 
 export function mergeRecordedScope(recorded: RecordedScope, added: CheckedScope): RecordedScope {

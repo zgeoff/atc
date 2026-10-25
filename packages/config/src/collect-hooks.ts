@@ -1,7 +1,7 @@
 import { isRecord } from '@atc/core';
-import { buildOptionalNonEmptyString } from '@atc/core/schema';
+import { resolveHomeDir } from '@atcx/contract/light';
+import { buildOptionalNonEmptyString } from '@atcx/contract/schema';
 import { z } from 'zod';
-import { resolveHomeDir } from './host/resolve-home-dir';
 import { normalizeConfigDir } from './normalize-config-dir';
 
 export interface HookEntry {

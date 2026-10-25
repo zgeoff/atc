@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RestartResult } from '@atc/protocol';
+import type { RestartResult } from '@atcx/contract';
 import { parseRestartResult } from './parse-restart-result';
 
 export function readRestartResult(restartsDir: string): RestartResult | null {

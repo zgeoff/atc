@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { SyntaxKind } from 'typescript/unstable/ast';
 import { z } from 'zod';
+import { checkContractReach } from './check-contract-reach';
+import type { ContractEntry } from './check-contract-reach';
 import { collectImports } from './collect-imports';
 import { collectTokens } from './collect-tokens';
 import { readSourceFiles } from './read-source-files';
@@ -35,6 +37,9 @@ async function main(): Promise<void> {
       .flatMap((file) => checkFile('bundles', file)),
     ...checkReporters(root, known, exports),
     ...checkDaemon(root, known, exports),
+    ...checkContractReach(
+      readContractEntries(known, exports, (file) => readFileSync(join(root, file), 'utf8')),
+    ),
   ];
 
   for (const finding of findings) {
@@ -54,6 +59,7 @@ const ENTRY = 'packages/app/src/gateway.ts';
 
 // The packages whose files the gateway may reach, any folder.
 const ALLOWED_PACKAGES: ReadonlySet<string> = new Set([
+  'contract',
   'core',
   'protocol',
   'config',
@@ -132,6 +138,7 @@ type ReporterAllowance = readonly string[] | { readonly except: readonly string[
 
 const REPORTER_FOLDERS: ReadonlyMap<string, ReporterAllowance> = new Map<string, ReporterAllowance>(
   [
+    ['contract', ['light']],
     ['core', { except: ['schema'] }],
     ['reporters', { except: [] }],
     ['protocol', ['client', 'session', 'wire']],
@@ -284,6 +291,38 @@ function checkDaemon(
   return findings;
 }
 
+const CONTRACT_NAME = '@atcx/contract';
+
+function readContractEntries(
+  known: ReadonlySet<string>,
+  exports: ReadonlyMap<string, string>,
+  readText: (file: string) => string,
+): ContractEntry[] {
+  const entries = [...exports]
+    .filter(
+      ([specifier]) => specifier === CONTRACT_NAME || specifier.startsWith(`${CONTRACT_NAME}/`),
+    )
+    .map(([, target]) => target);
+
+  return entries.map((entry) => {
+    if (!known.has(entry)) {
+      return { entry, exists: false, imports: new Map(), unresolved: [] };
+    }
+
+    const imports = new Map<string, readonly string[]>();
+
+    const reached = collectReached(known, exports, [entry], (file) => {
+      const specifiers = collectImports(readText(file)).specifiers;
+
+      imports.set(file, specifiers);
+
+      return specifiers;
+    });
+
+    return { entry, exists: true, imports, unresolved: reached.unresolved };
+  });
+}
+
 // The 1-based line of the first token that names mcp-auth.db in any case,
 // which a case-insensitive filesystem opens as the same file, or undefined.
 function findAuthDBName(source: string): number | undefined {
@@ -342,7 +381,7 @@ function resolveSpecifier(
     return findModule(known, normalize(join(directory, specifier)));
   }
 
-  if (specifier.startsWith('@atc/')) {
+  if (specifier.startsWith('@atc/') || specifier.startsWith('@atcx/')) {
     const target = findExport(exports, specifier);
 
     return target !== null && known.has(target) ? target : null;

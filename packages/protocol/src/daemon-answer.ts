@@ -1,5 +1,5 @@
+import type { DAEMON_CONTRACT } from '@atcx/contract';
 import type { z } from 'zod';
-import type { DAEMON_CONTRACT } from './daemon-contract';
 import type { RequestMethod } from './parse-request-params';
 
 export type DaemonAnswer<M extends RequestMethod> =

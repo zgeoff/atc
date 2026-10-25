@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
-import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
+import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import { createStubHeldInboxSource } from '../testing/create-stub-held-inbox-source';
 import { drainInbox } from './drain-inbox';
 
@@ -97,7 +97,7 @@ test("it sends an unlinked tap no message sent to another session's atc id", asy
   await drain;
 
   expect(tap.sendEvent).toHaveBeenCalledExactlyOnceWith({
-    version: 11,
+    version: 12,
     ev: 'InboxMessage',
     sessionID: 's-shown',
     message: 'm-own',

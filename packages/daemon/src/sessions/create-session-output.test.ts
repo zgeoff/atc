@@ -1,7 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { ansi, toSessionID } from '@atc/core';
-import type { SessionID } from '@atc/core';
+import { ansi } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
@@ -12,6 +11,8 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import type { OutputClient } from '../daemon-context';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';

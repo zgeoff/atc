@@ -8,6 +8,7 @@
         "integration/**/*.test.ts",
         "scripts/**/*.test.ts",
         "scripts/create-state-template.ts",
+        "scripts/pack-contract.ts",
         "scripts/probe-pty-env.ts",
         "scripts/stage-demo-sessions.ts"
       ],

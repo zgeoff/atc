@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID, toSessionID } from '@atc/core';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { planCodexHookEvents } from './plan-codex-hook-events';
 
 test('it starts a session on the reported thread and records the thread', () => {

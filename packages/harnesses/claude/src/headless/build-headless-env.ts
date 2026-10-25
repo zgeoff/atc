@@ -1,6 +1,6 @@
 import { readCleanEnv } from '@atc/config';
-import type { SessionID } from '@atc/core';
 import { buildSessionEnv } from '@atc/protocol/session';
+import type { SessionID } from '@atcx/contract';
 
 interface HeadlessEnvParams {
   readonly pluginDir?: string;

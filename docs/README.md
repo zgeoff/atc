@@ -43,6 +43,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
   remote sessions' outboxes
 - [Events](architecture/protocol/events.md) — the consumers, the event trail and its cursors, the
   events socket and user hooks
+- [The published contract](architecture/protocol/contract.md) — what `@atcx/contract` holds, its
+  light entry, checking a daemon, and its version
 
 ### Agents
 

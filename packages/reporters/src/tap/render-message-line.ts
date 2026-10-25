@@ -1,4 +1,4 @@
-import type { MessageSender } from '@atc/protocol/wire';
+import type { MessageSender } from '@atcx/contract/light';
 
 interface MessageLineFields {
   readonly message: string;

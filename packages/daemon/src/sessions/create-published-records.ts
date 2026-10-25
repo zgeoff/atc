@@ -2,14 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { makeKeyedLock } from '@atc/core';
-import type { SessionID } from '@atc/core';
 import type { ExecutionProvider } from '@atc/plugin-api';
-import type {
-  DeclaredScope,
-  PublishedRecord,
-  RecordedScope,
-  SessionWorkspace,
-} from '@atc/protocol';
+import type { DeclaredScope } from '@atc/protocol';
+import type { PublishedRecord, RecordedScope, SessionID, SessionWorkspace } from '@atcx/contract';
 import { checkSessionScope } from '../auth/check-session-scope';
 import type { CheckedScope } from '../auth/check-session-scope';
 import { mergeRecordedScope } from '../auth/merge-recorded-scope';

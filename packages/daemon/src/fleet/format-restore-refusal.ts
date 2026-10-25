@@ -1,4 +1,4 @@
-import type { SessionID } from '@atc/core';
+import type { SessionID } from '@atcx/contract';
 
 // The parts of a daemon refusal the reason is built from.
 interface Refusal {

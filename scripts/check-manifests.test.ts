@@ -502,7 +502,7 @@ test('it fails on a root catalog entry or root devDependency that is not exact',
   });
 });
 
-test('it fails on a package named outside the @atc/ scope', async () => {
+test('it fails on a package named outside the @atc/ and @atcx/ scopes', async () => {
   const ctx = setupTest();
 
   await Bun.write(
@@ -520,6 +520,51 @@ test('it fails on a package named outside the @atc/ scope', async () => {
     JSON.stringify({ name: '@atc/terminal', exports: { '.': './src/index.ts' } }),
   );
 
+  await Bun.write(
+    join(ctx.directory, 'packages/schemas/package.json'),
+    JSON.stringify({ name: '@atcx/schemas', exports: { '.': './src/index.ts' } }),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 4 packages, 0 files, 1 findings\n',
+    stderr:
+      'package name: packages/extras/package.json is named extras, outside the @atc/ and @atcx/ scopes\n',
+  });
+});
+
+test('it fails on a published package that depends on a private one', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/package.json'),
+    JSON.stringify({ name: '@atc/core', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/schemas/package.json'),
+    JSON.stringify({
+      name: '@atcx/schemas',
+      exports: { '.': './src/index.ts' },
+      dependencies: { '@atc/core': 'workspace:*', zod: 'catalog:' },
+    }),
+  );
+
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
@@ -533,7 +578,8 @@ test('it fails on a package named outside the @atc/ scope', async () => {
   }).toStrictEqual({
     exitCode: 1,
     stdout: 'check-manifests: 3 packages, 0 files, 1 findings\n',
-    stderr: 'package name: packages/extras/package.json is named extras, outside the @atc/ scope\n',
+    stderr:
+      'published dependency: packages/schemas/package.json depends on @atc/core, which npm never holds\n',
   });
 });
 

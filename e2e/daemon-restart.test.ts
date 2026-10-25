@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord, toAgentID, toSessionID } from '@atc/core';
+import { isRecord, toAgentID } from '@atc/core';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { PROTOCOL_V } from '@atc/protocol/wire';
@@ -19,6 +19,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 
 function setupTest() {

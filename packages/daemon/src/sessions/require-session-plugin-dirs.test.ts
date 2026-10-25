@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { toSessionID } from '@atc/core';
 import type { AgentAdapter, ExecutionProvider } from '@atc/plugin-api';
 import { buildMockAgentAdapter, setupTempDir } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { requireSessionPluginDirs } from './require-session-plugin-dirs';

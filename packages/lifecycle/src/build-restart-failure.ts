@@ -1,4 +1,4 @@
-import type { RestartResult } from '@atc/protocol';
+import type { RestartResult } from '@atcx/contract';
 
 export function buildRestartFailure(
   runID: string,

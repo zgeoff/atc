@@ -1,5 +1,5 @@
 import { truncate, truncateToBytes } from '@atc/core';
-import type { TranscriptRow } from '@atc/protocol';
+import type { TranscriptRow } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 

@@ -1,7 +1,8 @@
 import { expect, mock, test } from 'bun:test';
-import { createStepTimer, toDaemonID, toSessionID } from '@atc/core';
+import { createStepTimer } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/test-utils';
+import { toDaemonID, toSessionID } from '@atcx/contract';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionRegistry } from '../sessions/create-session-registry';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';

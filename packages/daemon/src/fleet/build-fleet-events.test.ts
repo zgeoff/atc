@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID, toMessageID, toSessionID } from '@atc/core';
 import { decodeCursor } from '@atc/protocol';
 import { buildMockStoredEvent } from '@atc/store/testing';
 import { buildMockSessionDescriptor } from '@atc/test-utils';
+import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { buildFleetEvents } from './build-fleet-events';
 

@@ -58,6 +58,15 @@ jobs:
       - name: Provider Bundle
         run: bun run check:bundle
 
+      - name: Contract Declarations
+        run: bun run check:contract
+
+      # packs @atcx/contract as the release publishes it, installs the tarball
+      # into a Node project that imports it and type-checks against it, and
+      # runs npm's publish as a dry run
+      - name: Contract Package
+        run: bash scripts/publish-contract.sh --dry-run
+
       - name: Import Rule Disables
         run: bun run check:disable-baseline
 

@@ -1,7 +1,7 @@
 import type { AgentID } from '@atc/core';
 import { isRecord } from '@atc/core';
-import { buildOptionalNonEmptyString, buildOptionalStringArray } from '@atc/core/schema';
 import type { AuthProfile, GatewayAuth } from '@atc/plugin-api';
+import { buildOptionalNonEmptyString, buildOptionalStringArray } from '@atcx/contract/schema';
 import { z } from 'zod';
 import { checkGatewayAuth } from './check-gateway-auth';
 

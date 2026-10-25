@@ -15,6 +15,7 @@
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atc/store": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "@logtape/logtape": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",

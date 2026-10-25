@@ -87,13 +87,23 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
     JSON.stringify({
       name: '@atc/plugin-api',
       exports: { '.': './src/index.ts' },
-      dependencies: { '@atc/core': 'workspace:*' },
+      dependencies: { '@atc/core': 'workspace:*', '@atcx/contract': 'workspace:*' },
     }),
   );
 
   await Bun.write(
     join(ctx.directory, 'packages/plugin-api/src/index.ts'),
-    "import { CORE } from '@atc/core';\n\nexport const API = [CORE, 'api'].join('-');\n",
+    "import { CORE } from '@atc/core';\nimport { CONTRACT } from '@atcx/contract';\n\nexport const API = [CORE, CONTRACT, 'api'].join('-');\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/package.json'),
+    JSON.stringify({ name: '@atcx/contract', exports: { '.': './src/index.ts' } }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/index.ts'),
+    "export const CONTRACT = 'contract';\n",
   );
 
   await Bun.write(
@@ -133,7 +143,7 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
 
   await Bun.write(
     join(ctx.directory, 'packages/harnesses/demo/src/index.test.ts'),
-    "import { expect, test } from 'bun:test';\nimport { FIXTURE } from '@atc/test-utils';\nimport { DEMO } from './index';\n\ntest('it builds the name', () => {\n  expect([DEMO, FIXTURE]).toStrictEqual(['core-api-demo', 'fixture']);\n});\n",
+    "import { expect, test } from 'bun:test';\nimport { FIXTURE } from '@atc/test-utils';\nimport { DEMO } from './index';\n\ntest('it builds the name', () => {\n  expect([DEMO, FIXTURE]).toStrictEqual(['core-contract-api-demo', 'fixture']);\n});\n",
   );
 
   const ran = await runCommand([
@@ -156,10 +166,10 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
   expect(ran.stdout).toInclude('test-plugin: harness-demo passed in a workspace without the app');
 
   expect(
-    ['core', 'plugin-api', 'test-utils', 'harnesses/demo', 'store'].map((directory) =>
+    ['core', 'contract', 'plugin-api', 'test-utils', 'harnesses/demo', 'store'].map((directory) =>
       existsSync(join(kept, 'packages', directory, 'package.json')),
     ),
-  ).toStrictEqual([true, true, true, true, false]);
+  ).toStrictEqual([true, true, true, true, true, false]);
 
   const keptManifest = readFileSync(join(kept, 'package.json'), 'utf8');
 

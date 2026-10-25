@@ -1,7 +1,7 @@
-import type { Clock, SessionID } from '@atc/core';
+import type { Clock } from '@atc/core';
 import type { ScreenMenu } from '@atc/plugin-api';
 import { planTypedLineInput } from '@atc/plugin-api';
-import type { MenuView } from '@atc/protocol';
+import type { MenuView, SessionID } from '@atcx/contract';
 import { applyMenuChoice } from './apply-menu-choice';
 import type { MenuChoice, MenuChoiceResult } from './apply-menu-choice';
 import { buildMenuView } from './build-menu-view';

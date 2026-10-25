@@ -1,5 +1,5 @@
-import type { SessionID } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
 import type { ForgetRefusals, ForgetResult, KillOutcome } from '../daemon-context';
 import type { ConfirmTokens } from './create-confirm-tokens';
 import type { SessionManager } from './create-session-manager';

@@ -1,7 +1,8 @@
-import type { Clock, SessionID } from '@atc/core';
+import type { Clock } from '@atc/core';
 import type { SessionState } from '@atc/protocol';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
+import type { SessionID } from '@atcx/contract';
 import { createPermissionRegistry } from './create-permission-registry';
 import type { AnswerResult } from './create-permission-registry';
 import type { HookScope } from './make-hook-runner';

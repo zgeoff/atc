@@ -1,5 +1,5 @@
 import type { TargetConfigError } from '@atc/config';
-import type { AgentID, DaemonID, MessageID, SessionID } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import type {
   AgentAdapter,
   SourceKind,
@@ -7,17 +7,19 @@ import type {
   SpawnOptions,
   SpawnOverrides,
 } from '@atc/plugin-api';
+import type { DaemonAnswer, DeclaredScope } from '@atc/protocol';
+import type { EventMsg } from '@atc/protocol/wire';
+import type { FleetEntry, MessageRecord, TurnSibling } from '@atc/store';
 import type {
-  DaemonAnswer,
-  DeclaredScope,
+  DaemonID,
   MenuView,
+  MessageID,
   PublishedRecord,
   RestartResult,
   SessionDescriptor,
+  SessionID,
   SpawnWorkspaceSource,
-} from '@atc/protocol';
-import type { EventMsg } from '@atc/protocol/wire';
-import type { FleetEntry, MessageRecord, TurnSibling } from '@atc/store';
+} from '@atcx/contract';
 import type { TargetAccess, TargetGrant } from './auth/build-target-access-from-grants';
 import type { AuthRebound } from './auth/create-auth-setup';
 import type { FleetEvent } from './fleet/build-fleet-events';

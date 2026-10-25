@@ -1,11 +1,10 @@
 import { expect, mock, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord, toSessionID } from '@atc/core';
+import { isRecord } from '@atc/core';
 import type { RestoreSettled } from '@atc/daemon';
 import { createClaudeAdapter } from '@atc/harness-claude';
 import { encodeCursor } from '@atc/protocol';
-import type { DaemonEvent } from '@atc/protocol';
 import { decodeMessage } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
@@ -22,6 +21,8 @@ import {
   subscribeToSocketLines,
   waitFor,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
+import type { DaemonEvent } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
@@ -1020,7 +1021,7 @@ test('it broadcasts SessionMessage on the events socket', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     message: {
-      version: 11,
+      version: 12,
       ev: 'SessionMessage',
       sessionID: id,
       message: getString(sent, 'message'),
@@ -1065,7 +1066,7 @@ test('it runs SessionMessage hooks with the event on stdin', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     message: {
-      version: 11,
+      version: 12,
       ev: 'SessionMessage',
       sessionID: id,
       message: getString(sent, 'message'),
@@ -1173,7 +1174,7 @@ test('it broadcasts SessionNote on the events socket', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     message: {
-      version: 11,
+      version: 12,
       ev: 'SessionNote',
       sessionID: id,
       kind: 'progress',
@@ -1219,7 +1220,7 @@ test('it runs SessionNote hooks with the event on stdin', async () => {
   expect(decoded).toStrictEqual({
     kind: 'event',
     message: {
-      version: 11,
+      version: 12,
       ev: 'SessionNote',
       sessionID: id,
       kind: 'decision',

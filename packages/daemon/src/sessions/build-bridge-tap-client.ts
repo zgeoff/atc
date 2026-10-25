@@ -1,6 +1,6 @@
 import type { MessageBridgeTap } from '@atc/plugin-api';
 import type { EventMsg } from '@atc/protocol/wire';
-import { MESSAGE_SENDER_SCHEMA } from '@atc/protocol/wire';
+import { MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
 import { z } from 'zod';
 import type { TapClient } from '../daemon-context';
 

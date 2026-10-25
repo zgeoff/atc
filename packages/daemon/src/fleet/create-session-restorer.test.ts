@@ -1,9 +1,10 @@
 import { expect, mock, test } from 'bun:test';
-import { systemClock, toAgentSessionID, toSessionID } from '@atc/core';
+import { systemClock } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildTargetIdentity } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import { buildMockAgentAdapter } from '@atc/test-utils';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { createSessionRegistry } from '../sessions/create-session-registry';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';

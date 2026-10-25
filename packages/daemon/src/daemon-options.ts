@@ -1,6 +1,7 @@
 import type { HooksConfig, InvalidGitTransports, TargetConfigError } from '@atc/config';
-import type { AgentID, Clock, SessionID } from '@atc/core';
+import type { AgentID, Clock } from '@atc/core';
 import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
+import type { SessionID } from '@atcx/contract';
 import type { ExecutionTarget } from './fleet/build-execution-targets';
 import type { RestoreSettled } from './fleet/restore-fleet';
 import type { MenuTiming } from './sessions/menu-terminal';

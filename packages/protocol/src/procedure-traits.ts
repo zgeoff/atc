@@ -1,8 +1,7 @@
 import { isRecord } from '@atc/core';
+import { DAEMON_CONTRACT, PROCEDURE_META_SCHEMA } from '@atcx/contract';
+import type { ProcedureMeta } from '@atcx/contract';
 import { isContractProcedure } from '@orpc/contract';
-import { DAEMON_CONTRACT } from './daemon-contract';
-import { PROCEDURE_META_SCHEMA } from './procedure-meta';
-import type { ProcedureMeta } from './procedure-meta';
 
 export const PROCEDURE_TRAITS: ReadonlyMap<string, ProcedureMeta> = new Map(
   collectProcedureTraits(DAEMON_CONTRACT, []),

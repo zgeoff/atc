@@ -1,4 +1,4 @@
-import { COMMIT_ID_PATTERN } from '@atc/core';
+import { COMMIT_ID_PATTERN } from '@atcx/contract';
 import type { RequestOutcome } from './create-picker-actors';
 import { formatPickerError } from './format-picker-error';
 import { openConfirmStep, renderFlow, sendPending } from './navigate-picker';

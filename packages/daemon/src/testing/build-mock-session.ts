@@ -1,4 +1,4 @@
-import { toSessionID } from '@atc/core';
+import { toSessionID } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
 import type { Session } from '../sessions/session';
 

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { toSessionID } from '@atc/core';
 import type { EventMsg } from '@atc/protocol/wire';
 import { buildStubClock } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { buildMockSession } from '../testing/build-mock-session';
 import { createPermissionPrompts } from './create-permission-prompts';
 

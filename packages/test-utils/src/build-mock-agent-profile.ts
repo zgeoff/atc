@@ -1,5 +1,5 @@
 import type { AgentProfile } from '@atc/plugin-api';
-import type { SpawnOptionSpec } from '@atc/protocol';
+import type { SpawnOptionSpec } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
 import type { MockOverrides } from './mock-overrides';

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { toAgentSessionID, toMessageID } from '@atc/core';
+import { toAgentSessionID, toMessageID } from '@atcx/contract';
 import { buildMockStoredEvent } from './build-mock-stored-event';
 
 test('it builds a default stored event', () => {

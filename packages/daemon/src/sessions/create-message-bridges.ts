@@ -1,6 +1,5 @@
 import { join } from 'node:path';
-import type { Clock, SessionID } from '@atc/core';
-import { toMessageID } from '@atc/core';
+import type { Clock } from '@atc/core';
 import type {
   MessageBridge,
   MessageBridgeHost,
@@ -9,6 +8,8 @@ import type {
 } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import type { StateStore } from '@atc/store';
+import type { SessionID } from '@atcx/contract';
+import { toMessageID } from '@atcx/contract';
 import type { TapClient } from '../daemon-context';
 import { buildBridgeTapClient } from './build-bridge-tap-client';
 import { buildMessageOwner } from './build-message-owner';

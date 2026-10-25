@@ -1,6 +1,6 @@
-import type { AgentSessionID, SessionID } from '@atc/core';
 import { truncateDetail } from '@atc/core';
 import type { TrailEntry } from '@atc/store';
+import type { AgentSessionID, SessionID } from '@atcx/contract';
 import type { SentNote } from './parse-note';
 
 interface BuildNoteTrailEntryOptions {
