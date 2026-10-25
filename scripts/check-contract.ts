@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   try {
     const files = await writeContractDeclarations(root, out, DECLARATION_TOOLS);
 
-    const rendered = readSnapshot(out, files);
+    const rendered = readSnapshot(files, (file) => readFileSync(join(out, file), 'utf8'));
     const path = join(root, SNAPSHOT);
 
     if (args.values.update) {
@@ -54,8 +54,8 @@ async function main(): Promise<void> {
 
 const SNAPSHOT = 'packages/contract/declarations.snap';
 
-function readSnapshot(out: string, files: readonly string[]): string {
-  return files.map((file) => `// ${file}\n${readFileSync(join(out, file), 'utf8')}`).join('\n');
+function readSnapshot(files: readonly string[], readText: (file: string) => string): string {
+  return files.map((file) => `// ${file}\n${readText(file)}`).join('\n');
 }
 
 // The 1-based number of the first line the two texts disagree on, or
