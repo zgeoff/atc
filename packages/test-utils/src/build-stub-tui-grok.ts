@@ -7,7 +7,8 @@ paint() { echo "FAKE_GROK_UP args: $ARGS"; }
 trap paint WINCH
 paint
 idle() {
-  for _ in $(seq 1 300); do
+  # a command substitution here lets a WINCH trap that lands during it fail to parse
+  for ((tick = 0; tick < 300; tick++)); do
     if read -t 1 -r line; then echo "GOT:$line"; fi
   done
 }
