@@ -423,7 +423,7 @@
     "@better-auth/oauth-provider": "1.7.7",
     "@commitlint/cli": "21.2.3",
     "@faker-js/faker": "10.6.0",
-    "@impz/client": "4.2.0",
+    "@impz/client": "4.2.2",
     "@logtape/logtape": "2.4.1",
     "@modelcontextprotocol/sdk": "1.32.1",
     "@modelcontextprotocol/server": "2.3.0",
@@ -638,7 +638,7 @@
 
     "@humanwhocodes/retry": ["@humanwhocodes/retry@0.4.3", "", {}, "sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ=="],
 
-    "@impz/client": ["@impz/client@4.2.0", "", { "dependencies": { "@orpc/client": "^1.15.5", "@orpc/contract": "^1.15.5", "p-retry": "^8.0.1", "ts-pattern": "^5.9.0", "zod": "^4.6.7" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-jS7Q0Xh8+bI+ZsShCe6fgZxSwGg6wvVZDQIk7WOvCmRi5IZLE6q1c1mPn+Jvp1C0WZXBe/FhqYFCyELzakkVfQ=="],
+    "@impz/client": ["@impz/client@4.2.2", "", { "dependencies": { "@orpc/client": "^1.15.5", "@orpc/contract": "^1.15.5", "p-retry": "^8.0.1", "ts-pattern": "^5.9.0", "zod": "^4.6.7" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-mR5Qms5nB4ICIyug+oGmaIFGpUC6VS4XA1Xs/wYiaQC4kl1uIfbJ5DRuAcLKy73/02cN8Y/4jdtVQj3xiBsVgA=="],
 
     "@jest/diff-sequences": ["@jest/diff-sequences@30.5.0", "", {}, "sha512-OsqBjHXCn8cadasoAZBP6nWYvMsRhpMzGXTpxJ5aO04NlbdhIz+FVe3q49l0AwVhsz/cEmIpBes6gAFl1/dWQg=="],
 
