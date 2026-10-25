@@ -23,8 +23,9 @@ else
   sleep 0.3
   printf '{"hook_event_name":"Notification","session_id":"fake-1","message":"needs permission"}' | ${report}
 fi
-# bash 3.2 read -t takes whole seconds; a fraction times out immediately
-for _ in $(seq 1 300); do
+# bash 3.2 read -t takes whole seconds; a fraction times out immediately.
+# A command substitution here lets a WINCH trap that lands during it fail to parse
+for ((tick = 0; tick < 300; tick++)); do
   if read -t 1 -r line; then echo "GOT:$line"; fi
 done
 `;
