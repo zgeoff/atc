@@ -4,6 +4,18 @@
 # A version npm holds already is skipped, so a re-run of the release job passes.
 set -euo pipefail
 
+usage='usage: publish-tarball.sh <tarball>'
+if ! args=$(getopt --name publish-tarball.sh --options '' -- "$@"); then
+  echo "$usage" >&2
+  exit 2
+fi
+eval set -- "$args"
+shift
+if (($# != 1)); then
+  echo "$usage" >&2
+  exit 2
+fi
+
 tarball=$1
 packed=$(tar -xzOf "$tarball" package/package.json)
 name=$(jq -r .name <<< "$packed")

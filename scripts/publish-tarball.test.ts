@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubNpm, createStubBin, runCommand, setupTempDir } from '@atc/test-utils';
 
@@ -8,6 +8,32 @@ function setupTest() {
 
   return { directory: temporaryDirectory.path };
 }
+
+test.each([
+  ['no tarball', []],
+  ['a second positional', ['contract.tgz', 'extra.tgz']],
+  ['an option', ['--tag', 'next', 'contract.tgz']],
+])('it refuses %s before it reads a tarball or calls npm', async (_label, args) => {
+  const ctx = setupTest();
+
+  createStubBin(
+    join(ctx.directory, 'bin'),
+    'npm',
+    buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  );
+
+  const published = await runCommand(
+    ['bash', join(import.meta.dir, 'publish-tarball.sh'), ...args],
+    {
+      cwd: ctx.directory,
+      env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` },
+    },
+  );
+
+  expect(published.exitCode).toBe(2);
+  expect(published.stderr).toInclude('usage: publish-tarball.sh <tarball>');
+  expect(existsSync(join(ctx.directory, 'npm.log'))).toBeFalse();
+});
 
 test('it publishes a version npm does not hold with provenance', async () => {
   const ctx = setupTest();
