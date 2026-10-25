@@ -1202,6 +1202,11 @@ export declare const DAEMON_CONTRACT: {
                     }, z.core.$strip>>>;
                     error: z.ZodNullable<z.ZodString>;
                 }, z.core.$strip>>;
+                origin: z.ZodOptional<z.ZodObject<{
+                    daemon: z.ZodString;
+                    incarnation: z.ZodString;
+                    cursor: z.ZodString;
+                }, z.core.$strip>>;
             }, z.core.$strip>>>;
             cursor: z.ZodString;
             more: z.ZodBoolean;
@@ -2347,6 +2352,47 @@ export type DaemonFeature = (typeof DAEMON_FEATURES)[number];
 import type { z } from 'zod';
 export type DaemonID = string & z.$brand<'DaemonID'>;
 
+// events-page.d.ts
+import { z } from 'zod';
+export declare const EVENTS_PAGE_SCHEMA: z.ZodObject<{
+    events: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+        cursor: z.ZodString;
+        at: z.ZodNumber;
+        session: z.ZodString;
+        name: z.ZodNullable<z.ZodString>;
+        kind: z.ZodString;
+        detail: z.ZodNullable<z.ZodString>;
+        message: z.ZodOptional<z.ZodString>;
+        label: z.ZodOptional<z.ZodString>;
+        result: z.ZodOptional<z.ZodObject<{
+            runID: z.ZodString;
+            code: z.ZodNumber;
+            pid: z.ZodNullable<z.ZodNumber>;
+            build: z.ZodNullable<z.ZodString>;
+            listenPort: z.ZodNullable<z.ZodNumber>;
+            restored: z.ZodNumber;
+            total: z.ZodNumber;
+            failed: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                id: z.ZodString;
+                reason: z.ZodString;
+            }, z.core.$strip>>>;
+            interrupted: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                id: z.ZodString;
+            }, z.core.$strip>>>;
+            error: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+        origin: z.ZodOptional<z.ZodObject<{
+            daemon: z.ZodString;
+            incarnation: z.ZodString;
+            cursor: z.ZodString;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>>;
+    cursor: z.ZodString;
+    more: z.ZodBoolean;
+}, z.core.$strip>;
+
 // fleet-entry-view.d.ts
 import { z } from 'zod';
 export declare const FLEET_ENTRY_VIEW_SCHEMA: z.ZodObject<{
@@ -2410,6 +2456,11 @@ export declare const FLEET_EVENT_SCHEMA: z.ZodObject<{
             id: z.ZodString;
         }, z.core.$strip>>>;
         error: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+    origin: z.ZodOptional<z.ZodObject<{
+        daemon: z.ZodString;
+        incarnation: z.ZodString;
+        cursor: z.ZodString;
     }, z.core.$strip>>;
 }, z.core.$strip>;
 
@@ -2475,6 +2526,7 @@ export * from './daemon-contract.js';
 export * from './daemon-error-map.js';
 export * from './daemon-event.js';
 export * from './daemon-features.js';
+export * from './events-page.js';
 export type * from './daemon-id.js';
 export * from './fleet-entry-view.js';
 export * from './fleet-event.js';

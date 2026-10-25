@@ -56,6 +56,23 @@ test('it skips files that are not TypeScript', () => {
   expect(readRelatedTests(['src/a.md', 'README.md'], ctx.directory)).toStrictEqual([]);
 });
 
+test('it leaves out a lane suite, which the default run never runs', () => {
+  const ctx = setupTest();
+
+  writeFileSync(join(ctx.directory, 'src/a.codex.test.ts'), '');
+
+  expect(readRelatedTests(['src/a.codex.test.ts'], ctx.directory)).toStrictEqual([]);
+});
+
+test('it leaves out an e2e suite, which only the e2e lane runs', () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.directory, 'e2e'));
+  writeFileSync(join(ctx.directory, 'e2e/tui-quit.test.ts'), '');
+
+  expect(readRelatedTests(['e2e/tui-quit.test.ts'], ctx.directory)).toStrictEqual([]);
+});
+
 test('it keeps the order of the paths and drops duplicates', () => {
   const ctx = setupTest();
 

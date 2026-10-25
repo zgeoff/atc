@@ -9,6 +9,7 @@ export * from './daemon-contract';
 export * from './daemon-error-map';
 export * from './daemon-event';
 export * from './daemon-features';
+export * from './events-page';
 export type * from './daemon-id';
 export * from './fleet-entry-view';
 export * from './fleet-event';

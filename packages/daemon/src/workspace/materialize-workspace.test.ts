@@ -9,16 +9,13 @@ import {
   createMigratedStateDB,
   getString,
   registerTestCleanup,
-  runShellcheck,
   setupTempDir,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { runLocalCommand } from '../testing/run-local-command';
-import { CLAIM_DIR_SCRIPT } from './claim-landing';
 import { materializeWorkspace } from './materialize-workspace';
-import { VERIFY_SCRIPT } from './verify-target-head';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-materialize-');
@@ -364,13 +361,4 @@ test('it refuses and removes the claimed directory when the git identity cannot 
   await materialized.catch(() => {});
 
   expect(removed).toStrictEqual([directory]);
-});
-
-test.each([
-  ['claims the landing directory', CLAIM_DIR_SCRIPT],
-  ['verifies the checkout', VERIFY_SCRIPT],
-])('it %s through a script that passes shellcheck', async (_label, script) => {
-  const result = await runShellcheck(script);
-
-  expect(result).toStrictEqual({ exitCode: 0, findings: [] });
 });

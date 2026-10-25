@@ -92,7 +92,7 @@ test("it forgets the consent its client held along with the grant's tokens", asy
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
-  const revoked = await revokeGrant(ctx.store.db, grant.grantID);
+  const revoked = await revokeGrant(ctx.store.db, grant.grantID, Date.now());
   const consents = await ctx.store.db.selectFrom('oauthConsent').select('id').execute();
   const grants = await readGrantViews(ctx.store.db);
 
@@ -101,9 +101,139 @@ test("it forgets the consent its client held along with the grant's tokens", asy
   expect(grants).toStrictEqual([]);
 });
 
+test("it ends the client's event subscriptions along with its last read grant", async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  await ctx.store.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub-one',
+      client_id: clientID,
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
+      position: 'cursor-1',
+      refresh_before: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+    })
+    .execute();
+
+  const [grant] = await readGrantViews(ctx.store.db);
+
+  invariant(grant !== undefined, 'the exchange left no grant');
+
+  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
+
+  const subscriptions = await ctx.store.db
+    .selectFrom('atc_event_subscription')
+    .select('id')
+    .execute();
+
+  expect(subscriptions).toStrictEqual([]);
+});
+
+test("it keeps the client's event subscriptions while another read grant lives", async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.store.auth.api.createFixedClient({
+    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  });
+
+  const clientID = created.clientID;
+
+  const first = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: first.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: first.verifier,
+    }),
+  });
+
+  const second = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: second.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: second.verifier,
+    }),
+  });
+
+  await ctx.store.db
+    .insertInto('atc_event_subscription')
+    .values({
+      id: 'sub-one',
+      client_id: clientID,
+      url: 'https://hooks.example.com/hook',
+      name: 'session.turn_done',
+      arguments: '{}',
+      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
+      position: 'cursor-1',
+      refresh_before: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+    })
+    .execute();
+
+  const [grant] = await readGrantViews(ctx.store.db);
+
+  invariant(grant !== undefined, 'the exchanges left no grant');
+
+  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
+
+  const subscriptions = await ctx.store.db
+    .selectFrom('atc_event_subscription')
+    .select('id')
+    .execute();
+
+  expect(subscriptions).toStrictEqual([{ id: 'sub-one' }]);
+});
+
 test('it reports an unknown grant id as not revoked', async () => {
   const ctx = await setupTest();
-  const revoked = await revokeGrant(ctx.store.db, 'unknown-grant');
+  const revoked = await revokeGrant(ctx.store.db, 'unknown-grant', Date.now());
 
   expect(revoked).toBeFalse();
 });
@@ -148,7 +278,7 @@ test("it never removes another grant's tokens or another client's consent", asyn
 
   invariant(revokedGrant !== undefined && keptGrant !== undefined, 'the exchanges left no grants');
 
-  await revokeGrant(ctx.store.db, revokedGrant.grantID);
+  await revokeGrant(ctx.store.db, revokedGrant.grantID, Date.now());
 
   const accessTokens = await ctx.store.db
     .selectFrom('oauthAccessToken')

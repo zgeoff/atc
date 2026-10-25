@@ -50,7 +50,7 @@ function readHelperFiles(root: string): string[] {
     (file) => /\/(?:test-utils|testing)\//u.test(file) && !/\.test\.[cm]?[jt]sx?$/u.test(file),
   );
 
-  return [...readSourceFiles(root, 'e2e'), ...helpers];
+  return [...readSourceFiles(root, 'e2e'), ...readSourceFiles(root, 'integration'), ...helpers];
 }
 
 interface HardCodedEntry {

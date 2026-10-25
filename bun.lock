@@ -48,7 +48,7 @@
     },
     "packages/app": {
       "name": "@atc/app",
-      "version": "7.2.0",
+      "version": "7.3.0",
       "dependencies": {
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
@@ -266,12 +266,14 @@
         "@better-auth/oauth-provider": "catalog:",
         "@modelcontextprotocol/server": "catalog:",
         "@simplewebauthn/server": "catalog:",
+        "@zgeoff/std": "catalog:",
         "better-auth": "catalog:",
         "elysia": "catalog:",
         "kysely": "catalog:",
         "reflect-metadata": "catalog:",
         "tiny-invariant": "catalog:",
         "ts-pattern": "catalog:",
+        "xstate": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -425,7 +427,7 @@
   },
   "overrides": {
     "brace-expansion": "5.0.12",
-    "fast-uri": "3.1.8",
+    "fast-uri": "3.1.9",
     "hono": "4.13.13",
     "ip-address": "10.7.4",
     "js-yaml": "4.3.2",
@@ -440,7 +442,7 @@
     "@better-auth/oauth-provider": "1.7.7",
     "@commitlint/cli": "21.2.3",
     "@faker-js/faker": "10.6.0",
-    "@impz/client": "3.0.1",
+    "@impz/client": "4.2.2",
     "@logtape/logtape": "2.4.1",
     "@modelcontextprotocol/sdk": "1.32.1",
     "@modelcontextprotocol/server": "2.3.0",
@@ -457,10 +459,10 @@
     "@xterm/addon-serialize": "0.14.0",
     "@xterm/headless": "6.0.0",
     "@zgeoff/bun-test-extended": "0.2.1",
-    "@zgeoff/format-codemod": "0.3.1",
+    "@zgeoff/format-codemod": "0.3.2",
     "@zgeoff/kysely-bun-sqlite": "0.3.0",
-    "@zgeoff/oxlint-config": "0.6.3",
-    "@zgeoff/skill-gate": "0.2.6",
+    "@zgeoff/oxlint-config": "0.7.0",
+    "@zgeoff/skill-gate": "0.2.8",
     "@zgeoff/std": "0.3.0",
     "better-auth": "1.7.7",
     "bun-pty": "0.5.1",
@@ -657,7 +659,7 @@
 
     "@humanwhocodes/retry": ["@humanwhocodes/retry@0.4.3", "", {}, "sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ=="],
 
-    "@impz/client": ["@impz/client@3.0.1", "", { "dependencies": { "@orpc/client": "^1.15.5", "@orpc/contract": "^1.15.5", "p-retry": "^8.0.1", "ts-pattern": "^5.9.0", "zod": "^4.6.7" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-F6YGmJxKvQo0hcDH/g+snMPkvNwghccR8/1AQ2n2fgdgSZepiGfdUOggcSzrBePCTO/8uuCsYilcJ+kfg9EJzw=="],
+    "@impz/client": ["@impz/client@4.2.2", "", { "dependencies": { "@orpc/client": "^1.15.5", "@orpc/contract": "^1.15.5", "p-retry": "^8.0.1", "ts-pattern": "^5.9.0", "zod": "^4.6.7" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-mR5Qms5nB4ICIyug+oGmaIFGpUC6VS4XA1Xs/wYiaQC4kl1uIfbJ5DRuAcLKy73/02cN8Y/4jdtVQj3xiBsVgA=="],
 
     "@jest/diff-sequences": ["@jest/diff-sequences@30.5.0", "", {}, "sha512-OsqBjHXCn8cadasoAZBP6nWYvMsRhpMzGXTpxJ5aO04NlbdhIz+FVe3q49l0AwVhsz/cEmIpBes6gAFl1/dWQg=="],
 
@@ -1003,13 +1005,13 @@
 
     "@zgeoff/bun-test-extended": ["@zgeoff/bun-test-extended@0.2.1", "", { "dependencies": { "jest-extended": "7.0.0", "jest-matcher-utils": "30.5.2" } }, "sha512-5PEjFsQXU7zpwA+K8rvA8X59z4o4EWE0pUDqAWnbnJPhzofKRrZBZ/XHOgKIncguNjsH99B7Pxlv9VPtPCuVNQ=="],
 
-    "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.3.1", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.154.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-upt1uvxiSrWdDyLJxnCpZ+4cTaObNvH38bMqlfOXSsTcRByHK2YM1FeRE/utdqrJ39im4TKw1cPjtSrIprY4yg=="],
+    "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.3.2", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.154.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-0dVMRQyo0ZiC22hU2PMzi8W/12c9BEIsSdkqat3qkalVc2Z5/wj2E+gXz2Uwan31Y4RUpmZ7N/arRWEuuGYsDQ=="],
 
     "@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.0", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-LJ8sc8xpEDa0aYBNA4raORnSit3SUXpVLK+F5qImnw4TDKBjgK2b5l3qNja99K2ITXF6Bpr6dAoMB6UDmdJ6EQ=="],
 
-    "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.6.3", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-EWPa1Sa5FsjINdolCRIXbzdlFur6wFQwSbtjm7wwl+TEyhNFFdOndzhQ/oBTCnGKOxqAXR2KnAgK224R/6JRdw=="],
+    "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.7.0", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-ECHCzGCYnINclFxlkFxp1bJSw9RKnII/sj2YMKdJIJrQezgXp1vdcM3RuxgZqN3gJOpSKpEVrD4LD3oLSuyNgA=="],
 
-    "@zgeoff/skill-gate": ["@zgeoff/skill-gate@0.2.6", "", {}, "sha512-9ccggI/DFRZaSO1LBM4kOB1vk1AoutU65x79tBk7j15f+bNxCNxyMG+JPIVtpVHDx7EPlJiMrCX5NuMJBG+6SQ=="],
+    "@zgeoff/skill-gate": ["@zgeoff/skill-gate@0.2.8", "", {}, "sha512-UYXUn4PkxbcRXo1aUOL3PtgaiHGzoKjOHBpeB4Kvj7bAAqsoTf5YZQ5bH6/5JPVyTo6TGElkYGRLDSQi9bScQQ=="],
 
     "@zgeoff/std": ["@zgeoff/std@0.3.0", "", {}, "sha512-I9LBwkMr8uuNCAQ9/tIoObp09b8ixnNDp1f85T9Mm1Ox10nWbVrbiqoWkf+hATCt4iyYxvYIVXl4eUFLwZaU/g=="],
 
@@ -1161,7 +1163,7 @@
 
     "fast-sha256": ["fast-sha256@1.3.0", "", {}, "sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ=="],
 
-    "fast-uri": ["fast-uri@3.1.8", "", {}, "sha512-GZMtZUTNRpOVIECoXwLNZS5xUGE+mVNbTB8h/7Rwh2TFWcBQiPzTgyZi05BF9UMZKkLJv8XBRJTlU7zg8+ZfMg=="],
+    "fast-uri": ["fast-uri@3.1.9", "", {}, "sha512-hS/0Wt3Ya043oKXs0sIxrMpKQITXhMLIrVAKKXi4gozGC9v7YRWVnXIZzjNPTO02M9BdxLCWqK1yRXgNziVyJQ=="],
 
     "fd-package-json": ["fd-package-json@2.0.0", "", { "dependencies": { "walk-up-path": "^4.0.0" } }, "sha512-jKmm9YtsNXN789RS/0mSzOC1NUq9mkVd65vbSSVsKdjGvYXBuE4oWe2QOEoFeRmJg+lPuZxpmrfFclNhoRMneQ=="],
 

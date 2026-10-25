@@ -25,6 +25,7 @@ export * from './system-clock';
 export type * from './target-identity-rule';
 export * from './to-agent-id';
 export * from './to-shell-arg';
+export * from './to-timer-clock';
 export * from './truncate';
 export * from './truncate-detail';
 export * from './truncate-summary';

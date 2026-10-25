@@ -24,11 +24,12 @@ the layout and the runtime rules, and this runbook covers setting up a checkout 
    `bun run lint:full` runs the type-aware lint, and runs in CI only.
 
 lefthook runs oxlint, oxfmt, format-codemod and gitleaks on the staged files before a commit, and
-commitlint on the message. Before a push it runs the format check, the shell lint, the import check,
-and the lint and tests for what the branch changes, one job at a time, to bound memory. The shell
-lint (`bun run lint:shell`) runs shellcheck and `shfmt -d` over the tracked shell scripts, with
-shfmt's settings in `.editorconfig`, and leaves out the skill scripts that are synced from another
-repo.
+commitlint on the message. Before a push it runs the format check, the shell lint, the guest script
+check, the import check, and the lint and tests for what the branch changes, one job at a time, to
+bound memory. The shell lint (`bun run lint:shell`) runs shellcheck and `shfmt -d` over the tracked
+shell scripts, with shfmt's settings in `.editorconfig`, and leaves out the skill scripts that are
+synced from another repo. The guest script check (`bun run check:guest-scripts`) runs shellcheck
+over the shell scripts that atc holds as strings, which the shell lint cannot see.
 
 A squash merge makes the PR title the commit subject, so the `PR Title` workflow runs commitlint on
 the title each time a PR opens, changes its title, or takes a push.
@@ -58,14 +59,15 @@ release binary never reads one.
 state. The `testing` and `project-testing` skills hold the conventions. No test spawns the real
 `claude` binary, except the mod checks below, which start no session.
 
-| Script                        | Runs                                                                 |
-| ----------------------------- | -------------------------------------------------------------------- |
-| `bun run test:related`        | the tests beside the files you pass, less the pre-push skip list     |
-| `bun run test:binary`         | the daemon suite against a compiled binary, with `ATC_BIN` set       |
-| `bun run test:gateway-binary` | the gateway suite against a compiled gateway, with `ATC_GATEWAY_BIN` |
-| `bun run test:atc-bridge`     | `claude plugin validate` and `claude plugin test` on the mod         |
-| `bun run test:isolation`      | the suite in a canary home, failing when a test touches a real home  |
-| `bun run test:timings`        | the suite, rewriting the timings that start the slowest files first  |
+| Script                                   | Runs                                                                 |
+| ---------------------------------------- | -------------------------------------------------------------------- |
+| `bun run test:related`                   | the tests beside the files you pass, less the pre-push skip list     |
+| `bun run test:e2e e2e/tui-*.test.ts`     | the e2e suites you pass, under the e2e lane limit of 15 s            |
+| `bun run test:e2e e2e/daemon-*.test.ts`  | the daemon suite against a compiled binary, with `ATC_BIN` set       |
+| `bun run test:e2e e2e/gateway-*.test.ts` | the gateway suite against a compiled gateway, with `ATC_GATEWAY_BIN` |
+| `bun run test:atc-bridge`                | `claude plugin validate` and `claude plugin test` on the mod         |
+| `bun run test:isolation`                 | the suite in a canary home, failing when a test touches a real home  |
+| `bun run test:timings`                   | the suite, rewriting the timings that start the slowest files first  |
 
 The pre-push hook runs `bun run test:related` over the files the branch changes. That script leaves
 out each test in `scripts/pre-push-test-skips.json` and prints the Linear issue of each one it

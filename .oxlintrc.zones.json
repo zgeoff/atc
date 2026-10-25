@@ -26,7 +26,7 @@
           "mcp": ["packages/mcp{,/**}"],
           "test-utils": ["packages/test-utils{,/**}"],
           "oauth-helper-tests": [
-            "packages/test-utils/src/run-{mcp-authorization,passkey-*}.test.ts"
+            "packages/test-utils/src/{run-mcp-authorization,run-mcp-token-grant,run-passkey-*,send-modern-mcp-request}.test.ts"
           ],
           "app": ["packages/app{,/**}"],
 
@@ -54,6 +54,7 @@
             "packages/test-utils/**",
             "packages/app/src/test-utils/**",
             "e2e/**",
+            "integration/**",
             "scripts/**"
           ],
 
@@ -79,6 +80,7 @@
             "packages/harnesses/claude/src/local-trust/with-claude-config-lock.test.ts"
           ],
           "e2e": ["e2e/**"],
+          "integration": ["integration/**"],
           "scripts": ["scripts/**"],
           "mods": ["mods/**"]
         },
@@ -104,7 +106,9 @@
         ],
         // a package name with no entry for the subpath, a deep import into a
         // package's src/, and a computed specifier all fail here
-        "unresolved": [{ "name": "entry-points", "from": ["packages", "e2e", "scripts"] }],
+        "unresolved": [
+          { "name": "entry-points", "from": ["packages", "e2e", "integration", "scripts"] }
+        ],
         "selfImports": [
           {
             "name": "self-import",
@@ -193,7 +197,9 @@
             "from": ["test-utils"],
             "allow": ["contract", "core", "protocol", "plugin-api", "config", "app"],
             "allowWithin": "packages/*",
-            "ignore": ["packages/test-utils/src/run-{mcp-authorization,passkey-*}.test.ts"]
+            "ignore": [
+              "packages/test-utils/src/{run-mcp-authorization,run-mcp-token-grant,run-passkey-*,send-modern-mcp-request}.test.ts"
+            ]
           },
           // the tests of the helpers that drive the OAuth flow run them against
           // the real authorization server
@@ -297,7 +303,8 @@
             "modules": ["@anthropic-ai/claude-agent-sdk"],
             "allow": ["claude-sdk-files"]
           },
-          // tests and e2e journeys open a state database to check what a run wrote
+          // tests, e2e journeys, and integration flows open a state database to
+          // check what a run wrote
           {
             "name": "confinement",
             "modules": ["bun:sqlite", "@zgeoff/kysely-bun-sqlite"],

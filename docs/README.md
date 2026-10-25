@@ -70,6 +70,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
 
 - [The MCP servers](architecture/remote/mcp.md) — tools and grant scopes, the stdio server, remote
   callers, reconnecting and reading notes
+- [MCP Events](architecture/remote/mcp-events.md) — the two protocol revisions, the event types,
+  subscribing a webhook, delivery from the trail, and what a subscriber does
 - [OAuth](architecture/remote/oauth.md) — the authorization server, connecting a client, grants and
   tokens, and the request checks
 - [The gateway](architecture/remote/gateway.md) — the gateway binary, ids and routing across

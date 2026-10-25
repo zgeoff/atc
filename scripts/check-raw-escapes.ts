@@ -26,7 +26,7 @@ function main(): void {
   }
 }
 
-const SOURCE_DIRS = ['packages', 'e2e', 'scripts', 'mods'];
+const SOURCE_DIRS = ['packages', 'e2e', 'integration', 'scripts', 'mods'];
 const ESC = String.fromCodePoint(0x1b);
 
 function collectRawEscapes(source: string): string[] {

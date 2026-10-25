@@ -88,7 +88,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
 
       expect(listed).toMatchObject({ sessions: [{ alive: true }, { alive: true }] });
     },
-    { timeoutMs: 20_000 },
+    { timeoutMs: 10_000 },
   );
 
   const restart = await runATC({
@@ -110,7 +110,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
 
       return read;
     },
-    { timeoutMs: 20_000 },
+    { timeoutMs: 10_000 },
   );
 
   const build = getString(hello, 'daemon');
@@ -135,7 +135,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
   expect(ctx.fake.readSystemctlCalls().filter((call) => call.includes('restart'))).toStrictEqual(
     [],
   );
-}, 60_000);
+});
 
 test('it puts one DaemonRestarted event with the restart result on the replacement daemon feed', async () => {
   const ctx = setupTest();
@@ -207,7 +207,7 @@ test('it puts one DaemonRestarted event with the restart result on the replaceme
       },
     },
   ]);
-}, 60_000);
+});
 
 test('it returns the restart result from events.read to a reader that connects after the restart with a cursor saved before it', async () => {
   const ctx = setupTest();
@@ -274,7 +274,7 @@ test('it returns the restart result from events.read to a reader that connects a
     cursor: expect.toBeString(),
     more: false,
   });
-}, 60_000);
+});
 
 test('it puts the result of a refused restart on the feed of the daemon it left running', async () => {
   const ctx = setupTest();
@@ -343,7 +343,7 @@ test('it puts the result of a refused restart on the feed of the daemon it left 
       },
     },
   ]);
-}, 60_000);
+});
 
 test('it exits 1 and names a row whose agent is gone while the good row comes back alive', async () => {
   const ctx = setupTest();
@@ -412,7 +412,7 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
   );
 
   expect(restart.stdout).toInclude('restored 1 of 2');
-}, 60_000);
+});
 
 test('it leaves the daemon running when the token file for the replacement cannot be read', async () => {
   const ctx = setupTest();
@@ -457,7 +457,7 @@ test('it leaves the daemon running when the token file for the replacement canno
   expect(restart.stdout).toInclude('the daemon was left running');
   expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
   expect(() => process.kill(oldPID, 0)).not.toThrow();
-}, 60_000);
+});
 
 test('it joins a restart already in flight and reports its result without a second restore', async () => {
   const ctx = setupTest();
@@ -503,7 +503,7 @@ test('it joins a restart already in flight and reports its result without a seco
 
       expect(listed).toMatchObject({ sessions: [{ alive: true }, { alive: true }] });
     },
-    { timeoutMs: 20_000 },
+    { timeoutMs: 10_000 },
   );
 
   const restarts = await Promise.all([
@@ -535,7 +535,7 @@ test('it joins a restart already in flight and reports its result without a seco
 
       return read;
     },
-    { timeoutMs: 20_000 },
+    { timeoutMs: 10_000 },
   );
 
   expect(restarts.map((run) => run.exitCode)).toStrictEqual([0, 0]);
@@ -550,7 +550,7 @@ test('it joins a restart already in flight and reports its result without a seco
   ]);
 
   expect(restarts.filter((run) => run.stdout.includes('joins it'))).toHaveLength(1);
-}, 90_000);
+});
 
 test('it completes a restart run from inside a hosted session after the session dies with the old daemon', async () => {
   const ctx = setupTest();
@@ -603,7 +603,7 @@ test('it completes a restart run from inside a hosted session after the session 
 
       return parsed;
     },
-    { timeoutMs: 40_000, intervalMs: 100 },
+    { timeoutMs: 10_000, intervalMs: 100 },
   );
 
   const replacement = await daemon.openClient();
@@ -618,7 +618,7 @@ test('it completes a restart run from inside a hosted session after the session 
 
       return read;
     },
-    { timeoutMs: 20_000 },
+    { timeoutMs: 10_000 },
   );
 
   const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
@@ -629,7 +629,7 @@ test('it completes a restart run from inside a hosted session after the session 
   expect(record.pid).not.toBe(oldPID);
   expect(listed).toMatchObject({ sessions: [{ id: 's-host' }] });
   expect(existsSync(join(ctx.home, 'fake-claude-restart'))).toBeFalse();
-}, 90_000);
+});
 
 test('it restarts through the unit when the daemon is the unit main process, handing off through systemd-run', async () => {
   const ctx = setupTest();
@@ -680,7 +680,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
 
       expect(listed).toMatchObject({ sessions: [{ alive: true }, { alive: true }] });
     },
-    { timeoutMs: 20_000 },
+    { timeoutMs: 10_000 },
   );
 
   const restart = await runATC({
@@ -702,7 +702,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
 
       return read;
     },
-    { timeoutMs: 20_000 },
+    { timeoutMs: 10_000 },
   );
 
   const runs = ctx.fake.readSystemdRunCalls();
@@ -727,7 +727,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
   expect(runs).toHaveLength(1);
   expect(runs[0]).toInclude(`--setenv=HOME=${ctx.home}`);
   expect(runs[0]).toInclude('--unit atc-daemon-restart-');
-}, 90_000);
+});
 
 test('it replaces a daemon on another protocol version and prints its refusal', async () => {
   const ctx = setupTest();
@@ -800,7 +800,7 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
   expect(restart.stdout).toInclude('refused this build');
   expect(restart.stdout).toInclude('daemon atc/legacy-build speaks v');
   expect(restart.stdout).toInclude('daemon build atc/legacy-build speaks protocol v');
-}, 60_000);
+});
 
 test('it prints the preflight and stops the daemon nowhere on a dry run', async () => {
   const ctx = setupTest();

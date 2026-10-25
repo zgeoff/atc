@@ -40,7 +40,7 @@ function main(): void {
 
 const BASELINE_FILE = 'scripts/disable-baseline.json';
 const BASELINE_SCHEMA = z.object({ importRuleDisables: z.number().int().nonnegative() });
-const SOURCE_DIRS = ['packages', 'e2e', 'scripts', 'mods'];
+const SOURCE_DIRS = ['packages', 'e2e', 'integration', 'scripts', 'mods'];
 
 // the require ban keeps every module load in a form the import rules read
 const IMPORT_RULES: ReadonlySet<string> = new Set([

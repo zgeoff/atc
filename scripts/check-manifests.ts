@@ -72,7 +72,7 @@ function main(): void {
 }
 
 // The root package's own source directories.
-const ROOT_DIRS = ['e2e', 'scripts'];
+const ROOT_DIRS = ['e2e', 'integration', 'scripts'];
 const DEPENDENCIES_SCHEMA = z.record(z.string(), z.string()).optional();
 
 const WORKSPACES_SCHEMA = z
@@ -504,8 +504,9 @@ function checkDeclared(pkg: WorkspacePackage, file: string, name: string): strin
   ];
 }
 
-// The root package's e2e journeys and scripts reach into the app by path,
-// for the app modules and test helpers that no package exports yet.
+// The root package's e2e journeys, integration flows, and scripts reach into
+// the app by path, for the app modules and test helpers that no package
+// exports yet.
 const ROOT_REACHES = ['packages/app'];
 
 // Tests of shared helpers that drive the helper against app modules no
@@ -515,8 +516,10 @@ const APP_TESTS: ReadonlySet<string> = new Set([
   'packages/test-utils/src/build-stub-daemon-requests.test.ts',
   'packages/test-utils/src/keys.test.ts',
   'packages/test-utils/src/run-mcp-authorization.test.ts',
+  'packages/test-utils/src/run-mcp-token-grant.test.ts',
   'packages/test-utils/src/run-passkey-enrollment.test.ts',
   'packages/test-utils/src/run-passkey-sign-in.test.ts',
+  'packages/test-utils/src/send-modern-mcp-request.test.ts',
   'packages/test-utils/src/spawn-claude-session.test.ts',
   'packages/test-utils/src/spawn-grok-session.test.ts',
   'packages/test-utils/src/start-cut-proxy.test.ts',
@@ -529,8 +532,10 @@ const APP_TESTS: ReadonlySet<string> = new Set([
 // against the real authorization server, so each reaches into it by path.
 const OAUTH_HELPER_TESTS: ReadonlySet<string> = new Set([
   'packages/test-utils/src/run-mcp-authorization.test.ts',
+  'packages/test-utils/src/run-mcp-token-grant.test.ts',
   'packages/test-utils/src/run-passkey-enrollment.test.ts',
   'packages/test-utils/src/run-passkey-sign-in.test.ts',
+  'packages/test-utils/src/send-modern-mcp-request.test.ts',
 ]);
 
 function getOwner(packages: readonly WorkspacePackage[], path: string): WorkspacePackage {

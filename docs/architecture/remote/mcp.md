@@ -98,6 +98,9 @@ the targets the config's `principals` key grants that client
 daemon labels a message from the client with that name and the kind `connector`
 ([messages](../protocol/messages.md#who-a-message-is-from)).
 
+A remote client can also subscribe to the fleet's events by webhook, so atc wakes it instead of it
+polling the event feed ([MCP Events](./mcp-events.md)).
+
 ## Reconnecting
 
 Both servers reconnect to the daemon on the next request after a restart, so an agent never restarts

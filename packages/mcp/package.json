@@ -16,12 +16,14 @@
     "@better-auth/oauth-provider": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
     "@simplewebauthn/server": "catalog:",
+    "@zgeoff/std": "catalog:",
     "better-auth": "catalog:",
     "elysia": "catalog:",
     "kysely": "catalog:",
     "reflect-metadata": "catalog:",
     "tiny-invariant": "catalog:",
     "ts-pattern": "catalog:",
+    "xstate": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

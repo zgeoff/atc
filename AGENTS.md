@@ -45,7 +45,8 @@ packages/
   config/ core/ lifecycle/ protocol/ store/
                  the shared layers; each package.json describes its own
   test-utils/    the generic test helpers, stand-ins, factories, and the test preload
-e2e/             end-to-end suites
+e2e/             the end-to-end suites, which start atc or the gateway as a process
+integration/     the flows across packages that run in process, under the unit test rules
 mods/atc-bridge/ the Claude Code mod
 bin/atc          the dev shim that runs the CLI from a checkout
 scripts/         the repo tooling and the checks
@@ -99,6 +100,9 @@ prints its own reason, and the rules live where each bullet points.
 - `bun run check:disable-baseline`: the count of directives that switch off an import rule, against
   `scripts/disable-baseline.json`.
 - `bun run check:raw-escapes`: a raw ESC byte in source, which the TUI writes as a `\u001B` escape.
+- `bun run check:guest-scripts`: shellcheck over the shell scripts that atc runs with `sh -c`,
+  mostly in a guest, and an exported `*_SCRIPT` constant missing from a package's `guest-scripts`
+  entry, in `scripts/check-guest-scripts.ts`.
 - `bun run check:source-entries`: a test helper that hard-codes a source entry that
   `scripts/with-test-home.sh` exports.
 - `bun run deadcode`: knip, configured in `knip.json`.
@@ -114,6 +118,8 @@ prints its own reason, and the rules live where each bullet points.
     name as a JS plugin.
   - `better-auth` in `packages/test-utils`: the telemetry collector's test loads it inside a spawned
     `bun -e` script.
+  - The `openssl` binary: the test certificate helper runs it to make a self-signed certificate, and
+    no package provides it.
 
 ## Runtime rules
 

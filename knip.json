@@ -5,13 +5,14 @@
       "entry": [
         "bin/atc",
         "e2e/**/*.test.ts",
+        "integration/**/*.test.ts",
         "scripts/**/*.test.ts",
         "scripts/create-state-template.ts",
         "scripts/pack-contract.ts",
         "scripts/probe-pty-env.ts",
         "scripts/stage-demo-sessions.ts"
       ],
-      "project": ["e2e/**/*.ts", "scripts/**/*.ts"]
+      "project": ["e2e/**/*.ts", "integration/**/*.ts", "scripts/**/*.ts"]
     },
     "packages/app": {
       "entry": ["src/gateway.ts", "src/**/*.test.ts"],
@@ -31,5 +32,6 @@
       "ignoreDependencies": ["better-auth"]
     }
   },
-  "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/skill-gate"]
+  "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/skill-gate"],
+  "ignoreBinaries": ["openssl"]
 }
