@@ -30,6 +30,14 @@ oRPC's contract library.
 bun add @atcx/contract
 ```
 
+oRPC's declarations import `@opentelemetry/api`, which oRPC lists only as an optional peer. A
+project that type-checks the declarations of its dependencies, with `skipLibCheck` off, installs it
+beside the package:
+
+```bash
+bun add -d @opentelemetry/api
+```
+
 ## Features
 
 - **The request contract.** `DAEMON_CONTRACT`, the oRPC contract of every daemon procedure, with
