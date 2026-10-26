@@ -1,4 +1,5 @@
 import type { BrokerSecret, BrokerSecretKind, BrokerSecretRule } from '@atc/plugin-api';
+import { match } from 'ts-pattern';
 import { GITHUB_SECRET_RULES } from './github-secret-rules';
 
 interface ExpectedSecret {
@@ -74,15 +75,12 @@ export function collectSecretRuleMismatches(
 
 // A newer broker stores every kind but oauth as `static`, and rewrites the
 // stored secrets of the older kinds in place when it upgrades.
-const STATIC_KINDS: ReadonlySet<BrokerSecretKind> = new Set([
-  'anthropic',
-  'custom',
-  'github',
-  'npm',
-]);
-
 function hasKind(expected: BrokerSecretKind, actual: BrokerSecretKind): boolean {
-  return actual === expected || (actual === 'static' && STATIC_KINDS.has(expected));
+  return match(expected)
+    .returnType<boolean>()
+    .with('anthropic', 'custom', 'github', 'npm', (kind) => actual === kind || actual === 'static')
+    .with('oauth', 'static', (kind) => actual === kind)
+    .exhaustive();
 }
 
 function hasSameRules(
@@ -108,5 +106,9 @@ function toRuleKey(rule: BrokerSecretRule): string {
 // A binding holds no rules for a github secret. A broker that lists one as
 // `static` no longer owns its rules, so they must be the github rules.
 function toExpectedRules(want: ExpectedSecret): readonly BrokerSecretRule[] {
-  return want.kind === 'github' ? GITHUB_SECRET_RULES : want.rules;
+  return match(want.kind)
+    .returnType<readonly BrokerSecretRule[]>()
+    .with('github', () => GITHUB_SECRET_RULES)
+    .with('anthropic', 'custom', 'npm', 'oauth', 'static', () => want.rules)
+    .exhaustive();
 }
