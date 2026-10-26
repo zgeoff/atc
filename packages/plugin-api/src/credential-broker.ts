@@ -69,7 +69,7 @@ export interface BrokerSecret {
   readonly oauth?: BrokerOAuthState;
 }
 
-export type BrokerSecretKind = 'anthropic' | 'custom' | 'github' | 'npm' | 'oauth';
+export type BrokerSecretKind = 'anthropic' | 'custom' | 'github' | 'npm' | 'oauth' | 'static';
 
 // How the broker adds a secret to requests for one host.
 export interface BrokerSecretRule {

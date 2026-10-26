@@ -98,6 +98,9 @@ prints its own reason, and the rules live where each bullet points.
   entry, in `scripts/check-guest-scripts.ts`.
 - `bun run check:source-entries`: a test helper that hard-codes a source entry that
   `scripts/with-test-home.sh` exports.
+- `bun run check:release-concurrency`: a release-please job in the main workflow that a newer run
+  can cancel, or whose concurrency group every branch shares, in
+  `scripts/check-release-concurrency.ts`.
 - `bun run deadcode`: knip, configured in `knip.json`.
 - `bun run test:isolation`: the suite in a canary home, failing when a test touches a real home.
 
