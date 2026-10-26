@@ -12,7 +12,7 @@ sums="$3"
 scripts=$(cd "$(dirname "$0")" && pwd)
 tap="$PWD/tap"
 
-for attempt in 1 2 3 4 5; do
+for _ in 1 2 3 4 5; do
   rm -rf "$tap"
   git clone -q "$url" "$tap"
 
@@ -30,8 +30,6 @@ for attempt in 1 2 3 4 5; do
   if git -C "$tap" push -q; then
     exit 0
   fi
-
-  sleep "$attempt"
 done
 
 echo "the tap push failed 5 times" >&2
