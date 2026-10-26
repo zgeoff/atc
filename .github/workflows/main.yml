@@ -189,26 +189,6 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.tap-token.outputs.token }}
           TAP: ${{ github.repository_owner }}/${{ vars.HOMEBREW_TAP }}
-        # Each branch's release pushes to the one tap, so a push that another
-        # branch's release beat clones the tap again and checks the version again.
         run: |
           version=$(jq -r .version package.json)
-          for attempt in 1 2 3 4 5; do
-            rm -rf tap
-            git clone "https://x-access-token:$GH_TOKEN@github.com/$TAP.git" tap
-            if ! scripts/should-write-formula.sh tap/Formula/atc.rb "$version"; then
-              exit 0
-            fi
-            mkdir -p tap/Formula
-            scripts/build-formula.sh "$version" dist/SHA256SUMS > tap/Formula/atc.rb
-            git -C tap config user.name "github-actions[bot]"
-            git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git -C tap add Formula/atc.rb
-            git -C tap commit -m "atc $version" || echo "formula already at $version"
-            if git -C tap push; then
-              exit 0
-            fi
-            sleep $((attempt * 5))
-          done
-          echo "the tap push failed 5 times" >&2
-          exit 1
+          scripts/update-tap-formula.sh "https://x-access-token:$GH_TOKEN@github.com/$TAP.git" "$version" dist/SHA256SUMS
