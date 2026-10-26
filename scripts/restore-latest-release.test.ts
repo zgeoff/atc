@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStubGHReleases, runCommand, setupTempDir } from '@atc/test-utils';
 
@@ -163,4 +164,29 @@ test('it fails after 5 edits when a newer release takes the latest mark before e
     'release edit @zgeoff/atc@7.4.3 --latest --repo zgeoff/atc',
     'release edit @zgeoff/atc@7.4.4 --latest --repo zgeoff/atc',
   ]);
+});
+
+test('it runs in the main workflow after each created release, in the group every branch shares', () => {
+  const workflow = Bun.YAML.parse(
+    readFileSync(join(import.meta.dir, '../.github/workflows/main.yml'), 'utf8'),
+  );
+
+  expect(workflow).toMatchObject({
+    jobs: {
+      release: {
+        outputs: { releases_created: `\${{ steps.release.outputs.releases_created }}` },
+      },
+      'latest-release': {
+        needs: ['release'],
+        if: `\${{ !cancelled() && needs.release.result != 'skipped' && (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch') }}`,
+        concurrency: { group: 'atc-latest-release', 'cancel-in-progress': false },
+        permissions: { contents: 'write' },
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            run: 'scripts/restore-latest-release.sh "$GITHUB_REPOSITORY"',
+          }),
+        ]),
+      },
+    },
+  });
 });
