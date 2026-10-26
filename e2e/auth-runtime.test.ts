@@ -162,8 +162,6 @@ test('it provisions the host of a spawn whose custom secret impd lists as static
     }),
   });
 
-  // The token may grant glm, and impd 5 holds glm for api.z.ai as a static
-  // secret.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2493,8 +2491,6 @@ test('it revives a session bound to a custom secret after impd lists that secret
     }),
   });
 
-  // The token may grant glm, and impd 4 holds glm for api.z.ai as a custom
-  // secret.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
