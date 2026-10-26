@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.3.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.3.0...@zgeoff/atc@7.3.1) (2026-10-26)
+
+### Bug Fixes
+
+- **daemon:** accept the static secret kind that impd 5 lists
+  ([#975](https://github.com/zgeoff/atc/issues/975))
+  ([364b4b3](https://github.com/zgeoff/atc/commit/364b4b3600a9e8a206b9aeb8e915cbb66ce4b022))
+
 ## [7.3.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.2.0...@zgeoff/atc@7.3.0) (2026-10-24)
 
 ### Features
