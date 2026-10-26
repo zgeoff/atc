@@ -90,7 +90,7 @@ export interface ImpIdentity {
 
 export interface ImpSecret {
   readonly name: string;
-  readonly kind: 'anthropic' | 'custom' | 'github' | 'npm' | 'oauth';
+  readonly kind: 'anthropic' | 'custom' | 'github' | 'npm' | 'oauth' | 'static';
   readonly rules: readonly ImpSecretRule[];
 
   // The imps holding a grant of the secret.

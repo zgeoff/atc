@@ -221,6 +221,123 @@ test('it matches a github secret on its kind and takes the rules the broker hold
   expect(mismatches).toStrictEqual([]);
 });
 
+test('it matches a custom secret that the broker lists as static with the same rules', () => {
+  const mismatches = collectSecretRuleMismatches(
+    [
+      {
+        secret: 'glm',
+        kind: 'custom',
+        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+    [
+      {
+        name: 'glm',
+        kind: 'static',
+        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+  );
+
+  expect(mismatches).toStrictEqual([]);
+});
+
+test('it reports a custom secret that the broker lists as static with other rules', () => {
+  const mismatches = collectSecretRuleMismatches(
+    [
+      {
+        secret: 'glm',
+        kind: 'custom',
+        rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+    [
+      {
+        name: 'glm',
+        kind: 'static',
+        rules: [{ host: 'open.bigmodel.cn', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+  );
+
+  expect(mismatches).toStrictEqual([
+    {
+      secret: 'glm',
+      reason: 'rules',
+      expected: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
+      actual: [{ host: 'open.bigmodel.cn', header: 'authorization', scheme: 'bearer' }],
+    },
+  ]);
+});
+
+test('it reports an oauth secret that the broker lists as static', () => {
+  const mismatches = collectSecretRuleMismatches(
+    [
+      {
+        secret: 'codex',
+        kind: 'oauth',
+        rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+    [
+      {
+        name: 'codex',
+        kind: 'static',
+        rules: [{ host: 'chatgpt.com', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+  );
+
+  expect(mismatches).toStrictEqual([
+    { secret: 'codex', reason: 'kind', expected: 'oauth', actual: 'static' },
+  ]);
+});
+
+test('it matches a github secret that the broker lists as static with the github rules in another order', () => {
+  const mismatches = collectSecretRuleMismatches(
+    [{ secret: 'gh', kind: 'github', rules: [] }],
+    [
+      {
+        name: 'gh',
+        kind: 'static',
+        rules: [
+          { host: 'github.com', header: 'authorization', scheme: 'basic', user: 'x-access-token' },
+          { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
+          { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+        ],
+      },
+    ],
+  );
+
+  expect(mismatches).toStrictEqual([]);
+});
+
+test('it reports a github secret that the broker lists as static with rules for another host', () => {
+  const mismatches = collectSecretRuleMismatches(
+    [{ secret: 'gh', kind: 'github', rules: [] }],
+    [
+      {
+        name: 'gh',
+        kind: 'static',
+        rules: [{ host: 'collector.example', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+  );
+
+  expect(mismatches).toStrictEqual([
+    {
+      secret: 'gh',
+      reason: 'rules',
+      expected: [
+        { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+        { host: 'github.com', header: 'authorization', scheme: 'basic', user: 'x-access-token' },
+        { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
+      ],
+      actual: [{ host: 'collector.example', header: 'authorization', scheme: 'bearer' }],
+    },
+  ]);
+});
+
 test('it reports a secret whose host a github secret the broker holds already covers', () => {
   const mismatches = collectSecretRuleMismatches(
     [

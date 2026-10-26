@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { LEGACY_BROKER_PLACEHOLDER } from '@atc/config';
 import { BROKER_PLACEHOLDER, sortJSONKeys } from '@atc/core';
+import { GITHUB_SECRET_RULES } from './github-secret-rules';
 
 // The parts of a binding its hash covers.
 interface HashedBinding {
@@ -9,18 +10,12 @@ interface HashedBinding {
   readonly profileEnv: Readonly<Record<string, string>>;
 }
 
-// The rules an older atc stored for a github secret. They hash as no rules,
-// because the broker's github secret holds the same rules itself, and the
-// old placeholder hashes as the current one, since neither is a credential.
-const LEGACY_GITHUB_RULES = [
-  { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
-  { host: 'github.com', header: 'authorization', scheme: 'basic', user: 'x-access-token' },
-  { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
-];
-
+// An older atc stored a github secret's rules in its binding. They hash as no
+// rules, because the broker's github secret holds the same rules itself, and
+// the old placeholder hashes as the current one, since neither is a credential.
 export function buildBindingHash(binding: HashedBinding): string {
   const secrets = binding.secrets.map((secret) =>
-    secret.kind === 'github' && isDeepStrictEqual(secret.rules, LEGACY_GITHUB_RULES)
+    secret.kind === 'github' && isDeepStrictEqual(secret.rules, GITHUB_SECRET_RULES)
       ? { ...secret, rules: [] }
       : secret,
   );
