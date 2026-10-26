@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { toShellArg } from '@atc/core';
 import { createStubBin } from './create-stub-bin';
 
 interface StubRivalTapPushOptions {
@@ -39,23 +40,19 @@ export function createStubRivalTapPush(
     [
       '#!/bin/sh',
       'set -eu',
-      `[ -f ${toShellLiteral(pending)} ] || exit 0`,
-      `rm ${toShellLiteral(pending)}`,
+      `[ -f ${toShellArg(pending)} ] || exit 0`,
+      `rm ${toShellArg(pending)}`,
       'unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE',
-      `rm -rf ${toShellLiteral(clone)}`,
-      `git -c core.hooksPath=/dev/null clone -q ${toShellLiteral(options.remote)} ${toShellLiteral(clone)}`,
-      `mkdir -p ${toShellLiteral(join(clone, 'Formula'))}`,
-      `cp ${toShellLiteral(formula)} ${toShellLiteral(join(clone, 'Formula/atc.rb'))}`,
-      `git -C ${toShellLiteral(clone)} add Formula/atc.rb`,
-      `git -C ${toShellLiteral(clone)} -c user.name=rival -c user.email=rival@example.com commit -q -m rival`,
-      `git -C ${toShellLiteral(clone)} -c core.hooksPath=/dev/null push -q`,
+      `rm -rf ${toShellArg(clone)}`,
+      `git -c core.hooksPath=/dev/null clone -q ${toShellArg(options.remote)} ${toShellArg(clone)}`,
+      `mkdir -p ${toShellArg(join(clone, 'Formula'))}`,
+      `cp ${toShellArg(formula)} ${toShellArg(join(clone, 'Formula/atc.rb'))}`,
+      `git -C ${toShellArg(clone)} add Formula/atc.rb`,
+      `git -C ${toShellArg(clone)} -c user.name=rival -c user.email=rival@example.com commit -q -m rival`,
+      `git -C ${toShellArg(clone)} -c core.hooksPath=/dev/null push -q`,
       '',
     ].join('\n'),
   );
 
   return { gitConfig };
-}
-
-function toShellLiteral(value: string): string {
-  return `'${value.replaceAll("'", String.raw`'\''`)}'`;
 }
