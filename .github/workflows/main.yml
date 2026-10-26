@@ -2,7 +2,7 @@ name: Main
 
 on:
   push:
-    branches: [main]
+    branches: [main, release/7.3.x]
   # Recovery path for a release that tagged but failed to ship: skips the
   # release-please steps and re-runs only the steps that ship the current
   # version. Each of them replaces what a failed run left, so re-running is safe.
@@ -20,7 +20,7 @@ permissions:
 jobs:
   ci:
     concurrency:
-      group: main-ci
+      group: main-ci-${{ github.ref }}
       cancel-in-progress: true
     uses: ./.github/workflows/checks.yml
 
@@ -33,7 +33,7 @@ jobs:
     needs: [ci]
     if: ${{ !cancelled() && !contains(needs.*.result, 'cancelled') }}
     concurrency:
-      group: main-checks
+      group: main-checks-${{ github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -51,7 +51,7 @@ jobs:
 
   binaries:
     concurrency:
-      group: main-binaries
+      group: main-binaries-${{ github.ref }}
       cancel-in-progress: true
     uses: ./.github/workflows/binaries.yml
 
@@ -60,7 +60,7 @@ jobs:
   release:
     needs: [checks, binaries]
     concurrency:
-      group: main-release
+      group: main-release-${{ github.ref }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -73,7 +73,7 @@ jobs:
       LEFTHOOK: '0'
     steps:
       # A release takes two runs of this job:
-      # - Run 1, after a releasable commit lands on main: release-please
+      # - Run 1, after a releasable commit lands on the branch: release-please
       #   opens or updates the release PR (version bump + changelog), and
       #   the sync step makes that PR pass the checks job. The PR then
       #   waits for someone to merge it by hand; no step here merges it.
@@ -100,6 +100,7 @@ jobs:
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ steps.app-token.outputs.token || github.token }}
+          target-branch: ${{ github.ref_name }}
 
       # The release PR bumps the package.json version that bun.lock also
       # records, and generates files oxfmt wouldn't accept — repair both so
@@ -110,7 +111,7 @@ jobs:
         if: steps.release.outputs.prs_created == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: release-please--branches--main--components--@zgeoff/atc
+          ref: release-please--branches--${{ github.ref_name }}--components--@zgeoff/atc
           token: ${{ steps.app-token.outputs.token || github.token }}
       - name: Set up bun
         if: steps.release.outputs.prs_created == 'true'
