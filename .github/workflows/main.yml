@@ -165,7 +165,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(jq -r .version package.json)
-          newest=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 10000 --json tagName --jq '.[].tagName' | sed -n 's/^@zgeoff\/atc@//p' | sort -V | tail -n 1)
+          newest=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 10000 --json tagName --jq '.[].tagName' | sed -n 's/^@zgeoff\/atc@//p' | scripts/pick-newest-version.sh)
           if [ -n "$newest" ] && [ "$newest" != "$version" ]; then
             gh release edit "@zgeoff/atc@$newest" --latest --repo "$GITHUB_REPOSITORY"
           fi
@@ -192,11 +192,7 @@ jobs:
         run: |
           version=$(jq -r .version package.json)
           git clone "https://x-access-token:$GH_TOKEN@github.com/$TAP.git" tap
-          # a patch release from a release branch never moves the formula back
-          current=$(sed -n 's/^[[:space:]]*version "\([^"]*\)"$/\1/p' tap/Formula/atc.rb 2>/dev/null || true)
-          newest=$(printf '%s\n%s\n' "$current" "$version" | sort -V | tail -n 1)
-          if [ -n "$current" ] && [ "$newest" != "$version" ]; then
-            echo "formula holds $current, newer than $version; left as it is"
+          if ! scripts/should-write-formula.sh tap/Formula/atc.rb "$version"; then
             exit 0
           fi
           mkdir -p tap/Formula
