@@ -10,7 +10,7 @@ set -euo pipefail
 repo="$1"
 scripts=$(cd "$(dirname "$0")" && pwd)
 
-for _ in 1 2 3 4 5; do
+for attempt in 1 2 3 4 5 6; do
   releases=$(gh release list --repo "$repo" --exclude-drafts --exclude-pre-releases \
     --limit 10000 --json tagName,isLatest)
   newest=$(jq -r '.[].tagName' <<< "$releases" | sed -n 's/^@zgeoff\/atc@//p' |
@@ -24,6 +24,10 @@ for _ in 1 2 3 4 5; do
 
   if [ "$latest" = "@zgeoff/atc@$newest" ]; then
     exit 0
+  fi
+
+  if [ "$attempt" -eq 6 ]; then
+    break
   fi
 
   gh release edit "@zgeoff/atc@$newest" --latest --repo "$repo"
