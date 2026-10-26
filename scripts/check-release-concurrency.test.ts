@@ -20,10 +20,13 @@ test('it passes a release job that keeps a group per branch and never cancels', 
       '    concurrency:',
       `      group: main-release-\${{ github.ref }}`,
       '      cancel-in-progress: false',
+      '    outputs:',
+      `      releases_created: \${{ steps.release.outputs.releases_created }}`,
       '    steps:',
       '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
       '  latest-release:',
       '    needs: [release]',
+      `    if: \${{ !cancelled() && needs.release.result != 'skipped' && (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch') }}`,
       '    concurrency:',
       '      group: atc-latest-release',
       '      cancel-in-progress: false',
@@ -61,10 +64,13 @@ test('it fails a release job that a newer run can cancel', async () => {
       '    concurrency:',
       `      group: main-release-\${{ github.ref }}`,
       '      cancel-in-progress: true',
+      '    outputs:',
+      `      releases_created: \${{ steps.release.outputs.releases_created }}`,
       '    steps:',
       '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
       '  latest-release:',
       '    needs: [release]',
+      `    if: \${{ !cancelled() && needs.release.result != 'skipped' && (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch') }}`,
       '    concurrency:',
       '      group: atc-latest-release',
       '      cancel-in-progress: false',
@@ -103,10 +109,13 @@ test('it fails a release job whose group every branch shares', async () => {
       '    concurrency:',
       '      group: main-release',
       '      cancel-in-progress: false',
+      '    outputs:',
+      `      releases_created: \${{ steps.release.outputs.releases_created }}`,
       '    steps:',
       '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
       '  latest-release:',
       '    needs: [release]',
+      `    if: \${{ !cancelled() && needs.release.result != 'skipped' && (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch') }}`,
       '    concurrency:',
       '      group: atc-latest-release',
       '      cancel-in-progress: false',
@@ -147,10 +156,13 @@ test('it fails a workflow-level group that reaches the release job', async () =>
       '    concurrency:',
       `      group: main-release-\${{ github.ref }}`,
       '      cancel-in-progress: false',
+      '    outputs:',
+      `      releases_created: \${{ steps.release.outputs.releases_created }}`,
       '    steps:',
       '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
       '  latest-release:',
       '    needs: [release]',
+      `    if: \${{ !cancelled() && needs.release.result != 'skipped' && (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch') }}`,
       '    concurrency:',
       '      group: atc-latest-release',
       '      cancel-in-progress: false',
@@ -251,10 +263,13 @@ test('it fails a latest-mark job whose group each branch keeps apart', async () 
       '    concurrency:',
       `      group: main-release-\${{ github.ref }}`,
       '      cancel-in-progress: false',
+      '    outputs:',
+      `      releases_created: \${{ steps.release.outputs.releases_created }}`,
       '    steps:',
       '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
       '  latest-release:',
       '    needs: [release]',
+      `    if: \${{ !cancelled() && needs.release.result != 'skipped' && (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch') }}`,
       '    concurrency:',
       `      group: atc-latest-release-\${{ github.ref }}`,
       '      cancel-in-progress: false',
@@ -293,10 +308,13 @@ test('it fails a latest-mark job that a newer run can cancel', async () => {
       '    concurrency:',
       `      group: main-release-\${{ github.ref }}`,
       '      cancel-in-progress: false',
+      '    outputs:',
+      `      releases_created: \${{ steps.release.outputs.releases_created }}`,
       '    steps:',
       '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
       '  latest-release:',
       '    needs: [release]',
+      `    if: \${{ !cancelled() && needs.release.result != 'skipped' && (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch') }}`,
       '    concurrency:',
       '      group: atc-latest-release',
       '      cancel-in-progress: true',
@@ -362,6 +380,92 @@ test('it fails a latest-mark job that runs without waiting for the release', asy
     exitCode: 1,
     stdout: 'check-release-concurrency: 1 problems\n',
     stderr: '.github/workflows/main.yml: job latest-release does not need the release-please job\n',
+  });
+});
+
+test('it fails a latest-mark job that a failed release skips', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, '.github/workflows/main.yml'),
+    [
+      'jobs:',
+      '  release:',
+      '    concurrency:',
+      `      group: main-release-\${{ github.ref }}`,
+      '      cancel-in-progress: false',
+      '    outputs:',
+      `      releases_created: \${{ steps.release.outputs.releases_created }}`,
+      '    steps:',
+      '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
+      '  latest-release:',
+      '    needs: [release]',
+      `    if: \${{ needs.release.outputs.releases_created == 'true' }}`,
+      '    concurrency:',
+      '      group: atc-latest-release',
+      '      cancel-in-progress: false',
+      '    steps:',
+      '      - run: scripts/restore-latest-release.sh "$GITHUB_REPOSITORY"',
+      '',
+    ].join('\n'),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-release-concurrency.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-release-concurrency: 1 problems\n',
+    stderr: `.github/workflows/main.yml: job latest-release runs on another condition than \${{ !cancelled() && needs.release.result != 'skipped' && (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch') }}\n`,
+  });
+});
+
+test('it fails a release-please job that hands the latest-mark job no releases_created output', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, '.github/workflows/main.yml'),
+    [
+      'jobs:',
+      '  release:',
+      '    concurrency:',
+      `      group: main-release-\${{ github.ref }}`,
+      '      cancel-in-progress: false',
+      '    steps:',
+      '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
+      '  latest-release:',
+      '    needs: [release]',
+      `    if: \${{ !cancelled() && needs.release.result != 'skipped' && (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch') }}`,
+      '    concurrency:',
+      '      group: atc-latest-release',
+      '      cancel-in-progress: false',
+      '    steps:',
+      '      - run: scripts/restore-latest-release.sh "$GITHUB_REPOSITORY"',
+      '',
+    ].join('\n'),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-release-concurrency.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-release-concurrency: 1 problems\n',
+    stderr: '.github/workflows/main.yml: job release sets no releases_created output\n',
   });
 });
 

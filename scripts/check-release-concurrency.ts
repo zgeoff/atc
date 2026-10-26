@@ -37,9 +37,12 @@ const CONCURRENCY_SCHEMA = z.union([z.string(), GROUP_SCHEMA]);
 const OPTIONAL_TEXT_SCHEMA = z.string().optional();
 const STEP_SCHEMA = z.object({ uses: OPTIONAL_TEXT_SCHEMA, run: OPTIONAL_TEXT_SCHEMA });
 const NEEDS_SCHEMA = z.union([z.string(), z.array(z.string())]);
+const OUTPUTS_SCHEMA = z.record(z.string(), z.string());
 
 const JOB_SCHEMA = z.object({
   needs: NEEDS_SCHEMA.optional(),
+  if: OPTIONAL_TEXT_SCHEMA,
+  outputs: OUTPUTS_SCHEMA.optional(),
   concurrency: CONCURRENCY_SCHEMA.optional(),
   steps: z.array(STEP_SCHEMA).optional(),
 });
@@ -98,9 +101,12 @@ function collectReleaseConcurrencyProblems(workflow: z.infer<typeof WORKFLOW_SCH
 
   for (const [name, job] of corrections) {
     const needs = typeof job.needs === 'string' ? [job.needs] : (job.needs ?? []);
+    const release = releases.find(([candidate]) => needs.includes(candidate));
 
-    if (!releases.some(([release]) => needs.includes(release))) {
+    if (release === undefined) {
       problems.push(`job ${name} does not need the release-please job`);
+    } else {
+      problems.push(...collectTriggerProblems(name, job, release));
     }
 
     const concurrency = job.concurrency;
@@ -116,6 +122,26 @@ function collectReleaseConcurrencyProblems(workflow: z.infer<typeof WORKFLOW_SCH
     if (group === undefined || group.includes('${{')) {
       problems.push(`job ${name} needs one fixed group that every branch shares`);
     }
+  }
+
+  return problems;
+}
+
+type Job = z.infer<typeof JOB_SCHEMA>;
+
+// A failed asset step must not skip the correction, so the condition holds
+// !cancelled() and reads the release job's output, which a failed job keeps.
+function collectTriggerProblems(name: string, job: Job, release: [string, Job]): string[] {
+  const [releaseName, releaseJob] = release;
+  const problems: string[] = [];
+  const condition = `\${{ !cancelled() && needs.${releaseName}.result != 'skipped' && (needs.${releaseName}.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch') }}`;
+
+  if (releaseJob.outputs?.['releases_created']?.includes('.outputs.releases_created') !== true) {
+    problems.push(`job ${releaseName} sets no releases_created output`);
+  }
+
+  if (job.if !== condition) {
+    problems.push(`job ${name} runs on another condition than ${condition}`);
   }
 
   return problems;
