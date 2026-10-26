@@ -37,6 +37,36 @@ test('it leaves the latest mark on a release-branch release that is the newest',
   ]);
 });
 
+test('it edits nothing when no release holds an atc tag', async () => {
+  const ctx = setupTest();
+
+  const gh = createStubGHReleases(ctx.directory, {
+    releases: [
+      { tagName: 'tools-v2.0.0', isLatest: true },
+      { tagName: 'tools-v1.9.0', isLatest: false },
+    ],
+  });
+
+  const restored = await runCommand(
+    ['bash', join(import.meta.dir, 'restore-latest-release.sh'), 'zgeoff/atc'],
+    { env: { ...process.env, PATH: `${gh.directory}:${process.env['PATH'] ?? ''}` } },
+  );
+
+  expect({ exitCode: restored.exitCode, stderr: restored.stderr }).toStrictEqual({
+    exitCode: 0,
+    stderr: '',
+  });
+
+  expect(gh.readReleases()).toStrictEqual([
+    { tagName: 'tools-v2.0.0', isLatest: true },
+    { tagName: 'tools-v1.9.0', isLatest: false },
+  ]);
+
+  expect(gh.readCalls()).toStrictEqual([
+    'release list --repo zgeoff/atc --exclude-drafts --exclude-pre-releases --limit 10000 --json tagName,isLatest',
+  ]);
+});
+
 test('it moves the latest mark from an older release-branch release to the newest release', async () => {
   const ctx = setupTest();
 
