@@ -57,10 +57,11 @@ jobs:
 
   # A newer run's release waits for this one to end. GitHub keeps one pending
   # run per group, so a third run replaces a waiting one, never a running one.
+  # Every branch shares the group, since each release pushes to the one tap.
   release:
     needs: [checks, binaries]
     concurrency:
-      group: main-release-${{ github.ref }}
+      group: main-release
       cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -154,6 +155,22 @@ jobs:
           version=$(jq -r .version package.json)
           gh release upload "@zgeoff/atc@$version" dist/atc-* dist/SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
 
+      # GitHub marks each new release as latest, and install.sh downloads the
+      # latest one, so a patch release from a release branch hands the mark
+      # back to the newest version.
+      - name: Keep the newest release as latest
+        if:
+          steps.release.outputs.releases_created == 'true' || github.event_name ==
+          'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(jq -r .version package.json)
+          newest=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 100 --json tagName --jq '.[].tagName' | sed -n 's/^@zgeoff\/atc@//p' | sort -V | tail -n 1)
+          if [ -n "$newest" ] && [ "$newest" != "$version" ]; then
+            gh release edit "@zgeoff/atc@$newest" --latest --repo "$GITHUB_REPOSITORY"
+          fi
+
       # The tap is a second repository, so the release App has to be
       # installed on it as well and HOMEBREW_TAP set to its name (see
       # docs/runbooks/releasing.md). With either missing, the formula is left alone.
@@ -176,6 +193,13 @@ jobs:
         run: |
           version=$(jq -r .version package.json)
           git clone "https://x-access-token:$GH_TOKEN@github.com/$TAP.git" tap
+          # a patch release from a release branch never moves the formula back
+          current=$(sed -n 's/^[[:space:]]*version "\([^"]*\)"$/\1/p' tap/Formula/atc.rb 2>/dev/null || true)
+          newest=$(printf '%s\n%s\n' "$current" "$version" | sort -V | tail -n 1)
+          if [ -n "$current" ] && [ "$newest" != "$version" ]; then
+            echo "formula holds $current, newer than $version; left as it is"
+            exit 0
+          fi
           mkdir -p tap/Formula
           scripts/build-formula.sh "$version" dist/SHA256SUMS > tap/Formula/atc.rb
           cd tap
