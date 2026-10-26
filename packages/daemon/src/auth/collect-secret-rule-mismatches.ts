@@ -1,4 +1,5 @@
 import type { BrokerSecret, BrokerSecretKind, BrokerSecretRule } from '@atc/plugin-api';
+import { GITHUB_SECRET_RULES } from './github-secret-rules';
 
 interface ExpectedSecret {
   readonly secret: string;
@@ -39,19 +40,19 @@ export function collectSecretRuleMismatches(
 
     if (actual === undefined) {
       mismatches.push({ secret: want.secret, reason: 'missing' });
-    } else if (actual.kind !== want.kind) {
+    } else if (!hasKind(want.kind, actual.kind)) {
       mismatches.push({
         secret: want.secret,
         reason: 'kind',
         expected: want.kind,
         actual: actual.kind,
       });
-    } else if (actual.kind !== 'github' && !hasSameRules(want.rules, actual.rules)) {
+    } else if (actual.kind !== 'github' && !hasSameRules(toExpectedRules(want), actual.rules)) {
       // the broker owns a github secret's rules, so only its kind is checked
       mismatches.push({
         secret: want.secret,
         reason: 'rules',
-        expected: want.rules,
+        expected: toExpectedRules(want),
         actual: actual.rules,
       });
     } else {
@@ -69,6 +70,19 @@ export function collectSecretRuleMismatches(
   }
 
   return mismatches;
+}
+
+// A newer broker stores every kind but oauth as `static`, and rewrites the
+// stored secrets of the older kinds in place when it upgrades.
+const STATIC_KINDS: ReadonlySet<BrokerSecretKind> = new Set([
+  'anthropic',
+  'custom',
+  'github',
+  'npm',
+]);
+
+function hasKind(expected: BrokerSecretKind, actual: BrokerSecretKind): boolean {
+  return actual === expected || (actual === 'static' && STATIC_KINDS.has(expected));
 }
 
 function hasSameRules(
@@ -89,4 +103,10 @@ function hasSameRules(
 // any user a basic rule can hold.
 function toRuleKey(rule: BrokerSecretRule): string {
   return JSON.stringify([rule.host, rule.header, rule.scheme, rule.user ?? null]);
+}
+
+// A binding holds no rules for a github secret. A broker that lists one as
+// `static` no longer owns its rules, so they must be the github rules.
+function toExpectedRules(want: ExpectedSecret): readonly BrokerSecretRule[] {
+  return want.kind === 'github' ? GITHUB_SECRET_RULES : want.rules;
 }

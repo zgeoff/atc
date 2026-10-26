@@ -48,7 +48,7 @@ with it:
 | `host`         | The exact host impd adds the credential for: lowercase, no port, no wildcard, no IP.      |
 | `header`       | The lowercase header impd sets, such as `authorization`.                                  |
 | `scheme`       | How impd renders the value: `bearer`, or `raw` for the value alone. atc binds these two.  |
-| `kind`         | The kind of secret impd holds: `custom`, the default, `oauth`, or `github`.               |
+| `kind`         | The kind of secret the profile names: `custom`, the default, `oauth`, or `github`.        |
 | `env`          | Variables a `custom` profile sets in a session that reaches it. See below.                |
 | `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's. |
 
@@ -82,6 +82,10 @@ impd sets `GH_TOKEN` and `GITHUB_TOKEN` to `imp-broker-placeholder` in the sessi
 `git` run with no sign-in, and the token stays on the host. atc takes the hosts and headers of a
 `github` secret from impd when a session launches. The launch fails with `auth_secret_mismatch` when
 another selected profile sends its secret to one of those hosts.
+
+impd 5 lists every secret kind but `oauth` as `static`, and atc accepts a `static` secret for a
+`custom` or a `github` profile. For a `github` profile, the launch fails with `auth_secret_mismatch`
+unless the `static` secret holds the rules of impd's `github` kind.
 
 ## Profile variables
 
