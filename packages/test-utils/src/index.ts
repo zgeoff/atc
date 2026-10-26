@@ -56,6 +56,7 @@ export * from './create-stub-codex';
 export * from './create-stub-composer';
 export * from './create-stub-echo-claude';
 export * from './create-stub-failing-agent-adapter';
+export * from './create-stub-gh-releases';
 export * from './create-stub-grok';
 export * from './create-stub-rival-tap-push';
 export * from './create-stub-guest-clis';
