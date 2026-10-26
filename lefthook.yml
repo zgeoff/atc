@@ -52,6 +52,8 @@ pre-push:
       run: bun run check:raw-escapes
     - name: check:source-entries
       run: bun run check:source-entries
+    - name: check:release-concurrency
+      run: bun run check:release-concurrency
     - name: lint:mods
       run: bun run lint:mods
     - name: lint

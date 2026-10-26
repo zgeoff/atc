@@ -67,6 +67,9 @@ jobs:
       - name: Test Helper Source Entries
         run: bun run check:source-entries
 
+      - name: Release Concurrency
+        run: bun run check:release-concurrency
+
       - name: Format
         run: bun run format:check
 

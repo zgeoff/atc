@@ -1,0 +1,194 @@
+import { expect, test } from 'bun:test';
+import { join } from 'node:path';
+import { runCommand, setupTempDir } from '@atc/test-utils';
+
+// A temp directory standing in for a repo root.
+function setupTest() {
+  const temporaryDirectory = setupTempDir('check-release-concurrency-');
+
+  return { directory: temporaryDirectory.path };
+}
+
+test('it passes a release job that keeps a group per branch and never cancels', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, '.github/workflows/main.yml'),
+    [
+      'jobs:',
+      '  release:',
+      '    concurrency:',
+      `      group: main-release-\${{ github.ref }}`,
+      '      cancel-in-progress: false',
+      '    steps:',
+      '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
+      '',
+    ].join('\n'),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-release-concurrency.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-release-concurrency: 0 problems\n',
+    stderr: '',
+  });
+});
+
+test('it fails a release job that a newer run can cancel', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, '.github/workflows/main.yml'),
+    [
+      'jobs:',
+      '  release:',
+      '    concurrency:',
+      `      group: main-release-\${{ github.ref }}`,
+      '      cancel-in-progress: true',
+      '    steps:',
+      '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
+      '',
+    ].join('\n'),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-release-concurrency.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-release-concurrency: 1 problems\n',
+    stderr:
+      '.github/workflows/main.yml: job release can be cancelled; set cancel-in-progress: false\n',
+  });
+});
+
+test('it fails a release job whose group every branch shares', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, '.github/workflows/main.yml'),
+    [
+      'jobs:',
+      '  release:',
+      '    concurrency:',
+      '      group: main-release',
+      '      cancel-in-progress: false',
+      '    steps:',
+      '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
+      '',
+    ].join('\n'),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-release-concurrency.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-release-concurrency: 1 problems\n',
+    stderr: `.github/workflows/main.yml: job release's group is shared by every branch; add \${{ github.ref }} to it\n`,
+  });
+});
+
+test('it fails a workflow-level group that reaches the release job', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, '.github/workflows/main.yml'),
+    [
+      'concurrency:',
+      `  group: main-\${{ github.ref }}`,
+      '  cancel-in-progress: true',
+      'jobs:',
+      '  release:',
+      '    concurrency:',
+      `      group: main-release-\${{ github.ref }}`,
+      '      cancel-in-progress: false',
+      '    steps:',
+      '      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7',
+      '',
+    ].join('\n'),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-release-concurrency.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-release-concurrency: 1 problems\n',
+    stderr:
+      '.github/workflows/main.yml: a workflow-level concurrency group reaches the release job; set it per job\n',
+  });
+});
+
+test('it fails a workflow with no release-please job', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, '.github/workflows/main.yml'),
+    ['jobs:', '  ci:', '    steps:', '      - run: echo checks', ''].join('\n'),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-release-concurrency.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-release-concurrency: 1 problems\n',
+    stderr: '.github/workflows/main.yml: no job runs release-please\n',
+  });
+});
+
+test("it passes the repo's own main workflow", async () => {
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-release-concurrency.ts'),
+    join(import.meta.dir, '..'),
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-release-concurrency: 0 problems\n',
+    stderr: '',
+  });
+});
