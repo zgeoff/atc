@@ -158,15 +158,16 @@ jobs:
       # GitHub marks each new release as latest, and install.sh downloads the
       # latest one, so a patch release from a release branch hands the mark
       # back to the newest version.
+      # It runs after a failed asset step too, since the release is already out.
       - name: Keep the newest release as latest
         if:
-          steps.release.outputs.releases_created == 'true' || github.event_name ==
-          'workflow_dispatch'
+          ${{ !cancelled() && (steps.release.outputs.releases_created == 'true' || github.event_name
+          == 'workflow_dispatch') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(jq -r .version package.json)
-          newest=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 100 --json tagName --jq '.[].tagName' | sed -n 's/^@zgeoff\/atc@//p' | sort -V | tail -n 1)
+          newest=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 10000 --json tagName --jq '.[].tagName' | sed -n 's/^@zgeoff\/atc@//p' | sort -V | tail -n 1)
           if [ -n "$newest" ] && [ "$newest" != "$version" ]; then
             gh release edit "@zgeoff/atc@$newest" --latest --repo "$GITHUB_REPOSITORY"
           fi
