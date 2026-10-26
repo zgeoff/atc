@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { toShellArg } from '@atc/core';
 import { z } from 'zod';
 import { createStubBin } from './create-stub-bin';
 
@@ -44,8 +45,8 @@ export function createStubGHReleases(
     writeFileSync(rivalPending, options.rival);
   }
 
-  const stateLiteral = toShellLiteral(state);
-  const rivalLiteral = toShellLiteral(rivalPending);
+  const stateLiteral = toShellArg(state);
+  const rivalLiteral = toShellArg(rivalPending);
 
   createStubBin(
     bin,
@@ -53,7 +54,7 @@ export function createStubGHReleases(
     [
       '#!/bin/sh',
       'set -eu',
-      `printf '%s\\n' "$*" >> ${toShellLiteral(calls)}`,
+      `printf '%s\\n' "$*" >> ${toShellArg(calls)}`,
       'case "$1 $2" in',
       `  'release list') cat ${stateLiteral} ;;`,
       `  'release edit')`,
@@ -79,8 +80,4 @@ export function createStubGHReleases(
         .split('\n')
         .filter((line) => line !== ''),
   };
-}
-
-function toShellLiteral(value: string): string {
-  return `'${value.replaceAll("'", String.raw`'\''`)}'`;
 }
