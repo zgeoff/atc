@@ -103,8 +103,9 @@ function toRuleKey(rule: BrokerSecretRule): string {
   return JSON.stringify([rule.host, rule.header, rule.scheme, rule.user ?? null]);
 }
 
-// A binding holds no rules for a github secret. A broker that lists one as
-// `static` no longer owns its rules, so they must be the github rules.
+// A binding holds no rules for a github secret. A newer broker lists one as
+// `static` and holds its rules as ordinary rules, so they are compared with
+// the github rules.
 function toExpectedRules(want: ExpectedSecret): readonly BrokerSecretRule[] {
   return match(want.kind)
     .returnType<readonly BrokerSecretRule[]>()
