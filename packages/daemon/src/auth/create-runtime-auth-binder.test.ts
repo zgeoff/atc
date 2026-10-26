@@ -115,6 +115,51 @@ test('it provisions a host through the gate, a new imp and each grant, in that o
   ]);
 });
 
+test.each([['github-imp-agents'], ['gh']])(
+  'it provisions a host whose github secret %s impd 5 lists as static with its github preset rules',
+  async (secret) => {
+    const ctx = await setupTest();
+
+    ctx.host.setIdentity({
+      name: 'atc-runtime',
+      scope: 'manage',
+      hosts: ['atc-*'],
+      grantable: [secret],
+    });
+
+    ctx.host.createSecret(secret, 'static', [
+      { host: 'github.com', header: 'authorization', scheme: 'basic', user: 'x-access-token' },
+      { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
+      { host: 'uploads.github.com', header: 'authorization', scheme: 'bearer' },
+    ]);
+
+    await ctx.binder.createBinding(ctx.host, {
+      hostKey: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:test',
+      binding: buildMockAuthBinding({
+        profiles: ['github'],
+        secrets: [{ secret, kind: 'github', rules: [] }],
+        hash: 'h1',
+      }),
+    });
+
+    const grants = await ctx.store.readAuthGrants(toSessionID('s1'));
+
+    expect(ctx.host.calls).toStrictEqual([
+      'verifyVersion',
+      'readIdentity',
+      'readSecrets',
+      'readHost atc-s1',
+      'createHost atc-s1',
+      'readGrants atc-s1',
+      `createGrant atc-s1 ${secret}`,
+    ]);
+
+    expect(grants).toMatchObject([{ secret, revision: 1, phase: 'granted' }]);
+  },
+);
+
 test('it provisions a host with two secrets in four round trips to impd', async () => {
   const ctx = await setupTest();
 

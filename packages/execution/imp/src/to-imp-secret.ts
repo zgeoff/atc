@@ -7,7 +7,10 @@ type ImpdSecretRule = ImpdSecret['rules'][number];
 
 type ImpdOAuthState = NonNullable<ImpdSecret['oauth']>;
 
-export type ImpdListedSecret = Pick<ImpdSecret, 'name' | 'kind' | 'imps'> & {
+// The client's types predate impd 5, which lists every kind but oauth as
+// `static`, and the client passes the listed kind through unchecked.
+export type ImpdListedSecret = Pick<ImpdSecret, 'name' | 'imps'> & {
+  readonly kind: ImpdSecret['kind'] | 'static';
   readonly rules: readonly Pick<ImpdSecretRule, 'host' | 'header' | 'scheme' | 'user'>[];
   readonly oauth?: Pick<ImpdOAuthState, 'status' | 'idClaims'> | undefined;
 };
