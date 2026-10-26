@@ -54,7 +54,7 @@ test('it moves the latest mark to the edited release and records each call', asy
   expect(gh.readCalls()).toStrictEqual(['release edit @zgeoff/atc@7.4.0 --latest']);
 });
 
-test('it publishes the rival as latest before the first edit lands, and only once', async () => {
+test('it publishes one rival before each edit lands, in order, and none once they run out', async () => {
   const ctx = setupTest();
 
   const gh = createStubGHReleases(ctx.directory, {
@@ -62,16 +62,18 @@ test('it publishes the rival as latest before the first edit lands, and only onc
       { tagName: '@zgeoff/atc@7.3.1', isLatest: true },
       { tagName: '@zgeoff/atc@7.4.0', isLatest: false },
     ],
-    rival: '@zgeoff/atc@7.4.1',
+    rivals: ['@zgeoff/atc@7.4.1', '@zgeoff/atc@7.4.2'],
   });
 
   await runCommand([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.0', '--latest']);
   await runCommand([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.1', '--latest']);
+  await runCommand([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.2', '--latest']);
 
   expect(gh.readReleases()).toStrictEqual([
     { tagName: '@zgeoff/atc@7.3.1', isLatest: false },
     { tagName: '@zgeoff/atc@7.4.0', isLatest: false },
-    { tagName: '@zgeoff/atc@7.4.1', isLatest: true },
+    { tagName: '@zgeoff/atc@7.4.1', isLatest: false },
+    { tagName: '@zgeoff/atc@7.4.2', isLatest: true },
   ]);
 });
 

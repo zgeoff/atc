@@ -73,7 +73,7 @@ test('it moves the latest mark again when a main release lands between its read 
       { tagName: '@zgeoff/atc@7.3.1', isLatest: true },
       { tagName: '@zgeoff/atc@7.4.0', isLatest: false },
     ],
-    rival: '@zgeoff/atc@7.4.1',
+    rivals: ['@zgeoff/atc@7.4.1'],
   });
 
   const restored = await runCommand(
@@ -92,5 +92,41 @@ test('it moves the latest mark again when a main release lands between its read 
   expect(gh.readCalls().filter((call) => call.startsWith('release edit'))).toStrictEqual([
     'release edit @zgeoff/atc@7.4.0 --latest --repo zgeoff/atc',
     'release edit @zgeoff/atc@7.4.1 --latest --repo zgeoff/atc',
+  ]);
+});
+
+test('it fails after 5 edits when a newer release takes the latest mark before each one lands', async () => {
+  const ctx = setupTest();
+
+  const gh = createStubGHReleases(ctx.directory, {
+    releases: [
+      { tagName: '@zgeoff/atc@7.3.1', isLatest: true },
+      { tagName: '@zgeoff/atc@7.4.0', isLatest: false },
+    ],
+    rivals: [
+      '@zgeoff/atc@7.4.1',
+      '@zgeoff/atc@7.4.2',
+      '@zgeoff/atc@7.4.3',
+      '@zgeoff/atc@7.4.4',
+      '@zgeoff/atc@7.4.5',
+    ],
+  });
+
+  const restored = await runCommand(
+    ['bash', join(import.meta.dir, 'restore-latest-release.sh'), 'zgeoff/atc'],
+    { env: { ...process.env, PATH: `${gh.directory}:${process.env['PATH'] ?? ''}` } },
+  );
+
+  expect({ exitCode: restored.exitCode, stderr: restored.stderr }).toStrictEqual({
+    exitCode: 1,
+    stderr: 'the latest mark did not settle on the newest release\n',
+  });
+
+  expect(gh.readCalls().filter((call) => call.startsWith('release edit'))).toStrictEqual([
+    'release edit @zgeoff/atc@7.4.0 --latest --repo zgeoff/atc',
+    'release edit @zgeoff/atc@7.4.1 --latest --repo zgeoff/atc',
+    'release edit @zgeoff/atc@7.4.2 --latest --repo zgeoff/atc',
+    'release edit @zgeoff/atc@7.4.3 --latest --repo zgeoff/atc',
+    'release edit @zgeoff/atc@7.4.4 --latest --repo zgeoff/atc',
   ]);
 });

@@ -12,9 +12,9 @@ type StubGHRelease = z.infer<typeof RELEASE_SCHEMA>;
 interface StubGHReleasesOptions {
   readonly releases: readonly StubGHRelease[];
 
-  // A release that another branch publishes after the first read and before
-  // the first edit lands, so it takes the latest mark first. Absent adds none.
-  readonly rival?: string;
+  // Releases that another branch publishes, in order, one before each edit
+  // lands, so each takes the latest mark first. Absent adds none.
+  readonly rivals?: readonly string[];
 }
 
 interface StubGHReleases {
@@ -35,18 +35,15 @@ export function createStubGHReleases(
 ): StubGHReleases {
   const state = join(directory, 'releases.json');
   const calls = join(directory, 'gh-calls');
-  const rivalPending = join(directory, 'rival-pending');
+  const rivals = join(directory, 'rivals');
   const bin = join(directory, 'bin');
 
   writeFileSync(state, JSON.stringify(options.releases));
   writeFileSync(calls, '');
-
-  if (options.rival !== undefined) {
-    writeFileSync(rivalPending, options.rival);
-  }
+  writeFileSync(rivals, (options.rivals ?? []).map((rival) => `${rival}\n`).join(''));
 
   const stateLiteral = toShellArg(state);
-  const rivalLiteral = toShellArg(rivalPending);
+  const rivalsLiteral = toShellArg(rivals);
 
   createStubBin(
     bin,
@@ -58,10 +55,12 @@ export function createStubGHReleases(
       'case "$1 $2" in',
       `  'release list') cat ${stateLiteral} ;;`,
       `  'release edit')`,
-      `    if [ -f ${rivalLiteral} ]; then`,
-      `      jq --arg tag "$(cat ${rivalLiteral})" '[.[] | .isLatest = false] + [{tagName: $tag, isLatest: true}]' ${stateLiteral} > ${stateLiteral}.next`,
+      `    rival=$(head -n 1 ${rivalsLiteral})`,
+      '    if [ -n "$rival" ]; then',
+      `      jq --arg tag "$rival" '[.[] | .isLatest = false] + [{tagName: $tag, isLatest: true}]' ${stateLiteral} > ${stateLiteral}.next`,
       `      mv ${stateLiteral}.next ${stateLiteral}`,
-      `      rm ${rivalLiteral}`,
+      `      tail -n +2 ${rivalsLiteral} > ${rivalsLiteral}.next`,
+      `      mv ${rivalsLiteral}.next ${rivalsLiteral}`,
       '    fi',
       `    jq --arg tag "$3" '[.[] | .isLatest = (.tagName == $tag)]' ${stateLiteral} > ${stateLiteral}.next`,
       `    mv ${stateLiteral}.next ${stateLiteral}`,
