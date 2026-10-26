@@ -70,6 +70,8 @@ jobs:
       # npm's trusted publishing of @atcx/contract takes the job's OIDC token,
       # so no npm token exists anywhere in this repository
       id-token: write
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
     env:
       # bun install's prepare script installs git hooks that re-run the
       # checks job's commands and would reject this job's bot pushes.
@@ -214,3 +216,28 @@ jobs:
         run: |
           bun install --frozen-lockfile
           bash scripts/publish-contract.sh
+
+  # GitHub marks each new release as latest, and install.sh downloads the
+  # latest one. A release branch's release takes the mark too, and its
+  # workflow runs this job in the same group, so the last run reads the final
+  # state. GitHub keeps one pending run per group, and a run that replaces a
+  # pending one reads the same state later, so one group serves every branch.
+  latest-release:
+    needs: [release]
+    if:
+      ${{ !cancelled() && needs.release.result != 'skipped' &&
+      (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch')
+      }}
+    concurrency:
+      group: atc-latest-release
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Keep the newest release as latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/restore-latest-release.sh "$GITHUB_REPOSITORY"
