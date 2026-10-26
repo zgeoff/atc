@@ -127,7 +127,6 @@ test.each([['github-imp-agents'], ['gh']])(
       grantable: [secret],
     });
 
-    // The rules of impd 5's github preset, in the order impd stores them.
     ctx.host.createSecret(secret, 'static', [
       { host: 'github.com', header: 'authorization', scheme: 'basic', user: 'x-access-token' },
       { host: 'api.github.com', header: 'authorization', scheme: 'bearer' },
