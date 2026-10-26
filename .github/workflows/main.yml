@@ -68,6 +68,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
     env:
       # bun install's prepare script installs git hooks that re-run the
       # checks job's commands and would reject this job's bot pushes.
@@ -155,18 +157,6 @@ jobs:
           version=$(jq -r .version package.json)
           gh release upload "@zgeoff/atc@$version" dist/atc-* dist/SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
 
-      # GitHub marks each new release as latest, and install.sh downloads the
-      # latest one. Main's release is always the newest, so only a release
-      # branch moves the mark, even after a failed asset step.
-      - name: Keep the newest release as latest
-        if:
-          ${{ !cancelled() && github.ref != 'refs/heads/main' &&
-          (steps.release.outputs.releases_created == 'true' || github.event_name ==
-          'workflow_dispatch') }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: scripts/restore-latest-release.sh "$GITHUB_REPOSITORY"
-
       # The tap is a second repository, so the release App has to be
       # installed on it as well and HOMEBREW_TAP set to its name (see
       # docs/runbooks/releasing.md). With either missing, the formula is left alone.
@@ -189,3 +179,28 @@ jobs:
         run: |
           version=$(jq -r .version package.json)
           scripts/update-tap-formula.sh "https://x-access-token:$GH_TOKEN@github.com/$TAP.git" "$version" dist/SHA256SUMS
+
+  # GitHub marks each new release as latest, and install.sh downloads the
+  # latest one. Every branch's release takes the mark outside this group, and
+  # a run of this job follows each of them, so the last run reads the final
+  # state. GitHub keeps one pending run per group, and a run that replaces a
+  # pending one reads the same state later, so one group serves every branch.
+  latest-release:
+    needs: [release]
+    if:
+      ${{ !cancelled() && needs.release.result != 'skipped' &&
+      (needs.release.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch')
+      }}
+    concurrency:
+      group: atc-latest-release
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Keep the newest release as latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/restore-latest-release.sh "$GITHUB_REPOSITORY"

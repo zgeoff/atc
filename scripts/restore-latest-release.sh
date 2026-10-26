@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Leaves the latest mark on the newest published @zgeoff/atc release of
-# <repo>, moving it there when another release holds it. A main release can
-# take the mark between a read and an edit, so it reads again after each edit.
+# <repo>, moving it there when another release holds it. A release that
+# another branch creates can take the mark between a read and an edit, so it
+# reads again after each edit.
 #
 #   scripts/restore-latest-release.sh <owner/repo>
 set -euo pipefail
