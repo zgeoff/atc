@@ -156,9 +156,7 @@ jobs:
           gh release upload "@zgeoff/atc@$version" dist/atc-* dist/SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
 
       # GitHub marks each new release as latest, and install.sh downloads the
-      # latest one, so a patch release from a release branch hands the mark
-      # back to the newest version.
-      # It runs after a failed asset step too, since the release is already out.
+      # latest one. The release is out by now, so a failed asset step skips none.
       - name: Keep the newest release as latest
         if:
           ${{ !cancelled() && (steps.release.outputs.releases_created == 'true' || github.event_name
