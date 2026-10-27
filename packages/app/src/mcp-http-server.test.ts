@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
+import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
@@ -60,6 +61,7 @@ test('it serves MCP through the daemon it boots and says no client can connect a
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
       loadConfig: () => ({
         publicURL: null,
         host: '127.0.0.1',
@@ -127,6 +129,7 @@ test('it trusts the forwarded address from a proxy the config lists', async () =
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
       loadConfig: () => ({
         publicURL: null,
         host: '127.0.0.1',
@@ -202,6 +205,7 @@ test('it leaves the forwarded address unverified from a peer the config does not
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
       loadConfig: () => ({
         publicURL: null,
         host: '127.0.0.1',
@@ -292,6 +296,7 @@ test('it prints no hint to add a client once one can connect', async () => {
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
       loadConfig: () => ({
         publicURL: null,
         host: '127.0.0.1',
@@ -365,6 +370,7 @@ test('it prints no hint to enroll a passkey once one is enrolled', async () => {
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
       loadConfig: () => ({
         publicURL: null,
         host: '127.0.0.1',
@@ -431,6 +437,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
       loadConfig: () => ({
         publicURL: null,
         host: '127.0.0.1',
@@ -517,6 +524,7 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
       loadConfig: () => ({
         publicURL: null,
         host: '127.0.0.1',
@@ -574,6 +582,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
       loadConfig: () => ({
         publicURL: null,
         host: '127.0.0.1',
@@ -633,6 +642,7 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
       loadConfig: () => ({
         publicURL: null,
         host: '127.0.0.1',
@@ -695,6 +705,7 @@ test('it exits 1 before it boots a daemon when other users can open its token fi
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
       loadConfig: () => ({
         publicURL: null,
         host: '127.0.0.1',

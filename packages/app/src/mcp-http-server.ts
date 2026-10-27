@@ -1,7 +1,12 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { MCPHTTPConfig } from '@atc/config';
-import { loadListenerTokens, loadMCPHTTPConfig, mcpAuthDBFile } from '@atc/config';
+import {
+  NODE_TOKEN_FILE_ACCESS,
+  loadListenerTokens,
+  loadMCPHTTPConfig,
+  mcpAuthDBFile,
+} from '@atc/config';
 import type { MCPAuthDatabase } from '@atc/mcp';
 import {
   createTransportCaller,
@@ -30,6 +35,7 @@ interface MCPHTTPServerIO extends Pick<
   'print' | 'printError' | 'exit' | 'registerSignal'
 > {
   readonly loadConfig: () => MCPHTTPConfig;
+  readonly loadTokens: (path: string) => ReturnType<typeof loadListenerTokens>;
   readonly dbPath: string;
 
   // null for the process's own daemon files, the only ones at which it starts
@@ -40,6 +46,7 @@ interface MCPHTTPServerIO extends Pick<
 const MCP_HTTP_SERVER_IO: MCPHTTPServerIO = {
   ...PROCESS_IO,
   loadConfig: loadMCPHTTPConfig,
+  loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
   dbPath: mcpAuthDBFile,
   daemonPaths: null,
 };
@@ -65,7 +72,7 @@ export async function runMCPHTTPServer(
 
   // A token file is read once, before the daemon starts, so a bad file
   // stops the server with nothing started.
-  const loaded = flags.tokenFile === null ? null : loadListenerTokens(flags.tokenFile);
+  const loaded = flags.tokenFile === null ? null : io.loadTokens(flags.tokenFile);
 
   if (loaded !== null && !loaded.ok) {
     io.printError(`atc mcp --http: --token-file: ${loaded.reason}`);
