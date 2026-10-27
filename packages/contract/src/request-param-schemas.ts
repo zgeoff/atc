@@ -282,6 +282,7 @@ export const REQUEST_PARAM_SCHEMAS = {
     rows: buildTerminalSize(24),
   }),
   'session.detach': SESSION_DEFAULTED,
+  'session.watch': SESSION_DEFAULTED,
   'session.input': SESSION_DEFAULTED.extend({
     data: buildDefaultedString(''),
   }),

@@ -45,6 +45,34 @@ test('#session.ack passes on the refusal the procedure throws', () => {
   ).rejects.toMatchObject({ code: 'no_such_session', message: "no session 's-2'" });
 });
 
+test('#session.watch answers with the size, the sequence and the replay of the session', async () => {
+  const watch = { cols: 100, rows: 30, seq: 7, replay: 'ready' };
+  const ctx = buildStubDaemonContext({ watchSession: () => Promise.resolve(watch) });
+
+  const answer = await call(
+    DAEMON_ROUTER.session.watch,
+    { session: 's-1' },
+    { context: buildMockProcedureContext({ ctx }) },
+  );
+
+  expect(answer).toStrictEqual({ cols: 100, rows: 30, seq: 7, replay: 'ready' });
+});
+
+test.each([
+  ['missing', 'no_such_session', "no session 's-3'"],
+  ['dead', 'session_dead', "session 's-3' has no live process"],
+] as const)('#session.watch refuses a %s session as %s', (result, code, message) => {
+  const ctx = buildStubDaemonContext({ watchSession: () => Promise.resolve(result) });
+
+  expect(
+    call(
+      DAEMON_ROUTER.session.watch,
+      { session: 's-3' },
+      { context: buildMockProcedureContext({ ctx }) },
+    ),
+  ).rejects.toMatchObject({ code, message });
+});
+
 test.each([
   [
     'an unknown key',

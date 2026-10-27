@@ -464,3 +464,200 @@ test('it sends a removed session no more output to its clients', async () => {
 
   expect(client.sendOutput).not.toHaveBeenCalled();
 });
+
+test('it starts a watcher with the replayed screen and the last sequence it holds', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  ctx.output.attachSession({ sendOutput: mock<OutputClient['sendOutput']>() }, session.id, {
+    cols: 80,
+    rows: 24,
+  });
+
+  harness.emitData('tests passed');
+
+  const watch = await ctx.output.watchSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    session.id,
+  );
+
+  invariant(typeof watch === 'object');
+
+  expect(watch).toStrictEqual({
+    cols: 80,
+    rows: 24,
+    seq: 1,
+    replay: expect.toStartWith(ansi.clear),
+  });
+
+  expect(watch.replay).toInclude('tests passed');
+});
+
+test('it sends a watcher the output that follows its start under the next sequence', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  const watcher = { sendOutput: mock<OutputClient['sendOutput']>() };
+
+  await ctx.output.watchSession(watcher, session.id);
+
+  harness.emitData('build finished');
+
+  expect(watcher.sendOutput).toHaveBeenCalledExactlyOnceWith(
+    session.id,
+    {
+      version: PROTOCOL_V,
+      ev: 'SessionOutput',
+      sessionID: session.id,
+      seq: 1,
+      data: 'build finished',
+    },
+    14,
+  );
+});
+
+test('it leaves the terminal size and the attach record alone when a watcher comes and goes', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.output.attachSession({ sendOutput: mock<OutputClient['sendOutput']>() }, session.id, {
+    cols: 120,
+    rows: 30,
+  });
+
+  const before = ctx.manager.sessions.find((x) => x.id === session.id);
+
+  invariant(before);
+
+  const lastAttachedAt = before.lastAttachedAt;
+  const events = ctx.emitted.length;
+  const watcher = { sendOutput: mock<OutputClient['sendOutput']>() };
+
+  await ctx.output.watchSession(watcher, session.id);
+
+  ctx.output.detachClient(watcher);
+  ctx.clock.advance(50);
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  expect(harness.sizes).toStrictEqual([[120, 30]]);
+  expect(ctx.output.getEffectiveDims(session.id)).toStrictEqual({ cols: 120, rows: 30 });
+  expect(before.lastAttachedAt).toBe(lastAttachedAt);
+  expect(ctx.emitted).toHaveLength(events);
+});
+
+test('it sends a detached watcher no more output', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const watcher = { sendOutput: mock<OutputClient['sendOutput']>() };
+
+  await ctx.output.watchSession(watcher, session.id);
+
+  ctx.output.detachSession(watcher, session.id);
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitData('late output');
+
+  expect(watcher.sendOutput).not.toHaveBeenCalled();
+});
+
+test('it sends a watcher no replay as output when its dropped output is repaired', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const watcher = { sendOutput: mock<OutputClient['sendOutput']>() };
+
+  await ctx.output.watchSession(watcher, session.id);
+  await ctx.output.sendReplay(session.id, watcher);
+
+  expect(watcher.sendOutput).not.toHaveBeenCalled();
+});
+
+test('it refuses to watch a session the manager does not hold', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const watch = await ctx.output.watchSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    toSessionID('s-gone'),
+  );
+
+  expect(watch).toBe('missing');
+});
+
+test('it refuses to watch a session whose terminal has ended', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitExit({ exitCode: 1 });
+
+  await waitFor(() => {
+    expect(ctx.manager.sessions.find((x) => x.id === session.id)?.pty).toBeNull();
+  });
+
+  const watch = await ctx.output.watchSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    session.id,
+  );
+
+  expect(watch).toBe('dead');
+});

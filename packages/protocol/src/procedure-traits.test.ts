@@ -43,6 +43,7 @@ test('it marks only the procedures that change nothing as read-only', () => {
     'session.resumeCommand',
     'session.screen',
     'session.menu',
+    'session.watch',
     'session.get',
     'session.read',
     'events.read',

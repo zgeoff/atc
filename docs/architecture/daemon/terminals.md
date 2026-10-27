@@ -12,8 +12,8 @@ covers the connection the output rides.
 
 ## Attaching
 
-A client attaches to one session at a time, its focused session, and only attached clients receive
-that session's output, so an unfocused session costs a client nothing.
+A client attaches to one session at a time, its focused session, and only attached clients and
+[watchers](#watching) receive that session's output, so an unfocused session costs a client nothing.
 
 1. The client sends its terminal size with the attach. The daemon applies the session's new
    effective size first, so the replay renders at the size the client will see.
@@ -26,6 +26,23 @@ that session's output, so an unfocused session costs a client nothing.
 Output events carry a sequence number per session, so a client can detect a gap. The screen model
 lives in memory only. A session that ends keeps its last screen until the daemon drops the session,
 so a caller can still read what a dead session last showed, as plain text through a screen read.
+
+## Watching
+
+A watcher receives a session's output without attaching to it, so it never types, never resizes, and
+never counts toward the session's size. Watching is how a read-only viewer, such as a web page that
+shows a session's terminal, follows a session without shrinking it for the people attached to it.
+
+The daemon answers a watch with the replay itself, the session's size, and the sequence number of
+the last output the replay holds. The daemon adds the watcher before it captures the replay, so
+output the agent prints during the capture reaches the watcher as events. Every event at or below
+the answer's sequence number is already in the replay, and the watcher drops it. The first event
+above that number continues the screen with no gap and no repeat.
+
+A watch leaves the session's attach record alone: a watch marks nothing read, and the daemon
+announces neither the watch nor its end. A dropped-output repair sends a watcher the desync event
+without the repaint, because a repaint sent as output events has no boundary the watcher could tell
+from live output. The watcher watches again for a fresh replay instead.
 
 ## Backpressure
 

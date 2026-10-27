@@ -54,6 +54,7 @@ export function buildStubDaemonContext(overrides: Partial<DaemonContext> = {}): 
     answerPermission: makeUnreached('answerPermission'),
     restoreFleet: makeUnreached('restoreFleet'),
     attachSession: makeUnreached('attachSession'),
+    watchSession: makeUnreached('watchSession'),
     detachSession: () => {},
     detachClient: makeUnreached('detachClient'),
     writeSessionInput: makeUnreached('writeSessionInput'),

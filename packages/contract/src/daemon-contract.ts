@@ -136,6 +136,16 @@ export const DAEMON_CONTRACT = {
       .input(PARAMS['session.attach'])
       .output(z.object({ cols: z.number(), rows: z.number() })),
     detach: base.input(PARAMS['session.detach']).output(EMPTY),
+
+    // A watcher receives the session's output without counting toward its
+    // size. seq is the last output the replay holds, so the live output that
+    // follows starts at seq + 1.
+    watch: base
+      .meta(READ)
+      .input(PARAMS['session.watch'])
+      .output(
+        z.object({ cols: z.number(), rows: z.number(), seq: z.number(), replay: z.string() }),
+      ),
     input: base.input(PARAMS['session.input']).output(EMPTY),
     submit: base.input(PARAMS['session.submit']).output(EMPTY),
     resize: base.input(PARAMS['session.resize']).output(EMPTY),

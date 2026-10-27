@@ -58,6 +58,7 @@ export const CONTEXT_MEMBER_SCOPES = {
   applySessionMenuChoice: 'narrowed',
   answerPermission: 'narrowed',
   attachSession: 'narrowed',
+  watchSession: 'narrowed',
   detachSession: 'narrowed',
   writeSessionInput: 'narrowed',
   writeSessionLine: 'narrowed',

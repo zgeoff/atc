@@ -194,6 +194,8 @@ export function buildScopedContext(
     },
     attachSession: (client, sessionID, dims) =>
       canSee(sessionID) ? ctx.attachSession(client, sessionID, dims) : 'missing',
+    watchSession: (client, sessionID) =>
+      canSee(sessionID) ? ctx.watchSession(client, sessionID) : Promise.resolve('missing' as const),
     detachSession: (client, sessionID) => {
       if (canSee(sessionID)) {
         ctx.detachSession(client, sessionID);

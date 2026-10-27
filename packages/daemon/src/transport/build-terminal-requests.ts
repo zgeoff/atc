@@ -13,6 +13,11 @@ export interface TerminalRequests {
     ctx: DaemonContext,
   ) => DaemonAnswer<'session.attach'>;
 
+  readonly applyWatch: (
+    data: RequestParams<'session.watch'>,
+    ctx: DaemonContext,
+  ) => Promise<DaemonAnswer<'session.watch'>>;
+
   readonly applyInput: (
     data: RequestParams<'session.input'>,
     ctx: DaemonContext,
@@ -68,6 +73,22 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
       const dims = ctx.getEffectiveDims(sessionID);
 
       return { cols: dims.cols, rows: dims.rows };
+    },
+
+    applyWatch: async (data, ctx) => {
+      const sessionID = data.session;
+
+      const result = await ctx.watchSession(client, sessionID);
+
+      if (result === 'missing') {
+        throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+      }
+
+      if (result === 'dead') {
+        throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
+      }
+
+      return { ...result };
     },
 
     applyInput: (data, ctx) => {
