@@ -100,7 +100,55 @@ atc grants --revoke=<grant_id>
 
 `atc grants` lists the live grants with their client, grant scopes and last use. `--revoke` deletes
 a grant's tokens and the consent its client holds, and the client loses access on its next request.
-A grant ID can start with a dash, which the `=` form always passes as the value.
+A live terminal the client has open ends at the server's next access check. A grant ID can start
+with a dash, which the `=` form always passes as the value.
+
+## Watching a terminal in a browser
+
+The server streams a session's live terminal to a web page over a WebSocket, read-only.
+[Live terminals](../architecture/remote/live-terminal.md) holds the URL, the token step and every
+frame. A page you host reaches it with an OAuth token that has the `read` scope, or, on your own
+machine, with an owner token from a file. These steps run the example page with an owner token:
+
+1. Make a token file that only you can read:
+
+   ```bash
+   openssl rand -hex 32 > ~/.config/atc/viewer-token
+   chmod 600 ~/.config/atc/viewer-token
+   ```
+
+2. Start the server with the token file and the origin the page loads from:
+
+   ```bash
+   atc mcp --http --token-file ~/.config/atc/viewer-token --allowed-origin http://127.0.0.1:8000
+   ```
+
+   Expect the startup line. The server refuses to start with
+   `atc mcp --http: --token-file: other users can open <token_file> (mode <mode>); run chmod 600 <token_file>`
+   when the file is not yours alone, and refuses an owner token file on any `--host` beyond
+   loopback.
+
+3. Save [`live-terminal.html`](./live-terminal.html) in a folder of its own and serve that folder:
+
+   ```bash
+   python3 -m http.server 8000 --bind 127.0.0.1 --directory <page_folder>
+   ```
+
+4. Open the page with the server, the session and the token in its fragment:
+
+   ```text
+   http://127.0.0.1:8000/live-terminal.html#server=http://127.0.0.1:8414&session=<session_id>&token=<token>
+   ```
+
+   Expect the session's screen, followed by its state, such as `running`. A session's ID is
+   `$ATC_SESSION_ID` inside the session, and the `atc_sessions_list` tool lists every one.
+
+The browser never sends a fragment to a server, so the token stays out of the page server's log. Two
+separate rules decide whether the page connects. The page's host sets its origin, which must be on
+the allowed list: add `--allowed-origin` once per origin, or list the origins in the config's
+`mcpHTTP.allowedOrigins`. The server's bind address sets which token works: a server bound to
+loopback takes an owner token, even from a page hosted elsewhere, and a server bound beyond loopback
+refuses an owner token file, so a page that watches it takes an OAuth token.
 
 ## Running under systemd
 

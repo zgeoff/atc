@@ -116,6 +116,7 @@ listener and a token file.
 
 `atc mcp --http` reads the `mcpHTTP` section, and nothing else in atc does. Command-line flags win
 over it: `--host` over `host`, `--port` over `port`, `--public-url` over `publicURL`.
+`--allowed-origin` adds to `allowedOrigins`.
 
 ```json
 {
@@ -124,7 +125,8 @@ over it: `--host` over `host`, `--port` over `port`, `--public-url` over `public
     "host": "127.0.0.1",
     "port": 8414,
     "allowedHosts": [],
-    "trustForwardedFrom": []
+    "trustForwardedFrom": [],
+    "allowedOrigins": []
   }
 }
 ```
@@ -136,6 +138,7 @@ over it: `--host` over `host`, `--port` over `port`, `--public-url` over `public
 | `port`               | `8414`      | the port the server binds, from 1 to 65535                                                                                                                                                                                  |
 | `allowedHosts`       | `[]`        | further `Host` header values to accept, for a proxy that rewrites `Host`                                                                                                                                                    |
 | `trustForwardedFrom` | `[]`        | the proxy addresses whose `CF-Connecting-IP` header security events mark `trusted`, each written as the socket reports the proxy's address ([the forwarded address](../architecture/remote/oauth.md#the-forwarded-address)) |
+| `allowedOrigins`     | `[]`        | the origins whose pages may open a session's [live terminal](../architecture/remote/live-terminal.md)                                                                                                                       |
 
 Clients are not config: add each one with `atc clients add`, which prints the client ID the
 connector needs, and the [principals](./configuration/principals.md) key matches. ChatGPT returns to

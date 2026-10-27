@@ -1,0 +1,43 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>atc live terminal</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<body style="margin: 0; background: #000; color: #ccc; font: 14px monospace">
+  <div id="terminal"></div>
+  <p id="status" style="margin: 8px"></p>
+  <script>
+    // Open as live-terminal.html#server=<origin>&session=<session_id>&token=<token>. A browser
+    // never sends the fragment to a server, so the token stays in this page.
+    const params = new URLSearchParams(location.hash.slice(1));
+    const url = new URL(`/sessions/${params.get('session')}/pty`, params.get('server'));
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    const bearer = btoa(params.get('token')).replace(/=+$/, '');
+    const status = document.getElementById('status');
+    const terminal = new Terminal({ disableStdin: true });
+    terminal.open(document.getElementById('terminal'));
+    const socket = new WebSocket(url, [
+      'atc.pty.v1',
+      `atc.bearer.${bearer.replace(/\+/g, '-').replace(/\//g, '_')}`,
+    ]);
+    socket.binaryType = 'arraybuffer';
+    socket.onmessage = ({ data }) => {
+      if (data instanceof ArrayBuffer) {
+        terminal.write(new Uint8Array(data));
+        return;
+      }
+      const frame = JSON.parse(data);
+      if (frame.type === 'snapshot') {
+        terminal.reset();
+        terminal.resize(frame.cols, frame.rows);
+        terminal.write(frame.data);
+      }
+      if (frame.type === 'resize') terminal.resize(frame.cols, frame.rows);
+      if (frame.state) status.textContent = frame.state;
+      if (frame.type === 'closed') status.textContent = `closed: ${frame.reason}`;
+    };
+    socket.onclose = ({ code }) => {
+      if (!status.textContent.startsWith('closed')) status.textContent = `closed: ${code}`;
+    };
+  </script>
+</body>
