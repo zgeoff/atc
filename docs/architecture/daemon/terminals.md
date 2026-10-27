@@ -34,10 +34,12 @@ never counts toward the session's size. Watching is how a read-only viewer, such
 shows a session's terminal, follows a session without shrinking it for the people attached to it.
 
 The daemon answers a watch with the replay itself, the session's size, and the sequence number of
-the last output the replay holds. The daemon adds the watcher before it captures the replay, so
-output the agent prints during the capture reaches the watcher as events. Every event at or below
-the answer's sequence number is already in the replay, and the watcher drops it. The first event
-above that number continues the screen with no gap and no repeat.
+the last output the replay holds. A watcher starts on a fresh terminal, so its replay holds the
+normal buffer and then, when the agent runs on the alternate buffer, the switch to it and its
+screen; the agent's later switch back then shows the normal screen. The daemon adds the watcher
+before it captures the replay, so output the agent prints during the capture reaches the watcher as
+events. Every event at or below the answer's sequence number is already in the replay, and the
+watcher drops it. The first event above that number continues the screen with no gap and no repeat.
 
 A watch leaves the session's attach record alone: a watch marks nothing read, and the daemon
 announces neither the watch nor its end. A dropped-output repair sends a watcher the desync event

@@ -300,7 +300,7 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
       const runtime = findRuntime(sessionID);
       const screen = runtime?.screen ?? null;
-      const replay = screen === null ? '' : `${ansi.clear}${await screen.captureReplay()}`;
+      const replay = screen === null ? '' : `${ansi.clear}${await screen.captureFullReplay()}`;
 
       // The replay is laid out at the screen's size, which can trail the
       // attached clients' size while a resize waits out its debounce.

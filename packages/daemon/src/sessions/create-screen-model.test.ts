@@ -86,6 +86,22 @@ test('it replays only the visible screen for a session on the alternate buffer',
   expect(replay).not.toInclude('normal residue');
 });
 
+test('it replays the normal buffer, then switches to the alternate buffer, in a full replay', async () => {
+  const model = createScreenModel(40, 10);
+
+  onTestFinished(() => {
+    model.stop();
+  });
+
+  model.record('normal residue\r\n\u001B[?1049haltscreen content');
+
+  const replay = await model.captureFullReplay();
+
+  expect(replay.indexOf('normal residue')).toBeGreaterThan(-1);
+  expect(replay.indexOf('\u001B[?1049h')).toBeGreaterThan(replay.indexOf('normal residue'));
+  expect(replay.indexOf('altscreen content')).toBeGreaterThan(replay.indexOf('\u001B[?1049h'));
+});
+
 test('it preserves colors and cursor positioning in the replay', async () => {
   const model = createScreenModel(40, 10);
 

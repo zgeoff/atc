@@ -20,6 +20,11 @@ export interface ScreenModel {
   // the client's screen for good.
   readonly captureReplay: () => Promise<string>;
 
+  // A replay of the normal buffer, then the alternate one when it is active,
+  // for a client on a fresh terminal: the agent's later switch back to the
+  // normal buffer then shows the normal screen, not the replayed one.
+  readonly captureFullReplay: () => Promise<string>;
+
   // Whether the TUI has turned bracketed paste on, as of the output parsed
   // so far. It reads the mode without waiting, so output still queued for
   // parsing never delays the caller; a TUI turns the mode on once, at start.
@@ -143,6 +148,12 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
       await waitForFlush();
 
       return RESET_INPUT_MODES + renderVisibleScreen() + renderInputModes();
+    },
+
+    captureFullReplay: async () => {
+      await waitForFlush();
+
+      return RESET_INPUT_MODES + serializer.serialize() + renderInputModes();
     },
 
     hasBracketedPaste: () => term.modes.bracketedPasteMode,

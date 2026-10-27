@@ -562,6 +562,37 @@ test('it sends a watcher the output that follows its start under the next sequen
   );
 });
 
+test('it starts a watcher on a session in the alternate buffer with the normal buffer under it', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitData('shell prompt\r\n\u001B[?1049hfullscreen app');
+
+  const watch = await ctx.output.watchSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    session.id,
+  );
+
+  invariant(typeof watch === 'object');
+
+  expect(watch.replay.indexOf('shell prompt')).toBeGreaterThan(-1);
+
+  expect(watch.replay.indexOf('\u001B[?1049h')).toBeGreaterThan(
+    watch.replay.indexOf('shell prompt'),
+  );
+});
+
 test('it shows a watcher each output printed while its replay is captured exactly once', async () => {
   const ctx = await setupTest({ resize: true });
 
