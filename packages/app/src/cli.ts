@@ -72,6 +72,8 @@ const ATC_CLI_IO: ATCCLIIO = {
         port: flags.port,
         publicURL: flags.publicURL,
         waitForDaemon: flags.waitForDaemon,
+        tokenFile: flags.tokenFile,
+        allowedOrigins: flags.allowedOrigins,
       },
       {
         bootDaemon: (options) => boot.bootDaemonClient(host, options),

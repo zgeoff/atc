@@ -1,7 +1,12 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { MCPHTTPConfig } from '@atc/config';
-import { loadMCPHTTPConfig, mcpAuthDBFile } from '@atc/config';
+import {
+  NODE_TOKEN_FILE_ACCESS,
+  loadListenerTokens,
+  loadMCPHTTPConfig,
+  mcpAuthDBFile,
+} from '@atc/config';
 import type { MCPAuthDatabase } from '@atc/mcp';
 import {
   createTransportCaller,
@@ -12,6 +17,7 @@ import {
 } from '@atc/mcp';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
+import { openWatchChannel } from './open-watch-channel';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
 
@@ -20,6 +26,8 @@ interface MCPHTTPFlags {
   readonly port: number | null;
   readonly publicURL: string | null;
   readonly waitForDaemon: boolean;
+  readonly tokenFile: string | null;
+  readonly allowedOrigins: readonly string[];
 }
 
 interface MCPHTTPServerIO extends Pick<
@@ -27,6 +35,7 @@ interface MCPHTTPServerIO extends Pick<
   'print' | 'printError' | 'exit' | 'registerSignal'
 > {
   readonly loadConfig: () => MCPHTTPConfig;
+  readonly loadTokens: (path: string) => ReturnType<typeof loadListenerTokens>;
   readonly dbPath: string;
 
   // null for the process's own daemon files, the only ones at which it starts
@@ -37,6 +46,7 @@ interface MCPHTTPServerIO extends Pick<
 const MCP_HTTP_SERVER_IO: MCPHTTPServerIO = {
   ...PROCESS_IO,
   loadConfig: loadMCPHTTPConfig,
+  loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
   dbPath: mcpAuthDBFile,
   daemonPaths: null,
 };
@@ -59,6 +69,17 @@ export async function runMCPHTTPServer(
   io: MCPHTTPServerIO = MCP_HTTP_SERVER_IO,
 ): Promise<void> {
   const config = io.loadConfig();
+
+  // A token file is read once, before the daemon starts, so a bad file
+  // stops the server with nothing started.
+  const loaded = flags.tokenFile === null ? null : io.loadTokens(flags.tokenFile);
+
+  if (loaded !== null && !loaded.ok) {
+    io.printError(`atc mcp --http: --token-file: ${loaded.reason}`);
+    io.exit(1);
+
+    return;
+  }
 
   const waitOptions = flags.waitForDaemon
     ? {
@@ -117,6 +138,12 @@ export async function runMCPHTTPServer(
     // A log shipper matches the `atc security ` prefix of these lines.
     printSecurity: (line) => {
       io.printError(line);
+    },
+
+    liveTerminals: {
+      allowedOrigins: [...config.allowedOrigins, ...flags.allowedOrigins],
+      ownerTokens: loaded?.tokens ?? [],
+      openWatchChannel: (principal) => openWatchChannel(boot.socketPath, build, principal),
     },
   });
 
