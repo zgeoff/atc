@@ -31,7 +31,10 @@ The server accepts two kinds of bearer token:
 
 - **An OAuth access token** with the `read` scope, which the client got through
   [the OAuth flow](./oauth.md#connecting-a-client). The viewer acts as the client's principal, so it
-  opens only a session that principal reaches ([principals](../protocol/principals.md)).
+  opens only a session that principal reaches ([principals](../protocol/principals.md)). While the
+  stream is open, the server checks on a timer that the client still holds a grant with `read`, and
+  it ends the stream when two checks in a row find none, because a refresh replaces a grant's token
+  in two writes.
 - **An owner token** from the file `--token-file` names, which acts as the daemon's owner and opens
   every session. The file holds one token per line, and the server reads it once at startup. The
   server refuses to start when other users can open the file, and when it binds an address beyond
@@ -45,6 +48,7 @@ A refusal answers with an HTTP status and no body:
 
 | Status | When                                                                                          |
 | ------ | --------------------------------------------------------------------------------------------- |
+| 400    | the session id in the path holds a percent escape that decodes to no text                     |
 | 403    | the `Host` header is not the public origin, the local address or an allowed host              |
 | 426    | the request asks for no WebSocket upgrade                                                     |
 | 403    | the `Origin` header is not on the allowed list                                                |
@@ -73,10 +77,12 @@ write. A text frame holds one JSON control object, whose `type` field names it:
 | `state`    | `state`                                | the session's state changed, such as to `needs_you`                                           |
 | `closed`   | `reason`                               | the stream ended, and the server closes the socket next                                       |
 
-The first frame is always a snapshot. Every binary frame after a snapshot continues that snapshot's
-screen with no gap and no repeat, so a page that resets on each snapshot and writes each binary
-frame shows the session's screen. `seq` is the sequence number of the last output the snapshot
-holds; a page needs it only to log or compare.
+The first frame is a snapshot. One exception: when the stream ends before the browser's socket
+opens, such as when the session exits or the daemon connection drops in between, the only frame is a
+`closed` frame. Every binary frame after a snapshot continues that snapshot's screen with no gap and
+no repeat, so a page that resets on each snapshot and writes each binary frame shows the session's
+screen. `seq` is the sequence number of the last output the snapshot holds; a page needs it only to
+log or compare.
 
 A `closed` frame's `reason` is one of:
 
@@ -84,6 +90,7 @@ A `closed` frame's `reason` is one of:
 - `removed`: the owner forgot the session.
 - `daemon_closed`: the viewer's daemon connection ended, such as when the daemon stops.
 - `unavailable`: the server could not take a fresh snapshot.
+- `revoked`: the OAuth client no longer holds a grant with `read`.
 
 After a `closed` frame, the server closes the socket with the normal closure code and the reason as
 its close reason.
@@ -98,5 +105,4 @@ viewer dropped. The viewer takes a fresh snapshot the same way when the daemon r
 output on the viewer's connection, or when an output's sequence number skips one.
 
 A page that loses its socket opens a new one. The server keeps no state for a closed viewer and
-replays nothing from before the new socket opened: the new socket starts with a fresh snapshot, as
-every socket does.
+replays nothing from before the new socket opened: the new socket starts with a fresh snapshot.
