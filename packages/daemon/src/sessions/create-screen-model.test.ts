@@ -17,6 +17,20 @@ test('it replays text written to the screen', async () => {
   expect(replay).toInclude('hello fleet');
 });
 
+test('it gives a full replay the size it renders at once a resize applies, and the mark it reads', async () => {
+  const model = createScreenModel(40, 10);
+
+  onTestFinished(() => {
+    model.stop();
+  });
+
+  model.updateDims(100, 30);
+
+  const captured = await model.captureFullReplay(() => 'mark-7');
+
+  expect(captured).toMatchObject({ cols: 100, rows: 30, mark: 'mark-7' });
+});
+
 test('it drops cleared content from the replay', async () => {
   const model = createScreenModel(40, 10);
 
@@ -72,6 +86,24 @@ test('it replays only the visible screen for a session on the alternate buffer',
   expect(replay).toInclude('altscreen content');
   expect(replay).not.toInclude('\u001B[?1049h');
   expect(replay).not.toInclude('normal residue');
+});
+
+test('it replays the normal buffer, then switches to the alternate buffer, in a full replay', async () => {
+  const model = createScreenModel(40, 10);
+
+  onTestFinished(() => {
+    model.stop();
+  });
+
+  model.record('normal residue\r\n\u001B[?1049haltscreen content');
+
+  const captured = await model.captureFullReplay(() => null);
+
+  const replay = captured.replay;
+
+  expect(replay.indexOf('normal residue')).toBeGreaterThan(-1);
+  expect(replay.indexOf('\u001B[?1049h')).toBeGreaterThan(replay.indexOf('normal residue'));
+  expect(replay.indexOf('altscreen content')).toBeGreaterThan(replay.indexOf('\u001B[?1049h'));
 });
 
 test('it preserves colors and cursor positioning in the replay', async () => {

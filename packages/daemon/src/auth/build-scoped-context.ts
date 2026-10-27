@@ -194,6 +194,25 @@ export function buildScopedContext(
     },
     attachSession: (client, sessionID, dims) =>
       canSee(sessionID) ? ctx.attachSession(client, sessionID, dims) : 'missing',
+
+    // A session can leave the caller's reach while its replay is captured,
+    // such as when a sub-session on another target joins its tree, so the
+    // reach is checked again before the replay leaves the daemon.
+    watchSession: async (client, sessionID) => {
+      if (!canSee(sessionID)) {
+        return 'missing';
+      }
+
+      const watch = await ctx.watchSession(client, sessionID);
+
+      if (typeof watch === 'object' && !canSee(sessionID)) {
+        ctx.detachSession(client, sessionID);
+
+        return 'missing';
+      }
+
+      return watch;
+    },
     detachSession: (client, sessionID) => {
       if (canSee(sessionID)) {
         ctx.detachSession(client, sessionID);

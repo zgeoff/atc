@@ -1,7 +1,7 @@
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
-import { match } from 'ts-pattern';
+import { P, match } from 'ts-pattern';
 import type { DaemonContext } from '../daemon-context';
 import type { RequestDeps } from './request-deps';
 
@@ -12,6 +12,11 @@ export interface TerminalRequests {
     data: RequestParams<'session.attach'>,
     ctx: DaemonContext,
   ) => DaemonAnswer<'session.attach'>;
+
+  readonly applyWatch: (
+    data: RequestParams<'session.watch'>,
+    ctx: DaemonContext,
+  ) => Promise<DaemonAnswer<'session.watch'>>;
 
   readonly applyInput: (
     data: RequestParams<'session.input'>,
@@ -68,6 +73,22 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
       const dims = ctx.getEffectiveDims(sessionID);
 
       return { cols: dims.cols, rows: dims.rows };
+    },
+
+    applyWatch: async (data, ctx) => {
+      const sessionID = data.session;
+
+      const result = await ctx.watchSession(client, sessionID);
+
+      return match(result)
+        .with('missing', () => {
+          throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+        })
+        .with('dead', () => {
+          throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
+        })
+        .with({ replay: P.string }, (watch) => ({ ...watch }))
+        .exhaustive();
     },
 
     applyInput: (data, ctx) => {

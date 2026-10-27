@@ -924,6 +924,18 @@ export declare const DAEMON_CONTRACT: {
             readOnly: boolean;
             keyed: boolean;
         }> & Record<never, never>>;
+        watch: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+        }, z.core.$strip>, z.ZodObject<{
+            cols: z.ZodNumber;
+            rows: z.ZodNumber;
+            seq: z.ZodNumber;
+            replay: z.ZodString;
+        }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
+            access: "owner" | "principal";
+            readOnly: boolean;
+            keyed: boolean;
+        }> & Record<never, never>>;
         input: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
             data: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
@@ -2926,6 +2938,9 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
     }, z.core.$strip>;
     readonly 'session.detach': z.ZodObject<{
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
+    }, z.core.$strip>;
+    readonly 'session.watch': z.ZodObject<{
         session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;
     }, z.core.$strip>;
     readonly 'session.input': z.ZodObject<{

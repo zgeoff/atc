@@ -34,6 +34,15 @@ interface SessionOutputDeps {
   readonly scheduleDetect: (sessionID: SessionID) => void;
 }
 
+// A watcher's start: the session's size, and its screen as a replay that
+// holds every output up to seq.
+export interface SessionWatch {
+  readonly cols: number;
+  readonly rows: number;
+  readonly seq: number;
+  readonly replay: string;
+}
+
 export interface SessionOutput {
   // The screen model consumes every byte continuously: background output
   // is consumed, not discarded.
@@ -49,6 +58,11 @@ export interface SessionOutput {
     sessionID: SessionID,
     dims: Dims,
   ) => 'ok' | 'missing' | 'dead';
+
+  readonly watchSession: (
+    client: OutputClient,
+    sessionID: SessionID,
+  ) => Promise<SessionWatch | 'missing' | 'dead'>;
 
   readonly detachSession: (client: OutputClient, sessionID: SessionID) => void;
   readonly detachClient: (client: OutputClient) => void;
@@ -73,6 +87,21 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
   const findHookScope = deps.findHookScope;
   const scheduleDetect = deps.scheduleDetect;
   const attachments = createAttachRegistry<OutputClient>();
+
+  // The clients that receive a session's output without counting toward its
+  // size.
+  const watchers = new Map<SessionID, Set<OutputClient>>();
+
+  const removeWatcher = (sessionID: SessionID, client: OutputClient): boolean => {
+    const clients = watchers.get(sessionID);
+    const removed = clients?.delete(client) ?? false;
+
+    if (clients !== undefined && clients.size === 0) {
+      watchers.delete(sessionID);
+    }
+
+    return removed;
+  };
 
   const applyEffectiveDims = (sessionID: SessionID): void => {
     const dims = attachments.findEffectiveDims(sessionID);
@@ -131,7 +160,9 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
   const sendReplay = async (sessionID: SessionID, client: OutputClient): Promise<void> => {
     const runtime = findRuntime(sessionID);
 
-    if (runtime === undefined || runtime.screen === null) {
+    // A watcher takes a fresh start with another watch, since a replay sent
+    // as output carries no boundary it could tell from the live output.
+    if (runtime === undefined || runtime.screen === null || isWatcher(sessionID, client)) {
       return;
     }
 
@@ -148,6 +179,12 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
       );
     }
   };
+
+  const isWatcher = (sessionID: SessionID, client: OutputClient): boolean =>
+    !attachments.hasClient(sessionID, client) && (watchers.get(sessionID)?.has(client) ?? false);
+
+  const getEffectiveDims = (sessionID: SessionID): Dims =>
+    attachments.findEffectiveDims(sessionID) ?? findRuntime(sessionID)?.dims ?? DEFAULT_DIMS;
 
   const scheduleResize = (sessionID: SessionID): void => {
     const runtime = findRuntime(sessionID);
@@ -174,9 +211,12 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
         runtime.lastOutputAt = clock.now();
       }
 
-      const conns = attachments.collectClients(session.id);
+      const conns = new Set([
+        ...attachments.collectClients(session.id),
+        ...(watchers.get(session.id) ?? []),
+      ]);
 
-      if (conns.length === 0) {
+      if (conns.size === 0) {
         return;
       }
 
@@ -237,7 +277,49 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
       return 'ok';
     },
 
+    watchSession: async (client, sessionID) => {
+      const session = manager.sessions.find((x) => x.id === sessionID);
+
+      if (session === undefined) {
+        return 'missing';
+      }
+
+      if (session.pty === null) {
+        return 'dead';
+      }
+
+      manager.requireExecution(session, 'attach');
+
+      // The watcher joins before the capture, so output recorded while the
+      // capture waits reaches it; the seq is read in the step that renders
+      // the replay, so the replay holds exactly what has a seq at or below it.
+      const clients = watchers.get(sessionID) ?? new Set<OutputClient>();
+
+      clients.add(client);
+      watchers.set(sessionID, clients);
+
+      const runtime = findRuntime(sessionID);
+      const screen = runtime?.screen ?? null;
+
+      if (screen === null) {
+        const dims = getEffectiveDims(sessionID);
+
+        return { cols: dims.cols, rows: dims.rows, seq: runtime?.seq ?? 0, replay: '' };
+      }
+
+      const captured = await screen.captureFullReplay(() => runtime?.seq ?? 0);
+
+      return {
+        cols: captured.cols,
+        rows: captured.rows,
+        seq: captured.mark,
+        replay: `${ansi.clear}${captured.replay}`,
+      };
+    },
+
     detachSession: (client, sessionID) => {
+      removeWatcher(sessionID, client);
+
       if (!attachments.removeClient(sessionID, client)) {
         return;
       }
@@ -247,6 +329,10 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
     },
 
     detachClient: (client) => {
+      for (const sessionID of watchers.keys()) {
+        removeWatcher(sessionID, client);
+      }
+
       for (const sessionID of attachments.detachAll(client)) {
         scheduleResize(sessionID);
         emitSessionDetached(sessionID);
@@ -263,13 +349,13 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
       return true;
     },
 
-    getEffectiveDims: (sessionID) =>
-      attachments.findEffectiveDims(sessionID) ?? findRuntime(sessionID)?.dims ?? DEFAULT_DIMS,
+    getEffectiveDims,
 
     scheduleResize,
 
     removeSession: (sessionID) => {
       attachments.removeSession(sessionID);
+      watchers.delete(sessionID);
     },
   };
 }

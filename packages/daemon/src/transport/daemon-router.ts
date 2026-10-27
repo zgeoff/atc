@@ -137,6 +137,9 @@ function createDaemonRouter() {
       attach: os.session.attach.handler((call) =>
         call.context.requests.terminal.applyAttach(call.input, call.context.ctx),
       ),
+      watch: os.session.watch.handler((call) =>
+        call.context.requests.terminal.applyWatch(call.input, call.context.ctx),
+      ),
       detach: os.session.detach.handler((call) => {
         call.context.ctx.detachSession(call.context.requests.client, call.input.session);
 

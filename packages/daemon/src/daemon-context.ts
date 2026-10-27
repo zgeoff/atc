@@ -31,6 +31,7 @@ import type { NoteView } from './sessions/build-note-view';
 import type { Dims } from './sessions/create-attach-registry';
 import type { AnswerResult } from './sessions/create-permission-registry';
 import type { ScreenText } from './sessions/create-screen-model';
+import type { SessionWatch } from './sessions/create-session-output';
 import type { TranscriptPage, TranscriptPosition } from './sessions/load-transcript-page';
 import type { MessageCaller } from './sessions/message-caller';
 import type { ResumeCommand } from './sessions/plan-resume-command';
@@ -340,6 +341,10 @@ export interface DaemonContext {
     sessionID: SessionID,
     dims: Dims,
   ) => 'ok' | 'missing' | 'dead';
+  readonly watchSession: (
+    client: OutputClient,
+    sessionID: SessionID,
+  ) => Promise<SessionWatch | 'missing' | 'dead'>;
   readonly detachSession: (client: OutputClient, sessionID: SessionID) => void;
   readonly detachClient: (client: OutputClient) => void;
   readonly writeSessionInput: (
