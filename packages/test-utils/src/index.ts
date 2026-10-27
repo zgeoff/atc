@@ -77,6 +77,7 @@ export * from './keys';
 export * from './make-trusting-transport';
 export type * from './mock-overrides';
 export * from './open-agent-step';
+export * from './open-pty-viewer';
 export * from './open-repo-step';
 export * from './parse-mcp-tool-result';
 export * from './parse-passkey-page';

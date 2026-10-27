@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
@@ -46,7 +47,14 @@ test('it serves MCP through the daemon it boots and says no client can connect a
 
   await runMCPHTTPServer(
     'atc/test-build',
-    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      allowedOrigins: [],
+    },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
       openAuthDatabase: openMCPAuthDatabase,
@@ -57,6 +65,7 @@ test('it serves MCP through the daemon it boots and says no client can connect a
         host: '127.0.0.1',
         port: 8414,
         allowedHosts: [],
+        allowedOrigins: [],
         trustForwardedFrom: [],
       }),
       dbPath: ctx.dbPath,
@@ -105,7 +114,14 @@ test('it trusts the forwarded address from a proxy the config lists', async () =
 
   await runMCPHTTPServer(
     'atc/test-build',
-    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      allowedOrigins: [],
+    },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
       openAuthDatabase: openMCPAuthDatabase,
@@ -116,6 +132,7 @@ test('it trusts the forwarded address from a proxy the config lists', async () =
         host: '127.0.0.1',
         port: 8414,
         allowedHosts: [],
+        allowedOrigins: [],
         trustForwardedFrom: ['127.0.0.1'],
       }),
       dbPath: ctx.dbPath,
@@ -172,7 +189,14 @@ test('it leaves the forwarded address unverified from a peer the config does not
 
   await runMCPHTTPServer(
     'atc/test-build',
-    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      allowedOrigins: [],
+    },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
       openAuthDatabase: openMCPAuthDatabase,
@@ -183,6 +207,7 @@ test('it leaves the forwarded address unverified from a peer the config does not
         host: '127.0.0.1',
         port: 8414,
         allowedHosts: [],
+        allowedOrigins: [],
         trustForwardedFrom: ['192.0.2.1'],
       }),
       dbPath: ctx.dbPath,
@@ -254,7 +279,14 @@ test('it prints no hint to add a client once one can connect', async () => {
 
   await runMCPHTTPServer(
     'atc/test-build',
-    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      allowedOrigins: [],
+    },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
       openAuthDatabase: openMCPAuthDatabase,
@@ -265,6 +297,7 @@ test('it prints no hint to add a client once one can connect', async () => {
         host: '127.0.0.1',
         port: 8414,
         allowedHosts: [],
+        allowedOrigins: [],
         trustForwardedFrom: [],
       }),
       dbPath: ctx.dbPath,
@@ -319,7 +352,14 @@ test('it prints no hint to enroll a passkey once one is enrolled', async () => {
 
   await runMCPHTTPServer(
     'atc/test-build',
-    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      allowedOrigins: [],
+    },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
       openAuthDatabase: openMCPAuthDatabase,
@@ -330,6 +370,7 @@ test('it prints no hint to enroll a passkey once one is enrolled', async () => {
         host: '127.0.0.1',
         port: 8414,
         allowedHosts: [],
+        allowedOrigins: [],
         trustForwardedFrom: [],
       }),
       dbPath: ctx.dbPath,
@@ -377,7 +418,14 @@ test('it prints nothing to stdout once it serves and each sign-in security event
 
   await runMCPHTTPServer(
     'atc/test-build',
-    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      allowedOrigins: [],
+    },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
       openAuthDatabase: openMCPAuthDatabase,
@@ -388,6 +436,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
         host: '127.0.0.1',
         port: 8414,
         allowedHosts: [],
+        allowedOrigins: [],
         trustForwardedFrom: [],
       }),
       dbPath: ctx.dbPath,
@@ -455,7 +504,14 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
 
   await runMCPHTTPServer(
     'atc/test-build',
-    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      allowedOrigins: [],
+    },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
       openAuthDatabase: openMCPAuthDatabase,
@@ -466,6 +522,7 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
         host: '127.0.0.1',
         port: 8414,
         allowedHosts: [],
+        allowedOrigins: [],
         trustForwardedFrom: [],
       }),
       dbPath: ctx.dbPath,
@@ -504,7 +561,14 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
 
   await runMCPHTTPServer(
     'atc/test-build',
-    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      allowedOrigins: [],
+    },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
       openAuthDatabase: openMCPAuthDatabase,
@@ -515,6 +579,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
         host: '127.0.0.1',
         port: 8414,
         allowedHosts: [],
+        allowedOrigins: [],
         trustForwardedFrom: [],
       }),
       dbPath: ctx.dbPath,
@@ -555,7 +620,14 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
 
   await runMCPHTTPServer(
     'atc/test-build',
-    { host: '127.0.0.1', port: 0, publicURL: null, waitForDaemon: false },
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      allowedOrigins: [],
+    },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
       openAuthDatabase: openMCPAuthDatabase,
@@ -566,6 +638,7 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
         host: '127.0.0.1',
         port: 8414,
         allowedHosts: [],
+        allowedOrigins: [],
         trustForwardedFrom: [],
       }),
       dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
@@ -590,4 +663,67 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
   ]);
 
   expect(codes).toStrictEqual([1]);
+});
+
+test('it exits 1 before it boots a daemon when other users can open its token file', async () => {
+  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const tokenFile = join(temporaryDirectory.path, 'viewer-token');
+  const errors: string[] = [];
+  const codes: number[] = [];
+  const boots: unknown[] = [];
+
+  await Bun.write(tokenFile, 'viewer-secret-4f1c\n');
+
+  chmodSync(tokenFile, 0o644);
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => {
+        boots.push(options);
+
+        return bootDaemonClient(buildMockLifecycleHost(), options);
+      },
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
+      daemonPaths: {
+        socketPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
+        recordFile: join(temporaryDirectory.path, 'daemon.json'),
+        pidFile: join(temporaryDirectory.path, 'atc-daemon.pid'),
+      },
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: (code) => {
+        codes.push(code);
+      },
+      registerSignal: () => {},
+    },
+  );
+
+  expect(errors).toStrictEqual([
+    `atc mcp --http: --token-file: other users can open ${tokenFile} (mode 644); run chmod 600 ${tokenFile}`,
+  ]);
+
+  expect(codes).toStrictEqual([1]);
+  expect(boots).toBeEmpty();
 });

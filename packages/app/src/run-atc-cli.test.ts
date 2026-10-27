@@ -38,7 +38,17 @@ test.each([
   {
     args: ['mcp'],
     run: 'runMCP',
-    with: [{ http: false, host: null, port: null, publicURL: null, waitForDaemon: false }],
+    with: [
+      {
+        http: false,
+        host: null,
+        port: null,
+        publicURL: null,
+        waitForDaemon: false,
+        tokenFile: null,
+        allowedOrigins: [],
+      },
+    ],
   },
   {
     args: [
@@ -50,6 +60,11 @@ test.each([
       '--public-url',
       'https://mcp.example.com',
       '--wait-for-daemon',
+      '--token-file',
+      'viewer-token',
+      '--allowed-origin',
+      'https://panel.example.com',
+      '--allowed-origin=http://localhost:5173',
     ],
     run: 'runMCP',
     with: [
@@ -59,6 +74,8 @@ test.each([
         port: 0,
         publicURL: 'https://mcp.example.com',
         waitForDaemon: true,
+        tokenFile: 'viewer-token',
+        allowedOrigins: ['https://panel.example.com', 'http://localhost:5173'],
       },
     ],
   },

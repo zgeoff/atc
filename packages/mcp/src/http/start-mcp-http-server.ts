@@ -22,10 +22,32 @@ import type { WebhookSender } from '../events/types';
 import { buildPrincipalCaller } from '../tools/build-principal-caller';
 import { createMCPServer } from '../tools/create-mcp-server';
 import type { FleetCaller } from '../tools/types';
+import { answerPTYRequest } from './answer-pty-request';
+import type { PTYRoute } from './answer-pty-request';
 import { createMCPHTTPApp } from './create-mcp-http-app';
 import { createModernMCPHandler } from './create-modern-mcp-handler';
+import type { PTYViewer, WatchChannel } from './create-pty-viewer';
+import { findPTYSessionID } from './find-pty-session-id';
 import { isLoopbackHost } from './is-loopback-host';
 import { normalizePublicURL } from './normalize-public-url';
+import { PTY_PROTOCOL } from './parse-pty-protocols';
+
+interface LiveTerminalOptions {
+  // The origins a browser page may open a session's live terminal from.
+  readonly allowedOrigins: readonly string[];
+
+  // The tokens of the owner's token file, each of which opens a live
+  // terminal as the daemon's owner; empty without one. They need a loopback
+  // bind.
+  readonly ownerTokens: readonly string[];
+
+  // Opens the daemon connection one live-terminal viewer reads.
+  readonly openWatchChannel: (principal: string | null) => Promise<WatchChannel>;
+
+  // How many bytes a viewer's socket may hold unsent before the viewer drops
+  // output; a mebibyte when unset.
+  readonly viewerBufferBytes?: number;
+}
 
 interface MCPHTTPServerOptions {
   readonly caller: FleetCaller;
@@ -69,6 +91,10 @@ interface MCPHTTPServerOptions {
   // Posts MCP Events webhooks; a sender that reaches only public addresses
   // over https when unset.
   readonly sendWebhook?: WebhookSender;
+
+  // Serves each session's live terminal over a WebSocket; without it, the
+  // server answers that path as it answers any unknown one.
+  readonly liveTerminals?: LiveTerminalOptions;
 }
 
 export interface MCPHTTPServer {
@@ -88,6 +114,10 @@ interface RPCLabel {
   readonly method: string;
   readonly tool: string | null;
 }
+
+// How many bytes a live-terminal socket holds unsent before its viewer drops
+// output for a fresh snapshot: a few full screens.
+const VIEWER_BUFFER_BYTES = 1_048_576;
 
 // A callback that holds a post open past this fails it, so one slow endpoint
 // cannot hold its watcher.
@@ -109,6 +139,18 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   ) {
     throw new Error(
       `listening on '${options.host}' reaches beyond this machine, so it needs an https public URL served by a TLS-terminating proxy or tunnel`,
+    );
+  }
+
+  const liveTerminals = options.liveTerminals ?? null;
+
+  if (
+    liveTerminals !== null &&
+    liveTerminals.ownerTokens.length > 0 &&
+    !isLoopbackHost(options.host)
+  ) {
+    throw new Error(
+      `a token file opens live terminals as the owner, so it needs a loopback bind, not '${options.host}'`,
     );
   }
 
@@ -147,8 +189,27 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   // request line.
   const labels = new WeakMap<Request, RPCLabel | null>();
 
-  const answerRequest = async (request: Request): Promise<Response> => {
+  const answerRequest = async (request: Request): Promise<Response | undefined> => {
     const startedAt = performance.now();
+    const ptySessionID = findPTYSessionID(new URL(request.url).pathname);
+
+    if (ptySessionID !== null && ptyRoute !== null) {
+      const answered = await answerPTYRequest(ptyRoute, holder.ctx, {
+        request,
+        sessionID: ptySessionID,
+        upgrade: (viewer) =>
+          server.upgrade(request, {
+            data: viewer,
+            headers: { 'sec-websocket-protocol': PTY_PROTOCOL },
+          }),
+      });
+
+      options.printRequest(
+        formatRequestLine(request, null, answered?.status ?? 101, performance.now() - startedAt),
+      );
+
+      return answered;
+    }
 
     // Bun runs a request's fetch on a later turn than the one that bound the
     // port, and that turn builds the app.
@@ -165,7 +226,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     return response;
   };
 
-  const server: Server<undefined> = Bun.serve({
+  const server: Server<PTYViewer> = Bun.serve({
     hostname: options.host,
     port: options.port,
 
@@ -173,19 +234,56 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     idleTimeout: 60,
     maxRequestBodySize: MAX_LINE,
     fetch: answerRequest,
+    websocket: {
+      // A viewer takes no input, so a frame from the browser ends nothing
+      // and does nothing.
+      message: () => {},
+      open: (socket) => {
+        socket.data.open({
+          send: (frame) => {
+            socket.send(frame);
+          },
+          getBufferedAmount: () => socket.getBufferedAmount(),
+          close: (code, reason) => {
+            socket.close(code, reason);
+          },
+        });
+      },
+      drain: (socket) => {
+        socket.data.drain();
+      },
+      close: (socket) => {
+        socket.data.close();
+      },
+    },
   });
 
   const port = server.port ?? options.port;
   const local = `http://127.0.0.1:${port}`;
   const origin = publicOrigin ?? local;
 
+  const hosts: ReadonlySet<string> = new Set([
+    new URL(origin).host,
+    `127.0.0.1:${port}`,
+    `localhost:${port}`,
+    ...options.allowedHosts,
+  ]);
+
+  const ptyRoute: PTYRoute | null =
+    liveTerminals === null
+      ? null
+      : {
+          hosts,
+          allowedOrigins: new Set(liveTerminals.allowedOrigins),
+          ownerTokens: liveTerminals.ownerTokens,
+          maxBufferedBytes: liveTerminals.viewerBufferBytes ?? VIEWER_BUFFER_BYTES,
+          openWatchChannel: liveTerminals.openWatchChannel,
+          readRequester,
+          security,
+        };
+
   holder.app = createMCPHTTPApp({
-    hosts: new Set([
-      new URL(origin).host,
-      `127.0.0.1:${port}`,
-      `localhost:${port}`,
-      ...options.allowedHosts,
-    ]),
+    hosts,
     origins: new Set([origin, local, `http://localhost:${port}`]),
     probes: options.probes === true,
     readContext: () => holder.ctx,

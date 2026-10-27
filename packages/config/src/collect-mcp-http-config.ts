@@ -13,6 +13,9 @@ export interface MCPHTTPConfig {
 
   // The proxy addresses whose forwarded client address atc trusts.
   readonly trustForwardedFrom: readonly string[];
+
+  // The origins a browser page may open a session's live terminal from.
+  readonly allowedOrigins: readonly string[];
 }
 
 export function collectMCPHTTPConfig(raw: unknown): MCPHTTPConfig {
@@ -23,6 +26,7 @@ export function collectMCPHTTPConfig(raw: unknown): MCPHTTPConfig {
       port: 8414,
       allowedHosts: [],
       trustForwardedFrom: [],
+      allowedOrigins: [],
     };
   }
 
@@ -39,6 +43,7 @@ export function collectMCPHTTPConfig(raw: unknown): MCPHTTPConfig {
         : 8414,
     allowedHosts: collectStrings(raw['allowedHosts']),
     trustForwardedFrom: collectStrings(raw['trustForwardedFrom']),
+    allowedOrigins: collectStrings(raw['allowedOrigins']),
   };
 }
 
