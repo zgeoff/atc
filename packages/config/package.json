@@ -12,6 +12,7 @@
     "@atc/core": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@atcx/contract": "workspace:*",
+    "tiny-invariant": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

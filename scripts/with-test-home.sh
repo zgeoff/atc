@@ -25,6 +25,10 @@ trap 'rm -rf "$root"' EXIT
 mkdir -p "$root/home" "$root/runtime"
 chmod 700 "$root/runtime"
 
+# atc refuses a listener token file that other users can open, so every file a
+# test writes starts owner-only, as a token file on a real host does.
+umask 077
+
 export HOME="$root/home"
 export XDG_RUNTIME_DIR="$root/runtime"
 export XDG_CONFIG_HOME="$root/home/.config"

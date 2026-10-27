@@ -19,7 +19,8 @@ test('it packs files that tar unpacks with their content, parent directories, an
     { path: 'bridge/hooks/register.ts', content: 'x'.repeat(1000) },
   ]);
 
-  const subprocess = Bun.spawn(['tar', '-x', '-f', '-', '-C', ctx.directory], {
+  // Without -p, tar run by a user other than root masks each mode with the umask.
+  const subprocess = Bun.spawn(['tar', '-x', '-p', '-f', '-', '-C', ctx.directory], {
     stdin: archive,
     stdout: 'ignore',
     stderr: 'pipe',

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, rename, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, rename, writeFile } from 'node:fs/promises';
 import { posix } from 'node:path';
 import { registerTestCleanup } from '@atc/test-utils';
 import { buildImpdRefusal } from '../build-impd-refusal';
@@ -273,6 +273,7 @@ export function createStubImpPort(
 
       await mkdir(posix.dirname(target), { recursive: true });
       await writeFile(staged, content, { mode: 0o444, flag: 'wx' });
+      await chmod(staged, 0o444);
       await rename(staged, target);
 
       const written: ImpdOutput<'files.write'> = { path: target };

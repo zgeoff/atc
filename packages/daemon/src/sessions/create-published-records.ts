@@ -192,6 +192,7 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
       await mkdir(directory, { recursive: true, mode: 0o700 });
       await chmod(directory, 0o700);
       await writeFile(staged, content, { mode: 0o444, flag: 'wx' });
+      await chmod(staged, 0o444);
       await rename(staged, path);
 
       return path;

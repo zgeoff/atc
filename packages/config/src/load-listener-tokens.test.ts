@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
 import { loadListenerTokens } from './load-listener-tokens';
@@ -67,5 +67,32 @@ test('it refuses a third token', () => {
   expect(loadListenerTokens(path)).toStrictEqual({
     ok: false,
     reason: `${path} holds 3 lines; it takes one or two tokens`,
+  });
+});
+
+test('it loads a token file only its owner can open', () => {
+  const ctx = setupTest();
+  const path = join(ctx.directory, 'gateway-token');
+
+  writeFileSync(path, `${'a'.repeat(32)}\n`);
+  chmodSync(path, 0o600);
+
+  expect(loadListenerTokens(path)).toStrictEqual({ ok: true, tokens: ['a'.repeat(32)] });
+});
+
+test.each([
+  ['its group can read', 0o640, '640'],
+  ['any user can read', 0o644, '644'],
+  ['its group can write', 0o620, '620'],
+])('it refuses a token file %s and names the fix', (_label, mode, shown) => {
+  const ctx = setupTest();
+  const path = join(ctx.directory, 'gateway-token');
+
+  writeFileSync(path, `${'a'.repeat(32)}\n`);
+  chmodSync(path, mode);
+
+  expect(loadListenerTokens(path)).toStrictEqual({
+    ok: false,
+    reason: `other users can open ${path} (mode ${shown}); run chmod 600 ${path}`,
   });
 });

@@ -15,8 +15,10 @@ atc daemon --listen <tailnet_address>:8415 --token-file ~/.config/atc/daemon-tok
 `--listen` takes only a loopback address or a tailnet address, written as an IP literal, such as
 `100.64.0.7:8415` or `[fd7a:115c:a1e4::7]:8415`. Port `0` takes a free port, and `daemon.json` in
 the state directory holds the port the listener bound. The token file holds one or two tokens, one
-per line, each at least 32 bytes. Under systemd, supply the file with `LoadCredential=` and point
-`--token-file` at `$CREDENTIALS_DIRECTORY/<credential_name>`.
+per line, each at least 32 bytes. Make the file yours and private with `chmod 600 <token_file>`: the
+daemon refuses to start with a file that its group or any other user can open. Under systemd, supply
+the file with `LoadCredential=` and point `--token-file` at
+`$CREDENTIALS_DIRECTORY/<credential_name>`.
 
 Run `atc daemon id` on the daemon's host to print its daemon ID for the registry.
 
