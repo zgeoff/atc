@@ -96,20 +96,20 @@ export async function answerPTYRequest(
     return refuse(401, { kind: 'bearer', reason: 'malformed' });
   }
 
-  const principal = await resolvePrincipal(route, ctx, protocols.token);
+  const resolved = await resolvePrincipal(route, ctx, protocols.token);
 
-  if (principal === 'refused') {
+  if (resolved.kind === 'refused') {
     return refuse(401, { kind: 'bearer', reason: 'invalid_token' });
   }
 
-  if (principal === 'no_read') {
+  if (resolved.kind === 'no_read') {
     return new Response(null, { status: 403 });
   }
 
   let channel: WatchChannel;
 
   try {
-    channel = await route.openWatchChannel(principal);
+    channel = await route.openWatchChannel(resolved.principal);
   } catch {
     return new Response(null, { status: 503 });
   }
@@ -150,24 +150,32 @@ export async function answerPTYRequest(
   return undefined;
 }
 
+// The principal a token acts as, where null is the daemon's owner.
+type ResolvedPrincipal =
+  | { readonly kind: 'principal'; readonly principal: string | null }
+  | { readonly kind: 'refused' }
+  | { readonly kind: 'no_read' };
+
 // A token from the owner's token file acts as the owner; any other is an
 // OAuth access token, which needs the read scope to watch.
 async function resolvePrincipal(
   route: PTYRoute,
   ctx: HTTPServerContext,
   token: string,
-): Promise<string | null | 'refused' | 'no_read'> {
+): Promise<ResolvedPrincipal> {
   if (route.ownerTokens.some((ownerToken) => isSameToken(ownerToken, token))) {
-    return null;
+    return { kind: 'principal', principal: null };
   }
 
   const access = await verifyAccessToken(ctx, token);
 
   if (access === null) {
-    return 'refused';
+    return { kind: 'refused' };
   }
 
-  return access.scopes.includes('read') ? access.clientID : 'no_read';
+  return access.scopes.includes('read')
+    ? { kind: 'principal', principal: access.clientID }
+    : { kind: 'no_read' };
 }
 
 // The digests have one length, so the comparison takes the same time

@@ -11,7 +11,7 @@ function setupTest() {
     onEvent: () => {},
     onClose: () => {},
     sendRequest,
-    stop: mock(),
+    stop: mock<WatchChannel['stop']>(),
   };
 
   const socket = {
