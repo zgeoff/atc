@@ -1,7 +1,7 @@
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
-import { match } from 'ts-pattern';
+import { P, match } from 'ts-pattern';
 import type { DaemonContext } from '../daemon-context';
 import type { RequestDeps } from './request-deps';
 
@@ -80,15 +80,15 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
 
       const result = await ctx.watchSession(client, sessionID);
 
-      if (result === 'missing') {
-        throw new DaemonError('no_such_session', `no session '${sessionID}'`);
-      }
-
-      if (result === 'dead') {
-        throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
-      }
-
-      return { ...result };
+      return match(result)
+        .with('missing', () => {
+          throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+        })
+        .with('dead', () => {
+          throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
+        })
+        .with({ replay: P.string }, (watch) => ({ ...watch }))
+        .exhaustive();
     },
 
     applyInput: (data, ctx) => {
