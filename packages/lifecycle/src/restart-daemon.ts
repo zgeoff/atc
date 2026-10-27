@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { loadListenerTokens } from '@atc/config';
+import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
 import { readStoredFleetFile } from '@atc/store';
 import type { RestartResult } from '@atcx/contract';
 import { buildRestartFailure } from './build-restart-failure';
@@ -91,7 +91,10 @@ export async function restartDaemon(
     }
 
     if (listen !== null && tokenFile !== null) {
-      const loaded = loadListenerTokens(resolve(old.cwd ?? process.cwd(), tokenFile));
+      const loaded = loadListenerTokens(
+        resolve(old.cwd ?? process.cwd(), tokenFile),
+        NODE_TOKEN_FILE_ACCESS,
+      );
 
       if (!loaded.ok) {
         return buildFailure(`${loaded.reason}; the daemon was left running`);
