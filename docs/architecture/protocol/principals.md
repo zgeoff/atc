@@ -87,12 +87,14 @@ on the network for encryption: it binds only a loopback address or an address in
 ranges, written as an IP literal, and refuses every other address and every host name. The
 listener's bearer token is the gate, and it applies no source-address allow-list.
 
-The token file holds one or two tokens, so a token can rotate without downtime. The daemon compares
-digests of the presented token against each one in constant time. A wrong or missing token gets
-`unauthorized` and a closed connection, so a peer without a token learns neither the build nor the
-protocol version. Reloading the file, on `SIGHUP`, closes every connection whose token the file no
-longer holds, so a removed token stops working on open connections too. A reload of an invalid file
-fails closed: the daemon drops every token and refuses every handshake until a reload succeeds.
+The token file holds one or two tokens, so a token can rotate without downtime. The daemon loads the
+file only when the daemon's own user owns it and no other user can open it, because anyone who reads
+a token can act as the listener's clients. The daemon compares digests of the presented token
+against each one in constant time. A wrong or missing token gets `unauthorized` and a closed
+connection, so a peer without a token learns neither the build nor the protocol version. Reloading
+the file, on `SIGHUP`, closes every connection whose token the file no longer holds, so a removed
+token stops working on open connections too. A reload of an invalid file fails closed: the daemon
+drops every token and refuses every handshake until a reload succeeds.
 
 Until its handshake passes, a TCP connection gets nothing but the answer to that one handshake. Any
 other line, a malformed or oversized one, or a second line sent while the handshake is still being

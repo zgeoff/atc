@@ -21,6 +21,7 @@ export * from './legacy-agent-keys';
 export * from './load-listener-tokens';
 export * from './load-mcp-http-config';
 export * from './local-target';
+export * from './node-token-file-access';
 export * from './parse-restore-boot-timeout-ms';
 export * from './removed-config-keys';
 export * from './resolve-auth-profiles';

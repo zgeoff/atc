@@ -1,6 +1,11 @@
 import { unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { DEFAULT_GIT_TRANSPORTS, LOCAL_TARGET, loadListenerTokens } from '@atc/config';
+import {
+  DEFAULT_GIT_TRANSPORTS,
+  LOCAL_TARGET,
+  NODE_TOKEN_FILE_ACCESS,
+  loadListenerTokens,
+} from '@atc/config';
 import { systemClock } from '@atc/core';
 import { claimDaemonLock, readDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
 import { PROTOCOL_V } from '@atc/protocol/wire';
@@ -96,7 +101,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // The listener's address and tokens are checked before the daemon takes
   // anything, so a refused listener leaves no state behind.
-  const listenTokens = opts.listen === undefined ? null : requireListenTokens(opts.listen);
+  const listenTokens =
+    opts.listen === undefined ? null : requireListenTokens(opts.listen, NODE_TOKEN_FILE_ACCESS);
 
   // One daemon per state directory: the lock comes before the store, the
   // sockets, or the fleet, so a second daemon touches none of them.
@@ -489,7 +495,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       return;
     }
 
-    const loaded = loadListenerTokens(opts.listen.tokenFile);
+    const loaded = loadListenerTokens(opts.listen.tokenFile, NODE_TOKEN_FILE_ACCESS);
 
     if (loaded.ok) {
       tcpListener.setTokens(loaded.tokens);

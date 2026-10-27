@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { chmodSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
 import { loadListenerTokens } from './load-listener-tokens';
+import { NODE_TOKEN_FILE_ACCESS } from './node-token-file-access';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-listener-tokens-');
@@ -16,7 +17,10 @@ test('it loads one token with a final newline', () => {
 
   writeFileSync(path, `${'a'.repeat(32)}\n`);
 
-  expect(loadListenerTokens(path)).toStrictEqual({ ok: true, tokens: ['a'.repeat(32)] });
+  expect(loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS)).toStrictEqual({
+    ok: true,
+    tokens: ['a'.repeat(32)],
+  });
 });
 
 test('it loads two tokens and trims the whitespace around each', () => {
@@ -25,7 +29,7 @@ test('it loads two tokens and trims the whitespace around each', () => {
 
   writeFileSync(path, `${'a'.repeat(32)}\r\n  ${'b'.repeat(48)}  `);
 
-  expect(loadListenerTokens(path)).toStrictEqual({
+  expect(loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS)).toStrictEqual({
     ok: true,
     tokens: ['a'.repeat(32), 'b'.repeat(48)],
   });
@@ -35,7 +39,7 @@ test('it refuses a file that does not exist', () => {
   const ctx = setupTest();
   const path = join(ctx.directory, 'missing');
 
-  expect(loadListenerTokens(path)).toStrictEqual({
+  expect(loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS)).toStrictEqual({
     ok: false,
     reason: expect.toStartWith(`cannot read ${path}:`),
   });
@@ -52,7 +56,7 @@ test.each([
 
   writeFileSync(path, content);
 
-  expect(loadListenerTokens(path)).toStrictEqual({
+  expect(loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS)).toStrictEqual({
     ok: false,
     reason: `${path} holds a token under 32 bytes or a blank line`,
   });
@@ -64,8 +68,55 @@ test('it refuses a third token', () => {
 
   writeFileSync(path, `${'a'.repeat(32)}\n${'b'.repeat(32)}\n${'c'.repeat(32)}\n`);
 
-  expect(loadListenerTokens(path)).toStrictEqual({
+  expect(loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS)).toStrictEqual({
     ok: false,
     reason: `${path} holds 3 lines; it takes one or two tokens`,
+  });
+});
+
+test('it loads a token file only its owner can open', () => {
+  const ctx = setupTest();
+  const path = join(ctx.directory, 'gateway-token');
+
+  writeFileSync(path, `${'a'.repeat(32)}\n`);
+  chmodSync(path, 0o600);
+
+  expect(loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS)).toStrictEqual({
+    ok: true,
+    tokens: ['a'.repeat(32)],
+  });
+});
+
+test('it refuses an owner-only token file that another user owns and names the fix', () => {
+  const ctx = setupTest();
+  const path = join(ctx.directory, 'gateway-token');
+
+  writeFileSync(path, `${'a'.repeat(32)}\n`);
+  chmodSync(path, 0o600);
+
+  const otherUserID = statSync(path).uid + 1;
+
+  expect(
+    loadListenerTokens(path, { ...NODE_TOKEN_FILE_ACCESS, readUserID: () => otherUserID }),
+  ).toStrictEqual({
+    ok: false,
+    reason: `${path} belongs to another user; give it to this user, then run chmod 600 ${path}`,
+  });
+});
+
+test.each([
+  ['its group can read', 0o640, '640'],
+  ['any user can read', 0o644, '644'],
+  ['its group can write', 0o620, '620'],
+])('it refuses a token file %s and names the fix', (_label, mode, shown) => {
+  const ctx = setupTest();
+  const path = join(ctx.directory, 'gateway-token');
+
+  writeFileSync(path, `${'a'.repeat(32)}\n`);
+  chmodSync(path, mode);
+
+  expect(loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS)).toStrictEqual({
+    ok: false,
+    reason: `other users can open ${path} (mode ${shown}); run chmod 600 ${path}`,
   });
 });
