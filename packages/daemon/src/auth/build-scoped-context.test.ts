@@ -1,5 +1,7 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { toSessionID } from '@atcx/contract';
+import type { DaemonContext, OutputClient } from '../daemon-context';
+import type { SessionWatch } from '../sessions/create-session-output';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetAccessFromGrants } from './build-target-access-from-grants';
@@ -43,6 +45,28 @@ test('it reads no menu of a session outside the access', () => {
   const scoped = buildScopedContext(ctx, buildTargetAccessFromGrants([]), 'principal-a');
 
   expect(scoped.readSessionMenu(toSessionID('s-hidden'))).resolves.toBe('missing');
+});
+
+test('it refuses a watch whose session leaves the access while its replay is captured, and ends the watch', () => {
+  const reply = Promise.withResolvers<SessionWatch>();
+  const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
+  const detachSession = mock<DaemonContext['detachSession']>();
+
+  const ctx = buildStubDaemonContext({
+    canSeeSession,
+    watchSession: () => reply.promise,
+    detachSession,
+  });
+
+  const scoped = buildScopedContext(ctx, buildTargetAccessFromGrants([]), 'principal-a');
+  const client = { sendOutput: mock<OutputClient['sendOutput']>() };
+  const watched = scoped.watchSession(client, toSessionID('s-parent'));
+
+  canSeeSession.mockReturnValue(false);
+  reply.resolve({ cols: 80, rows: 24, seq: 3, replay: 'sub-session output' });
+
+  expect(watched).resolves.toBe('missing');
+  expect(detachSession).toHaveBeenCalledExactlyOnceWith(client, toSessionID('s-parent'));
 });
 
 test('it applies no menu choice in a session outside the access', () => {
