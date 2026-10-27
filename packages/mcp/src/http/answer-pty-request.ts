@@ -1,14 +1,15 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { DaemonError } from '@atc/protocol/wire';
 import type { DaemonEvent } from '@atcx/contract';
-import { SESSION_DESCRIPTOR_SCHEMA } from '@atcx/contract';
-import { z } from 'zod';
+import invariant from 'tiny-invariant';
 import type { HTTPServerContext, Requester, SecurityEvent } from '../auth/types';
+import { probeReadAccess } from '../events/probe-read-access';
 import { createPTYViewer } from './create-pty-viewer';
 import type { PTYSnapshot, PTYViewer, WatchChannel } from './create-pty-viewer';
-import { parsePTYProtocols } from './parse-pty-protocols';
+import { pickPTYAdmission } from './pick-pty-admission';
+import type { PTYRefusalOutcome } from './pick-pty-admission';
+import { pickPTYPrincipal } from './pick-pty-principal';
+import { pickSnapshotStatus } from './pick-snapshot-status';
 import { verifyAccessToken } from './verify-access-token';
-import { WATCH_ANSWER_SCHEMA } from './watch-answer-schema';
 
 // What the live-terminal route needs beyond the routes' context.
 export interface PTYRoute {
@@ -25,6 +26,10 @@ export interface PTYRoute {
   // How many bytes a viewer's socket may hold unsent before it drops output.
   readonly maxBufferedBytes: number;
 
+  // How often a viewer that watches as an OAuth client checks that its
+  // client may still read.
+  readonly accessRecheckMs: number;
+
   // Opens a daemon connection of the viewer's own, handshaken as the
   // principal; null is the daemon's owner.
   readonly openWatchChannel: (principal: string | null) => Promise<WatchChannel>;
@@ -40,70 +45,60 @@ interface PTYRequest {
   readonly upgrade: (viewer: PTYViewer) => boolean;
 }
 
-type RefusalOutcome =
-  | { readonly kind: 'authorize_invalid'; readonly reason: 'bad_host' | 'bad_origin' }
-  | { readonly kind: 'bearer'; readonly reason: 'malformed' | 'invalid_token' };
-
 // Every refusal comes before the upgrade, so a browser that may not watch
-// the session never gets a socket. A session the caller cannot see answers
-// 404, as one that does not exist does.
+// the session never gets a socket.
 export async function answerPTYRequest(
   route: PTYRoute,
   ctx: HTTPServerContext | null,
   pty: PTYRequest,
 ): Promise<Response | undefined> {
   const request = pty.request;
-  const host = request.headers.get('host');
 
-  const refuse = (status: number, outcome: RefusalOutcome): Response => {
-    route.security.record({
-      ...outcome,
-      outcome: 'rejected',
-      path: new URL(request.url).pathname,
-      requester: route.readRequester(request),
-    });
+  const refuse = (status: number, outcome: PTYRefusalOutcome | null): Response => {
+    if (outcome !== null) {
+      route.security.record({
+        ...outcome,
+        outcome: 'rejected',
+        path: new URL(request.url).pathname,
+        requester: route.readRequester(request),
+      });
+    }
 
     return new Response(null, { status });
   };
 
-  if (host === null || !route.hosts.has(host)) {
-    return refuse(403, { kind: 'authorize_invalid', reason: 'bad_host' });
+  const admission = pickPTYAdmission(
+    {
+      host: request.headers.get('host'),
+      upgrade: request.headers.get('upgrade'),
+      origin: request.headers.get('origin'),
+      protocols: request.headers.get('sec-websocket-protocol'),
+      isServing: ctx !== null,
+    },
+    route,
+  );
+
+  if (admission.kind === 'refuse') {
+    return refuse(admission.status, admission.outcome);
   }
 
-  if (ctx === null) {
-    return new Response(null, { status: 503 });
-  }
-
-  if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') {
+  if (admission.kind === 'upgrade_required') {
     return new Response(null, { status: 426, headers: { upgrade: 'websocket' } });
   }
 
-  // A request with no Origin header comes from no browser page, so only the
-  // bearer token gates it.
-  const origin = request.headers.get('origin');
+  invariant(ctx, 'an admission passed a request the server cannot serve yet');
 
-  if (origin !== null && !route.allowedOrigins.has(origin)) {
-    return refuse(403, { kind: 'authorize_invalid', reason: 'bad_origin' });
-  }
-
-  const protocols = parsePTYProtocols(request.headers.get('sec-websocket-protocol'));
-
-  if (!protocols.ok && protocols.reason === 'no_protocol') {
-    return new Response(null, { status: 400 });
-  }
-
-  if (!protocols.ok) {
-    return refuse(401, { kind: 'bearer', reason: 'malformed' });
-  }
-
-  const resolved = await resolvePrincipal(route, ctx, protocols.token);
+  const token = admission.token;
+  const isOwnerToken = route.ownerTokens.some((ownerToken) => isSameToken(ownerToken, token));
+  const access = isOwnerToken ? null : await verifyAccessToken(ctx, token);
+  const resolved = pickPTYPrincipal({ isOwnerToken, access });
 
   if (resolved.kind === 'refused') {
     return refuse(401, { kind: 'bearer', reason: 'invalid_token' });
   }
 
   if (resolved.kind === 'no_read') {
-    return new Response(null, { status: 403 });
+    return refuse(403, null);
   }
 
   let channel: WatchChannel;
@@ -122,19 +117,31 @@ export async function answerPTYRequest(
     early.push(event);
   };
 
-  const snapshot = await readSnapshot(channel, pty.sessionID);
+  let snapshot: PTYSnapshot;
 
-  if (typeof snapshot === 'number') {
+  try {
+    snapshot = await readSnapshot(channel, pty.sessionID);
+  } catch (error) {
     channel.stop();
 
-    return new Response(null, { status: snapshot });
+    return new Response(null, { status: pickSnapshotStatus(error) });
   }
+
+  const clientID = resolved.principal;
 
   const viewer = createPTYViewer({
     sessionID: pty.sessionID,
     channel,
     first: snapshot,
     maxBufferedBytes: route.maxBufferedBytes,
+    access:
+      clientID === null
+        ? null
+        : {
+            probe: () => probeReadAccess(ctx.store.db, clientID, ctx.clock.now()),
+            clock: ctx.clock,
+            recheckMs: route.accessRecheckMs,
+          },
   });
 
   for (const event of early) {
@@ -150,34 +157,6 @@ export async function answerPTYRequest(
   return undefined;
 }
 
-// The principal a token acts as, where null is the daemon's owner.
-type ResolvedPrincipal =
-  | { readonly kind: 'principal'; readonly principal: string | null }
-  | { readonly kind: 'refused' }
-  | { readonly kind: 'no_read' };
-
-// A token from the owner's token file acts as the owner; any other is an
-// OAuth access token, which needs the read scope to watch.
-async function resolvePrincipal(
-  route: PTYRoute,
-  ctx: HTTPServerContext,
-  token: string,
-): Promise<ResolvedPrincipal> {
-  if (route.ownerTokens.some((ownerToken) => isSameToken(ownerToken, token))) {
-    return { kind: 'principal', principal: null };
-  }
-
-  const access = await verifyAccessToken(ctx, token);
-
-  if (access === null) {
-    return { kind: 'refused' };
-  }
-
-  return access.scopes.includes('read')
-    ? { kind: 'principal', principal: access.clientID }
-    : { kind: 'no_read' };
-}
-
 // The digests have one length, so the comparison takes the same time
 // whatever the presented token holds.
 function isSameToken(expected: string, presented: string): boolean {
@@ -187,31 +166,9 @@ function isSameToken(expected: string, presented: string): boolean {
   return timingSafeEqual(expectedDigest, presentedDigest);
 }
 
-const GET_ANSWER_SCHEMA = z.object({
-  session: SESSION_DESCRIPTOR_SCHEMA.pick({ state: true }),
-});
+async function readSnapshot(channel: WatchChannel, sessionID: string): Promise<PTYSnapshot> {
+  const got = await channel.procedures.session.get({ session: sessionID });
+  const watched = await channel.procedures.session.watch({ session: sessionID });
 
-// The snapshot, or the status a refusal answers with.
-async function readSnapshot(
-  channel: WatchChannel,
-  sessionID: string,
-): Promise<PTYSnapshot | number> {
-  try {
-    const got = await channel.sendRequest('session.get', { session: sessionID });
-    const watched = await channel.sendRequest('session.watch', { session: sessionID });
-
-    const state = GET_ANSWER_SCHEMA.parse(got).session.state;
-
-    return { ...WATCH_ANSWER_SCHEMA.parse(watched), state };
-  } catch (error) {
-    if (error instanceof DaemonError && error.code === 'no_such_session') {
-      return 404;
-    }
-
-    if (error instanceof DaemonError && error.code === 'session_dead') {
-      return 409;
-    }
-
-    return 503;
-  }
+  return { ...watched, state: got.session.state };
 }

@@ -1,12 +1,19 @@
 import { expect, test } from 'bun:test';
 import { chmodSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
 import { openMCPAuth } from '@atc/mcp';
-import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { openDaemonClient } from '@atc/protocol/client';
+import {
+  buildMockAgentAdapter,
+  openPTYViewer,
+  registerTestCleanup,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { runMCPHTTPServer } from './mcp-http-server';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
@@ -673,6 +680,95 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
   ]);
 
   expect(codes).toStrictEqual([1]);
+});
+
+test('it streams a snapshot to a viewer that presents the token from its owner-only token file', async () => {
+  const ctx = await setupTest();
+
+  const tokenFile = join(dirname(ctx.dbPath), 'viewer-token');
+  const ownerToken = 'viewer-secret-4f1c-8a2d-6b9e-3c7f-0d5a';
+  const printed: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await Bun.write(tokenFile, `${ownerToken}\n`);
+
+  chmodSync(tokenFile, 0o600);
+
+  const client = await openDaemonClient(ctx.daemonPaths.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test-build', {});
+
+  const spawned = await client.procedures.session.spawn({
+    cwd: dirname(ctx.dbPath),
+    cols: 80,
+    rows: 24,
+  });
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  const viewer = await openPTYViewer(`ws://127.0.0.1:${port}/sessions/${spawned.session.id}/pty`, {
+    token: ownerToken,
+  });
+
+  await waitFor(() => {
+    expect(viewer.frames).toHaveLength(1);
+  });
+
+  expect(viewer.frames).toStrictEqual([
+    {
+      kind: 'control',
+      frame: expect.objectContaining({ type: 'snapshot', cols: 80, rows: 24, state: 'running' }),
+    },
+  ]);
 });
 
 test('it exits 1 before it boots a daemon when other users can open its token file', async () => {

@@ -1,16 +1,18 @@
 import { expect, mock, test } from 'bun:test';
-import { buildMockSessionDescriptor, waitFor } from '@atc/test-utils';
+import { buildMockSessionDescriptor, buildStubClock, waitFor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { createPTYViewer } from './create-pty-viewer';
 import type { PTYSocket, WatchChannel } from './create-pty-viewer';
 
 function setupTest() {
-  const sendRequest = mock<WatchChannel['sendRequest']>();
+  const watch = mock<WatchChannel['procedures']['session']['watch']>();
 
   const channel: WatchChannel = {
     onEvent: () => {},
     onClose: () => {},
-    sendRequest,
+    procedures: {
+      session: { watch, get: mock<WatchChannel['procedures']['session']['get']>() },
+    },
     stop: mock<WatchChannel['stop']>(),
   };
 
@@ -20,7 +22,7 @@ function setupTest() {
     close: mock<PTYSocket['close']>(),
   };
 
-  return { channel, sendRequest, socket };
+  return { channel, watch, socket };
 }
 
 test('it sends the first snapshot, then the output above its sequence as binary frames', () => {
@@ -31,6 +33,7 @@ test('it sends the first snapshot, then the output above its sequence as binary 
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 4, replay: 'screen', state: 'running' },
     maxBufferedBytes: 1024,
+    access: null,
   });
 
   ctx.channel.onEvent({ ev: 'SessionOutput', sessionID: 's-1', seq: 4, data: 'already shown' });
@@ -58,13 +61,14 @@ test('it sends the first snapshot, then the output above its sequence as binary 
 test('it takes a fresh snapshot when the output skips a sequence number', async () => {
   const ctx = setupTest();
 
-  ctx.sendRequest.mockResolvedValue({ cols: 80, rows: 24, seq: 9, replay: 'repainted' });
+  ctx.watch.mockResolvedValue({ cols: 80, rows: 24, seq: 9, replay: 'repainted' });
 
   const viewer = createPTYViewer({
     sessionID: 's-1',
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 1, replay: 'screen', state: 'running' },
     maxBufferedBytes: 1024,
+    access: null,
   });
 
   viewer.open(ctx.socket);
@@ -83,19 +87,20 @@ test('it takes a fresh snapshot when the output skips a sequence number', async 
     );
   });
 
-  expect(ctx.sendRequest).toHaveBeenCalledExactlyOnceWith('session.watch', { session: 's-1' });
+  expect(ctx.watch).toHaveBeenCalledExactlyOnceWith({ session: 's-1' });
 });
 
 test('it drops output while the socket holds too much, and takes a fresh snapshot once it drains', async () => {
   const ctx = setupTest();
 
-  ctx.sendRequest.mockResolvedValue({ cols: 80, rows: 24, seq: 3, replay: 'caught up' });
+  ctx.watch.mockResolvedValue({ cols: 80, rows: 24, seq: 3, replay: 'caught up' });
 
   const viewer = createPTYViewer({
     sessionID: 's-1',
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
     maxBufferedBytes: 1024,
+    access: null,
   });
 
   viewer.open(ctx.socket);
@@ -124,13 +129,14 @@ test('it drops output while the socket holds too much, and takes a fresh snapsho
 test('it takes a fresh snapshot when the daemon reports dropped output', async () => {
   const ctx = setupTest();
 
-  ctx.sendRequest.mockResolvedValue({ cols: 80, rows: 24, seq: 5, replay: 'repainted' });
+  ctx.watch.mockResolvedValue({ cols: 80, rows: 24, seq: 5, replay: 'repainted' });
 
   const viewer = createPTYViewer({
     sessionID: 's-1',
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
     maxBufferedBytes: 1024,
+    access: null,
   });
 
   viewer.open(ctx.socket);
@@ -140,19 +146,135 @@ test('it takes a fresh snapshot when the daemon reports dropped output', async (
     expect(ctx.socket.send).toHaveBeenCalledTimes(2);
   });
 
-  expect(ctx.sendRequest).toHaveBeenCalledExactlyOnceWith('session.watch', { session: 's-1' });
+  expect(ctx.watch).toHaveBeenCalledExactlyOnceWith({ session: 's-1' });
+});
+
+test('it takes a fresh snapshot once the socket opens when the daemon reported dropped output before it opened', async () => {
+  const ctx = setupTest();
+
+  ctx.watch.mockResolvedValue({ cols: 80, rows: 24, seq: 6, replay: 'repainted' });
+
+  const viewer = createPTYViewer({
+    sessionID: 's-1',
+    channel: ctx.channel,
+    first: { cols: 80, rows: 24, seq: 2, replay: 'stale screen', state: 'running' },
+    maxBufferedBytes: 1024,
+    access: null,
+  });
+
+  ctx.channel.onEvent({ ev: 'SessionDesync', sessionID: 's-1', dropped: 2048 });
+  viewer.open(ctx.socket);
+
+  await waitFor(() => {
+    expect(ctx.socket.send).toHaveBeenCalledTimes(2);
+  });
+
+  expect(ctx.socket.send).toHaveBeenLastCalledWith(
+    JSON.stringify({
+      type: 'snapshot',
+      cols: 80,
+      rows: 24,
+      seq: 6,
+      state: 'running',
+      data: 'repainted',
+    }),
+  );
+});
+
+test('it closes the socket as revoked once two checks in a row find its client may no longer read', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+  const probe = mock(() => Promise.resolve(false));
+
+  const viewer = createPTYViewer({
+    sessionID: 's-1',
+    channel: ctx.channel,
+    first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
+    maxBufferedBytes: 1024,
+    access: { probe, clock, recheckMs: 5000 },
+  });
+
+  viewer.open(ctx.socket);
+  clock.advance(5000);
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  clock.advance(5000);
+
+  await waitFor(() => {
+    expect(ctx.socket.close).toHaveBeenCalledExactlyOnceWith(1000, 'revoked');
+  });
+
+  expect(ctx.socket.send).toHaveBeenLastCalledWith(
+    JSON.stringify({ type: 'closed', reason: 'revoked' }),
+  );
+
+  expect(ctx.channel.stop).toHaveBeenCalledOnce();
+});
+
+test('it keeps streaming while each check finds its client may still read', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+  const probe = mock(() => Promise.resolve(true));
+
+  const viewer = createPTYViewer({
+    sessionID: 's-1',
+    channel: ctx.channel,
+    first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
+    maxBufferedBytes: 1024,
+    access: { probe, clock, recheckMs: 5000 },
+  });
+
+  viewer.open(ctx.socket);
+  clock.advance(5000);
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([5000]);
+  });
+
+  clock.advance(5000);
+
+  await waitFor(() => {
+    expect(probe).toHaveBeenCalledTimes(2);
+  });
+
+  ctx.channel.onEvent({ ev: 'SessionOutput', sessionID: 's-1', seq: 1, data: 'still live' });
+
+  expect(ctx.socket.close).not.toHaveBeenCalled();
+  expect(ctx.socket.send).toHaveBeenLastCalledWith(new TextEncoder().encode('still live'));
+});
+
+test('it stops checking its client once the browser closes the socket', () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+
+  const viewer = createPTYViewer({
+    sessionID: 's-1',
+    channel: ctx.channel,
+    first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
+    maxBufferedBytes: 1024,
+    access: { probe: () => Promise.resolve(true), clock, recheckMs: 5000 },
+  });
+
+  viewer.open(ctx.socket);
+  viewer.close();
+
+  expect(clock.collectPending()).toStrictEqual([]);
 });
 
 test('it takes a fresh snapshot once the socket opens when the output held for it overflowed', async () => {
   const ctx = setupTest();
 
-  ctx.sendRequest.mockResolvedValue({ cols: 80, rows: 24, seq: 1, replay: 'caught up' });
+  ctx.watch.mockResolvedValue({ cols: 80, rows: 24, seq: 1, replay: 'caught up' });
 
   const viewer = createPTYViewer({
     sessionID: 's-1',
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
     maxBufferedBytes: 4,
+    access: null,
   });
 
   ctx.channel.onEvent({ ev: 'SessionOutput', sessionID: 's-1', seq: 1, data: 'past the limit' });
@@ -188,15 +310,22 @@ test('it takes a fresh snapshot once the socket opens when the output held for i
 
 test('it sends a resize that arrived while a snapshot was on its way after that snapshot', async () => {
   const ctx = setupTest();
-  const reply = Promise.withResolvers<Readonly<Record<string, unknown>>>();
 
-  ctx.sendRequest.mockReturnValue(reply.promise);
+  const reply = Promise.withResolvers<{
+    cols: number;
+    rows: number;
+    seq: number;
+    replay: string;
+  }>();
+
+  ctx.watch.mockReturnValue(reply.promise);
 
   const viewer = createPTYViewer({
     sessionID: 's-1',
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
     maxBufferedBytes: 1024,
+    access: null,
   });
 
   viewer.open(ctx.socket);
@@ -231,6 +360,7 @@ test('it sends the new size and state of the session as control frames', () => {
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
     maxBufferedBytes: 1024,
+    access: null,
   });
 
   viewer.open(ctx.socket);
@@ -255,6 +385,7 @@ test('it closes the socket with the reason once the session exits', () => {
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
     maxBufferedBytes: 1024,
+    access: null,
   });
 
   viewer.open(ctx.socket);
@@ -280,6 +411,7 @@ test('it tells a socket that opens after the session was removed why it closed',
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
     maxBufferedBytes: 1024,
+    access: null,
   });
 
   ctx.channel.onEvent({ ev: 'SessionRemoved', sessionID: 's-1' });
@@ -300,6 +432,7 @@ test('it closes the socket once its daemon connection ends', () => {
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
     maxBufferedBytes: 1024,
+    access: null,
   });
 
   viewer.open(ctx.socket);
@@ -316,6 +449,7 @@ test('it ends its daemon connection once the browser closes the socket', () => {
     channel: ctx.channel,
     first: { cols: 80, rows: 24, seq: 0, replay: 'screen', state: 'running' },
     maxBufferedBytes: 1024,
+    access: null,
   });
 
   viewer.open(ctx.socket);

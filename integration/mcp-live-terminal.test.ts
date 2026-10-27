@@ -11,6 +11,8 @@ import {
   createEnrollmentToken,
   createTransportCaller,
   openMCPAuth,
+  readGrantViews,
+  revokeGrant,
   startMCPHTTPServer,
 } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
@@ -33,6 +35,7 @@ import { openWatchChannel } from '../packages/app/src/open-watch-channel';
 interface StackOptions {
   readonly ownerTokens: readonly string[];
   readonly viewerBufferBytes?: number;
+  readonly viewerAccessRecheckMs?: number;
 }
 
 // Each stack is one daemon, with its own state and sockets, and its own
@@ -63,6 +66,7 @@ function setupTest() {
     registerTestCleanup(() => caller.stop());
 
     const dbPath = join(mkdtempSync(join(authRoot.path, 'stack-')), 'mcp-auth.db');
+    const requests: string[] = [];
 
     const server = await startMCPHTTPServer({
       caller,
@@ -74,7 +78,9 @@ function setupTest() {
       trustForwardedFrom: [],
       dbPath,
       openAuthDatabase: openMCPAuthDatabase,
-      printRequest: () => {},
+      printRequest: (line) => {
+        requests.push(line);
+      },
       printSecurity: () => {},
       liveTerminals: {
         allowedOrigins: ['https://panel.example.com'],
@@ -90,7 +96,7 @@ function setupTest() {
 
     registerTestCleanup(() => store.close());
 
-    const grantReadToken = async () => {
+    const grantToken = async (scopes: readonly string[]) => {
       const authenticator = buildStubAuthenticator();
 
       const enrollment = await createEnrollmentToken(store.db, Date.now());
@@ -106,8 +112,8 @@ function setupTest() {
         {
           clientID: created.clientID,
           redirectURI: 'https://panel.example.com/callback',
-          scope: 'read',
-          ticked: ['read'],
+          scope: scopes.join(' '),
+          ticked: scopes,
         },
       );
 
@@ -131,7 +137,7 @@ function setupTest() {
     const ptyURL = (sessionID: string) =>
       `${server.url.replace('http:', 'ws:')}/sessions/${sessionID}/pty`;
 
-    return { daemon, server, principals, grantReadToken, spawnSession, ptyURL };
+    return { daemon, server, store, requests, principals, grantToken, spawnSession, ptyURL };
   };
 
   return { startStack };
@@ -141,7 +147,7 @@ test('it streams the replayed screen and then the output a session prints, in se
   const ctx = setupTest();
 
   const stack = await ctx.startStack({ ownerTokens: [] });
-  const grant = await stack.grantReadToken();
+  const grant = await stack.grantToken(['read']);
 
   stack.principals.set(grant.clientID, ['local']);
 
@@ -205,7 +211,7 @@ test('it refuses a token whose client cannot see the session as if the session d
   const ctx = setupTest();
 
   const stack = await ctx.startStack({ ownerTokens: [] });
-  const grant = await stack.grantReadToken();
+  const grant = await stack.grantToken(['read']);
   const session = await stack.spawnSession();
 
   const answered = await fetch(stack.ptyURL(session.id).replace('ws:', 'http:'), {
@@ -243,6 +249,18 @@ test('it streams to a viewer that presents the token from the owner token file',
 
 test.each([
   ['a token not in the owner token file', 'q'.repeat(32), 'https://panel.example.com', 401],
+  ['an empty token', '', 'https://panel.example.com', 401],
+  ['the owner token with one more character', 'p'.repeat(33), 'https://panel.example.com', 401],
+  ['the owner token less its last character', 'p'.repeat(31), 'https://panel.example.com', 401],
+  ['the owner token in capitals', 'P'.repeat(32), 'https://panel.example.com', 401],
+  ['the owner token with a newline', `${'p'.repeat(32)}\n`, 'https://panel.example.com', 401],
+  ['the owner token in spaces', ` ${'p'.repeat(32)} `, 'https://panel.example.com', 401],
+  [
+    'a token shaped like an access token that was never issued',
+    'Zm9yZ2VkLWFjY2Vzcy10b2tlbi0wMDAwMDAwMDAw',
+    'https://panel.example.com',
+    401,
+  ],
   ['an origin not on the allowed list', 'p'.repeat(32), 'https://elsewhere.example.com', 403],
 ])('it refuses %s before it upgrades', async (_label, token, origin, status) => {
   const ctx = setupTest();
@@ -262,6 +280,108 @@ test.each([
   });
 
   expect(answered.status).toBe(status);
+});
+
+test('it refuses an access token without the read scope with 403 before it upgrades', async () => {
+  const ctx = setupTest();
+
+  const stack = await ctx.startStack({ ownerTokens: [] });
+  const grant = await stack.grantToken(['message']);
+
+  stack.principals.set(grant.clientID, ['local']);
+
+  const session = await stack.spawnSession();
+
+  const answered = await fetch(stack.ptyURL(session.id).replace('ws:', 'http:'), {
+    headers: {
+      upgrade: 'websocket',
+      connection: 'Upgrade',
+      'sec-websocket-key': 'AAAAAAAAAAAAAAAAAAAAAA==',
+      'sec-websocket-version': '13',
+      'sec-websocket-protocol': `atc.pty.v1, atc.bearer.${Buffer.from(grant.accessToken).toString('base64url')}`,
+    },
+  });
+
+  expect(answered.status).toBe(403);
+});
+
+test('it refuses the access token of a revoked grant before it upgrades', async () => {
+  const ctx = setupTest();
+
+  const stack = await ctx.startStack({ ownerTokens: [] });
+  const grant = await stack.grantToken(['read']);
+
+  stack.principals.set(grant.clientID, ['local']);
+
+  const session = await stack.spawnSession();
+  const [granted] = await readGrantViews(stack.store.db);
+
+  invariant(granted, 'the token grant left no grant');
+
+  await revokeGrant(stack.store.db, granted.grantID, Date.now());
+
+  const answered = await fetch(stack.ptyURL(session.id).replace('ws:', 'http:'), {
+    headers: {
+      upgrade: 'websocket',
+      connection: 'Upgrade',
+      'sec-websocket-key': 'AAAAAAAAAAAAAAAAAAAAAA==',
+      'sec-websocket-version': '13',
+      'sec-websocket-protocol': `atc.pty.v1, atc.bearer.${Buffer.from(grant.accessToken).toString('base64url')}`,
+    },
+  });
+
+  expect(answered.status).toBe(401);
+});
+
+test('it ends an open stream as revoked once its grant is revoked', async () => {
+  const ctx = setupTest();
+
+  const stack = await ctx.startStack({ ownerTokens: [], viewerAccessRecheckMs: 20 });
+  const grant = await stack.grantToken(['read']);
+
+  stack.principals.set(grant.clientID, ['local']);
+
+  const session = await stack.spawnSession();
+
+  const viewer = await openPTYViewer(stack.ptyURL(session.id), {
+    token: grant.accessToken,
+    origin: 'https://panel.example.com',
+  });
+
+  const [granted] = await readGrantViews(stack.store.db);
+
+  invariant(granted, 'the token grant left no grant');
+
+  await revokeGrant(stack.store.db, granted.grantID, Date.now());
+
+  const closed = await viewer.closed;
+
+  expect(closed.code).toBe(1000);
+  expect(closed.reason).toBe('revoked');
+
+  expect(viewer.frames.at(-1)).toStrictEqual({
+    kind: 'control',
+    frame: { type: 'closed', reason: 'revoked' },
+  });
+});
+
+test('it answers a live-terminal path whose session id holds a broken escape with 400, and logs it', async () => {
+  const ctx = setupTest();
+
+  const stack = await ctx.startStack({ ownerTokens: ['p'.repeat(32)] });
+
+  const answered = await fetch(`${stack.server.url}/sessions/%/pty`, {
+    headers: {
+      upgrade: 'websocket',
+      connection: 'Upgrade',
+      'sec-websocket-key': 'AAAAAAAAAAAAAAAAAAAAAA==',
+      'sec-websocket-version': '13',
+      'sec-websocket-protocol': `atc.pty.v1, atc.bearer.${Buffer.from('p'.repeat(32)).toString('base64url')}`,
+    },
+  });
+
+  expect(answered.status).toBe(400);
+  expect(stack.requests).toContainEqual(expect.toStartWith('GET /sessions/%/pty 400 '));
 });
 
 test('it refuses an owner token file on a bind other machines can reach', () => {
@@ -407,8 +527,8 @@ test('it streams each daemon only its own sessions and refuses a token another d
 
   const first = await ctx.startStack({ ownerTokens: [] });
   const second = await ctx.startStack({ ownerTokens: [] });
-  const firstGrant = await first.grantReadToken();
-  const secondGrant = await second.grantReadToken();
+  const firstGrant = await first.grantToken(['read']);
+  const secondGrant = await second.grantToken(['read']);
 
   first.principals.set(firstGrant.clientID, ['local']);
   second.principals.set(secondGrant.clientID, ['local']);

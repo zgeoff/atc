@@ -1,20 +1,17 @@
+import type { Clock } from '@atc/core';
+import type { DaemonClient, DaemonProcedures } from '@atc/protocol/client';
 import type { DaemonEvent, SessionDescriptor } from '@atcx/contract';
 import { P, match } from 'ts-pattern';
 import { createActor } from 'xstate';
-import type { z } from 'zod';
+import { pickAccessStep } from '../events/pick-access-step';
 import { PTY_VIEWER_MACHINE } from './pty-viewer-machine';
-import { WATCH_ANSWER_SCHEMA } from './watch-answer-schema';
 
 // The daemon connection one viewer reads. Each viewer has its own, so a
 // viewer that lags holds back no other client.
-export interface WatchChannel {
-  onEvent: (event: DaemonEvent) => void;
-  onClose: () => void;
-  readonly sendRequest: (
-    method: string,
-    params?: Readonly<Record<string, unknown>>,
-  ) => Promise<Readonly<Record<string, unknown>>>;
-  readonly stop: () => void;
+export interface WatchChannel extends Pick<DaemonClient, 'onEvent' | 'onClose' | 'stop'> {
+  readonly procedures: {
+    readonly session: Pick<DaemonProcedures['session'], 'get' | 'watch'>;
+  };
 }
 
 // The browser's WebSocket, as the viewer writes to it.
@@ -42,6 +39,13 @@ export interface PTYViewer {
   readonly close: () => void;
 }
 
+// How a viewer rechecks that its principal may still read the session.
+interface ViewerAccess {
+  readonly probe: () => Promise<boolean>;
+  readonly clock: Clock;
+  readonly recheckMs: number;
+}
+
 interface PTYViewerOptions {
   readonly sessionID: string;
   readonly channel: WatchChannel;
@@ -50,10 +54,14 @@ interface PTYViewerOptions {
   // How many bytes the socket may hold unsent before the viewer drops output
   // and sends a fresh snapshot once the socket drains.
   readonly maxBufferedBytes: number;
+
+  // null for the daemon's owner, whose token file grants for as long as the
+  // server runs.
+  readonly access: ViewerAccess | null;
 }
 
 // Why a viewer's stream ended, as its closed frame says.
-type ClosedReason = 'exited' | 'removed' | 'daemon_closed' | 'unavailable';
+type ClosedReason = 'exited' | 'removed' | 'daemon_closed' | 'unavailable' | 'revoked';
 
 // A WebSocket close code for a stream that ended as it should.
 const NORMAL_CLOSURE = 1000;
@@ -75,9 +83,11 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
   const held: { seq: number; data: string }[] = [];
   let heldBytes = 0;
 
-  // Held output past the limit is gone, and nothing later may show the gap,
-  // so the snapshot it was held for goes out stale and another follows.
-  let heldOverflowed = false;
+  // Output dropped while a snapshot was pending, by the held limit or by the
+  // daemon, leaves that snapshot stale, so another follows it.
+  let isSnapshotStale = false;
+  let cancelRecheck: (() => void) | null = null;
+  let isRechecking = false;
 
   // The session's size as its last resize event set it. A snapshot answered
   // before that resize carries the older size, and the browser needs the
@@ -106,8 +116,34 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
     closedReason = reason;
 
     sendClosed(reason);
-
+    cancelRecheck?.();
     channel.stop();
+  };
+
+  const scheduleRecheck = (access: ViewerAccess): void => {
+    cancelRecheck = access.clock.schedule(() => {
+      void recheckAccess(access);
+    }, access.recheckMs);
+  };
+
+  const recheckAccess = async (access: ViewerAccess): Promise<void> => {
+    const reads = await access.probe().catch(() => false);
+
+    if (isIn('closed')) {
+      return;
+    }
+
+    const step = pickAccessStep({ isGone: false, reads, isStopped: false, isRechecking });
+
+    if (step.kind === 'cut') {
+      finish('revoked');
+
+      return;
+    }
+
+    isRechecking = step.kind === 'recheck';
+
+    scheduleRecheck(access);
   };
 
   const sendOutput = (seq: number, data: string): void => {
@@ -152,8 +188,8 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
 
     heldBytes = 0;
 
-    if (heldOverflowed) {
-      heldOverflowed = false;
+    if (isSnapshotStale) {
+      isSnapshotStale = false;
 
       resync();
 
@@ -170,12 +206,10 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
   };
 
   const requestSnapshot = async (): Promise<void> => {
-    let answer: z.infer<typeof WATCH_ANSWER_SCHEMA>;
+    let answer: Awaited<ReturnType<WatchChannel['procedures']['session']['watch']>>;
 
     try {
-      const watched = await channel.sendRequest('session.watch', { session: sessionID });
-
-      answer = WATCH_ANSWER_SCHEMA.parse(watched);
+      answer = await channel.procedures.session.watch({ session: sessionID });
     } catch {
       finish('unavailable');
 
@@ -213,7 +247,7 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
     if (heldBytes > options.maxBufferedBytes) {
       held.length = 0;
       heldBytes = 0;
-      heldOverflowed = true;
+      isSnapshotStale = true;
     }
   };
 
@@ -247,8 +281,14 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
         }
       })
       .with({ ev: 'SessionDesync' }, (desync) => {
-        if (desync.sessionID === sessionID && isIn('streaming')) {
+        if (desync.sessionID !== sessionID) {
+          return;
+        }
+
+        if (isIn('streaming')) {
           resync();
+        } else if (isIn('opening') || isIn('resyncing')) {
+          isSnapshotStale = true;
         }
       })
       .with({ ev: 'SessionResized' }, (resized) => {
@@ -303,6 +343,10 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
     finish('daemon_closed');
   };
 
+  if (options.access !== null) {
+    scheduleRecheck(options.access);
+  }
+
   return {
     open: (opened) => {
       socket = opened;
@@ -332,6 +376,7 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
       }
 
       actor.send({ type: 'CLOSE' });
+      cancelRecheck?.();
       channel.stop();
     },
   };

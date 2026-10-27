@@ -27,9 +27,9 @@ import type { PTYRoute } from './answer-pty-request';
 import { createMCPHTTPApp } from './create-mcp-http-app';
 import { createModernMCPHandler } from './create-modern-mcp-handler';
 import type { PTYViewer, WatchChannel } from './create-pty-viewer';
-import { findPTYSessionID } from './find-pty-session-id';
 import { isLoopbackHost } from './is-loopback-host';
 import { normalizePublicURL } from './normalize-public-url';
+import { parsePTYPath } from './parse-pty-path';
 import { PTY_PROTOCOL } from './parse-pty-protocols';
 
 interface LiveTerminalOptions {
@@ -47,6 +47,10 @@ interface LiveTerminalOptions {
   // How many bytes a viewer's socket may hold unsent before the viewer drops
   // output; a mebibyte when unset.
   readonly viewerBufferBytes?: number;
+
+  // How often a viewer that watches as an OAuth client checks that its
+  // client may still read; five seconds when unset.
+  readonly viewerAccessRecheckMs?: number;
 }
 
 interface MCPHTTPServerOptions {
@@ -118,6 +122,10 @@ interface RPCLabel {
 // How many bytes a live-terminal socket holds unsent before its viewer drops
 // output for a fresh snapshot: a few full screens.
 const VIEWER_BUFFER_BYTES = 1_048_576;
+
+// A revoked grant ends a viewer's stream within two of these, since the
+// recheck waits out a refresh token's rotation once before it cuts.
+const VIEWER_ACCESS_RECHECK_MS = 5000;
 
 // A callback that holds a post open past this fails it, so one slow endpoint
 // cannot hold its watcher.
@@ -191,12 +199,18 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
 
   const answerRequest = async (request: Request): Promise<Response | undefined> => {
     const startedAt = performance.now();
-    const ptySessionID = findPTYSessionID(new URL(request.url).pathname);
+    const ptyPath = parsePTYPath(new URL(request.url).pathname);
 
-    if (ptySessionID !== null && ptyRoute !== null) {
+    if (ptyPath.kind === 'malformed' && ptyRoute !== null) {
+      options.printRequest(formatRequestLine(request, null, 400, performance.now() - startedAt));
+
+      return new Response(null, { status: 400 });
+    }
+
+    if (ptyPath.kind === 'session' && ptyRoute !== null) {
       const answered = await answerPTYRequest(ptyRoute, holder.ctx, {
         request,
-        sessionID: ptySessionID,
+        sessionID: ptyPath.sessionID,
         upgrade: (viewer) =>
           server.upgrade(request, {
             data: viewer,
@@ -277,6 +291,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
           allowedOrigins: new Set(liveTerminals.allowedOrigins),
           ownerTokens: liveTerminals.ownerTokens,
           maxBufferedBytes: liveTerminals.viewerBufferBytes ?? VIEWER_BUFFER_BYTES,
+          accessRecheckMs: liveTerminals.viewerAccessRecheckMs ?? VIEWER_ACCESS_RECHECK_MS,
           openWatchChannel: liveTerminals.openWatchChannel,
           readRequester,
           security,
