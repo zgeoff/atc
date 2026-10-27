@@ -74,6 +74,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
   subscribing a webhook, delivery from the trail, and what a subscriber does
 - [OAuth](architecture/remote/oauth.md) — the authorization server, connecting a client, grants and
   tokens, and the request checks
+- [Live terminals](architecture/remote/live-terminal.md) — the WebSocket that streams a session's
+  terminal to a browser, its tokens and checks, the frames, and slow viewers
 - [The gateway](architecture/remote/gateway.md) — the gateway binary, ids and routing across
   daemons, and lost answers
 
@@ -101,7 +103,7 @@ Designs for work that is not built yet, each with the spikes behind it.
   on imps, and attention hooks
 - [Events](guides/events.md) — daemon hooks, `atc events` and the events socket
 - [Remote MCP](guides/remote-mcp.md) — serving a hosted assistant, adding and approving clients,
-  grants, and the systemd units
+  grants, watching a terminal in a browser, and the systemd units
 - [Backing up and restoring the daemon](guides/backup.md) — `atc backup` and putting a backup in
   place of the state database
 - [Running atc-gateway](guides/gateway.md) — the daemon listener and its tokens, the registry,
