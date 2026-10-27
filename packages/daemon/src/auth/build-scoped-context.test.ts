@@ -47,6 +47,32 @@ test('it reads no menu of a session outside the access', () => {
   expect(scoped.readSessionMenu(toSessionID('s-hidden'))).resolves.toBe('missing');
 });
 
+test('it watches a session inside the access', () => {
+  const ctx = buildStubDaemonContext({
+    watchSession: () => Promise.resolve({ cols: 80, rows: 24, seq: 3, replay: 'build passed' }),
+  });
+
+  const scoped = buildScopedContext(ctx, buildTargetAccessFromGrants([]), 'principal-a');
+
+  expect(
+    scoped.watchSession({ sendOutput: mock<OutputClient['sendOutput']>() }, toSessionID('s-1')),
+  ).resolves.toStrictEqual({ cols: 80, rows: 24, seq: 3, replay: 'build passed' });
+});
+
+test('it watches no session outside the access, without reaching the daemon watch', () => {
+  const watchSession = mock<DaemonContext['watchSession']>();
+  const ctx = buildStubDaemonContext({ canSeeSession: () => false, watchSession });
+  const scoped = buildScopedContext(ctx, buildTargetAccessFromGrants([]), 'principal-a');
+
+  const watched = scoped.watchSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    toSessionID('s-hidden'),
+  );
+
+  expect(watched).resolves.toBe('missing');
+  expect(watchSession).not.toHaveBeenCalled();
+});
+
 test('it refuses a watch whose session leaves the access while its replay is captured, and ends the watch', () => {
   const reply = Promise.withResolvers<SessionWatch>();
   const canSeeSession = mock<DaemonContext['canSeeSession']>(() => true);
