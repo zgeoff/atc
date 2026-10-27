@@ -562,6 +562,50 @@ test('it sends a watcher the output that follows its start under the next sequen
   );
 });
 
+test('it shows a watcher each output printed while its replay is captured exactly once', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  const watcher = { sendOutput: mock<OutputClient['sendOutput']>() };
+
+  harness.emitData('alpha\r\n');
+
+  const watching = ctx.output.watchSession(watcher, session.id);
+
+  harness.emitData('bravo\r\n');
+  harness.emitData('charlie\r\n');
+
+  const watch = await watching;
+
+  invariant(typeof watch === 'object');
+
+  harness.emitData('delta\r\n');
+
+  const live = watcher.sendOutput.mock.calls.flatMap(([, event]) => {
+    const seq = event['seq'];
+    const data = event['data'];
+
+    return typeof seq === 'number' && seq > watch.seq && typeof data === 'string' ? [data] : [];
+  });
+
+  const shown = `${watch.replay}${live.join('')}`;
+
+  expect(
+    ['alpha', 'bravo', 'charlie', 'delta'].map((word) => shown.split(word).length - 1),
+  ).toStrictEqual([1, 1, 1, 1]);
+});
+
 test('it leaves the terminal size and the attach record alone when a watcher comes and goes', async () => {
   const ctx = await setupTest({ resize: true });
 
