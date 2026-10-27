@@ -17,6 +17,18 @@ test('it replays text written to the screen', async () => {
   expect(replay).toInclude('hello fleet');
 });
 
+test('it reports the size it renders at once a resize applies', () => {
+  const model = createScreenModel(40, 10);
+
+  onTestFinished(() => {
+    model.stop();
+  });
+
+  model.updateDims(100, 30);
+
+  expect(model.getDims()).toStrictEqual({ cols: 100, rows: 30 });
+});
+
 test('it drops cleared content from the replay', async () => {
   const model = createScreenModel(40, 10);
 

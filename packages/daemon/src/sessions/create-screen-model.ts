@@ -26,6 +26,10 @@ export interface ScreenModel {
   readonly hasBracketedPaste: () => boolean;
 
   readonly captureText: () => Promise<ScreenText>;
+
+  // The size the screen renders at, which trails a client's resize until
+  // the resize debounce applies it.
+  readonly getDims: () => { readonly cols: number; readonly rows: number };
   readonly updateDims: (cols: number, rows: number) => void;
   readonly stop: () => void;
 }
@@ -159,6 +163,8 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
 
       return { text: lines.join('\n'), cols: term.cols, rows: term.rows };
     },
+
+    getDims: () => ({ cols: term.cols, rows: term.rows }),
 
     updateDims: (nextCols, nextRows) => {
       term.resize(nextCols, nextRows);

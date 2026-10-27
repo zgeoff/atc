@@ -504,6 +504,30 @@ test('it starts a watcher with the replayed screen and the last sequence it hold
   expect(watch.replay).toInclude('tests passed');
 });
 
+test('it answers a watch with the size the replay is laid out at while a resize waits to apply', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const client = { sendOutput: mock<OutputClient['sendOutput']>() };
+
+  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 });
+  ctx.output.updateSessionDims(client, session.id, { cols: 40, rows: 12 });
+
+  const watch = await ctx.output.watchSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    session.id,
+  );
+
+  expect(watch).toMatchObject({ cols: 80, rows: 24 });
+});
+
 test('it sends a watcher the output that follows its start under the next sequence', async () => {
   const ctx = await setupTest({ resize: true });
 

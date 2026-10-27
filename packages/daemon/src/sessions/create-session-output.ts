@@ -301,7 +301,10 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
       const runtime = findRuntime(sessionID);
       const screen = runtime?.screen ?? null;
       const replay = screen === null ? '' : `${ansi.clear}${await screen.captureReplay()}`;
-      const dims = getEffectiveDims(sessionID);
+
+      // The replay is laid out at the screen's size, which can trail the
+      // attached clients' size while a resize waits out its debounce.
+      const dims = screen === null ? getEffectiveDims(sessionID) : screen.getDims();
 
       return { cols: dims.cols, rows: dims.rows, seq: runtime?.seq ?? 0, replay };
     },
