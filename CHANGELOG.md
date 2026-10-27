@@ -2,20 +2,32 @@
 
 ## [7.4.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.3.0...@zgeoff/atc@7.4.0) (2026-10-27)
 
-
 ### Features
 
-* **contract:** publish atc's public contract as @atcx/contract ([#929](https://github.com/zgeoff/atc/issues/929)) ([d588a2a](https://github.com/zgeoff/atc/commit/d588a2a0b3b034a8c3d4365b4ea29760f0f4b39b))
-* **daemon:** add session.watch, a viewer that skips the size ([#983](https://github.com/zgeoff/atc/issues/983)) ([3bd6e7f](https://github.com/zgeoff/atc/commit/3bd6e7fffddd798ff2ef416d9dfb720d367cbf1d))
-* **mcp:** stream a session's live terminal to a browser socket ([#985](https://github.com/zgeoff/atc/issues/985)) ([2cf19ca](https://github.com/zgeoff/atc/commit/2cf19ca9b291c4caa2191f9cbb4374375da53daa))
-
+- **contract:** publish atc's public contract as @atcx/contract
+  ([#929](https://github.com/zgeoff/atc/issues/929))
+  ([d588a2a](https://github.com/zgeoff/atc/commit/d588a2a0b3b034a8c3d4365b4ea29760f0f4b39b))
+- **daemon:** add session.watch, a viewer that skips the size
+  ([#983](https://github.com/zgeoff/atc/issues/983))
+  ([3bd6e7f](https://github.com/zgeoff/atc/commit/3bd6e7fffddd798ff2ef416d9dfb720d367cbf1d))
+- **mcp:** stream a session's live terminal to a browser socket
+  ([#985](https://github.com/zgeoff/atc/issues/985))
+  ([2cf19ca](https://github.com/zgeoff/atc/commit/2cf19ca9b291c4caa2191f9cbb4374375da53daa))
 
 ### Bug Fixes
 
-* **config:** refuse a listener token file other users can open ([#984](https://github.com/zgeoff/atc/issues/984)) ([f70aaab](https://github.com/zgeoff/atc/commit/f70aaabbbbfd4bf05a1c234990a0fde4b66647da))
-* **daemon:** accept the static secret kind that impd 5 lists ([#974](https://github.com/zgeoff/atc/issues/974)) ([8cfb1e9](https://github.com/zgeoff/atc/commit/8cfb1e9e0ad1cf25085f71b1897c299954304a0e))
-* **scripts:** run one pre-push test worker on a small host ([#950](https://github.com/zgeoff/atc/issues/950)) ([afbeb35](https://github.com/zgeoff/atc/commit/afbeb353660f13cd3a5fd0fdac8b3ee99205be95))
-* **test-utils:** keep the tui stand-ins' read loop safe from winch ([#965](https://github.com/zgeoff/atc/issues/965)) ([db7cbf6](https://github.com/zgeoff/atc/commit/db7cbf624527fcdd3c32d519ed0c83c35aabab9b))
+- **config:** refuse a listener token file other users can open
+  ([#984](https://github.com/zgeoff/atc/issues/984))
+  ([f70aaab](https://github.com/zgeoff/atc/commit/f70aaabbbbfd4bf05a1c234990a0fde4b66647da))
+- **daemon:** accept the static secret kind that impd 5 lists
+  ([#974](https://github.com/zgeoff/atc/issues/974))
+  ([8cfb1e9](https://github.com/zgeoff/atc/commit/8cfb1e9e0ad1cf25085f71b1897c299954304a0e))
+- **scripts:** run one pre-push test worker on a small host
+  ([#950](https://github.com/zgeoff/atc/issues/950))
+  ([afbeb35](https://github.com/zgeoff/atc/commit/afbeb353660f13cd3a5fd0fdac8b3ee99205be95))
+- **test-utils:** keep the tui stand-ins' read loop safe from winch
+  ([#965](https://github.com/zgeoff/atc/issues/965))
+  ([db7cbf6](https://github.com/zgeoff/atc/commit/db7cbf624527fcdd3c32d519ed0c83c35aabab9b))
 
 ## [7.3.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.2.0...@zgeoff/atc@7.3.0) (2026-10-24)
 
