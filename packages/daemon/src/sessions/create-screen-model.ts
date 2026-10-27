@@ -12,6 +12,15 @@ export interface ScreenText {
 // tracking, bracketed paste, focus events); these are the ones it drops.
 const REPLAYED_DEC_MODES = new Set([1006, 1007, 2031]);
 
+// A full replay with the size it is laid out at, which trails a client's
+// resize until the resize debounce applies it.
+interface FullReplay<T> {
+  readonly replay: string;
+  readonly cols: number;
+  readonly rows: number;
+  readonly mark: T;
+}
+
 export interface ScreenModel {
   readonly record: (data: string) => void;
 
@@ -23,7 +32,7 @@ export interface ScreenModel {
   // A replay of the normal buffer, then the alternate one when it is active,
   // for a client on a fresh terminal: the agent's later switch back to the
   // normal buffer then shows the normal screen, not the replayed one.
-  readonly captureFullReplay: () => Promise<string>;
+  readonly captureFullReplay: <T>(readMark: () => T) => Promise<FullReplay<T>>;
 
   // Whether the TUI has turned bracketed paste on, as of the output parsed
   // so far. It reads the mode without waiting, so output still queued for
@@ -31,10 +40,6 @@ export interface ScreenModel {
   readonly hasBracketedPaste: () => boolean;
 
   readonly captureText: () => Promise<ScreenText>;
-
-  // The size the screen renders at, which trails a client's resize until
-  // the resize debounce applies it.
-  readonly getDims: () => { readonly cols: number; readonly rows: number };
   readonly updateDims: (cols: number, rows: number) => void;
   readonly stop: () => void;
 }
@@ -150,10 +155,15 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
       return RESET_INPUT_MODES + renderVisibleScreen() + renderInputModes();
     },
 
-    captureFullReplay: async () => {
+    captureFullReplay: async (readMark) => {
       await waitForFlush();
 
-      return RESET_INPUT_MODES + serializer.serialize() + renderInputModes();
+      return {
+        replay: RESET_INPUT_MODES + serializer.serialize() + renderInputModes(),
+        cols: term.cols,
+        rows: term.rows,
+        mark: readMark(),
+      };
     },
 
     hasBracketedPaste: () => term.modes.bracketedPasteMode,
@@ -174,8 +184,6 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
 
       return { text: lines.join('\n'), cols: term.cols, rows: term.rows };
     },
-
-    getDims: () => ({ cols: term.cols, rows: term.rows }),
 
     updateDims: (nextCols, nextRows) => {
       term.resize(nextCols, nextRows);

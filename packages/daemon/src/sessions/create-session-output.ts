@@ -291,8 +291,8 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
       manager.requireExecution(session, 'attach');
 
       // The watcher joins before the capture, so output recorded while the
-      // capture waits reaches it; the replay already holds what has a seq
-      // at or below the one read after the capture.
+      // capture waits reaches it; the seq is read in the step that renders
+      // the replay, so the replay holds exactly what has a seq at or below it.
       const clients = watchers.get(sessionID) ?? new Set<OutputClient>();
 
       clients.add(client);
@@ -300,13 +300,21 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
       const runtime = findRuntime(sessionID);
       const screen = runtime?.screen ?? null;
-      const replay = screen === null ? '' : `${ansi.clear}${await screen.captureFullReplay()}`;
 
-      // The replay is laid out at the screen's size, which can trail the
-      // attached clients' size while a resize waits out its debounce.
-      const dims = screen === null ? getEffectiveDims(sessionID) : screen.getDims();
+      if (screen === null) {
+        const dims = getEffectiveDims(sessionID);
 
-      return { cols: dims.cols, rows: dims.rows, seq: runtime?.seq ?? 0, replay };
+        return { cols: dims.cols, rows: dims.rows, seq: runtime?.seq ?? 0, replay: '' };
+      }
+
+      const captured = await screen.captureFullReplay(() => runtime?.seq ?? 0);
+
+      return {
+        cols: captured.cols,
+        rows: captured.rows,
+        seq: captured.mark,
+        replay: `${ansi.clear}${captured.replay}`,
+      };
     },
 
     detachSession: (client, sessionID) => {

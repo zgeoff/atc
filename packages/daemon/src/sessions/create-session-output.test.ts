@@ -17,6 +17,7 @@ import invariant from 'tiny-invariant';
 import type { OutputClient } from '../daemon-context';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
+import { buildStubLateOutputScreen } from '../testing/build-stub-late-output-screen';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createScreenModel } from './create-screen-model';
 import { createSessionManager } from './create-session-manager';
@@ -98,6 +99,7 @@ async function setupTest(config: SetupTestConfig) {
     clock,
     provider,
     manager,
+    runtimes,
     emitted,
     scheduleDetect,
     output,
@@ -612,10 +614,17 @@ test('it shows a watcher each output printed while its replay is captured exactl
 
   harness.emitData('alpha\r\n');
 
+  const runtime = ctx.runtimes.get(session.id);
+
+  invariant(runtime?.screen);
+
+  runtime.screen = buildStubLateOutputScreen(runtime.screen, () => {
+    harness.emitData('charlie\r\n');
+  });
+
   const watching = ctx.output.watchSession(watcher, session.id);
 
   harness.emitData('bravo\r\n');
-  harness.emitData('charlie\r\n');
 
   const watch = await watching;
 
