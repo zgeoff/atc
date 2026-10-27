@@ -117,7 +117,26 @@ function setupTest() {
         },
       );
 
-      return { clientID: created.clientID, accessToken: grant.accessToken };
+      return { clientID: created.clientID, accessToken: grant.accessToken, authenticator };
+    };
+
+    // A second grant to the client of an earlier one, signed in with the same
+    // passkey.
+    const grantAgain = async (
+      earlier: Awaited<ReturnType<typeof grantToken>>,
+      scopes: readonly string[],
+    ) => {
+      const grant = await runMCPTokenGrant(
+        { url: server.url, origin: server.origin, authenticator: earlier.authenticator },
+        {
+          clientID: earlier.clientID,
+          redirectURI: 'https://panel.example.com/callback',
+          scope: scopes.join(' '),
+          ticked: scopes,
+        },
+      );
+
+      return { clientID: earlier.clientID, accessToken: grant.accessToken };
     };
 
     const spawnSession = async () => {
@@ -137,7 +156,17 @@ function setupTest() {
     const ptyURL = (sessionID: string) =>
       `${server.url.replace('http:', 'ws:')}/sessions/${sessionID}/pty`;
 
-    return { daemon, server, store, requests, principals, grantToken, spawnSession, ptyURL };
+    return {
+      daemon,
+      server,
+      store,
+      requests,
+      principals,
+      grantToken,
+      grantAgain,
+      spawnSession,
+      ptyURL,
+    };
   };
 
   return { startStack };
@@ -333,28 +362,38 @@ test('it refuses the access token of a revoked grant before it upgrades', async 
   expect(answered.status).toBe(401);
 });
 
-test('it ends an open stream as revoked once its grant is revoked', async () => {
+test('it ends an open stream as revoked once the grant it opened with is revoked, while another grant of its client still reads', async () => {
   const ctx = setupTest();
 
   const stack = await ctx.startStack({ ownerTokens: [], viewerAccessRecheckMs: 20 });
-  const grant = await stack.grantToken(['read']);
+  const first = await stack.grantToken(['read']);
+  const [firstGrant] = await readGrantViews(stack.store.db);
 
-  stack.principals.set(grant.clientID, ['local']);
+  invariant(firstGrant, 'the first token grant left no grant');
+
+  const second = await stack.grantAgain(first, ['read']);
+
+  stack.principals.set(first.clientID, ['local']);
 
   const session = await stack.spawnSession();
 
   const viewer = await openPTYViewer(stack.ptyURL(session.id), {
-    token: grant.accessToken,
+    token: first.accessToken,
     origin: 'https://panel.example.com',
   });
 
-  const [granted] = await readGrantViews(stack.store.db);
-
-  invariant(granted, 'the token grant left no grant');
-
-  await revokeGrant(stack.store.db, granted.grantID, Date.now());
+  await revokeGrant(stack.store.db, firstGrant.grantID, Date.now());
 
   const closed = await viewer.closed;
+
+  const other = await openPTYViewer(stack.ptyURL(session.id), {
+    token: second.accessToken,
+    origin: 'https://panel.example.com',
+  });
+
+  await waitFor(() => {
+    expect(other.frames).toHaveLength(1);
+  });
 
   expect(closed.code).toBe(1000);
   expect(closed.reason).toBe('revoked');
@@ -363,6 +402,10 @@ test('it ends an open stream as revoked once its grant is revoked', async () => 
     kind: 'control',
     frame: { type: 'closed', reason: 'revoked' },
   });
+
+  expect(other.frames).toStrictEqual([
+    { kind: 'control', frame: expect.objectContaining({ type: 'snapshot' }) },
+  ]);
 });
 
 test('it answers a live-terminal path whose session id holds a broken escape with 400, and logs it', async () => {

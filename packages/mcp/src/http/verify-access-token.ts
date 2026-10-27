@@ -1,48 +1,28 @@
-import { isRecord } from '@atc/core';
-import { isAPIError } from 'better-auth/api';
 import { deriveTokenHash } from '../auth/derive-token-hash';
 import { normalizeClientName } from '../auth/normalize-client-name';
 import { readClientName } from '../auth/read-client-name';
 import type { HTTPServerContext, VerifiedAccess } from '../auth/types';
-import { GRANT_SCOPES } from '../tools/grant-scope';
+import { readTokenAccess } from './read-token-access';
 
-// An inactive, unknown, or revoked token, one bound to another resource, or
-// one without a client id verifies to null. Verifying stamps when the token's grant was last used.
+// Verifying stamps when the token's grant was last used.
 export async function verifyAccessToken(
   ctx: HTTPServerContext,
   token: string,
 ): Promise<VerifiedAccess | null> {
-  let payload: unknown;
+  const access = await readTokenAccess(ctx, token);
 
-  try {
-    payload = await ctx.store.auth.api.verifyMCPAccessToken({ body: { token } });
-  } catch (error) {
-    if (isAPIError(error)) {
-      return null;
-    }
-
-    throw error;
-  }
-
-  if (!isRecord(payload) || ![payload['aud']].flat().includes(ctx.resource)) {
-    return null;
-  }
-
-  const granted = typeof payload['scope'] === 'string' ? payload['scope'].split(' ') : [];
-  const clientID = typeof payload['client_id'] === 'string' ? payload['client_id'] : '';
-
-  if (clientID === '') {
+  if (access === null) {
     return null;
   }
 
   await upsertGrantUse(ctx, token);
 
-  const storedName = await readClientName(ctx.store.db, clientID);
+  const storedName = await readClientName(ctx.store.db, access.clientID);
 
   return {
-    clientID,
+    clientID: access.clientID,
     clientName: normalizeClientName(storedName, 'remote'),
-    scopes: GRANT_SCOPES.filter((scope) => granted.includes(scope)),
+    scopes: access.scopes,
   };
 }
 

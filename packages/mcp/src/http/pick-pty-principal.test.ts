@@ -17,20 +17,38 @@ test('it watches as the client of an access token with the read scope', () => {
   ).toStrictEqual({ kind: 'principal', principal: 'client-7c2e' });
 });
 
-test('it refuses a token that verified to no access', () => {
-  expect(pickPTYPrincipal({ isOwnerToken: false, access: null })).toStrictEqual({
-    kind: 'refused',
-  });
-});
-
 test.each([
-  ['no scope', []],
-  ['the message and spawn scopes', ['message', 'spawn']],
-] as const)('it refuses an access token with %s as one that may not read', (_label, scopes) => {
-  expect(
-    pickPTYPrincipal({
+  [
+    'a token that verified to no access',
+    401,
+    { isOwnerToken: false, access: null },
+    { kind: 'bearer', reason: 'invalid_token' },
+  ],
+  [
+    'an access token with no scope',
+    403,
+    { isOwnerToken: false, access: { clientID: 'client-7c2e', clientName: 'viewer', scopes: [] } },
+    null,
+  ],
+  [
+    'an access token with every scope but read',
+    403,
+    {
       isOwnerToken: false,
-      access: { clientID: 'client-7c2e', clientName: 'viewer', scopes },
-    }),
-  ).toStrictEqual({ kind: 'no_read' });
+      access: {
+        clientID: 'client-7c2e',
+        clientName: 'viewer',
+        scopes: ['message', 'spawn', 'kill'],
+      },
+    },
+    null,
+  ],
+  [
+    'an access token for an empty client with only the message scope',
+    403,
+    { isOwnerToken: false, access: { clientID: '', clientName: '', scopes: ['message'] } },
+    null,
+  ],
+] as const)('it refuses %s with %d', (_label, status, check, outcome) => {
+  expect(pickPTYPrincipal(check)).toStrictEqual({ kind: 'refuse', status, outcome });
 });

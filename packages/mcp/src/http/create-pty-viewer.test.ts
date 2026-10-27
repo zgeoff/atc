@@ -2,7 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { buildMockSessionDescriptor, buildStubClock, waitFor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { createPTYViewer } from './create-pty-viewer';
-import type { PTYSocket, WatchChannel } from './create-pty-viewer';
+import type { PTYSocket, WatchAnswer, WatchChannel } from './create-pty-viewer';
 
 function setupTest() {
   const watch = mock<WatchChannel['procedures']['session']['watch']>();
@@ -181,7 +181,7 @@ test('it takes a fresh snapshot once the socket opens when the daemon reported d
   );
 });
 
-test('it closes the socket as revoked once two checks in a row find its client may no longer read', async () => {
+test('it closes the socket as revoked once a check finds its token no longer verifies with read', async () => {
   const ctx = setupTest();
   const clock = buildStubClock(0);
   const probe = mock(() => Promise.resolve(false));
@@ -198,12 +198,6 @@ test('it closes the socket as revoked once two checks in a row find its client m
   clock.advance(5000);
 
   await waitFor(() => {
-    expect(clock.collectPending()).toStrictEqual([5000]);
-  });
-
-  clock.advance(5000);
-
-  await waitFor(() => {
     expect(ctx.socket.close).toHaveBeenCalledExactlyOnceWith(1000, 'revoked');
   });
 
@@ -214,7 +208,7 @@ test('it closes the socket as revoked once two checks in a row find its client m
   expect(ctx.channel.stop).toHaveBeenCalledOnce();
 });
 
-test('it keeps streaming while each check finds its client may still read', async () => {
+test('it keeps streaming while each check finds its token still verifies with read', async () => {
   const ctx = setupTest();
   const clock = buildStubClock(0);
   const probe = mock(() => Promise.resolve(true));
@@ -310,13 +304,7 @@ test('it takes a fresh snapshot once the socket opens when the output held for i
 
 test('it sends a resize that arrived while a snapshot was on its way after that snapshot', async () => {
   const ctx = setupTest();
-
-  const reply = Promise.withResolvers<{
-    cols: number;
-    rows: number;
-    seq: number;
-    replay: string;
-  }>();
+  const reply = Promise.withResolvers<WatchAnswer>();
 
   ctx.watch.mockReturnValue(reply.promise);
 

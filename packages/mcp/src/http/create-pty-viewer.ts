@@ -3,7 +3,6 @@ import type { DaemonClient, DaemonProcedures } from '@atc/protocol/client';
 import type { DaemonEvent, SessionDescriptor } from '@atcx/contract';
 import { P, match } from 'ts-pattern';
 import { createActor } from 'xstate';
-import { pickAccessStep } from '../events/pick-access-step';
 import { PTY_VIEWER_MACHINE } from './pty-viewer-machine';
 
 // The daemon connection one viewer reads. Each viewer has its own, so a
@@ -21,12 +20,11 @@ export interface PTYSocket {
   readonly close: (code: number, reason: string) => void;
 }
 
-// A session's screen as a watch answers with it, and the session's state.
-export interface PTYSnapshot {
-  readonly cols: number;
-  readonly rows: number;
-  readonly seq: number;
-  readonly replay: string;
+// A session's screen as a watch answers with it.
+export type WatchAnswer = Awaited<ReturnType<DaemonProcedures['session']['watch']>>;
+
+// A watch answer and the session's state.
+export interface PTYSnapshot extends WatchAnswer {
   readonly state: SessionDescriptor['state'];
 }
 
@@ -39,7 +37,8 @@ export interface PTYViewer {
   readonly close: () => void;
 }
 
-// How a viewer rechecks that its principal may still read the session.
+// How a viewer rechecks that the token it opened with still verifies with
+// read; a revoked or expired token ends the stream.
 interface ViewerAccess {
   readonly probe: () => Promise<boolean>;
   readonly clock: Clock;
@@ -87,7 +86,6 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
   // daemon, leaves that snapshot stale, so another follows it.
   let isSnapshotStale = false;
   let cancelRecheck: (() => void) | null = null;
-  let isRechecking = false;
 
   // The session's size as its last resize event set it. A snapshot answered
   // before that resize carries the older size, and the browser needs the
@@ -133,15 +131,11 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
       return;
     }
 
-    const step = pickAccessStep({ isGone: false, reads, isStopped: false, isRechecking });
-
-    if (step.kind === 'cut') {
+    if (!reads) {
       finish('revoked');
 
       return;
     }
-
-    isRechecking = step.kind === 'recheck';
 
     scheduleRecheck(access);
   };
@@ -206,7 +200,7 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
   };
 
   const requestSnapshot = async (): Promise<void> => {
-    let answer: Awaited<ReturnType<WatchChannel['procedures']['session']['watch']>>;
+    let answer: WatchAnswer;
 
     try {
       answer = await channel.procedures.session.watch({ session: sessionID });

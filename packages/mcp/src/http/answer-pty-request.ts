@@ -2,13 +2,13 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { DaemonEvent } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import type { HTTPServerContext, Requester, SecurityEvent } from '../auth/types';
-import { probeReadAccess } from '../events/probe-read-access';
 import { createPTYViewer } from './create-pty-viewer';
 import type { PTYSnapshot, PTYViewer, WatchChannel } from './create-pty-viewer';
 import { pickPTYAdmission } from './pick-pty-admission';
 import type { PTYRefusalOutcome } from './pick-pty-admission';
 import { pickPTYPrincipal } from './pick-pty-principal';
 import { pickSnapshotStatus } from './pick-snapshot-status';
+import { readTokenAccess } from './read-token-access';
 import { verifyAccessToken } from './verify-access-token';
 
 // What the live-terminal route needs beyond the routes' context.
@@ -26,8 +26,8 @@ export interface PTYRoute {
   // How many bytes a viewer's socket may hold unsent before it drops output.
   readonly maxBufferedBytes: number;
 
-  // How often a viewer that watches as an OAuth client checks that its
-  // client may still read.
+  // How often a viewer that watches with an OAuth token checks that the
+  // token still verifies with read.
   readonly accessRecheckMs: number;
 
   // Opens a daemon connection of the viewer's own, handshaken as the
@@ -93,12 +93,8 @@ export async function answerPTYRequest(
   const access = isOwnerToken ? null : await verifyAccessToken(ctx, token);
   const resolved = pickPTYPrincipal({ isOwnerToken, access });
 
-  if (resolved.kind === 'refused') {
-    return refuse(401, { kind: 'bearer', reason: 'invalid_token' });
-  }
-
-  if (resolved.kind === 'no_read') {
-    return refuse(403, null);
+  if (resolved.kind === 'refuse') {
+    return refuse(resolved.status, resolved.outcome);
   }
 
   let channel: WatchChannel;
@@ -138,7 +134,11 @@ export async function answerPTYRequest(
       clientID === null
         ? null
         : {
-            probe: () => probeReadAccess(ctx.store.db, clientID, ctx.clock.now()),
+            probe: async () => {
+              const current = await readTokenAccess(ctx, token);
+
+              return current?.scopes.includes('read') ?? false;
+            },
             clock: ctx.clock,
             recheckMs: route.accessRecheckMs,
           },

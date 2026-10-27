@@ -48,8 +48,8 @@ interface LiveTerminalOptions {
   // output; a mebibyte when unset.
   readonly viewerBufferBytes?: number;
 
-  // How often a viewer that watches as an OAuth client checks that its
-  // client may still read; five seconds when unset.
+  // How often a viewer that watches with an OAuth token checks that the
+  // token still verifies with read; five seconds when unset.
   readonly viewerAccessRecheckMs?: number;
 }
 
@@ -123,8 +123,8 @@ interface RPCLabel {
 // output for a fresh snapshot: a few full screens.
 const VIEWER_BUFFER_BYTES = 1_048_576;
 
-// A revoked grant ends a viewer's stream within two of these, since the
-// recheck waits out a refresh token's rotation once before it cuts.
+// A revoked grant or an expired token ends a viewer's stream within one of
+// these.
 const VIEWER_ACCESS_RECHECK_MS = 5000;
 
 // A callback that holds a post open past this fails it, so one slow endpoint
