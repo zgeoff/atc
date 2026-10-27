@@ -145,8 +145,8 @@ machine, with an owner token from a file. These steps run the example page with 
 
 The browser never sends a fragment to a server, so the token stays out of the page server's log. Add
 `--allowed-origin` once per origin, or list the origins in the config's `mcpHTTP.allowedOrigins`. A
-page you host beyond your machine takes an OAuth token instead, because the server refuses an owner
-token file on a bind beyond loopback.
+server bound beyond loopback refuses an owner token file, so a page that watches such a server takes
+an OAuth token instead, wherever the page itself is hosted.
 
 ## Running under systemd
 
