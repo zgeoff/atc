@@ -100,7 +100,7 @@ atc grants --revoke=<grant_id>
 
 `atc grants` lists the live grants with their client, grant scopes and last use. `--revoke` deletes
 a grant's tokens and the consent its client holds, and the client loses access on its next request.
-A live terminal the client has open ends at the server's next access checks. A grant ID can start
+A live terminal the client has open ends at the server's next access check. A grant ID can start
 with a dash, which the `=` form always passes as the value.
 
 ## Watching a terminal in a browser

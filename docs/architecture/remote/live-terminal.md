@@ -32,9 +32,10 @@ The server accepts two kinds of bearer token:
 - **An OAuth access token** with the `read` scope, which the client got through
   [the OAuth flow](./oauth.md#connecting-a-client). The viewer acts as the client's principal, so it
   opens only a session that principal reaches ([principals](../protocol/principals.md)). While the
-  stream is open, the server checks on a timer that the client still holds a grant with `read`, and
-  it ends the stream when two checks in a row find none, because a refresh replaces a grant's token
-  in two writes.
+  stream is open, the server checks on a timer that the token the stream opened with still verifies
+  with `read`. It ends the stream on the first check that fails, so a revoked grant or an expired
+  token ends it even while another grant of the same client still reads. The viewer then reconnects
+  with a fresh token and gets a fresh snapshot.
 - **An owner token** from the file `--token-file` names, which acts as the daemon's owner and opens
   every session. The file holds one token per line, and the server reads it once at startup. The
   server refuses to start when other users can open the file, and when it binds an address beyond
@@ -90,7 +91,8 @@ A `closed` frame's `reason` is one of:
 - `removed`: the owner forgot the session.
 - `daemon_closed`: the viewer's daemon connection ended, such as when the daemon stops.
 - `unavailable`: the server could not take a fresh snapshot.
-- `revoked`: the OAuth client no longer holds a grant with `read`.
+- `revoked`: the token the stream opened with no longer verifies with `read`, because its grant was
+  revoked or the token expired.
 
 After a `closed` frame, the server closes the socket with the normal closure code and the reason as
 its close reason.
