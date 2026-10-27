@@ -143,10 +143,12 @@ machine, with an owner token from a file. These steps run the example page with 
    Expect the session's screen, followed by its state, such as `running`. A session's ID is
    `$ATC_SESSION_ID` inside the session, and the `atc_sessions_list` tool lists every one.
 
-The browser never sends a fragment to a server, so the token stays out of the page server's log. Add
-`--allowed-origin` once per origin, or list the origins in the config's `mcpHTTP.allowedOrigins`. A
-server bound beyond loopback refuses an owner token file, so a page that watches such a server takes
-an OAuth token instead, wherever the page itself is hosted.
+The browser never sends a fragment to a server, so the token stays out of the page server's log. Two
+separate rules decide whether the page connects. The page's host sets its origin, which must be on
+the allowed list: add `--allowed-origin` once per origin, or list the origins in the config's
+`mcpHTTP.allowedOrigins`. The server's bind address sets which token works: a server bound to
+loopback takes an owner token, even from a page hosted elsewhere, and a server bound beyond loopback
+refuses an owner token file, so a page that watches it takes an OAuth token.
 
 ## Running under systemd
 
