@@ -75,6 +75,15 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
   const held: { seq: number; data: string }[] = [];
   let heldBytes = 0;
 
+  // Held output past the limit is gone, and nothing later may show the gap,
+  // so the snapshot it was held for goes out stale and another follows.
+  let heldOverflowed = false;
+
+  // The session's size as its last resize event set it. A snapshot answered
+  // before that resize carries the older size, and the browser needs the
+  // newer one after it.
+  let latestDims = { cols: options.first.cols, rows: options.first.rows };
+
   const isIn = (state: 'opening' | 'streaming' | 'stalled' | 'resyncing' | 'closed'): boolean =>
     actor.getSnapshot().matches(state);
 
@@ -135,9 +144,21 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
 
     lastSeq = snapshot.seq;
 
+    if (latestDims.cols !== snapshot.cols || latestDims.rows !== snapshot.rows) {
+      sendControl({ type: 'resize', cols: latestDims.cols, rows: latestDims.rows });
+    }
+
     const later = held.splice(0);
 
     heldBytes = 0;
+
+    if (heldOverflowed) {
+      heldOverflowed = false;
+
+      resync();
+
+      return;
+    }
 
     for (const output of later) {
       if (!isIn('streaming')) {
@@ -192,6 +213,7 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
     if (heldBytes > options.maxBufferedBytes) {
       held.length = 0;
       heldBytes = 0;
+      heldOverflowed = true;
     }
   };
 
@@ -234,9 +256,10 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
           return;
         }
 
-        pending = { ...pending, cols: resized.cols, rows: resized.rows };
+        latestDims = { cols: resized.cols, rows: resized.rows };
 
-        if (socket !== null) {
+        // Outside streaming, the next snapshot sends the size after itself.
+        if (isIn('streaming')) {
           sendControl({ type: 'resize', cols: resized.cols, rows: resized.rows });
         }
       })
