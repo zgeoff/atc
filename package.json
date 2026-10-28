@@ -135,6 +135,7 @@
     "@zgeoff/format-codemod": "catalog:",
     "@zgeoff/oxlint-config": "catalog:",
     "@zgeoff/skill-gate": "catalog:",
+    "bun-pty": "catalog:",
     "knip": "catalog:",
     "lefthook": "catalog:",
     "oxfmt": "catalog:",
