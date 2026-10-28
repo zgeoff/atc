@@ -53,7 +53,7 @@ test('it opens the spawn picker in resume mode from the home screen', () => {
   expect(ctx.calls).toStrictEqual(['openHome', 'openPicker:true']);
 });
 
-test('it opens the overlay from an attached session', () => {
+test('it lets the attached session go before it opens the overlay', () => {
   const ctx = setupTest();
 
   ctx.actor.start();
@@ -65,7 +65,29 @@ test('it opens the overlay from an attached session', () => {
   ctx.actor.send({ type: 'OVERLAY' });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('overlay');
-  expect(ctx.calls).toStrictEqual(['openHome', 'openAttached:s1', 'openOverlay']);
+  expect(ctx.calls).toStrictEqual(['openHome', 'openAttached:s1', 'closeAttached', 'openOverlay']);
+});
+
+test('it lets the attached session go before it attaches another from the overlay', () => {
+  const ctx = setupTest();
+
+  ctx.actor.start();
+
+  for (const event of [{ type: 'ATTACH', sessionID: 's1' }, { type: 'OVERLAY' }] as const) {
+    ctx.actor.send(event);
+  }
+
+  ctx.actor.send({ type: 'ATTACH', sessionID: 's2' });
+
+  expect(ctx.actor.getSnapshot().value.mode).toBe('attached');
+
+  expect(ctx.calls).toStrictEqual([
+    'openHome',
+    'openAttached:s1',
+    'closeAttached',
+    'openOverlay',
+    'openAttached:s2',
+  ]);
 });
 
 test('it repaints the overlay when the overlay is opened again', () => {

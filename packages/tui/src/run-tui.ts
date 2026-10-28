@@ -265,6 +265,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     buildClientMachine({
       openHome,
       openAttached,
+      closeAttached: detachFocused,
       openOverlay: () => {
         overlay.open();
       },

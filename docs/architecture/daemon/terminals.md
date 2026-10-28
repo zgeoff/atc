@@ -12,8 +12,10 @@ covers the connection the output rides.
 
 ## Attaching
 
-A client attaches to one session at a time, its focused session, and only attached clients and
+A client attaches to one session at a time, the session it shows, and only attached clients and
 [watchers](#watching) receive that session's output, so an unfocused session costs a client nothing.
+The terminal client detaches when it leaves a session for its overlay or for another session, so a
+session it no longer shows takes no part in the [effective size](#several-clients-on-one-session).
 
 1. The client sends its terminal size with the attach. The daemon applies the session's new
    effective size first, so the replay renders at the size the client will see.
