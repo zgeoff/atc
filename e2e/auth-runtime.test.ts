@@ -119,7 +119,8 @@ test('it provisions the host of a spawn before readying it and starts the harnes
     expect.toStartWith(`leases.acquire ${imp} `),
     expect.toInclude('mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; }'),
     expect.toStartWith(`files.write ${imp} atc/records/`),
-    expect.toStartWith(`exec.run ${imp} sh -c umask 022 && mkdir -p "$1" && printf`),
+    expect.toInclude(`/records ${id}.json .${id}.json.`),
+    expect.toInclude(`/records ${id}.scope.json .${id}.scope.json.`),
     expect.toStartWith(`reverse ${imp} `),
     expect.toStartWith(`exec.start ${imp} `),
   ]);
@@ -2380,7 +2381,8 @@ test('it revives a slept session after verifying its binding, granting nothing a
     expect.toStartWith(`leases.acquire ${imp} `),
     expect.toInclude('mkdir -p "$1/run" && { [ -z "$2" ] || [ -x "$2" ]; }'),
     expect.toStartWith(`files.write ${imp} atc/records/`),
-    expect.toStartWith(`exec.run ${imp} sh -c umask 022 && mkdir -p "$1" && printf`),
+    expect.toInclude(`/records ${id}.json .${id}.json.`),
+    expect.toInclude(`/records ${id}.scope.json .${id}.scope.json.`),
     expect.toStartWith(`reverse ${imp} `),
     expect.toStartWith(`exec.start ${imp} `),
   ]);
