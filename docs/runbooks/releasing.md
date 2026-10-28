@@ -1,11 +1,14 @@
 # Releasing
 
 A release happens when someone merges the release PR by hand. release-please keeps one release PR
-open on `main`, and each releasable commit that lands updates its version bump and changelog. No
-workflow merges that PR. Its merge tags the release, attaches the compiled binaries, pushes the
-Homebrew formula and publishes `@atcx/contract` to npm. `main.yml` holds every step. This runbook
-covers what the automation does not: its one-time setup, cutting a release, and the recoveries a
-failed release needs.
+open on `main`, and each releasable commit that lands updates its version bump and changelog. The
+`release` job in `main.yml` calls the shared release-please workflow of `zgeoff/tools` at the repo's
+sync tag, with its merge input off, so no workflow merges that PR. The run of the merge tags the
+release at once, and once its checks pass, its `ship-release` job attaches the compiled binaries,
+pushes the Homebrew formula and publishes `@atcx/contract` to npm. A run that cannot ship the tag it
+made dispatches `main.yml` at the tag, and that run ships it. This runbook covers what the
+automation does not: its one-time setup, cutting a release, and the recoveries a failed release
+needs.
 
 ## One-time setup
 
@@ -59,11 +62,20 @@ hand before step 1.
 - **The release PR has no checks.** `RELEASE_APP_ID` is unset, so the release job skipped the App
   token step, and release-please opened the PR with `GITHUB_TOKEN`, which starts no workflow. Set up
   the App, then close and reopen the PR to start its checks.
-- **The release is tagged, but its binaries, formula or npm package are missing.** Run the release
-  steps again for the current version:
+- **The release job fails before release-please runs, and its error holds a release PR and the
+  workflow files changed since its merge.** The release App's token has no Workflows permission, so
+  GitHub refuses it a tag on a merge commit that a change to `.github/workflows/` has left behind
+  the head of `main`. The job fails on every later run until you recover:
+  1. On the merged release PR, replace the label `autorelease: pending` with `autorelease: tagged`.
+     release-please then skips that version.
+  2. Merge a commit with the footer `Release-As: <next patch version>`.
+  3. Merge no pull request that changes `.github/workflows/` until the new release PR has merged and
+     its run has tagged it.
+- **The release is tagged, but its binaries, formula or npm package are missing.** Run the ship
+  steps again at the tag, so the binaries build from the tagged commit:
 
   ```bash
-  gh workflow run main.yml
+  gh workflow run main.yml --ref '@zgeoff/atc@<version>'
   ```
 
   Each step replaces what the failed run left, and the publish skips a version npm holds already. A
