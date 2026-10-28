@@ -1084,31 +1084,6 @@ test('it places the copy among the imp’s read-only files when the imp’s agen
   expect(existsSync(join(ctx.directory, 'g', 'records', `${id}.json`))).toBeFalse();
 });
 
-test('it places the scope file among the imp’s read-only files beside the copy', async () => {
-  const ctx = await setupTest();
-
-  ctx.port.readOnlyFilesDir = join(ctx.directory, 'ro');
-
-  const spawned = await ctx.client.sendRequest('session.spawn', {
-    cwd: ctx.directory,
-    cols: 80,
-    rows: 24,
-  });
-
-  const id = String(getRecord(spawned, 'session')['id']);
-  const name = getOnlyImpName(ctx.port);
-  const path = join(ctx.directory, 'ro', name, 'atc', 'records', `${id}.scope.json`);
-  const [request] = ctx.port.sessionRequests;
-
-  invariant(request?.kind === 'start', 'the spawn sent no start request');
-
-  const scopeFile = await readJSONRecord(Bun.file(path));
-
-  expect(request.env['AUTO_MODE_SCOPE_FILE']).toBe(path);
-  expect(scopeFile).toMatchObject({ format: 'auto-mode.scope', version: 1 });
-  expect(ctx.port.calls).toContain(`files.write ${name} atc/records/${id}.scope.json`);
-});
-
 test('it replaces the read-only copy when a caller adds to the scope', async () => {
   const ctx = await setupTest();
   const fixture = await createGitFixture({ prefix: 'atc-daemon-imp-record-' });

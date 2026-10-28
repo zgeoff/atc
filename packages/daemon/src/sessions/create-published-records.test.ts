@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStateStore, parsePublishedRecord } from '@atc/store';
@@ -970,6 +970,52 @@ test("it places a remote copy in the records folder of the host's guest folder",
     '/var/lib/orchard-scratch/atc/records',
     's-remote.json',
   ]);
+});
+
+test("it writes the scope file among the host's read-only files beside the copy", async () => {
+  const ctx = await setupTest();
+
+  const writeReadOnlyFile = mock<(host: string, path: string, content: string) => Promise<string>>(
+    () => Promise.resolve('/run/orchard/files/atc/records/s-protected.json'),
+  );
+
+  const provider = {
+    ...buildStubMemoryProvider({
+      kind: 'box',
+      remote: true,
+      guest: { directory: '/var/lib/orchard-scratch/atc', atc: null },
+    }),
+    writeReadOnlyFile,
+  };
+
+  const session = toSessionID('s-protected');
+
+  const path = await ctx.records.createRecord(
+    {
+      session,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider,
+      host: session,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+    { spawner: 's-lead', scratch: null },
+  );
+
+  const scopeWrite = writeReadOnlyFile.mock.calls.find(
+    (call) => call[1] === 'atc/records/s-protected.scope.json',
+  );
+
+  expect(path).toBe('/run/orchard/files/atc/records/s-protected.json');
+  expect(scopeWrite?.[0]).toBe('s-protected');
+
+  expect(JSON.parse(String(scopeWrite?.[2]))).toMatchObject({
+    format: 'auto-mode.scope',
+    replyChannels: [{ tool: 'mcp__atc__atc_message_send', field: 'session', recipient: 's-lead' }],
+  });
 });
 
 test('it refreshes the guest-folder scope file beside the guest copy on a host that keeps read-only files', async () => {
