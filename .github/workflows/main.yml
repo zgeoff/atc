@@ -85,18 +85,39 @@ jobs:
     secrets:
       app-private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
-  # Ships the release from this run's commit, so it runs only when that
-  # commit is the tagged one and its checks passed; dispatch-release covers
-  # every other tag. A dispatch ships the commit it runs on.
-  #
+  # Picks whether this run ships a release, dispatches a run at its tag, or
+  # ships nothing. It runs after a failed or skipped need too, since a tag
+  # whose checks a newer push cancelled still needs its dispatch.
+  pick-release-ship:
+    needs: [checks, binaries, release]
+    if: ${{ !cancelled() }}
+    concurrency:
+      group: main-pick-release-ship
+      cancel-in-progress: false
+      queue: max
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ship: ${{ steps.pick.outputs.ship }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - name: Pick the release ship
+        id: pick
+        env:
+          RELEASES_CREATED: ${{ needs.release.outputs.releases_created }}
+          RELEASE_OUTPUTS: ${{ needs.release.outputs.release-outputs }}
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          BINARIES_RESULT: ${{ needs.binaries.result }}
+        run: bun run --silent ci:pick-release-ship
+
   # A newer run's ship waits for this one to end, and queue: max keeps every
   # waiting run, where the default would replace a waiting one.
   ship-release:
-    needs: [checks, binaries, release]
-    if:
-      ${{ !cancelled() && needs.checks.result == 'success' && needs.binaries.result == 'success' &&
-      (github.event_name == 'workflow_dispatch' || (needs.release.outputs.releases_created == 'true'
-      && fromJSON(needs.release.outputs.release-outputs).sha == github.sha)) }}
+    needs: [pick-release-ship]
+    if: ${{ !cancelled() && needs.pick-release-ship.outputs.ship == 'here' }}
     concurrency:
       group: main-release
       cancel-in-progress: false
@@ -172,20 +193,11 @@ jobs:
           bun install --frozen-lockfile
           bash scripts/publish-contract.sh
 
-  # A run whose release job tagged can still be unable to ship the tag:
-  # - release-please reads main through the API, so a run can tag a release
-  #   PR merge that is not this run's commit, such as after the merge's own
-  #   run failed before the tag, and this run's binaries hold another tree
-  # - a newer push cancelled this run's checks, or a check failed, and the
-  #   tag landed before them
-  # The job then dispatches this workflow at the tag, whose run checks and
-  # ships it. A dispatch is the one GITHUB_TOKEN event that starts a workflow.
+  # The run at the tag checks and ships it. A dispatch is the one GITHUB_TOKEN
+  # event that starts a workflow.
   dispatch-release:
-    needs: [checks, binaries, release]
-    if:
-      ${{ !cancelled() && needs.release.outputs.releases_created == 'true' && (needs.checks.result
-      != 'success' || needs.binaries.result != 'success' ||
-      fromJSON(needs.release.outputs.release-outputs).sha != github.sha) }}
+    needs: [release, pick-release-ship]
+    if: ${{ !cancelled() && needs.pick-release-ship.outputs.ship == 'dispatch' }}
     concurrency:
       group: main-dispatch-release
       cancel-in-progress: false

@@ -83,6 +83,7 @@
     "check:raw-escapes": "bun scripts/check-raw-escapes.ts",
     "check:reach": "bun scripts/check-reach.ts",
     "check:source-entries": "bun scripts/check-source-entries.ts",
+    "ci:pick-release-ship": "bun scripts/pick-release-ship.ts",
     "deadcode": "bun scripts/deadcode.ts",
     "demo:record": "bash scripts/record-demo.sh",
     "files:branch": "bun scripts/read-branch-files.ts",
