@@ -44,6 +44,7 @@ interface ClientMachineContext {
 export interface ClientMachineDeps {
   readonly openHome: () => void;
   readonly openAttached: (sessionID: string) => void;
+  readonly closeAttached: () => void;
   readonly openOverlay: () => void;
   readonly openHelp: () => void;
   readonly openPicker: (resume: boolean) => void;
@@ -61,6 +62,9 @@ export function buildClientMachine(deps: ClientMachineDeps) {
         if (args.event.type === 'ATTACH') {
           deps.openAttached(args.event.sessionID);
         }
+      },
+      closeAttached: () => {
+        deps.closeAttached();
       },
       openOverlay: () => {
         deps.openOverlay();
@@ -109,6 +113,10 @@ export function buildClientMachine(deps: ClientMachineDeps) {
           },
           attached: {
             entry: 'openAttached',
+
+            // The daemon sizes a session to the smallest client attached to
+            // it, so a client that no longer shows the session lets it go.
+            exit: 'closeAttached',
             on: {
               OVERLAY: 'overlay',
             },
