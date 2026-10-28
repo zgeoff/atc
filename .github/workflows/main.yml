@@ -182,7 +182,7 @@ jobs:
       # npm publishes, because bun publish has no trusted publishing, and
       # trusted publishing needs npm 11.5.1 or later, which Node 24 bundles
       - name: Set up node for publish
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
 
