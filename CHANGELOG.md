@@ -2,10 +2,11 @@
 
 ## [7.4.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.4.0...@zgeoff/atc@7.4.1) (2026-10-28)
 
-
 ### Bug Fixes
 
-* **deps:** ship the qs 6.16.1 security update in a release ([#990](https://github.com/zgeoff/atc/issues/990)) ([849e919](https://github.com/zgeoff/atc/commit/849e919a32484b84205439f5d7ef87ae6cc17efe))
+- **deps:** ship the qs 6.16.1 security update in a release
+  ([#990](https://github.com/zgeoff/atc/issues/990))
+  ([849e919](https://github.com/zgeoff/atc/commit/849e919a32484b84205439f5d7ef87ae6cc17efe))
 
 ## [7.4.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.3.0...@zgeoff/atc@7.4.0) (2026-10-27)
 
