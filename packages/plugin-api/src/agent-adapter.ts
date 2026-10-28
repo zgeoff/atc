@@ -37,6 +37,10 @@ export interface SpawnPlan {
 
   // set on top of what the harness process inherits.
   readonly env?: Readonly<Record<string, string>>;
+
+  // the absolute path on the session's host of the folder the session owns
+  // as its scratch space; absent for an agent that plans none.
+  readonly scratch?: string;
 }
 
 export interface GuestPaths {

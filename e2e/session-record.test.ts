@@ -78,6 +78,8 @@ test('it publishes a record of the workspace and each checked entry and gives th
     updatedAt: expect.any(String),
     name: 'work',
     transcriptPath: null,
+    spawner: null,
+    scratch: null,
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [{ path: worktree, branch: 'fix-login' }],
@@ -85,6 +87,113 @@ test('it publishes a record of the workspace and each checked entry and gives th
       pullRequests: [],
     },
   });
+});
+
+test('it lists the spawner as a reply channel and the scratch folder as an owned path in the scope file', async () => {
+  const fixture = await createGitFixture({ prefix: 'atc-session-record-' });
+
+  const box = createStubDirProvider();
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-session-record-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        planSpawn: () => ({ bin: 'sleep', args: ['30'], scratch: '/srv/scratch/cart-totals' }),
+      }),
+      targets: [
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const lead = await daemon.client.sendRequest('session.spawn', {
+    cwd: fixture.work,
+    target: 'box',
+  });
+
+  const leadID = String(getRecord(lead, 'session')['id']);
+
+  const fromLead = await daemon.openClient({ session: leadID });
+
+  const spawned = await fromLead.sendRequest('session.spawn', {
+    cwd: fixture.work,
+    target: 'box',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+  const harness = box.harnesses.find((candidate) => candidate.session === id);
+
+  invariant(harness !== undefined, 'the spawn started no harness');
+
+  const path = join(daemon.directory, 'records', `${id}.scope.json`);
+
+  const scopeFile = await readJSONRecord(Bun.file(path));
+
+  expect(harness.env['AUTO_MODE_SCOPE_FILE']).toBe(path);
+  expect(statSync(path).mode & 0o777).toBe(0o444);
+
+  expect(scopeFile).toStrictEqual({
+    format: 'auto-mode.scope',
+    version: 1,
+    paths: ['/srv/scratch/cart-totals'],
+    workspace: { path: fixture.work, branch: 'main' },
+    worktrees: [],
+    branches: [],
+    pullRequests: [],
+    replyChannels: [{ tool: 'mcp__atc__atc_message_send', field: 'session', recipient: leadID }],
+  });
+});
+
+test('it declares no reply channel for a session spawned from outside every session', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.fixture.work,
+    target: 'box',
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  const scopeFile = await readJSONRecord(Bun.file(join(ctx.records, `${id}.scope.json`)));
+
+  expect(scopeFile['replyChannels']).toStrictEqual([]);
+});
+
+test('it names the calling session as the spawner rather than the parent the spawn gives', async () => {
+  const ctx = await setupTest();
+
+  const lead = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.fixture.work,
+    target: 'box',
+  });
+
+  const other = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.fixture.work,
+    target: 'box',
+  });
+
+  const leadID = String(getRecord(lead, 'session')['id']);
+  const otherID = String(getRecord(other, 'session')['id']);
+
+  const fromLead = await ctx.daemon.openClient({ session: leadID });
+
+  const spawned = await fromLead.sendRequest('session.spawn', {
+    cwd: ctx.fixture.work,
+    target: 'box',
+    parent: otherID,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  const copy = await readJSONRecord(Bun.file(join(ctx.records, `${id}.json`)));
+
+  expect(copy['spawner']).toBe(leadID);
 });
 
 test('it returns the published record from session.get', async () => {
@@ -277,6 +386,8 @@ test('it adds scope from a client outside the session and rewrites the record', 
     updatedAt: expect.any(String),
     name: 'work',
     transcriptPath: null,
+    spawner: null,
+    scratch: null,
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [],
@@ -411,7 +522,7 @@ test('it removes the record when the session is forgotten', async () => {
   expect(existsSync(join(ctx.records, `${id}.json`))).toBe(false);
 });
 
-test('it places the stored record again when a restore revives the session', async () => {
+test('it places the stored record and its scope file again when a restore revives the session', async () => {
   const fixture = await createGitFixture({ prefix: 'atc-session-record-' });
 
   const box = createStubDirProvider();
@@ -446,6 +557,8 @@ test('it places the stored record again when a restore revives the session', asy
         updatedAt: '2026-10-08T09:30:00.000Z',
         name: 'kept session',
         transcriptPath: null,
+        spawner: 's-lead',
+        scratch: null,
         scope: {
           workspace: { path: fixture.work, branch: 'main', repoURL: null, sha: null },
           worktrees: [],
@@ -488,6 +601,11 @@ test('it places the stored record again when a restore revives the session', asy
   expect(harness.env['ATC_SESSION_RECORD']).toBe(path);
 
   const copy = await readJSONRecord(Bun.file(path));
+  const scopeFile = await readJSONRecord(Bun.file(harness.env['AUTO_MODE_SCOPE_FILE'] ?? ''));
 
   expect(copy['revision']).toBe(4);
+
+  expect(scopeFile['replyChannels']).toStrictEqual([
+    { tool: 'mcp__atc__atc_message_send', field: 'session', recipient: 's-lead' },
+  ]);
 });

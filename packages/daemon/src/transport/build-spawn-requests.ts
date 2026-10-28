@@ -96,7 +96,7 @@ export function buildSpawnRequests(deps: RequestDeps): SpawnRequests {
   };
 
   return {
-    applySpawn,
+    applySpawn: (data, ctx) => applySpawn(data, ctx, deps.identity.callerSession),
 
     applySourcesList: async (data, ctx) => {
       const resolved = resolveSourceRequest(data, ctx);
@@ -152,6 +152,7 @@ export function buildSpawnRequests(deps: RequestDeps): SpawnRequests {
 async function applySpawn(
   data: RequestParams<'session.spawn'>,
   ctx: DaemonContext,
+  spawner: SessionID | null,
 ): Promise<DaemonAnswer<'session.spawn'>> {
   const cwd = data.cwd;
 
@@ -269,6 +270,7 @@ async function applySpawn(
       namedBy: data.name === '' ? 'auto' : 'user',
       agent,
       parent,
+      spawner,
       overrides: {
         ...overrides.overrides,
         ...(pluginDirs.length === 0 ? {} : { pluginDirs }),

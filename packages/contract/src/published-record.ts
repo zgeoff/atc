@@ -18,6 +18,14 @@ export interface PublishedRecord {
   // The agent's transcript file on the session's host, or null until the
   // agent reports one.
   readonly transcriptPath: string | null;
+
+  // The atc session the spawn came from, or null for a spawn from outside
+  // every session and in a record an older atc stored.
+  readonly spawner: string | null;
+
+  // The session's scratch folder on its host, or null for an agent that
+  // gives its sessions none and in a record an older atc stored.
+  readonly scratch: string | null;
   readonly scope: RecordedScope;
 }
 

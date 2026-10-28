@@ -184,6 +184,7 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
       namedBy: params.namedBy,
       agent: params.agent,
       parent: params.parent,
+      spawner: params.spawner,
       overrides: params.overrides,
       id,
       target: params.target,

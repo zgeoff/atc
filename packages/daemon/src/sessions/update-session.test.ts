@@ -62,6 +62,7 @@ test('it places the record copy on a remote host without a host lifecycle when a
       workspace: null,
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   updateSession(
@@ -78,11 +79,11 @@ test('it places the record copy on a remote host without a host lifecycle when a
   );
 
   const placed = await waitFor(() => {
-    const last = ctx.provider.commands.at(-1);
+    const copy = ctx.provider.commands.findLast((command) => command.argv[5] === 's-remote.json');
 
-    expect(ctx.provider.commands).toHaveLength(2);
+    expect(ctx.provider.commands).toHaveLength(4);
 
-    return last;
+    return copy;
   });
 
   expect(placed?.argv.at(-1)).toInclude('"name": "cart rework"');
@@ -111,6 +112,7 @@ test('it stores a rename of a session whose remote host sleeps and places the co
       workspace: null,
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   updateSession(
@@ -136,7 +138,10 @@ test('it stores a rename of a session whose remote host sleeps and places the co
 
   await ctx.records.restoreCopy(buildRecordSubject(session, ctx.provider));
 
-  expect(commandsWhileAsleep).toBe(1);
-  expect(ctx.provider.commands).toHaveLength(2);
-  expect(ctx.provider.commands.at(-1)?.argv.at(-1)).toInclude('"name": "cart rework"');
+  expect(commandsWhileAsleep).toBe(2);
+  expect(ctx.provider.commands).toHaveLength(4);
+
+  expect(
+    ctx.provider.commands.findLast((command) => command.argv[5] === 's-asleep.json')?.argv.at(-1),
+  ).toInclude('"name": "cart rework"');
 });

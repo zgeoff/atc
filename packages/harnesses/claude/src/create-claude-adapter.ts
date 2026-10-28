@@ -192,6 +192,7 @@ export function createClaudeAdapter(
     const mcpPath = `${revisionFolder}/mcp.json`;
     const mcpArgs = mcpServers.length === 0 ? [] : ['--mcp-config', `${directory}/${mcpPath}`];
     const bundleKey = randomUUID();
+    const scratch = `${directory}/${SESSION_SCRATCH_FOLDER}`;
 
     // when the profiles send a ChatGPT sign-in too, the Codex CLI the session runs as a tool signs
     // in through the broker, with every variable that would sign it in another way unset
@@ -211,7 +212,7 @@ export function createClaudeAdapter(
         entry.bin,
         ...buildClaudeArgs(buildArgsWithoutFlags(entry.args, ['--permission-mode']), opts, {
           leadArgs: mcpArgs,
-          scratch: `${directory}/${SESSION_SCRATCH_FOLDER}`,
+          scratch,
           settings: `${directory}/${settingsPath}`,
           pluginDir: `${directory}/atc-bridge`,
           pluginDirs: [],
@@ -253,6 +254,7 @@ export function createClaudeAdapter(
     return {
       bin: launch.bin,
       args: launch.args,
+      scratch,
       files: {
         [settingsPath]: JSON.stringify(settings, null, 2),
         ...(mcpServers.length === 0
@@ -318,7 +320,7 @@ export function createClaudeAdapter(
           pluginDir: files.writeBridge(),
           pluginDirs: [...pluginDirs, ...(opts.pluginDirs ?? [])],
         }),
-        ...(scratch === null ? {} : { env: { TMPDIR: scratch } }),
+        ...(scratch === null ? {} : { env: { TMPDIR: scratch }, scratch }),
       };
     },
 
@@ -374,6 +376,7 @@ export function createClaudeAdapter(
 
       return {
         ...launch,
+        scratch,
         files: {
           'settings.json': JSON.stringify(settings, null, 2),
           ...buildGuestBridgeFiles(argv),

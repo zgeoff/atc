@@ -20,6 +20,8 @@ The record is one JSON object:
   "updatedAt": "2026-10-08T09:30:00.000Z",
   "name": "fix login",
   "transcriptPath": "/home/me/.claude/projects/-home-me-src-app/5e2a9c1d-7f40-4b8e-a3d6-0c9b2e1f4a7d.jsonl",
+  "spawner": "2d7e9b14-6c3a-4f58-8e01-9a4b7c5d3e21",
+  "scratch": "/home/me/.local/state/atc/sessions/8f3c2a1e-5b7d-4c9a-a2e6-1d0b3f4e5a6c/scratch",
   "scope": {
     "workspace": {
       "path": "/home/me/src/app",
@@ -52,6 +54,8 @@ The record is one JSON object:
 | `updatedAt`          | When atc last changed the record, as an ISO 8601 UTC time.                                                 |
 | `name`               | The session's name, as atc lists it.                                                                       |
 | `transcriptPath`     | The agent's transcript file on the session's host, or null until the agent reports one.                    |
+| `spawner`            | The atc session the spawn request came from, or null for a spawn from outside every session.               |
+| `scratch`            | The session's scratch folder on its host, or null for an agent that gives its sessions none.               |
 | `scope.workspace`    | The session's directory, its branch, and, for a materialized workspace, the repository URL and the commit. |
 | `scope.worktrees`    | Each declared worktree's top-level path and the branch atc read from it.                                   |
 | `scope.branches`     | Each declared branch and the repository directory atc found it in.                                         |
@@ -66,9 +70,38 @@ until atc next changes it, and atc reads it with a null `name`.
 and `sha` are null for a session that runs in a directory as it stands. A worktree's `branch` is
 null when the worktree is detached.
 
+atc records `spawner` and `scratch` once, at the spawn, and no later change to the record moves
+them. A record that an older atc stored holds neither key, and atc reads it with both null.
+
+The spawner is the session the spawn request's connection acts as
+([who may change the record](#who-may-change-the-record)), never the `parent` the request gives. The
+daemon keeps sub-sessions one level deep, so a spawn from a sub-session lists beside it under its
+parent, while its record holds the sub-session as its spawner. A session that gives another session
+as the parent still records itself as the spawner.
+
 A reader ignores the keys it does not know. atc adds keys within a version, and raises `version`
 only for a change that a version 1 reader would misread. Fields about who started the session and
-who sent it work sit at the top level beside `scope` when atc records them.
+who sent it work sit at the top level beside `scope`.
+
+## Scope file
+
+Beside each copy of the record, atc writes the session's scope file in the launcher scope format
+that [auto-mode](https://github.com/zgeoff/auto-mode/blob/main/docs/guides/scope-file.md) defines,
+and names it in the session's `AUTO_MODE_SCOPE_FILE`. atc builds the file from the record alone and
+imports nothing from auto-mode, so the documented format is the only contract between them:
+
+- `workspace`, `worktrees`, `branches` and `pullRequests` hold the record scope, without the
+  repository URL and the commit that the format does not define.
+- `paths` holds the session's scratch folder, so the session owns it.
+- `replyChannels` holds one channel back to the spawner: the `session` field of
+  `mcp__atc__atc_message_send`, the name Claude Code gives the message tool of the MCP server that
+  the [setup guide](../../guides/using-atc.md) registers as `atc`. A session with no spawner has no
+  reply channel.
+
+A reply channel grants the session no consent. auto-mode allows a message to the spawner without
+judging it as outbound, and judges a message to any other session as outbound. The file lies under
+the record's name with `.scope.json` in place of `.json`, and atc writes it each time it writes the
+copy, with the same protection.
 
 ## Declaring scope
 
@@ -101,7 +134,8 @@ entry the record already holds changes nothing. atc never removes an entry.
 The daemon's state store holds each record, and every provider places a copy where the session reads
 it. atc writes the copy before each harness start, so a revive or a restored fleet finds it in
 place, and rewrites it on every change. One exception: a rename of a session whose imp sleeps
-changes only the stored record, and the copy follows at the next harness start.
+changes only the stored record, and the copy follows at the next harness start. Each place below
+holds the scope file beside the copy.
 
 | Provider    | `ATC_SESSION_RECORD`                        | Protection                                                                                                                                                                          |
 | ----------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -116,7 +150,8 @@ An imp whose agent booted before read-only files has no such mount, so atc place
 `<guestDir>/records/<session>.json` through a command instead, owned by root and mode 0444. A
 harness that started with that copy keeps its path across a revive, because the revive reattaches to
 the running process, so atc keeps a guest-folder copy current beside the read-only one until a cold
-boot clears the folder. A forget removes the record and its copy.
+boot clears the folder. A forget removes the record, and on the daemon's machine its copy and its
+scope file.
 
 ## Who may change the record
 
