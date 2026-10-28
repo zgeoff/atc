@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.5.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.4.1...@zgeoff/atc@7.5.0) (2026-10-28)
+
+### Features
+
+- write a launcher scope file with the spawner as a reply channel
+  ([#992](https://github.com/zgeoff/atc/issues/992))
+  ([e7c1892](https://github.com/zgeoff/atc/commit/e7c18927f4842350517dc1e88523ec8783280181))
+
+### Bug Fixes
+
+- detach a session the terminal client stops showing
+  ([#995](https://github.com/zgeoff/atc/issues/995))
+  ([d828d66](https://github.com/zgeoff/atc/commit/d828d66958c690fa4e1076391a12f51341c95171))
+
 ## [7.4.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.4.0...@zgeoff/atc@7.4.1) (2026-10-28)
 
 ### Bug Fixes
