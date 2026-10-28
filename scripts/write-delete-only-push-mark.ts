@@ -1,5 +1,5 @@
-import { readFile, rm, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 
 interface WriteDeleteOnlyPushMarkOptions {
   readonly cwd: string;
@@ -9,7 +9,7 @@ interface WriteDeleteOnlyPushMarkOptions {
   readonly refs: string;
 
   // The process id of the lefthook run, which a concurrent push in the same worktree does not share.
-  readonly hookID: string;
+  readonly hookID: number;
 
   readonly env?: Readonly<Record<string, string | undefined>>;
 }
@@ -19,22 +19,16 @@ interface WriteDeleteOnlyPushMarkOptions {
 export async function writeDeleteOnlyPushMark(
   options: Readonly<WriteDeleteOnlyPushMarkOptions>,
 ): Promise<void> {
-  const mark = await readMarkPath(options);
+  const marks = await readMarksPath(options);
 
-  if (isDeleteOnlyPush(options.refs)) {
-    await writeFile(mark, options.hookID);
+  const mark = join(marks, String(options.hookID));
 
-    return;
-  }
-
-  const owner = await readFile(mark, 'utf8').catch(() => null);
-
-  if (owner === options.hookID) {
-    await rm(mark, { force: true });
-  }
+  await mkdir(marks, { recursive: true });
+  await (isDeleteOnlyPush(options.refs) ? writeFile(mark, '') : rm(mark, { force: true }));
+  await removeEndedRunMarks(marks, options.hookID);
 }
 
-async function readMarkPath(options: Readonly<WriteDeleteOnlyPushMarkOptions>): Promise<string> {
+async function readMarksPath(options: Readonly<WriteDeleteOnlyPushMarkOptions>): Promise<string> {
   const subprocess = Bun.spawn(['git', 'rev-parse', '--git-path', 'atc-delete-only-push'], {
     cwd: options.cwd,
     ...(options.env === undefined ? {} : { env: { ...options.env } }),
@@ -63,18 +57,43 @@ function isDeleteOnlyPush(refs: string): boolean {
   return lines.length > 0 && lines.every((line) => /^0+$/u.test(line.split(' ')[1] ?? ''));
 }
 
+// A run that ended leaves its mark behind, and a later run that takes the same pid removes or
+// rewrites its own mark first, so only the marks of ended runs need sweeping.
+async function removeEndedRunMarks(marks: string, hookID: number): Promise<void> {
+  const names = await readdir(marks);
+
+  const ended = names.filter((name) => name !== String(hookID) && !probeProcess(Number(name)));
+
+  await Promise.all(ended.map((name) => rm(join(marks, name), { force: true })));
+}
+
+function probeProcess(pid: number): boolean {
+  if (!Number.isSafeInteger(pid) || pid <= 0) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+
+    return true;
+  } catch (error) {
+    // EPERM means the process runs under another user.
+    return error instanceof Error && 'code' in error && error.code === 'EPERM';
+  }
+}
+
 async function main(): Promise<void> {
   try {
-    const hookID = process.argv.at(2);
+    const argument = process.argv.at(2) ?? '';
 
-    if (hookID === undefined || hookID === '') {
+    if (!/^[1-9]\d*$/u.test(argument)) {
       throw new Error('pass the process id of the lefthook run as the first argument');
     }
 
     // A hook run by hand gives the job the terminal as stdin, and a read would wait on it.
     const refs = process.stdin.isTTY ? '' : await Bun.stdin.text();
 
-    await writeDeleteOnlyPushMark({ cwd: resolve('.'), refs, hookID });
+    await writeDeleteOnlyPushMark({ cwd: resolve('.'), refs, hookID: Number(argument) });
   } catch (error) {
     process.stderr.write(
       `write-delete-only-push-mark: ${error instanceof Error ? error.message : String(error)}\n`,

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createGitFixture } from '@atc/test-utils';
+import { createGitFixture, waitFor } from '@atc/test-utils';
 import { $ } from 'bun';
 import { z } from 'zod';
 import { writeDeleteOnlyPushMark } from './write-delete-only-push-mark';
@@ -24,8 +24,15 @@ async function setupTest() {
   const config = configSchema.parse(Bun.YAML.parse(configText));
   const [markJob, ...checks] = config['pre-push'].jobs;
 
+  // A push with PUSH_GATE set waits here until that file exists, so two pushes can overlap.
+  const gateJob = {
+    name: 'gate',
+    run: 'test -z "$PUSH_GATE" || { touch "$PUSH_GATE.reached"; while [ ! -f "$PUSH_GATE" ]; do sleep 0.05; done; }',
+  };
+
   const jobs = [
     markJob,
+    gateJob,
     ...checks.map((check) => ({
       ...check,
       files: undefined,
@@ -58,19 +65,20 @@ async function setupTest() {
 
   return {
     repo: fixture.work,
+    directory: fixture.directory,
     env,
     checkNames: checks.map((check) => check.name),
-    markPath: join(fixture.work, '.git', 'atc-delete-only-push'),
+    marks: join(fixture.work, '.git', 'atc-delete-only-push'),
   };
 }
 
-test('it writes the hook id to the mark for a push that deletes every ref', async () => {
+test('it writes a mark named for the hook id for a push that deletes every ref', async () => {
   const ctx = await setupTest();
 
   await writeDeleteOnlyPushMark({
     cwd: ctx.repo,
     env: ctx.env,
-    hookID: '4100',
+    hookID: 4100,
     refs: [
       '(delete) 0000000000000000000000000000000000000000 refs/heads/old 1111111111111111111111111111111111111111',
       '(delete) 0000000000000000000000000000000000000000 refs/heads/older 2222222222222222222222222222222222222222',
@@ -78,18 +86,19 @@ test('it writes the hook id to the mark for a push that deletes every ref', asyn
     ].join('\n'),
   });
 
-  expect(readFileSync(ctx.markPath, 'utf8')).toBe('4100');
+  expect(existsSync(join(ctx.marks, '4100'))).toBe(true);
 });
 
 test('it removes its own mark for a push that also updates a branch', async () => {
   const ctx = await setupTest();
 
-  writeFileSync(ctx.markPath, '4100');
+  mkdirSync(ctx.marks);
+  writeFileSync(join(ctx.marks, '4100'), '');
 
   await writeDeleteOnlyPushMark({
     cwd: ctx.repo,
     env: ctx.env,
-    hookID: '4100',
+    hookID: 4100,
     refs: [
       '(delete) 0000000000000000000000000000000000000000 refs/heads/old 1111111111111111111111111111111111111111',
       'refs/heads/feature 3333333333333333333333333333333333333333 refs/heads/feature 0000000000000000000000000000000000000000',
@@ -97,41 +106,68 @@ test('it removes its own mark for a push that also updates a branch', async () =
     ].join('\n'),
   });
 
-  expect(existsSync(ctx.markPath)).toBe(false);
+  expect(existsSync(join(ctx.marks, '4100'))).toBe(false);
 });
 
 test('it removes its own mark for a push with no refs', async () => {
   const ctx = await setupTest();
 
-  writeFileSync(ctx.markPath, '4100');
+  mkdirSync(ctx.marks);
+  writeFileSync(join(ctx.marks, '4100'), '');
 
-  await writeDeleteOnlyPushMark({ cwd: ctx.repo, env: ctx.env, hookID: '4100', refs: '' });
+  await writeDeleteOnlyPushMark({ cwd: ctx.repo, env: ctx.env, hookID: 4100, refs: '' });
 
-  expect(existsSync(ctx.markPath)).toBe(false);
+  expect(existsSync(join(ctx.marks, '4100'))).toBe(false);
 });
 
-test("it never removes a concurrent push's mark", async () => {
+test("it never removes the mark of a run that's still going", async () => {
   const ctx = await setupTest();
 
-  writeFileSync(ctx.markPath, '4200');
+  const runningMark = join(ctx.marks, String(process.pid));
+
+  mkdirSync(ctx.marks);
+  writeFileSync(runningMark, '');
 
   await writeDeleteOnlyPushMark({
     cwd: ctx.repo,
     env: ctx.env,
-    hookID: '4100',
+    hookID: 4100,
+    refs: '(delete) 0000000000000000000000000000000000000000 refs/heads/old 1111111111111111111111111111111111111111\n',
+  });
+
+  expect(existsSync(runningMark)).toBe(true);
+});
+
+test('it removes the mark of a run that has ended', async () => {
+  const ctx = await setupTest();
+
+  const ended = Bun.spawn(['true']);
+
+  await ended.exited;
+
+  const endedMark = join(ctx.marks, String(ended.pid));
+
+  mkdirSync(ctx.marks);
+  writeFileSync(endedMark, '');
+
+  await writeDeleteOnlyPushMark({
+    cwd: ctx.repo,
+    env: ctx.env,
+    hookID: 4100,
     refs: 'refs/heads/feature 3333333333333333333333333333333333333333 refs/heads/feature 0000000000000000000000000000000000000000\n',
   });
 
-  expect(readFileSync(ctx.markPath, 'utf8')).toBe('4200');
+  expect(existsSync(endedMark)).toBe(false);
 });
 
-test("it runs every pre-push check while a concurrent push's mark is present", async () => {
+test("it runs every pre-push check while another run's mark is present", async () => {
   const ctx = await setupTest();
 
   await $`git switch --quiet -c feature`.env(ctx.env).cwd(ctx.repo).quiet();
 
   writeFileSync(join(ctx.repo, 'feature.ts'), 'export {};\n');
-  writeFileSync(ctx.markPath, '1');
+  mkdirSync(ctx.marks);
+  writeFileSync(join(ctx.marks, '1'), '');
 
   await $`git add feature.ts`.env(ctx.env).cwd(ctx.repo).quiet();
   await $`git commit --quiet -m feature`.env(ctx.env).cwd(ctx.repo).quiet();
@@ -183,4 +219,47 @@ test('it skips every pre-push check and deletes the branch on a push that only d
   expect(push.exitCode).toBe(0);
   expect(push.text()).not.toInclude('ran:');
   expect(remote).toBe('');
+});
+
+test('it skips every pre-push check of a delete-only push that overlaps another', async () => {
+  const ctx = await setupTest();
+
+  const gate = join(ctx.directory, 'gate');
+
+  await $`git push --quiet origin HEAD:refs/heads/hotfix HEAD:refs/heads/release`
+    .env(ctx.env)
+    .cwd(ctx.repo)
+    .quiet();
+
+  await $`git switch --quiet -c feature`.env(ctx.env).cwd(ctx.repo).quiet();
+
+  writeFileSync(join(ctx.repo, 'feature.ts'), 'export {};\n');
+
+  await $`git add feature.ts`.env(ctx.env).cwd(ctx.repo).quiet();
+  await $`git commit --quiet -m feature`.env(ctx.env).cwd(ctx.repo).quiet();
+
+  const held = Bun.spawn(['sh', '-c', 'git push origin --delete hotfix 2>&1'], {
+    cwd: ctx.repo,
+    env: { ...ctx.env, PUSH_GATE: gate },
+    stdout: 'pipe',
+  });
+
+  await waitFor(() => {
+    expect(existsSync(`${gate}.reached`)).toBe(true);
+  });
+
+  await $`git push --quiet origin --delete release`.env(ctx.env).cwd(ctx.repo).quiet();
+
+  writeFileSync(gate, '');
+
+  const [heldOutput, heldExitCode] = await Promise.all([
+    new Response(held.stdout).text(),
+    held.exited,
+  ]);
+
+  const remote = await $`git ls-remote --heads origin`.env(ctx.env).cwd(ctx.repo).text();
+
+  expect(heldExitCode).toBe(0);
+  expect(heldOutput).not.toInclude('ran:');
+  expect(remote).not.toInclude('refs/heads/hotfix');
 });
