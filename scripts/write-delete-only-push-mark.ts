@@ -1,4 +1,4 @@
-import { rm, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 interface WriteDeleteOnlyPushMarkOptions {
@@ -7,6 +7,9 @@ interface WriteDeleteOnlyPushMarkOptions {
   // git writes one `<local ref> <local sha> <remote ref> <remote sha>` line per ref to the
   // pre-push hook's stdin.
   readonly refs: string;
+
+  // The process id of the lefthook run, which a concurrent push in the same worktree does not share.
+  readonly hookID: string;
 
   readonly env?: Readonly<Record<string, string | undefined>>;
 }
@@ -18,7 +21,17 @@ export async function writeDeleteOnlyPushMark(
 ): Promise<void> {
   const mark = await readMarkPath(options);
 
-  await (isDeleteOnlyPush(options.refs) ? writeFile(mark, '') : rm(mark, { force: true }));
+  if (isDeleteOnlyPush(options.refs)) {
+    await writeFile(mark, options.hookID);
+
+    return;
+  }
+
+  const owner = await readFile(mark, 'utf8').catch(() => null);
+
+  if (owner === options.hookID) {
+    await rm(mark, { force: true });
+  }
 }
 
 async function readMarkPath(options: Readonly<WriteDeleteOnlyPushMarkOptions>): Promise<string> {
@@ -52,10 +65,16 @@ function isDeleteOnlyPush(refs: string): boolean {
 
 async function main(): Promise<void> {
   try {
+    const hookID = process.argv.at(2);
+
+    if (hookID === undefined || hookID === '') {
+      throw new Error('pass the process id of the lefthook run as the first argument');
+    }
+
     // A hook run by hand gives the job the terminal as stdin, and a read would wait on it.
     const refs = process.stdin.isTTY ? '' : await Bun.stdin.text();
 
-    await writeDeleteOnlyPushMark({ cwd: resolve('.'), refs });
+    await writeDeleteOnlyPushMark({ cwd: resolve('.'), refs, hookID });
   } catch (error) {
     process.stderr.write(
       `write-delete-only-push-mark: ${error instanceof Error ? error.message : String(error)}\n`,

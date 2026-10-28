@@ -38,13 +38,16 @@ pre-push:
   piped: true
   jobs:
     # A push that only deletes branches carries no content, so every check
-    # after this job skips on the mark it writes.
+    # after this job skips on the mark it writes. lefthook runs a job and a
+    # skip condition each through sh -c, so $PPID in both is lefthook's own
+    # pid, and a concurrent push in this worktree never matches the mark.
     - name: read push refs
       use_stdin: true
-      run: bun scripts/write-delete-only-push-mark.ts
+      run: bun scripts/write-delete-only-push-mark.ts "$PPID"
     - name: format:check
       skip: &delete-only-push
-        - run: test -f "$(git rev-parse --git-path atc-delete-only-push)"
+        - run:
+            test "$(cat "$(git rev-parse --git-path atc-delete-only-push)" 2> /dev/null)" = "$PPID"
       run: bun run format:check
     - name: lint:shell
       skip: *delete-only-push

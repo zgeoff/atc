@@ -64,12 +64,13 @@ async function setupTest() {
   };
 }
 
-test('it writes the mark for a push that deletes every ref', async () => {
+test('it writes the hook id to the mark for a push that deletes every ref', async () => {
   const ctx = await setupTest();
 
   await writeDeleteOnlyPushMark({
     cwd: ctx.repo,
     env: ctx.env,
+    hookID: '4100',
     refs: [
       '(delete) 0000000000000000000000000000000000000000 refs/heads/old 1111111111111111111111111111111111111111',
       '(delete) 0000000000000000000000000000000000000000 refs/heads/older 2222222222222222222222222222222222222222',
@@ -77,17 +78,18 @@ test('it writes the mark for a push that deletes every ref', async () => {
     ].join('\n'),
   });
 
-  expect(existsSync(ctx.markPath)).toBe(true);
+  expect(readFileSync(ctx.markPath, 'utf8')).toBe('4100');
 });
 
-test('it removes the mark for a push that also updates a branch', async () => {
+test('it removes its own mark for a push that also updates a branch', async () => {
   const ctx = await setupTest();
 
-  writeFileSync(ctx.markPath, '');
+  writeFileSync(ctx.markPath, '4100');
 
   await writeDeleteOnlyPushMark({
     cwd: ctx.repo,
     env: ctx.env,
+    hookID: '4100',
     refs: [
       '(delete) 0000000000000000000000000000000000000000 refs/heads/old 1111111111111111111111111111111111111111',
       'refs/heads/feature 3333333333333333333333333333333333333333 refs/heads/feature 0000000000000000000000000000000000000000',
@@ -98,14 +100,46 @@ test('it removes the mark for a push that also updates a branch', async () => {
   expect(existsSync(ctx.markPath)).toBe(false);
 });
 
-test('it removes the mark for a push with no refs', async () => {
+test('it removes its own mark for a push with no refs', async () => {
   const ctx = await setupTest();
 
-  writeFileSync(ctx.markPath, '');
+  writeFileSync(ctx.markPath, '4100');
 
-  await writeDeleteOnlyPushMark({ cwd: ctx.repo, env: ctx.env, refs: '' });
+  await writeDeleteOnlyPushMark({ cwd: ctx.repo, env: ctx.env, hookID: '4100', refs: '' });
 
   expect(existsSync(ctx.markPath)).toBe(false);
+});
+
+test("it never removes a concurrent push's mark", async () => {
+  const ctx = await setupTest();
+
+  writeFileSync(ctx.markPath, '4200');
+
+  await writeDeleteOnlyPushMark({
+    cwd: ctx.repo,
+    env: ctx.env,
+    hookID: '4100',
+    refs: 'refs/heads/feature 3333333333333333333333333333333333333333 refs/heads/feature 0000000000000000000000000000000000000000\n',
+  });
+
+  expect(readFileSync(ctx.markPath, 'utf8')).toBe('4200');
+});
+
+test("it runs every pre-push check while a concurrent push's mark is present", async () => {
+  const ctx = await setupTest();
+
+  await $`git switch --quiet -c feature`.env(ctx.env).cwd(ctx.repo).quiet();
+
+  writeFileSync(join(ctx.repo, 'feature.ts'), 'export {};\n');
+  writeFileSync(ctx.markPath, '1');
+
+  await $`git add feature.ts`.env(ctx.env).cwd(ctx.repo).quiet();
+  await $`git commit --quiet -m feature`.env(ctx.env).cwd(ctx.repo).quiet();
+
+  const push = await $`git push origin feature 2>&1`.env(ctx.env).cwd(ctx.repo).nothrow().quiet();
+
+  expect(push.exitCode).toBe(0);
+  expect(push.text()).toIncludeMultiple(ctx.checkNames.map((name) => `ran:${name}`));
 });
 
 test('it runs every pre-push check on a push of a branch', async () => {
