@@ -17,11 +17,12 @@ permissions:
 # each cancel their older run through a job-level group. The release jobs never
 # cancel: a release cut off mid-way can leave a tag without its binaries or
 # formula. A workflow-level group would reach the release jobs too, so every
-# group here is set per job.
+# group here is set per job. The groups of ci, binaries and checks hold the
+# run's ref, so a push to main never cancels a run dispatched at a tag.
 jobs:
   ci:
     concurrency:
-      group: main-ci
+      group: main-ci-${{ github.ref }}
       cancel-in-progress: true
     uses: ./.github/workflows/checks.yml
 
@@ -34,7 +35,7 @@ jobs:
     needs: [ci]
     if: ${{ !cancelled() && !contains(needs.*.result, 'cancelled') }}
     concurrency:
-      group: main-checks
+      group: main-checks-${{ github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -52,7 +53,7 @@ jobs:
 
   binaries:
     concurrency:
-      group: main-binaries
+      group: main-binaries-${{ github.ref }}
       cancel-in-progress: true
     uses: ./.github/workflows/binaries.yml
 
