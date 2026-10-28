@@ -1018,6 +1018,46 @@ test("it writes the scope file among the host's read-only files beside the copy"
   });
 });
 
+test('it refuses a record whose host takes the read-only copy but not its scope file', async () => {
+  const ctx = await setupTest();
+
+  const answers: Readonly<Record<string, string | null>> = {
+    'atc/records/s-half.json': '/run/orchard/files/atc/records/s-half.json',
+    'atc/records/s-half.scope.json': null,
+  };
+
+  const provider = {
+    ...buildStubMemoryProvider({
+      kind: 'box',
+      remote: true,
+      guest: { directory: '/var/lib/orchard-scratch/atc', atc: null },
+    }),
+    writeReadOnlyFile: (_host: string, path: string) => Promise.resolve(answers[path] ?? null),
+  };
+
+  const session = toSessionID('s-half');
+
+  const created = ctx.records.createRecord(
+    {
+      session,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider,
+      host: session,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+    { spawner: 's-lead', scratch: null },
+  );
+
+  expect(created).rejects.toThrowWithMessage(
+    Error,
+    'the host of session s-half refused its read-only scope file',
+  );
+});
+
 test('it refreshes the guest-folder scope file beside the guest copy on a host that keeps read-only files', async () => {
   const ctx = await setupTest();
 
