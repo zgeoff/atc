@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStateStore, parsePublishedRecord } from '@atc/store';
@@ -57,6 +57,7 @@ test('it publishes a read-only copy in the local directory and returns its path'
       workspace: null,
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   expect(path).toBe(join(ctx.localDir, 's-local.json'));
@@ -75,6 +76,8 @@ test('it publishes a read-only copy in the local directory and returns its path'
     updatedAt: '2026-10-08T09:30:00.000Z',
     name: 'login fix',
     transcriptPath: null,
+    spawner: null,
+    scratch: null,
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [],
@@ -82,6 +85,78 @@ test('it publishes a read-only copy in the local directory and returns its path'
       pullRequests: [],
     },
   });
+});
+
+test('it places a read-only scope file beside the local copy with the spawner and the scratch folder', async () => {
+  const ctx = await setupTest();
+
+  const session = toSessionID('s-scoped');
+
+  await ctx.records.createRecord(
+    {
+      session,
+      target: 'local',
+      name: 'login fix',
+      transcriptPath: null,
+      provider: ctx.provider,
+      host: session,
+      directory: ctx.fixture.work,
+      workspace: null,
+    },
+    null,
+    { spawner: 's-lead', scratch: '/srv/scratch/s-scoped' },
+  );
+
+  const path = join(ctx.localDir, 's-scoped.scope.json');
+
+  const scopeFile = await readJSONRecord(Bun.file(path));
+
+  expect(statSync(path).mode & 0o777).toBe(0o444);
+
+  expect(scopeFile).toStrictEqual({
+    format: 'auto-mode.scope',
+    version: 1,
+    paths: ['/srv/scratch/s-scoped'],
+    workspace: { path: ctx.fixture.work, branch: 'main' },
+    worktrees: [],
+    branches: [],
+    pullRequests: [],
+    replyChannels: [{ tool: 'mcp__atc__atc_message_send', field: 'session', recipient: 's-lead' }],
+  });
+});
+
+test('it rewrites the scope file with an added branch and keeps the spawner', async () => {
+  const ctx = await setupTest();
+
+  const session = toSessionID('s-widened');
+
+  const subject = {
+    session,
+    target: 'local',
+    name: 'login fix',
+    transcriptPath: null,
+    provider: ctx.provider,
+    host: session,
+    directory: ctx.fixture.work,
+    workspace: null,
+  };
+
+  await ctx.records.createRecord(subject, null, { spawner: 's-lead', scratch: null });
+  await $`git branch later`.env(ctx.fixture.env).cwd(ctx.fixture.work);
+
+  await ctx.records.updateScope(subject, {
+    worktrees: [],
+    branches: [{ name: 'later' }],
+    pullRequests: [],
+  });
+
+  const scopeFile = await readJSONRecord(Bun.file(join(ctx.localDir, 's-widened.scope.json')));
+
+  expect(scopeFile['branches']).toStrictEqual([{ name: 'later', repo: ctx.fixture.work }]);
+
+  expect(scopeFile['replyChannels']).toStrictEqual([
+    { tool: 'mcp__atc__atc_message_send', field: 'session', recipient: 's-lead' },
+  ]);
 });
 
 test('it holds the record it publishes in the state store', async () => {
@@ -101,6 +176,7 @@ test('it holds the record it publishes in the state store', async () => {
       workspace: null,
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   const stored = await ctx.store.readPublishedRecord(session);
@@ -131,6 +207,7 @@ test("it records a materialized workspace's repository and commit", async () => 
       },
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   const copy = await readJSONRecord(Bun.file(path));
@@ -163,6 +240,7 @@ test('it records no branch for a directory outside git', async () => {
       workspace: null,
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   const copy = await readJSONRecord(Bun.file(path));
@@ -195,6 +273,7 @@ test('it records the checked scope a spawn declares', async () => {
       workspace: null,
     },
     { worktrees: [{ path: worktree }], branches: [{ name: 'fix' }], pullRequests: [] },
+    { spawner: null, scratch: null },
   );
 
   const copy = await readJSONRecord(Bun.file(path));
@@ -222,6 +301,7 @@ test('it refuses a spawn whose declared scope fails its check and records nothin
       workspace: null,
     },
     { worktrees: [], branches: [{ name: 'gone' }], pullRequests: [] },
+    { spawner: null, scratch: null },
   );
 
   await Promise.allSettled([created]);
@@ -253,7 +333,7 @@ test('it places the stored copy again when a revive finds it gone', async () => 
     workspace: null,
   };
 
-  const published = await ctx.records.createRecord(subject, null);
+  const published = await ctx.records.createRecord(subject, null, { spawner: null, scratch: null });
   const before = await readJSONRecord(Bun.file(published));
 
   rmSync(published);
@@ -295,6 +375,8 @@ test('it records a fresh record when a revive finds a session without one', asyn
     updatedAt: '2026-10-08T09:30:00.000Z',
     name: 'login fix',
     transcriptPath: null,
+    spawner: null,
+    scratch: null,
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [],
@@ -321,6 +403,7 @@ test('it records a new name and transcript path as the next revision and rewrite
       workspace: null,
     },
     null,
+    { spawner: 's-lead', scratch: '/srv/scratch/s-renamed' },
   );
 
   await ctx.records.updateIdentity(
@@ -349,6 +432,8 @@ test('it records a new name and transcript path as the next revision and rewrite
     updatedAt: '2026-10-08T09:30:00.000Z',
     name: 'login fix, take two',
     transcriptPath: '/home/dev/.claude/projects/app/4d2c.jsonl',
+    spawner: 's-lead',
+    scratch: '/srv/scratch/s-renamed',
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [],
@@ -374,7 +459,7 @@ test('it keeps the record and its revision when the name and transcript path are
     workspace: null,
   };
 
-  await ctx.records.createRecord(subject, null);
+  await ctx.records.createRecord(subject, null, { spawner: null, scratch: null });
   await ctx.records.updateIdentity(subject, true);
 
   const stored = await ctx.store.readPublishedRecord(session);
@@ -399,6 +484,7 @@ test('it stores a new name but leaves the copy when the copy is not to be placed
       workspace: null,
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   const before = await Bun.file(path).text();
@@ -441,6 +527,7 @@ test('it rewrites the copy on a rename retry after a failed copy write left the 
       workspace: null,
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   const renamed = {
@@ -488,7 +575,7 @@ test('it publishes a renamed record that a reader of the version 1 format before
     workspace: null,
   };
 
-  const path = await ctx.records.createRecord(subject, null);
+  const path = await ctx.records.createRecord(subject, null, { spawner: null, scratch: null });
 
   await ctx.records.updateIdentity({ ...subject, name: 'cart rework' }, true);
 
@@ -598,6 +685,7 @@ test('it records a name changed since the record was stored when a revive places
       workspace: null,
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   const delivered = await ctx.records.restoreCopy({
@@ -636,7 +724,7 @@ test('it adds a checked scope, raises the revision, and rewrites the copy', asyn
     workspace: null,
   };
 
-  const path = await ctx.records.createRecord(subject, null);
+  const path = await ctx.records.createRecord(subject, null, { spawner: null, scratch: null });
 
   await $`git branch later`.env(ctx.fixture.env).cwd(ctx.fixture.work);
 
@@ -671,11 +759,11 @@ test('it keeps the record and its revision when an added scope holds nothing new
     workspace: null,
   };
 
-  await ctx.records.createRecord(subject, {
-    worktrees: [],
-    branches: [{ name: 'main' }],
-    pullRequests: [],
-  });
+  await ctx.records.createRecord(
+    subject,
+    { worktrees: [], branches: [{ name: 'main' }], pullRequests: [] },
+    { spawner: null, scratch: null },
+  );
 
   const record = await ctx.records.updateScope(subject, {
     worktrees: [],
@@ -702,7 +790,7 @@ test('it leaves the record as it was when an added entry fails its check', async
     workspace: null,
   };
 
-  const path = await ctx.records.createRecord(subject, null);
+  const path = await ctx.records.createRecord(subject, null, { spawner: null, scratch: null });
   const before = await ctx.store.readPublishedRecord(session);
   const beforeText = await Bun.file(path).text();
 
@@ -742,7 +830,7 @@ test('it applies two additions to one record one after the other', async () => {
     workspace: null,
   };
 
-  await ctx.records.createRecord(subject, null);
+  await ctx.records.createRecord(subject, null, { spawner: null, scratch: null });
   await $`git branch one && git branch two`.env(ctx.fixture.env).cwd(ctx.fixture.work);
 
   await Promise.all([
@@ -768,7 +856,7 @@ test('it applies two additions to one record one after the other', async () => {
   ]);
 });
 
-test('it removes the record and its local copy', async () => {
+test('it removes the record, its local copy, and its scope file', async () => {
   const ctx = await setupTest();
 
   const session = toSessionID('s-gone');
@@ -785,11 +873,13 @@ test('it removes the record and its local copy', async () => {
       workspace: null,
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   await ctx.records.remove(session);
 
   expect(existsSync(path)).toBe(false);
+  expect(existsSync(join(ctx.localDir, 's-gone.scope.json'))).toBe(false);
 
   const stored = await ctx.store.readPublishedRecord(session);
 
@@ -812,7 +902,7 @@ test('it rewrites the copy on a retry after a failed copy write left the store a
     workspace: null,
   };
 
-  const path = await ctx.records.createRecord(subject, null);
+  const path = await ctx.records.createRecord(subject, null, { spawner: null, scratch: null });
 
   const added = { worktrees: [], branches: [{ name: 'main' }], pullRequests: [] };
 
@@ -870,6 +960,7 @@ test("it places a remote copy in the records folder of the host's guest folder",
       workspace: null,
     },
     null,
+    { spawner: null, scratch: null },
   );
 
   const placed = provider.commands.find((command) => command.argv[2] === PLACE_COPY_SCRIPT);
@@ -879,4 +970,228 @@ test("it places a remote copy in the records folder of the host's guest folder",
     '/var/lib/orchard-scratch/atc/records',
     's-remote.json',
   ]);
+});
+
+test("it writes the scope file among the host's read-only files beside the copy", async () => {
+  const ctx = await setupTest();
+
+  const writeReadOnlyFile = mock<(host: string, path: string, content: string) => Promise<string>>(
+    () => Promise.resolve('/run/orchard/files/atc/records/s-protected.json'),
+  );
+
+  const provider = {
+    ...buildStubMemoryProvider({
+      kind: 'box',
+      remote: true,
+      guest: { directory: '/var/lib/orchard-scratch/atc', atc: null },
+    }),
+    writeReadOnlyFile,
+  };
+
+  const session = toSessionID('s-protected');
+
+  const path = await ctx.records.createRecord(
+    {
+      session,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider,
+      host: session,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+    { spawner: 's-lead', scratch: null },
+  );
+
+  const scopeWrite = writeReadOnlyFile.mock.calls.find(
+    (call) => call[1] === 'atc/records/s-protected.scope.json',
+  );
+
+  expect(path).toBe('/run/orchard/files/atc/records/s-protected.json');
+  expect(scopeWrite?.[0]).toBe('s-protected');
+
+  expect(JSON.parse(String(scopeWrite?.[2]))).toStrictEqual({
+    format: 'auto-mode.scope',
+    version: 1,
+    paths: [],
+    workspace: { path: '/work/app', branch: null },
+    worktrees: [],
+    branches: [],
+    pullRequests: [],
+    replyChannels: [{ tool: 'mcp__atc__atc_message_send', field: 'session', recipient: 's-lead' }],
+  });
+});
+
+test('it refuses a record whose host takes the read-only copy but not its scope file', async () => {
+  const ctx = await setupTest();
+
+  const answers: Readonly<Record<string, string | null>> = {
+    'atc/records/s-half.json': '/run/orchard/files/atc/records/s-half.json',
+    'atc/records/s-half.scope.json': null,
+  };
+
+  const provider = {
+    ...buildStubMemoryProvider({
+      kind: 'box',
+      remote: true,
+      guest: { directory: '/var/lib/orchard-scratch/atc', atc: null },
+    }),
+    writeReadOnlyFile: (_host: string, path: string) => Promise.resolve(answers[path] ?? null),
+  };
+
+  const session = toSessionID('s-half');
+
+  const created = ctx.records.createRecord(
+    {
+      session,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider,
+      host: session,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+    { spawner: 's-lead', scratch: null },
+  );
+
+  expect(created).rejects.toThrowWithMessage(
+    Error,
+    'the host of session s-half refused its read-only scope file',
+  );
+});
+
+test('it refreshes the guest-folder scope file beside the guest copy on a host that keeps read-only files', async () => {
+  const ctx = await setupTest();
+
+  const guest = setupTempDir('atc-records-guest-');
+
+  mkdirSync(join(guest.path, 'records'));
+  writeFileSync(join(guest.path, 'records', 's-upgraded.json'), '{}');
+  writeFileSync(join(guest.path, 'records', 's-upgraded.scope.json'), '{}');
+
+  const provider = {
+    ...buildStubMemoryProvider({
+      kind: 'box',
+      remote: true,
+      guest: { directory: guest.path, atc: null },
+      runCommand: runLocalCommand,
+    }),
+    writeReadOnlyFile: () => Promise.resolve('/run/orchard/files/atc/records/s-upgraded.json'),
+  };
+
+  const session = toSessionID('s-upgraded');
+
+  await ctx.records.createRecord(
+    {
+      session,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider,
+      host: session,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+    { spawner: 's-lead', scratch: null },
+  );
+
+  const scopeFile = await readJSONRecord(
+    Bun.file(join(guest.path, 'records', 's-upgraded.scope.json')),
+  );
+
+  expect(scopeFile['replyChannels']).toStrictEqual([
+    { tool: 'mcp__atc__atc_message_send', field: 'session', recipient: 's-lead' },
+  ]);
+});
+
+test('it adds no guest-folder scope file for a harness whose guest copy has none', async () => {
+  const ctx = await setupTest();
+
+  const guest = setupTempDir('atc-records-guest-');
+
+  mkdirSync(join(guest.path, 'records'));
+  writeFileSync(join(guest.path, 'records', 's-older.json'), '{}');
+
+  const provider = {
+    ...buildStubMemoryProvider({
+      kind: 'box',
+      remote: true,
+      guest: { directory: guest.path, atc: null },
+      runCommand: runLocalCommand,
+    }),
+    writeReadOnlyFile: () => Promise.resolve('/run/orchard/files/atc/records/s-older.json'),
+  };
+
+  const session = toSessionID('s-older');
+
+  await ctx.records.createRecord(
+    {
+      session,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider,
+      host: session,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+    { spawner: 's-lead', scratch: null },
+  );
+
+  const copy = await readJSONRecord(Bun.file(join(guest.path, 'records', 's-older.json')));
+
+  expect(copy['spawner']).toBe('s-lead');
+  expect(existsSync(join(guest.path, 'records', 's-older.scope.json'))).toBeFalse();
+});
+
+test("it places a remote session's scope file beside its copy in the guest folder", async () => {
+  const ctx = await setupTest();
+
+  const provider = buildStubMemoryProvider({
+    kind: 'box',
+    remote: true,
+    guest: { directory: '/var/lib/orchard-scratch/atc', atc: null },
+  });
+
+  const session = toSessionID('s-remote');
+
+  await ctx.records.createRecord(
+    {
+      session,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider,
+      host: session,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+    { spawner: 's-lead', scratch: '/var/lib/orchard-scratch/atc/sessions/s-remote/scratch' },
+  );
+
+  const placed = provider.commands.find((command) => command.argv[5] === 's-remote.scope.json');
+
+  expect(placed?.argv.slice(2, 5)).toStrictEqual([
+    PLACE_COPY_SCRIPT,
+    'sh',
+    '/var/lib/orchard-scratch/atc/records',
+  ]);
+
+  expect(JSON.parse(placed?.argv[7] ?? '')).toStrictEqual({
+    format: 'auto-mode.scope',
+    version: 1,
+    paths: ['/var/lib/orchard-scratch/atc/sessions/s-remote/scratch'],
+    workspace: { path: '/work/app', branch: null },
+    worktrees: [],
+    branches: [],
+    pullRequests: [],
+    replyChannels: [{ tool: 'mcp__atc__atc_message_send', field: 'session', recipient: 's-lead' }],
+  });
 });

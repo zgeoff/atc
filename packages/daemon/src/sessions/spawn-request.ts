@@ -26,6 +26,7 @@ export interface SpawnRequest {
   readonly namedBy: 'user' | 'auto';
   readonly agent: AgentID;
   readonly parent: SessionID | null;
+  readonly spawner: SessionID | null;
   readonly overrides: SpawnOverrides;
   readonly materialize: SpawnMaterializer | null;
   readonly requireInReach: () => void;

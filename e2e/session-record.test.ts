@@ -78,6 +78,8 @@ test('it publishes a record of the workspace and each checked entry and gives th
     updatedAt: expect.any(String),
     name: 'work',
     transcriptPath: null,
+    spawner: null,
+    scratch: null,
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [{ path: worktree, branch: 'fix-login' }],
@@ -277,6 +279,8 @@ test('it adds scope from a client outside the session and rewrites the record', 
     updatedAt: expect.any(String),
     name: 'work',
     transcriptPath: null,
+    spawner: null,
+    scratch: null,
     scope: {
       workspace: { path: ctx.fixture.work, branch: 'main', repoURL: null, sha: null },
       worktrees: [],
@@ -446,6 +450,8 @@ test('it places the stored record again when a restore revives the session', asy
         updatedAt: '2026-10-08T09:30:00.000Z',
         name: 'kept session',
         transcriptPath: null,
+        spawner: null,
+        scratch: null,
         scope: {
           workspace: { path: fixture.work, branch: 'main', repoURL: null, sha: null },
           worktrees: [],

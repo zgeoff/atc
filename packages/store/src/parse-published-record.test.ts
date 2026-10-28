@@ -13,6 +13,8 @@ test('it reads back a version 1 record', () => {
     updatedAt: '2026-10-08T09:30:00.000Z',
     name: 'login fix',
     transcriptPath: '/home/dev/.claude/projects/app/4d2c.jsonl',
+    spawner: 's-lead',
+    scratch: '/home/dev/.local/state/atc/sessions/s-1/scratch',
     scope: {
       workspace: {
         path: '/src/app',
@@ -31,7 +33,7 @@ test('it reads back a version 1 record', () => {
   expect(parsePublishedRecord(JSON.stringify(record))).toStrictEqual(record);
 });
 
-test('it reads a record stored without a name or a transcript path as holding neither', () => {
+test('it reads a record stored without a name, a transcript path, a spawner, or a scratch folder as holding none', () => {
   const parsed = parsePublishedRecord(
     JSON.stringify({
       format: 'atc.session-record',
@@ -60,6 +62,8 @@ test('it reads a record stored without a name or a transcript path as holding ne
     updatedAt: '2026-10-08T09:30:00.000Z',
     name: null,
     transcriptPath: null,
+    spawner: null,
+    scratch: null,
     scope: {
       workspace: { path: '/src/app', branch: 'main', repoURL: null, sha: null },
       worktrees: [],

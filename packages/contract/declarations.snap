@@ -2630,6 +2630,7 @@ export declare const SESSION_ENV_NAMES: {
     readonly bridge: 'ATC_BRIDGE';
     readonly outbox: 'ATC_OUTBOX';
     readonly sessionRecord: 'ATC_SESSION_RECORD';
+    readonly scopeFile: 'AUTO_MODE_SCOPE_FILE';
 };
 
 // menu-view.d.ts
@@ -2749,6 +2750,8 @@ export interface PublishedRecord {
     readonly updatedAt: string;
     readonly name: string | null;
     readonly transcriptPath: string | null;
+    readonly spawner: string | null;
+    readonly scratch: string | null;
     readonly scope: RecordedScope;
 }
 export interface RecordedScope {

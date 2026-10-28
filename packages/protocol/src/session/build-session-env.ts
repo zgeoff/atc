@@ -1,5 +1,6 @@
 import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 import type { SessionEnv } from './session-env';
+import { toScopeFilePath } from './to-scope-file-path';
 
 export function buildSessionEnv(values: SessionEnv): Record<string, string> {
   const env: Record<string, string> = {};
@@ -22,6 +23,7 @@ export function buildSessionEnv(values: SessionEnv): Record<string, string> {
 
   if (values.sessionRecord !== undefined) {
     env[SESSION_ENV_NAMES.sessionRecord] = values.sessionRecord;
+    env[SESSION_ENV_NAMES.scopeFile] = toScopeFilePath(values.sessionRecord);
   }
 
   return env;

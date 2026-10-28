@@ -16,6 +16,7 @@ test('it writes every set field under its variable', () => {
     ATC_BRIDGE: '1',
     ATC_OUTBOX: '/run/outbox',
     ATC_SESSION_RECORD: '/run/record.json',
+    AUTO_MODE_SCOPE_FILE: '/run/record.scope.json',
   });
 });
 

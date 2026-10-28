@@ -4,10 +4,12 @@ import { join } from 'node:path';
 import { makeKeyedLock } from '@atc/core';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import type { DeclaredScope } from '@atc/protocol';
+import { toScopeFilePath } from '@atc/protocol/session';
 import type { PublishedRecord, RecordedScope, SessionID, SessionWorkspace } from '@atcx/contract';
 import { checkSessionScope } from '../auth/check-session-scope';
 import type { CheckedScope } from '../auth/check-session-scope';
 import { mergeRecordedScope } from '../auth/merge-recorded-scope';
+import { buildScopeFile } from './build-scope-file';
 import { readGuestLayout } from './read-guest-layout';
 import { readHostBranch } from './read-host-branch';
 
@@ -32,6 +34,15 @@ export interface RecordSubject {
   readonly branch?: string | null;
 }
 
+// What a spawn records once about its session: the session the spawn came
+// from and the session's scratch folder.
+type RecordOrigin = Pick<PublishedRecord, 'spawner' | 'scratch'>;
+
+interface PlacedFile {
+  readonly name: string;
+  readonly content: string;
+}
+
 interface PublishedRecordsOptions {
   readonly store: PublishedRecordStore;
   readonly daemonID: string;
@@ -45,26 +56,16 @@ interface PublishedRecordsOptions {
 }
 
 const EMPTY_SCOPE: CheckedScope = { worktrees: [], branches: [], pullRequests: [] };
-
-// Writes a record copy into a directory on a remote host: the content to a
-// staged file, made read-only, then renamed over the copy.
-export const PLACE_COPY_SCRIPT =
-  'umask 022 && mkdir -p "$1" && printf "%s" "$4" > "$1/$3" && chmod 0444 "$1/$3" && mv -f "$1/$3" "$1/$2"';
-
-// The exit code of REFRESH_COPY_SCRIPT when the directory holds no copy to refresh.
-const NO_COPY_CODE = 3;
-
-// Writes a record copy as PLACE_COPY_SCRIPT does, but only over a copy already in
-// place, and exits NO_COPY_CODE when there is none.
-export const REFRESH_COPY_SCRIPT = `[ -e "$1/$2" ] || exit ${NO_COPY_CODE}; ${PLACE_COPY_SCRIPT}`;
+const NO_ORIGIN: RecordOrigin = { spawner: null, scratch: null };
 
 export interface PublishedRecords {
   // Checks a spawn's declared scope on its readied host, records it with
-  // the workspace the session runs in, and places the copy. Returns the
-  // copy's path on the host.
+  // the workspace the session runs in and the spawn's origin, and places
+  // the copy and its scope file. Returns the copy's path on the host.
   readonly createRecord: (
     subject: RecordSubject,
     declared: DeclaredScope | null,
+    origin: RecordOrigin,
   ) => Promise<string>;
 
   // Places the stored copy again before a harness starts on a revived or
@@ -110,6 +111,7 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
 
   const buildRecord = (
     subject: RecordSubject,
+    origin: RecordOrigin,
     scope: RecordedScope,
     revision: number,
   ): PublishedRecord => ({
@@ -122,6 +124,8 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
     updatedAt: new Date(options.now()).toISOString(),
     name: subject.name,
     transcriptPath: subject.transcriptPath,
+    spawner: origin.spawner,
+    scratch: origin.scratch,
     scope,
   });
 
@@ -137,13 +141,13 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
       options.ghBin,
     );
 
-  // a harness started before its host kept read-only files reads the guest-folder copy, and a
-  // later start reattaches to it with that environment, so the copy stays current while it
-  // exists; a cold boot clears the folder and ends that process with it
+  // a harness started before its host kept read-only files reads the guest-folder copy and scope
+  // file, and a later start reattaches to it with that environment, so both stay current while
+  // they exist; a cold boot clears the folder and ends that process with it
   const refreshGuestCopy = async (
     subject: RecordSubject,
-    name: string,
-    content: string,
+    record: PlacedFile,
+    scope: PlacedFile,
   ): Promise<void> => {
     if (withoutGuestCopy.has(subject.session)) {
       return;
@@ -151,49 +155,26 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
 
     const directory = await readGuestDir(subject);
 
-    const refreshed = await subject.provider.runCommand({
-      argv: [
-        'sh',
-        '-c',
-        REFRESH_COPY_SCRIPT,
-        'sh',
-        directory,
-        name,
-        `.${name}.${randomUUID()}`,
-        content,
-      ],
-      cwd: '/',
-      host: subject.host,
-    });
-
-    if (refreshed.exitCode === NO_COPY_CODE) {
+    if (!(await refreshGuestFile(subject, directory, record))) {
       withoutGuestCopy.add(subject.session);
 
       return;
     }
 
-    if (refreshed.exitCode !== 0) {
-      throw new Error(
-        `refreshing the session record in ${directory} failed: ${refreshed.stderr.trim()}`,
-      );
-    }
+    await refreshGuestFile(subject, directory, scope);
   };
 
-  // Replaces the copy through a rename, so a reader never sees half of it.
+  // Replaces each file through a rename, so a reader never sees half of one.
   const writeCopy = async (subject: RecordSubject, record: PublishedRecord): Promise<string> => {
-    const content = `${JSON.stringify(record, null, 2)}\n`;
     const name = `${subject.session}.json`;
+    const content = formatFile(record);
+    const scopeName = toScopeFilePath(name);
+    const scopeContent = formatFile(buildScopeFile(record));
 
     if (!subject.provider.remote) {
-      const directory = options.localDir;
-      const path = getLocalPath(subject.session);
-      const staged = join(directory, `.${name}.${randomUUID()}`);
+      const path = await writeLocalFile(name, content);
 
-      await mkdir(directory, { recursive: true, mode: 0o700 });
-      await chmod(directory, 0o700);
-      await writeFile(staged, content, { mode: 0o444, flag: 'wx' });
-      await chmod(staged, 0o444);
-      await rename(staged, path);
+      await writeLocalFile(scopeName, scopeContent);
 
       return path;
     }
@@ -207,38 +188,50 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
     );
 
     if (protectedPath !== undefined && protectedPath !== null) {
-      await refreshGuestCopy(subject, name, content);
+      const protectedScope = await subject.provider.writeReadOnlyFile?.(
+        subject.host,
+        `atc/records/${scopeName}`,
+        scopeContent,
+      );
+
+      if (protectedScope === undefined || protectedScope === null) {
+        throw new Error(`the host of session ${subject.session} refused its read-only scope file`);
+      }
+
+      await refreshGuestCopy(
+        subject,
+        { name, content },
+        { name: scopeName, content: scopeContent },
+      );
 
       return protectedPath;
     }
 
-    // Elsewhere one command writes the copy beside its place and renames it
+    // Elsewhere one command writes each file beside its place and renames it
     // there. A remote host runs it as the user its provider runs commands
-    // as, root on an imp, so the copy and its directory belong to that user.
+    // as, root on an imp, so the files and their directory belong to that user.
     const directory = await readGuestDir(subject);
 
     withoutGuestCopy.delete(subject.session);
 
-    const placed = await subject.provider.runCommand({
-      argv: [
-        'sh',
-        '-c',
-        PLACE_COPY_SCRIPT,
-        'sh',
-        directory,
-        name,
-        `.${name}.${randomUUID()}`,
-        content,
-      ],
-      cwd: '/',
-      host: subject.host,
-    });
-
-    if (placed.exitCode !== 0) {
-      throw new Error(`placing the session record in ${directory} failed: ${placed.stderr.trim()}`);
-    }
+    await placeGuestFile(subject, directory, { name, content });
+    await placeGuestFile(subject, directory, { name: scopeName, content: scopeContent });
 
     return `${directory}/${name}`;
+  };
+
+  const writeLocalFile = async (name: string, content: string): Promise<string> => {
+    const directory = options.localDir;
+    const path = join(directory, name);
+    const staged = join(directory, `.${name}.${randomUUID()}`);
+
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    await chmod(directory, 0o700);
+    await writeFile(staged, content, { mode: 0o444, flag: 'wx' });
+    await chmod(staged, 0o444);
+    await rename(staged, path);
+
+    return path;
   };
 
   const writeIdentity = async (
@@ -249,7 +242,7 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
       return stored;
     }
 
-    const record = buildRecord(subject, stored.scope, stored.revision + 1);
+    const record = buildRecord(subject, stored, stored.scope, stored.revision + 1);
 
     await options.store.writePublishedRecord(record);
 
@@ -261,7 +254,7 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
   const readFirstRecord = async (subject: RecordSubject): Promise<PublishedRecord> => {
     const workspace = await readWorkspace(subject);
 
-    return buildRecord(subject, { workspace, ...EMPTY_SCOPE }, 0);
+    return buildRecord(subject, NO_ORIGIN, { workspace, ...EMPTY_SCOPE }, 0);
   };
 
   const writeScope = async (
@@ -286,7 +279,7 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
       return stored;
     }
 
-    const record = buildRecord(subject, merged, current.revision + 1);
+    const record = buildRecord(subject, current, merged, current.revision + 1);
 
     await options.store.writePublishedRecord(record);
 
@@ -298,12 +291,13 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
   const createRecord = async (
     subject: RecordSubject,
     declared: DeclaredScope | null,
+    origin: RecordOrigin,
   ): Promise<string> => {
     const checked = declared === null ? EMPTY_SCOPE : await checkScope(subject, declared);
 
     const workspace = await readWorkspace(subject);
 
-    const record = buildRecord(subject, { workspace, ...checked }, 1);
+    const record = buildRecord(subject, origin, { workspace, ...checked }, 1);
 
     await options.store.writePublishedRecord(record);
 
@@ -318,7 +312,7 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
         const stored = await options.store.readPublishedRecord(subject.session);
 
         if (stored === null) {
-          return createRecord(subject, null);
+          return createRecord(subject, null, NO_ORIGIN);
         }
 
         const record = await writeIdentity(subject, stored);
@@ -356,6 +350,7 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
       withoutGuestCopy.delete(sessionID);
 
       await rm(getLocalPath(sessionID), { force: true });
+      await rm(toScopeFilePath(getLocalPath(sessionID)), { force: true });
     },
   };
 }
@@ -364,6 +359,78 @@ async function readGuestDir(subject: RecordSubject): Promise<string> {
   const guest = await readGuestLayout(subject.provider, subject.host);
 
   return `${guest.directory}/records`;
+}
+
+// Writes a record copy into a directory on a remote host: the content to a
+// staged file, made read-only, then renamed over the copy.
+export const PLACE_COPY_SCRIPT =
+  'umask 022 && mkdir -p "$1" && printf "%s" "$4" > "$1/$3" && chmod 0444 "$1/$3" && mv -f "$1/$3" "$1/$2"';
+
+// The exit code of REFRESH_COPY_SCRIPT when the directory holds no copy to refresh.
+const NO_COPY_CODE = 3;
+
+// Writes a record copy as PLACE_COPY_SCRIPT does, but only over a copy already in
+// place, and exits NO_COPY_CODE when there is none.
+export const REFRESH_COPY_SCRIPT = `[ -e "$1/$2" ] || exit ${NO_COPY_CODE}; ${PLACE_COPY_SCRIPT}`;
+
+async function refreshGuestFile(
+  subject: RecordSubject,
+  directory: string,
+  file: PlacedFile,
+): Promise<boolean> {
+  const refreshed = await subject.provider.runCommand({
+    argv: [
+      'sh',
+      '-c',
+      REFRESH_COPY_SCRIPT,
+      'sh',
+      directory,
+      file.name,
+      `.${file.name}.${randomUUID()}`,
+      file.content,
+    ],
+    cwd: '/',
+    host: subject.host,
+  });
+
+  if (refreshed.exitCode === NO_COPY_CODE) {
+    return false;
+  }
+
+  if (refreshed.exitCode !== 0) {
+    throw new Error(`refreshing ${file.name} in ${directory} failed: ${refreshed.stderr.trim()}`);
+  }
+
+  return true;
+}
+
+function formatFile(content: object): string {
+  return `${JSON.stringify(content, null, 2)}\n`;
+}
+
+async function placeGuestFile(
+  subject: RecordSubject,
+  directory: string,
+  file: PlacedFile,
+): Promise<void> {
+  const placed = await subject.provider.runCommand({
+    argv: [
+      'sh',
+      '-c',
+      PLACE_COPY_SCRIPT,
+      'sh',
+      directory,
+      file.name,
+      `.${file.name}.${randomUUID()}`,
+      file.content,
+    ],
+    cwd: '/',
+    host: subject.host,
+  });
+
+  if (placed.exitCode !== 0) {
+    throw new Error(`placing ${file.name} in ${directory} failed: ${placed.stderr.trim()}`);
+  }
 }
 
 async function readWorkspace(subject: RecordSubject): Promise<RecordedScope['workspace']> {

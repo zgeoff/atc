@@ -104,7 +104,8 @@ The state directory holds these entries beside `atc.db` and its SQLite WAL files
   the running daemon's pid and the socket paths it listens on ([the daemon](./daemon/daemon.md)).
 - The `restarts/` folder holds the run logs of `atc daemon restart` and the record of the last
   finished restart. `daemon-restart.lock` admits one restart at a time.
-- The `records/` folder holds a read-only copy of each local session's record.
+- The `records/` folder holds a read-only copy of each local session's record, and the session's
+  scope file beside it.
 - The `sessions/` folder holds one folder per session, with its scratch folder and, for a Codex
   session, the folder of its message bridge.
 - Each `hook-settings-<agent_id>.json` is the generated Claude `--settings` file of one agent entry,

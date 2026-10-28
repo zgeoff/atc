@@ -167,6 +167,72 @@ test('it readies a remote host and plans the local spawn with no files when the 
   expect(provider.transfers).toStrictEqual([]);
 });
 
+test("it keeps the scratch folder of an agent's guest plan in the plan it returns", async () => {
+  const adapter = buildMockAgentAdapter({
+    id: 'claude',
+    planGuestSpawn: () => ({
+      bin: 'claude',
+      args: [],
+      files: {},
+      scratch: '/srv/scratch/session',
+    }),
+  });
+
+  const provider = buildStubMemoryProvider({
+    remote: true,
+    guest: { directory: '/srv/orchard-guest', atc: '/srv/orchard-guest/bin/atc' },
+  });
+
+  const ctx = setupTest({
+    adapters: [adapter],
+    targets: [buildMockExecutionTarget({ id: 'remote', provider })],
+  });
+
+  const setup = await ctx.auth.setupHarnessOnHost({
+    adapter,
+    provider,
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'remote',
+    spawnOptions: { prompt: '', resume: false },
+    auth: null,
+    cwd: null,
+    isNewHost: false,
+    timer: createStepTimer(),
+  });
+
+  expect(setup.plan.scratch).toBe('/srv/scratch/session');
+});
+
+test("it keeps the scratch folder of an agent's local plan in the plan it returns", async () => {
+  const adapter = buildMockAgentAdapter({
+    id: 'claude',
+    planSpawn: () => ({ bin: 'claude', args: [], scratch: '/srv/scratch/session' }),
+  });
+
+  const provider = buildStubMemoryProvider({ remote: false });
+
+  const ctx = setupTest({
+    adapters: [adapter],
+    targets: [buildMockExecutionTarget({ id: 'local', provider })],
+  });
+
+  const setup = await ctx.auth.setupHarnessOnHost({
+    adapter,
+    provider,
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'local',
+    spawnOptions: { prompt: '', resume: false },
+    auth: null,
+    cwd: null,
+    isNewHost: false,
+    timer: createStepTimer(),
+  });
+
+  expect(setup.plan.scratch).toBe('/srv/scratch/session');
+});
+
 test('it refuses to hand out an auth binder when the daemon binds no runtime auth', () => {
   const ctx = setupTest({ adapters: [], targets: [] });
 

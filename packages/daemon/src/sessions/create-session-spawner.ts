@@ -95,6 +95,7 @@ export interface SpawnSessionOptions {
   readonly namedBy?: 'user' | 'auto' | undefined;
   readonly agent?: AgentID | undefined;
   readonly parent?: SessionID | null | undefined;
+  readonly spawner?: SessionID | null | undefined;
   readonly overrides?: SpawnOverrides | undefined;
   readonly id?: SessionID | undefined;
   readonly target?: string | undefined;
@@ -443,6 +444,7 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
             namedBy: options.namedBy ?? 'auto',
             agent,
             parent,
+            spawner: options.spawner ?? null,
             overrides,
             materialize,
             requireInReach: options.requireInReach ?? (() => {}),

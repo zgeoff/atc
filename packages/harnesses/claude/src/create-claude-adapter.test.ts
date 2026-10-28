@@ -249,7 +249,7 @@ test('it restores a stock session in the mode its settings set', () => {
   });
 });
 
-test('it gives a local session a scratch folder of its own as a working directory and its temporary folder', () => {
+test('it gives a local session a scratch folder of its own as a working directory, its temporary folder, and its planned scratch', () => {
   const ctx = setupTest();
   const config = parseConfig([CLAUDE_PLUGIN], {});
 
@@ -278,6 +278,7 @@ test('it gives a local session a scratch folder of its own as a working director
       'hi',
     ],
     env: { TMPDIR: join(ctx.directory, 'state', 'sessions', 's1', 'scratch') },
+    scratch: join(ctx.directory, 'state', 'sessions', 's1', 'scratch'),
   });
 
   expect(existsSync(join(ctx.directory, 'state', 'sessions', 's1', 'scratch'))).toBeTrue();
@@ -485,6 +486,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
       'sess-1',
     ],
     env: { TMPDIR: '/tmp/atc/sessions/s1/scratch' },
+    scratch: '/tmp/atc/sessions/s1/scratch',
     files: {
       'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
       'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
@@ -600,6 +602,7 @@ test('it plans a remote spawn in the permission mode its configured arguments se
       '/tmp/atc/sessions/s1/atc-bridge',
     ],
     env: { TMPDIR: '/tmp/atc/sessions/s1/scratch' },
+    scratch: '/tmp/atc/sessions/s1/scratch',
     files: {
       'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
       'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
@@ -1012,6 +1015,8 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
   // The launch script is pinned by the guest launch's own tests.
   const args: readonly unknown[] = plan.args;
 
+  expect(plan.scratch).toBe('/tmp/atc/sessions/s1/scratch');
+
   expect({ bin: plan.bin, args, env: plan.env }).toStrictEqual({
     bin: 'sh',
     args: [
@@ -1412,6 +1417,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
       '/tmp/atc/sessions/s1/atc-bridge',
     ],
     env: { TMPDIR: '/tmp/atc/sessions/s1/scratch' },
+    scratch: '/tmp/atc/sessions/s1/scratch',
     files: {
       'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
       'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],

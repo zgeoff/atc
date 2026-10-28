@@ -38,9 +38,11 @@ const PUBLISHED_RECORD_SCHEMA = z.object({
   revision: REVISION,
   updatedAt: z.string(),
 
-  // a record an older atc stored holds neither key
+  // a record an older atc stored holds none of these keys
   name: NULLABLE_STRING.default(null),
   transcriptPath: NULLABLE_STRING.default(null),
+  spawner: NULLABLE_STRING.default(null),
+  scratch: NULLABLE_STRING.default(null),
   scope: SCOPE_SCHEMA,
 });
 

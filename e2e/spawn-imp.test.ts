@@ -309,6 +309,7 @@ test('it starts a remote harness with only the variables atc sets, never the dae
     ),
     ATC_SESSION_ID: getRecord(spawned, 'session')['id'],
     ATC_SESSION_RECORD: join(ctx.directory, 'g', 'records', `${spawnedID}.json`),
+    AUTO_MODE_SCOPE_FILE: join(ctx.directory, 'g', 'records', `${spawnedID}.scope.json`),
     ATC_SOCKET: expect.stringMatching(
       new RegExp(`^${ctx.directory}/g/run/[0-9a-f]{16}\\.sock$`, 'u'),
     ),
@@ -401,6 +402,12 @@ test('it revives a remote harness with only the variables atc sets, never the da
       'g',
       'records',
       '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0.json',
+    ),
+    AUTO_MODE_SCOPE_FILE: join(
+      ctx.directory,
+      'g',
+      'records',
+      '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0.scope.json',
     ),
     ATC_SOCKET: join(ctx.directory, 'g', 'run', '0f1e2d3c4b5a6978.sock'),
     LANG: 'C.UTF-8',
@@ -1040,6 +1047,8 @@ test('it places a read-only copy of the session record inside the imp before the
     updatedAt: expect.any(String),
     name: basename(ctx.directory),
     transcriptPath: null,
+    spawner: null,
+    scratch: null,
     scope: {
       workspace: { path: ctx.directory, branch: null, repoURL: null, sha: null },
       worktrees: [],

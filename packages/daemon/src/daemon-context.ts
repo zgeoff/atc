@@ -49,6 +49,10 @@ export interface SpawnParams {
   readonly namedBy: 'user' | 'auto';
   readonly agent: AgentID;
   readonly parent: SessionID | null;
+
+  // The session the request came from, which the spawned session's record
+  // names as its spawner; null for a caller outside every session.
+  readonly spawner: SessionID | null;
   readonly overrides: SpawnOverrides;
   readonly target: string;
 

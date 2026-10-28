@@ -175,6 +175,7 @@ export async function setupSpawn(
                   ...(built.materialized === null ? {} : { branch: built.materialized.branch }),
                 },
                 spawn.scope,
+                { spawner: spawn.spawner, scratch: setup.plan.scratch ?? null },
               )
 
               // A record stored before its copy failed to land is this

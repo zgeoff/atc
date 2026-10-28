@@ -40,7 +40,7 @@ export CODEX_HOME="$root/home/.codex"
 export ATC_TEST_HOME="$root"
 export ATC_CLI_ENTRY="$repo/packages/app/src/cli.ts"
 export ATC_GATEWAY_ENTRY="$repo/packages/app/src/gateway.ts"
-unset ATC_SESSION_ID ATC_SOCKET ATC_BRIDGE ATC_OUTBOX ATC_SESSION_RECORD CLAUDE_CONFIG_DIR
+unset ATC_SESSION_ID ATC_SOCKET ATC_BRIDGE ATC_OUTBOX ATC_SESSION_RECORD AUTO_MODE_SCOPE_FILE CLAUDE_CONFIG_DIR
 unset CODEX_THREAD_ID CODEX_SESSION_ID CODEX_TOOL_CALL_ID
 
 # One migrated state database per run, which each test that opens one copies.
