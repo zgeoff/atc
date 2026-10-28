@@ -1012,8 +1012,14 @@ test("it writes the scope file among the host's read-only files beside the copy"
   expect(path).toBe('/run/orchard/files/atc/records/s-protected.json');
   expect(scopeWrite?.[0]).toBe('s-protected');
 
-  expect(JSON.parse(String(scopeWrite?.[2]))).toMatchObject({
+  expect(JSON.parse(String(scopeWrite?.[2]))).toStrictEqual({
     format: 'auto-mode.scope',
+    version: 1,
+    paths: [],
+    workspace: { path: '/work/app', branch: null },
+    worktrees: [],
+    branches: [],
+    pullRequests: [],
     replyChannels: [{ tool: 'mcp__atc__atc_message_send', field: 'session', recipient: 's-lead' }],
   });
 });
