@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { createGitFixture, waitFor } from '@atc/test-utils';
+import { createGitFixture, registerTestCleanup, waitFor } from '@atc/test-utils';
 import { $ } from 'bun';
 import { spawn } from 'bun-pty';
 import invariant from 'tiny-invariant';
@@ -312,6 +312,15 @@ test('it skips every pre-push check of a delete-only push that overlaps another'
     cwd: ctx.repo,
     env: { ...ctx.env, PUSH_GATE: gate },
     stdout: 'pipe',
+  });
+
+  // Killing the push would leave the gate loop of its hook running, so the
+  // release opens the gate and waits for the whole push to end; it runs before
+  // the fixture's directory goes, because it registers later.
+  registerTestCleanup(async () => {
+    writeFileSync(gate, '');
+
+    await held.exited;
   });
 
   await waitFor(() => {
