@@ -52,9 +52,11 @@ async function readMarksPath(options: Readonly<WriteDeleteOnlyPushMarkOptions>):
 
 // git gives a deleted ref an all-zero local sha: 40 digits, or 64 in a SHA-256 repository.
 function isDeleteOnlyPush(refs: string): boolean {
-  const lines = refs.split('\n').filter((line) => line.trim() !== '');
+  const trimmed = refs.trim();
 
-  return lines.length > 0 && lines.every((line) => /^0+$/u.test(line.split(' ')[1] ?? ''));
+  return (
+    trimmed !== '' && trimmed.split('\n').every((line) => /^0+$/u.test(line.split(' ')[1] ?? ''))
+  );
 }
 
 // A run that ended leaves its mark behind, and a later run that takes the same pid removes or
