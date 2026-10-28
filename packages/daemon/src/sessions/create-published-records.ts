@@ -38,6 +38,11 @@ export interface RecordSubject {
 // from and the session's scratch folder.
 type RecordOrigin = Pick<PublishedRecord, 'spawner' | 'scratch'>;
 
+interface PlacedFile {
+  readonly name: string;
+  readonly content: string;
+}
+
 interface PublishedRecordsOptions {
   readonly store: PublishedRecordStore;
   readonly daemonID: string;
@@ -52,18 +57,6 @@ interface PublishedRecordsOptions {
 
 const EMPTY_SCOPE: CheckedScope = { worktrees: [], branches: [], pullRequests: [] };
 const NO_ORIGIN: RecordOrigin = { spawner: null, scratch: null };
-
-// Writes a record copy into a directory on a remote host: the content to a
-// staged file, made read-only, then renamed over the copy.
-export const PLACE_COPY_SCRIPT =
-  'umask 022 && mkdir -p "$1" && printf "%s" "$4" > "$1/$3" && chmod 0444 "$1/$3" && mv -f "$1/$3" "$1/$2"';
-
-// The exit code of REFRESH_COPY_SCRIPT when the directory holds no copy to refresh.
-const NO_COPY_CODE = 3;
-
-// Writes a record copy as PLACE_COPY_SCRIPT does, but only over a copy already in
-// place, and exits NO_COPY_CODE when there is none.
-export const REFRESH_COPY_SCRIPT = `[ -e "$1/$2" ] || exit ${NO_COPY_CODE}; ${PLACE_COPY_SCRIPT}`;
 
 export interface PublishedRecords {
   // Checks a spawn's declared scope on its readied host, records it with
@@ -148,13 +141,13 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
       options.ghBin,
     );
 
-  // a harness started before its host kept read-only files reads the guest-folder copy, and a
-  // later start reattaches to it with that environment, so the copy stays current while it
-  // exists; a cold boot clears the folder and ends that process with it
+  // a harness started before its host kept read-only files reads the guest-folder copy and scope
+  // file, and a later start reattaches to it with that environment, so both stay current while
+  // they exist; a cold boot clears the folder and ends that process with it
   const refreshGuestCopy = async (
     subject: RecordSubject,
-    name: string,
-    content: string,
+    record: PlacedFile,
+    scope: PlacedFile,
   ): Promise<void> => {
     if (withoutGuestCopy.has(subject.session)) {
       return;
@@ -162,32 +155,13 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
 
     const directory = await readGuestDir(subject);
 
-    const refreshed = await subject.provider.runCommand({
-      argv: [
-        'sh',
-        '-c',
-        REFRESH_COPY_SCRIPT,
-        'sh',
-        directory,
-        name,
-        `.${name}.${randomUUID()}`,
-        content,
-      ],
-      cwd: '/',
-      host: subject.host,
-    });
-
-    if (refreshed.exitCode === NO_COPY_CODE) {
+    if (!(await refreshGuestFile(subject, directory, record))) {
       withoutGuestCopy.add(subject.session);
 
       return;
     }
 
-    if (refreshed.exitCode !== 0) {
-      throw new Error(
-        `refreshing the session record in ${directory} failed: ${refreshed.stderr.trim()}`,
-      );
-    }
+    await refreshGuestFile(subject, directory, scope);
   };
 
   // Replaces each file through a rename, so a reader never sees half of one.
@@ -224,7 +198,11 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
         throw new Error(`the host of session ${subject.session} refused its read-only scope file`);
       }
 
-      await refreshGuestCopy(subject, name, content);
+      await refreshGuestCopy(
+        subject,
+        { name, content },
+        { name: scopeName, content: scopeContent },
+      );
 
       return protectedPath;
     }
@@ -236,8 +214,8 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
 
     withoutGuestCopy.delete(subject.session);
 
-    await placeGuestFile(subject, directory, name, content);
-    await placeGuestFile(subject, directory, scopeName, scopeContent);
+    await placeGuestFile(subject, directory, { name, content });
+    await placeGuestFile(subject, directory, { name: scopeName, content: scopeContent });
 
     return `${directory}/${name}`;
   };
@@ -383,6 +361,49 @@ async function readGuestDir(subject: RecordSubject): Promise<string> {
   return `${guest.directory}/records`;
 }
 
+// Writes a record copy into a directory on a remote host: the content to a
+// staged file, made read-only, then renamed over the copy.
+export const PLACE_COPY_SCRIPT =
+  'umask 022 && mkdir -p "$1" && printf "%s" "$4" > "$1/$3" && chmod 0444 "$1/$3" && mv -f "$1/$3" "$1/$2"';
+
+// The exit code of REFRESH_COPY_SCRIPT when the directory holds no copy to refresh.
+const NO_COPY_CODE = 3;
+
+// Writes a record copy as PLACE_COPY_SCRIPT does, but only over a copy already in
+// place, and exits NO_COPY_CODE when there is none.
+export const REFRESH_COPY_SCRIPT = `[ -e "$1/$2" ] || exit ${NO_COPY_CODE}; ${PLACE_COPY_SCRIPT}`;
+
+async function refreshGuestFile(
+  subject: RecordSubject,
+  directory: string,
+  file: PlacedFile,
+): Promise<boolean> {
+  const refreshed = await subject.provider.runCommand({
+    argv: [
+      'sh',
+      '-c',
+      REFRESH_COPY_SCRIPT,
+      'sh',
+      directory,
+      file.name,
+      `.${file.name}.${randomUUID()}`,
+      file.content,
+    ],
+    cwd: '/',
+    host: subject.host,
+  });
+
+  if (refreshed.exitCode === NO_COPY_CODE) {
+    return false;
+  }
+
+  if (refreshed.exitCode !== 0) {
+    throw new Error(`refreshing ${file.name} in ${directory} failed: ${refreshed.stderr.trim()}`);
+  }
+
+  return true;
+}
+
 function formatFile(content: object): string {
   return `${JSON.stringify(content, null, 2)}\n`;
 }
@@ -390,8 +411,7 @@ function formatFile(content: object): string {
 async function placeGuestFile(
   subject: RecordSubject,
   directory: string,
-  name: string,
-  content: string,
+  file: PlacedFile,
 ): Promise<void> {
   const placed = await subject.provider.runCommand({
     argv: [
@@ -400,16 +420,16 @@ async function placeGuestFile(
       PLACE_COPY_SCRIPT,
       'sh',
       directory,
-      name,
-      `.${name}.${randomUUID()}`,
-      content,
+      file.name,
+      `.${file.name}.${randomUUID()}`,
+      file.content,
     ],
     cwd: '/',
     host: subject.host,
   });
 
   if (placed.exitCode !== 0) {
-    throw new Error(`placing ${name} in ${directory} failed: ${placed.stderr.trim()}`);
+    throw new Error(`placing ${file.name} in ${directory} failed: ${placed.stderr.trim()}`);
   }
 }
 

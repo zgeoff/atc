@@ -972,6 +972,92 @@ test("it places a remote copy in the records folder of the host's guest folder",
   ]);
 });
 
+test('it refreshes the guest-folder scope file beside the guest copy on a host that keeps read-only files', async () => {
+  const ctx = await setupTest();
+
+  const guest = setupTempDir('atc-records-guest-');
+
+  mkdirSync(join(guest.path, 'records'));
+  writeFileSync(join(guest.path, 'records', 's-upgraded.json'), '{}');
+  writeFileSync(join(guest.path, 'records', 's-upgraded.scope.json'), '{}');
+
+  const provider = {
+    ...buildStubMemoryProvider({
+      kind: 'box',
+      remote: true,
+      guest: { directory: guest.path, atc: null },
+      runCommand: runLocalCommand,
+    }),
+    writeReadOnlyFile: () => Promise.resolve('/run/orchard/files/atc/records/s-upgraded.json'),
+  };
+
+  const session = toSessionID('s-upgraded');
+
+  await ctx.records.createRecord(
+    {
+      session,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider,
+      host: session,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+    { spawner: 's-lead', scratch: null },
+  );
+
+  const scopeFile = await readJSONRecord(
+    Bun.file(join(guest.path, 'records', 's-upgraded.scope.json')),
+  );
+
+  expect(scopeFile['replyChannels']).toStrictEqual([
+    { tool: 'mcp__atc__atc_message_send', field: 'session', recipient: 's-lead' },
+  ]);
+});
+
+test('it adds no guest-folder scope file for a harness whose guest copy has none', async () => {
+  const ctx = await setupTest();
+
+  const guest = setupTempDir('atc-records-guest-');
+
+  mkdirSync(join(guest.path, 'records'));
+  writeFileSync(join(guest.path, 'records', 's-older.json'), '{}');
+
+  const provider = {
+    ...buildStubMemoryProvider({
+      kind: 'box',
+      remote: true,
+      guest: { directory: guest.path, atc: null },
+      runCommand: runLocalCommand,
+    }),
+    writeReadOnlyFile: () => Promise.resolve('/run/orchard/files/atc/records/s-older.json'),
+  };
+
+  const session = toSessionID('s-older');
+
+  await ctx.records.createRecord(
+    {
+      session,
+      target: 'box',
+      name: 'login fix',
+      transcriptPath: null,
+      provider,
+      host: session,
+      directory: '/work/app',
+      workspace: null,
+    },
+    null,
+    { spawner: 's-lead', scratch: null },
+  );
+
+  const copy = await readJSONRecord(Bun.file(join(guest.path, 'records', 's-older.json')));
+
+  expect(copy['spawner']).toBe('s-lead');
+  expect(existsSync(join(guest.path, 'records', 's-older.scope.json'))).toBeFalse();
+});
+
 test("it places a remote session's scope file beside its copy in the guest folder", async () => {
   const ctx = await setupTest();
 
