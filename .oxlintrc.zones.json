@@ -65,7 +65,8 @@
             "packages/execution/local/src/create-local-pty-provider.ts",
             "packages/execution/imp/src/testing/{answer-stub-session,stub-imp,try-kill}.ts",
             "packages/test-utils/src/start-tui-harness.ts",
-            "packages/test-utils/src/create-stub-composer.test.ts"
+            "packages/test-utils/src/create-stub-composer.test.ts",
+            "scripts/write-delete-only-push-mark.test.ts"
           ],
           // the real port calls impd through the client, and the contract
           // types the impd stand-in is checked against come from its declarations

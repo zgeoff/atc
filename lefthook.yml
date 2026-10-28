@@ -44,6 +44,10 @@ pre-push:
     # concurrent push in this worktree never writes.
     - name: read push refs
       use_stdin: true
+      # git exports GIT_EXEC_PATH to each hook it runs. A hook run by hand
+      # lacks it, and lefthook would wait on the terminal for this job's stdin.
+      skip:
+        - run: test -z "$GIT_EXEC_PATH"
       run: bun scripts/write-delete-only-push-mark.ts "$PPID"
     - name: format:check
       skip: &delete-only-push
@@ -91,3 +95,7 @@ pre-push:
       exclude:
         - 'mods/**'
       run: bun run test:related {files}
+    # A later hook run by hand skips the mark job, so a mark left under a pid
+    # that it reuses would skip its checks.
+    - name: remove push mark
+      run: rm -f "$(git rev-parse --git-path atc-delete-only-push)/$PPID"

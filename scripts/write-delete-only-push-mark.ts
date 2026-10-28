@@ -90,8 +90,7 @@ async function main(): Promise<void> {
       throw new Error('pass the process id of the lefthook run as the first argument');
     }
 
-    // A hook run by hand gives the job the terminal as stdin, and a read would wait on it.
-    const refs = process.stdin.isTTY ? '' : await Bun.stdin.text();
+    const refs = await Bun.stdin.text();
 
     await writeDeleteOnlyPushMark({ cwd: resolve('.'), refs, hookID: Number(argument) });
   } catch (error) {

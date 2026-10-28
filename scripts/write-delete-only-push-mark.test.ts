@@ -1,14 +1,23 @@
-import { expect, test } from 'bun:test';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { expect, onTestFinished, test } from 'bun:test';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { createGitFixture, waitFor } from '@atc/test-utils';
 import { $ } from 'bun';
+import { spawn } from 'bun-pty';
+import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { writeDeleteOnlyPushMark } from './write-delete-only-push-mark';
 
-// The clone's pre-push hook runs the repo's lefthook.yml with each check after
-// the mark job swapped for an echo of its name, because the real checks need
-// the whole repo and take minutes.
+// The clone's pre-push hook runs the repo's lefthook.yml with each check
+// between the mark job and the mark removal swapped for an echo of its name,
+// because the real checks need the whole repo and take minutes.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'delete-only-push-' });
 
@@ -22,7 +31,11 @@ async function setupTest() {
 
   const configText = readFileSync(join(root, 'lefthook.yml'), 'utf8');
   const config = configSchema.parse(Bun.YAML.parse(configText));
-  const [markJob, ...checks] = config['pre-push'].jobs;
+  const [markJob, ...laterJobs] = config['pre-push'].jobs;
+  const removeJob = laterJobs.at(-1);
+  const checks = laterJobs.slice(0, -1);
+
+  invariant(markJob && removeJob);
 
   // A push with PUSH_GATE set waits here until that file exists, so two pushes can overlap.
   const gateJob = {
@@ -40,6 +53,7 @@ async function setupTest() {
       exclude: undefined,
       run: `echo ran:${check.name}`,
     })),
+    removeJob,
   ];
 
   mkdirSync(join(fixture.work, 'scripts'));
@@ -194,6 +208,47 @@ test('it runs every pre-push check on a push of a branch', async () => {
   expect(push.text()).toIncludeMultiple(ctx.checkNames.map((name) => `ran:${name}`));
 });
 
+test('it runs every pre-push check on a hook run by hand from a terminal', async () => {
+  const ctx = await setupTest();
+
+  await $`git switch --quiet -c feature`.env(ctx.env).cwd(ctx.repo).quiet();
+
+  writeFileSync(join(ctx.repo, 'feature.ts'), 'export {};\n');
+
+  await $`git add feature.ts`.env(ctx.env).cwd(ctx.repo).quiet();
+  await $`git commit --quiet -m feature`.env(ctx.env).cwd(ctx.repo).quiet();
+
+  const output = { text: '' };
+  const exit = Promise.withResolvers<number>();
+
+  const pty = spawn(ctx.env.LEFTHOOK_BIN, ['run', 'pre-push'], {
+    name: 'xterm-256color',
+    cols: 120,
+    rows: 40,
+    cwd: ctx.repo,
+    env: Object.fromEntries(
+      Object.entries(ctx.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+    ),
+  });
+
+  onTestFinished(() => {
+    pty.kill();
+  });
+
+  pty.onData((data) => {
+    output.text += data;
+  });
+
+  pty.onExit((event) => {
+    exit.resolve(event.exitCode);
+  });
+
+  const exitCode = await exit.promise;
+
+  expect(exitCode).toBe(0);
+  expect(output.text).toIncludeMultiple(ctx.checkNames.map((name) => `ran:${name}`));
+});
+
 // lefthook takes a pre-push job's files from the checked-out branch, not from
 // the pushed refs, and skips the job when that branch changes no file, so the
 // delete runs from a branch with a commit of its own.
@@ -219,6 +274,21 @@ test('it skips every pre-push check and deletes the branch on a push that only d
   expect(push.exitCode).toBe(0);
   expect(push.text()).not.toInclude('ran:');
   expect(remote).toBe('');
+});
+
+test('it leaves no mark behind after a push that only deletes', async () => {
+  const ctx = await setupTest();
+
+  await $`git push --quiet origin HEAD:refs/heads/hotfix`.env(ctx.env).cwd(ctx.repo).quiet();
+  await $`git switch --quiet -c feature`.env(ctx.env).cwd(ctx.repo).quiet();
+
+  writeFileSync(join(ctx.repo, 'feature.ts'), 'export {};\n');
+
+  await $`git add feature.ts`.env(ctx.env).cwd(ctx.repo).quiet();
+  await $`git commit --quiet -m feature`.env(ctx.env).cwd(ctx.repo).quiet();
+  await $`git push --quiet origin --delete hotfix`.env(ctx.env).cwd(ctx.repo).quiet();
+
+  expect(readdirSync(ctx.marks)).toStrictEqual([]);
 });
 
 test('it skips every pre-push check of a delete-only push that overlaps another', async () => {
