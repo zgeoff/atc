@@ -26,10 +26,12 @@ the layout and the runtime rules, and this runbook covers setting up a checkout 
 lefthook runs oxlint, oxfmt, format-codemod and gitleaks on the staged files before a commit, and
 commitlint on the message. Before a push it runs the format check, the shell lint, the guest script
 check, the import check, and the lint and tests for what the branch changes, one job at a time, to
-bound memory. The shell lint (`bun run lint:shell`) runs shellcheck and `shfmt -d` over the tracked
-shell scripts, with shfmt's settings in `.editorconfig`, and leaves out the skill scripts that are
-synced from another repo. The guest script check (`bun run check:guest-scripts`) runs shellcheck
-over the shell scripts that atc holds as strings, which the shell lint cannot see.
+bound memory. A push that only deletes remote branches, such as `git push origin --delete <branch>`,
+carries no content, so the hook skips every check. The shell lint (`bun run lint:shell`) runs
+shellcheck and `shfmt -d` over the tracked shell scripts, with shfmt's settings in `.editorconfig`,
+and leaves out the skill scripts that are synced from another repo. The guest script check
+(`bun run check:guest-scripts`) runs shellcheck over the shell scripts that atc holds as strings,
+which the shell lint cannot see.
 
 A squash merge makes the PR title the commit subject, so the `PR Title` workflow runs commitlint on
 the title each time a PR opens, changes its title, or takes a push.
