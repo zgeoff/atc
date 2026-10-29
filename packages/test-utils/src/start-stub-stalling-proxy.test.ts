@@ -7,6 +7,7 @@ import { waitFor } from './wait-for';
 function setupTest() {
   const received: string[] = [];
   const accepted = Promise.withResolvers<Socket>();
+  const closed = { count: 0 };
 
   const target = Bun.listen({
     hostname: '127.0.0.1',
@@ -18,6 +19,9 @@ function setupTest() {
       data: (_socket, data) => {
         received.push(data.toString());
       },
+      close: () => {
+        closed.count += 1;
+      },
     },
   });
 
@@ -25,7 +29,7 @@ function setupTest() {
     target.stop(true);
   });
 
-  return { port: target.port, received, accepted: accepted.promise };
+  return { port: target.port, received, accepted: accepted.promise, closed };
 }
 
 test('it forwards what each end sends to the other end', async () => {
@@ -92,6 +96,82 @@ test('it drops what each end sends once it stalls', async () => {
 
   expect(ctx.received).toStrictEqual(['one']);
   expect(replies).toBeEmpty();
+});
+
+test('it delivers every byte to a reader too slow to take one write', async () => {
+  const ctx = setupTest();
+  const proxy = startStubStallingProxy(ctx.port);
+
+  const sent = new Uint8Array(8 * 1024 * 1024).fill(0x61);
+
+  const progress = { offset: 0 };
+
+  const client = await Bun.connect({
+    hostname: '127.0.0.1',
+    port: proxy.port,
+    socket: {
+      data: () => {},
+      drain: (socket) => {
+        progress.offset += Math.max(0, socket.write(sent.subarray(progress.offset)));
+      },
+    },
+  });
+
+  registerTestCleanup(() => client.end());
+
+  client.write('x');
+
+  const peer = await ctx.accepted;
+
+  await waitFor(() => {
+    expect(ctx.received).toStrictEqual(['x']);
+  });
+
+  peer.pause();
+
+  progress.offset += Math.max(0, client.write(sent));
+
+  await waitFor(() => {
+    expect(progress.offset).toBe(sent.byteLength);
+  });
+
+  peer.resume();
+
+  await waitFor(() => {
+    expect(ctx.received.join('')).toHaveLength(1 + sent.byteLength);
+  });
+});
+
+test('it ends the upstream connection on stop after a client closed while stalled', async () => {
+  const ctx = setupTest();
+  const proxy = startStubStallingProxy(ctx.port);
+
+  const client = await Bun.connect({
+    hostname: '127.0.0.1',
+    port: proxy.port,
+    socket: { data: () => {} },
+  });
+
+  client.write('one');
+
+  await ctx.accepted;
+
+  await waitFor(() => {
+    expect(ctx.received).toStrictEqual(['one']);
+  });
+
+  proxy.stall();
+  client.end();
+
+  await waitFor(() => {
+    expect(proxy.countClosedClients()).toBe(1);
+  });
+
+  proxy.stop();
+
+  await waitFor(() => {
+    expect(ctx.closed.count).toBe(1);
+  });
 });
 
 test('it stops listening once the test finishes without a stop', () => {

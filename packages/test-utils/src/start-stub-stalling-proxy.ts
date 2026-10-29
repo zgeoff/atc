@@ -11,47 +11,71 @@ interface StubStallingProxy {
   // How many bytes it has dropped, in both directions together.
   readonly countDroppedBytes: () => number;
 
+  // How many client connections it has seen close.
+  readonly countClosedClients: () => number;
+
   readonly stop: () => void;
 }
 
+// One end of a proxied connection, with the bytes it has yet to take.
+interface ProxiedEnd {
+  socket: Socket<unknown> | null;
+  readonly unwritten: Uint8Array[];
+}
+
 interface ProxiedConnection {
-  upstream: Socket | null;
-  readonly queued: Uint8Array[];
+  readonly client: ProxiedEnd;
+  readonly upstream: ProxiedEnd;
 }
 
 // A TCP proxy to a port on 127.0.0.1 that forwards each connection until it
-// stalls.
+// stalls. It keeps every connection until it stops, so a stop ends each
+// upstream socket that a stalled close left open.
 export function startStubStallingProxy(targetPort: number): StubStallingProxy {
-  const state = { stalled: false, droppedBytes: 0 };
+  const state = { stalled: false, droppedBytes: 0, closedClients: 0 };
 
-  const clients = new Set<Socket<ProxiedConnection>>();
+  const connections = new Set<ProxiedConnection>();
+
+  const forward = (destination: ProxiedEnd, bytes: Uint8Array): void => {
+    if (state.stalled) {
+      state.droppedBytes += bytes.byteLength;
+
+      return;
+    }
+
+    destination.unwritten.push(new Uint8Array(bytes));
+
+    writeUnwritten(destination);
+  };
 
   const server = Bun.listen<ProxiedConnection>({
     hostname: '127.0.0.1',
     port: 0,
     socket: {
       open: (client) => {
-        clients.add(client);
+        const connection: ProxiedConnection = {
+          client: { socket: client, unwritten: [] },
+          upstream: { socket: null, unwritten: [] },
+        };
 
-        client.data = { upstream: null, queued: [] };
+        client.data = connection;
+
+        connections.add(connection);
 
         void Bun.connect({
           hostname: '127.0.0.1',
           port: targetPort,
           socket: {
             open: (upstream) => {
-              client.data.upstream = upstream;
+              connection.upstream.socket = upstream;
 
-              for (const bytes of client.data.queued.splice(0)) {
-                upstream.write(bytes);
-              }
+              writeUnwritten(connection.upstream);
             },
             data: (_upstream, bytes) => {
-              if (state.stalled) {
-                state.droppedBytes += bytes.byteLength;
-              } else {
-                client.write(bytes);
-              }
+              forward(connection.client, bytes);
+            },
+            drain: () => {
+              writeUnwritten(connection.upstream);
             },
             close: () => {
               if (!state.stalled) {
@@ -62,34 +86,25 @@ export function startStubStallingProxy(targetPort: number): StubStallingProxy {
         });
       },
       data: (client, bytes) => {
-        if (state.stalled) {
-          state.droppedBytes += bytes.byteLength;
-
-          return;
-        }
-
-        const upstream = client.data.upstream;
-
-        if (upstream === null) {
-          client.data.queued.push(new Uint8Array(bytes));
-        } else {
-          upstream.write(bytes);
-        }
+        forward(client.data.upstream, bytes);
+      },
+      drain: (client) => {
+        writeUnwritten(client.data.client);
       },
       close: (client) => {
-        clients.delete(client);
+        state.closedClients += 1;
 
         if (!state.stalled) {
-          client.data.upstream?.end();
+          client.data.upstream.socket?.end();
         }
       },
     },
   });
 
   const stop = registerTestCleanup(() => {
-    for (const client of clients) {
-      client.data.upstream?.end();
-      client.end();
+    for (const connection of connections) {
+      connection.upstream.socket?.end();
+      connection.client.socket?.end();
     }
 
     server.stop(true);
@@ -101,6 +116,27 @@ export function startStubStallingProxy(targetPort: number): StubStallingProxy {
       state.stalled = true;
     },
     countDroppedBytes: () => state.droppedBytes,
+    countClosedClients: () => state.closedClients,
     stop,
   };
+}
+
+// A socket's write takes only what its buffer holds, so the rest waits for
+// its drain.
+function writeUnwritten(end: ProxiedEnd): void {
+  const socket = end.socket;
+
+  if (socket === null) {
+    return;
+  }
+
+  for (let head = end.unwritten.shift(); head !== undefined; head = end.unwritten.shift()) {
+    const written = Math.max(0, socket.write(head));
+
+    if (written < head.byteLength) {
+      end.unwritten.unshift(head.subarray(written));
+
+      return;
+    }
+  }
 }
