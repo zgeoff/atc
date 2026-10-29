@@ -14,7 +14,10 @@ async function setupTest() {
   writeFileSync(join(temporaryDirectory.path, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
   const subprocess = Bun.spawn(
-    [process.execPath, join(import.meta.dir, 'run-listener-daemon.ts')],
+    [
+      process.execPath,
+      join(import.meta.dir, '..', 'packages', 'daemon', 'src', 'testing', 'run-listener-daemon.ts'),
+    ],
     {
       env: { ...process.env, ATC_TEST_DIR: temporaryDirectory.path },
       stdout: 'pipe',
