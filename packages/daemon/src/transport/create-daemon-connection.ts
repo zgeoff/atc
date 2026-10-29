@@ -57,6 +57,10 @@ export interface DaemonConnection {
   readonly applyChunk: (chunk: string) => void;
 
   readonly drain: () => void;
+
+  // The peer wrote its last line: the connection ends once every request it
+  // sent has its answer written.
+  readonly endInput: () => void;
 }
 
 // The targets a request may use and the namespace of its idempotency keys.
@@ -597,6 +601,14 @@ export function createDaemonConnection(
 
     const openPeer = serverPeer;
 
+    // An event subscription answers until the connection ends, so the end of
+    // input waits on every other request alone.
+    const isAwaited = findPeerMethod(line) !== 'events.subscribe';
+
+    if (isAwaited) {
+      inFlight += 1;
+    }
+
     // A line the peer cannot decode ends the connection.
     void (async () => {
       try {
@@ -604,9 +616,26 @@ export function createDaemonConnection(
       } catch {
         stopConnection();
       }
+
+      if (isAwaited) {
+        inFlight -= 1;
+
+        endWhenSettled();
+      }
     })();
 
     return true;
+  };
+
+  // Requests read but not yet answered, and whether the peer has written
+  // its last line.
+  let inFlight = 0;
+  let isInputEnded = false;
+
+  const endWhenSettled = (): void => {
+    if (isInputEnded && inFlight === 0 && queue.queuedBytes === 0) {
+      stopConnection();
+    }
   };
 
   const self: DaemonConnection = {
@@ -681,7 +710,14 @@ export function createDaemonConnection(
 
       if (queue.queuedBytes === 0) {
         releaseDrainWaiters();
+        endWhenSettled();
       }
+    },
+
+    endInput: () => {
+      isInputEnded = true;
+
+      endWhenSettled();
     },
   };
 

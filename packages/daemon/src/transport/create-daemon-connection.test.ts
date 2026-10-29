@@ -1520,6 +1520,52 @@ test.each([
   },
 );
 
+test('it ends a peer connection whose peer wrote its last line once every answer is written', async () => {
+  const peer = buildStubPeerSocket();
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
+
+  peer.setAccepting(false);
+
+  conn.applyChunk(
+    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }) +
+      buildPeerRequestLine('2', '/daemon/ping', {}),
+  );
+
+  conn.endInput();
+
+  await waitFor(() => {
+    expect(peer.countRefusedWrites()).toBeGreaterThan(0);
+  });
+
+  const endedWhileQueued = peer.hasEnded();
+
+  peer.setAccepting(true);
+  conn.drain();
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBeTrue();
+  });
+
+  expect(endedWhileQueued).toBeFalse();
+  expect<unknown[]>(peer.collectFrames()).toIncludeAllPartialMembers([{ id: '1' }, { id: '2' }]);
+});
+
+test('it keeps a peer connection open while its peer has not written its last line', async () => {
+  const peer = buildStubPeerSocket();
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
+
+  conn.applyChunk(
+    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }) +
+      buildPeerRequestLine('2', '/daemon/ping', {}),
+  );
+
+  await waitFor(() => {
+    expect<unknown[]>(peer.collectFrames()).toPartiallyContain({ id: '2' });
+  });
+
+  expect(peer.hasEnded()).toBeFalse();
+});
+
 test('it writes no event to a peer connection whose refusal is still queued', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());

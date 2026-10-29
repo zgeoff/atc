@@ -465,6 +465,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       connection.applyChunk(`${line}\n`);
     });
 
+    // A host holds a relayed connection open until the daemon closes it, and
+    // takes no new one once it holds its most.
+    relay.onEnd(() => {
+      connection.endInput();
+    });
+
     relay.onClose(() => {
       connection.dispose();
 

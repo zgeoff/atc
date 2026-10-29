@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import type { HarnessRelay } from '@atc/plugin-api';
-import { buildStubHarnessRelay } from '@atc/test-utils';
+import { buildStubHarnessRelay, waitFor } from '@atc/test-utils';
 import { createRelayPeerSocket } from './create-relay-peer-socket';
 
 test('it writes each whole line to the relay and keeps a partial line for the next write', async () => {
@@ -57,6 +57,31 @@ test('it takes no bytes while a line waits for room in the relay, and drains onc
   expect(held).toBe(0);
   expect(written).toStrictEqual(['{"i":"1"}']);
   expect(onDrain).toHaveBeenCalledOnce();
+});
+
+test('it closes the relay on an end only once the line written before it has gone', async () => {
+  const room = Promise.withResolvers<void>();
+  const stub = buildStubHarnessRelay();
+
+  const relay: HarnessRelay = {
+    ...stub.relay,
+    writeLine: () => room.promise,
+  };
+
+  const socket = createRelayPeerSocket(relay, () => {});
+
+  socket.write(new TextEncoder().encode('{"line":"last"}\n'));
+  socket.end();
+
+  const closedWhileWaiting = stub.isClosed();
+
+  room.resolve();
+
+  await waitFor(() => {
+    expect(stub.isClosed()).toBe(true);
+  });
+
+  expect(closedWhileWaiting).toBe(false);
 });
 
 test('it closes the relay when the connection ends the socket', () => {

@@ -7,6 +7,7 @@ export function createRelayPeerSocket(relay: HarnessRelay, onDrain: () => void) 
 
   let partial = '';
   let waiting = 0;
+  let isEnding = false;
 
   const writeRelayLine = async (line: string) => {
     try {
@@ -17,7 +18,13 @@ export function createRelayPeerSocket(relay: HarnessRelay, onDrain: () => void) 
 
     waiting -= 1;
 
-    if (waiting === 0) {
+    if (waiting > 0) {
+      return;
+    }
+
+    if (isEnding) {
+      relay.close();
+    } else {
       onDrain();
     }
   };
@@ -39,8 +46,14 @@ export function createRelayPeerSocket(relay: HarnessRelay, onDrain: () => void) 
 
       return data.length;
     },
+
+    // The relay closes once every line written before the end has gone.
     end: () => {
-      relay.close();
+      isEnding = true;
+
+      if (waiting === 0) {
+        relay.close();
+      }
     },
   };
 }
