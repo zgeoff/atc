@@ -7,7 +7,27 @@ export const NO_TRANSCRIPT_CODE = 3;
 // dd's POSIX options skip and count only whole blocks, and GNU's byte offsets are missing on macOS.
 const BLOCK_BYTES = 65_536;
 
-// Prints the file's size and $3 blocks of the file at $1 from block $2. dd copies the blocks to a
+// The response, one field per line in this order: the script prints each field's shell value, and
+// the parser matches each field's pattern. GNU base64 wraps its output and macOS's does not, so
+// the blocks come last and may span lines.
+const RESPONSE_FIELDS = [
+  { name: 'size', value: '"$((size))"', pattern: String.raw`\d+` },
+  { name: 'blocks', value: '"$blocks"', pattern: String.raw`[\d+/=A-Za-z\n]*` },
+] as const;
+
+type ResponseField = (typeof RESPONSE_FIELDS)[number]['name'];
+
+const RESPONSE_PATTERN = new RegExp(
+  `^${RESPONSE_FIELDS.map((field) => `(?<${field.name}>${field.pattern})`).join(String.raw`\n`)}\n$`,
+  'u',
+);
+
+const RESPONSE_SCHEMA = z.object({
+  size: z.string().transform(Number).pipe(z.number().int().nonnegative().safe()),
+  blocks: z.string().transform((blocks) => Buffer.from(blocks.replaceAll('\n', ''), 'base64')),
+} satisfies Record<ResponseField, z.ZodType>);
+
+// Prints the response for $3 blocks of the file at $1 from block $2. dd copies the blocks to a
 // file first, since a pipeline exits with its last command's status and a reader before it that
 // stops early, such as tail before head, ends on a broken pipe.
 export const READ_TRANSCRIPT_WINDOW_SCRIPT = `[ -f "$1" ] || exit ${NO_TRANSCRIPT_CODE}
@@ -15,22 +35,8 @@ size=$(wc -c < "$1") || exit 1
 window=$(mktemp) || exit 1
 trap 'rm -f "$window"' EXIT
 dd if="$1" of="$window" bs=${BLOCK_BYTES} skip="$2" count="$3" || exit 1
-printf '%s\\n' "$((size))" && base64 < "$window"`;
-
-// The file's size on one line, then the blocks in base64, since a command's output reaches the
-// daemon as text. GNU base64 wraps its output and macOS's does not.
-const TRANSCRIPT_BLOCKS_RESPONSE = z
-  .string()
-  .regex(/^\d+\n[\d+/=A-Za-z\n]*$/u)
-  .transform((stdout) => {
-    const newline = stdout.indexOf('\n');
-
-    return {
-      size: Number(stdout.slice(0, newline)),
-      blocks: Buffer.from(stdout.slice(newline + 1).replaceAll('\n', ''), 'base64'),
-    };
-  })
-  .refine((response) => Number.isSafeInteger(response.size));
+blocks=$(base64 < "$window") || exit 1
+printf '${RESPONSE_FIELDS.map(() => '%s').join(String.raw`\n`)}\\n' ${RESPONSE_FIELDS.map((field) => field.value).join(' ')}`;
 
 export function buildTranscriptWindowArgs(
   path: string,
@@ -49,7 +55,7 @@ export function parseTranscriptWindow(
   offset: number,
   length: number,
 ): TranscriptWindow | null {
-  const parsed = TRANSCRIPT_BLOCKS_RESPONSE.safeParse(stdout);
+  const parsed = RESPONSE_SCHEMA.safeParse(RESPONSE_PATTERN.exec(stdout)?.groups);
 
   if (!parsed.success) {
     return null;
