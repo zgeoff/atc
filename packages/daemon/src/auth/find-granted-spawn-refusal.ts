@@ -3,6 +3,7 @@ import type { AgentSessionID, GrantScope, SessionID } from '@atcx/contract';
 export interface GrantedSpawn {
   readonly atcAccess: readonly GrantScope[];
   readonly resume: boolean | AgentSessionID;
+  readonly hasWorkspace: boolean;
 }
 
 export interface GrantedSpawnHolder {
@@ -11,9 +12,9 @@ export interface GrantedSpawnHolder {
   readonly isResumable: (agentSessionID: AgentSessionID) => boolean;
 }
 
-// A resumed agent session id becomes the new session's own, and the fleet
-// keeps one row per agent session on a target, so a resume names a session
-// the holder already reaches.
+// The daemon reads a workspace source with its own host's files and
+// credentials, and the fleet keeps one row per agent session on a target, so
+// neither may reach past the holder's access.
 export function findGrantedSpawnRefusal(
   holder: GrantedSpawnHolder,
   spawn: GrantedSpawn,
@@ -22,6 +23,10 @@ export function findGrantedSpawnRefusal(
 
   if (missing.length > 0) {
     return `session '${holder.id}' holds atc access ${holder.scopes.join(', ')}, so its spawn cannot grant ${missing.join(', ')}`;
+  }
+
+  if (spawn.hasWorkspace) {
+    return `session '${holder.id}' holds atc access, so its spawn takes no workspace source; check the work out inside the new session`;
   }
 
   if (spawn.resume === true) {

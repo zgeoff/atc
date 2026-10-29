@@ -544,6 +544,28 @@ test('it refuses a spawn from a session with atc access on another target than i
   expect(local.text).toStartWith('target_forbidden');
 });
 
+test('it refuses a spawn from a session with atc access that names a workspace source', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+    atcAccess: ['spawn'],
+  });
+
+  const holder = String(getRecord(spawned, 'session')['id']);
+
+  const mcp = await ctx.openSessionMCP(holder);
+
+  const sourced = await mcp.sendToolCall('atc_session_spawn', {
+    cwd: '/work/checkout',
+    workspace: { kind: 'git', url: 'https://git.example/team/repo.git', ref: 'main' },
+  });
+
+  expect(sourced.text).toStartWith('unauthorized');
+});
+
 test('it refuses atc access on a target that runs the agent on the daemon machine', async () => {
   const ctx = await setupTest();
 

@@ -262,7 +262,11 @@ async function applySpawn(
 
     const atcAccess = data.atcAccess ?? [];
 
-    ctx.requireGrantedSpawn({ atcAccess, resume: data.resume });
+    ctx.requireGrantedSpawn({
+      atcAccess,
+      resume: data.resume,
+      hasWorkspace: data.workspace !== undefined,
+    });
 
     return {
       cwd: directory,

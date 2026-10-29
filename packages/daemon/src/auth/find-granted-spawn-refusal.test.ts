@@ -10,7 +10,7 @@ test('it allows a spawn that grants held scopes and resumes an agent session in 
       scopes: ['read', 'spawn'],
       isResumable: (agentSessionID) => agentSessionID === toAgentSessionID('conversation-own'),
     },
-    { atcAccess: ['read'], resume: toAgentSessionID('conversation-own') },
+    { atcAccess: ['read'], resume: toAgentSessionID('conversation-own'), hasWorkspace: false },
   );
 
   expect(refusal).toBeNull();
@@ -19,37 +19,70 @@ test('it allows a spawn that grants held scopes and resumes an agent session in 
 test('it allows a spawn that grants nothing and resumes nothing', () => {
   const refusal = findGrantedSpawnRefusal(
     { id: toSessionID('holder'), scopes: ['spawn'], isResumable: () => false },
-    { atcAccess: [], resume: false },
+    { atcAccess: [], resume: false, hasWorkspace: false },
   );
 
   expect(refusal).toBeNull();
 });
 
-test.each<[string, readonly GrantScope[], boolean | AgentSessionID, RegExp]>([
-  ['a scope the holder lacks', ['kill'], false, /cannot grant kill/u],
-  [
-    'every scope when it holds one',
-    ['read', 'message', 'spawn', 'kill'],
-    false,
-    /cannot grant read, message, kill/u,
-  ],
-  ['the latest agent session', [], true, /names the agent session to resume/u],
-  [
-    'an agent session out of reach',
-    [],
-    toAgentSessionID('conversation-elsewhere'),
-    /resumes only an agent session/u,
-  ],
-  ['an empty agent session id', [], toAgentSessionID(''), /resumes only an agent session/u],
-])('it refuses a spawn that asks for %s', (_label, atcAccess, resume, message) => {
+test.each<{
+  label: string;
+  atcAccess: readonly GrantScope[];
+  resume: boolean | AgentSessionID;
+  hasWorkspace: boolean;
+  message: RegExp;
+}>([
+  {
+    label: 'a scope the holder lacks',
+    atcAccess: ['kill'],
+    resume: false,
+    hasWorkspace: false,
+    message: /cannot grant kill/u,
+  },
+  {
+    label: 'every scope when it holds one',
+    atcAccess: ['read', 'message', 'spawn', 'kill'],
+    resume: false,
+    hasWorkspace: false,
+    message: /cannot grant read, message, kill/u,
+  },
+  {
+    label: 'a workspace source',
+    atcAccess: [],
+    resume: false,
+    hasWorkspace: true,
+    message: /takes no workspace source/u,
+  },
+  {
+    label: 'the latest agent session',
+    atcAccess: [],
+    resume: true,
+    hasWorkspace: false,
+    message: /names the agent session to resume/u,
+  },
+  {
+    label: 'an agent session out of reach',
+    atcAccess: [],
+    resume: toAgentSessionID('conversation-elsewhere'),
+    hasWorkspace: false,
+    message: /resumes only an agent session/u,
+  },
+  {
+    label: 'an empty agent session id',
+    atcAccess: [],
+    resume: toAgentSessionID(''),
+    hasWorkspace: false,
+    message: /resumes only an agent session/u,
+  },
+])('it refuses a spawn that asks for $label', (row) => {
   const refusal = findGrantedSpawnRefusal(
     {
       id: toSessionID('holder'),
       scopes: ['spawn'],
       isResumable: (agentSessionID) => agentSessionID === toAgentSessionID('conversation-own'),
     },
-    { atcAccess, resume },
+    { atcAccess: row.atcAccess, resume: row.resume, hasWorkspace: row.hasWorkspace },
   );
 
-  expect(refusal).toMatch(message);
+  expect(refusal).toMatch(row.message);
 });
