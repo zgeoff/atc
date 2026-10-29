@@ -73,6 +73,18 @@ test('it runs the read on the session host', async () => {
   expect(runCommand).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ host: 'host-1' }));
 });
 
+test('it rejects a read whose output is not a window', () => {
+  const readWindow = makeGuestTranscriptReader(
+    { runCommand: () => Promise.resolve({ exitCode: 0, stdout: 'first turn\n', stderr: '' }) },
+    'host-1',
+  );
+
+  expect(readWindow('/tmp/atc/sessions/s-1/a-1.jsonl', 0, 1_048_576)).rejects.toThrowWithMessage(
+    Error,
+    'reading /tmp/atc/sessions/s-1/a-1.jsonl on host host-1 failed: ',
+  );
+});
+
 test('it rejects a read that fails on the host', () => {
   const readWindow = makeGuestTranscriptReader(
     {
