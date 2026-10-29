@@ -324,7 +324,7 @@ export function createCodexAdapter(
     planHookEvents: (hookEvent, previous) => planCodexHookEvents(hookEvent, previous),
 
     // Codex records session titles in the session index of its home.
-    loadName: (source, namedBy) => loadCodexName(resolveCodexHome(), source, namedBy),
+    loadName: (source, namedBy, files) => loadCodexName(resolveCodexHome(), source, namedBy, files),
 
     planResumeCommand: (cwd, agentSessionID) => {
       const resume =

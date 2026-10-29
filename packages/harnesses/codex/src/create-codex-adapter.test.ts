@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
+import { readLocalMatchingLines } from '@atc/plugin-api';
 import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
@@ -155,7 +156,9 @@ test('it loads the latest indexed thread name', async () => {
     ctx.directory,
   );
 
-  const name = await adapter.loadName('c-1', 'auto');
+  const name = await adapter.loadName('c-1', 'auto', {
+    readMatchingLines: readLocalMatchingLines,
+  });
 
   expect(name).toStrictEqual({ name: 'renamed title' });
 });
@@ -173,7 +176,9 @@ test('it loads the indexed thread name from CODEX_HOME when built without a Code
   const config = parseConfig([CODEX_PLUGIN], {});
   const adapter = createCodexAdapter(getAgentEntry(config, 'codex'), config);
 
-  const name = await adapter.loadName('c-1', 'auto');
+  const name = await adapter.loadName('c-1', 'auto', {
+    readMatchingLines: readLocalMatchingLines,
+  });
 
   expect(name).toStrictEqual({ name: 'env title' });
 });

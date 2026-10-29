@@ -20,7 +20,7 @@ export function buildStubGuestFilesProvider(config: StubGuestFilesProviderConfig
     kind: 'remote',
     remote: true,
     capabilities: { suspend: true, destroy: true },
-    guest: { directory: guestDirectory, atc: null },
+    guest: { directory: guestDirectory, atc: `${guestDirectory}/bin/atc` },
     runCommand: (spec) =>
       runLocalCommand({
         ...spec,

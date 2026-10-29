@@ -1,10 +1,12 @@
 import { truncateToBytes } from '@atc/core';
+import { readLocalMatchingLines } from '@atc/plugin-api';
 import type { HookPlan } from '@atc/plugin-api';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { match } from 'ts-pattern';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { SessionRegistry } from './create-session-registry';
+import { makeGuestMatchingLinesReader } from './make-guest-matching-lines-reader';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
 import { updateRecordIdentity } from './update-record-identity';
@@ -12,7 +14,7 @@ import { updateRecordIdentity } from './update-record-identity';
 interface SessionHookApplierDeps {
   readonly registry: Pick<
     SessionRegistry,
-    'sessions' | 'focusedId' | 'findAdapter' | 'requireExecution'
+    'sessions' | 'focusedId' | 'findAdapter' | 'findProvider' | 'requireExecution'
   >;
   readonly fleet: Pick<SessionFleetWriter, 'emitChange' | 'tryWriteFleet' | 'tryUpdateFleetEntry'>;
   readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'findRecords' | 'log'>;
@@ -37,7 +39,14 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
       return;
     }
 
-    const update = await adapter.loadName(source, session.namedBy);
+    const provider = registry.findProvider(session);
+
+    const update = await adapter.loadName(source, session.namedBy, {
+      readMatchingLines:
+        provider?.remote === true
+          ? makeGuestMatchingLinesReader(provider, session.hostKey)
+          : readLocalMatchingLines,
+    });
 
     if (update === null || update.name === '' || update.name === session.name) {
       return;

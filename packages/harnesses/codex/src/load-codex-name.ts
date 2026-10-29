@@ -1,6 +1,5 @@
-import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { NameUpdate } from '@atc/plugin-api';
+import type { HostFiles, NameUpdate } from '@atc/plugin-api';
 import { z } from 'zod';
 
 // One line of the session index: a thread's id and its title.
@@ -10,22 +9,20 @@ export async function loadCodexName(
   codexHome: string,
   source: string,
   namedBy: 'user' | 'auto' | 'agent',
+  files: HostFiles,
 ): Promise<NameUpdate | null> {
   // the index does not record whether a person or codex set a title, so none overrides a typed name
   if (namedBy === 'user') {
     return null;
   }
 
-  let text: string;
+  const lines = await files.readMatchingLines(join(codexHome, 'session_index.jsonl'), '');
 
-  try {
-    text = await readFile(join(codexHome, 'session_index.jsonl'), 'utf8');
-  } catch {
+  if (lines === null) {
     return null;
   }
 
-  const names = text
-    .split('\n')
+  const names = lines
     .filter((line) => line.includes(source))
     .flatMap((line) => {
       const parsed = INDEX_LINE_SCHEMA.safeParse(tryParseJSON(line));

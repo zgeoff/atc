@@ -119,6 +119,14 @@ export interface NameUpdate {
   namedBy?: 'agent';
 }
 
+// Reads files on the host a session runs on, which for a remote target is
+// another machine than the daemon's.
+export interface HostFiles {
+  // The lines of the file at path that match the extended regular
+  // expression, or null when the host cannot read the file.
+  readonly readMatchingLines: (path: string, pattern: string) => Promise<readonly string[] | null>;
+}
+
 type AttentionJudgment = 'needs-input' | 'working';
 
 interface ScreenDetector {
@@ -328,6 +336,7 @@ export interface AgentAdapter {
   readonly loadName: (
     source: string,
     namedBy: 'user' | 'auto' | 'agent',
+    files: HostFiles,
   ) => Promise<NameUpdate | null>;
   readonly canResume: (session: ResumeCheck) => boolean;
 

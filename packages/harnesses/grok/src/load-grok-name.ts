@@ -1,20 +1,24 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { NameUpdate } from '@atc/plugin-api';
+import type { HostFiles, NameUpdate } from '@atc/plugin-api';
 import { buildOptionalString } from '@atcx/contract/schema';
 import { z } from 'zod';
 
-export function loadGrokName(
+export async function loadGrokName(
   home: string,
   source: string,
   namedBy: 'user' | 'auto' | 'agent',
+  files: HostFiles,
 ): Promise<NameUpdate | null> {
+  const lines = await files.readMatchingLines(source, '');
+
   // grok files a session under the directory it started in, so a gone `source` falls back to the
   // same session id under any directory in `home`
-  const summary = readSummary(source) ?? readSummary(readGrokSummary(home, source));
-  const update = summary === null ? null : buildNameUpdate(summary, namedBy);
+  const summary =
+    (lines === null ? null : parseSummary(lines.join('\n'))) ??
+    readSummary(readGrokSummary(home, source));
 
-  return Promise.resolve(update);
+  return summary === null ? null : buildNameUpdate(summary, namedBy);
 }
 
 // The fields of a session's summary.json a name comes from. A wrong-typed
@@ -27,15 +31,23 @@ const SUMMARY_SCHEMA = z.object({
 
 type GrokSummary = z.infer<typeof SUMMARY_SCHEMA>;
 
+function parseSummary(text: string): GrokSummary | null {
+  try {
+    const parsed = SUMMARY_SCHEMA.safeParse(JSON.parse(text));
+
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 function readSummary(source: string | null): GrokSummary | null {
   if (source === null) {
     return null;
   }
 
   try {
-    const parsed = SUMMARY_SCHEMA.safeParse(JSON.parse(readFileSync(source, 'utf8')));
-
-    return parsed.success ? parsed.data : null;
+    return parseSummary(readFileSync(source, 'utf8'));
   } catch {
     return null;
   }

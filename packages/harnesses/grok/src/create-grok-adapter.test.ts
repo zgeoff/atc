@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
+import { readLocalMatchingLines } from '@atc/plugin-api';
 import { getAgentEntry, setupTempDir } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { createGrokAdapter } from './create-grok-adapter';
@@ -113,7 +114,7 @@ test('it loads a name from the summary of a session in its own home', async () =
   const update = await createGrokAdapter(
     getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'),
     ctx.directory,
-  ).loadName(file, 'auto');
+  ).loadName(file, 'auto', { readMatchingLines: readLocalMatchingLines });
 
   expect(update).toStrictEqual({ name: 'auto title' });
 });

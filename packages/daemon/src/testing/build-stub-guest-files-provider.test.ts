@@ -65,6 +65,6 @@ test('it reports a remote host with the guest folder as its layout', async () =>
 
   expect(layout).toStrictEqual({
     directory: '/guest/atc',
-    atc: null,
+    atc: '/guest/atc/bin/atc',
   });
 });

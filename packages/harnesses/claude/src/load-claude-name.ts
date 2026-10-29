@@ -1,4 +1,4 @@
-import type { NameUpdate } from '@atc/plugin-api';
+import type { HostFiles, NameUpdate } from '@atc/plugin-api';
 import { z } from 'zod';
 
 // The two transcript lines a name comes from: a custom title that /rename
@@ -11,25 +11,18 @@ const NAME_LINE_SCHEMA = z.discriminatedUnion('type', [
 export async function loadClaudeName(
   source: string,
   namedBy: 'user' | 'auto' | 'agent',
+  files: HostFiles,
 ): Promise<NameUpdate | null> {
-  let text: string;
+  const lines = await files.readMatchingLines(source, '"type":"(custom-title|summary)"');
 
-  try {
-    // the transcript can run to many megabytes, so grep picks the two line types out of it
-    const subprocess = Bun.spawn(['grep', '-E', '"type":"(custom-title|summary)"', source], {
-      stdout: 'pipe',
-      stderr: 'ignore',
-    });
-
-    text = await new Response(subprocess.stdout).text();
-  } catch {
+  if (lines === null) {
     return null;
   }
 
   let title = '';
   let summary = '';
 
-  for (const line of text.split('\n')) {
+  for (const line of lines) {
     const parsed = NAME_LINE_SCHEMA.safeParse(tryParseJSON(line));
 
     if (parsed.success && parsed.data.type === 'custom-title') {

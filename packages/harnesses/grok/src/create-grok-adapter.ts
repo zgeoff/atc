@@ -80,7 +80,7 @@ export function createGrokAdapter(entry: AgentEntry, home: string | null = null)
 
     planHookEvents: (hookEvent, previous) => planGrokHookEvents(hookEvent, previous, resolveHome()),
 
-    loadName: (source, namedBy) => loadGrokName(resolveHome(), source, namedBy),
+    loadName: (source, namedBy, files) => loadGrokName(resolveHome(), source, namedBy, files),
 
     canResume: (session) => session.agentSessionID !== undefined,
 
