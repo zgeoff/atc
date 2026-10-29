@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
@@ -6,6 +7,7 @@ import { createMigratedStateDB, registerTestCleanup, setupTempDir } from '@atc/t
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
+import { buildStubGuestFilesProvider } from '../testing/build-stub-guest-files-provider';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createPublishedRecords } from './create-published-records';
@@ -17,11 +19,13 @@ interface SetupTestConfig {
   readonly adapter: AgentAdapter;
 }
 
-// A session manager on one `local` target over the in-memory provider, a
-// real state store and published records, and the reads over them.
+// A session manager on a `local` target over the in-memory provider and a
+// `guest` target on a remote host whose files sit in a host folder, a real
+// state store and published records, and the reads over them.
 async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-session-reads-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
+  const guestFiles = join(temporaryDirectory.path, 'guest');
 
   createMigratedStateDB(dbPath);
 
@@ -40,6 +44,14 @@ async function setupTest(config: SetupTestConfig) {
         identity: 'local-pty:test',
         provider: buildStubMemoryProvider({ kind: 'local-pty' }),
       }),
+      buildMockExecutionTarget({
+        id: 'guest',
+        identity: 'remote:test',
+        provider: buildStubGuestFilesProvider({
+          guestDirectory: '/tmp/atc',
+          hostDirectory: guestFiles,
+        }),
+      }),
     ],
   });
 
@@ -57,7 +69,7 @@ async function setupTest(config: SetupTestConfig) {
 
   const reads = createSessionReads({ manager, store, records });
 
-  return { directory: temporaryDirectory.path, store, manager, reads };
+  return { directory: temporaryDirectory.path, guestFiles, store, manager, reads };
 }
 
 test('it reads the record of a session with the time of its last trail row', async () => {
@@ -213,6 +225,52 @@ test('it pages the transcript of a session through its agent', async () => {
         { role: 'user', text: 'first turn', tools: [], at: null },
         { role: 'user', text: 'second turn', tools: [], at: null },
       ],
+      more: false,
+    },
+  });
+});
+
+test('it pages the transcript of a finished session from inside its remote host', async () => {
+  const ctx = await setupTest({
+    adapter: {
+      ...buildStubHarnessAdapter(),
+      parseTranscriptLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
+    },
+  });
+
+  const session = await ctx.manager.spawn({
+    cwd: '/root/work',
+    name: 'worker',
+    prompt: 'tidy the docs',
+    cols: 80,
+    rows: 24,
+    target: 'guest',
+  });
+
+  const projects = `sessions/${session.id}/claude-config/projects/-root-work`;
+
+  mkdirSync(join(ctx.guestFiles, projects), { recursive: true });
+
+  await Bun.write(
+    join(ctx.guestFiles, projects, 'a-1.jsonl'),
+    'tidy the docs\nthe docs are tidy\n',
+  );
+
+  const path = `/tmp/atc/${projects}/a-1.jsonl`;
+
+  session.transcriptPath = path;
+  session.state = 'done';
+
+  const read = await ctx.reads.loadSessionTranscript(session.id, null, 10);
+
+  expect(read).toStrictEqual({
+    path,
+    page: {
+      rows: [
+        { role: 'user', text: 'tidy the docs', tools: [], at: null },
+        { role: 'user', text: 'the docs are tidy', tools: [], at: null },
+      ],
+      offset: Buffer.byteLength('tidy the docs\nthe docs are tidy\n'),
       more: false,
     },
   });

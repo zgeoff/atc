@@ -7,12 +7,17 @@ import type { SessionManager } from './create-session-manager';
 import { getDescriptor } from './get-descriptor';
 import { loadTranscriptPage } from './load-transcript-page';
 import type { TranscriptPosition } from './load-transcript-page';
+import { makeGuestTranscriptReader } from './make-guest-transcript-reader';
+import { readLocalTranscriptWindow } from './read-local-transcript-window';
 
 // A page stays far under the protocol's 1 MiB line cap.
 const TRANSCRIPT_PAGE_MAX_BYTES = 262_144;
 
 interface SessionReadsDeps {
-  readonly manager: Pick<SessionManager, 'sessions' | 'collectDescriptors' | 'findAdapter'>;
+  readonly manager: Pick<
+    SessionManager,
+    'sessions' | 'collectDescriptors' | 'findAdapter' | 'findProvider'
+  >;
   readonly store: Pick<StateStore, 'loadLastActivityAt'>;
   readonly records: Pick<PublishedRecords, 'readRecord'>;
 }
@@ -96,12 +101,18 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         return { path, page: { rows: [], offset: 0, more: false } };
       }
 
+      const provider = manager.findProvider(session);
+
       const page = await loadTranscriptPage({
         path,
         from,
         limit,
         maxBytes: TRANSCRIPT_PAGE_MAX_BYTES,
         parseLine,
+        readWindow:
+          provider?.remote === true
+            ? makeGuestTranscriptReader(provider, session.hostKey)
+            : readLocalTranscriptWindow,
       });
 
       return { path, page };
