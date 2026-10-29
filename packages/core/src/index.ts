@@ -6,6 +6,7 @@ export * from './build-workspace-destination';
 export * from './claude-credential-variables';
 export * from './create-step-timer';
 export * from './expand-home';
+export * from './format-error';
 export * from './format-home-path';
 export * from './get-settled-value';
 export * from './is-broker-variable';

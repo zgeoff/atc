@@ -16,7 +16,7 @@ const RETRY_INTERVAL_MS = 1000;
 
 // Every failure says so, so a user who expected the remote fleet never
 // takes the local one for it.
-const NO_FALLBACK = 'The TUI did not fall back to the local daemon.';
+const NO_FALLBACK = 'atc did not fall back to the local daemon.';
 
 class RemoteDaemonUnreachableError extends Error {
   constructor(message: string, options?: Readonly<ErrorOptions>) {
@@ -49,18 +49,41 @@ export async function bootRemoteDaemonClient(
     });
   }
 
+  const deadline =
+    options.waitForDaemonMs === undefined ? null : clock.now() + options.waitForDaemonMs;
+
+  // Every attempt and every rest ends by the deadline, so the boot gives up
+  // when the wait runs out rather than one attempt later.
+  const capMs = (durationMs: number): number =>
+    deadline === null ? durationMs : Math.min(durationMs, deadline - clock.now());
+
   let waited = false;
+  let failure: RemoteDaemonUnreachableError | null = null;
 
   for (;;) {
+    const attemptMs = capMs(timeoutMs);
+
+    if (attemptMs <= 0) {
+      throw (
+        failure ??
+        new RemoteDaemonUnreachableError(
+          formatUnreachable(daemon, 'the wait for it ended before an attempt'),
+        )
+      );
+    }
+
     try {
-      return await openRemoteDaemon(daemon, { build, token, clock, timeoutMs });
+      return await openRemoteDaemon(daemon, { build, token, clock, timeoutMs: attemptMs });
     } catch (error) {
       if (
         !(error instanceof RemoteDaemonUnreachableError) ||
-        options.onWaitForDaemon === undefined
+        options.onWaitForDaemon === undefined ||
+        capMs(RETRY_INTERVAL_MS) <= 0
       ) {
         throw error;
       }
+
+      failure = error;
 
       if (!waited) {
         waited = true;
@@ -70,11 +93,21 @@ export async function bootRemoteDaemonClient(
 
       const rested = Promise.withResolvers<void>();
 
-      clock.schedule(rested.resolve, RETRY_INTERVAL_MS);
+      clock.schedule(rested.resolve, capMs(RETRY_INTERVAL_MS));
 
       await rested.promise;
     }
   }
+}
+
+function formatUnreachable(daemon: RemoteDaemon, detail: string): string {
+  return `cannot reach daemon '${daemon.name}' at ${formatRemoteAddress(daemon)}: ${detail}. ${NO_FALLBACK}`;
+}
+
+function formatRemoteAddress(daemon: RemoteDaemon): string {
+  return daemon.host.includes(':')
+    ? `[${daemon.host}]:${daemon.port}`
+    : `${daemon.host}:${daemon.port}`;
 }
 
 // One attempt's outcome: the handshaken connection, or why it failed.
@@ -166,16 +199,6 @@ async function openRemoteDaemon(
   }
 }
 
-function formatUnreachable(daemon: RemoteDaemon, detail: string): string {
-  return `cannot reach daemon '${daemon.name}' at ${formatRemoteAddress(daemon)}: ${detail}. ${NO_FALLBACK}`;
-}
-
-function formatRemoteAddress(daemon: RemoteDaemon): string {
-  return daemon.host.includes(':')
-    ? `[${daemon.host}]:${daemon.port}`
-    : `${daemon.host}:${daemon.port}`;
-}
-
 // Opens the TCP connection; a refusal is the daemon being unreachable.
 async function openRemoteConnection(daemon: RemoteDaemon): Promise<DaemonClient> {
   try {
@@ -220,7 +243,7 @@ function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown):
   if (error.code === 'unauthorized') {
     return new DaemonError(
       'unauthorized',
-      `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} refused the token: ${error.message}. ${NO_FALLBACK}`,
+      `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} refused the handshake as principal '${daemon.principal}': ${error.message}. ${NO_FALLBACK}`,
     );
   }
 

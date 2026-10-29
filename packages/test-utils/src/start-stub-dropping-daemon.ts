@@ -6,6 +6,7 @@ import { startStubPeerDaemon } from './start-stub-peer-daemon';
 export function startStubDroppingDaemon(socketPath: string) {
   const keys: unknown[] = [];
   const params: (Readonly<Record<string, unknown>> | undefined)[] = [];
+  const principals: (string | undefined)[] = [];
 
   const daemon = startStubPeerDaemon(socketPath, {
     answer: (request) => {
@@ -27,6 +28,7 @@ export function startStubDroppingDaemon(socketPath: string) {
 
       keys.push(request.params?.['idempotencyKey']);
       params.push(request.params);
+      principals.push(request.as);
 
       return keys.length === 1 ? 'close' : { ok: { session: { id: 's-1' } } };
     },
@@ -35,6 +37,7 @@ export function startStubDroppingDaemon(socketPath: string) {
   return {
     keys,
     params,
+    principals,
     get reads() {
       return daemon.reads;
     },

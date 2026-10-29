@@ -1,6 +1,7 @@
 // atc CLI entry: no subcommand opens the client TUI; `hook-report` and
 // `statusline` are the commands injected into wrangled sessions.
 import { resolve } from 'node:path';
+import type { RemoteDaemon } from '@atc/config';
 import { parseListenAddress } from '@atc/config/host';
 import type { HostServices } from '@atc/plugin-api';
 import { PROCESS_IO } from './process-io';
@@ -28,23 +29,10 @@ const ATC_CLI_IO: ATCCLIIO = {
 
       await tui.runTUI(host.createTUIHost(lifecycleHost));
     } else {
-      const config = await import('@atc/config');
-      const harnessPlugins = await import('./plugins/shipped-harness-plugins');
-      const resolved = await import('./resolve-remote-daemon');
       const host = await import('./create-remote-tui-host');
+      const picked = await readNamedDaemon(daemon, 'atc');
 
-      const picked = resolved.resolveRemoteDaemon(
-        config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS),
-        daemon,
-        config.configFile,
-      );
-
-      if (!picked.ok) {
-        console.error(`atc: ${picked.message}`);
-        process.exit(1);
-      }
-
-      await tui.runTUI(host.createRemoteTUIHost(lifecycleHost, picked.daemon));
+      await tui.runTUI(host.createRemoteTUIHost(lifecycleHost, picked));
     }
   },
   runMCP: async (flags) => {
@@ -53,11 +41,27 @@ const ATC_CLI_IO: ATCCLIIO = {
     const hostServices = await resolveHostServices();
 
     const host = lifecycle.buildLifecycleHost(process.env, hostServices);
+    const build = host.invocation.readBuild();
+    const named = flags.daemon === null ? null : await readNamedDaemon(flags.daemon, 'atc mcp');
 
     if (!flags.http) {
       const server = await import('@atc/mcp/stdio');
 
-      await server.runMCPServer(host.invocation.readBuild(), () => boot.bootDaemonClient(host));
+      if (named === null) {
+        await server.runMCPServer(build, {
+          kind: 'local',
+          boot: () => boot.bootDaemonClient(host),
+        });
+
+        return;
+      }
+
+      const wiring = await import('./connect-named-daemon');
+
+      await server.runMCPServer(build, {
+        kind: 'named',
+        caller: wiring.connectNamedDaemon(named, build).caller,
+      });
 
       return;
     }
@@ -65,21 +69,35 @@ const ATC_CLI_IO: ATCCLIIO = {
     const http = await import('./mcp-http-server');
     const database = await import('./open-mcp-auth-database');
 
-    await http.runMCPHTTPServer(
-      host.invocation.readBuild(),
-      {
-        host: flags.host,
-        port: flags.port,
-        publicURL: flags.publicURL,
-        waitForDaemon: flags.waitForDaemon,
-        tokenFile: flags.tokenFile,
-        allowedOrigins: flags.allowedOrigins,
-      },
-      {
+    const httpFlags = {
+      host: flags.host,
+      port: flags.port,
+      publicURL: flags.publicURL,
+      waitForDaemon: flags.waitForDaemon,
+      tokenFile: flags.tokenFile,
+      allowedOrigins: flags.allowedOrigins,
+    };
+
+    if (named === null) {
+      const connection = await import('./create-local-daemon-connection');
+
+      await http.runMCPHTTPServer(build, httpFlags, {
         bootDaemon: (options) => boot.bootDaemonClient(host, options),
+        connectDaemon: (booted) => connection.createLocalDaemonConnection(booted.socketPath, build),
         openAuthDatabase: database.openMCPAuthDatabase,
-      },
-    );
+      });
+
+      return;
+    }
+
+    const remote = await import('./boot-remote-daemon-client');
+    const wiring = await import('./connect-named-daemon');
+
+    await http.runMCPHTTPServer(build, httpFlags, {
+      bootDaemon: (options) => remote.bootRemoteDaemonClient(named, build, options),
+      connectDaemon: () => wiring.connectNamedDaemon(named, build),
+      openAuthDatabase: database.openMCPAuthDatabase,
+    });
   },
   runClients: async (action) => {
     const clients = await import('./clients');
@@ -236,6 +254,25 @@ async function loadHostServices(): Promise<HostServices> {
   const services = await import('./create-host-services');
 
   return services.createHostServices();
+}
+
+async function readNamedDaemon(name: string, command: string): Promise<RemoteDaemon> {
+  const config = await import('@atc/config');
+  const harnessPlugins = await import('./plugins/shipped-harness-plugins');
+  const resolved = await import('./resolve-remote-daemon');
+
+  const picked = resolved.resolveRemoteDaemon(
+    config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS),
+    name,
+    config.configFile,
+  );
+
+  if (!picked.ok) {
+    console.error(`${command}: ${picked.message}`);
+    process.exit(1);
+  }
+
+  return picked.daemon;
 }
 
 // Reads the flags the restart commands share, and stops the command on one

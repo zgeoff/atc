@@ -7,17 +7,9 @@ import {
   loadMCPHTTPConfig,
   mcpAuthDBFile,
 } from '@atc/config';
-import type { MCPAuthDatabase } from '@atc/mcp';
-import {
-  createTransportCaller,
-  openMCPAuth,
-  readClientViews,
-  readPasskeyViews,
-  startMCPHTTPServer,
-} from '@atc/mcp';
+import type { ChannelCaller, MCPAuthDatabase, WatchChannel } from '@atc/mcp';
+import { openMCPAuth, readClientViews, readPasskeyViews, startMCPHTTPServer } from '@atc/mcp';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
-import { openWatchChannel } from './open-watch-channel';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
 
@@ -51,10 +43,20 @@ const MCP_HTTP_SERVER_IO: MCPHTTPServerIO = {
   daemonPaths: null,
 };
 
-// What the entry wires in: the daemon boot and the opener of the
-// authorization database.
+// How the server reaches the daemon it booted: the caller its tools use, as
+// the daemon's owner, and the opener of a live-terminal viewer's own channel.
+export interface MCPDaemonConnection {
+  readonly caller: ChannelCaller;
+
+  // A null principal watches as the connection's own principal.
+  readonly openWatchChannel: (principal: string | null) => Promise<WatchChannel>;
+}
+
+// What the entry wires in: the daemon boot, the connection to the booted
+// daemon, and the opener of the authorization database.
 interface MCPHTTPServerHost {
   readonly bootDaemon: (options: DaemonBootOptions) => Promise<DaemonBoot>;
+  readonly connectDaemon: (boot: DaemonBoot) => MCPDaemonConnection;
   readonly openAuthDatabase: (path: string) => MCPAuthDatabase;
 }
 
@@ -110,14 +112,8 @@ export async function runMCPHTTPServer(
 
   mkdirSync(dirname(io.dbPath), { recursive: true });
 
-  // A remote connector has no inbox, so the server claims no session even
-  // when it was started inside one.
-  const caller = createTransportCaller(
-    boot.socketPath,
-    build,
-    (path) => openDaemonClient(path),
-    null,
-  );
+  const connection = host.connectDaemon(boot);
+  const caller = connection.caller;
 
   const server = await startMCPHTTPServer({
     caller,
@@ -143,7 +139,7 @@ export async function runMCPHTTPServer(
     liveTerminals: {
       allowedOrigins: [...config.allowedOrigins, ...flags.allowedOrigins],
       ownerTokens: loaded?.tokens ?? [],
-      openWatchChannel: (principal) => openWatchChannel(boot.socketPath, build, principal),
+      openWatchChannel: connection.openWatchChannel,
     },
   });
 

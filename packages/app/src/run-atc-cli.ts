@@ -20,6 +20,7 @@ interface MCPFlags {
   readonly waitForDaemon: boolean;
   readonly tokenFile: string | null;
   readonly allowedOrigins: readonly string[];
+  readonly daemon: string | null;
 }
 
 export interface ATCCLIIO extends CommandLineIO, DaemonCommandIO {
@@ -90,6 +91,7 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
         waitForDaemon: ctx.values['wait-for-daemon'],
         tokenFile: ctx.values['token-file'] ?? null,
         allowedOrigins: ctx.values['allowed-origin'] ?? [],
+        daemon: ctx.values.daemon ?? null,
       });
     },
     {
@@ -124,6 +126,11 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
           multiple: true,
           description:
             "With --http, an origin whose pages may open a session's live terminal; repeat for more",
+        },
+        daemon: {
+          type: 'string',
+          description:
+            "Serve the tools against this daemon from the config's daemons map instead of the local daemon; with --http, that daemon's principals must list each connector",
         },
       },
     },

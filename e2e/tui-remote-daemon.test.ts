@@ -284,7 +284,7 @@ test('it exits with the refusal when a reconnect to the remote daemon is refused
   expect(exitCode).toBe(1);
 
   expect(ctx.tui.read()).toInclude(
-    `atc: daemon 'box' at 127.0.0.1:${remote.daemon.listenPort} refused the token: daemon.hello over TCP needs a valid bearer token. The TUI did not fall back to the local daemon.`,
+    `atc: daemon 'box' at 127.0.0.1:${remote.daemon.listenPort} refused the handshake as principal 'laptop': daemon.hello over TCP needs a valid bearer token. atc did not fall back to the local daemon.`,
   );
 });
 
@@ -313,7 +313,7 @@ test('it exits with the daemon and its address when the remote daemon is unreach
   expect(exitCode).toBe(1);
 
   expect(ctx.tui.read()).toInclude(
-    `atc: cannot reach daemon 'box' at 127.0.0.1:${port}: ECONNREFUSED. The TUI did not fall back to the local daemon.`,
+    `atc: cannot reach daemon 'box' at 127.0.0.1:${port}: ECONNREFUSED. atc did not fall back to the local daemon.`,
   );
 
   expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBe(false);
@@ -353,7 +353,7 @@ test('it exits with both builds and versions when the remote daemon speaks anoth
     `speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`,
   );
 
-  expect(ctx.tui.read()).toInclude('The TUI did not fall back to the local daemon.');
+  expect(ctx.tui.read()).toInclude('atc did not fall back to the local daemon.');
   expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBe(false);
 });
 
@@ -373,7 +373,7 @@ test('it exits with the names the config holds when the flag selects a daemon th
   expect(exitCode).toBe(1);
 
   expect(ctx.tui.read()).toInclude(
-    `atc: the daemons map of ${ctx.tui.configPath} holds no daemon 'lab'; it holds box. The TUI did not fall back to the local daemon.`,
+    `atc: the daemons map of ${ctx.tui.configPath} holds no daemon 'lab'; it holds box. atc did not fall back to the local daemon.`,
   );
 
   expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBe(false);
