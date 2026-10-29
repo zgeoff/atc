@@ -71,6 +71,9 @@ export function buildScopedContext(
   };
 
   const narrowed: Pick<DaemonContext, NarrowedMember> = {
+    // A principal's token scopes live in the MCP server that vouches for it,
+    // which refuses a scope the token lacks before the request leaves it.
+    requireGrantableAccess: () => {},
     isSessionVisible: canSee,
     collectSessions: () => ctx.collectSessions().filter((session) => canSee(session.id)),
     collectAgents: () => {

@@ -1,5 +1,11 @@
 import type { AgentID } from '@atc/core';
-import type { AgentSessionID, DaemonID, SessionID, SessionWorkspace } from '@atcx/contract';
+import type {
+  AgentSessionID,
+  DaemonID,
+  GrantScope,
+  SessionID,
+  SessionWorkspace,
+} from '@atcx/contract';
 
 // One fleet row. The atc session id keys it and stays the same for the
 // session's whole life, across daemon restarts and fleet restores.
@@ -74,6 +80,14 @@ export interface FleetEntry {
   // the operator or the host's own owner put it to sleep; absent for any
   // other harness.
   readonly suspended?: true;
+
+  // The atc scopes the session holds over its sub-sessions and its parent;
+  // absent for a session that holds no atc access.
+  readonly atcAccess?: readonly GrantScope[];
+
+  // The session the spawn request came from; absent for a spawn from
+  // outside every session.
+  readonly spawner?: SessionID;
 }
 
 export interface FleetStore {

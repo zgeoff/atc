@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import { setupTempDir } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { buildStubDaemonContext } from './build-stub-daemon-context';
 import { startConnectionListener } from './start-connection-listener';
 
@@ -17,6 +18,20 @@ test('it serves a connection that answers a client on the socket', async () => {
 
   expect(hello).toMatchObject({ daemon: 'atc/test', daemonID: 'd-1' });
   expect(connections).toHaveLength(1);
+});
+
+test("it serves each connection as the given session's own", async () => {
+  const temporaryDirectory = setupTempDir('atc-connection-listener-');
+  const socketPath = join(temporaryDirectory.path, 'daemon.sock');
+
+  startConnectionListener(socketPath, buildStubDaemonContext(), null, { id: toSessionID('s-1') });
+
+  const client = await openDaemonClient(socketPath);
+  const hello = await client.sendHello('atc/test');
+
+  client.stop();
+
+  expect(hello).toMatchObject({ peerSession: 's-1' });
 });
 
 test('it checks a handshake as a TCP connection when given a TCP peer', async () => {

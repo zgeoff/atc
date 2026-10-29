@@ -76,9 +76,10 @@ whose connection dropped while the daemon reconnects to it
 
 A sub-session is a session spawned with a parent. `atc mcp` started inside a local session reads
 that session's id from its environment and passes it as the parent, and a spawn can opt out to make
-a top-level session instead. A session inside an imp reaches no daemon socket, so it cannot start
-`atc mcp` against the daemon, and its sub-sessions come only from a client that names it as the
-parent. The parent link holds a set of sessions together:
+a top-level session instead. A session inside an imp reaches no daemon socket. It spawns
+sub-sessions itself only when its spawn granted it atc access
+([principals](../protocol/principals.md#a-sessions-atc-access)), and otherwise its sub-sessions come
+only from a client that names it as the parent. The parent link holds a set of sessions together:
 
 - A sub-session lists under its parent and sorts among its siblings alone, so its attention never
   moves the parent's row.

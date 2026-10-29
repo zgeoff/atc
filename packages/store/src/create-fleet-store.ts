@@ -1,6 +1,6 @@
 import { parseJSONStrings, systemClock, toAgentID } from '@atc/core';
-import type { DaemonID, SessionID, SessionWorkspace } from '@atcx/contract';
-import { toAgentSessionID, toDaemonID, toSessionID } from '@atcx/contract';
+import type { DaemonID, GrantScope, SessionID, SessionWorkspace } from '@atcx/contract';
+import { GRANT_SCOPES, toAgentSessionID, toDaemonID, toSessionID } from '@atcx/contract';
 import { sql } from 'kysely';
 import type { Kysely, Transaction } from 'kysely';
 import { buildFleetWithoutReplacedRows } from './build-fleet-without-replaced-rows';
@@ -65,6 +65,8 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
           'fleet.auth_revision',
           'fleet.agent_home',
           'fleet.suspended',
+          'fleet.atc_access',
+          'fleet.spawner_session_id',
         ])
         .execute();
 
@@ -107,6 +109,10 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
           ...(row.auth_revision === null ? {} : { authRevision: row.auth_revision }),
           ...(row.agent_home === null ? {} : { agentHome: row.agent_home }),
           ...(row.suspended === 1 ? { suspended: true } : {}),
+          ...buildAtcAccessField(row.atc_access),
+          ...(row.spawner_session_id === null
+            ? {}
+            : { spawner: toSessionID(row.spawner_session_id) }),
         });
       }
 
@@ -223,6 +229,11 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
               auth_revision: entry.authRevision ?? null,
               agent_home: entry.agentHome ?? null,
               suspended: entry.suspended === true ? 1 : 0,
+              atc_access:
+                entry.atcAccess === undefined || entry.atcAccess.length === 0
+                  ? null
+                  : JSON.stringify(entry.atcAccess),
+              spawner_session_id: entry.spawner ?? null,
             })
             .execute();
 
@@ -306,6 +317,15 @@ function buildWorkspaceField(
       materializedAt: row.materialized_at,
     },
   };
+}
+
+// A stored list that does not read loads as no atc access, the access a
+// session holds when nothing grants it more.
+function buildAtcAccessField(stored: string | null): { readonly atcAccess?: GrantScope[] } {
+  const scopes = (stored === null ? null : parseJSONStrings(stored)) ?? [];
+  const granted = GRANT_SCOPES.filter((scope) => scopes.includes(scope));
+
+  return granted.length === 0 || granted.length !== scopes.length ? {} : { atcAccess: granted };
 }
 
 // Rejects a write that touches a session another daemon owns, or one whose

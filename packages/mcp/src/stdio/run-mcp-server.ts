@@ -4,22 +4,23 @@ import { readSessionEnv } from '@atc/protocol/session';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { createMCPServer } from '../tools/create-mcp-server';
 import { createTransportCaller } from '../tools/create-transport-caller';
+import { findBridgeSocket } from './find-bridge-socket';
 
 export async function runMCPServer(
   build: string,
   bootDaemon: () => Promise<DaemonBoot>,
 ): Promise<void> {
-  const boot = await bootDaemon();
-
-  boot.client.stop();
+  const sessionEnv = readSessionEnv(process.env);
+  const bridgeSocket = findBridgeSocket(sessionEnv);
+  const socketPath = bridgeSocket === null ? await bootSocketPath(bootDaemon) : bridgeSocket;
 
   // a spawn from inside a session nests under it by default, and each
   // connection's handshake claims that session for the answers to the
   // messages it sends
-  const callerSessionID = readSessionEnv(process.env).sessionID ?? null;
+  const callerSessionID = sessionEnv.sessionID ?? null;
 
   const caller = createTransportCaller(
-    boot.socketPath,
+    socketPath,
     build,
     (path) => openDaemonClient(path),
     callerSessionID,
@@ -40,4 +41,13 @@ export async function runMCPServer(
   await closed.promise;
 
   await caller.stop();
+}
+
+// Boots the daemon when none answers, and returns the socket it listens on.
+async function bootSocketPath(bootDaemon: () => Promise<DaemonBoot>): Promise<string> {
+  const boot = await bootDaemon();
+
+  boot.client.stop();
+
+  return boot.socketPath;
 }

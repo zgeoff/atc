@@ -1,7 +1,7 @@
 import { parseJSONStrings } from '@atc/core';
+import { GRANT_SCOPES } from '@atcx/contract';
+import type { GrantScope } from '@atcx/contract';
 import type { Kysely } from 'kysely';
-import { GRANT_SCOPES } from '../tools/grant-scope';
-import type { GrantScope } from '../tools/grant-scope';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
 export interface GrantView {

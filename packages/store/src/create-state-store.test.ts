@@ -698,6 +698,48 @@ test('it round-trips a fleet row with the agent home its harness launched with',
   expect(fleet).toStrictEqual([homed, unhomed]);
 });
 
+test('it round-trips a fleet row with the atc access and the spawner its spawn gave it', async () => {
+  const ctx = await setupTest();
+
+  const spawner = buildMockFleetEntry();
+
+  const granted = buildMockFleetEntry({
+    atcAccess: ['read', 'spawn'],
+    spawner: spawner.sessionID,
+  });
+
+  const ungranted = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([spawner, granted, ungranted]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([spawner, granted, ungranted]);
+});
+
+test('it loads a fleet row whose stored atc access names an unknown scope as holding no access', async () => {
+  const ctx = await setupTest();
+
+  const { atcAccess: _, ...entry } = buildMockFleetEntry({ atcAccess: ['read'] });
+
+  await ctx.store.writeFleet([{ ...entry, atcAccess: ['read'] }]);
+
+  const db = new Database(ctx.dbPath);
+
+  registerTestCleanup(() => {
+    db.close();
+  });
+
+  db.query('UPDATE fleet SET atc_access = ? WHERE session_id = ?').run(
+    '["read","admin"]',
+    entry.sessionID,
+  );
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([entry]);
+});
+
 test('it round-trips a fleet row whose harness is kept inside a sleeping host', async () => {
   const ctx = await setupTest();
 
@@ -1098,6 +1140,7 @@ test('it runs every migration once on the first open of a fresh database', async
     '039_rename_workspace_materialization_dir_to_directory',
     '040_create_restart_results',
     '041_add_fleet_agent_home',
+    '042_add_fleet_atc_access',
   ]);
 });
 
@@ -1476,7 +1519,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 
   const stamps = ledger.query('SELECT timestamp FROM kysely_migration').values().flat();
 
-  expect(stamps).toStrictEqual(Array.from({ length: 41 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 42 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {

@@ -1056,6 +1056,53 @@ test("it starts a brokered guest with the auth's own arguments in place of the g
   ]);
 });
 
+test('it gives a brokered guest spawn with atc access the guest atc as an MCP server', () => {
+  const adapter = createGatewayAdapter(
+    buildMockGatewayConfig({
+      id: 'glm',
+      bin: 'claude',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+      },
+    }),
+    parseConfig([CLAUDE_PLUGIN], {
+      authProfiles: {
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+      },
+    }),
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false, atcMCP: true },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 4,
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+      },
+    },
+  );
+
+  invariant(plan !== null, 'expected a guest spawn plan');
+
+  const args: readonly unknown[] = plan.args;
+
+  expect(args).toIncludeAllMembers(['--mcp-config', '/tmp/atc/sessions/s1/auth-r4/mcp.json']);
+
+  expect(plan.files['auth-r4/mcp.json']).toBe(
+    JSON.stringify(
+      { mcpServers: { atc: { type: 'stdio', command: '/opt/atc/bin/atc', args: ['mcp'] } } },
+      null,
+      2,
+    ),
+  );
+});
+
 test('it plans a brokered guest spawn with its own settings file, Claude config folder and placeholder credential', () => {
   const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {

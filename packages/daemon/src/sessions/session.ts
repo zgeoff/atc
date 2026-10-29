@@ -1,7 +1,13 @@
 import type { AgentID } from '@atc/core';
 import type { HarnessHandle } from '@atc/plugin-api';
 import type { SessionState } from '@atc/protocol';
-import type { AgentSessionID, SessionID, SessionLifecycle, SessionWorkspace } from '@atcx/contract';
+import type {
+  AgentSessionID,
+  GrantScope,
+  SessionID,
+  SessionLifecycle,
+  SessionWorkspace,
+} from '@atcx/contract';
 
 export interface Session {
   id: SessionID;
@@ -41,6 +47,15 @@ export interface Session {
   // The session that spawned this one as a sub-session; null for a
   // top-level session. One level deep: a sub-session never owns another.
   parent: SessionID | null;
+
+  // The session the spawn request came from, which may differ from the
+  // parent when a sub-session spawns; null for a spawn from outside every
+  // session.
+  spawner: SessionID | null;
+
+  // The atc scopes the session holds over its own sub-sessions and its
+  // parent; absent for a session that holds no atc access.
+  atcAccess?: readonly GrantScope[];
 
   // the prompt the session was spawned with
   prompt?: string;

@@ -14,6 +14,19 @@ test('it delivers a sent value to every line listener as one JSON line', () => {
   expect(second).toHaveBeenCalledExactlyOnceWith('{"version":1,"id":"r1","op":"status.read"}');
 });
 
+test('it delivers a raw line to every line listener as it was sent', () => {
+  const stub = buildStubHarnessRelay();
+  const first = mock<(line: string) => void>();
+  const second = mock<(line: string) => void>();
+
+  stub.relay.onLine(first);
+  stub.relay.onLine(second);
+  stub.sendRawLine('{"id":"r1"} trailing');
+
+  expect(first).toHaveBeenCalledExactlyOnceWith('{"id":"r1"} trailing');
+  expect(second).toHaveBeenCalledExactlyOnceWith('{"id":"r1"} trailing');
+});
+
 test('it records each written line parsed, in the order it was written', async () => {
   const stub = buildStubHarnessRelay();
 

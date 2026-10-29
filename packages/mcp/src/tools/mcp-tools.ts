@@ -1,8 +1,8 @@
 import { REQUEST_PARAM_SCHEMAS } from '@atcx/contract';
+import type { GrantScope } from '@atcx/contract';
 import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 import { z } from 'zod';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';
-import type { GrantScope } from './grant-scope';
 import { IDEMPOTENCY_KEY_FIELD } from './parse-idempotency-key';
 import type { FleetFeature } from './types';
 
@@ -108,6 +108,9 @@ const SPAWN_INPUT: Readonly<Record<string, unknown>> = z.toJSONSchema(
       .describe(
         'Spawn a top-level session with no parent, whose pin and forget stand on their own. By default a spawn from inside an atc session becomes a sub-session of it: listed under it, pinned with it, stopped with it, and forgettable while it is pinned only by a call from inside it. atc_session_update with parent null detaches a sub-session later.',
       ),
+    atcAccess: SPAWN_SCHEMA.shape.atcAccess.describe(
+      "Give the new session atc tools of its own, which reach only the session itself, its sub-sessions and the sessions they spawn, plus its parent for messages alone. Each scope opens the tools of that scope: read lists and reads those sessions, their terminals, transcripts, notes and answers; message sends them messages, renames, pins, detaches and marks them read, and sends the parent messages; spawn starts sub-sessions, always on the new session's own target, and types into or answers menus in the sessions it reaches; kill stops or forgets its sub-sessions, never itself. Omit it for a session with no atc tools. It takes a target that runs the agent on another machine and a Claude Code agent; any other spawn with it is refused with bad_args, since a session on the atc daemon's machine reaches atc as the daemon's owner. A session grants only scopes it holds: a spawn from a session with atc access that names a scope that session lacks is refused with unauthorized, and so is a sub-session that would share a host whose session lacks the scope. A remote client gets insufficient_scope for a scope its token lacks. The access stays across daemon restarts and while the session's host sleeps, and no call changes it while the session lives.",
+    ),
     idempotencyKey: IDEMPOTENCY_KEY_FIELD,
   }),
   { io: 'input' },

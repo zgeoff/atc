@@ -1,4 +1,5 @@
 import { isRecord } from '@atc/core';
+import type { GrantScope } from '@atcx/contract';
 import { McpServer, fromJsonSchema, isSpecType } from '@modelcontextprotocol/server';
 import type {
   CallToolResult,
@@ -12,7 +13,6 @@ import { z } from 'zod';
 import type { RegisteredAgent } from './build-spawn-descriptions';
 import { buildToolList } from './build-tool-list';
 import { formatToolError } from './format-tool-error';
-import type { GrantScope } from './grant-scope';
 import { MCP_TOOLS } from './mcp-tools';
 import { runTool } from './run-tool';
 import type { FleetCaller, ToolContext } from './types';
@@ -118,6 +118,19 @@ async function answerToolCall(
   args: unknown,
 ): Promise<CallToolResult> {
   const input = isRecord(args) ? args : {};
+  const ungranted = collectUngrantedScopes(deps.scopes, name, input);
+
+  if (ungranted.length > 0) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `insufficient_scope: atcAccess grants ${ungranted.join(', ')}, which this token does not hold`,
+        },
+      ],
+      isError: true,
+    };
+  }
 
   try {
     const result = await runTool(deps.caller, name, input, deps.toolContext);
@@ -129,6 +142,24 @@ async function answerToolCall(
   } catch (error) {
     return { content: [{ type: 'text', text: formatToolError(error) }], isError: true };
   }
+}
+
+// A spawn grants the new session no scope its caller's token lacks; the daemon
+// cannot see a token's scopes, so the server that holds them refuses.
+function collectUngrantedScopes(
+  scopes: readonly GrantScope[] | undefined,
+  name: string,
+  input: Readonly<Record<string, unknown>>,
+): string[] {
+  const requested = input['atcAccess'];
+
+  if (scopes === undefined || name !== 'atc_session_spawn' || !Array.isArray(requested)) {
+    return [];
+  }
+
+  return requested.filter(
+    (scope): scope is string => typeof scope === 'string' && !scopes.some((held) => held === scope),
+  );
 }
 
 // The part of an agents.list answer the spawn descriptions read.

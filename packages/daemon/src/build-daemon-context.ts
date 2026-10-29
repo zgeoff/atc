@@ -3,6 +3,7 @@ import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
 import { buildTargetAccess } from './auth/build-target-access';
+import { collectSessionSubtree } from './auth/collect-session-subtree';
 import { isTreeInReach } from './auth/is-tree-in-reach';
 import type { DaemonContext } from './daemon-context';
 import type { DaemonOptions } from './daemon-options';
@@ -64,6 +65,7 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     loadLastUsedAgent: () => store.loadLastUsedAgent(),
     findAdapter: (kind) => manager.findAdapter(kind),
     buildTargetAccess: (principal) => buildTargetAccess(principals, targetsByID, principal),
+    requireGrantableAccess: () => {},
     hasListedPrincipal: (principal) => principals?.has(principal) ?? false,
     findSessionGrant: (id) => {
       const session = manager.sessions.find((x) => x.id === id);
@@ -73,6 +75,19 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
         : { target: session.target, targetIdentity: session.targetIdentity };
     },
     findTargetIdentity: (target) => targets.find((x) => x.id === target)?.identity ?? null,
+    findHeldAtcAccess: (id) => {
+      const session = manager.sessions.find((x) => x.id === id);
+
+      return session?.atcAccess === undefined
+        ? null
+        : {
+            scopes: session.atcAccess,
+            grant: { target: session.target, targetIdentity: session.targetIdentity },
+            parent: session.parent,
+            spawner: session.spawner,
+          };
+    },
+    collectSubtree: (id) => collectSessionSubtree(manager.sessions, id),
     canSeeSession: (id, access) => isTreeInReach(manager.sessions, id, access),
     isSessionVisible: () => true,
     findPermissionSession: (request) => permissions.findSessionID(request),

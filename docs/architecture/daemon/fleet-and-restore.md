@@ -23,9 +23,10 @@ reads one snapshot, and rename the copy into place once it is on disk.
 ## The fleet
 
 A fleet row is keyed by the atc session id and holds what a restore needs: the agent and its agent
-session id, the target and its bound identity, the directory, the parent link, the spawn prompt, the
-model and effort, the spawn's plugin folders, the transcript path and the latest result. The spawn
-prompt and the latest result survive a restore because the row holds them.
+session id, the target and its bound identity, the directory, the parent link, the session that sent
+the spawn, the spawn prompt, the model and effort, the spawn's plugin folders, the session's atc
+access, the transcript path and the latest result. The spawn prompt, the latest result and the atc
+access survive a restore because the row holds them.
 
 A row exists from the moment a session spawns, before its agent reports an agent session id, so a
 session killed before its first exchange persists too. It restores as exited, since its agent has

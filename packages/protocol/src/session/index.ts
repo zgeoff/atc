@@ -5,4 +5,5 @@ export * from './note-kinds';
 export * from './open-bridge-socket';
 export * from './read-session-env';
 export * from './send-bridge-request';
+export type * from './session-env';
 export * from './to-scope-file-path';

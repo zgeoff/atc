@@ -12,6 +12,7 @@ import type { EventMsg } from '@atc/protocol/wire';
 import type { FleetEntry, MessageRecord, TurnSibling } from '@atc/store';
 import type {
   DaemonID,
+  GrantScope,
   MenuView,
   MessageID,
   PublishedRecord,
@@ -53,6 +54,9 @@ export interface SpawnParams {
   // The session the request came from, which the spawned session's record
   // names as its spawner; null for a caller outside every session.
   readonly spawner: SessionID | null;
+
+  // The atc scopes the spawned session holds; null grants it no atc access.
+  readonly atcAccess: readonly GrantScope[] | null;
   readonly overrides: SpawnOverrides;
   readonly target: string;
 
@@ -68,6 +72,15 @@ export interface SpawnParams {
   // directory for, so a held directory moves the spawn to a numbered one
   // beside it.
   readonly autoDir: boolean;
+}
+
+export interface HeldAtcAccess {
+  readonly scopes: readonly GrantScope[];
+
+  // The target and identity the holder is bound to.
+  readonly grant: TargetGrant;
+  readonly parent: SessionID | null;
+  readonly spawner: SessionID | null;
 }
 
 export interface SessionRecord {
@@ -190,6 +203,10 @@ export interface DaemonContext {
   // The targets a principal may use.
   readonly buildTargetAccess: (principal: string) => TargetAccess;
 
+  // Throws the refusal of a spawn that grants a scope its caller may not
+  // grant; the owner and a principal may grant any scope.
+  readonly requireGrantableAccess: (scopes: readonly GrantScope[]) => void;
+
   // Whether the config's principals key lists the principal, which a
   // request over TCP must act as.
   readonly hasListedPrincipal: (principal: string) => boolean;
@@ -201,6 +218,14 @@ export interface DaemonContext {
   // The identity a target holds now, or null when the config holds no such
   // target.
   readonly findTargetIdentity: (target: string) => string | null;
+
+  // The atc access a live session holds, or null for a session that holds
+  // none or that the daemon does not hold.
+  readonly findHeldAtcAccess: (id: SessionID) => HeldAtcAccess | null;
+
+  // The sessions below the given one: its sub-sessions and the sessions it
+  // or any of them spawned, at any depth, leaving out the session itself.
+  readonly collectSubtree: (id: SessionID) => ReadonlySet<SessionID>;
 
   // Whether the access reaches every session in the given session's tree:
   // its top-level session and each sub-session of that one. False for an

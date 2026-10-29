@@ -8,11 +8,14 @@ import {
 } from '@atc/config';
 import { systemClock } from '@atc/core';
 import { claimDaemonLock, readDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
+import type { HarnessRelay } from '@atc/plugin-api';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
 import { getLogger } from '@logtape/logtape';
+import { isBindingCurrent } from './auth/is-binding-current';
+import type { BridgeBinding } from './auth/is-binding-current';
 import { buildDaemonContext } from './build-daemon-context';
 import type { TapClient } from './daemon-context';
 import type { DaemonOptions } from './daemon-options';
@@ -31,11 +34,13 @@ import type { HookScope } from './sessions/make-hook-runner';
 import { startSessionServices } from './start-session-services';
 import { buildBindRefusal } from './transport/build-bind-refusal';
 import { createDaemonConnection } from './transport/create-daemon-connection';
-import type { DaemonConnection } from './transport/create-daemon-connection';
+import type { DaemonConnection, PeerSession } from './transport/create-daemon-connection';
 import { createEventSignal } from './transport/create-event-signal';
+import { createRelayPeerSocket } from './transport/create-relay-peer-socket';
 import { readPeerPID } from './transport/read-peer-pid';
 import { readPeerSession } from './transport/read-peer-session';
 import { requireListenTokens } from './transport/require-listen-tokens';
+import { routeBridgeRelay } from './transport/route-bridge-relay';
 import { startEventSweep } from './transport/start-event-sweep';
 import { startEventsServer } from './transport/start-events-server';
 import { startTCPListener } from './transport/start-tcp-listener';
@@ -166,7 +171,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   // From the pid the kernel holds for the socket's peer and the live harness processes of the
   // sessions; null outside every session and where the kernel cannot be asked.
-  const readSocketSession = (socket: object): SessionID | null => {
+  const readSocketSession = (socket: object): PeerSession | null => {
     const pid = readPeerPID(socket);
 
     if (pid === null) {
@@ -181,7 +186,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       }
     }
 
-    return readPeerSession(pid, harnesses);
+    const id = readPeerSession(pid, harnesses);
+
+    return id === null ? null : { id };
   };
 
   // Any local process reads the events socket, a process inside a session
@@ -308,7 +315,14 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       onProcessEnded,
       onEvent,
       onRelay: (binding, relay) => {
-        hooks.startRelay(binding, relay);
+        routeBridgeRelay(relay, {
+          openBridge: (bridged) => {
+            hooks.startRelay(binding, bridged);
+          },
+          openClient: (client) => {
+            openGrantedConnection(binding, client);
+          },
+        });
       },
       startMessageBridge: (launch) => bridges.startBridge(launch),
       stopMessageBridge: (sessionID) => bridges.stopBridge(sessionID),
@@ -418,6 +432,44 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     clients.delete(connection);
     ctx.detachClient(connection);
     taps.detachAll(connection);
+  };
+
+  const isBridgeCurrent = (binding: BridgeBinding): boolean =>
+    isBindingCurrent(
+      binding,
+      manager.sessions.find((x) => x.id === binding.sessionID),
+    );
+
+  // A client connection through a session's bridge socket acts with the
+  // session's atc access; a session that holds none gets the connection
+  // closed unanswered.
+  const openGrantedConnection = (binding: BridgeBinding, relay: HarnessRelay): void => {
+    if (!isBridgeCurrent(binding) || ctx.findHeldAtcAccess(binding.sessionID) === null) {
+      relay.close();
+
+      return;
+    }
+
+    const socket = createRelayPeerSocket(relay, () => {
+      connection.drain();
+    });
+
+    const connection = createDaemonConnection(socket, ctx, null, {
+      id: binding.sessionID,
+      isBridgeCurrent: () => isBridgeCurrent(binding),
+    });
+
+    clients.add(connection);
+
+    relay.onLine((line) => {
+      connection.applyChunk(`${line}\n`);
+    });
+
+    relay.onClose(() => {
+      connection.dispose();
+
+      detachConnection(connection);
+    });
   };
 
   // The TCP listener binds before the unix socket, so a bind that fails

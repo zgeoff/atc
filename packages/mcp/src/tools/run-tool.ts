@@ -55,6 +55,7 @@ export function runTool(
           ? {}
           : { trustClonedWorkspace: args['trustClonedWorkspace'] }),
         ...(args['scope'] === undefined ? {} : { scope: args['scope'] }),
+        ...(args['atcAccess'] === undefined ? {} : { atcAccess: args['atcAccess'] }),
         cols: 100,
         rows: 30,
       };

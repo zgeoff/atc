@@ -1,8 +1,8 @@
 import { isRecord } from '@atc/core';
+import { GRANT_SCOPES } from '@atcx/contract';
+import type { GrantScope } from '@atcx/contract';
 import { isAPIError } from 'better-auth/api';
 import type { HTTPServerContext } from '../auth/types';
-import { GRANT_SCOPES } from '../tools/grant-scope';
-import type { GrantScope } from '../tools/grant-scope';
 
 interface TokenAccess {
   readonly clientID: string;

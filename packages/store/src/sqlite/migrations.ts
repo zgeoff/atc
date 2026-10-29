@@ -508,4 +508,10 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema.alterTable('fleet').addColumn('agent_home', 'text').execute();
     },
   },
+  '042_add_fleet_atc_access': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('atc_access', 'text').execute();
+      await db.schema.alterTable('fleet').addColumn('spawner_session_id', 'text').execute();
+    },
+  },
 };

@@ -19,6 +19,12 @@ export function isTreeInReach(
     return false;
   }
 
+  // a session's atc access reaches a set of sessions whose trees can span
+  // targets it may not spawn on, such as its parent's own
+  if (access.canReach !== null) {
+    return access.canReach(id);
+  }
+
   const root = session.parent ?? session.id;
   const tree = sessions.filter((x) => x.id === root || x.parent === root);
 

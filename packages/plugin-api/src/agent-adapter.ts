@@ -22,6 +22,10 @@ export interface SpawnOptions {
   // The session's own plugin folders, as absolute paths on the daemon's
   // machine, loaded after the ones the agent's config sets.
   readonly pluginDirs?: readonly string[];
+
+  // Whether a session on a remote host gets an atc MCP server, which reaches
+  // the daemon through the session's bridge socket.
+  readonly atcMCP?: boolean;
 }
 
 export interface SpawnOverrides {
@@ -290,6 +294,10 @@ export interface AgentAdapter {
   // Whether a session under this agent can take inbox messages through a tap;
   // false refuses every message as unsupported.
   readonly takesMessages: boolean;
+
+  // Whether a guest plan gives the session an atc MCP server when its spawn
+  // options ask for one; absent refuses a spawn that grants atc access.
+  readonly takesAtcMCP?: boolean;
 
   // Starts the daemon-side bridge for a local launch's messages, and resolves
   // once the terminal can start against it. Absent: the session takes its

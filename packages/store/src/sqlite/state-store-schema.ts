@@ -46,6 +46,14 @@ interface FleetTable {
   // after a daemon restart lists it as suspended; 0 for any other harness, and
   // null for a row from before sleeps were recorded.
   suspended: number | null;
+
+  // The JSON array of atc scopes the session holds over its sub-sessions
+  // and its parent; null for a session that holds no atc access.
+  atc_access: string | null;
+
+  // The session the spawn request came from; null for a spawn from outside
+  // every session, and for a row from before spawners were recorded.
+  spawner_session_id: string | null;
 }
 
 interface EventsTable {

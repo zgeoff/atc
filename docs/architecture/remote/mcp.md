@@ -84,6 +84,10 @@ outside every session, its messages are from the owner. When the calling session
 falls back to a top-level session. The fallback has different params from the call, so it runs under
 an idempotency key derived from the caller's, and a retry derives the same key.
 
+Inside a remote session, `atc mcp` connects through the session's bridge socket and never boots a
+daemon. The daemon serves it with the atc access the session's spawn granted, so it reaches only
+what that access reaches ([principals](../protocol/principals.md#a-sessions-atc-access)).
+
 ## Remote callers
 
 `atc mcp --http` checks a bearer token on every request and serves only the tools its grant's scopes

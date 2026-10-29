@@ -189,8 +189,10 @@ export function createClaudeAdapter(
     const revisionFolder = buildAuthRevisionFolder(auth.revision);
     const settingsPath = `${revisionFolder}/settings.json`;
     const mcpServers = entry.mcpServers ?? [];
+    const atcArgv = opts.atcMCP === true ? argv : null;
+    const takesMCP = mcpServers.length > 0 || atcArgv !== null;
     const mcpPath = `${revisionFolder}/mcp.json`;
-    const mcpArgs = mcpServers.length === 0 ? [] : ['--mcp-config', `${directory}/${mcpPath}`];
+    const mcpArgs = takesMCP ? ['--mcp-config', `${directory}/${mcpPath}`] : [];
     const bundleKey = randomUUID();
     const scratch = `${directory}/${SESSION_SCRATCH_FOLDER}`;
 
@@ -257,9 +259,9 @@ export function createClaudeAdapter(
       scratch,
       files: {
         [settingsPath]: JSON.stringify(settings, null, 2),
-        ...(mcpServers.length === 0
-          ? {}
-          : { [mcpPath]: JSON.stringify(buildClaudeMCPConfig(mcpServers), null, 2) }),
+        ...(takesMCP
+          ? { [mcpPath]: JSON.stringify(buildClaudeMCPConfig(mcpServers, atcArgv), null, 2) }
+          : {}),
         ...buildClaudeConfigSeed(null),
         ...Object.fromEntries(
           Object.entries(bundle).map(([path, content]) => [
@@ -304,6 +306,7 @@ export function createClaudeAdapter(
       ...(pluginDirs.length === 0 ? {} : { pluginDirs }),
     },
     takesMessages: true,
+    takesAtcMCP: true,
 
     // A session's scratch folder lies under its own folder in atc's state
     // folder, and is its temporary folder too.
@@ -360,11 +363,13 @@ export function createClaudeAdapter(
       }
 
       const scratch = `${guest.directory}/${SESSION_SCRATCH_FOLDER}`;
+      const atcArgv = opts.atcMCP === true ? argv : null;
+      const mcpArgs = atcArgv === null ? [] : ['--mcp-config', `${guest.directory}/mcp.json`];
 
       const launch = buildScratchLaunch(scratch, [
         entry.bin,
         ...buildClaudeArgs(entry.args, opts, {
-          leadArgs: buildModeArgs(opts),
+          leadArgs: [...mcpArgs, ...buildModeArgs(opts)],
           scratch,
           settings: `${guest.directory}/settings.json`,
           pluginDir: `${guest.directory}/atc-bridge`,
@@ -379,6 +384,9 @@ export function createClaudeAdapter(
         scratch,
         files: {
           'settings.json': JSON.stringify(settings, null, 2),
+          ...(atcArgv === null
+            ? {}
+            : { 'mcp.json': JSON.stringify(buildClaudeMCPConfig([], atcArgv), null, 2) }),
           ...buildGuestBridgeFiles(argv),
         },
       };

@@ -72,7 +72,12 @@ export async function setupSpawn(
           id,
           hostKey,
           target,
-          spawnOptions: { prompt: spawn.prompt, resume: spawn.resume, ...spawn.overrides },
+          spawnOptions: {
+            prompt: spawn.prompt,
+            resume: spawn.resume,
+            ...spawn.overrides,
+            ...(spawn.atcAccess === null ? {} : { atcMCP: true }),
+          },
           auth: authSetup,
           cwd: startDir,
           isNewHost: hostKey === id,

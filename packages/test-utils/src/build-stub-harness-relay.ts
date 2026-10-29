@@ -36,6 +36,11 @@ export function buildStubHarnessRelay() {
         listener(JSON.stringify(value));
       }
     },
+    sendRawLine: (line: string) => {
+      for (const listener of lineListeners) {
+        listener(line);
+      }
+    },
     emitClose: () => {
       for (const listener of closeListeners) {
         listener();

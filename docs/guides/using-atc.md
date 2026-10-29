@@ -94,6 +94,12 @@ grok mcp add atc -- atc mcp
 A Claude Code or Codex session that is running loads the server only after it restarts. A running
 Grok session loads it when you press `r` in its `/mcps` list.
 
+A Claude Code session on an imp reaches no daemon socket, so it gets atc only when its spawn grants
+it. Pass `atcAccess` to `atc_session_spawn` with the scopes the session needs, such as
+`["read", "message", "spawn", "kill"]`. The session then reaches itself, the sessions it spawns, and
+its parent for messages alone, and it can grant a sub-session no scope it lacks itself
+([a session's atc access](../architecture/protocol/principals.md#a-sessions-atc-access)).
+
 `atc_message_send` queues a message for a Claude Code session, which reads it in a new turn or
 inside the turn it is running. The session answers the message with its `answer` tool, or else with
 that turn's final output once the turn ends, and `atc_message_get` returns the answer. When the
