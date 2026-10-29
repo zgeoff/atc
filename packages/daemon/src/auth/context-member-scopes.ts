@@ -41,6 +41,7 @@ export const CONTEXT_MEMBER_SCOPES = {
   writeStateBackup: 'owner-only',
 
   requireGrantableAccess: 'narrowed',
+  requireResumable: 'narrowed',
   isSessionVisible: 'narrowed',
   collectSessions: 'narrowed',
   collectAgents: 'narrowed',

@@ -16,6 +16,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { createHostServices } from '../packages/app/src/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
@@ -169,9 +170,12 @@ test('it gives a session spawned without atc access no atc MCP server and closes
   expect(client.sendHello(ctx.daemon.build, { session })).rejects.toThrow();
   expect(existsSync(join(directory, 'mcp.json'))).toBe(false);
 
-  expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
-    expect.objectContaining({ argv: expect.not.arrayContaining(['--mcp-config']) }),
-  ]);
+  const [request] = ctx.port.sessionRequests;
+
+  invariant(request?.kind === 'start');
+
+  expect(ctx.port.sessionRequests).toHaveLength(1);
+  expect(request.argv).not.toContain('--mcp-config');
 });
 
 test('it refuses a session with atc access a session outside its subtree and its parent', async () => {
@@ -351,6 +355,126 @@ test('it lets a session with kill stop its sub-session but never itself', async 
 
   expect(own.text).toStartWith('no_such_session');
   expect(sub.isError).toBeUndefined();
+});
+
+test('it refuses a spawn from a session with atc access that resumes an agent session out of its reach', async () => {
+  const ctx = await setupTest();
+
+  const other = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  const otherID = String(getRecord(other, 'session')['id']);
+
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: otherID,
+    data: 'start conversation-elsewhere\r',
+  });
+
+  await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('session.get', { session: otherID });
+
+    expect(read).toMatchObject({ session: { agentSessionID: 'conversation-elsewhere' } });
+  });
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+    atcAccess: ['spawn'],
+  });
+
+  const holder = String(getRecord(spawned, 'session')['id']);
+
+  const client = await openDaemonClient(ctx.buildBridgeSocket(holder));
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  await client.sendHello(ctx.daemon.build, {});
+
+  expect(
+    client.sendRequest('session.spawn', {
+      cwd: ctx.daemon.directory,
+      cols: 80,
+      rows: 24,
+      resume: 'conversation-elsewhere',
+    }),
+  ).rejects.toMatchObject({ code: 'unauthorized' });
+});
+
+test('it refuses a spawn from a session with atc access that resumes the latest agent session', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+    atcAccess: ['spawn'],
+  });
+
+  const holder = String(getRecord(spawned, 'session')['id']);
+
+  const client = await openDaemonClient(ctx.buildBridgeSocket(holder));
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  await client.sendHello(ctx.daemon.build, {});
+
+  expect(
+    client.sendRequest('session.spawn', {
+      cwd: ctx.daemon.directory,
+      cols: 80,
+      rows: 24,
+      resume: true,
+    }),
+  ).rejects.toMatchObject({ code: 'unauthorized' });
+});
+
+test('it lets a session with atc access spawn a session that resumes an agent session in its reach', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+    atcAccess: ['spawn'],
+  });
+
+  const holder = String(getRecord(spawned, 'session')['id']);
+
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: holder,
+    data: 'start conversation-own\r',
+  });
+
+  await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('session.get', { session: holder });
+
+    expect(read).toMatchObject({ session: { agentSessionID: 'conversation-own' } });
+  });
+
+  const client = await openDaemonClient(ctx.buildBridgeSocket(holder));
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  await client.sendHello(ctx.daemon.build, {});
+
+  const resumed = await client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+    resume: 'conversation-own',
+  });
+
+  expect(getRecord(resumed, 'session')['agentSessionID']).toBe('conversation-own');
 });
 
 test('it refuses a spawn from a session with atc access that grants a scope the session lacks', async () => {

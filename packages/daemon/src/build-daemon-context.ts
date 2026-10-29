@@ -66,6 +66,7 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     findAdapter: (kind) => manager.findAdapter(kind),
     buildTargetAccess: (principal) => buildTargetAccess(principals, targetsByID, principal),
     requireGrantableAccess: () => {},
+    requireResumable: () => {},
     hasListedPrincipal: (principal) => principals?.has(principal) ?? false,
     findSessionGrant: (id) => {
       const session = manager.sessions.find((x) => x.id === id);

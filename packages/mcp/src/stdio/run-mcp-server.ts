@@ -12,7 +12,8 @@ export async function runMCPServer(
 ): Promise<void> {
   const sessionEnv = readSessionEnv(process.env);
   const bridgeSocket = findBridgeSocket(sessionEnv);
-  const socketPath = bridgeSocket === null ? await bootSocketPath(bootDaemon) : bridgeSocket;
+
+  const socketPath = await resolveSocketPath(bridgeSocket, bootDaemon);
 
   // a spawn from inside a session nests under it by default, and each
   // connection's handshake claims that session for the answers to the
@@ -43,8 +44,14 @@ export async function runMCPServer(
   await caller.stop();
 }
 
-// Boots the daemon when none answers, and returns the socket it listens on.
-async function bootSocketPath(bootDaemon: () => Promise<DaemonBoot>): Promise<string> {
+async function resolveSocketPath(
+  bridgeSocket: string | null,
+  bootDaemon: () => Promise<DaemonBoot>,
+): Promise<string> {
+  if (bridgeSocket !== null) {
+    return bridgeSocket;
+  }
+
   const boot = await bootDaemon();
 
   boot.client.stop();

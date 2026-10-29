@@ -11,6 +11,7 @@ import type { DaemonAnswer, DeclaredScope } from '@atc/protocol';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { FleetEntry, MessageRecord, TurnSibling } from '@atc/store';
 import type {
+  AgentSessionID,
   DaemonID,
   GrantScope,
   MenuView,
@@ -206,6 +207,10 @@ export interface DaemonContext {
   // Throws the refusal of a spawn that grants a scope its caller may not
   // grant; the owner and a principal may grant any scope.
   readonly requireGrantableAccess: (scopes: readonly GrantScope[]) => void;
+
+  // Throws the refusal of a spawn that resumes an agent session its caller
+  // may not take over; the owner and a principal may resume any.
+  readonly requireResumable: (resume: boolean | AgentSessionID) => void;
 
   // Whether the config's principals key lists the principal, which a
   // request over TCP must act as.

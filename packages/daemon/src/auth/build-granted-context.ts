@@ -46,6 +46,33 @@ export function buildGrantedContext(
         );
       }
     },
+
+    // A resumed agent session id becomes the new session's own, and the fleet
+    // keeps one row per agent session on a target, so a resume of a session
+    // out of reach would replace that session's row and take its children.
+    requireResumable: (resume) => {
+      if (resume === false) {
+        return;
+      }
+
+      if (resume === true) {
+        throw new DaemonError(
+          'unauthorized',
+          `session '${holder}' holds atc access, so its spawn names the agent session to resume`,
+        );
+      }
+
+      const isHeldInReach = ctx
+        .collectSessions()
+        .some((session) => session.agentSessionID === resume && isInReach(session.id));
+
+      if (!isHeldInReach) {
+        throw new DaemonError(
+          'unauthorized',
+          `session '${holder}' holds atc access, so its spawn resumes only an agent session that a session in its reach holds`,
+        );
+      }
+    },
     resolveSpawnTarget: (requested) => {
       if (requested !== undefined && requested !== held.grant.target) {
         throw buildTargetForbiddenError(requested);

@@ -113,7 +113,10 @@ the holder's harness has started again or moved, since the connection came from 
 held the bridge before.
 
 A holder spawns only on its own target and identity, so a spawn without a target runs there and a
-spawn to any other target fails with `target_forbidden`. A spawn grants no scope its caller lacks:
+spawn to any other target fails with `target_forbidden`. A holder's spawn resumes only an agent
+session that a session in its reach holds, and names it, because the fleet keeps one row per agent
+session on a target, and a resume of another session's agent session would replace that session's
+row. Any other resume fails with `unauthorized`. A spawn grants no scope its caller lacks:
 
 - From a session with atc access, a scope the session does not hold is refused with `unauthorized`.
 - From atc-gateway or `atc mcp --http`, the MCP server refuses a scope the bearer token lacks with

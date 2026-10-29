@@ -16,6 +16,7 @@ export function buildStubDaemonContext(overrides: Partial<DaemonContext> = {}): 
     findAdapter: makeUnreached('findAdapter'),
     buildTargetAccess: () => buildTargetAccessFromGrants([]),
     requireGrantableAccess: () => {},
+    requireResumable: () => {},
     hasListedPrincipal: makeUnreached('hasListedPrincipal'),
     findSessionGrant: () => ({ target: 'local', targetIdentity: 'local-pty' }),
     findTargetIdentity: makeUnreached('findTargetIdentity'),
