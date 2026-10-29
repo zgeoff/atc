@@ -3,6 +3,7 @@ import { buildHostFiles } from '@atc/plugin-api';
 import type { ExecutionProvider, HookPlan, HostFiles, SessionHost } from '@atc/plugin-api';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
+import type { AgentSessionID } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { SessionRegistry } from './create-session-registry';
@@ -73,6 +74,18 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
     fleet.emitChange();
   };
 
+  // A remote host can report any agent session id, and one that another
+  // host's session holds would take over its messages, its fleet row and its
+  // sub-sessions; a conversation on another host never resumes on this one.
+  const isHeldOnAnotherHost = (session: Session, agentSessionID: AgentSessionID): boolean =>
+    registry.findProvider(session)?.remote === true &&
+    registry.sessions.some(
+      (other) =>
+        other.id !== session.id &&
+        other.hostKey !== session.hostKey &&
+        other.agentSessionID === agentSessionID,
+    );
+
   const applyAdapterEvent = (session: Session, ev: Readonly<AdapterEvent>): void => {
     // Reporters belong to the terminal process; once a session is headless,
     // late reports from the dying terminal must not clobber its state.
@@ -96,9 +109,15 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
     }
 
     if (ev.agentSessionID !== undefined && session.agentSessionID !== ev.agentSessionID) {
-      session.agentSessionID = ev.agentSessionID;
-      persist = true;
-      dirty = true;
+      if (isHeldOnAnotherHost(session, ev.agentSessionID)) {
+        callbacks.log(
+          `session ${session.id} reported agent session ${ev.agentSessionID}, which a session on another host holds; the report keeps its own`,
+        );
+      } else {
+        session.agentSessionID = ev.agentSessionID;
+        persist = true;
+        dirty = true;
+      }
     }
 
     if (ev.detail !== undefined) {
