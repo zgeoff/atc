@@ -8,6 +8,7 @@ function setupTest() {
   const received: string[] = [];
   const accepted = Promise.withResolvers<Socket>();
   const closed = { count: 0 };
+  const receivedBytes = { count: 0 };
 
   const target = Bun.listen({
     hostname: '127.0.0.1',
@@ -17,6 +18,8 @@ function setupTest() {
         accepted.resolve(socket);
       },
       data: (_socket, data) => {
+        receivedBytes.count += data.byteLength;
+
         received.push(data.toString());
       },
       close: () => {
@@ -29,7 +32,7 @@ function setupTest() {
     target.stop(true);
   });
 
-  return { port: target.port, received, accepted: accepted.promise, closed };
+  return { port: target.port, received, receivedBytes, accepted: accepted.promise, closed };
 }
 
 test('it forwards what each end sends to the other end', async () => {
@@ -138,7 +141,7 @@ test('it delivers every byte to a reader too slow to take one write', async () =
   peer.resume();
 
   await waitFor(() => {
-    expect(ctx.received.join('')).toHaveLength(1 + sent.byteLength);
+    expect(ctx.receivedBytes.count).toBe(1 + sent.byteLength);
   });
 });
 
