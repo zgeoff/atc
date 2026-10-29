@@ -10,6 +10,7 @@ import type {
   HarnessExit,
   HarnessHandle,
   HarnessSpec,
+  HarnessStart,
   HostRequest,
 } from '@atc/plugin-api';
 
@@ -56,6 +57,10 @@ interface StubMemoryProviderConfig {
   // Runs a stand-in program on each harness once the harness is recorded, such
   // as an agent CLI that draws output and answers input.
   readonly onStart?: (harness: StubMemoryHarness) => void;
+
+  // What each harness reports once it starts; absent, a harness starts at once and reports
+  // nothing.
+  readonly harnessStart?: HarnessStart;
 
   // Answers each command; absent, every command exits 0 and prints nothing.
   readonly runCommand?: (spec: CommandSpec) => Promise<CommandResult>;
@@ -143,7 +148,13 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
     },
     spawnHarness: (spec) => {
       config.onSpawn?.(spec);
-      const harness = buildStubMemoryHarness(spec, config.clock ?? systemClock);
+      const built = buildStubMemoryHarness(spec, config.clock ?? systemClock);
+      const harnessStart = config.harnessStart;
+
+      const harness: StubMemoryHarness =
+        harnessStart === undefined
+          ? built
+          : { ...built, waitForStart: () => Promise.resolve(harnessStart) };
 
       harnesses.push(harness);
       config.onStart?.(harness);

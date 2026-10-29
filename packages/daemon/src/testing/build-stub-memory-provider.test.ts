@@ -103,6 +103,42 @@ test('it records each harness it starts with its spec', () => {
   ]);
 });
 
+test('it reports the start the config gives for each harness', async () => {
+  const provider = buildStubMemoryProvider({ harnessStart: { created: false } });
+
+  const harness = provider.spawnHarness({
+    session: 's-1',
+    host: 's-1',
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  const start = await harness.waitForStart?.();
+
+  expect(start).toStrictEqual({ created: false });
+});
+
+test('it reports no start for a harness when the config gives none', () => {
+  const provider = buildStubMemoryProvider();
+
+  const harness = provider.spawnHarness({
+    session: 's-1',
+    host: 's-1',
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(harness.waitForStart).toBeUndefined();
+});
+
 test('it starts no harness when the spawn callback throws', () => {
   const provider = buildStubMemoryProvider({
     onSpawn: () => {

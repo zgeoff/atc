@@ -13,9 +13,13 @@ export async function loadGrokName(
   // same session id under any directory in `home`
   const found = await readSummary(files, source);
 
-  const summary = found === null ? await readMovedSummary(files, home, source) : found;
+  if (found !== null) {
+    return buildNameUpdate(found, namedBy);
+  }
 
-  return summary === null ? null : buildNameUpdate(summary, namedBy);
+  const moved = await readMovedSummary(files, home, source);
+
+  return moved === null ? null : buildNameUpdate(moved, namedBy);
 }
 
 // The fields of a session's summary.json a name comes from. A wrong-typed
@@ -44,6 +48,29 @@ function parseSummary(text: string): GrokSummary | null {
   }
 }
 
+function buildNameUpdate(
+  summary: GrokSummary,
+  namedBy: 'user' | 'auto' | 'agent',
+): NameUpdate | null {
+  const title = summary.generated_title ?? '';
+  const sessionSummary = summary.session_summary ?? '';
+
+  // a title the person set in grok wins over every name, a name typed in atc included
+  if (summary.title_is_manual === true && title !== '') {
+    return { name: title, namedBy: 'agent' };
+  }
+
+  if (namedBy !== 'user' && title !== '') {
+    return { name: title };
+  }
+
+  if (namedBy !== 'user' && sessionSummary !== '') {
+    return { name: sessionSummary };
+  }
+
+  return null;
+}
+
 async function readMovedSummary(
   files: HostFiles,
   home: string,
@@ -67,35 +94,11 @@ async function readMovedSummary(
     }
 
     // each read is a command on a remote host, so the scan stops at the first summary it finds
-    // oxlint-disable-next-line no-await-in-loop
     const summary = await readSummary(files, candidate);
 
     if (summary !== null) {
       return summary;
     }
-  }
-
-  return null;
-}
-
-function buildNameUpdate(
-  summary: GrokSummary,
-  namedBy: 'user' | 'auto' | 'agent',
-): NameUpdate | null {
-  const title = summary.generated_title ?? '';
-  const sessionSummary = summary.session_summary ?? '';
-
-  // a title the person set in grok wins over every name, a name typed in atc included
-  if (summary.title_is_manual === true && title !== '') {
-    return { name: title, namedBy: 'agent' };
-  }
-
-  if (namedBy !== 'user' && title !== '') {
-    return { name: title };
-  }
-
-  if (namedBy !== 'user' && sessionSummary !== '') {
-    return { name: sessionSummary };
   }
 
   return null;

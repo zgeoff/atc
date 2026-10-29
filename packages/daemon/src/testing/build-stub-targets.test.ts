@@ -28,6 +28,16 @@ test('it builds a target with an in-memory provider for each local-pty entry and
   });
 });
 
+test("it runs a local-pty target's commands on the daemon's machine", async () => {
+  const [target] = buildStubTargets([{ id: 'local', provider: 'local-pty', options: {} }], {
+    spawned: [],
+  });
+
+  const result = await target?.provider?.runCommand({ argv: ['printf', 'ran'], cwd: '/' });
+
+  expect(result).toStrictEqual({ exitCode: 0, stdout: 'ran', stderr: '' });
+});
+
 test('it records the target of each spawn', () => {
   const spawned: string[] = [];
 

@@ -69,6 +69,31 @@ test('it answers an agent home with its folder under the home folder inside the 
   expect(result).toStrictEqual({ exitCode: 0, stdout: '/guest/atc/home/.grok\n', stderr: '' });
 });
 
+test('it reports the start the config gives for each harness', async () => {
+  const ctx = setupTest();
+
+  const provider = buildStubGuestFilesProvider({
+    guestDirectory: '/guest/atc',
+    hostDirectory: ctx.directory,
+    harnessStart: { created: false },
+  });
+
+  const harness = provider.spawnHarness({
+    session: 's-1',
+    host: 's-1',
+    bin: 'grok',
+    args: [],
+    cwd: '/root/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  const start = await harness.waitForStart?.();
+
+  expect(start).toStrictEqual({ created: false });
+});
+
 test('it reports a remote host with the guest folder as its layout', async () => {
   const ctx = setupTest();
 
