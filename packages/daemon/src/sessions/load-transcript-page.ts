@@ -49,7 +49,7 @@ export async function loadTranscriptPage(req: TranscriptPageRequest): Promise<Tr
 
   const size = start.window.size;
   let offset = start.offset;
-  let pending: TranscriptWindow | null = start.window;
+  let first = true;
   const rows: TranscriptRow[] = [];
 
   const decoder = new TextDecoder();
@@ -59,9 +59,9 @@ export async function loadTranscriptPage(req: TranscriptPageRequest): Promise<Tr
 
   while (offset < size) {
     const length = Math.min(WINDOW_BYTES, size - offset);
-    const window = pending === null ? await req.readWindow(req.path, offset, length) : pending;
+    const window = first ? start.window : await req.readWindow(req.path, offset, length);
 
-    pending = null;
+    first = false;
 
     // A remote host reads the size before the bytes, so a file that grew
     // between the two returns bytes past that size.
