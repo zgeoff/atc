@@ -145,9 +145,8 @@ export interface AgentHomeLocation {
 type AttentionJudgment = 'needs-input' | 'working';
 
 interface ScreenDetector {
-  // runs on the serialized screen once output quiesces; null means no
-  // opinion, and the session's state stands.
   readonly detectAttention: (screen: string) => AttentionJudgment | null;
+  readonly untilAgentStart: boolean;
 }
 
 export interface ResumeCheck {

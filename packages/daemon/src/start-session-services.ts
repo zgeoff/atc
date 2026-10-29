@@ -183,6 +183,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     },
     onAgentStarted: (sessionID) => {
       revival.watchAgentStart(sessionID);
+      detection.applyAgentStart(sessionID);
     },
     ...(opts.onNoteIgnored === undefined ? {} : { onNoteIgnored: opts.onNoteIgnored }),
     ...(opts.onLastUsedUnchanged === undefined
@@ -216,6 +217,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     manager,
     clock,
     findRuntime,
+    recordNeedsInput: hooks.recordScreenNeedsInput,
     onDetectSkipped: opts.onDetectSkipped,
   });
 

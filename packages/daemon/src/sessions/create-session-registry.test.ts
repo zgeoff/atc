@@ -63,7 +63,10 @@ test('it reports a screen detector when a registered adapter provides one', () =
   const registry = createSessionRegistry({
     fallback: buildMockAgentAdapter(),
     adapters: [
-      buildMockAgentAdapter({ id: 'zai', screenDetector: { detectAttention: () => null } }),
+      buildMockAgentAdapter({
+        id: 'zai',
+        screenDetector: { detectAttention: () => null, untilAgentStart: false },
+      }),
     ],
     targets: [],
     targetErrors: [],

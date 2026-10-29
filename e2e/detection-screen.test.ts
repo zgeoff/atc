@@ -12,6 +12,7 @@ test('it flags a hook-less agent waiting at a prompt via the screen detector', a
         screenDetector: {
           detectAttention: (screen) =>
             screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
+          untilAgentStart: false,
         },
         planSpawn: () => ({
           bin: 'bash',
@@ -46,6 +47,7 @@ test('it flips the session back to working once the prompt is answered', async (
         screenDetector: {
           detectAttention: (screen) =>
             screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
+          untilAgentStart: false,
         },
         planSpawn: () => ({
           bin: 'bash',
@@ -98,6 +100,7 @@ test('it opens a permission request from a screen-detected prompt', async () => 
         screenDetector: {
           detectAttention: (screen) =>
             screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
+          untilAgentStart: false,
         },
         planSpawn: () => ({
           bin: 'bash',
@@ -191,7 +194,7 @@ test('it never flags a prompt as needing input when another agent has a screen d
       adapters: [
         buildMockAgentAdapter({
           id: 'zai',
-          screenDetector: { detectAttention: () => 'needs-input' },
+          screenDetector: { detectAttention: () => 'needs-input', untilAgentStart: false },
         }),
       ],
       onDetectSkipped,

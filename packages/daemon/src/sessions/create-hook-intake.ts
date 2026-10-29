@@ -80,6 +80,7 @@ export interface HookIntake {
   // A headless turn has no terminal hooks of its own, so the daemon writes
   // its start and end to the trail under a synthetic event name.
   readonly recordHeadlessTurnEvent: (sessionID: SessionID, ev: Readonly<AdapterEvent>) => void;
+  readonly recordScreenNeedsInput: (sessionID: SessionID, message: string) => Promise<boolean>;
 
   // A remote harness reports through a socket that serves it alone, so a
   // line that names any other session is dropped.
@@ -285,6 +286,34 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
         },
         ev,
       );
+    },
+
+    recordScreenNeedsInput: async (sessionID, message) => {
+      const session = manager.sessions.find((x) => x.id === sessionID);
+
+      try {
+        await recordHookEvent(
+          {
+            atcId: sessionID,
+            event: 'Screen',
+            payload: {
+              message,
+              ...(session?.agentSessionID === undefined
+                ? {}
+                : { session_id: session.agentSessionID }),
+            },
+          },
+          { kind: 'needs-input', message, detail: message },
+        );
+
+        return true;
+      } catch (error) {
+        manager.log(
+          `atc screen event=unrecorded session=${formatLogField(sessionID)} error=${formatLogField(String(error))}`,
+        );
+
+        return false;
+      }
     },
 
     startRelay: (binding, relay) => {

@@ -64,6 +64,7 @@ import { loadClaudeName } from './load-claude-name';
 import { resolveClaudeGlobalConfigPath } from './local-trust/resolve-claude-global-config-path';
 import { updateClaudeProjectTrust } from './local-trust/update-claude-project-trust';
 import { parseClaudeTranscriptLine } from './parse-claude-transcript-line';
+import { pickClaudeAttention } from './pick-claude-attention';
 import { planClaudeLineInput } from './plan-claude-line-input';
 import { resolveClaudePermissionMode } from './resolve-claude-permission-mode';
 import { resolveConfiguredPluginDirs } from './resolve-configured-plugin-dirs';
@@ -289,8 +290,7 @@ export function createClaudeAdapter(
             settings: () => files.writeSettings(),
           }),
 
-    // Claude's hooks are authoritative; no screen heuristics needed.
-    screenDetector: null,
+    screenDetector: { detectAttention: pickClaudeAttention, untilAgentStart: true },
 
     parseTranscriptLine: parseClaudeTranscriptLine,
     planLineInput: planClaudeLineInput,

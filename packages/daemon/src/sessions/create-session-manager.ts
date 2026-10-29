@@ -194,7 +194,7 @@ export interface SessionManager {
     id: SessionID,
     state: 'needs_you' | 'running',
     message: string,
-  ) => void;
+  ) => boolean;
 
   readonly focused: Session | null;
   readonly collectDescriptors: () => SessionDescriptor[];
@@ -520,11 +520,11 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
       const session = registry.sessions.find((x) => x.id === id);
 
       if (!session || session.pty === null || session.state === state) {
-        return;
+        return false;
       }
 
       if (session.state !== 'running' && session.state !== 'needs_you') {
-        return;
+        return false;
       }
 
       session.state = state;
@@ -537,6 +537,8 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
       onEvent('state', session);
 
       fleet.emitChange();
+
+      return true;
     },
 
     get focused(): Session | null {

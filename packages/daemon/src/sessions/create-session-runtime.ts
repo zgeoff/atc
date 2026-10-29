@@ -50,6 +50,12 @@ export interface SessionRuntime {
   // beyond it only if a tap has attached since the boot.
   startedAt: number | null;
 
+  // No hook report closes a needs_you set from the screen, since the agent
+  // runs no hook before its start.
+  needsYouFromScreen: boolean;
+
+  needsInputUnrecorded: boolean;
+
   // Whether a tap has attached since the terminal last booted. A tap that
   // later dropped may be restarting, so it keeps the inbox open.
   tapAttached: boolean;
@@ -103,6 +109,10 @@ export function createSessionRuntime(): SessionRuntime {
 
     startedAt: null,
 
+    needsYouFromScreen: false,
+
+    needsInputUnrecorded: false,
+
     tapAttached: false,
 
     hasAgentHookLines: false,
@@ -112,6 +122,8 @@ export function createSessionRuntime(): SessionRuntime {
     resetBoot: (dims) => {
       runtime.dims = dims;
       runtime.startedAt = null;
+      runtime.needsYouFromScreen = false;
+      runtime.needsInputUnrecorded = false;
       runtime.tapAttached = false;
       runtime.hasAgentHookLines = false;
       runtime.harnessState = undefined;
