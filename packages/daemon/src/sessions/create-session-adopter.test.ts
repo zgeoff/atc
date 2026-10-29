@@ -12,6 +12,7 @@ import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
+import { buildStubGuestFilesProvider } from '../testing/build-stub-guest-files-provider';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createHostDirClaims } from './create-host-dir-claims';
@@ -179,29 +180,33 @@ test('it starts a harness that resumes the agent session of a session without a 
   expect(ctx.callbacks.onBoot).toHaveBeenCalledExactlyOnceWith(session, 100, 30);
 });
 
-test('it keeps the agent home the revived harness launched with on the session', async () => {
+test('it keeps the agent home the remote host resolves for the revived harness on the session', async () => {
   const adapter: AgentAdapter = {
     ...buildStubHarnessAdapter(),
-    planSpawn: () => ({ bin: 'stub-harness', args: [], agentHome: '/work/agent-home' }),
+    agentHomeLocation: { env: 'GROK_HOME', folder: '.grok' },
   };
 
-  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+  const provider = buildStubGuestFilesProvider({
+    guestDirectory: '/guest/atc',
+    hostDirectory: '/nonexistent',
+  });
 
   const ctx = await setupTest({
     adapters: [adapter],
-    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+    targets: [buildMockExecutionTarget({ id: 'box', identity: 'remote:test', provider })],
   });
 
   const session = buildMockSession({
-    id: toSessionID('s-c-1'),
-    cwd: ctx.directory,
+    id: toSessionID('s-g-1'),
+    cwd: '/root/work',
     kind: 'headless',
     state: 'running',
     lastMsg: 'waiting to restore',
-    agentSessionID: toAgentSessionID('c-1'),
+    agentSessionID: toAgentSessionID('g-1'),
     agent: 'claude',
-    target: 'local',
-    targetIdentity: 'local-pty:test',
+    target: 'box',
+    targetIdentity: 'remote:test',
+    agentHome: '/guest/atc/old-home/.grok',
   });
 
   ctx.registry.sessions.push(session);
@@ -209,7 +214,7 @@ test('it keeps the agent home the revived harness launched with on the session',
 
   const adopted = await ctx.adopter.adoptTerminal(session.id, 100, 30);
 
-  expect(adopted?.agentHome).toBe('/work/agent-home');
+  expect(adopted?.agentHome).toBe('/guest/atc/home/.grok');
 });
 
 test('it starts nothing for a session without an agent session id', async () => {

@@ -26,6 +26,7 @@ import { buildGuestRefusal } from './build-guest-refusal';
 import type { RuntimeAuthBinder } from './create-runtime-auth-binder';
 import { formatAuthNotice } from './format-auth-notice';
 import { loadOAuthStates } from './load-oauth-states';
+import { readHostAgentHome } from './read-host-agent-home';
 import { requireGuestEnv } from './require-guest-env';
 import { requireProjectSettings } from './require-project-settings';
 import type { ProjectSettingsLaunch } from './require-project-settings';
@@ -65,6 +66,8 @@ interface VerifiedAuth {
 // overrides.
 export interface HarnessPlan extends SpawnPlan {
   readonly env: Readonly<Record<string, string>>;
+
+  readonly agentHome?: string;
 
   // What a launch behind the broker was planned under, which its host's
   // binding must still admit when each request goes out; null without
@@ -362,7 +365,6 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
             args: local.args,
             env: local.env ?? {},
             ...(local.scratch === undefined ? {} : { scratch: local.scratch }),
-            ...(local.agentHome === undefined ? {} : { agentHome: local.agentHome }),
             admission: null,
             heldRevision: null,
           },
@@ -423,11 +425,20 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
             )
           : null;
 
+      const location = adapter.agentHomeLocation;
+      let agentHome: string | undefined;
+
       try {
         await setupGuest(
           { store, callbacks, harnesses },
           { adapter, provider, hostKey, target, directory, planned: plan.files, timer },
         );
+
+        if (location !== undefined) {
+          agentHome = await timer.withStep('agent-home', () =>
+            readHostAgentHome(provider, hostKey, location, env),
+          );
+        }
 
         if (auth !== null && cwd !== null) {
           await timer.withStep('project-settings', () =>
@@ -453,7 +464,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
           args: plan.args,
           env,
           ...(plan.scratch === undefined ? {} : { scratch: plan.scratch }),
-          ...(plan.agentHome === undefined ? {} : { agentHome: plan.agentHome }),
+          ...(agentHome === undefined ? {} : { agentHome }),
           admission,
           heldRevision: verified?.heldRevision ?? null,
         },

@@ -98,8 +98,6 @@ export interface Session {
   // absent for a harness that takes no credential from impd's broker.
   authRevision?: number;
 
-  // The agent home the session's latest launch planned on its host; absent
-  // for a launch that ran with the agent's default home.
   agentHome?: string | undefined;
 
   // The refusal a restore's last try at a terminal ended with, when no

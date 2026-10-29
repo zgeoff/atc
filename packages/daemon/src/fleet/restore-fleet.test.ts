@@ -10,6 +10,7 @@ import {
   buildStubLog,
   createMigratedStateDB,
   registerTestCleanup,
+  runLocalCommand,
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
@@ -24,7 +25,6 @@ import { startHeadlessTurn } from '../sessions/start-headless-turn';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildStubRestoreImpProvider } from '../testing/build-stub-restore-imp-provider';
-import { runLocalCommand } from '../testing/run-local-command';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildExecutionTargets } from './build-execution-targets';
 import { restoreFleet } from './restore-fleet';

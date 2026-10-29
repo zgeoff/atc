@@ -7,13 +7,13 @@ import {
   getRecord,
   readJSONRecord,
   registerTestCleanup,
+  runLocalCommand,
   setupTempDir,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import { z } from 'zod';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { runLocalCommand } from '../testing/run-local-command';
 import { PLACE_COPY_SCRIPT, createPublishedRecords } from './create-published-records';
 
 async function setupTest() {

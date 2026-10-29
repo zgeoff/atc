@@ -41,11 +41,6 @@ export interface SpawnPlan {
   // the absolute path on the session's host of the folder the session owns
   // as its scratch space; absent for an agent that plans none.
   readonly scratch?: string;
-
-  // the absolute path on the session's host of the agent home the plan
-  // points the harness at; absent when the harness runs with the agent's
-  // default home.
-  readonly agentHome?: string;
 }
 
 export interface GuestPaths {
@@ -127,18 +122,20 @@ export interface NameUpdate {
 // Reads files on the host a session runs on, which for a remote target is
 // another machine than the daemon's.
 export interface HostFiles {
-  // The lines of the file at path that match the extended regular
-  // expression, or null when the host cannot read the file.
   readonly readMatchingLines: (path: string, pattern: string) => Promise<readonly string[] | null>;
+
+  // ls prints one name per line, so a name that holds a newline reads as two.
+  readonly readDirectory: (path: string) => Promise<readonly string[] | null>;
 }
 
-// The host a session runs on, as a name read sees it.
 export interface SessionHost {
   readonly files: HostFiles;
-
-  // the agent home the session's latest launch planned, or null for one
-  // that ran with the agent's default home.
   readonly agentHome: string | null;
+}
+
+export interface AgentHomeLocation {
+  readonly env: string;
+  readonly folder: string;
 }
 
 type AttentionJudgment = 'needs-input' | 'working';
@@ -312,6 +309,9 @@ export interface AgentAdapter {
   // Absent: the agent runs there as a local spawn plans it, with no files.
   readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
 
+  // Absent: the agent reads no file from its home.
+  readonly agentHomeLocation?: AgentHomeLocation;
+
   // The guest-relative files of a remote session's message mod, given the
   // atc inside its host, written again when a running agent drops the mod.
   // Absent: the agent has no such mod.
@@ -346,7 +346,7 @@ export interface AgentAdapter {
   // Reads one hook line as the events it means for its session. `prev` is
   // the state this adapter returned for the same session's previous line,
   // or undefined for the session's first line since its harness booted.
-  readonly planHookEvents: (hookEvent: HookEvent, previous: unknown) => HookPlan;
+  readonly planHookEvents: (hookEvent: HookEvent, previous: unknown, host: SessionHost) => HookPlan;
   readonly loadName: (
     source: string,
     namedBy: 'user' | 'auto' | 'agent',

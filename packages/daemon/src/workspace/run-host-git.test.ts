@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
-import { createGitFixture, updateEnv } from '@atc/test-utils';
+import { createGitFixture, runLocalCommand, updateEnv } from '@atc/test-utils';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { runLocalCommand } from '../testing/run-local-command';
 import { runHostGit } from './run-host-git';
 
 test('it runs git on the daemon machine for a local provider, past a GIT_DIR the daemon inherited', async () => {

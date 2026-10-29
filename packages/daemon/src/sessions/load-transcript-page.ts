@@ -11,15 +11,11 @@ export interface TranscriptPage {
   readonly more: boolean;
 }
 
-// Bytes of a transcript from an offset, and the size the file had when they
-// were read.
 export interface TranscriptWindow {
   readonly size: number;
   readonly bytes: Uint8Array;
 }
 
-// Reads at most length bytes of the file at path from offset, or null when
-// there is no file.
 export type ReadTranscriptWindow = (
   path: string,
   offset: number,

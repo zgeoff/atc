@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
+import { buildHostFiles } from '@atc/plugin-api';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { RequiredKeysOf } from 'type-fest';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
+import { runLocalCommand } from './run-local-command';
 
 test('it builds a default agent adapter', () => {
   expect(buildMockAgentAdapter()).toStrictEqual({
@@ -64,6 +66,7 @@ test('it reads every hook as one heartbeat that keeps no state', () => {
         payload: { session_id: 'c-1' },
       },
       undefined,
+      { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: null },
     ),
   ).toStrictEqual({ events: [{ kind: 'heartbeat' }] });
 });
@@ -71,7 +74,7 @@ test('it reads every hook as one heartbeat that keeps no state', () => {
 test('it loads no name for a session', () => {
   expect(
     buildMockAgentAdapter().loadName('/nonexistent/transcript.jsonl', 'agent', {
-      files: { readMatchingLines: () => Promise.resolve(null) },
+      files: buildHostFiles(runLocalCommand, 'host-1'),
       agentHome: null,
     }),
   ).resolves.toBeNull();

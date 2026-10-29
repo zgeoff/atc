@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readLocalMatchingLines } from '@atc/plugin-api';
-import { setupTempDir } from '@atc/test-utils';
+import { buildHostFiles } from '@atc/plugin-api';
+import { runLocalCommand, setupTempDir } from '@atc/test-utils';
 import { loadClaudeName } from './load-claude-name';
 
 // A folder for the transcript a test writes.
@@ -25,9 +25,7 @@ test('it names the session after the last custom title, as named by the agent', 
     ].join('\n'),
   );
 
-  const name = await loadClaudeName(transcript, 'user', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadClaudeName(transcript, 'user', buildHostFiles(runLocalCommand, 'host-1'));
 
   expect(name).toStrictEqual({ name: 'fix the build', namedBy: 'agent' });
 });
@@ -38,9 +36,7 @@ test('it names an automatically named session after its summary', async () => {
 
   writeFileSync(transcript, '{"type":"summary","summary":"Build fix"}\n');
 
-  const name = await loadClaudeName(transcript, 'auto', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadClaudeName(transcript, 'auto', buildHostFiles(runLocalCommand, 'host-1'));
 
   expect(name).toStrictEqual({ name: 'Build fix' });
 });
@@ -51,9 +47,7 @@ test('it keeps a name a person typed over a summary', async () => {
 
   writeFileSync(transcript, '{"type":"summary","summary":"Build fix"}\n');
 
-  const name = await loadClaudeName(transcript, 'user', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadClaudeName(transcript, 'user', buildHostFiles(runLocalCommand, 'host-1'));
 
   expect(name).toBeNull();
 });
@@ -67,9 +61,7 @@ test('it skips a line that is not a name line', async () => {
     ['{"type":"custom-title","customTitle":42}', '{"type":"summary",', ''].join('\n'),
   );
 
-  const name = await loadClaudeName(transcript, 'auto', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadClaudeName(transcript, 'auto', buildHostFiles(runLocalCommand, 'host-1'));
 
   expect(name).toBeNull();
 });
@@ -77,9 +69,11 @@ test('it skips a line that is not a name line', async () => {
 test('it gives no name for a transcript that does not exist', async () => {
   const ctx = setupTest();
 
-  const name = await loadClaudeName(join(ctx.directory, 'missing.jsonl'), 'auto', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadClaudeName(
+    join(ctx.directory, 'missing.jsonl'),
+    'auto',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(name).toBeNull();
 });
@@ -88,6 +82,7 @@ test('it reads the name lines through the files of the session host', async () =
   const name = await loadClaudeName('/tmp/atc/sessions/s-1/a-1.jsonl', 'auto', {
     readMatchingLines: () =>
       Promise.resolve(['{"type":"custom-title","customTitle":"tidy the docs"}']),
+    readDirectory: () => Promise.resolve(null),
   });
 
   expect(name).toStrictEqual({ name: 'tidy the docs', namedBy: 'agent' });

@@ -9,12 +9,12 @@ import {
   createMigratedStateDB,
   getString,
   registerTestCleanup,
+  runLocalCommand,
   setupTempDir,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
-import { runLocalCommand } from '../testing/run-local-command';
 import { materializeWorkspace } from './materialize-workspace';
 
 async function setupTest() {

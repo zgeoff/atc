@@ -22,8 +22,6 @@ test('it names a remote Claude session after the /rename title in the transcript
     agents: { claude: { bin: '/usr/local/bin/claude' } },
   });
 
-  // A real daemon whose one target `box`, its default, runs on a remote host
-  // whose /tmp/atc folder sits in a host folder the daemon never reads directly.
   const daemon = await startTestDaemon({
     prefix: 'atc-remote-name-daemon-',
     options: () => ({

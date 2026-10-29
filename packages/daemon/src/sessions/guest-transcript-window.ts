@@ -1,15 +1,12 @@
 import { z } from 'zod';
 import type { TranscriptWindow } from './load-transcript-page';
 
-// The exit code of READ_TRANSCRIPT_WINDOW_SCRIPT when the host holds no file at the path.
 export const NO_TRANSCRIPT_CODE = 3;
 
 // dd's POSIX options skip and count only whole blocks, and GNU's byte offsets are missing on macOS.
 const BLOCK_BYTES = 65_536;
 
-// The response, one field per line in this order: the script prints each field's shell value, and
-// the parser matches each field's pattern. GNU base64 wraps its output and macOS's does not, so
-// the blocks come last and may span lines.
+// GNU base64 wraps its output and macOS's does not, so the blocks come last and may span lines.
 const RESPONSE_FIELDS = [
   { name: 'size', value: '"$((size))"', pattern: String.raw`\d+` },
   { name: 'blocks', value: '"$blocks"', pattern: String.raw`[\d+/=A-Za-z\n]*` },
@@ -27,9 +24,8 @@ const RESPONSE_SCHEMA = z.object({
   blocks: z.string().transform((blocks) => Buffer.from(blocks.replaceAll('\n', ''), 'base64')),
 } satisfies Record<ResponseField, z.ZodType>);
 
-// Prints the response for $3 blocks of the file at $1 from block $2. dd copies the blocks to a
-// file first, since a pipeline exits with its last command's status and a reader before it that
-// stops early, such as tail before head, ends on a broken pipe.
+// dd copies the blocks to a file first, since a pipeline exits with its last command's status and
+// a reader before it that stops early, such as tail before head, ends on a broken pipe.
 export const READ_TRANSCRIPT_WINDOW_SCRIPT = `[ -f "$1" ] || exit ${NO_TRANSCRIPT_CODE}
 size=$(wc -c < "$1") || exit 1
 window=$(mktemp) || exit 1
@@ -49,7 +45,6 @@ export function buildTranscriptWindowArgs(
   return [path, String(first), String(end - first)];
 }
 
-// Takes the bytes the arguments of the same offset and length asked for out of the whole blocks.
 export function parseTranscriptWindow(
   stdout: string,
   offset: number,

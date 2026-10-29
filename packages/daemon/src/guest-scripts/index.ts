@@ -1,3 +1,4 @@
+import { RESOLVE_AGENT_HOME_SCRIPT } from '../auth/read-host-agent-home';
 import { READ_PROJECT_SETTINGS_SCRIPT } from '../auth/read-project-settings-script';
 import {
   REMOVE_DIR_SCRIPT,
@@ -21,6 +22,7 @@ export const DAEMON_GUEST_SCRIPTS = {
   READ_TRANSCRIPT_WINDOW_SCRIPT,
   REFRESH_COPY_SCRIPT,
   REMOVE_DIR_SCRIPT,
+  RESOLVE_AGENT_HOME_SCRIPT,
   RESOLVE_DIR_SCRIPT,
   RESOLVE_HOME_SCRIPT,
   RESOLVE_UNLINKED_DIR_SCRIPT,

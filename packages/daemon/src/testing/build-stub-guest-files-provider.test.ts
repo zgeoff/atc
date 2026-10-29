@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
+import { RESOLVE_AGENT_HOME_SCRIPT } from '../auth/read-host-agent-home';
 import { buildStubGuestFilesProvider } from './build-stub-guest-files-provider';
 
 function setupTest() {
@@ -49,6 +50,23 @@ test('it passes an argument outside the guest folder unchanged', async () => {
     stdout: '/guest/atcx /other/atc/notes\n',
     stderr: '',
   });
+});
+
+test('it answers an agent home with its folder under the home folder inside the guest folder', async () => {
+  const ctx = setupTest();
+
+  const provider = buildStubGuestFilesProvider({
+    guestDirectory: '/guest/atc',
+    hostDirectory: ctx.directory,
+  });
+
+  const result = await provider.runCommand({
+    argv: ['sh', '-c', RESOLVE_AGENT_HOME_SCRIPT, 'sh', 'GROK_HOME', '.grok'],
+    cwd: '/',
+    host: 'host-1',
+  });
+
+  expect(result).toStrictEqual({ exitCode: 0, stdout: '/guest/atc/home/.grok\n', stderr: '' });
 });
 
 test('it reports a remote host with the guest folder as its layout', async () => {

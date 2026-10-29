@@ -6,6 +6,7 @@ import { toDaemonID, toSessionID } from '@atcx/contract';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionRegistry } from '../sessions/create-session-registry';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
+import { buildStubGuestFilesProvider } from '../testing/build-stub-guest-files-provider';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createAuthSetup } from './create-auth-setup';
@@ -202,6 +203,38 @@ test("it keeps the scratch folder of an agent's guest plan in the plan it return
   });
 
   expect(setup.plan.scratch).toBe('/srv/scratch/session');
+});
+
+test('it plans the agent home of a remote launch as the host resolves it', async () => {
+  const adapter = buildMockAgentAdapter({
+    id: 'grok',
+    agentHomeLocation: { env: 'GROK_HOME', folder: '.grok' },
+  });
+
+  const provider = buildStubGuestFilesProvider({
+    guestDirectory: '/srv/orchard-guest',
+    hostDirectory: '/nonexistent',
+  });
+
+  const ctx = setupTest({
+    adapters: [adapter],
+    targets: [buildMockExecutionTarget({ id: 'remote', provider })],
+  });
+
+  const setup = await ctx.auth.setupHarnessOnHost({
+    adapter,
+    provider,
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'remote',
+    spawnOptions: { prompt: '', resume: false },
+    auth: null,
+    cwd: null,
+    isNewHost: false,
+    timer: createStepTimer(),
+  });
+
+  expect(setup.plan.agentHome).toBe('/srv/orchard-guest/home/.grok');
 });
 
 test("it keeps the scratch folder of an agent's local plan in the plan it returns", async () => {

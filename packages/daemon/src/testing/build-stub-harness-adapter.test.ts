@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import { buildHostFiles } from '@atc/plugin-api';
+import { runLocalCommand } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { buildStubHarnessAdapter } from './build-stub-harness-adapter';
 
@@ -48,6 +50,7 @@ test('it reads a hook as the events the config table holds for its name', () => 
     adapter.planHookEvents(
       { atcId: toSessionID('s-1'), event: 'Notification', payload: {} },
       undefined,
+      { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: null },
     ).events,
   ).toStrictEqual([{ kind: 'needs-input', permissionPending: true }]);
 });
@@ -57,6 +60,7 @@ test('it reads a hook the config table lacks as one heartbeat', () => {
     buildStubHarnessAdapter().planHookEvents(
       { atcId: toSessionID('s-1'), event: 'Stop', payload: {} },
       undefined,
+      { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: null },
     ).events,
   ).toStrictEqual([{ kind: 'heartbeat' }]);
 });
@@ -67,11 +71,13 @@ test('it counts the lines a session reported in the state it returns', () => {
   const first = adapter.planHookEvents(
     { atcId: toSessionID('s-1'), event: 'Stop', payload: {} },
     undefined,
+    { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: null },
   );
 
   const second = adapter.planHookEvents(
     { atcId: toSessionID('s-1'), event: 'Stop', payload: {} },
     first.next,
+    { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: null },
   );
 
   expect(first.next).toBe(1);
@@ -81,7 +87,10 @@ test('it counts the lines a session reported in the state it returns', () => {
 test('it records each hook line with the state passed back for it', () => {
   const adapter = buildStubHarnessAdapter();
 
-  adapter.planHookEvents({ atcId: toSessionID('s-1'), event: 'Stop', payload: {} }, 4);
+  adapter.planHookEvents({ atcId: toSessionID('s-1'), event: 'Stop', payload: {} }, 4, {
+    files: buildHostFiles(runLocalCommand, 'host-1'),
+    agentHome: null,
+  });
 
   expect(adapter.hookReads).toStrictEqual([
     { hook: { atcId: toSessionID('s-1'), event: 'Stop', payload: {} }, previous: 4 },
@@ -91,7 +100,7 @@ test('it records each hook line with the state passed back for it', () => {
 test('it loads no name for a session', () => {
   expect(
     buildStubHarnessAdapter().loadName('/nonexistent', 'agent', {
-      files: { readMatchingLines: () => Promise.resolve(null) },
+      files: buildHostFiles(runLocalCommand, 'host-1'),
       agentHome: null,
     }),
   ).resolves.toBeNull();

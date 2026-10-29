@@ -2,11 +2,12 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { readLocalMatchingLines } from '@atc/plugin-api';
+import { buildHostFiles } from '@atc/plugin-api';
 import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
   getAgentEntry,
+  runLocalCommand,
   setupTempDir,
   updateEnv,
 } from '@atc/test-utils';
@@ -124,6 +125,7 @@ test('it plans one event for a hook line and records no thread before a session 
       payload: { session_id: 'c-1', tool_name: 'shell' },
     },
     undefined,
+    { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: null },
   );
 
   expect(plan).toStrictEqual({
@@ -157,7 +159,7 @@ test('it loads the latest indexed thread name', async () => {
   );
 
   const name = await adapter.loadName('c-1', 'auto', {
-    files: { readMatchingLines: readLocalMatchingLines },
+    files: buildHostFiles(runLocalCommand, 'host-1'),
     agentHome: null,
   });
 
@@ -178,7 +180,7 @@ test('it loads the indexed thread name from CODEX_HOME when built without a Code
   const adapter = createCodexAdapter(getAgentEntry(config, 'codex'), config);
 
   const name = await adapter.loadName('c-1', 'auto', {
-    files: { readMatchingLines: readLocalMatchingLines },
+    files: buildHostFiles(runLocalCommand, 'host-1'),
     agentHome: null,
   });
 
@@ -203,7 +205,7 @@ test('it loads the indexed thread name from the agent home the session launched 
   );
 
   const name = await adapter.loadName('c-1', 'auto', {
-    files: { readMatchingLines: readLocalMatchingLines },
+    files: buildHostFiles(runLocalCommand, 'host-1'),
     agentHome: guestHome,
   });
 

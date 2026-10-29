@@ -4,6 +4,7 @@ import type { AgentID } from '@atc/core';
 import { toShellArg } from '@atc/core';
 import type {
   AgentAdapter,
+  AgentHomeLocation,
   AgentProfile,
   LineInputStep,
   TerminalInputModes,
@@ -40,12 +41,13 @@ const GROK_UNSUPPORTED_OPTION: SpawnOptionSpec = {
   note: 'atc does not pass this option to Grok.',
 };
 
+const GROK_HOME_LOCATION: AgentHomeLocation = { env: 'GROK_HOME', folder: '.grok' };
+
 // the state the hook mapping reads travels with each session's hook lines, so the adapter holds
 // none
 export function createGrokAdapter(entry: AgentEntry, home: string | null = null): GrokAdapter {
-  // Grok's home directory, or null to read it from GROK_HOME (or ~/.grok)
-  // each time it is needed.
-  const resolveHome = (): string => home ?? resolveAgentHome('GROK_HOME', '.grok');
+  const resolveHome = (): string =>
+    home ?? resolveAgentHome(GROK_HOME_LOCATION.env, GROK_HOME_LOCATION.folder);
 
   return {
     id: entry.id,
@@ -78,10 +80,13 @@ export function createGrokAdapter(entry: AgentEntry, home: string | null = null)
       ],
     }),
 
-    planHookEvents: (hookEvent, previous) => planGrokHookEvents(hookEvent, previous, resolveHome()),
+    agentHomeLocation: GROK_HOME_LOCATION,
+
+    planHookEvents: (hookEvent, previous, sessionHost) =>
+      planGrokHookEvents(hookEvent, previous, sessionHost.agentHome ?? resolveHome()),
 
     loadName: (source, namedBy, sessionHost) =>
-      loadGrokName(resolveHome(), source, namedBy, sessionHost.files),
+      loadGrokName(sessionHost.agentHome ?? resolveHome(), source, namedBy, sessionHost.files),
 
     canResume: (session) => session.agentSessionID !== undefined,
 

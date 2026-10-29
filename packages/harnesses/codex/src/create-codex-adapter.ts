@@ -5,6 +5,7 @@ import type { AgentID } from '@atc/core';
 import { toShellArg } from '@atc/core';
 import type {
   AgentAdapter,
+  AgentHomeLocation,
   AgentProfile,
   AuthSelection,
   GuestOAuthState,
@@ -91,6 +92,7 @@ const HOOK_TRUST_FLAG = '--dangerously-bypass-hook-trust';
 
 // A config override on the command line, which outranks every config file.
 const FILE_CREDENTIALS_OVERRIDE = 'cli_auth_credentials_store="file"';
+const CODEX_HOME_LOCATION: AgentHomeLocation = { env: 'CODEX_HOME', folder: '.codex' };
 
 // atc never writes the user's codex config: hooks are an entry the user installs and trusts
 // once in the codex TUI
@@ -101,9 +103,8 @@ export function createCodexAdapter(
 ): CodexAdapter {
   const authProfiles: Config['authProfiles'] = config?.authProfiles ?? new Map();
 
-  // The Codex home whose session index holds session titles; unset, it follows
-  // `CODEX_HOME` or the user's home at each read.
-  const resolveCodexHome = (): string => codexHome ?? resolveAgentHome('CODEX_HOME', '.codex');
+  const resolveCodexHome = (): string =>
+    codexHome ?? resolveAgentHome(CODEX_HOME_LOCATION.env, CODEX_HOME_LOCATION.folder);
 
   const planSpawn = (opts: SpawnOptions): SpawnPlan => ({
     bin: entry.bin,
@@ -206,7 +207,6 @@ export function createCodexAdapter(
         [`${authDir}/hooks.json`]: buildCodexHookFile([guest.atc]),
       },
       env: { ...guest.auth.profileEnv, ...guest.auth.env, ...launch.env },
-      agentHome: launch.env.CODEX_HOME,
     };
   };
 
@@ -324,7 +324,8 @@ export function createCodexAdapter(
 
     planHookEvents: (hookEvent, previous) => planCodexHookEvents(hookEvent, previous),
 
-    // Codex records session titles in the session index of its home.
+    agentHomeLocation: CODEX_HOME_LOCATION,
+
     loadName: (source, namedBy, sessionHost) =>
       loadCodexName(
         sessionHost.agentHome ?? resolveCodexHome(),

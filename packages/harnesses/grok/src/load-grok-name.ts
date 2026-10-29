@@ -1,5 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { posix } from 'node:path';
 import type { HostFiles, NameUpdate } from '@atc/plugin-api';
 import { buildOptionalString } from '@atcx/contract/schema';
 import { z } from 'zod';
@@ -10,13 +9,11 @@ export async function loadGrokName(
   namedBy: 'user' | 'auto' | 'agent',
   files: HostFiles,
 ): Promise<NameUpdate | null> {
-  const lines = await files.readMatchingLines(source, '');
-
   // grok files a session under the directory it started in, so a gone `source` falls back to the
   // same session id under any directory in `home`
-  const summary =
-    (lines === null ? null : parseSummary(lines.join('\n'))) ??
-    readSummary(readGrokSummary(home, source));
+  const found = await readSummary(files, source);
+
+  const summary = found === null ? await readMovedSummary(files, home, source) : found;
 
   return summary === null ? null : buildNameUpdate(summary, namedBy);
 }
@@ -31,6 +28,12 @@ const SUMMARY_SCHEMA = z.object({
 
 type GrokSummary = z.infer<typeof SUMMARY_SCHEMA>;
 
+async function readSummary(files: HostFiles, source: string): Promise<GrokSummary | null> {
+  const lines = await files.readMatchingLines(source, '');
+
+  return lines === null ? null : parseSummary(lines.join('\n'));
+}
+
 function parseSummary(text: string): GrokSummary | null {
   try {
     const parsed = SUMMARY_SCHEMA.safeParse(JSON.parse(text));
@@ -41,38 +44,38 @@ function parseSummary(text: string): GrokSummary | null {
   }
 }
 
-function readSummary(source: string | null): GrokSummary | null {
-  if (source === null) {
-    return null;
-  }
-
-  try {
-    return parseSummary(readFileSync(source, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-function readGrokSummary(home: string, source: string): string | null {
+async function readMovedSummary(
+  files: HostFiles,
+  home: string,
+  source: string,
+): Promise<GrokSummary | null> {
   const sessionID = source.split('/').at(-2);
 
   if (sessionID === undefined || sessionID === '') {
     return null;
   }
 
-  const root = join(home, 'sessions');
+  const root = posix.join(home, 'sessions');
 
-  try {
-    const groups = readdirSync(root);
+  const groups = await files.readDirectory(root);
 
-    return (
-      groups
-        .map((group) => join(root, group, sessionID, 'summary.json'))
-        .find((candidate) => existsSync(candidate)) ?? null
-    );
-  } catch {
-    return null;
+  for (const group of groups ?? []) {
+    const candidate = posix.join(root, group, sessionID, 'summary.json');
+
+    if (candidate === source) {
+      continue;
+    }
+
+    // each read is a command on a remote host, so the scan stops at the first summary it finds
+    // oxlint-disable-next-line no-await-in-loop
+    const summary = await readSummary(files, candidate);
+
+    if (summary !== null) {
+      return summary;
+    }
   }
+
+  return null;
 }
 
 function buildNameUpdate(

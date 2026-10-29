@@ -19,9 +19,6 @@ interface SetupTestConfig {
   readonly adapter: AgentAdapter;
 }
 
-// A session manager on a `local` target over the in-memory provider and a
-// `guest` target on a remote host whose files sit in a host folder, a real
-// state store and published records, and the reads over them.
 async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-session-reads-');
   const dbPath = join(temporaryDirectory.path, 'state.db');

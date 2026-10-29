@@ -1,17 +1,15 @@
+import { runLocalCommand } from '@atc/test-utils';
+import { RESOLVE_AGENT_HOME_SCRIPT } from '../auth/read-host-agent-home';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
-import { runLocalCommand } from './run-local-command';
 
 interface StubGuestFilesProviderConfig {
-  // The folder where the remote host keeps atc's files.
   readonly guestDirectory: string;
-
-  // The folder on the daemon's machine that holds what the guest folder holds.
   readonly hostDirectory: string;
 }
 
-// Stands in for a remote host whose files the daemon reaches only through a command: each
-// command runs on the daemon's machine with every argument in the guest folder moved into the
-// host folder, so a guest file is missing at its guest path on the daemon.
+// Stands in for a remote host whose files the daemon reaches only through a command, so a guest
+// file is missing at its guest path on the daemon. Its user home sits inside the guest folder,
+// and it sets no agent home variable.
 export function buildStubGuestFilesProvider(config: StubGuestFilesProviderConfig) {
   const guestDirectory = config.guestDirectory;
   const hostDirectory = config.hostDirectory;
@@ -21,14 +19,23 @@ export function buildStubGuestFilesProvider(config: StubGuestFilesProviderConfig
     remote: true,
     capabilities: { suspend: true, destroy: true },
     guest: { directory: guestDirectory, atc: `${guestDirectory}/bin/atc` },
-    runCommand: (spec) =>
-      runLocalCommand({
+    runCommand: (spec) => {
+      if (spec.argv[2] === RESOLVE_AGENT_HOME_SCRIPT) {
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: `${guestDirectory}/home/${spec.argv[5] ?? ''}\n`,
+          stderr: '',
+        });
+      }
+
+      return runLocalCommand({
         ...spec,
         argv: spec.argv.map((arg) =>
           arg === guestDirectory || arg.startsWith(`${guestDirectory}/`)
             ? `${hostDirectory}${arg.slice(guestDirectory.length)}`
             : arg,
         ),
-      }),
+      });
+    },
   });
 }

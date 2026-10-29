@@ -17,8 +17,6 @@ import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapt
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-// An imp provider over the stub imp port, whose guest folder sits in a temp
-// directory, and a stand-in Codex that records each start.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-codex-guest-name-');
   const guestDir = join(temporaryDirectory.path, 'g');

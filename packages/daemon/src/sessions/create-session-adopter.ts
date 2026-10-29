@@ -9,6 +9,7 @@ import { buildRecordSubject } from './build-record-subject';
 import type { SessionHarnesses } from './create-session-harnesses';
 import type { SessionRegistry } from './create-session-registry';
 import type { SpawnRollback } from './create-spawn-rollback';
+import { pickAdoptedAgentHome } from './pick-adopted-agent-home';
 import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 import { resolveRepoRoot } from './resolve-repo-root';
 import type { Session } from './session';
@@ -471,9 +472,10 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       );
     }
 
-    // an attach finds the process with the home it launched with
-    if ((start?.created ?? true) && session.agentHome !== plan.agentHome) {
-      session.agentHome = plan.agentHome;
+    const agentHome = pickAdoptedAgentHome(start, session.agentHome, plan.agentHome);
+
+    if (session.agentHome !== agentHome) {
+      session.agentHome = agentHome;
       void fleet.tryWriteFleet(session.id);
     }
 

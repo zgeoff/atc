@@ -1,12 +1,11 @@
 import { truncateToBytes } from '@atc/core';
-import { readLocalMatchingLines } from '@atc/plugin-api';
-import type { HookPlan } from '@atc/plugin-api';
+import { buildHostFiles } from '@atc/plugin-api';
+import type { ExecutionProvider, HookPlan, HostFiles, SessionHost } from '@atc/plugin-api';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { match } from 'ts-pattern';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { SessionRegistry } from './create-session-registry';
-import { makeGuestMatchingLinesReader } from './make-guest-matching-lines-reader';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
 import { updateRecordIdentity } from './update-record-identity';
@@ -52,15 +51,11 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
       return;
     }
 
-    const update = await adapter.loadName(source, session.namedBy, {
-      files: {
-        readMatchingLines:
-          provider?.remote === true
-            ? makeGuestMatchingLinesReader(provider, session.hostKey)
-            : readLocalMatchingLines,
-      },
-      agentHome: session.agentHome ?? null,
-    });
+    const update = await adapter.loadName(
+      source,
+      session.namedBy,
+      buildSessionHost(session, provider),
+    );
 
     if (update === null || update.name === '' || update.name === session.name) {
       return;
@@ -220,7 +215,11 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
         return null;
       }
 
-      const plan = adapter.planHookEvents(hookEvent, previous);
+      const plan = adapter.planHookEvents(
+        hookEvent,
+        previous,
+        buildSessionHost(session, registry.findProvider(session)),
+      );
 
       for (const ev of plan.events) {
         applyAdapterEvent(session, ev);
@@ -228,5 +227,21 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
 
       return plan;
     },
+  };
+}
+
+// the session's target is gone, so nothing reaches its host
+const UNREACHABLE_HOST_FILES: HostFiles = {
+  readMatchingLines: () => Promise.resolve(null),
+  readDirectory: () => Promise.resolve(null),
+};
+
+function buildSessionHost(session: Session, provider: ExecutionProvider | null): SessionHost {
+  return {
+    files:
+      provider === null
+        ? UNREACHABLE_HOST_FILES
+        : buildHostFiles(provider.runCommand, session.hostKey),
+    agentHome: session.agentHome ?? null,
   };
 }

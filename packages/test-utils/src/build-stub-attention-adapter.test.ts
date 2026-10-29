@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
+import { buildHostFiles } from '@atc/plugin-api';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { buildStubAttentionAdapter } from './build-stub-attention-adapter';
+import { runLocalCommand } from './run-local-command';
 
 test('it builds an adapter whose sessions take messages and resume with claude', () => {
   const adapter = buildStubAttentionAdapter();
@@ -22,6 +24,7 @@ test('it reads a notification hook as needing input', () => {
         payload: { session_id: 'c-1', message: 'hi' },
       },
       undefined,
+      { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: null },
     ),
   ).toStrictEqual({ events: [{ kind: 'needs-input' }] });
 });
@@ -37,6 +40,7 @@ test.each(['UserPromptSubmit', 'Stop', 'SessionStart'])(
           payload: { session_id: 'c-1' },
         },
         undefined,
+        { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: null },
       ),
     ).toStrictEqual({ events: [{ kind: 'prompt-submitted' }] });
   },

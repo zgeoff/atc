@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readLocalMatchingLines } from '@atc/plugin-api';
-import { setupTempDir } from '@atc/test-utils';
+import { buildHostFiles } from '@atc/plugin-api';
+import { runLocalCommand, setupTempDir } from '@atc/test-utils';
 import { loadCodexName } from './load-codex-name';
 
 // A Codex home for the session index a test writes.
@@ -24,9 +24,12 @@ test('it loads the latest indexed thread name', async () => {
     ].join('\n'),
   );
 
-  const name = await loadCodexName(ctx.codexHome, 'c-1', 'auto', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadCodexName(
+    ctx.codexHome,
+    'c-1',
+    'auto',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(name).toStrictEqual({ name: 'renamed title' });
 });
@@ -39,9 +42,12 @@ test('it never loads an indexed thread name over a user-typed name', async () =>
     '{"id":"c-1","thread_name":"renamed title","updated_at":"2026-08-20T00:00:02Z"}\n',
   );
 
-  const name = await loadCodexName(ctx.codexHome, 'c-1', 'user', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadCodexName(
+    ctx.codexHome,
+    'c-1',
+    'user',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(name).toBeNull();
 });
@@ -57,9 +63,12 @@ test('it loads no name for a session the index lacks', async () => {
     ].join('\n'),
   );
 
-  const name = await loadCodexName(ctx.codexHome, 'c-missing', 'auto', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadCodexName(
+    ctx.codexHome,
+    'c-missing',
+    'auto',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(name).toBeNull();
 });
@@ -77,9 +86,12 @@ test('it skips index lines that do not parse or hold another id containing the s
     ].join('\n'),
   );
 
-  const name = await loadCodexName(ctx.codexHome, 'c-1', 'auto', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadCodexName(
+    ctx.codexHome,
+    'c-1',
+    'auto',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(name).toStrictEqual({ name: 'kept title' });
 });
@@ -92,9 +104,12 @@ test('it loads no name when the latest title for the thread is empty', async () 
     ['{"id":"c-1","thread_name":"first title"}', '{"id":"c-1","thread_name":""}'].join('\n'),
   );
 
-  const name = await loadCodexName(ctx.codexHome, 'c-1', 'agent', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadCodexName(
+    ctx.codexHome,
+    'c-1',
+    'agent',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(name).toBeNull();
 });
@@ -102,9 +117,12 @@ test('it loads no name when the latest title for the thread is empty', async () 
 test('it loads no name when the Codex home has no session index', async () => {
   const ctx = setupTest();
 
-  const name = await loadCodexName(ctx.codexHome, 'c-1', 'auto', {
-    readMatchingLines: readLocalMatchingLines,
-  });
+  const name = await loadCodexName(
+    ctx.codexHome,
+    'c-1',
+    'auto',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(name).toBeNull();
 });
