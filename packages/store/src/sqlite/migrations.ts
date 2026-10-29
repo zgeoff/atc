@@ -503,4 +503,9 @@ export const MIGRATIONS: Record<string, Migration> = {
         .execute();
     },
   },
+  '041_add_fleet_agent_home': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('agent_home', 'text').execute();
+    },
+  },
 };

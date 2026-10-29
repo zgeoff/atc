@@ -179,6 +179,39 @@ test('it starts a harness that resumes the agent session of a session without a 
   expect(ctx.callbacks.onBoot).toHaveBeenCalledExactlyOnceWith(session, 100, 30);
 });
 
+test('it keeps the agent home the revived harness launched with on the session', async () => {
+  const adapter: AgentAdapter = {
+    ...buildStubHarnessAdapter(),
+    planSpawn: () => ({ bin: 'stub-harness', args: [], agentHome: '/work/agent-home' }),
+  };
+
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [adapter],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'running',
+    lastMsg: 'waiting to restore',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.unrestored.add(session.id);
+
+  const adopted = await ctx.adopter.adoptTerminal(session.id, 100, 30);
+
+  expect(adopted?.agentHome).toBe('/work/agent-home');
+});
+
 test('it starts nothing for a session without an agent session id', async () => {
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 

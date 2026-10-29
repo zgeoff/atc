@@ -184,6 +184,7 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
         hostKey: entry.hostKey ?? entry.sessionID,
         bridgeEpoch: 0,
         ...(entry.authRevision === undefined ? {} : { authRevision: entry.authRevision }),
+        ...(entry.agentHome === undefined ? {} : { agentHome: entry.agentHome }),
       };
 
       registry.sessions.push(session);

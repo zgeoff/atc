@@ -293,7 +293,7 @@ export function createClaudeAdapter(
     parseTranscriptLine: parseClaudeTranscriptLine,
     planLineInput: planClaudeLineInput,
     findMenu: findClaudeMenu,
-    loadName: loadClaudeName,
+    loadName: (source, namedBy, sessionHost) => loadClaudeName(source, namedBy, sessionHost.files),
     canResume: probeTranscriptResumable,
     profile: {
       label: entry.label,

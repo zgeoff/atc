@@ -71,7 +71,8 @@ test('it reads every hook as one heartbeat that keeps no state', () => {
 test('it loads no name for a session', () => {
   expect(
     buildMockAgentAdapter().loadName('/nonexistent/transcript.jsonl', 'agent', {
-      readMatchingLines: () => Promise.resolve(null),
+      files: { readMatchingLines: () => Promise.resolve(null) },
+      agentHome: null,
     }),
   ).resolves.toBeNull();
 });

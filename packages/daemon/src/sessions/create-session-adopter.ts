@@ -471,6 +471,12 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       );
     }
 
+    // an attach finds the process with the home it launched with
+    if ((start?.created ?? true) && session.agentHome !== plan.agentHome) {
+      session.agentHome = plan.agentHome;
+      void fleet.tryWriteFleet(session.id);
+    }
+
     if (plan.admission !== null) {
       harnesses.updateLaunchRevision(
         session,

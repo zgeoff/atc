@@ -114,7 +114,10 @@ test('it loads a name from the summary of a session in its own home', async () =
   const update = await createGrokAdapter(
     getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'),
     ctx.directory,
-  ).loadName(file, 'auto', { readMatchingLines: readLocalMatchingLines });
+  ).loadName(file, 'auto', {
+    files: { readMatchingLines: readLocalMatchingLines },
+    agentHome: null,
+  });
 
   expect(update).toStrictEqual({ name: 'auto title' });
 });

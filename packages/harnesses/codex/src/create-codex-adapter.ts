@@ -206,6 +206,7 @@ export function createCodexAdapter(
         [`${authDir}/hooks.json`]: buildCodexHookFile([guest.atc]),
       },
       env: { ...guest.auth.profileEnv, ...guest.auth.env, ...launch.env },
+      agentHome: launch.env.CODEX_HOME,
     };
   };
 
@@ -324,7 +325,13 @@ export function createCodexAdapter(
     planHookEvents: (hookEvent, previous) => planCodexHookEvents(hookEvent, previous),
 
     // Codex records session titles in the session index of its home.
-    loadName: (source, namedBy, files) => loadCodexName(resolveCodexHome(), source, namedBy, files),
+    loadName: (source, namedBy, sessionHost) =>
+      loadCodexName(
+        sessionHost.agentHome ?? resolveCodexHome(),
+        source,
+        namedBy,
+        sessionHost.files,
+      ),
 
     planResumeCommand: (cwd, agentSessionID) => {
       const resume =

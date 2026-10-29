@@ -42,10 +42,13 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
     const provider = registry.findProvider(session);
 
     const update = await adapter.loadName(source, session.namedBy, {
-      readMatchingLines:
-        provider?.remote === true
-          ? makeGuestMatchingLinesReader(provider, session.hostKey)
-          : readLocalMatchingLines,
+      files: {
+        readMatchingLines:
+          provider?.remote === true
+            ? makeGuestMatchingLinesReader(provider, session.hostKey)
+            : readLocalMatchingLines,
+      },
+      agentHome: session.agentHome ?? null,
     });
 
     if (update === null || update.name === '' || update.name === session.name) {

@@ -68,6 +68,11 @@ export interface FleetEntry {
   // takes no credential from impd's broker.
   readonly authRevision?: number;
 
+  // The agent home the session's latest launch planned on its host, so a
+  // name read after a restore finds the agent's files; absent for a launch
+  // with the agent's default home.
+  readonly agentHome?: string;
+
   // Whether the harness is kept inside a host that went to sleep, whether
   // the operator or the host's own owner put it to sleep; absent for any
   // other harness.

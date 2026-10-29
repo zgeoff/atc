@@ -41,6 +41,11 @@ export interface SpawnPlan {
   // the absolute path on the session's host of the folder the session owns
   // as its scratch space; absent for an agent that plans none.
   readonly scratch?: string;
+
+  // the absolute path on the session's host of the agent home the plan
+  // points the harness at; absent when the harness runs with the agent's
+  // default home.
+  readonly agentHome?: string;
 }
 
 export interface GuestPaths {
@@ -125,6 +130,15 @@ export interface HostFiles {
   // The lines of the file at path that match the extended regular
   // expression, or null when the host cannot read the file.
   readonly readMatchingLines: (path: string, pattern: string) => Promise<readonly string[] | null>;
+}
+
+// The host a session runs on, as a name read sees it.
+export interface SessionHost {
+  readonly files: HostFiles;
+
+  // the agent home the session's latest launch planned, or null for one
+  // that ran with the agent's default home.
+  readonly agentHome: string | null;
 }
 
 type AttentionJudgment = 'needs-input' | 'working';
@@ -336,7 +350,7 @@ export interface AgentAdapter {
   readonly loadName: (
     source: string,
     namedBy: 'user' | 'auto' | 'agent',
-    files: HostFiles,
+    host: SessionHost,
   ) => Promise<NameUpdate | null>;
   readonly canResume: (session: ResumeCheck) => boolean;
 

@@ -91,7 +91,8 @@ test('it records each hook line with the state passed back for it', () => {
 test('it loads no name for a session', () => {
   expect(
     buildStubHarnessAdapter().loadName('/nonexistent', 'agent', {
-      readMatchingLines: () => Promise.resolve(null),
+      files: { readMatchingLines: () => Promise.resolve(null) },
+      agentHome: null,
     }),
   ).resolves.toBeNull();
 });

@@ -205,6 +205,42 @@ test('it persists a session the agent has not yet given a session id', async () 
   ]);
 });
 
+test('it persists the agent home the session launched with', async () => {
+  const ctx = await setupTest();
+
+  ctx.registry.sessions.push(
+    buildMockSession({
+      id: toSessionID('s-homed'),
+      name: 'homed',
+      cwd: '/work/proj',
+      agent: 'codex',
+      kind: 'headless',
+      state: 'running',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
+      lastAttachedAt: 1000,
+      agentHome: '/tmp/atc/sessions/s-homed/codex-home',
+    }),
+  );
+
+  await ctx.writer.writeFleet();
+
+  const stored = await ctx.store.loadFleet();
+
+  expect(stored).toStrictEqual([
+    {
+      sessionID: toSessionID('s-homed'),
+      name: 'homed',
+      cwd: '/work/proj',
+      agent: 'codex',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
+      lastAttachedAt: 1000,
+      agentHome: '/tmp/atc/sessions/s-homed/codex-home',
+    },
+  ]);
+});
+
 test('it persists a harness kept inside a sleeping host as suspended while the operator still wants it running', async () => {
   const ctx = await setupTest();
 

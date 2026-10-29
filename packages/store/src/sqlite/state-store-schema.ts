@@ -40,6 +40,11 @@ interface FleetTable {
   // a row from before launch revisions were recorded.
   auth_revision: number | null;
 
+  // The agent home the session's latest launch planned on its host. Null for
+  // a launch with the agent's default home, and for a row from before agent
+  // homes were recorded.
+  agent_home: string | null;
+
   // 1 when the harness is kept inside a host that went to sleep, so a restore
   // after a daemon restart lists it as suspended; 0 for any other harness, and
   // null for a row from before sleeps were recorded.
