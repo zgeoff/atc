@@ -1,5 +1,14 @@
 # Changelog
 
+## [7.5.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.5.0...@zgeoff/atc@7.5.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* read a remote session's transcript and name inside its host ([#1001](https://github.com/zgeoff/atc/issues/1001)) ([cd570e3](https://github.com/zgeoff/atc/commit/cd570e325f9c3cff229e5f34a4dcd6ce25ec2b12))
+* run the skill-gate hook with bun --no-install ([#998](https://github.com/zgeoff/atc/issues/998)) ([6361c64](https://github.com/zgeoff/atc/commit/6361c64438de6b7df10fb1abff10dab8a0fcae7b))
+* skip the pre-push checks on a push that only deletes branches ([#997](https://github.com/zgeoff/atc/issues/997)) ([9bc876d](https://github.com/zgeoff/atc/commit/9bc876db8ed103a96a9dde65f30e80122deb2707))
+
 ## [7.5.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.4.1...@zgeoff/atc@7.5.0) (2026-10-28)
 
 ### Features
