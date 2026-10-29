@@ -5,6 +5,7 @@ import type { DaemonContext, HeldAtcAccess } from '../daemon-context';
 import { buildScopedContext } from './build-scoped-context';
 import { buildSessionSetAccess } from './build-session-set-access';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
+import { findGrantedSpawnRefusal } from './find-granted-spawn-refusal';
 
 // Each check reads the live subtree, so a session the holder spawns is in
 // reach at once.
@@ -36,41 +37,23 @@ export function buildGrantedContext(
 
   return {
     ...scoped,
-    requireGrantableAccess: (scopes) => {
-      const missing = scopes.filter((scope) => !held.scopes.includes(scope));
+    requireGrantedSpawn: (spawn) => {
+      const refusal = findGrantedSpawnRefusal(
+        {
+          id: holder,
+          scopes: held.scopes,
+          isResumable: (agentSessionID) =>
+            ctx
+              .collectSessions()
+              .some(
+                (session) => session.agentSessionID === agentSessionID && isInReach(session.id),
+              ),
+        },
+        spawn,
+      );
 
-      if (missing.length > 0) {
-        throw new DaemonError(
-          'unauthorized',
-          `session '${holder}' holds atc access ${held.scopes.join(', ')}, so its spawn cannot grant ${missing.join(', ')}`,
-        );
-      }
-    },
-
-    // A resumed agent session id becomes the new session's own, and the fleet
-    // keeps one row per agent session on a target, so a resume of a session
-    // out of reach would replace that session's row and take its children.
-    requireResumable: (resume) => {
-      if (resume === false) {
-        return;
-      }
-
-      if (resume === true) {
-        throw new DaemonError(
-          'unauthorized',
-          `session '${holder}' holds atc access, so its spawn names the agent session to resume`,
-        );
-      }
-
-      const isHeldInReach = ctx
-        .collectSessions()
-        .some((session) => session.agentSessionID === resume && isInReach(session.id));
-
-      if (!isHeldInReach) {
-        throw new DaemonError(
-          'unauthorized',
-          `session '${holder}' holds atc access, so its spawn resumes only an agent session that a session in its reach holds`,
-        );
+      if (refusal !== null) {
+        throw new DaemonError('unauthorized', refusal);
       }
     },
     resolveSpawnTarget: (requested) => {

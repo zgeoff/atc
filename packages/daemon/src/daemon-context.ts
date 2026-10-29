@@ -11,7 +11,6 @@ import type { DaemonAnswer, DeclaredScope } from '@atc/protocol';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { FleetEntry, MessageRecord, TurnSibling } from '@atc/store';
 import type {
-  AgentSessionID,
   DaemonID,
   GrantScope,
   MenuView,
@@ -24,6 +23,7 @@ import type {
 } from '@atcx/contract';
 import type { TargetAccess, TargetGrant } from './auth/build-target-access-from-grants';
 import type { AuthRebound } from './auth/create-auth-setup';
+import type { GrantedSpawn } from './auth/find-granted-spawn-refusal';
 import type { FleetEvent } from './fleet/build-fleet-events';
 import type { TargetEntry } from './fleet/build-target-list';
 import type { MenuChoice, MenuChoiceResult } from './sessions/apply-menu-choice';
@@ -204,13 +204,9 @@ export interface DaemonContext {
   // The targets a principal may use.
   readonly buildTargetAccess: (principal: string) => TargetAccess;
 
-  // Throws the refusal of a spawn that grants a scope its caller may not
-  // grant; the owner and a principal may grant any scope.
-  readonly requireGrantableAccess: (scopes: readonly GrantScope[]) => void;
-
-  // Throws the refusal of a spawn that resumes an agent session its caller
-  // may not take over; the owner and a principal may resume any.
-  readonly requireResumable: (resume: boolean | AgentSessionID) => void;
+  // Throws the refusal of a spawn that a session's atc access does not
+  // cover; a spawn from the owner or a principal passes.
+  readonly requireGrantedSpawn: (spawn: GrantedSpawn) => void;
 
   // Whether the config's principals key lists the principal, which a
   // request over TCP must act as.

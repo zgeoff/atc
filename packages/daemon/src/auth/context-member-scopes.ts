@@ -40,8 +40,7 @@ export const CONTEXT_MEMBER_SCOPES = {
   restoreFleet: 'owner-only',
   writeStateBackup: 'owner-only',
 
-  requireGrantableAccess: 'narrowed',
-  requireResumable: 'narrowed',
+  requireGrantedSpawn: 'narrowed',
   isSessionVisible: 'narrowed',
   collectSessions: 'narrowed',
   collectAgents: 'narrowed',

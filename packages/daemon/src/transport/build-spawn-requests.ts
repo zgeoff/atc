@@ -262,8 +262,7 @@ async function applySpawn(
 
     const atcAccess = data.atcAccess ?? [];
 
-    ctx.requireGrantableAccess(atcAccess);
-    ctx.requireResumable(data.resume);
+    ctx.requireGrantedSpawn({ atcAccess, resume: data.resume });
 
     return {
       cwd: directory,
