@@ -1,6 +1,6 @@
 import type { AgentID } from '@atc/core';
 import { createStepTimer } from '@atc/core';
-import type { AgentAdapter, ExecutionProvider, SpawnOverrides } from '@atc/plugin-api';
+import type { SpawnOverrides } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { DeclaredScope } from '@atc/protocol';
 import { buildSessionEnv } from '@atc/protocol/session';
@@ -12,6 +12,7 @@ import type { HostDirClaims } from './create-host-dir-claims';
 import type { SessionHarnesses, SpawnReadied } from './create-session-harnesses';
 import type { SessionRegistry } from './create-session-registry';
 import type { SpawnRollback } from './create-spawn-rollback';
+import { decideSpawnGrant } from './decide-spawn-grant';
 import { mintSessionID } from './mint-session-id';
 import { pickSpawnName } from './pick-spawn-name';
 import { resolveRepoRoot } from './resolve-repo-root';
@@ -421,26 +422,22 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
         }
       }
 
-      const requestedAccess = options.atcAccess ?? [];
-      const atcAccess = requestedAccess.length === 0 ? null : requestedAccess;
+      const grant = decideSpawnGrant({
+        requested: options.atcAccess,
+        sessionID: id,
+        agent,
+        target,
+        isRemote: provider.remote,
+        takesAtcMCP: adapter.takesAtcMCP === true,
+        hostKey,
+        hostAccess: registry.sessions.find((x) => x.id === hostKey)?.atcAccess ?? [],
+      });
 
-      if (atcAccess !== null) {
-        requireAtcMCP(adapter, provider, agent, target);
+      if (grant.kind === 'refused') {
+        throw new DaemonError(grant.code, grant.message);
       }
 
-      // Every process inside one host can open each bridge socket there, so a
-      // session that joins another's host holds no scope that session lacks.
-      if (atcAccess !== null && hostKey !== id) {
-        const hostAccess = registry.sessions.find((x) => x.id === hostKey)?.atcAccess ?? [];
-        const missing = atcAccess.filter((scope) => !hostAccess.includes(scope));
-
-        if (missing.length > 0) {
-          throw new DaemonError(
-            'unauthorized',
-            `the session shares the host of session '${hostKey}', which lacks atc scope ${missing.join(', ')}, so the spawn cannot grant it`,
-          );
-        }
-      }
+      const atcAccess = grant.atcAccess;
 
       if (hostKey !== id) {
         await authSetup.requireSharedBinding(hostKey, auth?.binding ?? null);
@@ -491,27 +488,4 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       }
     },
   };
-}
-
-// a harness on the daemon's machine reaches the daemon's socket as its owner,
-// so no grant could narrow what it reaches
-function requireAtcMCP(
-  adapter: AgentAdapter,
-  provider: ExecutionProvider,
-  agent: AgentID,
-  target: string,
-): void {
-  if (!provider.remote) {
-    throw new DaemonError(
-      'bad_args',
-      `atcAccess takes a target that runs the agent on another machine; a session on target '${target}' reaches atc as the daemon's owner`,
-    );
-  }
-
-  if (adapter.takesAtcMCP !== true) {
-    throw new DaemonError(
-      'bad_args',
-      `agent '${agent}' takes no atc MCP server on a remote target, so it cannot take atcAccess`,
-    );
-  }
 }
