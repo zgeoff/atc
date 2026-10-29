@@ -127,6 +127,10 @@ export async function openMCPAuth(options: MCPAuthOptions) {
       .execute();
   }
 
+  // better-auth starts its context when it is built, and that start queries
+  // the database, so a close before it settles destroys the driver under it.
+  await auth.$context;
+
   return {
     auth,
     db,
