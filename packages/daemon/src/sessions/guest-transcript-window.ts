@@ -23,7 +23,7 @@ const RESPONSE_PATTERN = new RegExp(
 );
 
 const RESPONSE_SCHEMA = z.object({
-  size: z.string().transform(Number).pipe(z.number().int().nonnegative().safe()),
+  size: z.string().transform(Number).pipe(z.number().int().nonnegative()),
   blocks: z.string().transform((blocks) => Buffer.from(blocks.replaceAll('\n', ''), 'base64')),
 } satisfies Record<ResponseField, z.ZodType>);
 
