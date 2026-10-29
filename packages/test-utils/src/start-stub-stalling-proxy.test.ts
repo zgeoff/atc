@@ -177,6 +177,31 @@ test('it ends the upstream connection on stop after a client closed while stalle
   });
 });
 
+test('it resets the client connection when the target refuses its own', async () => {
+  const closed = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data: () => {} } });
+  const refusingPort = closed.port;
+
+  closed.stop(true);
+
+  const proxy = startStubStallingProxy(refusingPort);
+  const failure = Promise.withResolvers<unknown>();
+
+  const client = await Bun.connect({
+    hostname: '127.0.0.1',
+    port: proxy.port,
+    socket: {
+      data: () => {},
+      close: (_socket, error) => {
+        failure.resolve(error);
+      },
+    },
+  });
+
+  registerTestCleanup(() => client.end());
+
+  expect(failure.promise).resolves.toMatchObject({ code: 'ECONNRESET' });
+});
+
 test('it stops listening once the test finishes without a stop', () => {
   const ctx = setupTest();
   const proxy = startStubStallingProxy(ctx.port);

@@ -48,6 +48,40 @@ export function startStubStallingProxy(targetPort: number): StubStallingProxy {
     writeUnwritten(destination);
   };
 
+  const connectUpstream = async (
+    client: Socket<ProxiedConnection>,
+    connection: ProxiedConnection,
+  ): Promise<void> => {
+    try {
+      await Bun.connect({
+        hostname: '127.0.0.1',
+        port: targetPort,
+        socket: {
+          open: (upstream) => {
+            connection.upstream.socket = upstream;
+
+            writeUnwritten(connection.upstream);
+          },
+          data: (_upstream, bytes) => {
+            forward(connection.client, bytes);
+          },
+          drain: () => {
+            writeUnwritten(connection.upstream);
+          },
+          close: () => {
+            if (!state.stalled) {
+              client.end();
+            }
+          },
+        },
+      });
+    } catch {
+      // A target that refuses the connection resets the client's, as a
+      // refused port does to a direct connection.
+      client.terminate();
+    }
+  };
+
   const server = Bun.listen<ProxiedConnection>({
     hostname: '127.0.0.1',
     port: 0,
@@ -61,29 +95,7 @@ export function startStubStallingProxy(targetPort: number): StubStallingProxy {
         client.data = connection;
 
         connections.add(connection);
-
-        void Bun.connect({
-          hostname: '127.0.0.1',
-          port: targetPort,
-          socket: {
-            open: (upstream) => {
-              connection.upstream.socket = upstream;
-
-              writeUnwritten(connection.upstream);
-            },
-            data: (_upstream, bytes) => {
-              forward(connection.client, bytes);
-            },
-            drain: () => {
-              writeUnwritten(connection.upstream);
-            },
-            close: () => {
-              if (!state.stalled) {
-                client.end();
-              }
-            },
-          },
-        });
+        void connectUpstream(client, connection);
       },
       data: (client, bytes) => {
         forward(client.data.upstream, bytes);
