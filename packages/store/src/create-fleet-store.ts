@@ -283,6 +283,20 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
         await trx.updateTable('fleet').set(values).where('session_id', '=', sessionID).execute();
       });
     },
+
+    // A row without a host key ran on a host of its own.
+    readAgentSessionHolders: async (agentSessionID) => {
+      const rows = await db
+        .selectFrom('fleet')
+        .select(['session_id', 'host_key'])
+        .where('agent_session_id', '=', agentSessionID)
+        .execute();
+
+      return rows.map((row) => ({
+        sessionID: toSessionID(row.session_id),
+        hostKey: toSessionID(row.host_key ?? row.session_id),
+      }));
+    },
   };
 }
 

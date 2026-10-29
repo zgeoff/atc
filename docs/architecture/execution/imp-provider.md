@@ -88,8 +88,8 @@ land, its tap takes messages, and its statusline reads the session's state:
 Every operation acts on the session the bridge serves, so no line holds a session id, and no
 operation changes the session's record. The bridge answers an unknown operation, a malformed line or
 a hook line for another session with `forbidden`, and closes the connection. A hook report that
-holds an agent session id which a session on another host holds leaves the session's own id in
-place, so a guest cannot take over another session's transcript.
+holds an agent session id which a session on another host holds, live or only in the fleet, leaves
+the session's own id in place, so a conversation never moves to another host's session.
 
 The daemon reads the first line of each connection to pick its dialect. A client-protocol message
 opens a client connection for a session whose spawn granted it atc access, and the daemon serves

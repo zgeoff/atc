@@ -25,7 +25,7 @@ import type {
   UpdateMessagesUnansweredOptions,
 } from './create-message-store';
 import { createPublishedRecordStore } from './create-published-record-store';
-import type { FleetEntry, FleetEntryUpdate } from './fleet-entry';
+import type { AgentSessionHolder, FleetEntry, FleetEntryUpdate } from './fleet-entry';
 import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
 import type { MessageOwner } from './message-owner';
 import type { MessageRecord, TurnSibling } from './message-record';
@@ -66,6 +66,9 @@ export interface StateStore {
     removed?: readonly SessionID[],
   ) => Promise<void>;
   readonly updateFleetEntry: (sessionID: SessionID, fields: FleetEntryUpdate) => Promise<void>;
+  readonly readAgentSessionHolders: (
+    agentSessionID: AgentSessionID,
+  ) => Promise<AgentSessionHolder[]>;
   readonly recordEvent: (
     hookEvent: HookEvent,
     ev?: Readonly<AdapterEvent> | null,
@@ -282,6 +285,7 @@ export async function createStateStore(
     readFleetRecency: () => trail.readFleetRecency(),
     writeFleet: (entries, removed = []) => fleet.writeFleet(entries, removed),
     updateFleetEntry: (sessionID, fields) => fleet.updateFleetEntry(sessionID, fields),
+    readAgentSessionHolders: (agentSessionID) => fleet.readAgentSessionHolders(agentSessionID),
     recordEvent: (hookEvent, ev = null, at = systemClock.now()) =>
       trail.recordEvent(hookEvent, ev, at),
     recordTrailEntry: (entry) => trail.recordTrailEntry(entry),

@@ -98,6 +98,18 @@ export interface FleetStore {
     removed?: readonly SessionID[],
   ) => Promise<void>;
   readonly updateFleetEntry: (sessionID: SessionID, fields: FleetEntryUpdate) => Promise<void>;
+
+  // Every stored row that holds the agent session id, whichever daemon owns
+  // it and whether or not it was restored.
+  readonly readAgentSessionHolders: (
+    agentSessionID: AgentSessionID,
+  ) => Promise<AgentSessionHolder[]>;
+}
+
+// A stored row's session and the session whose host it ran on.
+export interface AgentSessionHolder {
+  readonly sessionID: SessionID;
+  readonly hostKey: SessionID;
 }
 
 // The fields a session rewrites on its own row while it runs, without

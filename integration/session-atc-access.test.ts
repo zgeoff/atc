@@ -636,15 +636,58 @@ test('it keeps the agent session id of a remote session that reports one a sessi
     data: 'start conversation-kept\r',
   });
 
+  await waitFor(() => {
+    expect(ctx.daemon.logs).toContainEqual(
+      expect.stringContaining(`session ${claimer} reported agent session conversation-kept`),
+    );
+  });
+
+  const read = await ctx.daemon.client.sendRequest('session.get', { session: claimer });
+
+  expect(getRecord(read, 'session')['agentSessionID']).toBeUndefined();
+});
+
+test('it keeps the agent session id of a remote session that reports one a stored session on another host holds', async () => {
+  const ctx = await setupTest();
+
+  const first = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  const stored = String(getRecord(first, 'session')['id']);
+
   await ctx.daemon.client.sendRequest('session.input', {
-    session: claimer,
-    data: 'notify claim reported\r',
+    session: stored,
+    data: 'start conversation-stored\r',
   });
 
   await waitFor(async () => {
-    const read = await ctx.daemon.client.sendRequest('session.get', { session: claimer });
+    const read = await ctx.daemon.client.sendRequest('session.get', { session: stored });
 
-    expect(read).toMatchObject({ session: { lastMsg: 'claim reported' } });
+    expect(read).toMatchObject({ session: { agentSessionID: 'conversation-stored' } });
+  });
+
+  await ctx.daemon.restart();
+
+  const second = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  const claimer = String(getRecord(second, 'session')['id']);
+
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: claimer,
+    data: 'start conversation-stored\r',
+  });
+
+  await waitFor(() => {
+    expect(ctx.daemon.logs).toContainEqual(
+      expect.stringContaining(`session ${claimer} reported agent session conversation-stored`),
+    );
   });
 
   const read = await ctx.daemon.client.sendRequest('session.get', { session: claimer });

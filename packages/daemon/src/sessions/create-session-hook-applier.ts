@@ -3,6 +3,7 @@ import { buildHostFiles } from '@atc/plugin-api';
 import type { ExecutionProvider, HookPlan, HostFiles, SessionHost } from '@atc/plugin-api';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
+import type { FleetStore } from '@atc/store';
 import type { AgentSessionID } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
@@ -22,6 +23,7 @@ interface SessionHookApplierDeps {
     | 'requireExecution'
   >;
   readonly fleet: Pick<SessionFleetWriter, 'emitChange' | 'tryWriteFleet' | 'tryUpdateFleetEntry'>;
+  readonly store: Pick<FleetStore, 'readAgentSessionHolders'>;
   readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'findRecords' | 'log'>;
 }
 
@@ -74,17 +76,51 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
     fleet.emitChange();
   };
 
-  // A remote host can report any agent session id, and one that another
-  // host's session holds would take over its messages, its fleet row and its
-  // sub-sessions; a conversation on another host never resumes on this one.
-  const isHeldOnAnotherHost = (session: Session, agentSessionID: AgentSessionID): boolean =>
-    registry.findProvider(session)?.remote === true &&
-    registry.sessions.some(
-      (other) =>
-        other.id !== session.id &&
-        other.hostKey !== session.hostKey &&
-        other.agentSessionID === agentSessionID,
-    );
+  // A conversation on another host never resumes on this one, so a remote
+  // session keeps its own agent session id when a session on another host
+  // holds the one it reports, whether that session is live or only stored.
+  const claimRemoteAgentSession = async (
+    session: Session,
+    agentSessionID: AgentSessionID,
+  ): Promise<void> => {
+    let isHeldElsewhere = true;
+
+    try {
+      const holders = await deps.store.readAgentSessionHolders(agentSessionID);
+
+      isHeldElsewhere =
+        holders.some(
+          (holder) => holder.sessionID !== session.id && holder.hostKey !== session.hostKey,
+        ) ||
+        registry.sessions.some(
+          (other) =>
+            other.id !== session.id &&
+            other.hostKey !== session.hostKey &&
+            other.agentSessionID === agentSessionID,
+        );
+    } catch (error) {
+      callbacks.log(
+        `session ${session.id} could not check agent session ${agentSessionID}: ${String(error)}`,
+      );
+    }
+
+    if (session.agentSessionID === agentSessionID) {
+      return;
+    }
+
+    if (isHeldElsewhere) {
+      callbacks.log(
+        `session ${session.id} reported agent session ${agentSessionID}, which a session on another host holds; the report keeps its own`,
+      );
+
+      return;
+    }
+
+    session.agentSessionID = agentSessionID;
+    void fleet.tryWriteFleet(session.id);
+    callbacks.onEvent('state', session);
+    fleet.emitChange();
+  };
 
   const applyAdapterEvent = (session: Session, ev: Readonly<AdapterEvent>): void => {
     // Reporters belong to the terminal process; once a session is headless,
@@ -109,10 +145,8 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
     }
 
     if (ev.agentSessionID !== undefined && session.agentSessionID !== ev.agentSessionID) {
-      if (isHeldOnAnotherHost(session, ev.agentSessionID)) {
-        callbacks.log(
-          `session ${session.id} reported agent session ${ev.agentSessionID}, which a session on another host holds; the report keeps its own`,
-        );
+      if (registry.findProvider(session)?.remote === true) {
+        void claimRemoteAgentSession(session, ev.agentSessionID);
       } else {
         session.agentSessionID = ev.agentSessionID;
         persist = true;

@@ -717,6 +717,32 @@ test('it round-trips a fleet row with the atc access and the spawner its spawn g
   expect(fleet).toStrictEqual([spawner, granted, ungranted]);
 });
 
+test('it reads every stored row that holds an agent session id with the host it ran on', async () => {
+  const ctx = await setupTest();
+
+  const host = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('conversation-shared'),
+    target: 'box-a',
+  });
+
+  const guest = buildMockFleetEntry({
+    agentSessionID: toAgentSessionID('conversation-shared'),
+    target: 'box-b',
+    hostKey: toSessionID('host-elsewhere'),
+  });
+
+  const other = buildMockFleetEntry({ agentSessionID: toAgentSessionID('conversation-other') });
+
+  await ctx.store.writeFleet([host, guest, other]);
+
+  const holders = await ctx.store.readAgentSessionHolders(toAgentSessionID('conversation-shared'));
+
+  expect(holders).toIncludeSameMembers([
+    { sessionID: host.sessionID, hostKey: host.sessionID },
+    { sessionID: guest.sessionID, hostKey: toSessionID('host-elsewhere') },
+  ]);
+});
+
 test('it loads a fleet row whose stored atc access names an unknown scope as holding no access', async () => {
   const ctx = await setupTest();
 
