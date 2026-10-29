@@ -495,6 +495,70 @@ test("it delivers a session's bridge with read the events of the session and its
   });
 });
 
+test("it delivers a session's bridge with spawn alone no event of the session, its subtree, its parent or a stranger", async () => {
+  const ctx = setupTest();
+
+  const tree = [
+    { id: toSessionID('parent'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+    {
+      id: toSessionID('holder'),
+      parent: toSessionID('parent'),
+      target: 'box',
+      targetIdentity: 'remote:a',
+    },
+    {
+      id: toSessionID('child'),
+      parent: toSessionID('parent'),
+      target: 'box',
+      targetIdentity: 'remote:a',
+    },
+    { id: toSessionID('stranger'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+  ];
+
+  const connections = startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      findHeldAtcAccess: () => ({
+        scopes: ['spawn'],
+        grant: { target: 'box', targetIdentity: 'remote:a' },
+        parent: toSessionID('parent'),
+        spawner: null,
+      }),
+      collectSubtree: () => new Set([toSessionID('child')]),
+      findSessionGrant: () => ({ target: 'box', targetIdentity: 'remote:a' }),
+
+      // The marker session is shown whatever the access, so its event arrives
+      // after every event sent before it.
+      canSeeSession: (id, access) =>
+        id === toSessionID('marker') || isTreeInReach(tree, id, access),
+    }),
+    null,
+    { id: toSessionID('holder'), isBridgeCurrent: () => true },
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const events: DaemonEvent[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  for (const id of ['holder', 'child', 'parent', 'stranger', 'marker']) {
+    connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: id });
+  }
+
+  await waitFor(() => {
+    expect(events).toStrictEqual([{ ev: 'SessionRemoved', sessionID: 'marker' }]);
+  });
+});
+
 test.each([
   {
     label: 'the handshake',
