@@ -72,15 +72,26 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   const onDetectSkipped = mock<(sessionID: SessionID) => void>();
+  const recordNeedsInput = mock<(sessionID: SessionID, message: string) => void>();
 
   const detection = createScreenDetection({
     manager,
     clock,
     findRuntime: (id) => runtimes.get(id),
+    recordNeedsInput,
     onDetectSkipped,
   });
 
-  return { directory: temporaryDirectory.path, clock, provider, manager, onDetectSkipped };
+  return {
+    directory: temporaryDirectory.path,
+    clock,
+    provider,
+    manager,
+    runtimes,
+    detection,
+    onDetectSkipped,
+    recordNeedsInput,
+  };
 }
 
 test('it moves a session waiting at a prompt to needs_you once its output goes quiet', async () => {
@@ -91,6 +102,7 @@ test('it moves a session waiting at a prompt to needs_you once its output goes q
         screenDetector: {
           detectAttention: (screen) =>
             screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
+          untilAgentStart: false,
         },
       },
     ],
@@ -118,12 +130,146 @@ test('it moves a session waiting at a prompt to needs_you once its output goes q
   expect(session.lastMsg).toBe('waiting at a prompt');
 });
 
+test('it records a needs-input event once for a wait the screen shows', async () => {
+  const detectAttention = mock<(screen: string) => 'needs-input' | 'working' | null>(
+    () => 'needs-input',
+  );
+
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...buildStubHarnessAdapter(),
+        screenDetector: { detectAttention, untilAgentStart: false },
+      },
+    ],
+  });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitData('Allow the edit?');
+  ctx.clock.advance(300);
+
+  await waitFor(() => {
+    expect(session.state).toBe('needs_you');
+  });
+
+  harness.emitData(' (y/n)');
+  ctx.clock.advance(300);
+
+  await waitFor(() => {
+    expect(detectAttention).toHaveBeenCalledTimes(2);
+  });
+
+  expect(ctx.recordNeedsInput).toHaveBeenCalledExactlyOnceWith(session.id, 'waiting at a prompt');
+});
+
+test('it leaves the screen unjudged once the agent has started, for a detector that judges until the start', async () => {
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...buildStubHarnessAdapter(),
+        screenDetector: { detectAttention: () => 'needs-input', untilAgentStart: true },
+      },
+    ],
+  });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const runtime = ctx.runtimes.get(session.id);
+
+  invariant(runtime);
+
+  runtime.startedAt = ctx.clock.now();
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitData('Select a model');
+
+  expect(ctx.clock.collectPending()).toBeEmpty();
+});
+
+test('it moves a session the screen flagged back to running when its agent starts', async () => {
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...buildStubHarnessAdapter(),
+        screenDetector: { detectAttention: () => 'needs-input', untilAgentStart: true },
+      },
+    ],
+  });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitData('Trust this folder?');
+  ctx.clock.advance(300);
+
+  await waitFor(() => {
+    expect(session.state).toBe('needs_you');
+  });
+
+  ctx.detection.applyAgentStart(session.id);
+
+  expect(session.state).toBe('running');
+});
+
+test('it leaves a needs_you the screen never set when the agent starts', async () => {
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...buildStubHarnessAdapter(),
+        screenDetector: { detectAttention: () => 'working', untilAgentStart: true },
+      },
+    ],
+  });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.manager.updateAttention(session.id, 'needs_you', 'Allow the edit?');
+  ctx.detection.applyAgentStart(session.id);
+
+  expect(session.state).toBe('needs_you');
+});
+
 test('it moves a session back to running once its screen shows work', async () => {
   const ctx = await setupTest({
     adapters: [
       {
         ...buildStubHarnessAdapter(),
-        screenDetector: { detectAttention: () => 'working' },
+        screenDetector: { detectAttention: () => 'working', untilAgentStart: false },
       },
     ],
   });
@@ -155,7 +301,7 @@ test('it restarts the wait on each output', async () => {
     adapters: [
       {
         ...buildStubHarnessAdapter(),
-        screenDetector: { detectAttention: () => 'working' },
+        screenDetector: { detectAttention: () => 'working', untilAgentStart: false },
       },
     ],
   });
@@ -201,7 +347,7 @@ test('it skips the screen of a session whose agent has no screen detector while 
       buildStubHarnessAdapter(),
       {
         ...buildStubHarnessAdapter({ id: 'grok' }),
-        screenDetector: { detectAttention: () => 'needs-input' },
+        screenDetector: { detectAttention: () => 'needs-input', untilAgentStart: false },
       },
     ],
   });

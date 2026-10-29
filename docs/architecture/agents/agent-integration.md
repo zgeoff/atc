@@ -40,6 +40,10 @@ Every Claude Code session starts with files atc wrote for it:
 - **A scratch folder of its own**, passed as an added directory and as `TMPDIR`, so a session's
   temporary files never land in another session's.
 
+Claude Code runs none of these hooks before its start, so the daemon reads the screen of a session
+that has not started yet for a dialog that waits on the owner
+([waits before the agent starts](../daemon/sessions.md#waits-before-the-agent-starts)).
+
 The chained statusline runs the owner's own configured statusline first, then appends a fleet
 segment read from `status.json`, so fleet state shows inside Claude Code's own status line while the
 owner is attached. Each statusline render also sends its input to the daemon as a heartbeat, a

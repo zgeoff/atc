@@ -47,6 +47,7 @@ import { buildClaudeProjectSettingsCheck } from '../guest/build-claude-project-s
 import { makeClaudeHeadlessRunner } from '../headless/make-claude-headless-runner';
 import { loadClaudeName } from '../load-claude-name';
 import { parseClaudeTranscriptLine } from '../parse-claude-transcript-line';
+import { pickClaudeAttention } from '../pick-claude-attention';
 import { planClaudeLineInput } from '../plan-claude-line-input';
 import { resolveClaudePermissionMode } from '../resolve-claude-permission-mode';
 import { resolveConfiguredPluginDirs } from '../resolve-configured-plugin-dirs';
@@ -260,8 +261,7 @@ export function createGatewayAdapter(
             settings: () => files.writeSettings(),
           }),
 
-    // The CLI's hooks are authoritative; no screen heuristics needed.
-    screenDetector: null,
+    screenDetector: { detectAttention: pickClaudeAttention, untilAgentStart: true },
 
     parseTranscriptLine: parseClaudeTranscriptLine,
     planLineInput: planClaudeLineInput,

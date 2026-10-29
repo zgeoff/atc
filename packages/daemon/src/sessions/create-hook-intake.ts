@@ -81,6 +81,10 @@ export interface HookIntake {
   // its start and end to the trail under a synthetic event name.
   readonly recordHeadlessTurnEvent: (sessionID: SessionID, ev: Readonly<AdapterEvent>) => void;
 
+  // A wait the screen shows reaches no hook, so the daemon writes it to the
+  // trail under a synthetic event name too.
+  readonly recordScreenNeedsInput: (sessionID: SessionID, message: string) => void;
+
   // A remote harness reports through a socket that serves it alone, so a
   // line that names any other session is dropped.
   readonly startRelay: (binding: BridgeBinding, relay: HarnessRelay) => void;
@@ -284,6 +288,24 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
             session?.agentSessionID === undefined ? {} : { session_id: session.agentSessionID },
         },
         ev,
+      );
+    },
+
+    recordScreenNeedsInput: (sessionID, message) => {
+      const session = manager.sessions.find((x) => x.id === sessionID);
+
+      void recordHookEvent(
+        {
+          atcId: sessionID,
+          event: 'Screen',
+          payload: {
+            message,
+            ...(session?.agentSessionID === undefined
+              ? {}
+              : { session_id: session.agentSessionID }),
+          },
+        },
+        { kind: 'needs-input', message, detail: message },
       );
     },
 

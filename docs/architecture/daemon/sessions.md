@@ -11,10 +11,10 @@ is `pty`, a terminal, or `headless`, a structured Agent SDK run with no terminal
 
 ## Attention
 
-A session's attention comes from its agent's hook reports, never from reading its screen. Two of the
-owner's own actions change it too: attaching and submitting a prompt. The agent's hooks report each
-turn's start, end and pending prompt on the reporter socket, the adapter maps each report to one of
-a closed set of kinds, and the session core applies it:
+A session's attention comes from its agent's hook reports. Two of the owner's own actions change it
+too: attaching and submitting a prompt. The agent's hooks report each turn's start, end and pending
+prompt on the reporter socket, the adapter maps each report to one of a closed set of kinds, and the
+session core applies it:
 
 ```mermaid
 stateDiagram-v2
@@ -47,6 +47,16 @@ type a line into the session, since the carriage return would approve the action
 The daemon drops a hook report whose agent differs from the session's agent. A harness nested inside
 a session inherits the session's environment, so without that check a nested agent would report as
 the session it runs in.
+
+### Waits before the agent starts
+
+Claude Code runs no hook while a dialog it shows before its start waits on the owner, such as the
+folder-trust check, so no report shows that wait. Until a Claude session reports its start, the
+daemon reads its screen each time the output goes quiet. A menu on the screen moves the session to
+`needs_you` and writes a needs-input event to the session's events, which an event subscriber sees
+as the session waiting on the owner. A screen without a menu moves it back to `running`. The start
+report ends the screen reads, and it moves a session that the screen put in `needs_you` back to
+`running`, since every dialog before the start is answered by then.
 
 ## Names
 
