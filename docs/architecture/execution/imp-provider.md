@@ -120,6 +120,12 @@ offset, since impd may repeat bytes across connections. A resume that finds a ga
 refuses, or a session without offsets gets a fresh attach instead: the daemon clears the screen and
 takes impd's replay.
 
+A connection whose network path goes silent ends as well, so a frozen screen never waits for a
+keystroke. The daemon pings impd on each session socket and each tunnel socket, and ends a socket
+that hears nothing within a few missed pings. impd's own ping timeout closes only impd's side of
+such a socket, and a resize sent into it never reaches the process. Every reattach carries the
+viewer's current size, and impd sizes the running process's terminal to it.
+
 impd's answer to the reconnect decides how the harness ended:
 
 - A sleeping imp leaves the session asleep, for a revive to find.

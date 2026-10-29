@@ -13,6 +13,7 @@ import { join, relative } from 'node:path';
 import {
   KEYS,
   buildStubClock,
+  createStubHarnessGuest,
   registerTestCleanup,
   runCommand,
   setupTempDir,
@@ -750,6 +751,54 @@ test('it detaches the earlier connection when a second one attaches', async () =
     kind: 'detached',
     reason: 'taken_over',
     offset: 0,
+  });
+});
+
+test('it sizes the terminal of a running process to the attach that joins it', async () => {
+  const ctx = setupTest();
+
+  const guest = await createStubHarnessGuest(ctx.directory);
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const output: string[] = [];
+
+  ctx.port.openSession(
+    {
+      kind: 'start',
+      name: 'imp-a',
+      session: 's1',
+      argv: [guest.path],
+      env: {},
+      cwd: ctx.directory,
+      cols: 80,
+      rows: 24,
+    },
+    { onStarted: () => {}, onOutput: () => {} },
+  );
+
+  await waitFor(() => {
+    expect(ctx.port.getEnd('imp-a', 's1')).toBeGreaterThan(0);
+  });
+
+  const attached = ctx.port.openSession(
+    { kind: 'attach', name: 'imp-a', session: 's1', cols: 120, rows: 40, wake: false },
+    {
+      onStarted: () => {},
+      onOutput: (data) => {
+        output.push(new TextDecoder().decode(data));
+      },
+    },
+  );
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('UP:');
+  });
+
+  attached.write(new TextEncoder().encode('size\n'));
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('SIZE:40 120');
   });
 });
 

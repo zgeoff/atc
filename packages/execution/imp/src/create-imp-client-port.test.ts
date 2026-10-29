@@ -6,6 +6,7 @@ import {
   registerTestCleanup,
   setupTempDir,
   startStubImpd,
+  startStubStallingProxy,
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
@@ -138,7 +139,7 @@ test('it answers a version check and a scratch folder read within 30 seconds wit
   const port = createImpClientPort({
     url: ctx.impd.url,
     readToken: () => 'scratch-token',
-    now: stub.now,
+    clock: stub,
   });
 
   await port.verifyVersion();
@@ -157,7 +158,7 @@ test('it answers the version checks within 30 seconds of a read with its one cal
   const port = createImpClientPort({
     url: ctx.impd.url,
     readToken: () => 'version-token',
-    now: stub.now,
+    clock: stub,
   });
 
   await Promise.all([port.verifyVersion(), port.verifyVersion()]);
@@ -178,7 +179,7 @@ test('it refuses an outdated impd again within 30 seconds from its one call to i
   const port = createImpClientPort({
     url: ctx.impd.url,
     readToken: () => 'version-token',
-    now: stub.now,
+    clock: stub,
   });
 
   const first = await port.verifyVersion().then(
@@ -205,7 +206,7 @@ test('it calls impd for the version again 30 seconds after its last call', async
   const port = createImpClientPort({
     url: ctx.impd.url,
     readToken: () => 'version-token',
-    now: stub.now,
+    clock: stub,
   });
 
   await port.verifyVersion();
@@ -227,7 +228,7 @@ test('it calls impd for the version again after impd refused the read before', a
   const port = createImpClientPort({
     url: ctx.impd.url,
     readToken: () => 'version-token',
-    now: stub.now,
+    clock: stub,
   });
 
   ctx.impd.answers.set('/rpc/system/info', {
@@ -397,6 +398,35 @@ test('it ends a reverse forward as closed with the code when impd closes its tun
     kind: 'closed',
     code: 4001,
     reason: 'tunnel gone',
+  });
+});
+
+test('it ends a reverse forward as closed once its path to impd stays silent for 30 seconds', async () => {
+  const ctx = setupTest();
+  const proxy = startStubStallingProxy(Number(new URL(ctx.impd.url).port));
+  const clock = buildStubClock(0);
+
+  const port = createImpClientPort({
+    url: `http://127.0.0.1:${String(proxy.port)}`,
+    readToken: () => 'token',
+    clock,
+  });
+
+  const forward = port.openReverseForward('imp-a', '/tmp/atc/report.sock', () => {});
+
+  registerTestCleanup(() => {
+    forward.stop();
+  });
+
+  await forward.listening;
+
+  proxy.stall();
+  clock.advance(30_000);
+
+  expect(forward.ended).resolves.toStrictEqual({
+    kind: 'closed',
+    code: 1006,
+    reason: 'Connection ended',
   });
 });
 
@@ -1003,6 +1033,45 @@ test('it sends an attach to impd without requirements, as the exec protocol of i
       wake: false,
     },
   ]);
+});
+
+test('it ends a session connection as closed once its path to impd stays silent for 30 seconds', async () => {
+  const ctx = setupTest();
+
+  ctx.impd.exec.reply = 'count';
+
+  const proxy = startStubStallingProxy(Number(new URL(ctx.impd.url).port));
+  const clock = buildStubClock(0);
+
+  const port = createImpClientPort({
+    url: `http://127.0.0.1:${String(proxy.port)}`,
+    readToken: () => 'token',
+    clock,
+  });
+
+  const started = Promise.withResolvers<void>();
+
+  const connection = port.openSession(
+    { kind: 'attach', name: 'atc-s1', session: 'atc-s1', cols: 80, rows: 24, wake: false },
+    {
+      onStarted: () => {
+        started.resolve();
+      },
+      onOutput: () => {},
+    },
+  );
+
+  await started.promise;
+
+  proxy.stall();
+  connection.resize(120, 40);
+  clock.advance(30_000);
+
+  expect(connection.outcome).resolves.toStrictEqual({
+    kind: 'closed',
+    reason: 'Connection ended',
+    closeCode: 1006,
+  });
 });
 
 test('it sends the drop of CAP_SYS_ADMIN on a start to impd', async () => {

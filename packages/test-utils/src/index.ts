@@ -122,6 +122,7 @@ export * from './start-stub-session-bridge';
 export * from './start-stub-silent-server';
 export * from './start-stub-stalled-client';
 export * from './start-stub-stalled-listener';
+export * from './start-stub-stalling-proxy';
 export * from './start-stub-tap';
 export * from './start-stub-tcp-daemon';
 export * from './start-stub-telemetry-collector';
