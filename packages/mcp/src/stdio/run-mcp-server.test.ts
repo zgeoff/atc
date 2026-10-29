@@ -52,7 +52,7 @@ await runMCPServer('atc/test', async () => {
     return server.exited;
   });
 
-  server.stdin.write(
+  await server.stdin.write(
     `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } } })}\n${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' })}\n`,
   );
 
