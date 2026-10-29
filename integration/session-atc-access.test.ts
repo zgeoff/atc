@@ -299,6 +299,72 @@ test('it lets a sub-session with atc access reach the sessions it spawns beside 
   expect(listed.structured?.['sessions']).not.toPartiallyContain({ id: sibling });
 });
 
+test('it keeps a sub-session with atc access reaching the sessions it spawned beside it after a daemon restart', async () => {
+  const ctx = await setupTest();
+
+  const parentSpawn = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    name: 'coordinator',
+    cols: 80,
+    rows: 24,
+    atcAccess: ['read', 'spawn'],
+  });
+
+  const parent = String(getRecord(parentSpawn, 'session')['id']);
+
+  const siblingSpawn = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    name: 'sibling',
+    cols: 80,
+    rows: 24,
+    parent,
+  });
+
+  const sibling = String(getRecord(siblingSpawn, 'session')['id']);
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+    parent,
+    atcAccess: ['read', 'spawn'],
+  });
+
+  const holder = String(getRecord(spawned, 'session')['id']);
+
+  const before = await ctx.openSessionMCP(holder);
+  const worker = await before.spawnSession({ cwd: ctx.daemon.directory, name: 'worker' });
+
+  await ctx.daemon.client.sendRequest('session.input', {
+    session: holder,
+    data: 'start conversation-holder\r',
+  });
+
+  await waitFor(async () => {
+    const read = await ctx.daemon.client.sendRequest('session.get', { session: holder });
+
+    expect(read).toMatchObject({ session: { agentSessionID: 'conversation-holder' } });
+  });
+
+  await ctx.daemon.restart();
+  await ctx.daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
+
+  const after = await ctx.openSessionMCP(holder);
+
+  await waitFor(async () => {
+    const listed = await after.sendToolCall('atc_sessions_list', {});
+
+    expect(listed.structured?.['sessions']).toIncludeSameMembers([
+      expect.objectContaining({ id: holder, parent }),
+      expect.objectContaining({ id: worker, parent }),
+    ]);
+  });
+
+  const listed = await after.sendToolCall('atc_sessions_list', {});
+
+  expect(listed.structured?.['sessions']).not.toPartiallyContain({ id: sibling });
+});
+
 test("it keeps a session's atc access across a daemon restart", async () => {
   const ctx = await setupTest();
 
