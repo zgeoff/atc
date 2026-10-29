@@ -12,22 +12,22 @@ minimumReleaseAge = 604800
 # behind it. Renovate bumps @zgeoff packages as soon as they publish, so each
 # one atc installs, directly or through another first-party package, needs an
 # entry here, or bun install refuses the bump.
+# @maschwenk/tsrslint 0.1.6 (published 2026-10-26) ages past the gate ~2026-11-02 — remove then
+# @maschwenk/tsrslint-linux-x64 0.1.6 (published 2026-10-26) ages past the gate ~2026-11-02 — remove then
+# @maschwenk/tsrslint-linux-arm64 0.1.6 (published 2026-10-26) ages past the gate ~2026-11-02 — remove then
+# @maschwenk/tsrslint-darwin-arm64 0.1.6 (published 2026-10-26) ages past the gate ~2026-11-02 — remove then
 minimumReleaseAgeExcludes = [
   "@impz/client",
+  "@maschwenk/tsrslint",
+  "@maschwenk/tsrslint-darwin-arm64",
+  "@maschwenk/tsrslint-linux-arm64",
+  "@maschwenk/tsrslint-linux-x64",
   "@zgeoff/bun-test-extended",
   "@zgeoff/format-codemod",
   "@zgeoff/kysely-bun-sqlite",
   "@zgeoff/oxlint-config",
   "@zgeoff/skill-gate",
   "@zgeoff/std",
-  # tsrs 0.18.0 and its native packages skip the gate so typecheck can move to
-  # it now; these entries come out on 2026-10-26, once tsrs 0.18.0 is 7 days old
-  "tsrs",
-  "@tsrs/darwin-arm64",
-  "@tsrs/linux-arm64-gnu",
-  "@tsrs/linux-arm64-musl",
-  "@tsrs/linux-x64-gnu",
-  "@tsrs/linux-x64-musl",
 ]
 
 [test]

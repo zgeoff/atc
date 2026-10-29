@@ -72,8 +72,9 @@ docs/
 
 - `bun run typecheck`, `bun run lint`, and `bun run test` are the local checks.
   `bun run test:related <files>` runs the tests beside the files you pass.
-- `bun run lint:full` adds the type-aware pass and the type check. It runs in CI only, so never run
-  it locally.
+- `bun run lint:full` adds the type-aware pass and the type check. oxlint runs both through tsrslint
+  (`@maschwenk/tsrslint`), a Rust port of tsgolint, in tsgolint's place, because stock tsgolint runs
+  out of memory under 2 GiB. `lint:full` runs in CI only, so never run it locally.
 - `bun run build:atc-bridge` regenerates the mod's embedded copy after a change to
   `mods/atc-bridge/`.
 - lefthook runs the light checks before a commit and a push. Leave the larger checks to CI, because
