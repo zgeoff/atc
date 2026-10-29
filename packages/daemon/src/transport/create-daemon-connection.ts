@@ -16,9 +16,12 @@ import { ServerPeer } from '@orpc/standard-server-peer';
 import type { EncodedMessage } from '@orpc/standard-server-peer';
 import { createActor, waitFor } from 'xstate';
 import type { EventFromLogic } from 'xstate';
+import { buildGrantedContext } from '../auth/build-granted-context';
+import { buildGrantedEventAccess } from '../auth/build-granted-event-access';
 import { buildScopedContext } from '../auth/build-scoped-context';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
+import { GRANTED_METHOD_SCOPES } from '../auth/granted-method-scopes';
 import { isOwnerOnlyMethod } from '../auth/is-owner-only-method';
 import type { DaemonContext } from '../daemon-context';
 import { answerPeerRequest } from './answer-peer-request';
@@ -54,6 +57,10 @@ export interface DaemonConnection {
   readonly applyChunk: (chunk: string) => void;
 
   readonly drain: () => void;
+
+  // The peer wrote its last line: the connection ends once every request it
+  // sent has its answer written.
+  readonly endInput: () => void;
 }
 
 // The targets a request may use and the namespace of its idempotency keys.
@@ -66,14 +73,38 @@ interface PeerSocket extends SocketWriter {
   readonly end: () => void;
 }
 
+// The session the connecting process runs inside: the kernel's answer on the
+// local socket, or the session whose bridge socket a remote host connected
+// through, which acts with that session's atc access alone.
+export interface PeerSession {
+  readonly id: SessionID;
+
+  // Whether the bridge's binding still matches the live session; absent on
+  // the local socket.
+  readonly isBridgeCurrent?: () => boolean;
+}
+
+// A connection through a session's bridge socket.
+interface BridgeGrant {
+  readonly holder: SessionID;
+  readonly isCurrent: () => boolean;
+}
+
 // tcp is the listener of a connection accepted over TCP, null on the local socket.
 export function createDaemonConnection(
   peer: PeerSocket,
   ctx: DaemonContext,
   tcp: TCPPeer | null = null,
-  peerSession: SessionID | null = null,
+  connectingSession: PeerSession | null = null,
 ): DaemonConnection {
   const lines = createLineDecoder();
+  const peerSession = connectingSession?.id ?? null;
+  const isBridgeCurrent = connectingSession?.isBridgeCurrent;
+
+  const grant: BridgeGrant | null =
+    peerSession === null || isBridgeCurrent === undefined
+      ? null
+      : { holder: peerSession, isCurrent: isBridgeCurrent };
 
   // The targets the connection's principal may use; null for the daemon's
   // owner, whose reach has no limit.
@@ -184,6 +215,62 @@ export function createDaemonConnection(
 
     return buildScopedContext(ctx, scope.access, scope.keyNamespace);
   };
+
+  // The context a request through a session's bridge runs on: the scope its
+  // method needs must be one the session holds now, under a binding that
+  // still matches the live session; a refusal throws.
+  const requireGrantedRequestContext = (
+    bridge: BridgeGrant,
+    method: string,
+    as: RequestPrincipal | null,
+  ): DaemonContext => {
+    if (as !== null) {
+      throw new DaemonError('unauthorized', "a session's atc access acts as no principal");
+    }
+
+    if (!bridge.isCurrent()) {
+      throw new DaemonError(
+        'unauthorized',
+        `session '${bridge.holder}' started or moved again since this connection opened`,
+      );
+    }
+
+    const held = ctx.findHeldAtcAccess(bridge.holder);
+
+    if (held === null) {
+      throw new DaemonError('unauthorized', `session '${bridge.holder}' holds no atc access`);
+    }
+
+    const needed = GRANTED_METHOD_SCOPES[method];
+
+    if (needed === undefined) {
+      throw new DaemonError('unauthorized', `${method} is closed to a session's atc access`);
+    }
+
+    if (needed !== 'any' && !held.scopes.includes(needed)) {
+      throw new DaemonError(
+        'unauthorized',
+        `${method} needs atc scope ${needed}, which session '${bridge.holder}' does not hold`,
+        { scope: needed },
+      );
+    }
+
+    // A subscription delivers only what the connection's own view admits.
+    if (method === 'events.subscribe') {
+      return buildScopedContext(
+        ctx,
+        connectionAccess ?? buildTargetAccessFromGrants([]),
+        `session:${bridge.holder}`,
+      );
+    }
+
+    return buildGrantedContext(ctx, bridge.holder, held, method);
+  };
+
+  const buildGrantedView = (bridge: BridgeGrant): TargetAccess =>
+    buildGrantedEventAccess(bridge.holder, ctx.findHeldAtcAccess(bridge.holder), (id) =>
+      ctx.collectSubtree(bridge.holder).has(id),
+    );
 
   // Null is the daemon's owner. A connection that acts as a principal always keeps its own
   // idempotency keys, whatever principal a request acts as.
@@ -297,6 +384,10 @@ export function createDaemonConnection(
         } satisfies MismatchRefusalData);
       }
 
+      if (grant !== null && input.principal !== undefined) {
+        throw new DaemonError('unauthorized', "a session's atc access acts as no principal");
+      }
+
       setCallerSession(input.session ?? null);
 
       identity.helloClient = input.client;
@@ -388,6 +479,10 @@ export function createDaemonConnection(
 
     try {
       const as = parseRequestPrincipal(request.headers);
+
+      if (grant !== null) {
+        return buildProcedureContext(requireGrantedRequestContext(grant, method, as), null);
+      }
 
       // A subscription delivers only what the connection's own view admits,
       // so over TCP it needs no principal of its own.
@@ -496,6 +591,14 @@ export function createDaemonConnection(
 
     const openPeer = serverPeer;
 
+    // An event subscription answers until the connection ends, so the end of
+    // input waits on every other request alone.
+    const isAwaited = findPeerMethod(line) !== 'events.subscribe';
+
+    if (isAwaited) {
+      inFlight += 1;
+    }
+
     // A line the peer cannot decode ends the connection.
     void (async () => {
       try {
@@ -503,9 +606,26 @@ export function createDaemonConnection(
       } catch {
         stopConnection();
       }
+
+      if (isAwaited) {
+        inFlight -= 1;
+
+        endWhenSettled();
+      }
     })();
 
     return true;
+  };
+
+  // Requests read but not yet answered, and whether the peer has written
+  // its last line.
+  let inFlight = 0;
+  let isInputEnded = false;
+
+  const endWhenSettled = (): void => {
+    if (isInputEnded && inFlight === 0 && queue.queuedBytes === 0) {
+      stopConnection();
+    }
   };
 
   const self: DaemonConnection = {
@@ -580,7 +700,14 @@ export function createDaemonConnection(
 
       if (queue.queuedBytes === 0) {
         releaseDrainWaiters();
+        endWhenSettled();
       }
+    },
+
+    endInput: () => {
+      isInputEnded = true;
+
+      endWhenSettled();
     },
   };
 
@@ -602,6 +729,12 @@ export function createDaemonConnection(
   // the events pushed to it are limited from the first byte.
   if (tcp !== null) {
     connectionAccess = buildTargetAccessFromGrants([]);
+  }
+
+  if (grant !== null) {
+    connectionAccess = buildGrantedView(grant);
+
+    connectionView.startView(connectionAccess);
   }
 
   return self;

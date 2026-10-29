@@ -1,8 +1,8 @@
 import type { Clock } from '@atc/core';
+import type { GrantScope } from '@atcx/contract';
 import type { EventDeliverer } from '../events/create-event-deliverer';
 import type { WebhookSender } from '../events/types';
 import type { ModernMCPHandler } from '../http/create-modern-mcp-handler';
-import type { GrantScope } from '../tools/grant-scope';
 import type { FleetCaller } from '../tools/types';
 import type { ApprovalState } from './create-approval-state';
 import type { EnrollmentState } from './create-enrollment-state';

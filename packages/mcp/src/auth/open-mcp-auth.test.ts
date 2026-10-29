@@ -56,6 +56,20 @@ await store.close();`,
   expect(collector.received).toStrictEqual([]);
 });
 
+test('it settles the auth context before it opens, so a close at once leaves it whole', async () => {
+  const ctx = setupTest();
+
+  const store = await openMCPAuth({
+    dbPath: ctx.dbPath,
+    openDatabase: openTestAuthDatabase,
+    origin: 'https://atc.example',
+  });
+
+  await store.close();
+
+  await expect(store.auth.$context).toResolve();
+});
+
 test('it refuses a resource an earlier public URL served', async () => {
   const ctx = setupTest();
 

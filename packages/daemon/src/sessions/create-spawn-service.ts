@@ -185,6 +185,7 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
       agent: params.agent,
       parent: params.parent,
       spawner: params.spawner,
+      atcAccess: params.atcAccess,
       overrides: params.overrides,
       id,
       target: params.target,

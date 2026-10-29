@@ -348,6 +348,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
             ...(session.model === undefined ? {} : { model: session.model }),
             ...(session.effort === undefined ? {} : { effort: session.effort }),
             ...(session.pluginDirs === undefined ? {} : { pluginDirs: session.pluginDirs }),
+            ...(session.atcAccess === undefined ? {} : { atcMCP: true }),
           },
           auth: authSetup,
           cwd: session.cwd,

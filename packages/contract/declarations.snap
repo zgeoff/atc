@@ -742,6 +742,12 @@ export declare const DAEMON_CONTRACT: {
             trustClonedWorkspace: z.ZodOptional<z.ZodBoolean>;
             scope: z.ZodOptional<z.ZodUnknown>;
             parent: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>, unknown>;
+            atcAccess: z.ZodOptional<z.ZodArray<z.ZodEnum<{
+                kill: "kill";
+                message: "message";
+                read: "read";
+                spawn: "spawn";
+            }>>>;
         }, z.core.$strip>, z.ZodObject<{
             session: z.ZodObject<{
                 id: z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>;
@@ -2508,6 +2514,10 @@ export declare const GIT_REF_SCHEMA: z.ZodObject<{
 }, z.core.$strip>;
 export type GitRef = z.output<typeof GIT_REF_SCHEMA>;
 
+// grant-scope.d.ts
+export declare const GRANT_SCOPES: readonly ['read', 'message', 'spawn', 'kill'];
+export type GrantScope = (typeof GRANT_SCOPES)[number];
+
 // hello-result.d.ts
 import { z } from 'zod';
 export declare const HELLO_RESULT_SCHEMA: z.ZodObject<{
@@ -2544,6 +2554,7 @@ export * from './fleet-entry-view.js';
 export * from './fleet-event.js';
 export * from './git-probe-result.js';
 export * from './git-ref.js';
+export * from './grant-scope.js';
 export * from './hello-result.js';
 export * from './light/index.js';
 export * from './menu-view.js';
@@ -2905,6 +2916,12 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         trustClonedWorkspace: z.ZodOptional<z.ZodBoolean>;
         scope: z.ZodOptional<z.ZodUnknown>;
         parent: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>, unknown>;
+        atcAccess: z.ZodOptional<z.ZodArray<z.ZodEnum<{
+            kill: "kill";
+            message: "message";
+            read: "read";
+            spawn: "spawn";
+        }>>>;
     }, z.core.$strip>;
     readonly 'session.kill': z.ZodObject<{
         session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("./session-id.js").SessionID, string>>;

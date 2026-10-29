@@ -2,7 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import type { HarnessRelay, HarnessSpec } from '@atc/plugin-api';
 import { createLineDecoder } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
-import { buildShortName } from './build-short-name';
+import { buildReporterSocketBase } from './build-reporter-socket-base';
 import type { ImpHost } from './imp-host';
 import type { ImpForwardEnd, ImpPort, ImpRelayConnection } from './imp-port';
 
@@ -17,7 +17,7 @@ interface ReporterContext {
 // before the harness listens again on the same path. A forward the imp's sleep
 // ended stays ended, since a listen wakes a sleeping imp.
 export function openReporter(context: ReporterContext, host: ImpHost, spec: HarnessSpec) {
-  const base = `${context.guestDir}/run/${buildSocketName(spec.session)}`;
+  const base = buildReporterSocketBase(context.guestDir, spec.session);
   const path = `${base}.sock`;
   const onRelay = spec.onRelay;
 
@@ -142,11 +142,6 @@ export function openReporter(context: ReporterContext, host: ImpHost, spec: Harn
       current.stop();
     },
   };
-}
-
-// Short enough that the socket's path stays inside a unix socket's limit.
-function buildSocketName(sessionID: string): string {
-  return buildShortName(sessionID, 16);
 }
 
 // Frames a guest connection's bytes into lines, both ways.

@@ -1377,6 +1377,119 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
   });
 });
 
+test('it gives a subscription guest spawn with atc access the guest atc as an MCP server beside its own', () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      linear: {
+        secret: 'linear-agents',
+        host: 'mcp.linear.app',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: {
+      claude: {
+        auth: {
+          profiles: ['claude', 'linear'],
+          mcpServers: { linear: { url: 'https://mcp.linear.app/mcp', profile: 'linear' } },
+        },
+      },
+    },
+  });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.directory, 'home') },
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false, atcMCP: true },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 3,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+      },
+    },
+  );
+
+  invariant(plan !== null, 'expected a guest spawn plan');
+
+  const mcpConfig = plan.files['auth-r3/mcp.json'];
+
+  invariant(typeof mcpConfig === 'string', 'expected the revision MCP config file');
+
+  expect(JSON.parse(mcpConfig)).toStrictEqual({
+    mcpServers: {
+      linear: {
+        type: 'http',
+        url: 'https://mcp.linear.app/mcp',
+        headers: { authorization: 'Bearer broker-placeholder' },
+      },
+      atc: { type: 'stdio', command: '/opt/atc/bin/atc', args: ['mcp'] },
+    },
+  });
+});
+
+test('it gives a subscription guest spawn with atc access and no MCP servers of its own an MCP config', () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { auth: { profiles: ['claude'] } } },
+  });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false, atcMCP: true },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+      },
+    },
+  );
+
+  invariant(plan !== null, 'expected a guest spawn plan');
+
+  const args: readonly unknown[] = plan.args;
+
+  expect(args).toIncludeAllMembers(['--mcp-config', '/tmp/atc/sessions/s1/auth-r2/mcp.json']);
+
+  expect(plan.files['auth-r2/mcp.json']).toBe(
+    JSON.stringify(
+      { mcpServers: { atc: { type: 'stdio', command: '/opt/atc/bin/atc', args: ['mcp'] } } },
+      null,
+      2,
+    ),
+  );
+});
+
 test('it plans a guest spawn without a broker binding in the config of the host image', () => {
   const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {

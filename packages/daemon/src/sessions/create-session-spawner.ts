@@ -5,13 +5,14 @@ import { EffectRemainsError } from '@atc/plugin-api';
 import type { DeclaredScope } from '@atc/protocol';
 import { buildSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
-import type { AgentSessionID, SessionID } from '@atcx/contract';
+import type { AgentSessionID, GrantScope, SessionID } from '@atcx/contract';
 import type { AuthSetup } from '../auth/create-auth-setup';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { HostDirClaims } from './create-host-dir-claims';
 import type { SessionHarnesses, SpawnReadied } from './create-session-harnesses';
 import type { SessionRegistry } from './create-session-registry';
 import type { SpawnRollback } from './create-spawn-rollback';
+import { decideSpawnGrant } from './decide-spawn-grant';
 import { mintSessionID } from './mint-session-id';
 import { pickSpawnName } from './pick-spawn-name';
 import { resolveRepoRoot } from './resolve-repo-root';
@@ -96,6 +97,7 @@ export interface SpawnSessionOptions {
   readonly agent?: AgentID | undefined;
   readonly parent?: SessionID | null | undefined;
   readonly spawner?: SessionID | null | undefined;
+  readonly atcAccess?: readonly GrantScope[] | null | undefined;
   readonly overrides?: SpawnOverrides | undefined;
   readonly id?: SessionID | undefined;
   readonly target?: string | undefined;
@@ -210,7 +212,12 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
               cwd: directory,
               env,
               withheldEnv,
-              options: { prompt: spawn.prompt, resume: spawn.resume, ...spawn.overrides },
+              options: {
+                prompt: spawn.prompt,
+                resume: spawn.resume,
+                ...spawn.overrides,
+                ...(spawn.atcAccess === null ? {} : { atcMCP: true }),
+              },
             }),
       () => callbacks.stopMessageBridge(id),
     );
@@ -264,6 +271,8 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
           namedBy: spawn.namedBy,
           createdAt: callbacks.getClock().now(),
           parent: spawn.parent,
+          spawner: spawn.spawner,
+          ...(spawn.atcAccess === null ? {} : { atcAccess: spawn.atcAccess }),
           ...(spawn.prompt === '' ? {} : { prompt: spawn.prompt }),
           ...(spawn.overrides.model === undefined ? {} : { model: spawn.overrides.model }),
           ...(spawn.overrides.effort === undefined ? {} : { effort: spawn.overrides.effort }),
@@ -413,6 +422,23 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
         }
       }
 
+      const grant = decideSpawnGrant({
+        requested: options.atcAccess,
+        sessionID: id,
+        agent,
+        target,
+        isRemote: provider.remote,
+        takesAtcMCP: adapter.takesAtcMCP === true,
+        hostKey,
+        hostAccess: registry.sessions.find((x) => x.id === hostKey)?.atcAccess ?? [],
+      });
+
+      if (grant.kind === 'refused') {
+        throw new DaemonError(grant.code, grant.message);
+      }
+
+      const atcAccess = grant.atcAccess;
+
       if (hostKey !== id) {
         await authSetup.requireSharedBinding(hostKey, auth?.binding ?? null);
       }
@@ -446,6 +472,7 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
             agent,
             parent,
             spawner: options.spawner ?? null,
+            atcAccess,
             overrides,
             materialize,
             requireInReach: options.requireInReach ?? (() => {}),

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { COMMIT_ID_PATTERN } from './commit-id-pattern';
+import { GRANT_SCOPES } from './grant-scope';
 import { RESTART_RESULT_SCHEMA } from './restart-result';
 import { buildOptionalBoolean } from './schema/build-optional-boolean';
 import { buildOptionalString } from './schema/build-optional-string';
@@ -238,6 +239,24 @@ export const REQUEST_PARAM_SCHEMAS = {
       (input) => (typeof input === 'string' && input !== '' ? input : undefined),
       z.string().transform(toSessionID).optional(),
     ),
+
+    // The atc scopes the new session holds over its own sub-sessions and
+    // its parent; absent or empty grants it no atc access.
+    atcAccess: z
+      .array(
+        z.enum(GRANT_SCOPES, {
+          error: 'session.spawn atcAccess takes read, message, spawn and kill',
+        }),
+        {
+          error: 'session.spawn atcAccess must be an array of scopes',
+        },
+      )
+      .max(GRANT_SCOPES.length, 'session.spawn atcAccess names each scope once')
+      .refine(
+        (scopes) => new Set(scopes).size === scopes.length,
+        'session.spawn atcAccess names each scope once',
+      )
+      .optional(),
   }),
 
   // With stopOnly, a live session stops and an exited one is left in the

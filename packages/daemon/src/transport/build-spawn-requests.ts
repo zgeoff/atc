@@ -260,6 +260,14 @@ async function applySpawn(
       parent = resolved;
     }
 
+    const atcAccess = data.atcAccess ?? [];
+
+    ctx.requireGrantedSpawn({
+      atcAccess,
+      resume: data.resume,
+      hasWorkspace: data.workspace !== undefined,
+    });
+
     return {
       cwd: directory,
       name: data.name === '' ? basename(directory) : data.name,
@@ -271,6 +279,7 @@ async function applySpawn(
       agent,
       parent,
       spawner,
+      atcAccess: atcAccess.length === 0 ? null : atcAccess,
       overrides: {
         ...overrides.overrides,
         ...(pluginDirs.length === 0 ? {} : { pluginDirs }),

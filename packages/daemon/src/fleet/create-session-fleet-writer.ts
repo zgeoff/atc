@@ -90,6 +90,8 @@ export function createSessionFleetWriter(deps: SessionFleetWriterDeps): SessionF
         ...(session.authRevision === undefined ? {} : { authRevision: session.authRevision }),
         ...(session.agentHome === undefined ? {} : { agentHome: session.agentHome }),
         ...(!live && session.suspended ? { suspended: true } : {}),
+        ...(session.atcAccess === undefined ? {} : { atcAccess: session.atcAccess }),
+        ...(session.spawner === null ? {} : { spawner: session.spawner }),
       });
     }
 

@@ -42,6 +42,7 @@ import { findClaudePermissionMode } from '../find-claude-permission-mode';
 import { formatPluginDirArgs } from '../format-plugin-dir-args';
 import { buildClaudeConfigSeed } from '../guest/build-claude-config-seed';
 import { buildClaudeGuestLaunch } from '../guest/build-claude-guest-launch';
+import { buildClaudeMCPConfig } from '../guest/build-claude-mcp-config';
 import { buildClaudeProjectSettingsCheck } from '../guest/build-claude-project-settings-check';
 import { makeClaudeHeadlessRunner } from '../headless/make-claude-headless-runner';
 import { loadClaudeName } from '../load-claude-name';
@@ -266,6 +267,7 @@ export function createGatewayAdapter(
     planLineInput: planClaudeLineInput,
     findMenu: findClaudeMenu,
     takesMessages: true,
+    takesAtcMCP: true,
     loadName: (source, namedBy, sessionHost) => loadClaudeName(source, namedBy, sessionHost.files),
     canResume: probeTranscriptResumable,
     profile: {
@@ -350,7 +352,11 @@ export function createGatewayAdapter(
       }
 
       const argv = [guest.atc];
-      const settingsPath = `${buildAuthRevisionFolder(guest.auth.revision)}/settings.json`;
+      const revisionFolder = buildAuthRevisionFolder(guest.auth.revision);
+      const settingsPath = `${revisionFolder}/settings.json`;
+      const atcArgv = opts.atcMCP === true ? argv : null;
+      const mcpPath = `${revisionFolder}/mcp.json`;
+      const mcpArgs = atcArgv === null ? [] : ['--mcp-config', `${guest.directory}/${mcpPath}`];
 
       const settings = buildHookSettings(
         {
@@ -381,7 +387,7 @@ export function createGatewayAdapter(
         [
           gateway.bin,
           ...buildClaudeArgs(args, opts, {
-            leadArgs: buildGuestModeArgs(args),
+            leadArgs: [...mcpArgs, ...buildGuestModeArgs(args)],
             scratch: `${guest.directory}/${SESSION_SCRATCH_FOLDER}`,
             settings: `${guest.directory}/${settingsPath}`,
             pluginDir: `${guest.directory}/atc-bridge`,
@@ -396,6 +402,9 @@ export function createGatewayAdapter(
         args: launch.args,
         files: {
           [settingsPath]: JSON.stringify(settings, null, 2),
+          ...(atcArgv === null
+            ? {}
+            : { [mcpPath]: JSON.stringify(buildClaudeMCPConfig([], atcArgv), null, 2) }),
           ...buildClaudeConfigSeed(null, approvedAPIKey),
           ...buildGuestBridgeFiles(argv),
         },

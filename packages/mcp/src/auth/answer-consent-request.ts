@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core';
+import { GRANT_SCOPES } from '@atcx/contract';
 import { buildPageResponse } from '../http/build-page-response';
-import { GRANT_SCOPES } from '../tools/grant-scope';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { buildConsentBinding } from './build-consent-binding';
 import { normalizeClientName } from './normalize-client-name';

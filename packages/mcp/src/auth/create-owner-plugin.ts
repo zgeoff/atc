@@ -1,10 +1,10 @@
+import { GRANT_SCOPES } from '@atcx/contract';
 import { getOAuthProviderApi } from '@better-auth/oauth-provider';
 import type { BetterAuthPlugin } from 'better-auth';
 import { createAuthEndpoint } from 'better-auth/api';
 import { setSessionCookie } from 'better-auth/cookies';
 import { generateRandomString } from 'better-auth/crypto';
 import { z } from 'zod';
-import { GRANT_SCOPES } from '../tools/grant-scope';
 import { isAllowedRedirectURI } from './is-allowed-redirect-uri';
 
 // atc has one user: the owner who runs it. better-auth needs an email for

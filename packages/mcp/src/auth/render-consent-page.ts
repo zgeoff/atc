@@ -1,4 +1,4 @@
-import type { GrantScope } from '../tools/grant-scope';
+import type { GrantScope } from '@atcx/contract';
 import { toHTMLText } from './to-html-text';
 
 interface ConsentPageView {

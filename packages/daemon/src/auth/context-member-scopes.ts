@@ -26,6 +26,8 @@ export const CONTEXT_MEMBER_SCOPES = {
   readFleet: 'caller-checked',
   findSessionGrant: 'caller-checked',
   canSeeSession: 'caller-checked',
+  findHeldAtcAccess: 'caller-checked',
+  collectSubtree: 'caller-checked',
   findPermissionSession: 'caller-checked',
   isCallerTree: 'caller-checked',
   getEffectiveDims: 'caller-checked',
@@ -38,6 +40,7 @@ export const CONTEXT_MEMBER_SCOPES = {
   restoreFleet: 'owner-only',
   writeStateBackup: 'owner-only',
 
+  requireGrantedSpawn: 'narrowed',
   isSessionVisible: 'narrowed',
   collectSessions: 'narrowed',
   collectAgents: 'narrowed',

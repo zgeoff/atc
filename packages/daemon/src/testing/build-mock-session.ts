@@ -22,6 +22,7 @@ export function buildMockSession(overrides: Partial<Session> = {}): Session {
     namedBy: 'auto',
     createdAt: faker.date.past().getTime(),
     parent: null,
+    spawner: null,
     target: 'local',
     targetIdentity: 'local-pty:test',
     withheldEnv: [],

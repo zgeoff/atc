@@ -7,6 +7,10 @@ Every request on the TCP listener must act as a principal, so a remote client ne
 owner. `atc mcp --http` and atc-gateway act as the OAuth client that made each call
 ([MCP](../remote/mcp.md#remote-callers)).
 
+A session on a remote host can hold atc access of its own, which its spawn grants and which reaches
+only the session, the sessions below it and its parent
+([a session's atc access](#a-sessions-atc-access)).
+
 [The protocol](./protocol.md) covers the connection and its handshake, and the
 [configuration guide](../../guides/configuration/principals.md) covers setting the grants.
 
@@ -78,6 +82,55 @@ messages or activity.
 Four requests act on the whole daemon or on a host's credentials rather than on one session: quit,
 fleet restore, and the two runtime auth requests. A principal gets `unauthorized` for each. The
 events socket has no handshake and streams every event, so it is a local socket for the owner alone.
+
+## A session's atc access
+
+A spawn can grant the new session atc access: a set of the grant scopes `read`, `message`, `spawn`
+and `kill`, which the [MCP servers](../remote/mcp.md#scopes) define. The session's guest then runs
+an atc MCP server, and the daemon serves that server's requests as the session, with the session's
+scopes and reach alone. A session without the grant gets no atc MCP server, and the daemon closes a
+client connection from its host unanswered. The daemon holds the grant on the session and its fleet
+row and never reads it from the guest, so the guest holds no secret, a restore brings the grant
+back, and a host's sleep changes nothing.
+
+The access reaches three sets of sessions, each read from the live fleet on every check, so a
+session the holder spawns is in reach at once:
+
+- The holder itself and the sessions below it: its sub-sessions and every session it or one of them
+  spawned, at any depth. The daemon records which session sent each spawn, because a spawn from a
+  sub-session lands beside it under the top-level parent, where the parent link alone would leave it
+  out.
+- For `kill`, the sessions below the holder alone, so the holder never stops or forgets itself or
+  the host it runs on.
+- For a message, the holder's parent too: its parent link, else the session that spawned it. The
+  parent takes messages and nothing else.
+
+A session out of reach answers as an unknown one does, as for a principal. Each request needs one
+scope the holder holds, and the daemon refuses with `unauthorized` a request whose method needs a
+scope the holder lacks, and every request that reads the daemon host's files or the whole fleet,
+such as the recent directories, the sources, a fleet read or a restore. A request also fails once
+the holder's harness has started again or moved, since the connection came from the harness that
+held the bridge before.
+
+A holder spawns only on its own target and identity, so a spawn without a target runs there and a
+spawn to any other target fails with `target_forbidden`. A holder's spawn takes no workspace source,
+because the daemon reads a source with its own host's files and credentials, which the holder's
+access never reaches; the new session checks its work out itself. A holder's spawn resumes only an
+agent session that a session in its reach holds, and names it, because the fleet keeps one row per
+agent session on a target. Any other workspace or resume fails with `unauthorized`. A spawn grants
+no scope its caller lacks:
+
+- From a session with atc access, a scope the session does not hold is refused with `unauthorized`.
+- From atc-gateway or `atc mcp --http`, the MCP server refuses a scope the bearer token lacks with
+  `insufficient_scope`, since the daemon never sees a token's scopes.
+- From the owner, any scope passes.
+
+Every process inside one imp can open each bridge socket there, so a sub-session that shares its
+parent's imp is refused a scope the parent lacks, and no process in an imp acts with more than the
+imp's own session holds. A spawn with atc access to a target on the daemon's machine fails with
+`bad_args`, because a session there reaches the daemon's own socket as its owner, which no grant can
+narrow. Only an agent whose adapter can add the MCP server to its guest launch takes the grant, and
+a spawn of any other agent with it fails with `bad_args` too.
 
 ## The TCP listener
 

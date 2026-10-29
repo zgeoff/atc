@@ -167,6 +167,8 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
           parent !== null && registry.sessions.some((existing) => existing.id === parent)
             ? parent
             : null,
+        spawner: entry.spawner ?? null,
+        ...(entry.atcAccess === undefined ? {} : { atcAccess: entry.atcAccess }),
         ...(entry.prompt === undefined ? {} : { prompt: entry.prompt }),
         ...(entry.result === undefined ? {} : { result: entry.result }),
         ...(entry.transcriptPath === undefined ? {} : { transcriptPath: entry.transcriptPath }),

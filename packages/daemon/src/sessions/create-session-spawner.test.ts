@@ -359,6 +359,64 @@ test.each([
   },
 );
 
+test('it refuses atc access to an agent that takes no atc MCP server on a remote target', async () => {
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'far',
+        kind: 'cloud',
+        identity: 'cloud:test',
+        provider: buildStubMemoryProvider({ kind: 'cloud', remote: true }),
+      }),
+    ],
+    runSteps: () => Promise.reject(new Error('the spawn steps started')),
+  });
+
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    target: 'far',
+    atcAccess: ['read'],
+  });
+
+  expect(spawned).rejects.toMatchObject({
+    code: 'bad_args',
+    message:
+      "agent 'claude' takes no atc MCP server on a remote target, so it cannot take atcAccess",
+  });
+});
+
+test('it starts the spawn steps for atc access to an agent that takes an atc MCP server on a remote target', async () => {
+  const ctx = await setupTest({
+    adapters: [{ ...buildStubHarnessAdapter(), takesAtcMCP: true }],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'far',
+        kind: 'cloud',
+        identity: 'cloud:test',
+        provider: buildStubMemoryProvider({ kind: 'cloud', remote: true }),
+      }),
+    ],
+    runSteps: () => Promise.reject(new Error('the spawn steps started')),
+  });
+
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    target: 'far',
+    atcAccess: ['read'],
+  });
+
+  expect(spawned).rejects.toThrowWithMessage(Error, 'the spawn steps started');
+});
+
 test('it rejects a spawn whose harness its provider cannot start and lists nothing', async () => {
   const provider = buildStubMemoryProvider({
     kind: 'local-pty',

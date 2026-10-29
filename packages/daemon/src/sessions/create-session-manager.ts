@@ -309,7 +309,7 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
     callbacks,
   });
 
-  const hooks = createSessionHookApplier({ registry, fleet, callbacks });
+  const hooks = createSessionHookApplier({ registry, fleet, store: options.store, callbacks });
 
   const detachAll = () => {
     for (const session of registry.sessions) {

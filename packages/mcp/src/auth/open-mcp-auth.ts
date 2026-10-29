@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { chmodSync, closeSync, openSync } from 'node:fs';
+import { GRANT_SCOPES } from '@atcx/contract';
 import { mcp } from '@better-auth/mcp';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import type { OAuthOptions, Scope } from '@better-auth/oauth-provider';
@@ -7,7 +8,6 @@ import { betterAuth } from 'better-auth';
 import type { BetterAuthPlugin } from 'better-auth';
 import { getMigrations } from 'better-auth/db/migration';
 import { Kysely, sql } from 'kysely';
-import { GRANT_SCOPES } from '../tools/grant-scope';
 import { APPROVAL_WINDOW_SECONDS } from './approval-window-seconds';
 import { createOwnerPlugin } from './create-owner-plugin';
 import { deriveTokenHash } from './derive-token-hash';
@@ -126,6 +126,10 @@ export async function openMCPAuth(options: MCPAuthOptions) {
       .where('identifier', '!=', `${options.origin}/mcp`)
       .execute();
   }
+
+  // better-auth starts its context when it is built, and that start queries
+  // the database, so a close before it settles destroys the driver under it.
+  await auth.$context;
 
   return {
     auth,

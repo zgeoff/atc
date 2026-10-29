@@ -1,7 +1,7 @@
 import type { AgentID, StepTimer } from '@atc/core';
 import type { AgentAdapter, ExecutionProvider, SpawnOverrides } from '@atc/plugin-api';
 import type { DeclaredScope } from '@atc/protocol';
-import type { AgentSessionID, SessionID } from '@atcx/contract';
+import type { AgentSessionID, GrantScope, SessionID } from '@atcx/contract';
 import type { AuthSetup } from '../auth/create-auth-setup';
 import type { SessionRegistry } from './create-session-registry';
 import type { Session } from './session';
@@ -27,6 +27,7 @@ export interface SpawnRequest {
   readonly agent: AgentID;
   readonly parent: SessionID | null;
   readonly spawner: SessionID | null;
+  readonly atcAccess: readonly GrantScope[] | null;
   readonly overrides: SpawnOverrides;
   readonly materialize: SpawnMaterializer | null;
   readonly requireInReach: () => void;

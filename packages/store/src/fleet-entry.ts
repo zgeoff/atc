@@ -1,5 +1,11 @@
 import type { AgentID } from '@atc/core';
-import type { AgentSessionID, DaemonID, SessionID, SessionWorkspace } from '@atcx/contract';
+import type {
+  AgentSessionID,
+  DaemonID,
+  GrantScope,
+  SessionID,
+  SessionWorkspace,
+} from '@atcx/contract';
 
 // One fleet row. The atc session id keys it and stays the same for the
 // session's whole life, across daemon restarts and fleet restores.
@@ -74,6 +80,14 @@ export interface FleetEntry {
   // the operator or the host's own owner put it to sleep; absent for any
   // other harness.
   readonly suspended?: true;
+
+  // The atc scopes the session holds over its sub-sessions and its parent;
+  // absent for a session that holds no atc access.
+  readonly atcAccess?: readonly GrantScope[];
+
+  // The session the spawn request came from; absent for a spawn from
+  // outside every session.
+  readonly spawner?: SessionID;
 }
 
 export interface FleetStore {
@@ -84,6 +98,18 @@ export interface FleetStore {
     removed?: readonly SessionID[],
   ) => Promise<void>;
   readonly updateFleetEntry: (sessionID: SessionID, fields: FleetEntryUpdate) => Promise<void>;
+
+  // Every stored row that holds the agent session id, whichever daemon owns
+  // it and whether or not it was restored.
+  readonly readAgentSessionHolders: (
+    agentSessionID: AgentSessionID,
+  ) => Promise<AgentSessionHolder[]>;
+}
+
+// A stored row's session and the session whose host it ran on.
+export interface AgentSessionHolder {
+  readonly sessionID: SessionID;
+  readonly hostKey: SessionID;
 }
 
 // The fields a session rewrites on its own row while it runs, without

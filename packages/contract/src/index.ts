@@ -15,6 +15,7 @@ export * from './fleet-entry-view';
 export * from './fleet-event';
 export * from './git-probe-result';
 export * from './git-ref';
+export * from './grant-scope';
 export * from './hello-result';
 export * from './light';
 export * from './menu-view';

@@ -14,6 +14,7 @@ import type { PeerFrame } from '@atc/test-utils';
 import type { DaemonEvent, SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
+import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { DaemonContext } from '../daemon-context';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
 import { startConnectionListener } from '../testing/start-connection-listener';
@@ -41,6 +42,176 @@ test('it answers a peer client request with what its procedure returns', async (
   const answer = await client.sendRequest('session.ack', { session: 's-1' });
 
   expect(answer).toStrictEqual({});
+});
+
+test("it refuses a request through a session's bridge whose method its atc access cannot open", async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      findHeldAtcAccess: () => ({
+        scopes: ['read', 'message', 'spawn', 'kill'],
+        grant: { target: 'box', targetIdentity: 'remote:a' },
+        parent: null,
+        spawner: null,
+      }),
+    }),
+    null,
+    { id: toSessionID('s-1'), isBridgeCurrent: () => true },
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  expect(client.sendRequest('dirs.list', {})).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: "dirs.list is closed to a session's atc access",
+  });
+});
+
+test("it refuses a request through a session's bridge that needs a scope the session does not hold", async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      ackSession: () => true,
+      findHeldAtcAccess: () => ({
+        scopes: ['read'],
+        grant: { target: 'box', targetIdentity: 'remote:a' },
+        parent: null,
+        spawner: null,
+      }),
+    }),
+    null,
+    { id: toSessionID('s-1'), isBridgeCurrent: () => true },
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  expect(client.sendRequest('session.ack', { session: 's-1' })).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: "session.ack needs atc scope message, which session 's-1' does not hold",
+  });
+});
+
+test("it answers a request through a session's bridge that a scope the session holds opens", async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      ackSession: () => true,
+      findHeldAtcAccess: () => ({
+        scopes: ['message'],
+        grant: { target: 'box', targetIdentity: 'remote:a' },
+        parent: null,
+        spawner: null,
+      }),
+    }),
+    null,
+    { id: toSessionID('s-1'), isBridgeCurrent: () => true },
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  const answer = await client.sendRequest('session.ack', { session: 's-1' });
+
+  expect(answer).toStrictEqual({});
+});
+
+test("it refuses a request through a session's bridge once the session has started again", async () => {
+  const ctx = setupTest();
+  let current = true;
+
+  startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      findHeldAtcAccess: () => ({
+        scopes: ['read'],
+        grant: { target: 'box', targetIdentity: 'remote:a' },
+        parent: null,
+        spawner: null,
+      }),
+    }),
+    null,
+    { id: toSessionID('s-1'), isBridgeCurrent: () => current },
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  current = false;
+
+  expect(client.sendRequest('session.list', {})).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: "session 's-1' started or moved again since this connection opened",
+  });
+});
+
+test('it refuses a request through the bridge of a session that holds no atc access', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext(), null, {
+    id: toSessionID('s-1'),
+    isBridgeCurrent: () => true,
+  });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  expect(client.sendRequest('session.list', {})).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: "session 's-1' holds no atc access",
+  });
+});
+
+test("it refuses a handshake through a session's bridge that acts as a principal", async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext(), null, {
+    id: toSessionID('s-1'),
+    isBridgeCurrent: () => true,
+  });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  expect(client.sendHello('atc/test', { principal: 'chat' })).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: "a session's atc access acts as no principal",
+  });
 });
 
 test('it refuses a peer client request with the code its procedure throws', async () => {
@@ -258,6 +429,133 @@ test('it delivers a peer client that acts as a principal no event of a session o
     expect(events).toStrictEqual([
       { ev: 'SessionOutput', sessionID: 's-seen', seq: 1, data: 'shown' },
     ]);
+  });
+});
+
+test("it delivers a session's bridge with read the events of the session and its subtree alone", async () => {
+  const ctx = setupTest();
+
+  const tree = [
+    { id: toSessionID('parent'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+    {
+      id: toSessionID('holder'),
+      parent: toSessionID('parent'),
+      target: 'box',
+      targetIdentity: 'remote:a',
+    },
+    {
+      id: toSessionID('child'),
+      parent: toSessionID('parent'),
+      target: 'box',
+      targetIdentity: 'remote:a',
+    },
+    { id: toSessionID('stranger'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+  ];
+
+  const connections = startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      findHeldAtcAccess: () => ({
+        scopes: ['read'],
+        grant: { target: 'box', targetIdentity: 'remote:a' },
+        parent: toSessionID('parent'),
+        spawner: null,
+      }),
+      collectSubtree: () => new Set([toSessionID('child')]),
+      findSessionGrant: () => ({ target: 'box', targetIdentity: 'remote:a' }),
+      canSeeSession: (id, access) => isTreeInReach(tree, id, access),
+    }),
+    null,
+    { id: toSessionID('holder'), isBridgeCurrent: () => true },
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const events: DaemonEvent[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  for (const id of ['parent', 'stranger', 'holder', 'child']) {
+    connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: id });
+  }
+
+  await waitFor(() => {
+    expect(events).toStrictEqual([
+      { ev: 'SessionRemoved', sessionID: 'holder' },
+      { ev: 'SessionRemoved', sessionID: 'child' },
+    ]);
+  });
+});
+
+test("it delivers a session's bridge with spawn alone no event of the session, its subtree, its parent or a stranger", async () => {
+  const ctx = setupTest();
+
+  const tree = [
+    { id: toSessionID('parent'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+    {
+      id: toSessionID('holder'),
+      parent: toSessionID('parent'),
+      target: 'box',
+      targetIdentity: 'remote:a',
+    },
+    {
+      id: toSessionID('child'),
+      parent: toSessionID('parent'),
+      target: 'box',
+      targetIdentity: 'remote:a',
+    },
+    { id: toSessionID('stranger'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+  ];
+
+  const connections = startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      findHeldAtcAccess: () => ({
+        scopes: ['spawn'],
+        grant: { target: 'box', targetIdentity: 'remote:a' },
+        parent: toSessionID('parent'),
+        spawner: null,
+      }),
+      collectSubtree: () => new Set([toSessionID('child')]),
+      findSessionGrant: () => ({ target: 'box', targetIdentity: 'remote:a' }),
+
+      // The marker session is shown whatever the access, so its event arrives
+      // after every event sent before it.
+      canSeeSession: (id, access) =>
+        id === toSessionID('marker') || isTreeInReach(tree, id, access),
+    }),
+    null,
+    { id: toSessionID('holder'), isBridgeCurrent: () => true },
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const events: DaemonEvent[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  for (const id of ['holder', 'child', 'parent', 'stranger', 'marker']) {
+    connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: id });
+  }
+
+  await waitFor(() => {
+    expect(events).toStrictEqual([{ ev: 'SessionRemoved', sessionID: 'marker' }]);
   });
 });
 
@@ -1350,6 +1648,52 @@ test.each([
   },
 );
 
+test('it ends a peer connection whose peer wrote its last line once every answer is written', async () => {
+  const peer = buildStubPeerSocket();
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
+
+  peer.setAccepting(false);
+
+  conn.applyChunk(
+    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }) +
+      buildPeerRequestLine('2', '/daemon/ping', {}),
+  );
+
+  conn.endInput();
+
+  await waitFor(() => {
+    expect(peer.countRefusedWrites()).toBeGreaterThan(0);
+  });
+
+  const endedWhileQueued = peer.hasEnded();
+
+  peer.setAccepting(true);
+  conn.drain();
+
+  await waitFor(() => {
+    expect(peer.hasEnded()).toBeTrue();
+  });
+
+  expect(endedWhileQueued).toBeFalse();
+  expect<unknown[]>(peer.collectFrames()).toIncludeAllPartialMembers([{ id: '1' }, { id: '2' }]);
+});
+
+test('it keeps a peer connection open while its peer has not written its last line', async () => {
+  const peer = buildStubPeerSocket();
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
+
+  conn.applyChunk(
+    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }) +
+      buildPeerRequestLine('2', '/daemon/ping', {}),
+  );
+
+  await waitFor(() => {
+    expect<unknown[]>(peer.collectFrames()).toPartiallyContain({ id: '2' });
+  });
+
+  expect(peer.hasEnded()).toBeFalse();
+});
+
 test('it writes no event to a peer connection whose refusal is still queued', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
@@ -1528,12 +1872,9 @@ test('it sends a closed peer connection disposed again no event, so xstate warns
 test('it refuses a peer handshake that gives another session than the one the kernel names, and ends the connection', async () => {
   const peer = buildStubPeerSocket();
 
-  const conn = createDaemonConnection(
-    peer.socket,
-    buildStubDaemonContext(),
-    null,
-    toSessionID('s-1'),
-  );
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext(), null, {
+    id: toSessionID('s-1'),
+  });
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V, session: 's-2' };
 
@@ -1558,12 +1899,9 @@ test('it acts as the session the kernel names for a peer handshake that gives no
   const peer = buildStubPeerSocket();
   const isCallerTree = mock<DaemonContext['isCallerTree']>(() => true);
 
-  const conn = createDaemonConnection(
-    peer.socket,
-    buildStubDaemonContext({ isCallerTree }),
-    null,
-    toSessionID('s-1'),
-  );
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext({ isCallerTree }), null, {
+    id: toSessionID('s-1'),
+  });
 
   const hello = { client: 'atc/test', protocol: PROTOCOL_V };
   const add = { session: 's-6', scope: { worktrees: [{ path: '/srv/site' }] } };
@@ -1583,12 +1921,9 @@ test('it acts as the session the kernel names for a peer handshake that gives no
 test('it answers a peer handshake with the session the kernel names as its peer session', async () => {
   const peer = buildStubPeerSocket();
 
-  const conn = createDaemonConnection(
-    peer.socket,
-    buildStubDaemonContext(),
-    null,
-    toSessionID('s-1'),
-  );
+  const conn = createDaemonConnection(peer.socket, buildStubDaemonContext(), null, {
+    id: toSessionID('s-1'),
+  });
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }),

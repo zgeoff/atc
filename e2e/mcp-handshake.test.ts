@@ -288,6 +288,20 @@ test('it lists the fleet tools', async () => {
                   "minLength": 1,
                   "type": "string",
                 },
+                "atcAccess": {
+                  "description": "Give the new session atc tools of its own, which reach only the session itself, its sub-sessions and the sessions they spawn, plus its parent for messages alone. Each scope opens the tools of that scope: read lists and reads those sessions, their terminals, transcripts, notes and answers; message sends them messages, renames, pins, detaches and marks them read, and sends the parent messages; spawn starts sub-sessions, always on the new session's own target, and types into or answers menus in the sessions it reaches; kill stops or forgets its sub-sessions, never itself. The new session's own spawns take no workspace, so it checks its work out itself. Omit it for a session with no atc tools. It takes a target that runs the agent on another machine and a Claude Code agent; any other spawn with it is refused with bad_args, since a session on the atc daemon's machine reaches atc as the daemon's owner. A session grants only scopes it holds: a spawn from a session with atc access that names a scope that session lacks is refused with unauthorized, and so is a sub-session that would share a host whose session lacks the scope. A remote client gets insufficient_scope for a scope its token lacks. The access stays across daemon restarts and while the session's host sleeps, and no call changes it while the session lives.",
+                  "items": {
+                    "enum": [
+                      "read",
+                      "message",
+                      "spawn",
+                      "kill",
+                    ],
+                    "type": "string",
+                  },
+                  "maxItems": 4,
+                  "type": "array",
+                },
                 "cwd": {
                   "description": "Absolute path of the working directory. Required, except with a git workspace: omit it there and atc picks a new directory under the target user's home, ~/.local/share/atc/workspaces/<repo>-<ref>-<short sha> unless the config sets another root, adding -2, -3, and so on when that directory exists. The session's cwd in the result holds the path it landed in.",
                   "minLength": 1,
