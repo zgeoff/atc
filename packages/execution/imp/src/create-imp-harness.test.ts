@@ -1377,6 +1377,67 @@ test('it applies a resize that arrived before impd answered the start', async ()
   });
 });
 
+test('it reattaches at the size a resize asked for as its connection ended, with no keystroke', async () => {
+  const ctx = setupTest();
+
+  const guest = await createStubHarnessGuest(ctx.directory);
+
+  await ctx.port.createImp({ name: 'imp-a' });
+
+  const harness = createImpHarness(
+    ctx.port,
+    buildMockImpSessionRequest({
+      name: 'imp-a',
+      session: 's1',
+      argv: [guest.path],
+      env: {},
+      cwd: ctx.directory,
+      cols: 80,
+      rows: 24,
+    }),
+    {
+      reconnectDelaysMs: [0, 0, 0],
+      isSuspending: () => false,
+      onDone: () => {},
+    },
+  );
+
+  registerTestCleanup(() => {
+    harness.detach();
+  });
+
+  const output: string[] = [];
+
+  harness.onData((data) => {
+    output.push(data);
+  });
+
+  const attachments: HarnessAttachment[] = [];
+
+  harness.onAttachment((attachment) => {
+    attachments.push(attachment);
+  });
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('UP:');
+  });
+
+  ctx.port.stopConnection('imp-a', 's1', 1006);
+  harness.resize(120, 40);
+
+  await waitFor(() => {
+    expect(attachments).toStrictEqual(['attached', 'reattaching', 'attached']);
+  });
+
+  harness.write('size\n');
+
+  await waitFor(() => {
+    expect(output.join('')).toInclude('SIZE:40 120');
+  });
+
+  expect(ctx.port.sessionRequests.at(-1)).toMatchObject({ kind: 'attach', cols: 120, rows: 40 });
+});
+
 test('it settles its start once impd starts the process', async () => {
   const ctx = setupTest();
 

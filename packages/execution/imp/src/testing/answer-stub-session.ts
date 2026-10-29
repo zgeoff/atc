@@ -367,6 +367,11 @@ function attachProcess(settings: StubSessionSettings, attach: StubAttach): void 
   connection.process = subprocess;
   connection.sent = subprocess.end;
 
+  // impd sizes a running process's terminal to the attach that joins it.
+  if (!created) {
+    subprocess.pty.resize(request.cols, request.rows);
+  }
+
   const preludeBytes = new TextEncoder().encode(prelude);
 
   const previous = imp.previous.get(request.session);

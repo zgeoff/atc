@@ -1,4 +1,5 @@
 import { systemClock } from '@atc/core';
+import type { Clock } from '@atc/core';
 import { createImpClient, openExecSession, openReverseForward } from '@impz/client';
 import type { ExecOutcome, ExecSessionOptions, ImpClient } from '@impz/client';
 import { match } from 'ts-pattern';
@@ -20,13 +21,14 @@ import { toImpIdentity } from './to-imp-identity';
 import { toImpLease } from './to-imp-lease';
 import { toImpSecret } from './to-imp-secret';
 import { toImpView } from './to-imp-view';
+import { watchSocketLiveness } from './watch-socket-liveness';
 
 type ImpdInfo = Pick<ImpdOutput<'system.info'>, 'version' | 'guest'>;
 
 interface ImpClientPortOptions {
   readonly url: string;
   readonly readToken: () => string | null;
-  readonly now?: () => number;
+  readonly clock?: Clock;
 }
 
 // How long one read of impd's slow status report answers later version and
@@ -37,7 +39,7 @@ const INFO_MAX_AGE_MS = 30_000;
 export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
   const url = options.url;
   const readToken = options.readToken;
-  const now = options.now ?? systemClock.now;
+  const clock = options.clock ?? systemClock;
 
   // The client for the token read last, rebuilt when the token changes.
   let client: Readonly<{ token: string | null; client: ImpClient }> | null = null;
@@ -92,7 +94,7 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
       return Promise.reject(token);
     }
 
-    const at = now();
+    const at = clock.now();
     const held = info;
 
     if (held !== null && held.token === token && at - held.at < INFO_MAX_AGE_MS) {
@@ -254,7 +256,8 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
         onOutput: (_channel, data) => {
           handlers.onOutput(data);
         },
-        connect: (socketURL, headers) => openGatedSocket(socketURL, headers, gate),
+        connect: (socketURL, headers) =>
+          watchSocketLiveness(openGatedSocket(socketURL, headers, gate), clock),
       });
 
       return {
@@ -317,10 +320,15 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
           const { authorization: _, ...rest } = headers;
           const current = tryReadToken();
 
-          return new WebSocket(socketURL, {
-            headers:
-              typeof current === 'string' ? { ...rest, authorization: `Bearer ${current}` } : rest,
-          });
+          return watchSocketLiveness(
+            new WebSocket(socketURL, {
+              headers:
+                typeof current === 'string'
+                  ? { ...rest, authorization: `Bearer ${current}` }
+                  : rest,
+            }),
+            clock,
+          );
         },
         onConnection: (accept) => {
           onConnection(openRelay(accept));
