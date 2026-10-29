@@ -1,6 +1,6 @@
 {
   "name": "@atcx/contract",
-  "version": "7.5.1",
+  "version": "7.6.0",
   "description": "atc's public contract: the daemon's request contract, the event, session record, hello and config schemas, the error codes, the session env names, and the state paths",
   "homepage": "https://github.com/zgeoff/atc/tree/main/packages/contract#readme",
   "bugs": "https://github.com/zgeoff/atc/issues",

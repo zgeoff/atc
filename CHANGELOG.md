@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.6.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.5.1...@zgeoff/atc@7.6.0) (2026-10-29)
+
+### Features
+
+- grant a spawned session atc access over its own subtree
+  ([#1004](https://github.com/zgeoff/atc/issues/1004))
+  ([cc48b7e](https://github.com/zgeoff/atc/commit/cc48b7ef2b6aebc23506ade4a8393fa194416f86))
+
 ## [7.5.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.5.0...@zgeoff/atc@7.5.1) (2026-10-29)
 
 ### Bug Fixes
