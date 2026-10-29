@@ -72,8 +72,9 @@ docs/
 
 - `bun run typecheck`, `bun run lint`, and `bun run test` are the local checks.
   `bun run test:related <files>` runs the tests beside the files you pass.
-- `bun run lint:full` adds the type-aware pass and the type check. It runs in CI only, so never run
-  it locally.
+- `bun run lint:full` adds the type-aware pass and the type check. oxlint runs both through tsrslint
+  (`@maschwenk/tsrslint`), a Rust port of tsgolint, in tsgolint's place, because stock tsgolint runs
+  out of memory under 2 GiB. `lint:full` runs in CI only, so never run it locally.
 - `bun run build:atc-bridge` regenerates the mod's embedded copy after a change to
   `mods/atc-bridge/`.
 - lefthook runs the light checks before a commit and a push. Leave the larger checks to CI, because
@@ -111,7 +112,10 @@ prints its own reason, and the rules live where each bullet points.
 ## Dependencies
 
 - `bunfig.toml` holds new versions back for 7 days. When the latest version is younger, pin the
-  newest version that passes, and add no exclusion for convenience.
+  newest version that passes. One exception: a low-risk release younger than the gate may get a
+  `minimumReleaseAgeExcludes` entry with a dated removal comment, in the form
+  `# <package> <version> (published <date>) ages past the gate ~<date> — remove then`. The entry and
+  its comment come out on that date.
 - A dependency knip cannot see gets its `knip.json` ignore in the PR that adds it, with the reason
   in the PR description. `knip.json` takes no comments, so the reasons for its ignores live here:
   - `@stylistic/eslint-plugin`: `@zgeoff/oxlint-config`, which `.oxlintrc.json` extends, loads it by
