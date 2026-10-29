@@ -112,7 +112,10 @@ prints its own reason, and the rules live where each bullet points.
 ## Dependencies
 
 - `bunfig.toml` holds new versions back for 7 days. When the latest version is younger, pin the
-  newest version that passes, and add no exclusion for convenience.
+  newest version that passes. One exception: a low-risk release younger than the gate may get a
+  `minimumReleaseAgeExcludes` entry with a dated removal comment, in the form
+  `# <package> <version> (published <date>) ages past the gate ~<date> — remove then`. The entry and
+  its comment come out on that date.
 - A dependency knip cannot see gets its `knip.json` ignore in the PR that adds it, with the reason
   in the PR description. `knip.json` takes no comments, so the reasons for its ignores live here:
   - `@stylistic/eslint-plugin`: `@zgeoff/oxlint-config`, which `.oxlintrc.json` extends, loads it by
