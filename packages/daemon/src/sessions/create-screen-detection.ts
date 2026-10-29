@@ -15,9 +15,7 @@ interface ScreenDetectionDeps {
   readonly clock: Clock;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
-  // Writes a needs-input event to the session's trail, which an event
-  // subscriber reads as the session waiting on the owner.
-  readonly recordNeedsInput: (sessionID: SessionID, message: string) => void;
+  readonly recordNeedsInput: (sessionID: SessionID, message: string) => Promise<boolean>;
 
   // Called for each output whose session's agent has no screen detector.
   readonly onDetectSkipped?: ((sessionID: SessionID) => void) | undefined;
@@ -27,9 +25,6 @@ export interface ScreenDetection {
   // Each output restarts the wait, so the screen is judged once the
   // output stops.
   readonly scheduleDetect: (sessionID: SessionID) => void;
-
-  // An agent's start report shows it past every wait it showed before its
-  // hooks ran, so a needs_you the screen set for one of those ends.
   readonly applyAgentStart: (sessionID: SessionID) => void;
 }
 
@@ -65,17 +60,28 @@ export function createScreenDetection(deps: ScreenDetectionDeps): ScreenDetectio
 
     const judgment = detector.detectAttention(screen.text);
 
-    if (
-      judgment === 'needs-input' &&
-      manager.updateAttention(sessionID, 'needs_you', NEEDS_INPUT_MESSAGE)
-    ) {
-      runtime.needsYouFromScreen = true;
+    if (judgment === 'needs-input') {
+      const isFlagged = manager.updateAttention(sessionID, 'needs_you', NEEDS_INPUT_MESSAGE);
 
-      recordNeedsInput(sessionID, NEEDS_INPUT_MESSAGE);
+      if (isFlagged) {
+        runtime.needsYouFromScreen = true;
+      }
+
+      const isStillNeedsYou =
+        manager.sessions.find((x) => x.id === sessionID)?.state === 'needs_you';
+
+      if (isFlagged || (runtime.needsInputUnrecorded && isStillNeedsYou)) {
+        runtime.needsInputUnrecorded = false;
+
+        if (!(await recordNeedsInput(sessionID, NEEDS_INPUT_MESSAGE))) {
+          runtime.needsInputUnrecorded = true;
+        }
+      }
     }
 
     if (judgment === 'working' && manager.updateAttention(sessionID, 'running', 'working')) {
       runtime.needsYouFromScreen = false;
+      runtime.needsInputUnrecorded = false;
     }
   };
 
@@ -119,6 +125,7 @@ export function createScreenDetection(deps: ScreenDetectionDeps): ScreenDetectio
 
       runtime.cancelDetect?.();
       runtime.cancelDetect = undefined;
+      runtime.needsInputUnrecorded = false;
 
       if (runtime.needsYouFromScreen) {
         runtime.needsYouFromScreen = false;

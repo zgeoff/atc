@@ -356,6 +356,49 @@ test('it ignores a turn answer that names no message the session holds', async (
   expect(ctx.onNoteIgnored).toHaveBeenCalledExactlyOnceWith(session.id, 'answered');
 });
 
+test('it records a wait the screen shows in the trail as a needs-input event', async () => {
+  const ctx = await setupTest({ hooks: {} });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const written = await ctx.hooks.recordScreenNeedsInput(session.id, 'waiting at a prompt');
+  const rows = await ctx.store.readLatestEvents(10, null);
+
+  expect(written).toBeTrue();
+
+  expect(rows).toMatchObject([
+    { atcID: session.id, kind: 'needs-input', detail: 'waiting at a prompt' },
+  ]);
+});
+
+test('it logs a screen wait the trail refuses with the session id', async () => {
+  const ctx = await setupTest({ hooks: {} });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.store.stop();
+
+  const written = await ctx.hooks.recordScreenNeedsInput(session.id, 'waiting at a prompt');
+
+  expect(written).toBeFalse();
+
+  expect(ctx.lines).toContainEqual(
+    expect.toStartWith(`atc screen event=unrecorded session=${session.id} error=`),
+  );
+});
+
 test('it records a headless turn in the trail under a synthetic event', async () => {
   const ctx = await setupTest({ hooks: {} });
 

@@ -72,7 +72,10 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   const onDetectSkipped = mock<(sessionID: SessionID) => void>();
-  const recordNeedsInput = mock<(sessionID: SessionID, message: string) => void>();
+
+  const recordNeedsInput = mock<(sessionID: SessionID, message: string) => Promise<boolean>>(() =>
+    Promise.resolve(true),
+  );
 
   const detection = createScreenDetection({
     manager,
@@ -171,6 +174,47 @@ test('it records a needs-input event once for a wait the screen shows', async ()
   });
 
   expect(ctx.recordNeedsInput).toHaveBeenCalledExactlyOnceWith(session.id, 'waiting at a prompt');
+});
+
+test('it writes the needs-input event again on the next judgment of the wait after a write fails', async () => {
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...buildStubHarnessAdapter(),
+        screenDetector: { detectAttention: () => 'needs-input', untilAgentStart: false },
+      },
+    ],
+  });
+
+  ctx.recordNeedsInput.mockResolvedValue(false);
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitData('Allow the edit?');
+  ctx.clock.advance(300);
+
+  await waitFor(() => {
+    expect(ctx.runtimes.get(session.id)?.needsInputUnrecorded).toBeTrue();
+  });
+
+  harness.emitData(' (y/n)');
+  ctx.clock.advance(300);
+
+  await waitFor(() => {
+    expect(ctx.recordNeedsInput).toHaveBeenCalledTimes(2);
+  });
+
+  expect(ctx.recordNeedsInput).toHaveBeenLastCalledWith(session.id, 'waiting at a prompt');
 });
 
 test('it leaves the screen unjudged once the agent has started, for a detector that judges until the start', async () => {

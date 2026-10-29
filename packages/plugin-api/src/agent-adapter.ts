@@ -145,12 +145,7 @@ export interface AgentHomeLocation {
 type AttentionJudgment = 'needs-input' | 'working';
 
 interface ScreenDetector {
-  // runs on the screen's text once output quiesces; null means no
-  // opinion, and the session's state stands.
   readonly detectAttention: (screen: string) => AttentionJudgment | null;
-
-  // True for an agent whose hooks report every wait once it has started but
-  // none before, so its screen is judged only until its start report.
   readonly untilAgentStart: boolean;
 }
 

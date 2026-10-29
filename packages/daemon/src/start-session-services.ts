@@ -217,9 +217,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     manager,
     clock,
     findRuntime,
-    recordNeedsInput: (sessionID, message) => {
-      hooks.recordScreenNeedsInput(sessionID, message);
-    },
+    recordNeedsInput: hooks.recordScreenNeedsInput,
     onDetectSkipped: opts.onDetectSkipped,
   });
 
