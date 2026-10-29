@@ -14,7 +14,12 @@ import { updateRecordIdentity } from './update-record-identity';
 interface SessionHookApplierDeps {
   readonly registry: Pick<
     SessionRegistry,
-    'sessions' | 'focusedId' | 'findAdapter' | 'findProvider' | 'requireExecution'
+    | 'sessions'
+    | 'focusedId'
+    | 'findAdapter'
+    | 'findProvider'
+    | 'findExecutionRefusal'
+    | 'requireExecution'
   >;
   readonly fleet: Pick<SessionFleetWriter, 'emitChange' | 'tryWriteFleet' | 'tryUpdateFleetEntry'>;
   readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'findRecords' | 'log'>;
@@ -40,6 +45,12 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
     }
 
     const provider = registry.findProvider(session);
+
+    // a remote read runs a command on the session's target, which reads nothing once the target
+    // the session was bound to changed or went away
+    if (provider?.remote === true && registry.findExecutionRefusal(session, 'run') !== null) {
+      return;
+    }
 
     const update = await adapter.loadName(source, session.namedBy, {
       files: {

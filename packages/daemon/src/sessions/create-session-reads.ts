@@ -16,7 +16,7 @@ const TRANSCRIPT_PAGE_MAX_BYTES = 262_144;
 interface SessionReadsDeps {
   readonly manager: Pick<
     SessionManager,
-    'sessions' | 'collectDescriptors' | 'findAdapter' | 'findProvider'
+    'sessions' | 'collectDescriptors' | 'findAdapter' | 'findProvider' | 'requireExecution'
   >;
   readonly store: Pick<StateStore, 'loadLastActivityAt'>;
   readonly records: Pick<PublishedRecords, 'readRecord'>;
@@ -101,7 +101,10 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         return { path, page: { rows: [], offset: 0, more: false } };
       }
 
-      const provider = manager.findProvider(session);
+      // A remote read runs a command on the session's target, so it refuses as any other command
+      // does once the target the session was bound to changed or went away.
+      const remote = manager.findProvider(session)?.remote === true;
+      const provider = remote ? manager.requireExecution(session, 'run').provider : null;
 
       const page = await loadTranscriptPage({
         path,
@@ -110,9 +113,9 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         maxBytes: TRANSCRIPT_PAGE_MAX_BYTES,
         parseLine,
         readWindow:
-          provider?.remote === true
-            ? makeGuestTranscriptReader(provider, session.hostKey)
-            : readLocalTranscriptWindow,
+          provider === null
+            ? readLocalTranscriptWindow
+            : makeGuestTranscriptReader(provider, session.hostKey),
       });
 
       return { path, page };

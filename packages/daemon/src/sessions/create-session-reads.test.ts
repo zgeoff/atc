@@ -276,6 +276,31 @@ test('it pages the transcript of a finished session from inside its remote host'
   });
 });
 
+test('it refuses a transcript read of a remote session whose target changed since it was bound', async () => {
+  const ctx = await setupTest({
+    adapter: {
+      ...buildStubHarnessAdapter(),
+      parseTranscriptLine: (line) => ({ role: 'user', text: line, tools: [], at: null }),
+    },
+  });
+
+  const session = await ctx.manager.spawn({
+    cwd: '/root/work',
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    target: 'guest',
+  });
+
+  session.transcriptPath = `/tmp/atc/sessions/${session.id}/a-1.jsonl`;
+  session.targetIdentity = 'remote:replaced';
+
+  const read = ctx.reads.loadSessionTranscript(session.id, null, 10);
+
+  expect(read).rejects.toMatchObject({ code: 'target_changed' });
+});
+
 test('it reads an empty page for a session with no transcript yet', async () => {
   const ctx = await setupTest({
     adapter: {
