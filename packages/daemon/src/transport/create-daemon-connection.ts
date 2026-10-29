@@ -17,8 +17,8 @@ import type { EncodedMessage } from '@orpc/standard-server-peer';
 import { createActor, waitFor } from 'xstate';
 import type { EventFromLogic } from 'xstate';
 import { buildGrantedContext } from '../auth/build-granted-context';
+import { buildGrantedEventAccess } from '../auth/build-granted-event-access';
 import { buildScopedContext } from '../auth/build-scoped-context';
-import { buildSessionSetAccess } from '../auth/build-session-set-access';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { GRANTED_METHOD_SCOPES } from '../auth/granted-method-scopes';
@@ -267,20 +267,10 @@ export function createDaemonConnection(
     return buildGrantedContext(ctx, bridge.holder, held, method);
   };
 
-  // The sessions a connection with a session's atc access receives events
-  // of: the session and its subtree while it holds read, else none.
-  const buildGrantedView = (bridge: BridgeGrant): TargetAccess => {
-    const held = ctx.findHeldAtcAccess(bridge.holder);
-
-    if (held === null || !held.scopes.includes('read')) {
-      return buildTargetAccessFromGrants([]);
-    }
-
-    return buildSessionSetAccess(
-      held.grant,
-      (id) => id === bridge.holder || ctx.collectSubtree(bridge.holder).has(id),
+  const buildGrantedView = (bridge: BridgeGrant): TargetAccess =>
+    buildGrantedEventAccess(bridge.holder, ctx.findHeldAtcAccess(bridge.holder), (id) =>
+      ctx.collectSubtree(bridge.holder).has(id),
     );
-  };
 
   // Null is the daemon's owner. A connection that acts as a principal always keeps its own
   // idempotency keys, whatever principal a request acts as.

@@ -14,6 +14,7 @@ import type { PeerFrame } from '@atc/test-utils';
 import type { DaemonEvent, SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
+import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { DaemonContext } from '../daemon-context';
 import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
 import { startConnectionListener } from '../testing/start-connection-listener';
@@ -427,6 +428,69 @@ test('it delivers a peer client that acts as a principal no event of a session o
   await waitFor(() => {
     expect(events).toStrictEqual([
       { ev: 'SessionOutput', sessionID: 's-seen', seq: 1, data: 'shown' },
+    ]);
+  });
+});
+
+test("it delivers a session's bridge with read the events of the session and its subtree alone", async () => {
+  const ctx = setupTest();
+
+  const tree = [
+    { id: toSessionID('parent'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+    {
+      id: toSessionID('holder'),
+      parent: toSessionID('parent'),
+      target: 'box',
+      targetIdentity: 'remote:a',
+    },
+    {
+      id: toSessionID('child'),
+      parent: toSessionID('parent'),
+      target: 'box',
+      targetIdentity: 'remote:a',
+    },
+    { id: toSessionID('stranger'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+  ];
+
+  const connections = startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      findHeldAtcAccess: () => ({
+        scopes: ['read'],
+        grant: { target: 'box', targetIdentity: 'remote:a' },
+        parent: toSessionID('parent'),
+        spawner: null,
+      }),
+      collectSubtree: () => new Set([toSessionID('child')]),
+      findSessionGrant: () => ({ target: 'box', targetIdentity: 'remote:a' }),
+      canSeeSession: (id, access) => isTreeInReach(tree, id, access),
+    }),
+    null,
+    { id: toSessionID('holder'), isBridgeCurrent: () => true },
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const events: DaemonEvent[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test');
+
+  for (const id of ['parent', 'stranger', 'holder', 'child']) {
+    connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: id });
+  }
+
+  await waitFor(() => {
+    expect(events).toStrictEqual([
+      { ev: 'SessionRemoved', sessionID: 'holder' },
+      { ev: 'SessionRemoved', sessionID: 'child' },
     ]);
   });
 });
