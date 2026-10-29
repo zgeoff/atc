@@ -119,6 +119,25 @@ export interface NameUpdate {
   namedBy?: 'agent';
 }
 
+// Reads files on the host a session runs on, which for a remote target is
+// another machine than the daemon's.
+export interface HostFiles {
+  readonly readMatchingLines: (path: string, pattern: string) => Promise<readonly string[] | null>;
+
+  // ls prints one name per line, so a name that holds a newline reads as two.
+  readonly readDirectory: (path: string) => Promise<readonly string[] | null>;
+}
+
+export interface SessionHost {
+  readonly files: HostFiles;
+  readonly agentHome: string | null;
+}
+
+export interface AgentHomeLocation {
+  readonly env: string;
+  readonly folder: string;
+}
+
 type AttentionJudgment = 'needs-input' | 'working';
 
 interface ScreenDetector {
@@ -290,6 +309,9 @@ export interface AgentAdapter {
   // Absent: the agent runs there as a local spawn plans it, with no files.
   readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
 
+  // Absent: the agent reads no file from its home.
+  readonly agentHomeLocation?: AgentHomeLocation;
+
   // The guest-relative files of a remote session's message mod, given the
   // atc inside its host, written again when a running agent drops the mod.
   // Absent: the agent has no such mod.
@@ -324,10 +346,11 @@ export interface AgentAdapter {
   // Reads one hook line as the events it means for its session. `prev` is
   // the state this adapter returned for the same session's previous line,
   // or undefined for the session's first line since its harness booted.
-  readonly planHookEvents: (hookEvent: HookEvent, previous: unknown) => HookPlan;
+  readonly planHookEvents: (hookEvent: HookEvent, previous: unknown, host: SessionHost) => HookPlan;
   readonly loadName: (
     source: string,
     namedBy: 'user' | 'auto' | 'agent',
+    host: SessionHost,
   ) => Promise<NameUpdate | null>;
   readonly canResume: (session: ResumeCheck) => boolean;
 

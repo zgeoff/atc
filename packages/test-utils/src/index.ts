@@ -89,6 +89,7 @@ export * from './resolve-atc-command';
 export * from './resolve-gateway-command';
 export * from './run-atc';
 export * from './run-command';
+export * from './run-local-command';
 export * from './run-mcp-authorization';
 export * from './run-mcp-token-grant';
 export * from './send-modern-mcp-request';

@@ -1,11 +1,13 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
+import { buildHostFiles } from '@atc/plugin-api';
 import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
   getAgentEntry,
+  runLocalCommand,
   setupTempDir,
   updateEnv,
 } from '@atc/test-utils';
@@ -123,6 +125,7 @@ test('it plans one event for a hook line and records no thread before a session 
       payload: { session_id: 'c-1', tool_name: 'shell' },
     },
     undefined,
+    { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: null },
   );
 
   expect(plan).toStrictEqual({
@@ -155,7 +158,10 @@ test('it loads the latest indexed thread name', async () => {
     ctx.directory,
   );
 
-  const name = await adapter.loadName('c-1', 'auto');
+  const name = await adapter.loadName('c-1', 'auto', {
+    files: buildHostFiles(runLocalCommand, 'host-1'),
+    agentHome: null,
+  });
 
   expect(name).toStrictEqual({ name: 'renamed title' });
 });
@@ -173,9 +179,37 @@ test('it loads the indexed thread name from CODEX_HOME when built without a Code
   const config = parseConfig([CODEX_PLUGIN], {});
   const adapter = createCodexAdapter(getAgentEntry(config, 'codex'), config);
 
-  const name = await adapter.loadName('c-1', 'auto');
+  const name = await adapter.loadName('c-1', 'auto', {
+    files: buildHostFiles(runLocalCommand, 'host-1'),
+    agentHome: null,
+  });
 
   expect(name).toStrictEqual({ name: 'env title' });
+});
+
+test('it loads the indexed thread name from the agent home the session launched with', async () => {
+  const ctx = setupTest();
+  const guestHome = join(ctx.directory, 'guest-home');
+
+  mkdirSync(guestHome);
+
+  writeFileSync(
+    join(guestHome, 'session_index.jsonl'),
+    '{"id":"c-1","thread_name":"guest title","updated_at":"2026-08-20T00:00:00Z"}\n',
+  );
+
+  const adapter = createCodexAdapter(
+    getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'),
+    undefined,
+    ctx.directory,
+  );
+
+  const name = await adapter.loadName('c-1', 'auto', {
+    files: buildHostFiles(runLocalCommand, 'host-1'),
+    agentHome: guestHome,
+  });
+
+  expect(name).toStrictEqual({ name: 'guest title' });
 });
 
 test('it does not resume when the reported rollout is gone', () => {

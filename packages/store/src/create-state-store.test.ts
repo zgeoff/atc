@@ -685,6 +685,19 @@ test('it round-trips a fleet row with the auth revision its harness launched und
   expect(fleet).toStrictEqual([brokered, unbrokered]);
 });
 
+test('it round-trips a fleet row with the agent home its harness launched with', async () => {
+  const ctx = await setupTest();
+
+  const homed = buildMockFleetEntry({ agentHome: '/tmp/atc/sessions/s-1/codex-home' });
+  const unhomed = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([homed, unhomed]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([homed, unhomed]);
+});
+
 test('it round-trips a fleet row whose harness is kept inside a sleeping host', async () => {
   const ctx = await setupTest();
 
@@ -1084,6 +1097,7 @@ test('it runs every migration once on the first open of a fresh database', async
     '038_rename_runtime_auth_binding_host_columns',
     '039_rename_workspace_materialization_dir_to_directory',
     '040_create_restart_results',
+    '041_add_fleet_agent_home',
   ]);
 });
 
@@ -1122,13 +1136,12 @@ test('it adds the restart results table and leaves every row of an older databas
   const fleetBefore = older.query('SELECT * FROM fleet').all();
   const eventsBefore = older.query('SELECT * FROM events').all();
 
+  await new Migrator({
+    db,
+    provider: { getMigrations: () => Promise.resolve(MIGRATIONS) },
+  }).migrateTo('040_create_restart_results');
+
   older.close();
-
-  const upgraded = await createStateStore(dbPath);
-
-  registerTestCleanup(() => upgraded.stop());
-
-  await upgraded.stop();
 
   const reader = new Database(dbPath, { readonly: true });
 
@@ -1463,7 +1476,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 
   const stamps = ledger.query('SELECT timestamp FROM kysely_migration').values().flat();
 
-  expect(stamps).toStrictEqual(Array.from({ length: 40 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 41 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {

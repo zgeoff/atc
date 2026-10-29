@@ -88,6 +88,7 @@ export function createSessionFleetWriter(deps: SessionFleetWriterDeps): SessionF
         ...(session.desired === 'run' ? {} : { desired: session.desired }),
         ...(session.hostKey === session.id ? {} : { hostKey: session.hostKey }),
         ...(session.authRevision === undefined ? {} : { authRevision: session.authRevision }),
+        ...(session.agentHome === undefined ? {} : { agentHome: session.agentHome }),
         ...(!live && session.suspended ? { suspended: true } : {}),
       });
     }

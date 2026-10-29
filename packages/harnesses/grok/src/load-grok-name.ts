@@ -1,20 +1,25 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import type { NameUpdate } from '@atc/plugin-api';
+import { posix } from 'node:path';
+import type { HostFiles, NameUpdate } from '@atc/plugin-api';
 import { buildOptionalString } from '@atcx/contract/schema';
 import { z } from 'zod';
 
-export function loadGrokName(
+export async function loadGrokName(
   home: string,
   source: string,
   namedBy: 'user' | 'auto' | 'agent',
+  files: HostFiles,
 ): Promise<NameUpdate | null> {
   // grok files a session under the directory it started in, so a gone `source` falls back to the
   // same session id under any directory in `home`
-  const summary = readSummary(source) ?? readSummary(readGrokSummary(home, source));
-  const update = summary === null ? null : buildNameUpdate(summary, namedBy);
+  const found = await readSummary(files, source);
 
-  return Promise.resolve(update);
+  if (found !== null) {
+    return buildNameUpdate(found, namedBy);
+  }
+
+  const moved = await readMovedSummary(files, home, source);
+
+  return moved === null ? null : buildNameUpdate(moved, namedBy);
 }
 
 // The fields of a session's summary.json a name comes from. A wrong-typed
@@ -27,37 +32,17 @@ const SUMMARY_SCHEMA = z.object({
 
 type GrokSummary = z.infer<typeof SUMMARY_SCHEMA>;
 
-function readSummary(source: string | null): GrokSummary | null {
-  if (source === null) {
-    return null;
-  }
+async function readSummary(files: HostFiles, source: string): Promise<GrokSummary | null> {
+  const lines = await files.readMatchingLines(source, '');
 
-  try {
-    const parsed = SUMMARY_SCHEMA.safeParse(JSON.parse(readFileSync(source, 'utf8')));
-
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
+  return lines === null ? null : parseSummary(lines.join('\n'));
 }
 
-function readGrokSummary(home: string, source: string): string | null {
-  const sessionID = source.split('/').at(-2);
-
-  if (sessionID === undefined || sessionID === '') {
-    return null;
-  }
-
-  const root = join(home, 'sessions');
-
+function parseSummary(text: string): GrokSummary | null {
   try {
-    const groups = readdirSync(root);
+    const parsed = SUMMARY_SCHEMA.safeParse(JSON.parse(text));
 
-    return (
-      groups
-        .map((group) => join(root, group, sessionID, 'summary.json'))
-        .find((candidate) => existsSync(candidate)) ?? null
-    );
+    return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }
@@ -81,6 +66,39 @@ function buildNameUpdate(
 
   if (namedBy !== 'user' && sessionSummary !== '') {
     return { name: sessionSummary };
+  }
+
+  return null;
+}
+
+async function readMovedSummary(
+  files: HostFiles,
+  home: string,
+  source: string,
+): Promise<GrokSummary | null> {
+  const sessionID = source.split('/').at(-2);
+
+  if (sessionID === undefined || sessionID === '') {
+    return null;
+  }
+
+  const root = posix.join(home, 'sessions');
+
+  const groups = await files.readDirectory(root);
+
+  for (const group of groups ?? []) {
+    const candidate = posix.join(root, group, sessionID, 'summary.json');
+
+    if (candidate === source) {
+      continue;
+    }
+
+    // each read is a command on a remote host, so the scan stops at the first summary it finds
+    const summary = await readSummary(files, candidate);
+
+    if (summary !== null) {
+      return summary;
+    }
   }
 
   return null;

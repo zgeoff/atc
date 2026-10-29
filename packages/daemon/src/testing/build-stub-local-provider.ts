@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
+import { runLocalCommand } from '@atc/test-utils';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 import type { StubMemoryProvider } from './build-stub-memory-provider';
-import { runLocalCommand } from './run-local-command';
 
 export function buildStubLocalProvider(
   config: Parameters<typeof buildStubMemoryProvider>[0] = {},

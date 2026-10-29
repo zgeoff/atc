@@ -119,6 +119,11 @@ impd's broker on an imp instead gets a Codex home of its own in its guest folder
 file that holds no credential and the hook entries, which it runs without the trust step. Codex
 session names come from its session index.
 
+The daemon reads a session's name from the agent's home on the host the session runs on. For a
+remote session, the daemon resolves that home on the host when the harness launches: the folder the
+launch env or the host's own env names, or else the agent's folder under the host user's home. A
+start that attaches to a process the host kept running keeps the home stored for it.
+
 Neither Grok nor Codex has a transcript reader or a headless runner, so the daemon refuses a
 transcript read and an eject for their sessions. Grok has no message tap either, and nor does a
 Codex session without an App Server, so the daemon refuses a message for them.

@@ -281,6 +281,7 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
           hostKey,
           bridgeEpoch: binding.epoch,
           ...(plan.admission === null ? {} : { authRevision: plan.admission.revision }),
+          ...(plan.agentHome === undefined ? {} : { agentHome: plan.agentHome }),
         };
 
         harnesses.attachHarness(registered, pty, registry.hasHostLifecycle(target));

@@ -1,5 +1,6 @@
 import type { TargetConfig } from '@atc/config';
 import { buildTargetIdentity } from '@atc/store';
+import { runLocalCommand } from '@atc/test-utils';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 
@@ -37,6 +38,7 @@ export function buildStubTargets(
       target.provider === 'local-pty'
         ? buildStubMemoryProvider({
             kind: 'local-pty',
+            runCommand: runLocalCommand,
             onSpawn: () => {
               config.spawned.push(target.id);
             },

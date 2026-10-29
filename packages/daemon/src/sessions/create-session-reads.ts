@@ -7,12 +7,17 @@ import type { SessionManager } from './create-session-manager';
 import { getDescriptor } from './get-descriptor';
 import { loadTranscriptPage } from './load-transcript-page';
 import type { TranscriptPosition } from './load-transcript-page';
+import { makeGuestTranscriptReader } from './make-guest-transcript-reader';
+import { readLocalTranscriptWindow } from './read-local-transcript-window';
 
 // A page stays far under the protocol's 1 MiB line cap.
 const TRANSCRIPT_PAGE_MAX_BYTES = 262_144;
 
 interface SessionReadsDeps {
-  readonly manager: Pick<SessionManager, 'sessions' | 'collectDescriptors' | 'findAdapter'>;
+  readonly manager: Pick<
+    SessionManager,
+    'sessions' | 'collectDescriptors' | 'findAdapter' | 'findProvider' | 'requireExecution'
+  >;
   readonly store: Pick<StateStore, 'loadLastActivityAt'>;
   readonly records: Pick<PublishedRecords, 'readRecord'>;
 }
@@ -96,12 +101,21 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         return { path, page: { rows: [], offset: 0, more: false } };
       }
 
+      // A remote read runs a command on the session's target, so it refuses as any other command
+      // does once the target the session was bound to changed or went away.
+      const remote = manager.findProvider(session)?.remote === true;
+      const provider = remote ? manager.requireExecution(session, 'run').provider : null;
+
       const page = await loadTranscriptPage({
         path,
         from,
         limit,
         maxBytes: TRANSCRIPT_PAGE_MAX_BYTES,
         parseLine,
+        readWindow:
+          provider === null
+            ? readLocalTranscriptWindow
+            : makeGuestTranscriptReader(provider, session.hostKey),
       });
 
       return { path, page };

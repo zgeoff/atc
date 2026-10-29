@@ -1,5 +1,6 @@
 import { truncateToBytes } from '@atc/core';
-import type { HookPlan } from '@atc/plugin-api';
+import { buildHostFiles } from '@atc/plugin-api';
+import type { ExecutionProvider, HookPlan, HostFiles, SessionHost } from '@atc/plugin-api';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import { match } from 'ts-pattern';
@@ -12,7 +13,12 @@ import { updateRecordIdentity } from './update-record-identity';
 interface SessionHookApplierDeps {
   readonly registry: Pick<
     SessionRegistry,
-    'sessions' | 'focusedId' | 'findAdapter' | 'requireExecution'
+    | 'sessions'
+    | 'focusedId'
+    | 'findAdapter'
+    | 'findProvider'
+    | 'findExecutionRefusal'
+    | 'requireExecution'
   >;
   readonly fleet: Pick<SessionFleetWriter, 'emitChange' | 'tryWriteFleet' | 'tryUpdateFleetEntry'>;
   readonly callbacks: Pick<SessionCallbacks, 'onEvent' | 'findRecords' | 'log'>;
@@ -37,7 +43,19 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
       return;
     }
 
-    const update = await adapter.loadName(source, session.namedBy);
+    const provider = registry.findProvider(session);
+
+    // a remote read runs a command on the session's target, which reads nothing once the target
+    // the session was bound to changed or went away
+    if (provider?.remote === true && registry.findExecutionRefusal(session, 'run') !== null) {
+      return;
+    }
+
+    const update = await adapter.loadName(
+      source,
+      session.namedBy,
+      buildSessionHost(session, provider),
+    );
 
     if (update === null || update.name === '' || update.name === session.name) {
       return;
@@ -197,7 +215,11 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
         return null;
       }
 
-      const plan = adapter.planHookEvents(hookEvent, previous);
+      const plan = adapter.planHookEvents(
+        hookEvent,
+        previous,
+        buildSessionHost(session, registry.findProvider(session)),
+      );
 
       for (const ev of plan.events) {
         applyAdapterEvent(session, ev);
@@ -205,5 +227,21 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
 
       return plan;
     },
+  };
+}
+
+// the session's target is gone, so nothing reaches its host
+const UNREACHABLE_HOST_FILES: HostFiles = {
+  readMatchingLines: () => Promise.resolve(null),
+  readDirectory: () => Promise.resolve(null),
+};
+
+function buildSessionHost(session: Session, provider: ExecutionProvider | null): SessionHost {
+  return {
+    files:
+      provider === null
+        ? UNREACHABLE_HOST_FILES
+        : buildHostFiles(provider.runCommand, session.hostKey),
+    agentHome: session.agentHome ?? null,
   };
 }

@@ -9,6 +9,7 @@ import {
   buildStubBrokeredGatewayAdapter,
   createMigratedStateDB,
   registerTestCleanup,
+  runLocalCommand,
   setupTempDir,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
@@ -21,7 +22,6 @@ import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { runLocalCommand } from '../testing/run-local-command';
 import { createHostDirClaims } from './create-host-dir-claims';
 import { createPublishedRecords } from './create-published-records';
 import { createSessionHarnesses } from './create-session-harnesses';

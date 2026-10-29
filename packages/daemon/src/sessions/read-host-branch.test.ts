@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
-import { createGitFixture, setupTempDir } from '@atc/test-utils';
+import { createGitFixture, runLocalCommand, setupTempDir } from '@atc/test-utils';
 import { $ } from 'bun';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { runLocalCommand } from '../testing/run-local-command';
 import { readHostBranch } from './read-host-branch';
 
 test('it finds the branch a directory has checked out', async () => {

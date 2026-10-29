@@ -182,6 +182,30 @@ test("it restores an entry's prompt, result, and transcript path onto the sessio
   expect(session.transcriptSource).toBeUndefined();
 });
 
+test("it restores an entry's agent home onto the session", () => {
+  const ctx = setupTest({
+    adapters: [buildMockAgentAdapter()],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: buildStubMemoryProvider(),
+      }),
+    ],
+  });
+
+  const session = ctx.restorer.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-1'),
+      agent: 'claude',
+      agentHome: '/tmp/atc/sessions/s-c-1/codex-home',
+    }),
+  );
+
+  expect(session.agentHome).toBe('/tmp/atc/sessions/s-c-1/codex-home');
+});
+
 test('it restores an entry under the session id its row holds', () => {
   const ctx = setupTest({
     adapters: [buildMockAgentAdapter()],

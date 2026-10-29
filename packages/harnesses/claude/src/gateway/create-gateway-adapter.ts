@@ -266,7 +266,7 @@ export function createGatewayAdapter(
     planLineInput: planClaudeLineInput,
     findMenu: findClaudeMenu,
     takesMessages: true,
-    loadName: loadClaudeName,
+    loadName: (source, namedBy, sessionHost) => loadClaudeName(source, namedBy, sessionHost.files),
     canResume: probeTranscriptResumable,
     profile: {
       label: gateway.label,

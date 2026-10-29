@@ -1,5 +1,5 @@
 import { createStepTimer } from '@atc/core';
-import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api';
+import type { ExecutionProvider, HarnessHandle, HarnessStart } from '@atc/plugin-api';
 import { buildSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
@@ -9,6 +9,7 @@ import { buildRecordSubject } from './build-record-subject';
 import type { SessionHarnesses } from './create-session-harnesses';
 import type { SessionRegistry } from './create-session-registry';
 import type { SpawnRollback } from './create-spawn-rollback';
+import { pickAdoptedAgentHome } from './pick-adopted-agent-home';
 import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 import { resolveRepoRoot } from './resolve-repo-root';
 import type { Session } from './session';
@@ -469,6 +470,38 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       start = await timer.withStep('harness-restart', () =>
         harnesses.waitForAuthStart(session, provider, pty),
       );
+    }
+
+    const plannedHome = plan.agentHome;
+    const startedPty = pty;
+
+    const updateAgentHome = (harnessStart: HarnessStart | undefined): void => {
+      const agentHome = pickAdoptedAgentHome(harnessStart, session.agentHome, plannedHome);
+
+      if (session.pty !== startedPty || session.agentHome === agentHome) {
+        return;
+      }
+
+      session.agentHome = agentHome;
+      void fleet.tryWriteFleet(session.id);
+    };
+
+    const followAgentHome = async (): Promise<void> => {
+      try {
+        const harnessStart = await startedPty.waitForStart?.();
+
+        updateAgentHome(harnessStart);
+      } catch {
+        // a harness that never starts runs no agent, so the home it would have used stays unread
+      }
+    };
+
+    // a launch without runtime auth goes on without waiting for its start, so its home follows
+    // the start once the host reports whether it attached
+    if (start === undefined && pty.waitForStart !== undefined) {
+      void followAgentHome();
+    } else {
+      updateAgentHome(start);
     }
 
     if (plan.admission !== null) {

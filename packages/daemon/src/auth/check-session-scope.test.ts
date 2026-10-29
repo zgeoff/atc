@@ -1,10 +1,15 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildStubGH, createGitFixture, createStubBin, setupTempDir } from '@atc/test-utils';
+import {
+  buildStubGH,
+  createGitFixture,
+  createStubBin,
+  runLocalCommand,
+  setupTempDir,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { runLocalCommand } from '../testing/run-local-command';
 import { checkSessionScope } from './check-session-scope';
 
 async function setupTest() {

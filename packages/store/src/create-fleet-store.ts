@@ -63,6 +63,7 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
           'fleet.desired',
           'fleet.host_key',
           'fleet.auth_revision',
+          'fleet.agent_home',
           'fleet.suspended',
         ])
         .execute();
@@ -104,6 +105,7 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
           ...(row.desired === 'sleep' || row.desired === 'stop' ? { desired: row.desired } : {}),
           ...(row.host_key === null ? {} : { hostKey: toSessionID(row.host_key) }),
           ...(row.auth_revision === null ? {} : { authRevision: row.auth_revision }),
+          ...(row.agent_home === null ? {} : { agentHome: row.agent_home }),
           ...(row.suspended === 1 ? { suspended: true } : {}),
         });
       }
@@ -219,6 +221,7 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
               desired: entry.desired ?? null,
               host_key: entry.hostKey ?? null,
               auth_revision: entry.authRevision ?? null,
+              agent_home: entry.agentHome ?? null,
               suspended: entry.suspended === true ? 1 : 0,
             })
             .execute();

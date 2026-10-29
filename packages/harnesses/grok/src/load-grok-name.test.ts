@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { buildHostFiles } from '@atc/plugin-api';
+import { runLocalCommand, setupTempDir } from '@atc/test-utils';
 import { loadGrokName } from './load-grok-name';
 
 // A Grok home of the test's own, where summaries sit under each working
@@ -25,7 +26,12 @@ test('it loads a manual title over a user-typed name', async () => {
     }),
   );
 
-  const update = await loadGrokName(ctx.home, file, 'user');
+  const update = await loadGrokName(
+    ctx.home,
+    file,
+    'user',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(update).toStrictEqual({ name: 'renamed in grok', namedBy: 'agent' });
 });
@@ -39,7 +45,12 @@ test('it loads an auto title when the session was not user-named', async () => {
     JSON.stringify({ generated_title: 'auto title', session_summary: 'auto blurb' }),
   );
 
-  const update = await loadGrokName(ctx.home, file, 'auto');
+  const update = await loadGrokName(
+    ctx.home,
+    file,
+    'auto',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(update).toStrictEqual({ name: 'auto title' });
 });
@@ -53,7 +64,12 @@ test('it keeps a user-typed name over an auto title', async () => {
     JSON.stringify({ generated_title: 'auto title', session_summary: 'auto blurb' }),
   );
 
-  const update = await loadGrokName(ctx.home, file, 'user');
+  const update = await loadGrokName(
+    ctx.home,
+    file,
+    'user',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(update).toBeNull();
 });
@@ -64,9 +80,66 @@ test('it loads the session summary when the summary file holds no title', async 
 
   writeFileSync(file, JSON.stringify({ generated_title: 7, session_summary: 'auto blurb' }));
 
-  const update = await loadGrokName(ctx.home, file, 'agent');
+  const update = await loadGrokName(
+    ctx.home,
+    file,
+    'agent',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(update).toStrictEqual({ name: 'auto blurb' });
+});
+
+test('it loads a pretty-printed summary', async () => {
+  const ctx = setupTest();
+  const file = join(ctx.home, 'summary.json');
+
+  writeFileSync(file, JSON.stringify({ generated_title: 'auto title' }, null, 2));
+
+  const update = await loadGrokName(
+    ctx.home,
+    file,
+    'auto',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
+
+  expect(update).toStrictEqual({ name: 'auto title' });
+});
+
+test('it loads the summary through the files of the session host', async () => {
+  const ctx = setupTest();
+
+  const update = await loadGrokName(
+    ctx.home,
+    '/root/.grok/sessions/%2Fwork/g1/summary.json',
+    'auto',
+    {
+      readMatchingLines: () => Promise.resolve(['{"generated_title":"guest title"}']),
+      readDirectory: () => Promise.resolve(null),
+    },
+  );
+
+  expect(update).toStrictEqual({ name: 'guest title' });
+});
+
+test('it scans the sessions of the home on the session host when the source is gone', async () => {
+  const summaries = new Map([
+    ['/root/.grok/sessions/%2Fwork%2Fnew/g1/summary.json', ['{"generated_title":"moved title"}']],
+  ]);
+
+  const directories = new Map([['/root/.grok/sessions', ['%2Fwork%2Fold', '%2Fwork%2Fnew']]]);
+
+  const update = await loadGrokName(
+    '/root/.grok',
+    '/root/.grok/sessions/%2Fwork%2Fold/g1/summary.json',
+    'auto',
+    {
+      readMatchingLines: (path) => Promise.resolve(summaries.get(path) ?? null),
+      readDirectory: (path) => Promise.resolve(directories.get(path) ?? null),
+    },
+  );
+
+  expect(update).toStrictEqual({ name: 'moved title' });
 });
 
 test('it loads the summary of the same session under another working directory when the source is gone', async () => {
@@ -80,6 +153,7 @@ test('it loads the summary of the same session under another working directory w
     ctx.home,
     join(ctx.home, 'sessions', '%2Fwork%2Fold', 'g1', 'summary.json'),
     'auto',
+    buildHostFiles(runLocalCommand, 'host-1'),
   );
 
   expect(update).toStrictEqual({ name: 'found title' });
@@ -92,6 +166,7 @@ test('it loads no name when no summary exists for the session', async () => {
     ctx.home,
     join(ctx.home, 'sessions', '%2Fwork', 'g1', 'summary.json'),
     'auto',
+    buildHostFiles(runLocalCommand, 'host-1'),
   );
 
   expect(update).toBeNull();
@@ -103,7 +178,12 @@ test('it loads no name from a summary that is not a JSON object', async () => {
 
   writeFileSync(file, '["auto title"]');
 
-  const update = await loadGrokName(ctx.home, file, 'auto');
+  const update = await loadGrokName(
+    ctx.home,
+    file,
+    'auto',
+    buildHostFiles(runLocalCommand, 'host-1'),
+  );
 
   expect(update).toBeNull();
 });

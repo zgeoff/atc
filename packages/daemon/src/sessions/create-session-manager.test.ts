@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
+import type { AgentAdapter } from '@atc/plugin-api';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -534,6 +535,57 @@ test('it keeps a name the agent set and reports the rename it skipped', async ()
   expect(updated).toBe('agent_named');
   expect(session.name).toBe('claude-named');
   expect(session.pinned).toBeTrue();
+});
+
+test('it reads no name for a remote session whose target changed since it was bound', async () => {
+  const ctx = await setupTest();
+
+  const loadName = mock<AgentAdapter['loadName']>(() => Promise.resolve(null));
+
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
+      buildMockAgentAdapter({
+        planHookEvents: () => ({ events: [{ kind: 'started', nameSource: '/t/c-1.jsonl' }] }),
+        loadName,
+      }),
+    ],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'box',
+        kind: 'remote',
+        identity: 'remote:test',
+        provider: buildStubMemoryProvider({
+          kind: 'remote',
+          remote: true,
+          guest: { directory: '/tmp/atc', atc: '/tmp/atc/bin/atc' },
+        }),
+      }),
+    ],
+  });
+
+  registerTestCleanup(() => {
+    manager.detachAll();
+  });
+
+  manager.log = ctx.log;
+
+  const session = await manager.spawn({
+    cwd: '/root/work',
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+    target: 'box',
+  });
+
+  session.targetIdentity = 'remote:replaced';
+
+  manager.applyHook({ atcId: session.id, event: 'SessionStart', payload: {} });
+
+  expect(loadName).not.toHaveBeenCalled();
 });
 
 test('it truncates a stored result past 16 KiB', async () => {

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { setupTempDir } from '@atc/test-utils';
 import { runLocalCommand } from './run-local-command';
+import { setupTempDir } from './setup-temp-dir';
 
 test('it runs the command in the spec directory and returns its output untrimmed', async () => {
   const temporaryDirectory = setupTempDir('atc-local-command-');

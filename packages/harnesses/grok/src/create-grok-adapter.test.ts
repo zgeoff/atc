@@ -2,7 +2,8 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { getAgentEntry, setupTempDir } from '@atc/test-utils';
+import { buildHostFiles } from '@atc/plugin-api';
+import { getAgentEntry, runLocalCommand, setupTempDir } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { createGrokAdapter } from './create-grok-adapter';
 import { GROK_PLUGIN } from './grok-plugin';
@@ -90,6 +91,7 @@ test('it plans hook events from the state the previous line left, naming session
       payload: { sessionId: 'g1', cwd: '/tmp', notificationType: 'idle_prompt' },
     },
     { lastKind: 'prompt-submitted', latestPromptID: 'p1' },
+    { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: null },
   );
 
   expect(plan).toStrictEqual({
@@ -104,6 +106,39 @@ test('it plans hook events from the state the previous line left, naming session
   });
 });
 
+test('it plans the name source under the home of the session host', () => {
+  const ctx = setupTest();
+
+  const adapter = createGrokAdapter(
+    getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'),
+    ctx.directory,
+  );
+
+  const plan = adapter.planHookEvents(
+    {
+      atcId: toSessionID('s1'),
+      event: 'Notification',
+      payload: { sessionId: 'g1', cwd: '/work', notificationType: 'idle_prompt' },
+    },
+    { lastKind: 'prompt-submitted', latestPromptID: 'p1' },
+    { files: buildHostFiles(runLocalCommand, 'host-1'), agentHome: '/home/runner/.grok' },
+  );
+
+  expect(plan.events).toStrictEqual([
+    {
+      kind: 'turn-done',
+      agentSessionID: toAgentSessionID('g1'),
+      nameSource: '/home/runner/.grok/sessions/%2Fwork/g1/summary.json',
+    },
+  ]);
+});
+
+test('it keeps its home where GROK_HOME names, or else in .grok under the user home', () => {
+  const adapter = createGrokAdapter(getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'));
+
+  expect(adapter.agentHomeLocation).toStrictEqual({ env: 'GROK_HOME', folder: '.grok' });
+});
+
 test('it loads a name from the summary of a session in its own home', async () => {
   const ctx = setupTest();
   const file = join(ctx.directory, 'summary.json');
@@ -113,7 +148,10 @@ test('it loads a name from the summary of a session in its own home', async () =
   const update = await createGrokAdapter(
     getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'),
     ctx.directory,
-  ).loadName(file, 'auto');
+  ).loadName(file, 'auto', {
+    files: buildHostFiles(runLocalCommand, 'host-1'),
+    agentHome: null,
+  });
 
   expect(update).toStrictEqual({ name: 'auto title' });
 });
