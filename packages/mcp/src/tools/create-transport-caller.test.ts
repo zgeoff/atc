@@ -140,6 +140,23 @@ test('it retries a spawn on a fresh connection under the key it minted when the 
   expect(dropping.keys).toStrictEqual([expect.any(String), dropping.keys[0]]);
 });
 
+test('it retries a read on a fresh connection as the principal it acts as', async () => {
+  const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
+  const dropping = startStubDroppingDaemon(join(temporaryDirectory.path, 'daemon.sock'));
+
+  const caller = createTransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  await caller.sendRequest('session.list', undefined, { id: 'web-panel', name: 'Web panel' });
+
+  expect(dropping.principals).toStrictEqual(['web-panel', 'web-panel']);
+});
+
 test('it retries a message on a fresh connection under the key its caller passed', async () => {
   const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
   const dropping = startStubDroppingDaemon(join(temporaryDirectory.path, 'daemon.sock'));

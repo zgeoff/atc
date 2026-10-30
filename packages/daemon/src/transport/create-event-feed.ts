@@ -5,6 +5,7 @@ import { DAEMON_EVENT_SCHEMA } from '@atcx/contract';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
 import { EVENT_FEED_MACHINE } from './event-feed-machine';
+import { findEventSession } from './find-event-session';
 
 interface EventFeedOptions {
   // How many bytes of events the backlog holds before the next one
@@ -29,8 +30,8 @@ export interface EventFeed {
   readonly emit: (event: EventMsg) => void;
   readonly emitOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
 
-  // Drops a session's dropped-output record once the session leaves the
-  // connection's view.
+  // Drops what the backlog holds of a session, and its dropped-output
+  // record, once the session leaves the connection's view.
   readonly forgetSession: (sessionID: SessionID) => void;
   readonly subscribe: (signal: AbortSignal) => AsyncGenerator<DaemonEvent>;
 }
@@ -134,6 +135,8 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
     emitOutput,
     forgetSession: (sessionID) => {
       state.desynced.delete(sessionID);
+
+      dropSessionBacklog(state, sessionID);
     },
     subscribe,
   };
@@ -217,4 +220,14 @@ function emitDesyncs(
       options.resync(sessionID);
     }
   }
+}
+
+function dropSessionBacklog(state: FeedState, sessionID: SessionID): void {
+  const kept = state.backlog.filter((queued) => findEventSession(queued.event) !== sessionID);
+
+  state.backlog.length = 0;
+
+  state.backlog.push(...kept);
+
+  state.queuedBytes = kept.reduce((total, queued) => total + queued.bytes, 0);
 }

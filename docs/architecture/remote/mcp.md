@@ -88,6 +88,13 @@ Inside a remote session, `atc mcp` connects through the session's bridge socket 
 daemon. The daemon serves it with the atc access the session's spawn granted, so it reaches only
 what that access reaches ([principals](../protocol/principals.md#a-sessions-atc-access)).
 
+With `--daemon <name>`, `atc mcp` calls a daemon from the config's `daemons` key over that daemon's
+TCP listener, as the principal the entry names
+([remote daemons](../../guides/configuration.md#remote-daemons)). It never boots or joins the local
+daemon, and never uses a session's bridge socket. It claims no session, because the session it runs
+inside lives on the local daemon, so a spawn through it makes a top-level session on the named
+daemon, and the named daemon labels its messages as from the connector of the entry's principal.
+
 ## Remote callers
 
 `atc mcp --http` checks a bearer token on every request and serves only the tools its grant's scopes
@@ -102,6 +109,22 @@ the targets the config's `principals` key grants that client
 daemon labels a message from the client with that name and the kind `connector`
 ([messages](../protocol/messages.md#who-a-message-is-from)).
 
+With `--daemon <name>`, each request acts as the OAuth client's id on a connection that acts as the
+entry's principal, so the named daemon narrows it to the targets both may use. That daemon refuses a
+request whose principal its own `principals` key does not list, so its config must list every client
+that connects. The server rewrites that refusal to name the client's principal and the daemon. The
+daemon keeps every idempotency key of a connection under the connection's principal, so the server
+derives each key a client passes from the client's id and the key, and two clients that pick the
+same key never share it.
+
+A live terminal opens its own connection as the entry's principal and binds the viewer's principal
+to it ([the TCP listener](../protocol/principals.md#the-tcp-listener)), so the named daemon sends
+that connection only the events and output of sessions that both may see. Each request on it acts as
+the viewer, so the terminal follows the same scope as the viewer's tool requests. The server refuses
+the terminal, naming the daemon, when the daemon's handshake answer lacks the viewer feature. A
+viewer with an owner token from `--token-file` watches as the entry's principal alone, because no
+connection over TCP acts as the daemon's owner.
+
 A remote client can also subscribe to the fleet's events by webhook, so atc wakes it instead of it
 polling the event feed ([MCP Events](./mcp-events.md)).
 
@@ -109,8 +132,8 @@ polling the event feed ([MCP Events](./mcp-events.md)).
 
 Both servers reconnect to the daemon on the next request after a restart, so an agent never restarts
 its MCP server. The stdio server reconnects to the socket of the daemon it booted or joined at
-start. A call in flight at that moment is retried once on the fresh connection only when a retry
-cannot double its effect:
+start, or to the listener of the daemon `--daemon` names. A call in flight at that moment is retried
+once on the fresh connection only when a retry cannot double its effect:
 
 - A read-only call is retried.
 - A spawn or a message is retried. The server sends the call under a key, the one the caller passed

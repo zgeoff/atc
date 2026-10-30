@@ -109,6 +109,31 @@ test('it records the params of each request as they arrived', async () => {
   expect(daemon.params).toStrictEqual([{ cwd: '/srv/harbor', idempotencyKey: 'k-1' }, {}]);
 });
 
+test('it records the principal each request acts as', async () => {
+  const ctx = setupTest();
+  const daemon = startStubDroppingDaemon(ctx.socketPath);
+
+  const first = await openDaemonClient(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    first.stop();
+  });
+
+  await first.sendHello('atc/test-build');
+  await first.sendRequest('session.list', undefined, 'web-panel', 'Web panel').catch(() => null);
+
+  const second = await openDaemonClient(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    second.stop();
+  });
+
+  await second.sendHello('atc/test-build');
+  await second.sendRequest('session.list');
+
+  expect(daemon.principals).toStrictEqual(['web-panel', undefined]);
+});
+
 test('it stops listening when stopped', () => {
   const ctx = setupTest();
   const daemon = startStubDroppingDaemon(ctx.socketPath);

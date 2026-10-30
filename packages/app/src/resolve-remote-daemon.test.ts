@@ -49,7 +49,7 @@ test('it refuses a name whose entry broke a rule, with that rule', () => {
   ).toStrictEqual({
     ok: false,
     message:
-      'the daemons.lab entry of /home/a/.config/atc/config.json cannot be used: a token never goes in the config; set tokenFile or tokenCommand instead. The TUI did not fall back to the local daemon.',
+      'the daemons.lab entry of /home/a/.config/atc/config.json cannot be used: a token never goes in the config; set tokenFile or tokenCommand instead. atc did not fall back to the local daemon.',
   });
 });
 
@@ -77,7 +77,7 @@ test('it refuses a name the map does not hold, with the names it holds', () => {
   ).toStrictEqual({
     ok: false,
     message:
-      "the daemons map of /home/a/.config/atc/config.json holds no daemon 'lab'; it holds box. The TUI did not fall back to the local daemon.",
+      "the daemons map of /home/a/.config/atc/config.json holds no daemon 'lab'; it holds box. atc did not fall back to the local daemon.",
   });
 });
 
@@ -91,6 +91,6 @@ test('it refuses a name when the map holds no daemons', () => {
   ).toStrictEqual({
     ok: false,
     message:
-      "the daemons map of /home/a/.config/atc/config.json holds no daemon 'lab'; it holds none. The TUI did not fall back to the local daemon.",
+      "the daemons map of /home/a/.config/atc/config.json holds no daemon 'lab'; it holds none. atc did not fall back to the local daemon.",
   });
 });

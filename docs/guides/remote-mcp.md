@@ -24,6 +24,12 @@ over an encrypted network. A server bound beyond loopback refuses to start witho
 URL. To serve a tailnet, keep the loopback bind and let the tailnet's own TLS front end, such as
 `tailscale serve`, carry the https origin.
 
+Add `--daemon <name>` to serve a daemon from the config's
+[`daemons` key](./configuration.md#remote-daemons) instead of your local one. That daemon's own
+`principals` key must then list every client you add, or it refuses the client's calls with an error
+that holds the client's principal and the daemon's name
+([remote callers](../architecture/remote/mcp.md#remote-callers)).
+
 ## Adding a client
 
 Add each assistant once, with the redirect URI its connector uses:

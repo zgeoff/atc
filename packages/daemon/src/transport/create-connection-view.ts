@@ -1,10 +1,9 @@
-import { isRecord } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
-import { toSessionID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import type { DaemonContext } from '../daemon-context';
+import { findEventSession } from './find-event-session';
 
 // What a limited connection is sent for one event, and the sessions that
 // event moved out of its view.
@@ -126,20 +125,4 @@ export function createConnectionView(ctx: ViewContext): ConnectionView {
       return { events: sent, withdrawn };
     },
   };
-}
-
-// The session an event is about, from its `sessionID` field or its session's id;
-// null for an event about no one session.
-function findEventSession(event: EventMsg): SessionID | null {
-  if (typeof event['sessionID'] === 'string') {
-    return toSessionID(event['sessionID']);
-  }
-
-  const session = event['session'];
-
-  if (isRecord(session) && typeof session['id'] === 'string') {
-    return toSessionID(session['id']);
-  }
-
-  return null;
 }

@@ -155,6 +155,7 @@ function buildDaemonClient(conn: ClientConnection): DaemonClient {
               : { scheme: 'bearer', token: options.token },
           ...(options.session === undefined ? {} : { session: options.session }),
           ...(options.principal === undefined ? {} : { principal: options.principal }),
+          ...(options.viewer === undefined ? {} : { viewer: options.viewer }),
         },
       }),
     sendRequest: (method, params, as, asName) =>

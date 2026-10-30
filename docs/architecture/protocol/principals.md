@@ -165,3 +165,12 @@ connection's own reach admits. The listener logs each refusal to stderr as one l
 alert to match, and the [gateway guide](../../guides/gateway.md#the-daemon-listener) covers the
 lines and the token rotation steps. No line holds a token or any part of one, and the listener's
 writes to stderr never block the daemon.
+
+A handshake that gives a principal may also bind a `viewer`, a second principal the config lists.
+The connection's events and output then follow the reach that both principals share, for the
+connection's whole life, and a request's `x-atc-as` header narrows that reach further but never
+widens it. A daemon that takes a viewer lists `daemon.hello.viewer` among the features its hello
+answer holds, and a client that binds a viewer refuses a daemon whose answer lacks it. When a
+session leaves the shared reach, the daemon drops the session's events and output that the
+connection has not yet sent, then queues the removal, so nothing of the session reaches the client
+after the removal.

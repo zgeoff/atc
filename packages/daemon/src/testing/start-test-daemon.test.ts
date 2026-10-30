@@ -149,7 +149,7 @@ test('it collects the daemon log lines', async () => {
   await closed.promise;
 
   await waitFor(() => {
-    expect(harness.logs).toPartiallyContain(expect.stringContaining('atc tcp'));
+    expect(harness.logs).toContainEqual(expect.stringContaining('atc tcp event=handshake_refused'));
   });
 });
 

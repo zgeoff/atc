@@ -317,10 +317,11 @@ export function createDaemonConnection(
   };
 
   // Makes the connection act as the principal, its view starting as the
-  // sessions the principal may see now, so one that leaves its reach later
-  // is pushed as removed.
-  const setPrincipal = (principal: string): void => {
-    const access = ctx.buildTargetAccess(principal);
+  // sessions the principal, and the viewer when one is given, may both see
+  // now, so one that leaves that reach later is pushed as removed.
+  const setPrincipal = (principal: string, viewer: string | null): void => {
+    const entry = ctx.buildTargetAccess(principal);
+    const access = viewer === null ? entry : entry.merge(ctx.buildTargetAccess(viewer));
 
     identity.principal = principal;
     connectionAccess = access;
@@ -388,16 +389,20 @@ export function createDaemonConnection(
         throw new DaemonError('unauthorized', "a session's atc access acts as no principal");
       }
 
+      if (input.viewer !== undefined && input.principal === undefined) {
+        throw new DaemonError('bad_args', 'daemon.hello viewer needs a principal');
+      }
+
       setCallerSession(input.session ?? null);
 
       identity.helloClient = input.client;
 
       if (input.principal !== undefined) {
-        setPrincipal(input.principal);
+        setPrincipal(input.principal, input.viewer ?? null);
       }
     } else {
       if (tcpHello.principal !== null) {
-        setPrincipal(tcpHello.principal);
+        setPrincipal(tcpHello.principal, tcpHello.viewer);
       }
 
       identity.callerSession = tcpHello.session;
@@ -647,6 +652,12 @@ export function createDaemonConnection(
           ? { events: [event], withdrawn: [] }
           : connectionView.updateView(event, connectionAccess);
 
+      // What the feed still holds of a session that left the view goes
+      // before the removal does, so nothing of it follows the removal.
+      for (const id of view.withdrawn) {
+        feed.forgetSession(id);
+      }
+
       for (const visible of view.events) {
         feed.emit(visible);
       }
@@ -655,7 +666,6 @@ export function createDaemonConnection(
       // it. The detach runs once the view is settled, since it emits an event
       // of its own.
       for (const id of view.withdrawn) {
-        feed.forgetSession(id);
         ctx.detachSession(self, id);
         ctx.detachTap(self, id);
       }

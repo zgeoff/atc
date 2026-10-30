@@ -3,10 +3,11 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config/host';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
-import { buildMockAgentAdapter, setupTempDir } from '@atc/test-utils';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import { setupTempDir, startStubLegacyDaemon } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { createRemoteTUIHost } from './create-remote-tui-host';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
-import { startTestDaemon } from './test-utils/start-test-daemon';
 
 test('it holds the daemon name', () => {
   const host = createRemoteTUIHost(
@@ -47,42 +48,33 @@ test('it refuses a restart, since the daemon host restarts it', () => {
   );
 });
 
-test('it boots the remote daemon with the build the invocation reads', async () => {
+test('it boots the remote daemon with the build the invocation reads', () => {
   const temporaryDirectory = setupTempDir('atc-remote-host-');
   const tokenFile = join(temporaryDirectory.path, 'box.token');
 
   writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 
-  const remote = await startTestDaemon({
-    options: (paths) => {
-      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
+  // A daemon on another protocol refuses the hello and repeats the client's
+  // build in its answer, so the answer shows the build the host sent.
+  const legacy = startStubLegacyDaemon(
+    { hostname: '127.0.0.1', port: 0 },
+    { protocol: PROTOCOL_V + 1 },
+  );
 
-      return {
-        adapter: buildMockAgentAdapter(),
-        principals: new Map([['laptop', ['local']]]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
-      };
-    },
-  });
-
-  if (remote.daemon.listenPort === null) {
-    throw new Error('the remote daemon bound no TCP port');
-  }
+  invariant(legacy.port !== null, 'the stub daemon bound no TCP port');
 
   const host = createRemoteTUIHost(
     buildMockLifecycleHost({ invocation: { readBuild: () => 'atc/remote-host-test' } }),
     buildMockRemoteDaemon({
       name: 'box',
       host: '127.0.0.1',
-      port: remote.daemon.listenPort,
+      port: legacy.port,
       token: { kind: 'file', path: tokenFile },
       principal: 'laptop',
     }),
   );
 
-  const boot = await host.bootDaemon();
-
-  boot.client.stop();
-
-  expect(remote.logs).toPartiallyContain(expect.stringContaining('atc/remote-host-test'));
+  expect(host.bootDaemon()).rejects.toThrow(
+    `The daemon answered: atc/remote-host-test speaks protocol v${PROTOCOL_V}`,
+  );
 });

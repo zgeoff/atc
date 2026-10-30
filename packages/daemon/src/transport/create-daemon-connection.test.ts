@@ -1156,6 +1156,215 @@ test('it sends a principal no output of a session whose tree left its view, a re
   expect(resyncs).toStrictEqual([]);
 });
 
+test('it drops the held output of a session that leaves the view and sends its removal after the output sent before', async () => {
+  const peer = buildStubPeerSocket();
+  let visible = true;
+
+  const conn = createDaemonConnection(
+    peer.socket,
+    buildStubDaemonContext({ canSeeSession: () => visible }),
+  );
+
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' };
+
+  conn.applyChunk(
+    buildPeerRequestLine('1', '/daemon/hello', hello) +
+      buildPeerRequestLine('2', '/events/subscribe', {}),
+  );
+
+  await waitFor(() => {
+    expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
+  });
+
+  conn.sendEvent({
+    version: PROTOCOL_V,
+    ev: 'SessionResized',
+    sessionID: 's1',
+    cols: 80,
+    rows: 24,
+  });
+
+  conn.sendOutput(
+    toSessionID('s1'),
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'before-hold' },
+    11,
+  );
+
+  await waitFor(() => {
+    expect(JSON.stringify(peer.collectFrames())).toInclude('before-hold');
+  });
+
+  peer.setAccepting(false);
+
+  for (const [seq, data] of [
+    [2, 'held-one'],
+    [3, 'held-two'],
+    [4, 'held-three'],
+  ] as const) {
+    conn.sendOutput(
+      toSessionID('s1'),
+      { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq, data },
+      data.length,
+    );
+  }
+
+  visible = false;
+
+  conn.sendEvent({
+    version: PROTOCOL_V,
+    ev: 'SessionResized',
+    sessionID: 's1',
+    cols: 80,
+    rows: 24,
+  });
+
+  peer.setAccepting(true);
+  conn.drain();
+
+  await waitFor(() => {
+    expect(JSON.stringify(peer.collectFrames())).toInclude('SessionRemoved');
+  });
+
+  const written = JSON.stringify(peer.collectFrames());
+
+  expect(written).not.toInclude('held-two');
+  expect(written).not.toInclude('held-three');
+  expect(written.indexOf('before-hold')).toBeLessThan(written.indexOf('SessionRemoved'));
+});
+
+test('it sends a connection that binds a viewer only the output its principal and the viewer may both see', async () => {
+  const ctx = setupTest();
+
+  const tree = [
+    { id: toSessionID('s-box'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+    { id: toSessionID('s-spare'), parent: null, target: 'spare', targetIdentity: 'remote:a' },
+    { id: toSessionID('s-marker'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+  ];
+
+  const grants = new Map([
+    [
+      'wide',
+      [
+        { target: 'box', targetIdentity: 'remote:a' },
+        { target: 'spare', targetIdentity: 'remote:a' },
+      ],
+    ],
+    ['panel', [{ target: 'box', targetIdentity: 'remote:a' }]],
+  ]);
+
+  const connections = startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      buildTargetAccess: (principal) => buildTargetAccessFromGrants(grants.get(principal) ?? []),
+      canSeeSession: (id, access) => isTreeInReach(tree, id, access),
+    }),
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const events: DaemonEvent[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test', { principal: 'wide', viewer: 'panel' });
+
+  for (const id of ['s-spare', 's-box', 's-marker']) {
+    connections[0]?.sendOutput(
+      toSessionID(id),
+      { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: id, seq: 1, data: id },
+      id.length,
+    );
+  }
+
+  await waitFor(() => {
+    expect(events).toPartiallyContain({ sessionID: 's-marker' });
+  });
+
+  expect(events).toStrictEqual([
+    { ev: 'SessionOutput', sessionID: 's-box', seq: 1, data: 's-box' },
+    { ev: 'SessionOutput', sessionID: 's-marker', seq: 1, data: 's-marker' },
+  ]);
+});
+
+test('it sends a connection that binds no viewer the output of every session its principal may see', async () => {
+  const ctx = setupTest();
+
+  const tree = [
+    { id: toSessionID('s-box'), parent: null, target: 'box', targetIdentity: 'remote:a' },
+    { id: toSessionID('s-spare'), parent: null, target: 'spare', targetIdentity: 'remote:a' },
+  ];
+
+  const grants = new Map([
+    [
+      'wide',
+      [
+        { target: 'box', targetIdentity: 'remote:a' },
+        { target: 'spare', targetIdentity: 'remote:a' },
+      ],
+    ],
+  ]);
+
+  const connections = startConnectionListener(
+    ctx.socketPath,
+    buildStubDaemonContext({
+      buildTargetAccess: (principal) => buildTargetAccessFromGrants(grants.get(principal) ?? []),
+      canSeeSession: (id, access) => isTreeInReach(tree, id, access),
+    }),
+  );
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const events: DaemonEvent[] = [];
+
+  client.onEvent = (event) => {
+    events.push(event);
+  };
+
+  await client.sendHello('atc/test', { principal: 'wide' });
+
+  for (const id of ['s-spare', 's-box']) {
+    connections[0]?.sendOutput(
+      toSessionID(id),
+      { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: id, seq: 1, data: id },
+      id.length,
+    );
+  }
+
+  await waitFor(() => {
+    expect(events).toStrictEqual([
+      { ev: 'SessionOutput', sessionID: 's-spare', seq: 1, data: 's-spare' },
+      { ev: 'SessionOutput', sessionID: 's-box', seq: 1, data: 's-box' },
+    ]);
+  });
+});
+
+test('it refuses a handshake on the local socket that gives a viewer without a principal', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext({}));
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  expect(client.sendHello('atc/test', { viewer: 'panel' })).rejects.toMatchObject({
+    code: 'bad_args',
+    message: 'daemon.hello viewer needs a principal',
+  });
+});
+
 test('it answers internal when a procedure returns an answer outside its contract', async () => {
   const peer = buildStubPeerSocket();
 
@@ -1943,7 +2152,7 @@ test('it answers a peer handshake with the session the kernel names as its peer 
         idempotency: { completedRetentionMs: 86_400_000 },
         lastUsedAgent: 'claude',
         peerSession: 's-1',
-        features: ['events.read.from-start'],
+        features: ['events.read.from-start', 'daemon.hello.viewer'],
       },
     }),
   ]);

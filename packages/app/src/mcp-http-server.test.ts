@@ -1,23 +1,33 @@
 import { expect, test } from 'bun:test';
-import { chmodSync } from 'node:fs';
+import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
-import { openMCPAuth } from '@atc/mcp';
+import { createEnrollmentToken, openMCPAuth } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
+  buildStubAuthenticator,
+  getRecord,
   openPTYViewer,
   registerTestCleanup,
+  runMCPTokenGrant,
+  runPasskeyEnrollment,
+  sendMCPRequest,
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
+import { connectNamedDaemon } from './connect-named-daemon';
+import { createLocalDaemonConnection } from './create-local-daemon-connection';
 import { runMCPHTTPServer } from './mcp-http-server';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { buildLocalTarget } from './test-utils/build-local-target';
+import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
+import { startTestDaemon } from './test-utils/start-test-daemon';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
@@ -65,6 +75,7 @@ test('it serves MCP through the daemon it boots and says no client can connect a
     },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -133,6 +144,7 @@ test('it trusts the forwarded address from a proxy the config lists', async () =
     },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -209,6 +221,7 @@ test('it leaves the forwarded address unverified from a peer the config does not
     },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -300,6 +313,7 @@ test('it prints no hint to add a client once one can connect', async () => {
     },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -374,6 +388,7 @@ test('it prints no hint to enroll a passkey once one is enrolled', async () => {
     },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -441,6 +456,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
     },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -528,6 +544,7 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
     },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -586,6 +603,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
     },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -646,6 +664,7 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
     },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -721,6 +740,7 @@ test('it streams a snapshot to a viewer that presents the token from its owner-o
     },
     {
       bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -798,6 +818,7 @@ test('it exits 1 before it boots a daemon when other users can open its token fi
 
         return bootDaemonClient(buildMockLifecycleHost(), options);
       },
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {
@@ -833,4 +854,138 @@ test('it exits 1 before it boots a daemon when other users can open its token fi
 
   expect(codes).toStrictEqual([1]);
   expect(boots).toBeEmpty();
+});
+
+test('it answers a tool call with the sessions of a named daemon it reaches over TCP, starting no local daemon', async () => {
+  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const tokenFile = join(temporaryDirectory.path, 'box.token');
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
+
+  writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
+
+  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
+
+  registerTestCleanup(() => store.close());
+
+  // The named daemon must list the connector's principal, which is the
+  // client id the authorization server mints, so the client comes first.
+  const created = await store.auth.api.createFixedClient({
+    body: { name: 'Panel', redirectURIs: ['https://panel.example.com/callback'] },
+  });
+
+  const remote = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([
+          ['laptop', ['local']],
+          [created.clientID, ['local']],
+        ]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
+      };
+    },
+  });
+
+  invariant(remote.daemon.listenPort !== null, 'the remote daemon bound no TCP port');
+
+  await remote.client.sendRequest('session.spawn', {
+    cwd: remote.directory,
+    agent: 'claude',
+    name: 'on-the-box',
+    cols: 80,
+    rows: 24,
+  });
+
+  const named = buildMockRemoteDaemon({
+    name: 'box',
+    host: '127.0.0.1',
+    port: remote.daemon.listenPort,
+    token: { kind: 'file', path: tokenFile },
+    principal: 'laptop',
+  });
+
+  const printed: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/named-http-test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: true,
+      tokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootRemoteDaemonClient(named, 'atc/named-http-test', options),
+      connectDaemon: () => connectNamedDaemon(named, 'atc/named-http-test'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath,
+      daemonPaths: {
+        socketPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
+        recordFile: join(temporaryDirectory.path, 'daemon.json'),
+        pidFile: join(temporaryDirectory.path, 'atc-daemon.pid'),
+      },
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  const url = /serving (?<origin>http:\/\/127\.0\.0\.1:\d+)\/mcp,/u.exec(printed.join('\n'))
+    ?.groups?.['origin'];
+
+  invariant(url !== undefined, `no origin in: ${printed.join('\n')}`);
+
+  const authenticator = buildStubAuthenticator();
+
+  const enrollment = await createEnrollmentToken(store.db, Date.now());
+
+  await runPasskeyEnrollment({ url, origin: url }, enrollment.token, authenticator);
+
+  const grant = await runMCPTokenGrant(
+    { url, origin: url, authenticator },
+    {
+      clientID: created.clientID,
+      redirectURI: 'https://panel.example.com/callback',
+      scope: 'read',
+      ticked: ['read'],
+    },
+  );
+
+  const listed = await sendMCPRequest(url, grant.accessToken, 'tools/call', {
+    name: 'atc_sessions_list',
+    arguments: {},
+  });
+
+  expect(getRecord(listed, 'structuredContent')['sessions']).toStrictEqual([
+    expect.objectContaining({ name: 'on-the-box' }),
+  ]);
+
+  expect(existsSync(join(temporaryDirectory.path, 'atc-daemon.pid'))).toBe(false);
 });

@@ -21,7 +21,7 @@ export function resolveRemoteDaemon(
   if (problem !== undefined) {
     return {
       ok: false,
-      message: `the daemons.${name} entry of ${file} cannot be used: ${problem.slice(prefix.length)}. The TUI did not fall back to the local daemon.`,
+      message: `the daemons.${name} entry of ${file} cannot be used: ${problem.slice(prefix.length)}. atc did not fall back to the local daemon.`,
     };
   }
 
@@ -30,6 +30,6 @@ export function resolveRemoteDaemon(
 
   return {
     ok: false,
-    message: `the daemons map of ${file} holds no daemon '${name}'; ${held}. The TUI did not fall back to the local daemon.`,
+    message: `the daemons map of ${file} holds no daemon '${name}'; ${held}. atc did not fall back to the local daemon.`,
   };
 }

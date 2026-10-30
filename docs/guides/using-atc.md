@@ -94,6 +94,16 @@ grok mcp add atc -- atc mcp
 A Claude Code or Codex session that is running loads the server only after it restarts. A running
 Grok session loads it when you press `r` in its `/mcps` list.
 
+To give an agent the fleet of a daemon on another host, add `--daemon <name>` with a name from the
+config's [`daemons` key](./configuration.md#remote-daemons), under a server name of its own:
+
+```bash
+claude mcp add --scope user atc-box -- atc mcp --daemon box
+```
+
+That server calls only the named daemon and never starts your local one. A session it spawns is a
+top-level session on that daemon, because the session that spawned it lives on your local daemon.
+
 A Claude Code session on an imp reaches no daemon socket, so it gets atc only when its spawn grants
 it. Pass `atcAccess` to `atc_session_spawn` with the scopes the session needs, such as
 `["read", "message", "spawn", "kill"]`. The session then reaches itself, the sessions it spawns, and
