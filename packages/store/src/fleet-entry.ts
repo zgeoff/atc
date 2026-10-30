@@ -88,6 +88,8 @@ export interface FleetEntry {
   // The session the spawn request came from; absent for a spawn from
   // outside every session.
   readonly spawner?: SessionID;
+
+  readonly trustedRoot?: string;
 }
 
 export interface FleetStore {

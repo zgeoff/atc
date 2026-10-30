@@ -717,6 +717,19 @@ test('it round-trips a fleet row with the atc access and the spawner its spawn g
   expect(fleet).toStrictEqual([spawner, granted, ungranted]);
 });
 
+test('it round-trips a fleet row with the clone root its guest config trusts', async () => {
+  const ctx = await setupTest();
+
+  const trusted = buildMockFleetEntry({ trustedRoot: '/home/agent/workspaces/kiln' });
+  const untrusted = buildMockFleetEntry();
+
+  await ctx.store.writeFleet([trusted, untrusted]);
+
+  const fleet = await ctx.store.loadFleet();
+
+  expect(fleet).toStrictEqual([trusted, untrusted]);
+});
+
 test('it reads every stored row that holds an agent session id with the host it ran on', async () => {
   const ctx = await setupTest();
 
@@ -1167,6 +1180,7 @@ test('it runs every migration once on the first open of a fresh database', async
     '040_create_restart_results',
     '041_add_fleet_agent_home',
     '042_add_fleet_atc_access',
+    '043_add_fleet_trusted_root',
   ]);
 });
 
@@ -1545,7 +1559,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 
   const stamps = ledger.query('SELECT timestamp FROM kysely_migration').values().flat();
 
-  expect(stamps).toStrictEqual(Array.from({ length: 42 }, () => 'sentinel'));
+  expect(stamps).toStrictEqual(Array.from({ length: 43 }, () => 'sentinel'));
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {

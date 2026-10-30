@@ -34,6 +34,7 @@ export interface SpawnRequest {
   readonly autoDir: boolean;
   readonly scope: DeclaredScope | null;
   readonly trustClonedWorkspace: boolean;
+  readonly parentTrustedRoot: string | null;
   readonly timer: StepTimer;
 
   // Builds the caller's answer once the harness started, as the spawn's

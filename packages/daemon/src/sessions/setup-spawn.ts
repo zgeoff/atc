@@ -25,6 +25,7 @@ interface SpawnSetup {
   readonly setup: HarnessSetup;
   readonly materialized: MaterializedSpawn | null;
   readonly root: string | null;
+  readonly trustedRoot: string | null;
   readonly recordPath: string | null;
 }
 
@@ -145,11 +146,13 @@ export async function setupSpawn(
     );
   }
 
-  if (root !== null && spawn.trustClonedWorkspace) {
+  const trustedRoot = spawn.trustClonedWorkspace ? root : spawn.parentTrustedRoot;
+
+  if (trustedRoot !== null) {
     await steps.run(
       'trust',
       async () => {
-        removeTrust = await applyWorkspaceTrust(spawn, root);
+        removeTrust = await applyWorkspaceTrust(spawn, trustedRoot);
       },
       () => deps.rollback.removeLocalTrust(removeTrust, id),
     );
@@ -196,5 +199,5 @@ export async function setupSpawn(
     },
   );
 
-  return { setup, materialized: built.materialized, root, recordPath };
+  return { setup, materialized: built.materialized, root, trustedRoot, recordPath };
 }

@@ -115,6 +115,8 @@ export interface Session {
 
   agentHome?: string | undefined;
 
+  trustedRoot?: string;
+
   // The refusal a restore's last try at a terminal ended with, when no
   // later try lifts it: its code, and the message the session listed with.
   // It holds only while the session still lists that message.

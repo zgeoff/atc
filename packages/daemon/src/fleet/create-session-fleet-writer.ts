@@ -92,6 +92,7 @@ export function createSessionFleetWriter(deps: SessionFleetWriterDeps): SessionF
         ...(!live && session.suspended ? { suspended: true } : {}),
         ...(session.atcAccess === undefined ? {} : { atcAccess: session.atcAccess }),
         ...(session.spawner === null ? {} : { spawner: session.spawner }),
+        ...(session.trustedRoot === undefined ? {} : { trustedRoot: session.trustedRoot }),
       });
     }
 

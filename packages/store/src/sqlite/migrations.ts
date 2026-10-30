@@ -514,4 +514,9 @@ export const MIGRATIONS: Record<string, Migration> = {
       await db.schema.alterTable('fleet').addColumn('spawner_session_id', 'text').execute();
     },
   },
+  '043_add_fleet_trusted_root': {
+    async up(db: Kysely<StateStoreSchema>) {
+      await db.schema.alterTable('fleet').addColumn('trusted_root', 'text').execute();
+    },
+  },
 };

@@ -54,6 +54,8 @@ interface FleetTable {
   // The session the spawn request came from; null for a spawn from outside
   // every session, and for a row from before spawners were recorded.
   spawner_session_id: string | null;
+
+  trusted_root: string | null;
 }
 
 interface EventsTable {

@@ -187,6 +187,7 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
         bridgeEpoch: 0,
         ...(entry.authRevision === undefined ? {} : { authRevision: entry.authRevision }),
         ...(entry.agentHome === undefined ? {} : { agentHome: entry.agentHome }),
+        ...(entry.trustedRoot === undefined ? {} : { trustedRoot: entry.trustedRoot }),
       };
 
       registry.sessions.push(session);
