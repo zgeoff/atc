@@ -1,5 +1,6 @@
 import { readFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { parseArgs } from 'node:util';
 import { stopTestHomeProcesses } from './stop-test-home-processes';
 
 interface StaleTestHomesOptions {
@@ -93,14 +94,26 @@ async function probeProcessAlive(pid: number, procRoot: string): Promise<boolean
   );
 }
 
+// parseArgs throws on an option it does not declare, which the caller reports as a refused input.
+function parseCLIArgs(args: readonly string[]): string | Error {
+  try {
+    const parsed = parseArgs({ args: [...args], options: {}, allowPositionals: true });
+    const positionals = parsed.positionals;
+    const [tmpDir] = positionals;
+
+    return positionals.length === 1 && tmpDir !== undefined && tmpDir !== ''
+      ? tmpDir
+      : new Error('pass the temporary folder as the only argument');
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 if (import.meta.main) {
-  const tmpDir = process.argv.at(2) ?? '';
+  const tmpDir = parseCLIArgs(process.argv.slice(2));
 
-  if (tmpDir === '') {
-    process.stderr.write(
-      'remove-stale-test-homes: pass the temporary folder as the first argument\n',
-    );
-
+  if (tmpDir instanceof Error) {
+    process.stderr.write(`remove-stale-test-homes: ${tmpDir.message}\n`);
     process.exit(2);
   }
 

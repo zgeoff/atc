@@ -1,7 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
+import { $ } from 'bun';
 import { removeStaleTestHomes } from './remove-stale-test-homes';
 
 function setupTest() {
@@ -116,6 +117,26 @@ test('it removes a run directory with no owner file after an hour', async () => 
   });
 
   expect(removed).toStrictEqual([root]);
+});
+
+test('it refuses a second argument and removes nothing', async () => {
+  const ctx = setupTest();
+  const root = join(ctx.directory, 'atc-test-home-unowned');
+
+  mkdirSync(root);
+  utimesSync(root, new Date(0), new Date(0));
+
+  const run =
+    await $`bun ${join(import.meta.dir, 'remove-stale-test-homes.ts')} ${ctx.directory} extra`
+      .nothrow()
+      .quiet();
+
+  expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toStrictEqual({
+    exitCode: 2,
+    stderr: 'remove-stale-test-homes: pass the temporary folder as the only argument\n',
+  });
+
+  expect(existsSync(root)).toBeTrue();
 });
 
 test('it never removes a folder whose name lacks the run directory prefix', async () => {
