@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
+import { $ } from 'bun';
 import { stopTestHomeProcesses } from './stop-test-home-processes';
 
 function setupTest() {
@@ -51,6 +52,30 @@ test.skipIf(process.platform !== 'linux')(
 
     expect(stopped).toStrictEqual([]);
     expect(other.exitCode).toBeNull();
+  },
+);
+
+test.skipIf(process.platform !== 'linux')(
+  'it refuses a second argument and kills nothing',
+  async () => {
+    const ctx = setupTest();
+    const root = join(ctx.directory, 'atc-test-home-left');
+    const left = Bun.spawn(['sleep', '30'], { env: { ...process.env, ATC_TEST_HOME: root } });
+
+    onTestFinished(() => {
+      left.kill('SIGKILL');
+    });
+
+    const run = await $`bun ${join(import.meta.dir, 'stop-test-home-processes.ts')} ${root} extra`
+      .nothrow()
+      .quiet();
+
+    expect({ exitCode: run.exitCode, stderr: run.stderr.toString() }).toStrictEqual({
+      exitCode: 2,
+      stderr: 'stop-test-home-processes: pass the run directory as the only argument\n',
+    });
+
+    expect(left.exitCode).toBeNull();
   },
 );
 

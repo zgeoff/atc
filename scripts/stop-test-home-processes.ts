@@ -1,5 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { parseArgs } from 'node:util';
 
 interface TestHomeProcessesOptions {
   // The run directory of with-test-home.sh, which each process the run starts holds in
@@ -51,14 +52,26 @@ async function readTestHomeProcesses(
   return matches.filter((pid) => pid !== null);
 }
 
+// parseArgs throws on an option it does not declare, which the caller reports as a refused input.
+function parseCLIArgs(args: readonly string[]): string | Error {
+  try {
+    const parsed = parseArgs({ args: [...args], options: {}, allowPositionals: true });
+    const positionals = parsed.positionals;
+    const [root] = positionals;
+
+    return positionals.length === 1 && root !== undefined && root !== ''
+      ? root
+      : new Error('pass the run directory as the only argument');
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+}
+
 if (import.meta.main) {
-  const root = process.argv.at(2) ?? '';
+  const root = parseCLIArgs(process.argv.slice(2));
 
-  if (root === '') {
-    process.stderr.write(
-      'stop-test-home-processes: pass the run directory as the first argument\n',
-    );
-
+  if (root instanceof Error) {
+    process.stderr.write(`stop-test-home-processes: ${root.message}\n`);
     process.exit(2);
   }
 
