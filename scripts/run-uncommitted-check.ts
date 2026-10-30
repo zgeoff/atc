@@ -12,6 +12,7 @@ export interface UncommittedCheckOptions {
   readonly files: readonly string[];
 
   readonly runProgram: RunProgram;
+  readonly probeFile: (path: string) => boolean;
 }
 
 // The later checks read the disk, so a change to a pushed file that is not committed would hide a
@@ -30,7 +31,8 @@ export function runUncommittedCheck(options: Readonly<UncommittedCheckOptions>):
   );
 
   return options.files.filter(
-    (path) => changed.has(path) || (!tracked.has(path) && existsSync(join(options.cwd, path))),
+    (path) =>
+      changed.has(path) || (!tracked.has(path) && options.probeFile(join(options.cwd, path))),
   );
 }
 
@@ -49,7 +51,14 @@ function runCLI(): void {
 
   try {
     const files = readBranchFiles({ cwd, env: process.env, runProgram, withDeleted: true });
-    const changed = runUncommittedCheck({ cwd, env: process.env, files, runProgram });
+
+    const changed = runUncommittedCheck({
+      cwd,
+      env: process.env,
+      files,
+      runProgram,
+      probeFile: existsSync,
+    });
 
     if (changed.length > 0) {
       process.stdout.write(
