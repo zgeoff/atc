@@ -1490,6 +1490,98 @@ test('it gives a subscription guest spawn with atc access and no MCP servers of 
   );
 });
 
+test('it gives a subscription guest spawn with atc access two minutes to connect its MCP servers', () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { auth: { profiles: ['claude'] } } },
+  });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false, atcMCP: true },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+      },
+    },
+  );
+
+  expect(plan?.env?.['MCP_TIMEOUT']).toBe('120000');
+});
+
+test('it leaves the MCP connect deadline of a subscription guest spawn without atc access alone', () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { auth: { profiles: ['claude'] } } },
+  });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+      },
+    },
+  );
+
+  invariant(plan !== null, 'expected a guest spawn plan');
+
+  expect(plan.env).not.toContainKey('MCP_TIMEOUT');
+});
+
+test('it gives a guest spawn with atc access and no broker binding two minutes to connect its MCP servers', () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {});
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false, atcMCP: true },
+    { atc: '/opt/atc/bin/atc', directory: '/tmp/atc/sessions/s1' },
+  );
+
+  expect(plan?.env).toStrictEqual({
+    TMPDIR: '/tmp/atc/sessions/s1/scratch',
+    MCP_TIMEOUT: '120000',
+  });
+});
+
 test('it plans a guest spawn without a broker binding in the config of the host image', () => {
   const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {

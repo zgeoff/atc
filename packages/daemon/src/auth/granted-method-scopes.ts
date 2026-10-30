@@ -29,9 +29,9 @@ export const GRANTED_METHOD_SCOPES: Readonly<Record<string, GrantScope | 'any'>>
   'session.spawn': 'spawn',
   'session.submit': 'spawn',
   'session.choose': 'spawn',
-  'session.scope.add': 'spawn',
   'session.adopt': 'spawn',
 
   'session.kill': 'kill',
   'session.forget': 'kill',
+  'session.scope.add': 'kill',
 };

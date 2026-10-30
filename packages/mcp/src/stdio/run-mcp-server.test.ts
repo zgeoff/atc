@@ -1,12 +1,76 @@
-import { expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import { registerTestCleanup, setupTempDir, updateEnv, waitFor } from '@atc/test-utils';
+import { InMemoryTransport } from '@modelcontextprotocol/server';
+import type { JSONRPCMessage } from '@modelcontextprotocol/server';
+import { createChannelCaller } from '../tools/create-channel-caller';
+import { runMCPServer } from './run-mcp-server';
+
+async function setupTest() {
+  const [client, served] = InMemoryTransport.createLinkedPair();
+  const received: JSONRPCMessage[] = [];
+
+  // the SDK's transport takes its message callback as a property, with no addEventListener
+  // oxlint-disable-next-line unicorn/prefer-add-event-listener
+  client.onmessage = (message) => {
+    received.push(message);
+  };
+
+  await client.start();
+
+  registerTestCleanup(() => client.close());
+
+  return { client, served, received };
+}
+
+test('it answers initialize before it boots a daemon, and boots one for the first tool list', async () => {
+  const ctx = await setupTest();
+
+  const boot = mock(() => Promise.reject(new Error('no daemon answers')));
+  const running = runMCPServer('atc/test', { kind: 'local', boot }, ctx.served);
+
+  registerTestCleanup(async () => {
+    await ctx.client.close();
+
+    await running;
+  });
+
+  await ctx.client.send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'test', version: '1' },
+    },
+  });
+
+  await waitFor(() => {
+    expect(ctx.received).toContainEqual(
+      expect.objectContaining({ id: 1, result: expect.anything() }),
+    );
+  });
+
+  const bootsAtInitialize = boot.mock.calls.length;
+
+  await ctx.client.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+  await ctx.client.send({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+
+  const refusal = expect.objectContaining({ message: expect.toInclude('no daemon answers') });
+
+  await waitFor(() => {
+    expect(ctx.received).toContainEqual(expect.objectContaining({ id: 2, error: refusal }));
+  });
+
+  expect(bootsAtInitialize).toBe(0);
+  expect(boot).toHaveBeenCalledOnce();
+});
 
 test('it serves a remote session through its bridge socket and never boots a daemon', async () => {
-  const directory = setupTempDir('atc-mcp-bridge-').path;
-  const bridgePath = join(directory, 'bridge.sock');
-  const bootMarker = join(directory, 'booted');
+  const ctx = await setupTest();
+
+  const bridgePath = join(setupTempDir('atc-mcp-bridge-').path, 'bridge.sock');
   const received: string[] = [];
 
   const bridge = Bun.listen({
@@ -22,53 +86,32 @@ test('it serves a remote session through its bridge socket and never boots a dae
     bridge.stop(true);
   });
 
-  const server = Bun.spawn(
-    [
-      process.execPath,
-      '-e',
-      `const { runMCPServer } = await import(${JSON.stringify(join(import.meta.dir, 'run-mcp-server.ts'))});
-await runMCPServer('atc/test', { kind: 'local', boot: async () => {
-  await Bun.write(${JSON.stringify(bootMarker)}, 'booted');
-  throw new Error('booted a daemon');
-} });`,
-    ],
-    {
-      env: {
-        PATH: process.env['PATH'] ?? '',
-        HOME: directory,
-        ATC_SESSION_ID: 's-remote',
-        ATC_BRIDGE: '1',
-        ATC_SOCKET: bridgePath,
-      },
-      stdin: 'pipe',
-      stdout: 'ignore',
-      stderr: 'ignore',
-    },
-  );
+  updateEnv('ATC_SESSION_ID', 's-remote');
+  updateEnv('ATC_BRIDGE', '1');
+  updateEnv('ATC_SOCKET', bridgePath);
 
-  registerTestCleanup(() => {
-    server.kill();
+  const boot = mock(() => Promise.reject(new Error('booted a daemon')));
+  const running = runMCPServer('atc/test', { kind: 'local', boot }, ctx.served);
 
-    return server.exited;
+  registerTestCleanup(async () => {
+    await ctx.client.close();
+
+    await running;
   });
 
-  await server.stdin.write(
-    `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } } })}\n${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' })}\n`,
-  );
-
-  await server.stdin.flush();
+  await ctx.client.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
 
   await waitFor(() => {
     expect(received.join('')).toInclude('/daemon/hello');
   });
 
-  expect(existsSync(bootMarker)).toBe(false);
+  expect(boot).not.toHaveBeenCalled();
 });
 
 test('it calls a named daemon through the channels the entry opens, never the bridge socket of its session', async () => {
-  const directory = setupTempDir('atc-mcp-named-').path;
-  const bridgePath = join(directory, 'bridge.sock');
-  const openMarker = join(directory, 'opened');
+  const ctx = await setupTest();
+
+  const bridgePath = join(setupTempDir('atc-mcp-named-').path, 'bridge.sock');
   const received: string[] = [];
 
   const bridge = Bun.listen({
@@ -84,46 +127,30 @@ test('it calls a named daemon through the channels the entry opens, never the br
     bridge.stop(true);
   });
 
-  const server = Bun.spawn(
-    [
-      process.execPath,
-      '-e',
-      `const { runMCPServer } = await import(${JSON.stringify(join(import.meta.dir, 'run-mcp-server.ts'))});
-const { createChannelCaller } = await import(${JSON.stringify(join(import.meta.dir, '..', 'tools', 'create-channel-caller.ts'))});
-await runMCPServer('atc/test', { kind: 'named', caller: createChannelCaller(async () => {
-  await Bun.write(${JSON.stringify(openMarker)}, 'opened');
-  throw new Error('the named daemon is down');
-}) });`,
-    ],
-    {
-      env: {
-        PATH: process.env['PATH'] ?? '',
-        HOME: directory,
-        ATC_SESSION_ID: 's-remote',
-        ATC_BRIDGE: '1',
-        ATC_SOCKET: bridgePath,
-      },
-      stdin: 'pipe',
-      stdout: 'ignore',
-      stderr: 'ignore',
-    },
+  updateEnv('ATC_SESSION_ID', 's-remote');
+  updateEnv('ATC_BRIDGE', '1');
+  updateEnv('ATC_SOCKET', bridgePath);
+
+  const open = mock(() => Promise.reject(new Error('the named daemon is down')));
+
+  const running = runMCPServer(
+    'atc/test',
+    { kind: 'named', caller: createChannelCaller(open) },
+    ctx.served,
   );
 
-  registerTestCleanup(() => {
-    server.kill();
+  registerTestCleanup(async () => {
+    await ctx.client.close();
 
-    return server.exited;
+    await running;
   });
 
-  await server.stdin.write(
-    `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } } })}\n${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' })}\n`,
-  );
-
-  await server.stdin.flush();
+  await ctx.client.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
 
   await waitFor(() => {
-    expect(existsSync(openMarker)).toBe(true);
+    expect(ctx.received).toContainEqual(expect.objectContaining({ id: 1 }));
   });
 
+  expect(open).toHaveBeenCalledOnce();
   expect(received).toStrictEqual([]);
 });

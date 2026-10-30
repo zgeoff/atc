@@ -40,6 +40,7 @@ import { createLocalScratchDir } from '../create-local-scratch-dir';
 import { findClaudeMenu } from '../find-claude-menu';
 import { findClaudePermissionMode } from '../find-claude-permission-mode';
 import { formatPluginDirArgs } from '../format-plugin-dir-args';
+import { ATC_MCP_ENV } from '../guest/atc-mcp-env';
 import { buildClaudeConfigSeed } from '../guest/build-claude-config-seed';
 import { buildClaudeGuestLaunch } from '../guest/build-claude-guest-launch';
 import { buildClaudeMCPConfig } from '../guest/build-claude-mcp-config';
@@ -408,7 +409,12 @@ export function createGatewayAdapter(
           ...buildClaudeConfigSeed(null, approvedAPIKey),
           ...buildGuestBridgeFiles(argv),
         },
-        env: { ...launch.env, ...guest.auth.profileEnv, ...guest.auth.env },
+        env: {
+          ...launch.env,
+          ...(atcArgv === null ? {} : ATC_MCP_ENV),
+          ...guest.auth.profileEnv,
+          ...guest.auth.env,
+        },
       };
     },
 

@@ -9,6 +9,7 @@ import { startInProcessMCP } from '@atc/mcp/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockHostServices,
+  createGitFixture,
   createStubGuestCLIs,
   getAgentEntry,
   getRecord,
@@ -421,6 +422,69 @@ test('it lets a session with kill stop its sub-session but never itself', async 
 
   expect(own.text).toStartWith('no_such_session');
   expect(sub.isError).toBeUndefined();
+});
+
+test('it refuses a session without kill each tool that stops, forgets, rebinds or widens its sub-session', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+    atcAccess: ['read', 'message', 'spawn'],
+  });
+
+  const holder = String(getRecord(spawned, 'session')['id']);
+
+  const mcp = await ctx.openSessionMCP(holder);
+  const worker = await mcp.spawnSession({ cwd: ctx.daemon.directory, name: 'worker' });
+
+  const results = await Promise.all([
+    mcp.sendToolCall('atc_session_stop', { session: worker }),
+    mcp.sendToolCall('atc_session_forget', { session: worker }),
+    mcp.sendToolCall('atc_session_auth_rebind', { session: worker }),
+    mcp.sendToolCall('atc_session_scope_add', {
+      session: worker,
+      scope: { branches: [{ name: 'main' }] },
+    }),
+  ]);
+
+  const listed = await ctx.daemon.client.sendRequest('session.list');
+
+  expect(results.map((result) => result.text.split(':')[0])).toStrictEqual([
+    'unauthorized',
+    'unauthorized',
+    'unauthorized',
+    'unauthorized',
+  ]);
+
+  expect(listed['sessions']).toPartiallyContain({ id: worker, state: 'running' });
+});
+
+test("it lets a session with kill add to its sub-session's scope", async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.daemon.directory,
+    cols: 80,
+    rows: 24,
+    atcAccess: ['spawn', 'kill'],
+  });
+
+  const holder = String(getRecord(spawned, 'session')['id']);
+
+  const fixture = await createGitFixture({ prefix: 'atc-access-scope-' });
+  const mcp = await ctx.openSessionMCP(holder);
+  const worker = await mcp.spawnSession({ cwd: fixture.work, name: 'worker' });
+
+  const added = await mcp.sendToolCall('atc_session_scope_add', {
+    session: worker,
+    scope: { branches: [{ name: 'main' }] },
+  });
+
+  expect(added.structured).toMatchObject({
+    record: { session: worker, scope: { branches: [{ name: 'main', repo: fixture.work }] } },
+  });
 });
 
 test('it refuses a spawn from a session with atc access that resumes an agent session out of its reach', async () => {

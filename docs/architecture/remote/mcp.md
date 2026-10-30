@@ -44,9 +44,13 @@ A grant holds one or more of four scopes, and each tool needs exactly one of the
   terminal takes `spawn`, because a line typed into a session can do anything a new session can.
   Answering a menu takes the same scope as typing, because an option such as trusting a folder or
   allowing a command gives the agent as much as a typed line does. Adding to a session's record
-  scope and rebinding a host take `spawn` too, because each widens what a session may touch. The
-  daemon opens a rebind to its owner only, so a remote client that holds `spawn` still gets
-  `unauthorized` ([runtime auth](../execution/runtime-auth.md#revoke-and-rebind)).
+  scope and rebinding a host take `spawn` too, because each widens what a session may touch. A
+  session's own atc access differs for one tool: it needs `kill` to add to a record scope, because
+  an agent that holds the access acts with no person in the loop, where an MCP client's token
+  belongs to a person who approved it
+  ([a session's atc access](../protocol/principals.md#a-sessions-atc-access)). The daemon opens a
+  rebind to its owner only, so a remote client that holds `spawn` still gets `unauthorized`
+  ([runtime auth](../execution/runtime-auth.md#revoke-and-rebind)).
 - `kill` stops or forgets a session. A tool atc does not know needs `kill`, the strictest.
 
 A test compares this table with the tool definitions, so a tool added without a row fails it:
@@ -87,6 +91,13 @@ an idempotency key derived from the caller's, and a retry derives the same key.
 Inside a remote session, `atc mcp` connects through the session's bridge socket and never boots a
 daemon. The daemon serves it with the atc access the session's spawn granted, so it reaches only
 what that access reaches ([principals](../protocol/principals.md#a-sessions-atc-access)).
+
+`atc mcp` answers the MCP initialize before it reaches any daemon, and it boots or joins one when
+the first tool list or tool call opens a connection. Claude Code fails a server that misses its
+connect deadline and never retries it, so the deadline never waits on a daemon. A guest's Claude
+that runs the atc MCP server starts with a longer connect deadline than Claude's default, because a
+guest's first start can stall Claude past the default. A settings env block that sets `MCP_TIMEOUT`
+keeps its own value.
 
 With `--daemon <name>`, `atc mcp` calls a daemon from the config's `daemons` key over that daemon's
 TCP listener, as the principal the entry names

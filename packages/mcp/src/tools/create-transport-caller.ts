@@ -7,7 +7,7 @@ import type { ChannelCaller } from './create-channel-caller';
 // caller runs inside, which takes the answer notices of the messages it sends;
 // null claims none.
 export function createTransportCaller(
-  socketPath: string,
+  socketPath: string | (() => Promise<string>),
   build: string,
   openChannel: (socketPath: string) => Promise<DaemonChannel>,
   session: string | null = readSessionEnv(process.env).sessionID ?? null,
@@ -17,12 +17,14 @@ export function createTransportCaller(
 
 // Opens a connection and handshakes it, closing one whose handshake fails.
 async function openHandshaken(
-  socketPath: string,
+  socketPath: string | (() => Promise<string>),
   build: string,
   openChannel: (socketPath: string) => Promise<DaemonChannel>,
   session: string | null,
 ): Promise<DaemonChannel> {
-  const client = await openChannel(socketPath);
+  const resolved = typeof socketPath === 'string' ? socketPath : await socketPath();
+
+  const client = await openChannel(resolved);
 
   const options = session === null ? {} : { session };
 

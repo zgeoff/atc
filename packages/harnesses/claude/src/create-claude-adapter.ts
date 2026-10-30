@@ -51,6 +51,7 @@ import { createLocalScratchDir } from './create-local-scratch-dir';
 import { findClaudeMenu } from './find-claude-menu';
 import { findClaudePermissionMode } from './find-claude-permission-mode';
 import { formatPluginDirArgs } from './format-plugin-dir-args';
+import { ATC_MCP_ENV } from './guest/atc-mcp-env';
 import { buildClaudeConfigSeed } from './guest/build-claude-config-seed';
 import { buildClaudeCredentialsFile } from './guest/build-claude-credentials-file';
 import { buildClaudeGuestLaunch } from './guest/build-claude-guest-launch';
@@ -273,7 +274,13 @@ export function createClaudeAdapter(
         ...codexHome.files,
         ...buildGuestBridgeFiles(argv),
       },
-      env: { ...launch.env, ...codexHome.env, ...auth.profileEnv, ...auth.env },
+      env: {
+        ...launch.env,
+        ...(atcArgv === null ? {} : ATC_MCP_ENV),
+        ...codexHome.env,
+        ...auth.profileEnv,
+        ...auth.env,
+      },
     };
   };
 
@@ -381,6 +388,7 @@ export function createClaudeAdapter(
 
       return {
         ...launch,
+        env: { ...launch.env, ...(atcArgv === null ? {} : ATC_MCP_ENV) },
         scratch,
         files: {
           'settings.json': JSON.stringify(settings, null, 2),
