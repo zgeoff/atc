@@ -291,6 +291,9 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
           bridgeEpoch: binding.epoch,
           ...(plan.admission === null ? {} : { authRevision: plan.admission.revision }),
           ...(plan.agentHome === undefined ? {} : { agentHome: plan.agentHome }),
+          ...(provider.remote && prepared.trustedRoot !== null
+            ? { trustedRoot: prepared.trustedRoot }
+            : {}),
         };
 
         harnesses.attachHarness(registered, pty, registry.hasHostLifecycle(target));
@@ -356,13 +359,10 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
   // same target name and identity, when that target's hosts have a lifecycle
   const pickHostKey = (
     id: SessionID,
-    parent: SessionID | null,
+    owner: Session | undefined,
     target: string,
     identity: string,
   ): SessionID => {
-    const owner =
-      parent === null ? undefined : registry.sessions.find((session) => session.id === parent);
-
     if (
       owner === undefined ||
       owner.target !== target ||
@@ -397,8 +397,17 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
         overrides.trustClonedWorkspace ??
         registry.targets.get(target)?.options['trustClonedWorkspace'] === true;
 
-      const hostKey = pickHostKey(id, parent, target, execution.identity);
+      const owner =
+        parent === null ? undefined : registry.sessions.find((session) => session.id === parent);
+
+      const hostKey = pickHostKey(id, owner, target, execution.identity);
       const auth = authSetup.resolveHarnessAuth(adapter, provider, target);
+
+      const isGuestTrust =
+        provider.guestWorkspaceTrust === true &&
+        provider.remote &&
+        auth !== null &&
+        adapter.planGuestWorkspaceTrust !== undefined;
 
       if (trustClonedWorkspace) {
         if (materialize === null) {
@@ -408,12 +417,6 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
         const isLocalTrust =
           !provider.remote && auth === null && adapter.updateLocalWorkspaceTrust !== undefined;
 
-        const isGuestTrust =
-          provider.guestWorkspaceTrust === true &&
-          provider.remote &&
-          auth !== null &&
-          adapter.planGuestWorkspaceTrust !== undefined;
-
         if (!isLocalTrust && !isGuestTrust) {
           throw new DaemonError(
             'unsupported',
@@ -421,6 +424,11 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
           );
         }
       }
+
+      const parentTrustedRoot =
+        isGuestTrust && materialize === null && hostKey !== id && owner?.trustedRoot === options.cwd
+          ? options.cwd
+          : null;
 
       const grant = decideSpawnGrant({
         requested: options.atcAccess,
@@ -479,6 +487,7 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
             autoDir: options.autoDir ?? false,
             scope: options.scope ?? null,
             trustClonedWorkspace,
+            parentTrustedRoot,
             timer,
             answer: options.answer ?? null,
           }),

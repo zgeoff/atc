@@ -54,6 +54,10 @@ interface FleetTable {
   // The session the spawn request came from; null for a spawn from outside
   // every session, and for a row from before spawners were recorded.
   spawner_session_id: string | null;
+
+  // The clone root whose folder trust atc seeded in the session's own guest
+  // config; null for a session that took none.
+  trusted_root: string | null;
 }
 
 interface EventsTable {

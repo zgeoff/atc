@@ -241,6 +241,42 @@ test('it persists the agent home the session launched with', async () => {
   ]);
 });
 
+test('it persists the clone root the session trusts in its guest config', async () => {
+  const ctx = await setupTest();
+
+  ctx.registry.sessions.push(
+    buildMockSession({
+      id: toSessionID('s-trusted'),
+      name: 'trusted',
+      cwd: '/work/kiln',
+      agent: 'claude',
+      kind: 'headless',
+      state: 'running',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
+      lastAttachedAt: 1000,
+      trustedRoot: '/work/kiln',
+    }),
+  );
+
+  await ctx.writer.writeFleet();
+
+  const stored = await ctx.store.loadFleet();
+
+  expect(stored).toStrictEqual([
+    {
+      sessionID: toSessionID('s-trusted'),
+      name: 'trusted',
+      cwd: '/work/kiln',
+      agent: 'claude',
+      target: 'local',
+      targetIdentity: buildTargetIdentity('local-pty', {}),
+      lastAttachedAt: 1000,
+      trustedRoot: '/work/kiln',
+    },
+  ]);
+});
+
 test('it persists a harness kept inside a sleeping host as suspended while the operator still wants it running', async () => {
   const ctx = await setupTest();
 

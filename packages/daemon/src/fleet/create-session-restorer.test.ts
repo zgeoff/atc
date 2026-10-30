@@ -206,6 +206,30 @@ test("it restores an entry's agent home onto the session", () => {
   expect(session.agentHome).toBe('/tmp/atc/sessions/s-c-1/codex-home');
 });
 
+test("it restores an entry's trusted clone root onto the session", () => {
+  const ctx = setupTest({
+    adapters: [buildMockAgentAdapter()],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: buildStubMemoryProvider(),
+      }),
+    ],
+  });
+
+  const session = ctx.restorer.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-c-1'),
+      agent: 'claude',
+      trustedRoot: '/home/agent/workspaces/kiln',
+    }),
+  );
+
+  expect(session.trustedRoot).toBe('/home/agent/workspaces/kiln');
+});
+
 test('it restores an entry under the session id its row holds', () => {
   const ctx = setupTest({
     adapters: [buildMockAgentAdapter()],

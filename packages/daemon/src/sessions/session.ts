@@ -115,6 +115,10 @@ export interface Session {
 
   agentHome?: string | undefined;
 
+  // The folder whose trust atc seeded in the session's own guest config;
+  // a sub-session on the same host in that folder takes the same trust.
+  trustedRoot?: string;
+
   // The refusal a restore's last try at a terminal ended with, when no
   // later try lifts it: its code, and the message the session listed with.
   // It holds only while the session still lists that message.

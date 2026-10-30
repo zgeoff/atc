@@ -67,6 +67,7 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
           'fleet.suspended',
           'fleet.atc_access',
           'fleet.spawner_session_id',
+          'fleet.trusted_root',
         ])
         .execute();
 
@@ -113,6 +114,7 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
           ...(row.spawner_session_id === null
             ? {}
             : { spawner: toSessionID(row.spawner_session_id) }),
+          ...(row.trusted_root === null ? {} : { trustedRoot: row.trusted_root }),
         });
       }
 
@@ -234,6 +236,7 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
                   ? null
                   : JSON.stringify(entry.atcAccess),
               spawner_session_id: entry.spawner ?? null,
+              trusted_root: entry.trustedRoot ?? null,
             })
             .execute();
 

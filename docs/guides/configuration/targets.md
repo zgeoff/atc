@@ -72,6 +72,12 @@ for repositories you trust. It changes no tool permission mode.
 
 atc refuses trust for any other agent or target, and for a launch without a workspace source.
 
+A sub-session on an imp target takes its parent's trust when it runs in its parent's imp, uses an
+agent that takes trust there, and starts in the exact clone root that its parent's guest config
+trusts. Such a sub-session needs no workspace source and no `trustClonedWorkspace`, and the parent's
+trust survives a daemon restart. A sub-session in any other folder, or under a parent that took no
+trust, asks as any launch does.
+
 On an imp target, a launch that signs in through the broker reads the clone's own Claude settings
 before Claude starts, and fails with `auth_target_unsupported` when they would override that
 sign-in; see [Claude subscription on imps](./claude-subscription.md). A brokered gateway gets the
