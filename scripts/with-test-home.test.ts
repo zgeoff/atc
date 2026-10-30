@@ -51,6 +51,41 @@ test.skipIf(process.platform !== 'linux')(
   },
 );
 
+// The left process is found through /proc, which only Linux has.
+test.skipIf(process.platform !== 'linux')(
+  'it kills the process a command left running and removes the home when the command exits',
+  async () => {
+    const ctx = setupTest();
+
+    // The sleep stands in for a daemon that a test never stopped. It shares
+    // the process group that the wrapper leads.
+    const run = await runCommand(
+      [
+        'bash',
+        join(import.meta.dir, 'with-test-home.sh'),
+        'sh',
+        '-c',
+        'sleep 30 > /dev/null & echo "$ATC_TEST_HOME $PPID $!"',
+      ],
+      { cwd: ctx.directory, env: { ...process.env, TMPDIR: ctx.directory } },
+    );
+
+    const [root = '', group, left] = run.stdout.trim().split(' ');
+    const leftPID = Number(left);
+
+    onTestFinished(() => {
+      killProcessGroup(Number(group));
+    });
+
+    expect(run.exitCode).toBe(0);
+    expect(existsSync(root)).toBeFalse();
+
+    await waitFor(() => {
+      expect(() => process.kill(leftPID, 0)).toThrow();
+    });
+  },
+);
+
 test('it keeps a host XDG git config away from a command it runs', async () => {
   const ctx = setupTest();
   const host = join(ctx.directory, 'host-xdg');
