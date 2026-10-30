@@ -44,9 +44,11 @@ A grant holds one or more of four scopes, and each tool needs exactly one of the
   terminal takes `spawn`, because a line typed into a session can do anything a new session can.
   Answering a menu takes the same scope as typing, because an option such as trusting a folder or
   allowing a command gives the agent as much as a typed line does. Adding to a session's record
-  scope and rebinding a host take `spawn` too, because each widens what a session may touch. The
-  daemon opens a rebind to its owner only, so a remote client that holds `spawn` still gets
-  `unauthorized` ([runtime auth](../execution/runtime-auth.md#revoke-and-rebind)).
+  scope and rebinding a host take `spawn` too, because each widens what a session may touch. A
+  session's own atc access needs `kill` to add to a record scope
+  ([a session's atc access](../protocol/principals.md#a-sessions-atc-access)). The daemon opens a
+  rebind to its owner only, so a remote client that holds `spawn` still gets `unauthorized`
+  ([runtime auth](../execution/runtime-auth.md#revoke-and-rebind)).
 - `kill` stops or forgets a session. A tool atc does not know needs `kill`, the strictest.
 
 A test compares this table with the tool definitions, so a tool added without a row fails it:

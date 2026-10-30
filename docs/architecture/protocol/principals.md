@@ -108,9 +108,11 @@ session the holder spawns is in reach at once:
 A session out of reach answers as an unknown one does, as for a principal. Each request needs one
 scope the holder holds, and the daemon refuses with `unauthorized` a request whose method needs a
 scope the holder lacks, and every request that reads the daemon host's files or the whole fleet,
-such as the recent directories, the sources, a fleet read or a restore. A request also fails once
-the holder's harness has started again or moved, since the connection came from the harness that
-held the bridge before.
+such as the recent directories, the sources, a fleet read or a restore. Each method takes the scope
+the [MCP scope table](../remote/mcp.md#scopes) gives its tool. One exception: a holder needs `kill`
+to add to a session's record scope, since the addition widens what a running session may touch. A
+request also fails once the holder's harness has started again or moved, since the connection came
+from the harness that held the bridge before.
 
 A holder spawns only on its own target and identity, so a spawn without a target runs there and a
 spawn to any other target fails with `target_forbidden`. A holder's spawn takes no workspace source,
