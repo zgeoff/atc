@@ -6,14 +6,21 @@ import { buildStubSkipClock, runCommand, waitFor } from '@atc/test-utils';
 import { LISTING_CACHE_LIFETIME_MS } from '@atc/tui';
 import { openListingCache } from './open-listing-cache';
 
+// The test end aborts a wait before the folder it polls goes.
 function setupTest() {
+  const testEnd = new AbortController();
+
+  onTestFinished(() => {
+    testEnd.abort(new Error('the test ended'));
+  });
+
   const directory = mkdtempSync(join(tmpdir(), 'atc-listing-cache-'));
 
   onTestFinished(() => {
     rmSync(directory, { recursive: true, force: true });
   });
 
-  return { directory, file: join(directory, 'listing-cache.json') };
+  return { directory, file: join(directory, 'listing-cache.json'), testEnd: testEnd.signal };
 }
 
 test('it finds a listing that a cache opened earlier on the same file wrote', async () => {
@@ -240,7 +247,7 @@ for (let round = 0; round < 6; round += 1) {
   );
 
   // Four Bun starts that each load the cache's imports took over 5 s on a
-  // shared 2-core host, so the test timeout bounds this wait.
+  // shared 2-core host, so the test end bounds this wait.
   await waitFor(
     () => {
       expect(readdirSync(ctx.directory)).toIncludeAllMembers([
@@ -250,7 +257,7 @@ for (let round = 0; round < 6; round += 1) {
         'ready-3',
       ]);
     },
-    { timeoutMs: 60_000 },
+    { timeoutMs: 60_000, signal: ctx.testEnd },
   );
 
   writeFileSync(join(ctx.directory, 'go'), '');
@@ -364,7 +371,7 @@ for (let round = 0; round < 6; round += 1) {
   );
 
   // Four Bun starts that each load the cache's imports took over 5 s on a
-  // shared 2-core host, so the test timeout bounds this wait.
+  // shared 2-core host, so the test end bounds this wait.
   await waitFor(
     () => {
       expect(readdirSync(ctx.directory)).toIncludeAllMembers([
@@ -374,7 +381,7 @@ for (let round = 0; round < 6; round += 1) {
         'ready-3',
       ]);
     },
-    { timeoutMs: 60_000 },
+    { timeoutMs: 60_000, signal: ctx.testEnd },
   );
 
   writeFileSync(join(ctx.directory, 'go'), '');

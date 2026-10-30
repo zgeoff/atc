@@ -8,6 +8,8 @@ interface WaitForOptions {
   readonly now?: () => number;
 
   readonly wait?: (delayMs: number) => Promise<void>;
+
+  readonly signal?: AbortSignal;
 }
 
 export async function waitFor<T>(
@@ -22,6 +24,8 @@ export async function waitFor<T>(
   let lastProgress = options.progress?.();
 
   for (;;) {
+    options.signal?.throwIfAborted();
+
     try {
       return await attempt();
     } catch (error) {
