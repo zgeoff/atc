@@ -28,6 +28,7 @@ async function setupTest() {
   const fakeClaude = createStubRecordingClaude(temporaryDirectory.path);
   const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
   const guestDir = join(temporaryDirectory.path, 'guest');
+  const otherGuestDir = join(temporaryDirectory.path, 'other-guest');
 
   const box = createImpProvider(
     port,
@@ -39,17 +40,15 @@ async function setupTest() {
     box.dispose();
   });
 
-  port.setIdentity({
-    kind: 'token',
-    name: 'atc-runtime',
-    scope: 'manage',
-    imps: ['atc-*'],
-    grantable: ['glm'],
-  });
+  const otherBox = createImpProvider(
+    port,
+    { guestDir: otherGuestDir, guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
 
-  port.createSecret('glm', 'custom', [
-    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
-  ]);
+  registerTestCleanup(() => {
+    otherBox.dispose();
+  });
 
   const daemon = await startTestDaemon({
     options: () => {
@@ -76,16 +75,38 @@ async function setupTest() {
         ],
         gitTransports: ['file'],
         defaultTarget: 'box',
-        targets: [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: box }],
+        targets: [
+          { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: box },
+          { id: 'other', kind: 'imp', options: {}, identity: 'imp:other', provider: otherBox },
+        ],
       };
     },
   });
 
-  return { directory: temporaryDirectory.path, guestDir, work: git.work, daemon };
+  return {
+    directory: temporaryDirectory.path,
+    guestDir,
+    otherGuestDir,
+    port,
+    work: git.work,
+    daemon,
+  };
 }
 
 test('it trusts a sub-session in the clone root its parent trusts', async () => {
   const ctx = await setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
 
   const root = join(ctx.directory, 'clone');
 
@@ -126,6 +147,18 @@ test('it trusts a sub-session in the clone root its parent trusts', async () => 
 test('it leaves a sub-session untrusted in a folder its parent does not trust', async () => {
   const ctx = await setupTest();
 
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   const parent = await ctx.daemon.client.sendRequest('session.spawn', {
     trustClonedWorkspace: true,
     cwd: join(ctx.directory, 'clone'),
@@ -162,6 +195,18 @@ test('it leaves a sub-session untrusted in a folder its parent does not trust', 
 test('it leaves a sub-session untrusted in the clone of a parent that took no trust', async () => {
   const ctx = await setupTest();
 
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
   const root = join(ctx.directory, 'clone');
 
   const parent = await ctx.daemon.client.sendRequest('session.spawn', {
@@ -180,6 +225,56 @@ test('it leaves a sub-session untrusted in the clone of a parent that took no tr
 
   const config = join(
     ctx.guestDir,
+    'sessions',
+    String(getRecord(child, 'session')['id']),
+    'claude-config',
+    '.claude.json',
+  );
+
+  await waitFor(() => {
+    expect(existsSync(config)).toBeTrue();
+  });
+
+  expect(JSON.parse(readFileSync(config, 'utf8'))).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+  });
+});
+
+test('it leaves a sub-session untrusted on another target at its parent trusted path', async () => {
+  const ctx = await setupTest();
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const root = join(ctx.directory, 'clone');
+
+  const parent = await ctx.daemon.client.sendRequest('session.spawn', {
+    trustClonedWorkspace: true,
+    cwd: root,
+    agent: 'glm',
+    target: 'box',
+    workspace: { kind: 'path', path: ctx.work },
+  });
+
+  const child = await ctx.daemon.client.sendRequest('session.spawn', {
+    cwd: root,
+    agent: 'glm',
+    target: 'other',
+    parent: String(getRecord(parent, 'session')['id']),
+  });
+
+  const config = join(
+    ctx.otherGuestDir,
     'sessions',
     String(getRecord(child, 'session')['id']),
     'claude-config',

@@ -89,8 +89,6 @@ export interface FleetEntry {
   // outside every session.
   readonly spawner?: SessionID;
 
-  // The clone root whose folder trust atc seeded in the session's own guest
-  // config; absent for a session that took none.
   readonly trustedRoot?: string;
 }
 

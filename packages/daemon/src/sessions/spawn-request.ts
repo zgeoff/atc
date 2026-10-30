@@ -34,9 +34,6 @@ export interface SpawnRequest {
   readonly autoDir: boolean;
   readonly scope: DeclaredScope | null;
   readonly trustClonedWorkspace: boolean;
-
-  // The folder whose trust a sub-session takes from its parent's guest
-  // config; null for a spawn that takes none.
   readonly parentTrustedRoot: string | null;
   readonly timer: StepTimer;
 
