@@ -1,6 +1,7 @@
 import type { DaemonBoot } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
+import type { Transport } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { match } from 'ts-pattern';
 import type { ChannelCaller } from '../tools/create-channel-caller';
@@ -14,7 +15,11 @@ type MCPServerDaemon =
   | { readonly kind: 'local'; readonly boot: () => Promise<DaemonBoot> }
   | { readonly kind: 'named'; readonly caller: ChannelCaller };
 
-export async function runMCPServer(build: string, daemon: MCPServerDaemon): Promise<void> {
+export async function runMCPServer(
+  build: string,
+  daemon: MCPServerDaemon,
+  transport: Transport = new StdioServerTransport(),
+): Promise<void> {
   const served = match(daemon)
     .with({ kind: 'local' }, (local) => createLocalCaller(build, local.boot))
     .with({ kind: 'named' }, (named) => ({
@@ -41,7 +46,7 @@ export async function runMCPServer(build: string, daemon: MCPServerDaemon): Prom
     closed.resolve();
   };
 
-  await server.connect(new StdioServerTransport());
+  await server.connect(transport);
 
   await closed.promise;
 
