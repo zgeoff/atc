@@ -6,8 +6,6 @@ import type { JSONRPCMessage } from '@modelcontextprotocol/server';
 import { createChannelCaller } from '../tools/create-channel-caller';
 import { runMCPServer } from './run-mcp-server';
 
-// The client end of an in-memory pair whose other end the test hands to the
-// server, with a recorder for every message the server sends.
 async function setupTest() {
   const [client, served] = InMemoryTransport.createLinkedPair();
   const received: JSONRPCMessage[] = [];

@@ -58,8 +58,8 @@ interface ServedCaller {
   readonly callerSessionID: string | null;
 }
 
-// The daemon is found as each channel opens, never before the server answers
-// initialize, since Claude Code gives that answer a deadline of its own.
+// Claude Code fails a server that misses its deadline for initialize, and a
+// daemon boot can outlast that deadline.
 function createLocalCaller(build: string, bootDaemon: () => Promise<DaemonBoot>): ServedCaller {
   const sessionEnv = readSessionEnv(process.env);
   const bridgeSocket = findBridgeSocket(sessionEnv);
