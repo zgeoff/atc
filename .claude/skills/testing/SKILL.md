@@ -338,6 +338,8 @@ to a warning, unless a comment on that setting holds a ticket or a `floor:`.
 - When one file tests several units, such as the procedures of one router, a `#<unit>` prefix takes
   the place of "it": `#archiveNote rejects a note that is already archived`. A file that tests one
   unit uses no prefix.
+- In a `bun:test` file, `zgeoff/test-shape` refuses `describe`, `it`, the four hooks, `toEqual`, and
+  a title that starts with neither "it " nor a `#<unit> ` prefix.
 - A test body arranges, acts, then asserts. The formatter owns spacing, including gaps between
   phases; keep its layout when it joins statements from different phases. Phase comments such as
   `// act` never appear. An ordinary test acts once: it has one act phase, which may hold several
