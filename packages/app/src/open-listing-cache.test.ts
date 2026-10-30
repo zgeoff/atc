@@ -239,14 +239,19 @@ for (let round = 0; round < 6; round += 1) {
     ]),
   );
 
-  await waitFor(() => {
-    expect(readdirSync(ctx.directory)).toIncludeAllMembers([
-      'ready-0',
-      'ready-1',
-      'ready-2',
-      'ready-3',
-    ]);
-  });
+  // Four Bun starts that each load the cache's imports took over 5 s on a
+  // shared 2-core host, so the test timeout bounds this wait.
+  await waitFor(
+    () => {
+      expect(readdirSync(ctx.directory)).toIncludeAllMembers([
+        'ready-0',
+        'ready-1',
+        'ready-2',
+        'ready-3',
+      ]);
+    },
+    { timeoutMs: 60_000 },
+  );
 
   writeFileSync(join(ctx.directory, 'go'), '');
 
@@ -358,14 +363,19 @@ for (let round = 0; round < 6; round += 1) {
     ]),
   );
 
-  await waitFor(() => {
-    expect(readdirSync(ctx.directory)).toIncludeAllMembers([
-      'ready-0',
-      'ready-1',
-      'ready-2',
-      'ready-3',
-    ]);
-  });
+  // Four Bun starts that each load the cache's imports took over 5 s on a
+  // shared 2-core host, so the test timeout bounds this wait.
+  await waitFor(
+    () => {
+      expect(readdirSync(ctx.directory)).toIncludeAllMembers([
+        'ready-0',
+        'ready-1',
+        'ready-2',
+        'ready-3',
+      ]);
+    },
+    { timeoutMs: 60_000 },
+  );
 
   writeFileSync(join(ctx.directory, 'go'), '');
 
