@@ -36,97 +36,91 @@ async function setupTest() {
 
   registerTestCleanup(() => auth.close());
 
-  // Each daemon lists the client, so the client is registered before they boot.
-  const chatGPT = await auth.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
-
   const token = randomBytes(16).toString('hex');
+  const tokenFile = join(temporaryDirectory.path, 'daemon-token');
 
-  writeFileSync(join(temporaryDirectory.path, 'daemon-token'), `${token}\n`);
+  writeFileSync(tokenFile, `${token}\n`);
 
   const planHookEvents = mock<AgentAdapter['planHookEvents']>();
-
-  const [cloud, pc] = await Promise.all(
-    ['cloud', 'pc'].map((name) =>
-      startTestDaemon({
-        prefix: `atc-gateway-events-${name}-`,
-        options: () => ({
-          adapter: buildMockAgentAdapter({ planHookEvents }),
-          principals: new Map([[chatGPT.clientID, ['local']]]),
-          listen: {
-            host: '127.0.0.1',
-            port: 0,
-            tokenFile: join(temporaryDirectory.path, 'daemon-token'),
-          },
-        }),
-      }),
-    ),
-  );
-
-  invariant(cloud && pc, 'a daemon did not start');
-
-  const cloudProber = await openDaemonClient(cloud.socketPath);
-
-  registerTestCleanup(() => {
-    cloudProber.stop();
-  });
-
-  const pcProber = await openDaemonClient(pc.socketPath);
-
-  registerTestCleanup(() => {
-    pcProber.stop();
-  });
-
-  const [cloudHello, pcHello] = await Promise.all([
-    cloudProber.sendHello(cloud.build),
-    pcProber.sendHello(pc.build),
-  ]);
-
-  const cloudID = String(cloudHello['daemonID']);
-  const pcID = String(pcHello['daemonID']);
+  const authenticator = buildStubAuthenticator();
 
   // Runs the daemon connections' timers and the deliverer's retry backoff,
   // so none fires unless a test advances it.
   const clock = buildStubClock(Date.now());
 
-  const cloudDaemon = buildMockRegistryDaemon({
-    name: 'cloud',
-    address: { host: '127.0.0.1', port: Number(cloud.daemon.listenPort) },
-    daemonID: cloudID,
-    token,
-  });
+  // A daemon reads the clients it lists only at boot, so the fleet starts
+  // once the test has registered its client.
+  const startFleet = async (clientID: string, sendWebhook: WebhookSender) => {
+    const [cloud, pc] = await Promise.all([
+      startTestDaemon({
+        prefix: 'atc-gateway-events-cloud-',
+        options: () => ({
+          adapter: buildMockAgentAdapter({ planHookEvents }),
+          principals: new Map([[clientID, ['local']]]),
+          listen: { host: '127.0.0.1', port: 0, tokenFile },
+        }),
+      }),
+      startTestDaemon({
+        prefix: 'atc-gateway-events-pc-',
+        options: () => ({
+          adapter: buildMockAgentAdapter({ planHookEvents }),
+          principals: new Map([[clientID, ['local']]]),
+          listen: { host: '127.0.0.1', port: 0, tokenFile },
+        }),
+      }),
+    ]);
 
-  const pcDaemon = buildMockRegistryDaemon({
-    name: 'pc',
-    address: { host: '127.0.0.1', port: Number(pc.daemon.listenPort) },
-    daemonID: pcID,
-    token,
-  });
+    const cloudProber = await openDaemonClient(cloud.socketPath);
 
-  const gateway = openGatewayCaller({
-    registry: {
-      daemons: new Map([
-        ['cloud', cloudDaemon],
-        ['pc', pcDaemon],
-      ]),
-      defaultDaemon: 'cloud',
-    },
-    build: 'atc-gateway/test',
-    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
-    bindings: openTestBindingDatabase(join(temporaryDirectory.path, 'gateway.db')),
-    fanOutTimeoutMs: 1000,
-    clock,
-  });
+    registerTestCleanup(() => {
+      cloudProber.stop();
+    });
 
-  registerTestCleanup(() => gateway.stop());
+    const pcProber = await openDaemonClient(pc.socketPath);
 
-  const authenticator = buildStubAuthenticator();
+    registerTestCleanup(() => {
+      pcProber.stop();
+    });
 
-  const startGateway = async (sendWebhook: WebhookSender) => {
+    const [cloudHello, pcHello] = await Promise.all([
+      cloudProber.sendHello(cloud.build),
+      pcProber.sendHello(pc.build),
+    ]);
+
+    const cloudID = String(cloudHello['daemonID']);
+    const pcID = String(pcHello['daemonID']);
+
+    const cloudDaemon = buildMockRegistryDaemon({
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: Number(cloud.daemon.listenPort) },
+      daemonID: cloudID,
+      token,
+    });
+
+    const pcDaemon = buildMockRegistryDaemon({
+      name: 'pc',
+      address: { host: '127.0.0.1', port: Number(pc.daemon.listenPort) },
+      daemonID: pcID,
+      token,
+    });
+
+    const gateway = openGatewayCaller({
+      registry: {
+        daemons: new Map([
+          ['cloud', cloudDaemon],
+          ['pc', pcDaemon],
+        ]),
+        defaultDaemon: 'cloud',
+      },
+      build: 'atc-gateway/test',
+      openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+      bindings: openTestBindingDatabase(join(temporaryDirectory.path, 'gateway.db')),
+      fanOutTimeoutMs: 1000,
+      clock,
+    });
+
+    registerTestCleanup(() => gateway.stop());
+
     const server = await startMCPHTTPServer({
       caller: gateway.caller,
       build: 'atc-gateway/test',
@@ -146,43 +140,45 @@ async function setupTest() {
 
     registerTestCleanup(() => server.stop());
 
-    const enrollment = await createEnrollmentToken(auth.db, Date.now());
-
-    await runPasskeyEnrollment(server, enrollment.token, authenticator);
-
-    return server;
+    return { server, cloud, pc, cloudID, pcID };
   };
 
   return {
     auth,
     authenticator,
-    chatGPTID: chatGPT.clientID,
     clock,
-    cloud,
-    cloudID,
     directory: temporaryDirectory.path,
-    pc,
-    pcID,
     planHookEvents,
-    startGateway,
+    startFleet,
   };
 }
 
 test("it declares Events through the gateway under the draft's extensions entry and the events key ChatGPT reads", async () => {
   const ctx = await setupTest();
-  const server = await ctx.startGateway(buildStubWebhookReceiver().send);
+
+  const chatGPT = await ctx.auth.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  const fleet = await ctx.startFleet(chatGPT.clientID, buildStubWebhookReceiver().send);
+  const enrollment = await createEnrollmentToken(ctx.auth.db, Date.now());
+
+  await runPasskeyEnrollment(fleet.server, enrollment.token, ctx.authenticator);
 
   const grant = await runMCPTokenGrant(
-    { url: server.url, origin: server.origin, authenticator: ctx.authenticator },
+    { url: fleet.server.url, origin: fleet.server.origin, authenticator: ctx.authenticator },
     {
-      clientID: ctx.chatGPTID,
+      clientID: chatGPT.clientID,
       redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
       scope: 'read',
       ticked: ['read'],
     },
   );
 
-  const answer = await sendModernMCPRequest(server.url, grant.accessToken, 'server/discover');
+  const answer = await sendModernMCPRequest(fleet.server.url, grant.accessToken, 'server/discover');
 
   expect(answer.body).toMatchObject({
     result: {
@@ -198,19 +194,30 @@ test("it declares Events through the gateway under the draft's extensions entry 
 
 test('it lists the four event types through the gateway for webhook delivery', async () => {
   const ctx = await setupTest();
-  const server = await ctx.startGateway(buildStubWebhookReceiver().send);
+
+  const chatGPT = await ctx.auth.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
+  const fleet = await ctx.startFleet(chatGPT.clientID, buildStubWebhookReceiver().send);
+  const enrollment = await createEnrollmentToken(ctx.auth.db, Date.now());
+
+  await runPasskeyEnrollment(fleet.server, enrollment.token, ctx.authenticator);
 
   const grant = await runMCPTokenGrant(
-    { url: server.url, origin: server.origin, authenticator: ctx.authenticator },
+    { url: fleet.server.url, origin: fleet.server.origin, authenticator: ctx.authenticator },
     {
-      clientID: ctx.chatGPTID,
+      clientID: chatGPT.clientID,
       redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
       scope: 'read',
       ticked: ['read'],
     },
   );
 
-  const answer = await sendModernMCPRequest(server.url, grant.accessToken, 'events/list');
+  const answer = await sendModernMCPRequest(fleet.server.url, grant.accessToken, 'events/list');
 
   expect(answer.body).toMatchObject({
     result: {
@@ -229,14 +236,24 @@ test('it delivers a signed event from a session on the second daemon under its g
 
   ctx.planHookEvents.mockReturnValue({ events: [{ kind: 'turn-done' }] });
 
+  const chatGPT = await ctx.auth.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
   const receiver = buildStubWebhookReceiver();
 
-  const server = await ctx.startGateway(receiver.send);
+  const fleet = await ctx.startFleet(chatGPT.clientID, receiver.send);
+  const enrollment = await createEnrollmentToken(ctx.auth.db, Date.now());
+
+  await runPasskeyEnrollment(fleet.server, enrollment.token, ctx.authenticator);
 
   const grant = await runMCPTokenGrant(
-    { url: server.url, origin: server.origin, authenticator: ctx.authenticator },
+    { url: fleet.server.url, origin: fleet.server.origin, authenticator: ctx.authenticator },
     {
-      clientID: ctx.chatGPTID,
+      clientID: chatGPT.clientID,
       redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
       scope: 'read',
       ticked: ['read'],
@@ -245,20 +262,25 @@ test('it delivers a signed event from a session on the second daemon under its g
 
   const secret = Buffer.alloc(32, 8);
 
-  const subscribed = await sendModernMCPRequest(server.url, grant.accessToken, 'events/subscribe', {
-    name: 'session.turn_done',
-    arguments: {},
-    delivery: {
-      mode: 'webhook',
-      url: 'https://connectors.example.com/hooks/atc',
-      secret: `whsec_${secret.toString('base64')}`,
+  const subscribed = await sendModernMCPRequest(
+    fleet.server.url,
+    grant.accessToken,
+    'events/subscribe',
+    {
+      name: 'session.turn_done',
+      arguments: {},
+      delivery: {
+        mode: 'webhook',
+        url: 'https://connectors.example.com/hooks/atc',
+        secret: `whsec_${secret.toString('base64')}`,
+      },
+      cursor: null,
     },
-    cursor: null,
-  });
+  );
 
   const subscriptionID = getString(getRecord(subscribed.body, 'result'), 'id');
 
-  const spawned = await ctx.pc.client.sendRequest('session.spawn', {
+  const spawned = await fleet.pc.client.sendRequest('session.spawn', {
     cwd: ctx.directory,
     cols: 80,
     rows: 24,
@@ -266,7 +288,7 @@ test('it delivers a signed event from a session on the second daemon under its g
 
   const sessionID = getString(getRecord(spawned, 'session'), 'id');
 
-  await ctx.pc.sendHookLines({ atcId: sessionID, event: 'Stop', payload: {} });
+  await fleet.pc.sendHookLines({ atcId: sessionID, event: 'Stop', payload: {} });
 
   // The verification challenge, then the delivery.
   await waitFor(() => {
@@ -294,7 +316,7 @@ test('it delivers a signed event from a session on the second daemon under its g
     eventId: expect.toBeString(),
     name: 'session.turn_done',
     timestamp: expect.toBeString(),
-    data: { session: `pc.${ctx.pcID.slice(0, 8)}.${sessionID}` },
+    data: { session: `pc.${fleet.pcID.slice(0, 8)}.${sessionID}` },
     cursor: expect.toBeString(),
   });
 });
@@ -304,21 +326,31 @@ test('it delivers the events of both daemons after the merged cursor a subscribe
 
   ctx.planHookEvents.mockReturnValue({ events: [{ kind: 'turn-done' }] });
 
+  const chatGPT = await ctx.auth.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
   const receiver = buildStubWebhookReceiver();
 
-  const server = await ctx.startGateway(receiver.send);
+  const fleet = await ctx.startFleet(chatGPT.clientID, receiver.send);
+  const enrollment = await createEnrollmentToken(ctx.auth.db, Date.now());
+
+  await runPasskeyEnrollment(fleet.server, enrollment.token, ctx.authenticator);
 
   const grant = await runMCPTokenGrant(
-    { url: server.url, origin: server.origin, authenticator: ctx.authenticator },
+    { url: fleet.server.url, origin: fleet.server.origin, authenticator: ctx.authenticator },
     {
-      clientID: ctx.chatGPTID,
+      clientID: chatGPT.clientID,
       redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
       scope: 'read',
       ticked: ['read'],
     },
   );
 
-  const read = await sendModernMCPRequest(server.url, grant.accessToken, 'tools/call', {
+  const read = await sendModernMCPRequest(fleet.server.url, grant.accessToken, 'tools/call', {
     name: 'atc_events_read',
     arguments: {},
   });
@@ -328,13 +360,13 @@ test('it delivers the events of both daemons after the merged cursor a subscribe
     'cursor',
   );
 
-  const onCloud = await ctx.cloud.client.sendRequest('session.spawn', {
+  const onCloud = await fleet.cloud.client.sendRequest('session.spawn', {
     cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
 
-  const onPC = await ctx.pc.client.sendRequest('session.spawn', {
+  const onPC = await fleet.pc.client.sendRequest('session.spawn', {
     cwd: ctx.directory,
     cols: 80,
     rows: 24,
@@ -343,10 +375,10 @@ test('it delivers the events of both daemons after the merged cursor a subscribe
   const cloudSessionID = getString(getRecord(onCloud, 'session'), 'id');
   const pcSessionID = getString(getRecord(onPC, 'session'), 'id');
 
-  await ctx.cloud.sendHookLines({ atcId: cloudSessionID, event: 'Stop', payload: {} });
-  await ctx.pc.sendHookLines({ atcId: pcSessionID, event: 'Stop', payload: {} });
+  await fleet.cloud.sendHookLines({ atcId: cloudSessionID, event: 'Stop', payload: {} });
+  await fleet.pc.sendHookLines({ atcId: pcSessionID, event: 'Stop', payload: {} });
 
-  await sendModernMCPRequest(server.url, grant.accessToken, 'events/subscribe', {
+  await sendModernMCPRequest(fleet.server.url, grant.accessToken, 'events/subscribe', {
     name: 'session.turn_done',
     arguments: {},
     delivery: {
@@ -366,9 +398,9 @@ test('it delivers the events of both daemons after the merged cursor a subscribe
 
   expect(delivered).toIncludeSameMembers([
     expect.objectContaining({
-      data: { session: `cloud.${ctx.cloudID.slice(0, 8)}.${cloudSessionID}` },
+      data: { session: `cloud.${fleet.cloudID.slice(0, 8)}.${cloudSessionID}` },
     }),
-    expect.objectContaining({ data: { session: `pc.${ctx.pcID.slice(0, 8)}.${pcSessionID}` } }),
+    expect.objectContaining({ data: { session: `pc.${fleet.pcID.slice(0, 8)}.${pcSessionID}` } }),
   ]);
 });
 
@@ -377,21 +409,31 @@ test('it retries a refused delivery through the gateway with the same webhook-id
 
   ctx.planHookEvents.mockReturnValue({ events: [{ kind: 'turn-done' }] });
 
+  const chatGPT = await ctx.auth.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
   const receiver = buildStubWebhookReceiver({ answers: [{ status: 503 }] });
 
-  const server = await ctx.startGateway(receiver.send);
+  const fleet = await ctx.startFleet(chatGPT.clientID, receiver.send);
+  const enrollment = await createEnrollmentToken(ctx.auth.db, Date.now());
+
+  await runPasskeyEnrollment(fleet.server, enrollment.token, ctx.authenticator);
 
   const grant = await runMCPTokenGrant(
-    { url: server.url, origin: server.origin, authenticator: ctx.authenticator },
+    { url: fleet.server.url, origin: fleet.server.origin, authenticator: ctx.authenticator },
     {
-      clientID: ctx.chatGPTID,
+      clientID: chatGPT.clientID,
       redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
       scope: 'read',
       ticked: ['read'],
     },
   );
 
-  await sendModernMCPRequest(server.url, grant.accessToken, 'events/subscribe', {
+  await sendModernMCPRequest(fleet.server.url, grant.accessToken, 'events/subscribe', {
     name: 'session.turn_done',
     arguments: {},
     delivery: {
@@ -402,13 +444,13 @@ test('it retries a refused delivery through the gateway with the same webhook-id
     cursor: null,
   });
 
-  const spawned = await ctx.pc.client.sendRequest('session.spawn', {
+  const spawned = await fleet.pc.client.sendRequest('session.spawn', {
     cwd: ctx.directory,
     cols: 80,
     rows: 24,
   });
 
-  await ctx.pc.sendHookLines({
+  await fleet.pc.sendHookLines({
     atcId: getString(getRecord(spawned, 'session'), 'id'),
     event: 'Stop',
     payload: {},
@@ -437,21 +479,31 @@ test('it removes a subscription through the gateway whose endpoint answers 410, 
 
   ctx.planHookEvents.mockReturnValue({ events: [{ kind: 'turn-done' }] });
 
+  const chatGPT = await ctx.auth.auth.api.createFixedClient({
+    body: {
+      name: 'ChatGPT',
+      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
+    },
+  });
+
   const receiver = buildStubWebhookReceiver({ answers: [{ status: 410 }] });
 
-  const server = await ctx.startGateway(receiver.send);
+  const fleet = await ctx.startFleet(chatGPT.clientID, receiver.send);
+  const enrollment = await createEnrollmentToken(ctx.auth.db, Date.now());
+
+  await runPasskeyEnrollment(fleet.server, enrollment.token, ctx.authenticator);
 
   const grant = await runMCPTokenGrant(
-    { url: server.url, origin: server.origin, authenticator: ctx.authenticator },
+    { url: fleet.server.url, origin: fleet.server.origin, authenticator: ctx.authenticator },
     {
-      clientID: ctx.chatGPTID,
+      clientID: chatGPT.clientID,
       redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
       scope: 'read',
       ticked: ['read'],
     },
   );
 
-  await sendModernMCPRequest(server.url, grant.accessToken, 'events/subscribe', {
+  await sendModernMCPRequest(fleet.server.url, grant.accessToken, 'events/subscribe', {
     name: 'session.turn_done',
     arguments: {},
     delivery: {
@@ -462,7 +514,7 @@ test('it removes a subscription through the gateway whose endpoint answers 410, 
     cursor: null,
   });
 
-  const spawned = await ctx.pc.client.sendRequest('session.spawn', {
+  const spawned = await fleet.pc.client.sendRequest('session.spawn', {
     cwd: ctx.directory,
     cols: 80,
     rows: 24,
@@ -470,8 +522,8 @@ test('it removes a subscription through the gateway whose endpoint answers 410, 
 
   const sessionID = getString(getRecord(spawned, 'session'), 'id');
 
-  await ctx.pc.sendHookLines({ atcId: sessionID, event: 'Stop', payload: {} });
-  await ctx.pc.sendHookLines({ atcId: sessionID, event: 'Stop', payload: {} });
+  await fleet.pc.sendHookLines({ atcId: sessionID, event: 'Stop', payload: {} });
+  await fleet.pc.sendHookLines({ atcId: sessionID, event: 'Stop', payload: {} });
 
   await waitFor(async () => {
     const rows = await ctx.auth.db.selectFrom('atc_event_subscription').select('id').execute();
