@@ -1,5 +1,21 @@
 # Changelog
 
+## [7.7.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.6.0...@zgeoff/atc@7.7.0) (2026-10-30)
+
+
+### Features
+
+* publish the gateway's routes and registry schema in @atcx/contract ([#1017](https://github.com/zgeoff/atc/issues/1017)) ([67eee7e](https://github.com/zgeoff/atc/commit/67eee7ef3f27a8fae2b57d3766254ea5ae618298))
+* serve atc mcp's tools against a named daemon with --daemon ([#1013](https://github.com/zgeoff/atc/issues/1013)) ([62823da](https://github.com/zgeoff/atc/commit/62823da4ecad623ba3e225def61f3fd6187e8927))
+
+
+### Bug Fixes
+
+* carry a parent's clone trust to a sub-session in the same folder ([#1014](https://github.com/zgeoff/atc/issues/1014)) ([c09a012](https://github.com/zgeoff/atc/commit/c09a012525b2094a589f1702d2c574882ff5c5ab))
+* connect the atc tools of a granted guest session at its start ([#1016](https://github.com/zgeoff/atc/issues/1016)) ([fba8523](https://github.com/zgeoff/atc/commit/fba85232f9850bc59779738db77979cde4195c7e))
+* end an imp socket whose network path goes silent ([#1010](https://github.com/zgeoff/atc/issues/1010)) ([2d63bfe](https://github.com/zgeoff/atc/commit/2d63bfe9c93a1f5bb48719d62fc3b96e6f06fe5e))
+* flag a session that waits at a dialog before its agent starts ([#1011](https://github.com/zgeoff/atc/issues/1011)) ([e691c6f](https://github.com/zgeoff/atc/commit/e691c6ff9d89948e3a2f5afb0dd816bc50f46025))
+
 ## [7.6.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.5.1...@zgeoff/atc@7.6.0) (2026-10-29)
 
 ### Features
