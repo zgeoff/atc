@@ -47,7 +47,10 @@
     "max-lines": "off",
     // a `<module>.codex.test.ts` suite runs the installed Codex CLI in the
     // test:codex lane, and tests the module beside it
-    "zgeoff/test-beside-module": ["error", { "lanes": ["codex"] }]
+    "zgeoff/test-beside-module": ["error", { "lanes": ["codex"] }],
+    // the pre-push baseline reads the lanes here, so the hook leaves the
+    // codex lane to CI as it leaves e2e/
+    "zgeoff/max-test-timeout": ["error", { "lanes": ["codex"] }]
   },
   "overrides": [
     {
@@ -76,6 +79,12 @@
           }
         ]
       }
+    },
+    {
+      // repo-sync delivers this runner of the pre-push checks from
+      // zgeoff/tools, which owns its synchronous spawn
+      "files": ["scripts/run-program.ts"],
+      "rules": { "no-restricted-properties": "off" }
     },
     {
       // the generic packages name no execution provider in their text

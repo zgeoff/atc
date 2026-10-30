@@ -34,6 +34,48 @@ test('it runs the command on the binary smoke suites when no file follows', asyn
   });
 });
 
+test('it runs the command on every suite but the binary smoke suites with --source-suites', async () => {
+  const ctx = setupTest();
+
+  const run = await runCommand(
+    [
+      'bash',
+      join(import.meta.dir, 'with-e2e-paths.sh'),
+      'echo',
+      '--',
+      '--source-suites',
+      '--randomize',
+    ],
+    { cwd: ctx.directory },
+  );
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
+    exitCode: 0,
+    stdout: '--randomize e2e/tui-quit.test.ts\n',
+  });
+});
+
+test('it refuses --source-suites beside an e2e file', async () => {
+  const ctx = setupTest();
+
+  const run = await runCommand(
+    [
+      'bash',
+      join(import.meta.dir, 'with-e2e-paths.sh'),
+      'echo',
+      '--',
+      '--source-suites',
+      'e2e/tui-quit.test.ts',
+    ],
+    { cwd: ctx.directory },
+  );
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
+    exitCode: 2,
+    stdout: '',
+  });
+});
+
 test('it runs the command on the e2e files that follow', async () => {
   const ctx = setupTest();
 
@@ -135,6 +177,6 @@ test.each([
   expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
     exitCode: 2,
     stdout: '',
-    stderr: `with-e2e-paths: ${argument} is not an e2e test file or a supported option; pass e2e test files and -t, --bail, --rerun-each, --only, --todo, --randomize, --seed, --parallel, --no-isolate, --reporter, or --reporter-outfile\n`,
+    stderr: `with-e2e-paths: ${argument} is not an e2e test file or a supported option; pass e2e test files or --source-suites and -t, --bail, --rerun-each, --only, --todo, --randomize, --seed, --parallel, --no-isolate, --reporter, or --reporter-outfile\n`,
   });
 });

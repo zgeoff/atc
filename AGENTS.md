@@ -71,7 +71,7 @@ docs/
 ## Commands
 
 - `bun run typecheck`, `bun run lint`, and `bun run test` are the local checks.
-  `bun run test:related <files>` runs the tests beside the files you pass.
+  `bun run test:related <files>` runs the unit tests beside the files you pass.
 - `bun run lint:full` adds the type-aware pass and the type check. oxlint runs both through tsrslint
   (`@maschwenk/tsrslint`), a Rust port of tsgolint, in tsgolint's place, because stock tsgolint runs
   out of memory under 2 GiB. `lint:full` runs in CI only, so never run it locally.

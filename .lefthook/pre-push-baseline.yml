@@ -1,0 +1,139 @@
+# repo-sync delivers this file from zgeoff/tools; edit it there.
+#
+# The pre-push baseline every zgeoff repo extends from its lefthook.yml:
+#
+#   extends:
+#     - .lefthook/pre-push-baseline.yml
+#
+# It checks what the branch changes, plus the whole-tree gates that fit a
+# small host: format:check and typecheck. CI runs every whole-tree check:
+# type-aware lint, dead code, and the full test suite. It also runs typecheck
+# before a commit that changes code or config, after the repo's own pre-commit
+# fixers. A repo adds its own jobs under pre-commit.jobs and pre-push.jobs in
+# lefthook.yml; they run before these. A repo changes what a job runs through
+# the package script it calls, except the shell, docs and workflows jobs,
+# which call their tools directly. Each job that calls a package script runs
+# it through the memory-capped script, so a run that outgrows the host fails
+# alone, with its peak memory in the output.
+
+pre-commit:
+  # Sequential, so typecheck reads the files the fixers before it rewrote.
+  piped: true
+  jobs:
+    # lefthook skips the job when no staged file matches the glob.
+    - name: typecheck
+      glob: '*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,json,jsonc}'
+      run: bun run --silent memory-capped bun run typecheck
+
+pre-push:
+  # Sequential, to bound memory on a small host or with parallel agents.
+  piped: true
+  jobs:
+    # The jobs after this one read the files on disk, so this one fails the
+    # push when a file the branch changes or deletes holds a change that is
+    # not committed, and names each such file.
+    - name: uncommitted
+      run: bun run --silent memory-capped bun run --silent check:uncommitted
+    - name: format:check
+      run: bun run --silent memory-capped bun run format:check
+    # Plain oxlint, without the unused-directive check: a directive for a
+    # type-aware rule reads as unused in plain mode.
+    - name: lint
+      files: bun run --silent files:branch
+      glob: '*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'
+      run: bun run --silent memory-capped bun run lint:files {files}
+    # Each file check reads only the files the branch changes that match its
+    # glob, so a file the branch leaves unchanged never fails a push. A check
+    # whose program the machine lacks prints a notice and passes: CI installs
+    # the program and runs the check on every pull request.
+    - name: shell
+      files: bun run --silent files:branch
+      glob: '*.sh'
+      run: |
+        for program in shellcheck shfmt; do
+          if ! command -v "$program" > /dev/null; then
+            echo "shell: skipped, because $program is not on the PATH; CI runs the check"
+            exit 0
+          fi
+        done
+        status=0
+        shellcheck --external-sources --source-path=SCRIPTDIR "--source-path=$PWD" -- {files} || status=1
+        shfmt -d -- {files} || status=1
+        exit "$status"
+    # The docs-writing skill's scripts pick the docs they read themselves, so
+    # the glob only decides whether the job runs.
+    - name: docs
+      files: bun run --silent files:branch
+      glob: '*.md'
+      run: |
+        scripts=.claude/skills/docs-writing/scripts
+        if [ ! -f "$scripts/check-length.sh" ]; then
+          echo "docs: skipped, because the repo has no $scripts/check-length.sh; take the skill-docs-writing entry of repo-sync to run it"
+          exit 0
+        fi
+        status=0
+        for script in check-length.sh check-links.sh; do
+          if ! bash "$scripts/$script"; then
+            echo "docs: $script failed; its output above holds each failing file and its fault"
+            status=1
+          fi
+        done
+        exit "$status"
+    # GitHub runs no workflow from a subfolder of .github/workflows, and
+    # sync/workflow-callers holds the workflows that tools delivers. actionlint
+    # 1.7.12 rejects the concurrency queue key that GitHub documents, until
+    # rhysd/actionlint#654 ships; the ignore lapses on the same date as in CI.
+    # The workflow lint runs after actionlint, even when actionlint is missing
+    # or fails.
+    - name: workflows
+      files: bun run --silent files:branch
+      glob:
+        - '.github/workflows/*.{yml,yaml}'
+        - 'sync/workflow-callers/*.{yml,yaml}'
+      run: |
+        status=0
+        if ! command -v actionlint > /dev/null; then
+          echo "workflows: actionlint skipped, because it is not on the PATH; CI runs it"
+        elif [ "$(date -u +%Y%m%d)" -lt 20270122 ]; then
+          actionlint -ignore 'unexpected key "queue" for "concurrency" section' -- {files} || status=1
+        else
+          actionlint -- {files} || status=1
+        fi
+        bun run --silent memory-capped bun run --silent check:workflows {files} || status=1
+        exit "$status"
+    # git lists the refs a push sends on the hook's stdin, and lefthook hands
+    # stdin only to a job that asks for it. lefthook 2.2.2 skips a pre-push
+    # job whose run substitutes no file when the checked-out branch has
+    # nothing to push (internal/run/controller/command/build_command.go,
+    # lines 47-49 and 71-80), which would skip a push of another branch. So
+    # each job lists package.json for {files}, inside a shell comment the
+    # check never sees: every repo that takes the baseline has the file, as
+    # the baseline's jobs call its scripts, and lefthook drops a listed path
+    # that does not exist.
+    - name: commits
+      files: echo package.json
+      use_stdin: true
+      run: 'bun run --silent memory-capped bun run --silent check:commits --pushed-refs # {files}'
+    # package.json keeps this job from the same lefthook skip.
+    - name: local-paths
+      files: echo package.json
+      use_stdin: true
+      run:
+        'bun run --silent memory-capped bun run --silent check:local-paths --pushed-refs # {files}'
+    - name: test-timeouts
+      run: bun run --silent memory-capped bun run --silent check:test-timeouts
+    - name: dependency-gates
+      run: bun run --silent memory-capped bun run --silent check:dependency-gates
+    - name: typecheck
+      run: bun run --silent memory-capped bun run typecheck
+    # A pre-push in a linked worktree exports GIT_DIR, and a test that runs git
+    # in a temp folder would inherit it and write to the real repository: a
+    # git init there sets core.bare=true. The tests run without git's
+    # repository variables. A bunfig.toml reaches the job too, because a change
+    # to it skips the related tests.
+    - name: test
+      files: bun run --silent files:branch
+      glob: '*.{ts,tsx,toml}'
+      run:
+        env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR bun run --silent
+        memory-capped bun run test:related {files}

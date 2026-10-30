@@ -1,93 +1,179 @@
-// Runs the tests that sit beside the given files: a test file runs itself,
-// and a source file runs its sibling test file. The tests on the pre-push
-// skip list stay out, each with a printed line that holds its Linear issue.
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { availableParallelism, totalmem } from 'node:os';
-import { join } from 'node:path';
-import type { TestSkip } from './load-test-skips';
-import { loadTestSkips } from './load-test-skips';
-import { pickTestWorkers } from './pick-test-workers';
-import { planTestRuns } from './plan-test-runs';
+import { basename, join } from 'node:path';
+import { parseArgs } from 'node:util';
+import { parseLaneLimits } from './parse-lane-limits.ts';
+import { readOptionalText } from './read-memory-budget.ts';
+import { readWorkerCount } from './read-worker-count.ts';
+import type { WorkerCountSources } from './read-worker-count.ts';
 
-export function readRelatedTests(paths: readonly string[], cwd: string): string[] {
-  const selected = new Set<string>();
+// A host with one worker runs each file slower than CI, and a test that passes there must not fail
+// the push.
+const slowHostTestTimeoutMs = 15_000;
+const maxTestFiles = 50;
 
-  for (const path of paths) {
-    if (path.endsWith('.test.ts')) {
-      if (existsSync(join(cwd, path))) {
-        selected.add(path);
-      }
-    } else if (path.endsWith('.ts') && !path.endsWith('.d.ts')) {
-      const sibling = `${path.slice(0, -'.ts'.length)}.test.ts`;
+export type ReadConfigText = (path: string) => string | null;
 
-      if (existsSync(join(cwd, sibling))) {
-        selected.add(sibling);
-      }
-    }
-  }
+export type ProbeFile = (path: string) => boolean;
 
-  return [...selected].filter(
-    (test) => !test.endsWith(LANE_SUFFIX) && !test.startsWith(E2E_DIRECTORY),
-  );
+export interface RelatedTestSources {
+  readonly cwd: string;
+  readonly readConfigText: ReadConfigText;
+  readonly probeFile: ProbeFile;
 }
 
-// A lane suite runs a real system through its own script, such as `test:codex`
-// or, for every suite under `e2e/`, `test:e2e`.
-const LANE_SUFFIX = '.codex.test.ts';
-const E2E_DIRECTORY = 'e2e/';
-
 export async function runRelatedTests(
-  paths: readonly string[],
-  cwd: string,
-  skips: readonly TestSkip[],
-  workers: number | null,
+  args: readonly string[],
+  sources: Readonly<RelatedTestSources>,
+  workerSources: Readonly<WorkerCountSources>,
 ): Promise<number> {
-  const tests = readRelatedTests(paths, cwd);
+  const options = parseRelatedTestArgs(args);
 
-  if (tests.length === 0) {
-    process.stdout.write('run-related-tests: no related tests\n');
+  if (options.kind === 'invalid') {
+    process.stderr.write(`run-related-tests: ${options.message}\n`);
+
+    return 2;
+  }
+
+  const plan = buildRelatedTestPlan(options.paths, resolveRelatedTests(options.paths, sources));
+
+  if (plan.kind === 'skip') {
+    process.stdout.write(`run-related-tests: ${plan.message}\n`);
 
     return 0;
   }
 
-  let exitCode = 0;
+  const workers = await readWorkerCount(workerSources);
 
-  for (const run of planTestRuns(tests, skips)) {
-    for (const skip of run.skips) {
-      process.stdout.write(
-        `run-related-tests: skips "${skip.test}" in ${skip.file} (${skip.issue})\n`,
-      );
-    }
+  if (workers.kind === 'invalid') {
+    process.stderr.write(`run-related-tests: ${workers.message}\n`);
 
-    const child = Bun.spawn(['bun', 'run', 'test', ...run.args], {
-      cwd,
-      env:
-        workers === null ? { ...process.env } : { ...process.env, TEST_WORKERS: String(workers) },
-      stdin: 'inherit',
-      stdout: 'inherit',
-      stderr: 'inherit',
-    });
+    return 2;
+  }
 
-    const runExitCode = await child.exited;
+  const flags = [
+    `--parallel=${workers.count}`,
+    ...(workers.count === 1 ? [`--timeout=${slowHostTestTimeoutMs}`] : []),
+  ];
 
-    if (exitCode === 0) {
-      exitCode = runExitCode;
+  // bun test reads a bare argument as a name filter; the ./ makes it a path.
+  const run = Bun.spawn(
+    ['bun', 'run', 'test', ...flags, ...plan.tests.map((path) => `./${path}`)],
+    { cwd: sources.cwd, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' },
+  );
+
+  return run.exited;
+}
+
+export function resolveRelatedTests(
+  paths: readonly string[],
+  sources: Readonly<RelatedTestSources>,
+): string[] {
+  const lanes = [
+    ...parseLaneLimits(sources.readConfigText(join(sources.cwd, '.oxlintrc.json'))).keys(),
+  ];
+
+  const selected = new Set<string>();
+
+  for (const path of paths) {
+    const test = findRelatedTest(path, lanes);
+
+    if (test !== undefined && sources.probeFile(join(sources.cwd, test))) {
+      selected.add(test);
     }
   }
 
-  return exitCode;
+  return [...selected];
+}
+
+type RelatedTestArgs =
+  | { readonly kind: 'valid'; readonly paths: readonly string[] }
+  | { readonly kind: 'invalid'; readonly message: string };
+
+// parseArgs throws on an option it does not declare, which the caller reports as a refused input.
+function parseRelatedTestArgs(args: readonly string[]): RelatedTestArgs {
+  try {
+    return {
+      kind: 'valid',
+      paths: parseArgs({ args: [...args], options: {}, allowPositionals: true }).positionals,
+    };
+  } catch (error) {
+    return { kind: 'invalid', message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+type RelatedTestPlan =
+  | { readonly kind: 'run'; readonly tests: readonly string[] }
+  | { readonly kind: 'skip'; readonly message: string };
+
+function buildRelatedTestPlan(paths: readonly string[], tests: readonly string[]): RelatedTestPlan {
+  const shared = paths.find((path) => isSharedTestInput(path));
+
+  if (shared !== undefined) {
+    return {
+      kind: 'skip',
+      message: `skipped, because the branch changes ${shared}, a shared test helper or config; CI runs the full suite`,
+    };
+  }
+
+  if (tests.length > maxTestFiles) {
+    return {
+      kind: 'skip',
+      message: `skipped, because the branch has ${tests.length} related unit test files, over the cap of ${maxTestFiles}; CI runs the full suite`,
+    };
+  }
+
+  if (tests.length === 0) {
+    return { kind: 'skip', message: 'no related tests' };
+  }
+
+  return { kind: 'run', tests };
+}
+
+// A shared helper or a bunfig.toml reaches tests beyond the siblings of the files it changes.
+function isSharedTestInput(path: string): boolean {
+  return /(?:^|\/)test-utils\//u.test(path) || basename(path) === 'bunfig.toml';
+}
+
+const sourcePattern = /^(?<stem>.+?)(?:\.test)?(?<ext>\.tsx?)$/u;
+
+function findRelatedTest(path: string, lanes: readonly string[]): string | undefined {
+  const groups = sourcePattern.exec(path)?.groups;
+
+  if (groups === undefined || path.endsWith('.d.ts') || isLaneFile(path, lanes)) {
+    return undefined;
+  }
+
+  return `${groups['stem']}.test${groups['ext']}`;
+}
+
+// A lane's tests need a real system, such as a browser, a container or a live model API, and run
+// only in CI.
+function isLaneFile(path: string, lanes: readonly string[]): boolean {
+  const stem = basename(path).replace(/(?:\.test)?\.tsx?$/u, '');
+
+  return (
+    /(?:^|\/)(?:e2e|[^/]+-e2e)\//u.test(path) || lanes.some((lane) => stem.endsWith(`.${lane}`))
+  );
 }
 
 if (import.meta.main) {
-  const skips = loadTestSkips(join(import.meta.dir, 'pre-push-test-skips.json'));
-
-  const workers = pickTestWorkers({
-    cpus: availableParallelism(),
-    memoryBytes: totalmem(),
-    requested: process.env['TEST_WORKERS'],
-  });
-
-  const exitCode = await runRelatedTests(process.argv.slice(2), process.cwd(), skips, workers);
+  const exitCode = await runRelatedTests(
+    process.argv.slice(2),
+    { cwd: process.cwd(), readConfigText: readOptionalFileText, probeFile: existsSync },
+    {
+      env: process.env,
+      cores: availableParallelism(),
+      totalMemory: totalmem(),
+      procRoot: '/proc',
+      cgroupRoot: '/sys/fs/cgroup',
+      readText: readOptionalText,
+    },
+  );
 
   process.exit(exitCode);
+}
+
+function readOptionalFileText(path: string): string | null {
+  return existsSync(path) ? readFileSync(path, 'utf8') : null;
 }
