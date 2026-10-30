@@ -15,8 +15,8 @@ type MCPServerDaemon =
   | { readonly kind: 'named'; readonly caller: ChannelCaller };
 
 export async function runMCPServer(build: string, daemon: MCPServerDaemon): Promise<void> {
-  const served = await match(daemon)
-    .with({ kind: 'local' }, (local) => openLocalCaller(build, local.boot))
+  const served = match(daemon)
+    .with({ kind: 'local' }, (local) => createLocalCaller(build, local.boot))
     .with({ kind: 'named' }, (named) => ({
       caller: named.caller,
 
@@ -53,14 +53,11 @@ interface ServedCaller {
   readonly callerSessionID: string | null;
 }
 
-async function openLocalCaller(
-  build: string,
-  bootDaemon: () => Promise<DaemonBoot>,
-): Promise<ServedCaller> {
+// The daemon is found as each channel opens, never before the server answers
+// initialize, since Claude Code gives that answer a deadline of its own.
+function createLocalCaller(build: string, bootDaemon: () => Promise<DaemonBoot>): ServedCaller {
   const sessionEnv = readSessionEnv(process.env);
   const bridgeSocket = findBridgeSocket(sessionEnv);
-
-  const socketPath = await resolveSocketPath(bridgeSocket, bootDaemon);
 
   // a spawn from inside a session nests under it by default, and each
   // connection's handshake claims that session for the answers to the
@@ -68,7 +65,7 @@ async function openLocalCaller(
   const callerSessionID = sessionEnv.sessionID ?? null;
 
   const caller = createTransportCaller(
-    socketPath,
+    bridgeSocket ?? (() => resolveSocketPath(bootDaemon)),
     build,
     (path) => openDaemonClient(path),
     callerSessionID,
@@ -77,14 +74,7 @@ async function openLocalCaller(
   return { caller, callerSessionID };
 }
 
-async function resolveSocketPath(
-  bridgeSocket: string | null,
-  bootDaemon: () => Promise<DaemonBoot>,
-): Promise<string> {
-  if (bridgeSocket !== null) {
-    return bridgeSocket;
-  }
-
+async function resolveSocketPath(bootDaemon: () => Promise<DaemonBoot>): Promise<string> {
   const boot = await bootDaemon();
 
   boot.client.stop();

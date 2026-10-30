@@ -90,6 +90,13 @@ Inside a remote session, `atc mcp` connects through the session's bridge socket 
 daemon. The daemon serves it with the atc access the session's spawn granted, so it reaches only
 what that access reaches ([principals](../protocol/principals.md#a-sessions-atc-access)).
 
+`atc mcp` answers the MCP initialize before it reaches any daemon, and it boots or joins one when
+the first tool list or tool call opens a connection. Claude Code fails a server that misses its
+connect deadline and never retries it, so the deadline never waits on a daemon. A guest's Claude
+that runs the atc MCP server starts with a longer connect deadline than Claude's default, because a
+guest's first start can stall Claude past the default. A settings env block that sets `MCP_TIMEOUT`
+keeps its own value.
+
 With `--daemon <name>`, `atc mcp` calls a daemon from the config's `daemons` key over that daemon's
 TCP listener, as the principal the entry names
 ([remote daemons](../../guides/configuration.md#remote-daemons)). It never boots or joins the local

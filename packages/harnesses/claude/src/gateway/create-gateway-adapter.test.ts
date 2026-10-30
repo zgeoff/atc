@@ -1103,6 +1103,41 @@ test('it gives a brokered guest spawn with atc access the guest atc as an MCP se
   );
 });
 
+test('it gives a brokered guest spawn with atc access two minutes to connect its MCP servers', () => {
+  const adapter = createGatewayAdapter(
+    buildMockGatewayConfig({
+      id: 'glm',
+      bin: 'claude',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+      },
+    }),
+    parseConfig([CLAUDE_PLUGIN], {
+      authProfiles: {
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+      },
+    }),
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false, atcMCP: true },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 4,
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+      },
+    },
+  );
+
+  expect(plan?.env?.['MCP_TIMEOUT']).toBe('120000');
+});
+
 test('it plans a brokered guest spawn with its own settings file, Claude config folder and placeholder credential', () => {
   const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {

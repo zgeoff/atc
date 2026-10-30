@@ -1,7 +1,33 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import { registerTestCleanup, setupTempDir, startMCPStdio, waitFor } from '@atc/test-utils';
+
+test('it answers initialize before it boots a daemon, and boots one for the first tool list', async () => {
+  const directory = setupTempDir('atc-mcp-initialize-').path;
+  const bootMarker = join(directory, 'booted');
+
+  const server = await startMCPStdio({
+    home: directory,
+    command: [
+      process.execPath,
+      '-e',
+      `const { runMCPServer } = await import(${JSON.stringify(join(import.meta.dir, 'run-mcp-server.ts'))});
+await runMCPServer('atc/test', { kind: 'local', boot: async () => {
+  await Bun.write(${JSON.stringify(bootMarker)}, 'booted');
+  throw new Error('no daemon answers');
+} });`,
+    ],
+  });
+
+  const bootedAtInitialize = existsSync(bootMarker);
+
+  const listed = await server.sendRequest('tools/list');
+
+  expect(bootedAtInitialize).toBe(false);
+  expect(listed['error']).toMatchObject({ message: expect.toInclude('no daemon answers') });
+  expect(existsSync(bootMarker)).toBe(true);
+});
 
 test('it serves a remote session through its bridge socket and never boots a daemon', async () => {
   const directory = setupTempDir('atc-mcp-bridge-').path;
