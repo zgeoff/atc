@@ -452,7 +452,7 @@
     "@xterm/addon-serialize": "0.14.0",
     "@xterm/headless": "6.0.0",
     "@zgeoff/bun-test-extended": "0.2.2",
-    "@zgeoff/format-codemod": "0.3.3",
+    "@zgeoff/format-codemod": "0.3.4",
     "@zgeoff/kysely-bun-sqlite": "0.3.0",
     "@zgeoff/oxlint-config": "0.7.1",
     "@zgeoff/skill-gate": "0.2.9",
@@ -993,7 +993,7 @@
 
     "@zgeoff/bun-test-extended": ["@zgeoff/bun-test-extended@0.2.2", "", { "dependencies": { "jest-extended": "7.0.0", "jest-matcher-utils": "30.5.2" } }, "sha512-YQoZhzj8syJBlLZBeH65FBu+lDe9IbYxbs1nzy+w1vsVkaVgNIKl9RmA4K9V5BTLz2vQTBBRqAdDquA4hYxN4A=="],
 
-    "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.3.3", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.155.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-HrKdnhO0E5dR9ro3Ah5wRuf+2Bz8s+tK60+gU2r14Q47/1G21iEfoBc9KTKCE6QvuqsHGDhKl/pyE+/BjU1NFw=="],
+    "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.3.4", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.155.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-tkWH5kFlCHYBRT6KT34PCsb1Sysgg7ALHxWTzDVMtC8oECOnOipmbvoQmFjb03gGOope2XaHU274HHfziHNO+A=="],
 
     "@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.0", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-LJ8sc8xpEDa0aYBNA4raORnSit3SUXpVLK+F5qImnw4TDKBjgK2b5l3qNja99K2ITXF6Bpr6dAoMB6UDmdJ6EQ=="],
 
