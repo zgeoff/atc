@@ -279,6 +279,7 @@ export declare const DAEMON_CONTRACT: {
             client: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
             protocol: z.ZodOptional<z.ZodNumber>;
             principal: z.ZodOptional<z.ZodString>;
+            viewer: z.ZodOptional<z.ZodString>;
             session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>, unknown>;
         }, z.core.$strip>, z.ZodObject<{
             daemon: z.ZodString;
@@ -2363,7 +2364,7 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
 export type DaemonEvent = z.output<typeof DAEMON_EVENT_SCHEMA>;
 
 // daemon-features.d.ts
-export declare const DAEMON_FEATURES: readonly ['events.read.from-start'];
+export declare const DAEMON_FEATURES: readonly ['events.read.from-start', 'daemon.hello.viewer'];
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];
 
 // daemon-id.d.ts
@@ -2818,6 +2819,7 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         client: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
         protocol: z.ZodOptional<z.ZodNumber>;
         principal: z.ZodOptional<z.ZodString>;
+        viewer: z.ZodOptional<z.ZodString>;
         session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("./session-id.js").SessionID, string>>>, unknown>;
     }, z.core.$strip>;
     readonly 'daemon.ping': z.ZodObject<{}, z.core.$strip>;

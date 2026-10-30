@@ -37,7 +37,7 @@ test('it answers daemon.hello with the build and limits', async () => {
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
     peerSession: null,
-    features: ['events.read.from-start'],
+    features: ['events.read.from-start', 'daemon.hello.viewer'],
   });
 });
 

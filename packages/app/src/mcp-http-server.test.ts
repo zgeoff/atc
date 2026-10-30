@@ -21,9 +21,8 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
+import { connectNamedDaemon } from './connect-named-daemon';
 import { createLocalDaemonConnection } from './create-local-daemon-connection';
-import { createNamedDaemonConnection } from './create-named-daemon-connection';
-import { makeRemoteChannelOpener } from './make-remote-channel-opener';
 import { runMCPHTTPServer } from './mcp-http-server';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { buildLocalTarget } from './test-utils/build-local-target';
@@ -923,15 +922,7 @@ test('it answers a tool call with the sessions of a named daemon it reaches over
     },
     {
       bootDaemon: (options) => bootRemoteDaemonClient(named, 'atc/named-http-test', options),
-      connectDaemon: () =>
-        createNamedDaemonConnection({
-          name: 'box',
-          principal: 'laptop',
-          openChannel: makeRemoteChannelOpener(named, (daemon) =>
-            bootRemoteDaemonClient(daemon, 'atc/named-http-test'),
-          ),
-          printError: () => {},
-        }),
+      connectDaemon: () => connectNamedDaemon(named, 'atc/named-http-test'),
       openAuthDatabase: openMCPAuthDatabase,
     },
     {

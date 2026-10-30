@@ -30,6 +30,10 @@ interface RemoteBootOptions extends DaemonBootOptions {
   // How long one attempt waits for the daemon to answer; 8 seconds unless
   // set.
   readonly answerTimeoutMs?: number;
+
+  // The principal whose reach narrows the connection's events and output,
+  // beside the entry's principal.
+  readonly viewer?: string;
 }
 
 export async function bootRemoteDaemonClient(
@@ -73,7 +77,13 @@ export async function bootRemoteDaemonClient(
     }
 
     try {
-      return await openRemoteDaemon(daemon, { build, token, clock, timeoutMs: attemptMs });
+      return await openRemoteDaemon(daemon, {
+        build,
+        token,
+        clock,
+        timeoutMs: attemptMs,
+        viewer: options.viewer,
+      });
     } catch (error) {
       if (
         !(error instanceof RemoteDaemonUnreachableError) ||
@@ -124,6 +134,7 @@ interface OpenRemoteDaemonOptions {
   readonly token: string;
   readonly clock: Clock;
   readonly timeoutMs: number;
+  readonly viewer: string | undefined;
 }
 
 async function openRemoteDaemon(
@@ -166,7 +177,19 @@ async function openRemoteDaemon(
       const hello = await client.sendHello(options.build, {
         token: options.token,
         principal: daemon.principal,
+        ...(options.viewer === undefined ? {} : { viewer: options.viewer }),
       });
+
+      // A daemon that predates the viewer drops it from the handshake and
+      // would send the events and output of the entry's whole reach.
+      if (options.viewer !== undefined && !hasViewerFeature(hello)) {
+        return {
+          ok: false,
+          error: new Error(
+            `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} cannot narrow a connection to the principal '${options.viewer}', so it serves no live terminal to it; update atc on the daemon's host`,
+          ),
+        };
+      }
 
       client.principal = daemon.principal;
 
@@ -220,6 +243,12 @@ function formatConnectError(error: unknown): string {
   }
 
   return error instanceof Error ? error.message : String(error);
+}
+
+function hasViewerFeature(hello: Readonly<Record<string, unknown>>): boolean {
+  const features = hello['features'];
+
+  return Array.isArray(features) && features.includes('daemon.hello.viewer');
 }
 
 // A handshake failure as the error the boot rejects with; one the boot

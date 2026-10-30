@@ -1,8 +1,8 @@
-import { formatError } from '@atc/core';
 import type { CredentialBroker } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { SessionID } from '@atcx/contract';
 import { assertRecordedHostName } from './assert-recorded-host-name';
+import { formatError } from './format-error';
 import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 import { tryReadHost } from './try-read-host';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';

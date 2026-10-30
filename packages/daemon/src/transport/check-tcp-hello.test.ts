@@ -5,7 +5,7 @@ import { checkTCPHello } from './check-tcp-hello';
 import type { TCPPeer } from './tcp-peer';
 
 // A listener stand-in that matches one token, `t-good`, to the
-// fingerprint `fp-1`, and a principal list that holds `ci` alone.
+// fingerprint `fp-1`, and a principal list that holds `ci` and `panel`.
 function setupTest() {
   const verifyHandshake = mock<TCPPeer['verifyHandshake']>((presented) => {
     const fingerprint = presented === 't-good' ? 'fp-1' : null;
@@ -17,7 +17,7 @@ function setupTest() {
 
   const checks = {
     tcp: { verifyHandshake, recordRefusedPrincipal },
-    hasListedPrincipal: (principal: string) => principal === 'ci',
+    hasListedPrincipal: (principal: string) => ['ci', 'panel'].includes(principal),
     build: '1.2.3',
   };
 
@@ -46,9 +46,110 @@ test('it accepts a handshake with a held token and a listed principal', async ()
     ok: true,
     fingerprint: 'fp-1',
     principal: 'ci',
+    viewer: null,
     session: toSessionID('s-1'),
     client: 'remote-tui',
   });
+});
+
+test('it accepts a handshake that binds a listed viewer beside a listed principal', async () => {
+  const ctx = setupTest();
+
+  const hello = await checkTCPHello(
+    {
+      version: PROTOCOL_V,
+      id: 1,
+      method: 'daemon.hello',
+      params: {
+        client: 'remote-tui',
+        principal: 'ci',
+        viewer: 'panel',
+        auth: { scheme: 'bearer', token: 't-good' },
+      },
+    },
+    ctx.checks,
+  );
+
+  expect(hello).toStrictEqual({
+    ok: true,
+    fingerprint: 'fp-1',
+    principal: 'ci',
+    viewer: 'panel',
+    session: null,
+    client: 'remote-tui',
+  });
+});
+
+test('it refuses a viewer the config does not list and records the refusal', async () => {
+  const ctx = setupTest();
+
+  const hello = await checkTCPHello(
+    {
+      version: PROTOCOL_V,
+      id: 1,
+      method: 'daemon.hello',
+      params: {
+        client: 'remote-tui',
+        principal: 'ci',
+        viewer: 'guest',
+        auth: { scheme: 'bearer', token: 't-good' },
+      },
+    },
+    ctx.checks,
+  );
+
+  expect(hello).toStrictEqual({
+    ok: false,
+    code: 'unauthorized',
+    message: "principal 'guest' is not listed in principals",
+  });
+
+  expect(ctx.recordRefusedPrincipal).toHaveBeenCalledOnce();
+});
+
+test('it refuses a viewer without a principal', async () => {
+  const ctx = setupTest();
+
+  const hello = await checkTCPHello(
+    {
+      version: PROTOCOL_V,
+      id: 1,
+      method: 'daemon.hello',
+      params: {
+        client: 'remote-tui',
+        viewer: 'panel',
+        auth: { scheme: 'bearer', token: 't-good' },
+      },
+    },
+    ctx.checks,
+  );
+
+  expect(hello).toStrictEqual({
+    ok: false,
+    code: 'bad_args',
+    message: 'daemon.hello viewer needs a principal',
+  });
+});
+
+test('it accepts a handshake that carries a field it does not know', async () => {
+  const ctx = setupTest();
+
+  const hello = await checkTCPHello(
+    {
+      version: PROTOCOL_V,
+      id: 1,
+      method: 'daemon.hello',
+      params: {
+        client: 'remote-tui',
+        principal: 'ci',
+        lens: 'wide',
+        auth: { scheme: 'bearer', token: 't-good' },
+      },
+    },
+    ctx.checks,
+  );
+
+  expect(hello).toMatchObject({ ok: true, principal: 'ci', viewer: null });
 });
 
 test('it refuses a handshake whose token the listener does not hold', async () => {

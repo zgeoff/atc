@@ -30,6 +30,46 @@ test('it delivers the events collected before the subscription, in order', async
   ]);
 });
 
+test('it drops what the backlog holds of a forgotten session and keeps the rest in order', async () => {
+  const feed = createEventFeed({
+    capacity: 1024,
+    canSeeOutput: () => true,
+    resync: () => {},
+    onOverflow: () => {},
+  });
+
+  feed.emitOutput(
+    toSessionID('s-gone'),
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's-gone', seq: 1, data: 'old' },
+    3,
+  );
+
+  feed.emit({
+    version: PROTOCOL_V,
+    ev: 'SessionState',
+    session: { id: 's-gone', name: 'gone' },
+  });
+
+  feed.emitOutput(
+    toSessionID('s-kept'),
+    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's-kept', seq: 1, data: 'new' },
+    3,
+  );
+
+  feed.forgetSession(toSessionID('s-gone'));
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-gone' });
+
+  const stream = feed.subscribe(new AbortController().signal);
+
+  const first = await stream.next();
+  const second = await stream.next();
+
+  expect([first.value, second.value]).toStrictEqual([
+    { ev: 'SessionOutput', sessionID: 's-kept', seq: 1, data: 'new' },
+    { ev: 'SessionRemoved', sessionID: 's-gone' },
+  ]);
+});
+
 test('it delivers an event emitted while the subscriber waits', async () => {
   const feed = createEventFeed({
     capacity: 1024,

@@ -117,14 +117,13 @@ daemon keeps every idempotency key of a connection under the connection's princi
 derives each key a client passes from the client's id and the key, and two clients that pick the
 same key never share it.
 
-A live terminal opens its own connection as the entry's principal and acts as the viewer's principal
-on each request, so the viewer reaches only the targets both may use. The connection's events follow
-the entry's principal, so the server reads each event's session as the viewer before it forwards the
-event, and it ends the terminal of a session the viewer cannot read. A read that fails for any other
-reason leaves the viewer's reach unknown, so the server ends the terminal and logs the failure to
-stderr. The terminal follows the same scope as the viewer's tool requests. A viewer with an owner
-token from `--token-file` watches as the entry's principal alone, because no connection over TCP
-acts as the daemon's owner.
+A live terminal opens its own connection as the entry's principal and binds the viewer's principal
+to it ([the TCP listener](../protocol/principals.md#the-tcp-listener)), so the named daemon sends
+that connection only the events and output of sessions that both may see. Each request on it acts as
+the viewer, so the terminal follows the same scope as the viewer's tool requests. The server refuses
+the terminal, naming the daemon, when the daemon's handshake answer lacks the viewer feature. A
+viewer with an owner token from `--token-file` watches as the entry's principal alone, because no
+connection over TCP acts as the daemon's owner.
 
 A remote client can also subscribe to the fleet's events by webhook, so atc wakes it instead of it
 polling the event feed ([MCP Events](./mcp-events.md)).

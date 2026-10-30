@@ -1,15 +1,20 @@
 import type { RemoteDaemon } from '@atc/config';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
 import { createNamedDaemonConnection } from './create-named-daemon-connection';
-import { makeRemoteChannelOpener } from './make-remote-channel-opener';
 import type { MCPDaemonConnection } from './mcp-http-server';
-import { PROCESS_IO } from './process-io';
 
+// Each channel is a fresh boot of the daemon's client, which reads the token
+// again, so a token rotated on the daemon's host reaches the next channel
+// without a restart.
 export function connectNamedDaemon(daemon: RemoteDaemon, build: string): MCPDaemonConnection {
   return createNamedDaemonConnection({
     name: daemon.name,
-    principal: daemon.principal,
-    openChannel: makeRemoteChannelOpener(daemon, (opened) => bootRemoteDaemonClient(opened, build)),
-    printError: PROCESS_IO.printError,
+    openChannel: async (viewer) => {
+      const options = viewer === null ? {} : { viewer };
+
+      const boot = await bootRemoteDaemonClient(daemon, build, options);
+
+      return boot.client;
+    },
   });
 }

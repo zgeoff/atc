@@ -1,7 +1,7 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROTOCOL_V } from '@atc/protocol/wire';
+import { MAX_CHUNK, MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
 import {
   buildMockAgentAdapter,
   buildStubSkipClock,
@@ -76,6 +76,87 @@ test('it connects to a daemon over TCP as the entry principal and lists its flee
 
   expect(listed['sessions']).toStrictEqual([
     expect.objectContaining({ name: 'on-the-box', alive: true }),
+  ]);
+});
+
+test('it refuses a viewer on a daemon whose handshake lists no viewer feature, naming the daemon', () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
+  const legacy = startStubLegacyDaemon(
+    { hostname: '127.0.0.1', port: 0 },
+    {
+      replies: {
+        'daemon.hello': {
+          daemon: 'atc/legacy-build',
+          daemonID: 'd-legacy',
+          limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
+          lastUsedAgent: 'claude',
+          features: ['events.read.from-start'],
+        },
+      },
+    },
+  );
+
+  if (legacy.port === null) {
+    throw new Error('the stub daemon bound no TCP port');
+  }
+
+  expect(
+    bootRemoteDaemonClient(
+      buildMockRemoteDaemon({
+        name: 'box',
+        host: '127.0.0.1',
+        port: legacy.port,
+        token: { kind: 'file', path: ctx.tokenFile },
+        principal: 'laptop',
+      }),
+      'atc/test-client',
+      { viewer: 'web-panel' },
+    ),
+  ).rejects.toThrowWithMessage(
+    Error,
+    `daemon 'box' at 127.0.0.1:${legacy.port} cannot narrow a connection to the principal 'web-panel', so it serves no live terminal to it; update atc on the daemon's host`,
+  );
+});
+
+test('it connects with no viewer to a daemon whose handshake lists no viewer feature', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
+  const legacy = startStubLegacyDaemon({ hostname: '127.0.0.1', port: 0 });
+
+  if (legacy.port === null) {
+    throw new Error('the stub daemon bound no TCP port');
+  }
+
+  const boot = await bootRemoteDaemonClient(
+    buildMockRemoteDaemon({
+      name: 'box',
+      host: '127.0.0.1',
+      port: legacy.port,
+      token: { kind: 'file', path: ctx.tokenFile },
+      principal: 'laptop',
+    }),
+    'atc/test-client',
+  );
+
+  onTestFinished(() => {
+    boot.client.stop();
+  });
+
+  expect(legacy.requests).toStrictEqual([
+    {
+      method: 'daemon.hello',
+      params: {
+        protocol: PROTOCOL_V,
+        client: 'atc/test-client',
+        auth: { scheme: 'bearer', token: 'a'.repeat(32) },
+        principal: 'laptop',
+      },
+    },
   ]);
 });
 

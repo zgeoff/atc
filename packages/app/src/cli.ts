@@ -30,7 +30,11 @@ const ATC_CLI_IO: ATCCLIIO = {
       await tui.runTUI(host.createTUIHost(lifecycleHost));
     } else {
       const host = await import('./create-remote-tui-host');
-      const picked = await readNamedDaemon(daemon, 'atc');
+      const picked = await readConfiguredDaemon(daemon, 'atc');
+
+      if (picked === null) {
+        return;
+      }
 
       await tui.runTUI(host.createRemoteTUIHost(lifecycleHost, picked));
     }
@@ -42,7 +46,13 @@ const ATC_CLI_IO: ATCCLIIO = {
 
     const host = lifecycle.buildLifecycleHost(process.env, hostServices);
     const build = host.invocation.readBuild();
-    const named = flags.daemon === null ? null : await readNamedDaemon(flags.daemon, 'atc mcp');
+
+    const named =
+      flags.daemon === null ? null : await readConfiguredDaemon(flags.daemon, 'atc mcp');
+
+    if (flags.daemon !== null && named === null) {
+      return;
+    }
 
     if (!flags.http) {
       const server = await import('@atc/mcp/stdio');
@@ -256,23 +266,17 @@ async function loadHostServices(): Promise<HostServices> {
   return services.createHostServices();
 }
 
-async function readNamedDaemon(name: string, command: string): Promise<RemoteDaemon> {
+// Null once the command has refused the name and exited.
+async function readConfiguredDaemon(name: string, command: string): Promise<RemoteDaemon | null> {
   const config = await import('@atc/config');
   const harnessPlugins = await import('./plugins/shipped-harness-plugins');
-  const resolved = await import('./resolve-remote-daemon');
+  const reader = await import('./read-named-daemon');
 
-  const picked = resolved.resolveRemoteDaemon(
-    config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS),
-    name,
-    config.configFile,
-  );
-
-  if (!picked.ok) {
-    console.error(`${command}: ${picked.message}`);
-    process.exit(1);
-  }
-
-  return picked.daemon;
+  return reader.readNamedDaemon(name, command, {
+    loadConfig: () => config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS),
+    configFile: config.configFile,
+    io: PROCESS_IO,
+  });
 }
 
 // Reads the flags the restart commands share, and stops the command on one

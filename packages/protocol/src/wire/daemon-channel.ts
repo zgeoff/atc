@@ -8,6 +8,10 @@ export interface HelloOptions {
   // the principal the connection acts as, which a TCP listener's config
   // must list
   readonly principal?: string;
+
+  // a second principal that narrows the connection's events and output to
+  // what both principals may see
+  readonly viewer?: string;
 }
 
 export interface DaemonChannel {

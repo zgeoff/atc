@@ -109,6 +109,13 @@ export const REQUEST_PARAM_SCHEMAS = {
       .min(1, 'daemon.hello principal must be a non-empty string')
       .optional(),
 
+    // A second principal that narrows the connection's events and output to
+    // what both principals may see, for the connection's whole life.
+    viewer: z
+      .string({ error: 'daemon.hello viewer must be a non-empty string' })
+      .min(1, 'daemon.hello viewer must be a non-empty string')
+      .optional(),
+
     // The atc session the client runs inside, which a client started in a
     // session's environment sends; absent for a client outside any session.
     session: z.preprocess(
