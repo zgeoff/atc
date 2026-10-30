@@ -1,4 +1,5 @@
 import { isRecord } from '@atc/core';
+import { GATEWAY_PATHS } from '@atcx/contract';
 import { Elysia } from 'elysia';
 import invariant from 'tiny-invariant';
 import { match } from 'ts-pattern';
@@ -37,19 +38,23 @@ interface MCPHTTPAppOptions {
   readonly security: { readonly record: (event: SecurityEvent) => void };
 }
 
-const PROBE_PATHS: ReadonlySet<string> = new Set(['/healthz', '/readyz']);
+const PROBE_PATHS: ReadonlySet<string> = new Set(Object.values(GATEWAY_PATHS.probes));
 
 // MCP answers at `/` as well as at `/mcp`, for a client configured with the
 // bare origin. Both are the one resource `<origin>/mcp`.
-const MCP_PATHS = ['/mcp', '/'] as const;
+const MCP_PATHS = [GATEWAY_PATHS.machine.mcp, GATEWAY_PATHS.machine.root] as const;
 
 // The browser pages: passkey sign-in, passkey enrollment, and consent.
-const PAGE_PATHS = ['/login', '/enroll', '/consent'] as const;
+const PAGE_PATHS = [
+  GATEWAY_PATHS.browser.login,
+  GATEWAY_PATHS.browser.enroll,
+  GATEWAY_PATHS.browser.consent,
+] as const;
 
 // Both paths serve the protected resource metadata for `<origin>/mcp`.
 const RESOURCE_METADATA_PATHS = [
-  '/.well-known/oauth-protected-resource',
-  '/.well-known/oauth-protected-resource/mcp',
+  GATEWAY_PATHS.machine.resourceMetadata,
+  GATEWAY_PATHS.machine.mcpResourceMetadata,
 ] as const;
 
 export function createMCPHTTPApp(options: MCPHTTPAppOptions) {
@@ -90,23 +95,23 @@ export function createMCPHTTPApp(options: MCPHTTPAppOptions) {
         ? new Response(null, { status: 404 })
         : new Response(null, { status: 503 }),
     )
-    .post('/oauth2/revoke', (context) =>
+    .post(GATEWAY_PATHS.machine.revoke, (context) =>
       requireContext().store.auth.handler(toPublicRequest(requireContext(), context.request)),
     )
-    .get('/.well-known/oauth-authorization-server', (context) =>
+    .get(GATEWAY_PATHS.machine.authorizationServerMetadata, (context) =>
       answerMetadataRequest(requireContext(), context.request, 'authorization-server'),
     )
-    .get('/oauth2/authorize', (context) =>
+    .get(GATEWAY_PATHS.browser.authorize, (context) =>
       answerAuthorizeRequest(
         requireContext(),
         new URL(context.request.url),
         options.readRequester(context.request),
       ),
     )
-    .post('/oauth2/token', (context) =>
+    .post(GATEWAY_PATHS.machine.token, (context) =>
       answerTokenRequest(requireContext(), context.request, options.readRequester(context.request)),
     )
-    .get('/error', (context) => {
+    .get(GATEWAY_PATHS.browser.error, (context) => {
       const error = new URL(context.request.url).searchParams.get('error');
 
       return buildPageResponse(400, { message: pickErrorMessage(error) });
@@ -123,7 +128,7 @@ export function createMCPHTTPApp(options: MCPHTTPAppOptions) {
       app.all(path, (context) =>
         answerProbeRequest(
           context.request.method,
-          path === '/healthz' || options.readContext() !== null,
+          path === GATEWAY_PATHS.probes.health || options.readContext() !== null,
         ),
       );
     }
@@ -336,13 +341,13 @@ function answerPageRequest(ctx: HTTPServerContext, page: PageRequest): Promise<R
   const url = new URL(page.request.url);
 
   return match(page.path)
-    .with('/login', () =>
+    .with(GATEWAY_PATHS.browser.login, () =>
       answerLoginRequest(ctx, { method, url, body: page.body, requester: page.requester }),
     )
-    .with('/enroll', () =>
+    .with(GATEWAY_PATHS.browser.enroll, () =>
       answerEnrollRequest(ctx, { method, url, body: page.body, requester: page.requester }),
     )
-    .with('/consent', () =>
+    .with(GATEWAY_PATHS.browser.consent, () =>
       answerConsentRequest(ctx, {
         method,
         url,

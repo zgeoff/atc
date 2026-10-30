@@ -2,6 +2,7 @@ import { lookup } from 'node:dns/promises';
 import { isRecord, systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { MAX_LINE } from '@atc/protocol/wire';
+import { GATEWAY_PATHS } from '@atcx/contract';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { Server } from 'bun';
 import invariant from 'tiny-invariant';
@@ -359,7 +360,7 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     caller: options.caller,
     build: options.build,
     origin,
-    resource: `${origin}/mcp`,
+    resource: `${origin}${GATEWAY_PATHS.machine.mcp}`,
     store,
     approvals: createApprovalState(APPROVAL_WINDOW_SECONDS * 1000, () => clock.now()),
     enrollments: createEnrollmentState(() => clock.now()),

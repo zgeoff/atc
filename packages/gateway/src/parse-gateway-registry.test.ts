@@ -136,6 +136,10 @@ test.each([
     { address: '100.64.0.2', daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30' },
     "daemon 'cloud' needs an address of <host>:<port> with a port from 1 to 65535",
   ],
+  [
+    { address: '100.64.0.2:65536', daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30' },
+    "daemon 'cloud' needs an address of <host>:<port> with a port from 1 to 65535",
+  ],
   ['cloud', "daemon 'cloud' must be an object with address and daemonID"],
 ])('it refuses the daemon entry %p with %p', (entry, error) => {
   const parsed = parseGatewayRegistry(
@@ -144,6 +148,21 @@ test.each([
   );
 
   expect(parsed).toStrictEqual({ ok: false, errors: [error] });
+});
+
+test('it refuses each fault of a daemon entry with a bad address and a bad daemonID', () => {
+  const parsed = parseGatewayRegistry(
+    { daemons: { cloud: { address: '100.64.0.2', daemonID: 'cloud' } }, defaultDaemon: 'cloud' },
+    { ATC_GATEWAY_TOKEN_CLOUD: 't' },
+  );
+
+  expect(parsed).toStrictEqual({
+    ok: false,
+    errors: [
+      "daemon 'cloud' needs an address of <host>:<port> with a port from 1 to 65535",
+      "daemon 'cloud' needs the daemonID that atc daemon id prints on its host",
+    ],
+  });
 });
 
 test('it refuses a registry that lists no daemon', () => {

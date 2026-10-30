@@ -46,6 +46,8 @@ bun add -d @opentelemetry/api
   for the session record a session's helpers read.
 - **Checking a daemon.** `checkDaemon` compares the major version in the hello answer with the
   contract's, and lists the features that differ.
+- **The gateway.** `GATEWAY_PATHS`, the routes atc-gateway serves grouped as browser, machine and
+  probe paths, and `GATEWAY_REGISTRY_SCHEMA`, the rules of the gateway's registry file.
 - **The light entry.** `@atcx/contract/light` holds the session environment names, the state paths
   and the error codes without the request contract, for a process that starts once per event.
 

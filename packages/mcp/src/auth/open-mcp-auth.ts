@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { chmodSync, closeSync, openSync } from 'node:fs';
-import { GRANT_SCOPES } from '@atcx/contract';
+import { GATEWAY_PATHS, GRANT_SCOPES } from '@atcx/contract';
 import { mcp } from '@better-auth/mcp';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import type { OAuthOptions, Scope } from '@better-auth/oauth-provider';
@@ -51,8 +51,8 @@ export async function openMCPAuth(options: MCPAuthOptions) {
   const db = new Kysely<MCPAuthSchema>({ dialect: database.dialect });
 
   const providerOptions: OAuthOptions<Scope[]> = {
-    loginPage: '/login',
-    consentPage: '/consent',
+    loginPage: GATEWAY_PATHS.browser.login,
+    consentPage: GATEWAY_PATHS.browser.consent,
     scopes: [...GRANT_SCOPES, 'offline_access'],
     disableJwtPlugin: true,
     allowDynamicClientRegistration: false,
@@ -69,7 +69,7 @@ export async function openMCPAuth(options: MCPAuthOptions) {
   const provider =
     options.origin === null
       ? oauthProvider(providerOptions)
-      : mcp({ ...providerOptions, resource: `${options.origin}/mcp` });
+      : mcp({ ...providerOptions, resource: `${options.origin}${GATEWAY_PATHS.machine.mcp}` });
 
   const baseURL = options.origin ?? 'http://127.0.0.1';
 
@@ -123,7 +123,7 @@ export async function openMCPAuth(options: MCPAuthOptions) {
   if (options.origin !== null) {
     await db
       .deleteFrom('oauthResource')
-      .where('identifier', '!=', `${options.origin}/mcp`)
+      .where('identifier', '!=', `${options.origin}${GATEWAY_PATHS.machine.mcp}`)
       .execute();
   }
 

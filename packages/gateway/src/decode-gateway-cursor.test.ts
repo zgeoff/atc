@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import { encodeCursor } from '@atc/protocol';
+import { MAX_REGISTRY_DAEMONS } from '@atcx/contract';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
@@ -172,5 +174,57 @@ test('it refuses a part without an incarnation with bad_args', () => {
 
   expect(() => decodeGatewayCursor(cursor, 'f', registry)).toThrow(
     expect.objectContaining({ code: 'bad_args', message: `'${cursor}' is not an events cursor` }),
+  );
+});
+
+test('it decodes the worst-case events cursor of the most daemons a registry lists, each with the longest name', () => {
+  const daemons = Array.from({ length: MAX_REGISTRY_DAEMONS }, (_, index) =>
+    buildMockRegistryDaemon({
+      name: `${'d'.repeat(29)}${String(index).padStart(2, '0')}`,
+      incarnation: String(index).padStart(8, 'f'),
+    }),
+  );
+
+  const registry = {
+    daemons: new Map(daemons.map((daemon) => [daemon.name, daemon])),
+    defaultDaemon: `${'d'.repeat(29)}00`,
+  };
+
+  const filter = buildEventsFilterHash('x'.repeat(200), null);
+  const worst = encodeCursor({ kind: 'events', id: Number.MAX_SAFE_INTEGER });
+
+  const cursor = encodeGatewayCursor(
+    filter,
+    new Map(daemons.map((daemon) => [`${daemon.name}.${daemon.incarnation}`, worst])),
+  );
+
+  expect(decodeGatewayCursor(cursor, filter, registry)).toStrictEqual(
+    new Map(daemons.map((daemon) => [daemon.name, worst])),
+  );
+});
+
+test('it refuses the worst-case events cursor of one daemon more than a registry lists as too long', () => {
+  const daemons = Array.from({ length: MAX_REGISTRY_DAEMONS + 1 }, (_, index) =>
+    buildMockRegistryDaemon({
+      name: `${'d'.repeat(29)}${String(index).padStart(2, '0')}`,
+      incarnation: String(index).padStart(8, 'f'),
+    }),
+  );
+
+  const registry = {
+    daemons: new Map(daemons.map((daemon) => [daemon.name, daemon])),
+    defaultDaemon: `${'d'.repeat(29)}00`,
+  };
+
+  const filter = buildEventsFilterHash('x'.repeat(200), null);
+  const worst = encodeCursor({ kind: 'events', id: Number.MAX_SAFE_INTEGER });
+
+  const cursor = encodeGatewayCursor(
+    filter,
+    new Map(daemons.map((daemon) => [`${daemon.name}.${daemon.incarnation}`, worst])),
+  );
+
+  expect(() => decodeGatewayCursor(cursor, filter, registry)).toThrow(
+    expect.objectContaining({ code: 'bad_args', message: 'cursor exceeds 4096 bytes' }),
   );
 });

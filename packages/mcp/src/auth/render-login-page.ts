@@ -1,3 +1,4 @@
+import { GATEWAY_PATHS } from '@atcx/contract';
 import { PASSKEY_SCRIPT } from './passkey-script';
 import { toHTMLText } from './to-html-text';
 import { toScriptJSON } from './to-script-json';
@@ -21,7 +22,7 @@ export function renderLoginPage(view: LoginPageView): string {
     view.options === null
       ? `<p class="error">No passkey is enrolled, so nobody can sign in. On the host that runs atc, run <code>atc passkeys enroll</code>, or <code>atc-gateway passkeys enroll</code> for a gateway, then follow what it prints.</p>`
       : `<script type="application/json" id="atc-passkey">${toScriptJSON({ mode: 'get', options: view.options })}</script>
-<form method="post" action="/login" id="atc-passkey-form">
+<form method="post" action="${GATEWAY_PATHS.browser.login}" id="atc-passkey-form">
 <input type="hidden" name="oauth_query" value="${toHTMLText(view.oauthQuery)}">
 <input type="hidden" name="credential" value="">
 <button type="button" id="atc-passkey-start" autofocus>Sign in with a passkey</button>

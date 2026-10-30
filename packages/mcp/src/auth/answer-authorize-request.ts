@@ -1,3 +1,4 @@
+import { GATEWAY_PATHS } from '@atcx/contract';
 import { buildPageResponse } from '../http/build-page-response';
 import { normalizeClientName } from './normalize-client-name';
 import { readClientName } from './read-client-name';
@@ -27,7 +28,7 @@ export async function answerAuthorizeRequest(
   }
 
   const response = await ctx.store.auth.handler(
-    new Request(`${ctx.origin}/oauth2/authorize?${params.toString()}`, {
+    new Request(`${ctx.origin}${GATEWAY_PATHS.browser.authorize}?${params.toString()}`, {
       headers: { accept: 'text/html' },
     }),
   );
@@ -35,7 +36,11 @@ export async function answerAuthorizeRequest(
   const location = response.headers.get('location');
   const target = location === null ? null : new URL(location, ctx.origin);
 
-  if (target === null || target.origin !== ctx.origin || target.pathname !== '/login') {
+  if (
+    target === null ||
+    target.origin !== ctx.origin ||
+    target.pathname !== GATEWAY_PATHS.browser.login
+  ) {
     await recordInvalidRequest(ctx, url, requester, target);
 
     return response;

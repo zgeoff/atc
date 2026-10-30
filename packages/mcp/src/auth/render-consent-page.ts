@@ -1,3 +1,4 @@
+import { GATEWAY_PATHS } from '@atcx/contract';
 import type { GrantScope } from '@atcx/contract';
 import { toHTMLText } from './to-html-text';
 
@@ -46,7 +47,7 @@ button { font: inherit; margin-right: 0.5rem; }
 <body>
 <h1>Choose what to allow</h1>
 <p><strong>${toHTMLText(view.clientName)}</strong> returns to <code>${toHTMLText(view.redirectURI)}</code> with the access you allow here.</p>
-<form method="post" action="/consent">
+<form method="post" action="${GATEWAY_PATHS.browser.consent}">
 <input type="hidden" name="oauth_query" value="${toHTMLText(view.oauthQuery)}">
 <fieldset>
 <legend>Allow it to</legend>
