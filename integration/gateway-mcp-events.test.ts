@@ -180,7 +180,9 @@ test("it declares Events through the gateway under the draft's extensions entry 
 
   const answer = await sendModernMCPRequest(fleet.server.url, grant.accessToken, 'server/discover');
 
-  expect(answer.body).toMatchObject({
+  expect(answer.body).toStrictEqual({
+    jsonrpc: '2.0',
+    id: 1,
     result: {
       supportedVersions: ['2026-07-28'],
       capabilities: {
@@ -188,6 +190,10 @@ test("it declares Events through the gateway under the draft's extensions entry 
         extensions: { 'io.modelcontextprotocol/events': {} },
         events: {},
       },
+      resultType: 'complete',
+      ttlMs: 0,
+      cacheScope: 'private',
+      _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'atc', version: 'atc-gateway/test' } },
     },
   });
 });
@@ -219,14 +225,51 @@ test('it lists the four event types through the gateway for webhook delivery', a
 
   const answer = await sendModernMCPRequest(fleet.server.url, grant.accessToken, 'events/list');
 
-  expect(answer.body).toMatchObject({
+  const schemas = {
+    delivery: ['webhook'],
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    payloadSchema: {
+      type: 'object',
+      properties: {
+        session: { type: 'string', description: 'the atc session id the event belongs to' },
+      },
+      required: ['session'],
+      additionalProperties: false,
+    },
+  };
+
+  expect(answer.body).toStrictEqual({
+    jsonrpc: '2.0',
+    id: 1,
     result: {
       events: [
-        { name: 'session.needs_input', delivery: ['webhook'] },
-        { name: 'session.turn_done', delivery: ['webhook'] },
-        { name: 'session.ended', delivery: ['webhook'] },
-        { name: 'session.note', delivery: ['webhook'] },
+        {
+          name: 'session.needs_input',
+          description:
+            "Fires when a session's agent waits on the owner, such as at a permission prompt. Read what it waits on with atc_events_read from your last cursor.",
+          ...schemas,
+        },
+        {
+          name: 'session.turn_done',
+          description:
+            "Fires when a session's agent finishes a turn. Read its events with atc_events_read from your last cursor.",
+          ...schemas,
+        },
+        {
+          name: 'session.ended',
+          description:
+            'Fires when a session ends. Read its events with atc_events_read from your last cursor.',
+          ...schemas,
+        },
+        {
+          name: 'session.note',
+          description:
+            'Fires when a session sends a note, such as a progress report or a request for a decision. Read the note with atc_events_read from your last cursor.',
+          ...schemas,
+        },
       ],
+      resultType: 'complete',
+      _meta: { 'io.modelcontextprotocol/serverInfo': { name: 'atc', version: 'atc-gateway/test' } },
     },
   });
 });
@@ -397,10 +440,20 @@ test('it delivers the events of both daemons after the merged cursor a subscribe
   const delivered = receiver.received.slice(1).map((request): unknown => JSON.parse(request.body));
 
   expect(delivered).toIncludeSameMembers([
-    expect.objectContaining({
+    {
+      eventId: expect.toBeString(),
+      name: 'session.turn_done',
+      timestamp: expect.toBeString(),
       data: { session: `cloud.${fleet.cloudID.slice(0, 8)}.${cloudSessionID}` },
-    }),
-    expect.objectContaining({ data: { session: `pc.${fleet.pcID.slice(0, 8)}.${pcSessionID}` } }),
+      cursor: expect.toBeString(),
+    },
+    {
+      eventId: expect.toBeString(),
+      name: 'session.turn_done',
+      timestamp: expect.toBeString(),
+      data: { session: `pc.${fleet.pcID.slice(0, 8)}.${pcSessionID}` },
+      cursor: expect.toBeString(),
+    },
   ]);
 });
 
