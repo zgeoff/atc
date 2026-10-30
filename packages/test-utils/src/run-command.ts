@@ -1,3 +1,4 @@
+import { killProcessGroup } from './kill-process-group';
 import { registerTestCleanup } from './register-test-cleanup';
 
 interface CommandOptions {
@@ -55,15 +56,4 @@ export async function runCommand(
   complete = true;
 
   return { exitCode: subprocess.exitCode, signalCode: subprocess.signalCode, stdout, stderr };
-}
-
-// A group already empty has nothing left to kill.
-function killProcessGroup(group: number): void {
-  try {
-    process.kill(-group, 'SIGKILL');
-  } catch (error) {
-    if (!(error instanceof Error && Reflect.get(error, 'code') === 'ESRCH')) {
-      throw error;
-    }
-  }
 }

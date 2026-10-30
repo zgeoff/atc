@@ -9,6 +9,14 @@ on:
 permissions:
   contents: read
 
+# shfmt and shellcheck are pinned with their published hashes, so what each
+# job checks does not move with the runner image
+env:
+  SHFMT_VERSION: v3.13.1
+  SHFMT_SHA256: fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1
+  SHELLCHECK_VERSION: v0.11.0
+  SHELLCHECK_SHA256: b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
+
 jobs:
   static:
     runs-on: ubuntu-latest
@@ -79,28 +87,8 @@ jobs:
       - name: Format
         run: bun run format:check
 
-      # shfmt and shellcheck are pinned with their published hashes, so what
-      # this step checks does not move with the runner image
       - name: Install shfmt and shellcheck
-        env:
-          SHFMT_VERSION: v3.13.1
-          SHFMT_SHA256: fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1
-          SHELLCHECK_VERSION: v0.11.0
-          SHELLCHECK_SHA256: b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
-        run: |
-          bin="$RUNNER_TEMP/shell-tools"
-          mkdir -p "$bin"
-          curl -fsSL -o "$bin/shfmt" \
-            "https://github.com/mvdan/sh/releases/download/$SHFMT_VERSION/shfmt_${SHFMT_VERSION}_linux_amd64"
-          echo "$SHFMT_SHA256  $bin/shfmt" | sha256sum -c -
-          chmod +x "$bin/shfmt"
-          archive="shellcheck-$SHELLCHECK_VERSION.linux.x86_64.tar.gz"
-          curl -fsSL -o "$RUNNER_TEMP/$archive" \
-            "https://github.com/koalaman/shellcheck/releases/download/$SHELLCHECK_VERSION/$archive"
-          echo "$SHELLCHECK_SHA256  $RUNNER_TEMP/$archive" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
-          mv "$RUNNER_TEMP/shellcheck-$SHELLCHECK_VERSION/shellcheck" "$bin/shellcheck"
-          echo "$bin" >> "$GITHUB_PATH"
+        run: bash scripts/install-shell-tools.sh
 
       - name: Shell Lint
         run: bun run lint:shell
@@ -131,17 +119,13 @@ jobs:
         run: npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
 
       - name: Check Embedded Mod Drift
-        run: |
-          bun run build:atc-bridge
-          git diff --exit-code packages/harnesses/claude/src/bridge/atc-bridge-files.ts
+        run: bun run check:atc-bridge-drift
 
       - name: Test Mod
         run: bun run test:atc-bridge
 
       - name: Install Codex
-        run: |
-          npm install --global "@openai/codex@${CODEX_VERSION}"
-          codex --version
+        run: npm install --global "@openai/codex@${CODEX_VERSION}"
 
       - name: Test Codex Bridge
         run: bun run test:codex
@@ -166,18 +150,19 @@ jobs:
         run: bun install --frozen-lockfile
 
       # the embedded shell tests run shellcheck and fail without it
-      - name: Install shellcheck
-        run: command -v shellcheck || { sudo apt-get update && sudo apt-get install -y shellcheck; }
+      - name: Install shfmt and shellcheck
+        run: bash scripts/install-shell-tools.sh
 
       # the tests' temp files go on tmpfs: on the runner's disk, a writeback
       # of the pages that checkout and install dirtied stalls every test that
-      # writes a file or fsyncs for seconds, past the test timeout
+      # writes a file or fsyncs for seconds, past the test timeout. The run
+      # goes under the shared 8 GB suite cap, which prints its peak memory
       - name: Test
         env:
           TMPDIR: /dev/shm
         run:
-          bun run test:isolation bun run test --randomize --reporter=junit
-          --reporter-outfile="$RUNNER_TEMP/test-times.xml"
+          bash scripts/run-memory-capped.sh 8192 bun run test:isolation bun run test --randomize
+          --reporter=junit --reporter-outfile="$RUNNER_TEMP/test-times.xml"
 
       # the e2e lane, on the suites the binaries workflow does not run against
       # a compiled binary; the unit run above leaves e2e/ out
@@ -185,10 +170,10 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           TMPDIR: /dev/shm
-        run: |
-          mapfile -t suites < <(find e2e -maxdepth 1 -name '*.test.ts' ! -name 'daemon-*' ! -name 'gateway-*' | sort)
-          bun run test:isolation bun run test:e2e --parallel=4 --no-isolate --randomize --reporter=junit \
-            --reporter-outfile="$RUNNER_TEMP/test-times-e2e.xml" "${suites[@]}"
+        run:
+          bash scripts/run-memory-capped.sh 8192 bun run test:isolation bun run test:e2e
+          --source-suites --randomize --reporter=junit
+          --reporter-outfile="$RUNNER_TEMP/test-times-e2e.xml"
 
       # the per-test times of each run on main, which the weekly audit reads
       - name: Upload test times

@@ -8,7 +8,10 @@
 # hosts, so nothing reports to a live daemon from an enclosing session, and an inherited
 # CLAUDE_CONFIG_DIR, so the Claude config folder resolves inside the home too.
 # It removes the variables a Codex tool's process inherits, which the hook reporter
-# reads as the mark of a nested harness. It keeps every other variable, ATC_BIN included. The directory is removed on exit.
+# reads as the mark of a nested harness. It keeps every other variable, ATC_BIN included.
+# On exit it kills each process still running in the directory and removes the
+# directory, and at start it does the same for each directory of a run that a
+# kill stopped.
 # It also sets ATC_CLI_ENTRY and ATC_GATEWAY_ENTRY to the source entries of
 # the atc and atc-gateway commands, so a shared test helper that runs either
 # finds it without knowing where the app package sits.
@@ -19,8 +22,27 @@ repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # macOS sets TMPDIR with a trailing slash; trimming it keeps every exported
 # path in the normalized form the preload compares against.
 tmp="${TMPDIR:-/tmp}"
+
+# A run that a kill stopped never reached its exit trap, so its directory and
+# the processes it started are still there. A plugin's own workspace holds no
+# sweep. A failed sweep leaves the leftovers, and the run goes on.
+if [ -f "$repo/scripts/remove-stale-test-homes.ts" ]; then
+  bun "$repo/scripts/remove-stale-test-homes.ts" "${tmp%/}" ||
+    echo 'with-test-home: the sweep of stale test homes failed; this run goes on' >&2
+fi
+
 root=$(mktemp -d "${tmp%/}/atc-test-home-XXXXXX")
-trap 'rm -rf "$root"' EXIT
+echo "$$" > "$root/owner.pid"
+
+# A daemon or agent stand-in that a test failed to stop holds the run's
+# ATC_TEST_HOME, and dies with the run.
+remove_root() {
+  if [ -f "$repo/scripts/stop-test-home-processes.ts" ]; then
+    bun "$repo/scripts/stop-test-home-processes.ts" "$root" || true
+  fi
+  rm -rf "$root"
+}
+trap remove_root EXIT
 
 mkdir -p "$root/home" "$root/runtime"
 chmod 700 "$root/runtime"

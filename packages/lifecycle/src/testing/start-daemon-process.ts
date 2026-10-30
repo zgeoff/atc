@@ -2,7 +2,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:f
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
-import { createMigratedStateDB, registerTestCleanup, waitFor } from '@atc/test-utils';
+import {
+  createMigratedStateDB,
+  killProcessGroup,
+  registerTestCleanup,
+  waitFor,
+} from '@atc/test-utils';
 import type { Subprocess } from 'bun';
 import { readDaemonRecord } from '../read-daemon-record';
 
@@ -46,6 +51,10 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   const clients = new Set<DaemonClient>();
 
   let boots = 0;
+
+  // The process group of every boot, since a child that an earlier boot
+  // forked can outlive the restart that ended it.
+  const groups: number[] = [];
   let stopped = false;
 
   const boot = (): DaemonBoot => {
@@ -71,7 +80,13 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
       ),
       stdout: 'ignore',
       stderr: Bun.file(stderrPath),
+
+      // Leading its own process group lets the stop kill a child the daemon
+      // forked with it.
+      detached: true,
     });
+
+    groups.push(subprocess.pid);
 
     return { subprocess, stderrPath };
   };
@@ -85,7 +100,9 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
       client.stop();
     }
 
-    current.subprocess.kill('SIGKILL');
+    for (const group of groups) {
+      killProcessGroup(group);
+    }
 
     await current.subprocess.exited;
 

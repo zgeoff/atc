@@ -24,14 +24,17 @@ the layout and the runtime rules, and this runbook covers setting up a checkout 
    `bun run lint:full` runs the type-aware lint, and runs in CI only.
 
 lefthook runs oxlint, oxfmt, format-codemod and gitleaks on the staged files before a commit, and
-commitlint on the message. Before a push it runs the format check, the shell lint, the guest script
-check, the import check, and the lint and tests for what the branch changes, one job at a time, to
-bound memory. A push that only deletes remote branches, such as `git push origin --delete <branch>`,
-carries no content, so the hook skips every check. The shell lint (`bun run lint:shell`) runs
-shellcheck and `shfmt -d` over the tracked shell scripts, with shfmt's settings in `.editorconfig`,
-and leaves out the skill scripts that are synced from another repo. The guest script check
-(`bun run check:guest-scripts`) runs shellcheck over the shell scripts that atc holds as strings,
-which the shell lint cannot see.
+commitlint on the message. Before a push it runs atc's own checks, such as the guest script check
+and the import check, and then the
+[pre-push baseline](https://github.com/zgeoff/tools/blob/main/docs/architecture/pre-push-baseline.md)
+that zgeoff/tools delivers: the format check, the type check, and the lint, shell lint and unit
+tests for what the branch changes. The hook runs one job at a time, each under a memory cap set to
+the host's memory, and prints each job's peak memory. A push that only deletes remote branches, such
+as `git push origin --delete <branch>`, carries no content, so the hook skips atc's own checks and
+the tests. CI runs the shell lint (`bun run lint:shell`) over every tracked shell script, with
+shfmt's settings in `.editorconfig`, and leaves out the skill scripts that are synced from another
+repo. The guest script check (`bun run check:guest-scripts`) runs shellcheck over the shell scripts
+that atc holds as strings, which the shell lint cannot see.
 
 A squash merge makes the PR title the commit subject, so the `PR Title` workflow runs commitlint on
 the title each time a PR opens, changes its title, or takes a push.
@@ -48,9 +51,10 @@ bash scripts/with-test-home.sh bun packages/app/src/cli.ts
 
 `with-test-home.sh` points `HOME`, `XDG_RUNTIME_DIR` and the agent homes at a fresh temporary
 directory, strips the enclosing atc session's variables so nothing reports to a live daemon, and
-removes the directory on exit. For a home that persists across runs, set `HOME` and
-`XDG_RUNTIME_DIR` to a directory of your own instead. The agent CLIs read their own config from that
-home, so sign in to an agent there before you spawn it.
+removes the directory on exit, after it kills each process still running in it. A run that a kill
+stopped leaves its directory and processes behind, and the next run removes them. For a home that
+persists across runs, set `HOME` and `XDG_RUNTIME_DIR` to a directory of your own instead. The agent
+CLIs read their own config from that home, so sign in to an agent there before you spawn it.
 
 Run from source, atc loads a `.env` file from its working directory, as Bun does by default. A
 release binary never reads one.
@@ -63,7 +67,7 @@ state. The `testing` and `project-testing` skills hold the conventions. No test 
 
 | Script                                   | Runs                                                                 |
 | ---------------------------------------- | -------------------------------------------------------------------- |
-| `bun run test:related`                   | the tests beside the files you pass, less the pre-push skip list     |
+| `bun run test:related`                   | the unit tests beside the files you pass                             |
 | `bun run test:e2e e2e/tui-*.test.ts`     | the e2e suites you pass, under the e2e lane limit of 15 s            |
 | `bun run test:e2e e2e/daemon-*.test.ts`  | the daemon suite against a compiled binary, with `ATC_BIN` set       |
 | `bun run test:e2e e2e/gateway-*.test.ts` | the gateway suite against a compiled gateway, with `ATC_GATEWAY_BIN` |
@@ -71,18 +75,11 @@ state. The `testing` and `project-testing` skills hold the conventions. No test 
 | `bun run test:isolation`                 | the suite in a canary home, failing when a test touches a real home  |
 | `bun run test:timings`                   | the suite, rewriting the timings that start the slowest files first  |
 
-The pre-push hook runs `bun run test:related` over the files the branch changes. On a host with 2 or
-fewer CPUs or 2 GiB or less of memory, that script sets `TEST_WORKERS` to 1, because more workers
-and the processes their tests spawn keep the slowest tests near the 5 s timeout there. Every other
-host runs the test script's default of 4 workers. A `TEST_WORKERS` that you set always wins.
-
-`bun run test:related` leaves out each test in `scripts/pre-push-test-skips.json` and prints the
-Linear issue of each one it leaves out. The list holds tests that fail on a developer host and pass
-in CI. Each entry holds the test file, the test's full name, and the Linear issue that tracks the
-failure, and the loader refuses an entry without an issue ID. CI runs `bun run test:isolation`,
-which ignores the list, so every listed test still runs there. When a test fails on your host and
-passes in CI, open an issue and add an entry rather than skipping the hook's test job, and remove
-the entry when the issue's fix lands.
+Each test script takes its worker count from the
+[worker helper](https://github.com/zgeoff/tools/blob/main/docs/architecture/memory-caps.md#the-worker-count):
+a small host runs 1 worker, and a `TEST_WORKERS` that you set wins. The pre-push hook runs
+`bun run test:related` over the files the branch changes, and leaves `e2e/` and the codex lane to
+CI.
 
 `bun run build:binaries` compiles the release binaries into `dist/`, and `bun run build:atc-bridge`
 regenerates the mod's embedded copy after a change to `mods/atc-bridge/`. `bun run demo:record`

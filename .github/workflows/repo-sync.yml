@@ -36,7 +36,7 @@ jobs:
     with:
       include:
         skill-testing, skill-docs-writing, hook-skill-gate, skill-code-style, skill-skill-writing,
-        workflow-audit-fix, skill-ci-design
+        workflow-audit-fix, skill-ci-design, pre-push-baseline
       skip: agents
     secrets:
       REPO_SYNC_APP_CLIENT_ID: ${{ secrets.REPO_SYNC_APP_CLIENT_ID }}

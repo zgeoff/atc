@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   buildStubHandoffDaemon,
@@ -305,6 +305,31 @@ test('it kills the daemon once the test finishes without a stop', () => {
 
   onTestFinished(() => {
     expect(probeProcessAlive(pid)).toBeFalse();
+  });
+});
+
+test('it kills a child the daemon forked once the test finishes', async () => {
+  const ctx = setupTest();
+  const childPIDPath = join(ctx.directory, 'child.pid');
+
+  // A stand-in that forks a child, records its pid, and runs until killed.
+  startDaemonProcess({
+    command: ['bash', '-c', `sleep 30 & echo "$!" > '${childPIDPath}'; exec sleep 30`],
+    home: ctx.directory,
+  });
+
+  const child = await waitFor(() => {
+    const pid = Number(readFileSync(childPIDPath, 'utf8'));
+
+    expect(pid).toBeGreaterThan(0);
+
+    return pid;
+  });
+
+  onTestFinished(async () => {
+    await waitFor(() => {
+      expect(probeProcessAlive(child)).toBeFalse();
+    });
   });
 });
 

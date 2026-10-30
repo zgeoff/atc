@@ -32,8 +32,10 @@ Every test run gets its own home, so no test reads or writes your real config, s
 homes, or git config. Run tests through `bun run test`, adding file paths or flags after it. The
 package test scripts start through [`with-test-home.sh`](../../../scripts/with-test-home.sh), which
 points `HOME`, the XDG directories, and the agent CLIs' homes at a fresh temporary directory before
-Bun starts, records it in `ATC_TEST_HOME`, and drops the variables an enclosing atc session sets.
-The [`isolate-home`](../../../packages/test-utils/src/isolate-home.ts) preload stops a bare
+Bun starts, records it in `ATC_TEST_HOME`, and drops the variables an enclosing atc session sets. On
+exit it kills each process that still holds that `ATC_TEST_HOME`, such as a daemon a test never
+stopped, and removes the directory; at start it does the same for each directory whose run a kill
+stopped. The [`isolate-home`](../../../packages/test-utils/src/isolate-home.ts) preload stops a bare
 `bun test` before any test runs: Bun hands a spawned child the environment it started with, so a
 home a preload sets never reaches a test's subprocesses.
 
@@ -73,25 +75,27 @@ pattern, so a lane suite never skips itself when the system is missing: it fails
 
 `test:e2e` is the `e2e` lane script: it gives each test the e2e lane limit of 15 s, so a test in
 `e2e/` takes no timeout of its own. The CI test job passes it every `e2e/` suite except the
-`e2e/daemon-*` and `e2e/gateway-*` ones, on 4 shared workers (`--no-isolate`) in random order. The
-smoke job passes it the `e2e/daemon-*` suites with `ATC_BIN` set to the compiled binary, and the
-`e2e/gateway-*` suites with `ATC_GATEWAY_BIN` set to the compiled gateway. With no `e2e/` test file
-it runs both of those sets. `test:related`, and so the pre-push hook, leaves `e2e/` out. It takes a
-few `bun test` options, such as `-t`, and refuses any other option, a filter, or a file outside
-`e2e/`, so it never runs the whole repo. On macOS, the smoke job first warms the `/usr/bin/git`
-shim, whose slow first run would otherwise land inside a daemon's first spawn.
+`e2e/daemon-*` and `e2e/gateway-*` ones, in random order. The smoke job passes it the `e2e/daemon-*`
+suites with `ATC_BIN` set to the compiled binary, and the `e2e/gateway-*` suites with
+`ATC_GATEWAY_BIN` set to the compiled gateway. With no `e2e/` test file it runs both of those sets.
+`test:e2e` takes a few `bun test` options, such as `-t`, and refuses any other option, a filter, or
+a file outside `e2e/`, so it never runs the whole repo. `test:related`, and so the pre-push hook,
+leaves both lanes out; the `codex` entry in the `lanes` option of `zgeoff/max-test-timeout` in
+`.oxlintrc.json` tells it the `.codex` suffix. On macOS, the smoke job first warms the
+`/usr/bin/git` shim, whose slow first run would otherwise land inside a daemon's first spawn.
 
 ## Shared workers
 
-`bun run test` runs the files on 4 workers with `--no-isolate`, so each worker keeps one global
-scope and one module registry across every file it runs. Shared workers finish the suite sooner than
-isolated ones, with no higher memory peak. A file that leaves a timer, a handle, a global, a mock,
-or a module's state behind can break a later file in the same worker. The preload's resets after
-each test are the contract; when a later file fails from state an earlier one left, fix the file
-that leaks, never turn isolation back on. CI runs the suite with `--randomize`, so a leak that
-depends on file order fails there rather than waiting for an unlucky order.
+Every test script runs its files on shared workers with `--no-isolate`, so each worker keeps one
+global scope and one module registry across every file it runs. Shared workers finish the suite
+sooner than isolated ones, with no higher memory peak. A file that leaves a timer, a handle, a
+global, a mock, or a module's state behind can break a later file in the same worker. The preload's
+resets after each test are the contract; when a later file fails from state an earlier one left, fix
+the file that leaks, never turn isolation back on. CI runs the suite with `--randomize`, so a leak
+that depends on file order fails there rather than waiting for an unlucky order.
 
-`TEST_WORKERS` sets the worker count, with 4 when it is unset.
+Each script takes the worker count from `scripts/read-worker-count.ts`, which zgeoff/tools delivers:
+1 worker on a host with less than 4 GiB, and a `TEST_WORKERS` that you set wins.
 
 ## The PTY harness
 

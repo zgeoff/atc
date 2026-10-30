@@ -1,6 +1,10 @@
-# Git hooks. pre-commit fixes staged files only (fast); pre-push checks what
-# the branch changes, plus the cheap whole-tree gates. CI runs every
-# whole-tree check: type-aware lint (lint:full), dead code, and the full test suite.
+# Git hooks. The pre-push baseline from zgeoff/tools checks what the branch
+# changes, plus format:check and typecheck over the whole tree, each under
+# the memory cap; it also runs typecheck after the pre-commit jobs below. The
+# jobs here run before the baseline's. CI runs every whole-tree check:
+# type-aware lint, dead code, the full test suite, and the e2e lane.
+extends:
+  - .lefthook/pre-push-baseline.yml
 
 pre-commit:
   piped: true
@@ -17,11 +21,6 @@ pre-commit:
       glob: '*.{ts,tsx}'
       run: node_modules/.bin/format-codemod --quiet {staged_files}
       stage_fixed: true
-    # after the fixers, so it checks what they wrote; skipped when no staged
-    # file matches the glob
-    - name: typecheck
-      glob: '*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,json,jsonc}'
-      run: bun run typecheck
     # last so it scans what the fixers above re-staged; needs the gitleaks
     # binary on PATH (mise: `mise use -g gitleaks`)
     - name: gitleaks
@@ -37,7 +36,7 @@ pre-push:
   # condition reads the mark the first job writes.
   piped: true
   jobs:
-    # A push that only deletes branches carries no content, so every check
+    # A push that only deletes branches carries no content, so every atc check
     # after this job skips on the mark it writes. lefthook runs a job and a
     # skip condition each through sh -c, so $PPID in both is lefthook's own
     # pid, and each run's mark is a file named for its pid, which a
@@ -49,52 +48,35 @@ pre-push:
       skip:
         - run: test -z "$GIT_EXEC_PATH"
       run: bun scripts/write-delete-only-push-mark.ts "$PPID"
-    - name: format:check
+    - name: check:guest-scripts
       skip: &delete-only-push
         - run: test -f "$(git rev-parse --git-path atc-delete-only-push)/$PPID"
-      run: bun run format:check
-    - name: lint:shell
-      skip: *delete-only-push
-      run: bun run lint:shell
-    - name: check:guest-scripts
-      skip: *delete-only-push
-      run: bun run check:guest-scripts
+      run: bun run --silent memory-capped bun run check:guest-scripts
     - name: check:imports
       skip: *delete-only-push
-      run: bun run check:imports
+      run: bun run --silent memory-capped bun run check:imports
     - name: check:manifests
       skip: *delete-only-push
-      run: bun run check:manifests
+      run: bun run --silent memory-capped bun run check:manifests
     - name: check:disable-baseline
       skip: *delete-only-push
-      run: bun run check:disable-baseline
+      run: bun run --silent memory-capped bun run check:disable-baseline
     - name: check:raw-escapes
       skip: *delete-only-push
-      run: bun run check:raw-escapes
+      run: bun run --silent memory-capped bun run check:raw-escapes
     - name: check:source-entries
       skip: *delete-only-push
-      run: bun run check:source-entries
+      run: bun run --silent memory-capped bun run check:source-entries
     - name: lint:mods
       skip: *delete-only-push
-      run: bun run lint:mods
-    - name: lint
-      skip: *delete-only-push
-      files: bun run --silent files:branch
-      glob: '*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'
-      run: bun run lint:files {files}
-    - name: typecheck
-      skip: *delete-only-push
-      run: bun run typecheck
-    # leaves out the tests in scripts/pre-push-test-skips.json, which fail on
-    # a developer host and pass in CI; CI runs them all. bun test ignores
-    # mods/, whose tests run through test:atc-bridge, so they stay out too
+      run: bun run --silent memory-capped bun run lint:mods
+    # lefthook merges these fields into the baseline's test job, which then
+    # runs here. bun test ignores mods/, whose tests run through
+    # test:atc-bridge, and fails a run whose every path it ignores.
     - name: test
       skip: *delete-only-push
-      files: bun run --silent files:branch
-      glob: '*.ts'
       exclude:
         - 'mods/**'
-      run: bun run test:related {files}
     # A later hook run by hand skips the mark job, so a mark left under a pid
     # that it reuses would skip its checks.
     - name: remove push mark

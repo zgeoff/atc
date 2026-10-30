@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs the command before `--` on the arguments after it, adding the binary
-# smoke suites when no e2e test file follows. It takes only e2e test files and
+# smoke suites when no e2e test file follows, or every other e2e suite with
+# --source-suites, which CI runs from source. It takes only e2e test files and
 # the `bun test` options listed below, and refuses anything else, so `bun run
 # test:e2e` never runs a test outside e2e/ under the e2e lane limit.
 set -euo pipefail
@@ -15,13 +16,14 @@ done
 [ "$#" -gt 0 ] && shift
 
 refuse() {
-  echo "with-e2e-paths: $1 is not an e2e test file or a supported option; pass e2e test files and -t, --bail, --rerun-each, --only, --todo, --randomize, --seed, --parallel, --no-isolate, --reporter, or --reporter-outfile" >&2
+  echo "with-e2e-paths: $1 is not an e2e test file or a supported option; pass e2e test files or --source-suites and -t, --bail, --rerun-each, --only, --todo, --randomize, --seed, --parallel, --no-isolate, --reporter, or --reporter-outfile" >&2
   exit 2
 }
 
 root="$(pwd -P)/e2e/"
 options=()
 files=()
+source_suites=false
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -32,6 +34,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --test-name-pattern=* | --rerun-each=* | --reporter=* | --reporter-outfile=* | --seed=* | --parallel=* | --bail | --bail=* | --only | --todo | --randomize | --no-isolate)
       options+=("$1")
+      shift
+      ;;
+    --source-suites)
+      source_suites=true
       shift
       ;;
     -*)
@@ -48,7 +54,15 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-if [ "${#files[@]}" -eq 0 ]; then
+if [ "$source_suites" = true ]; then
+  [ "${#files[@]}" -eq 0 ] || refuse "${files[0]}"
+  for suite in e2e/*.test.ts; do
+    case "$suite" in
+      e2e/daemon-* | e2e/gateway-*) ;;
+      *) files+=("$suite") ;;
+    esac
+  done
+elif [ "${#files[@]}" -eq 0 ]; then
   files=(e2e/daemon-*.test.ts e2e/gateway-*.test.ts)
 fi
 

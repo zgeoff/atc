@@ -428,17 +428,6 @@
   "patchedDependencies": {
     "knip@6.41.0": "patches/knip@6.41.0.patch",
   },
-  "overrides": {
-    "brace-expansion": "5.0.12",
-    "fast-uri": "3.1.9",
-    "hono": "4.13.13",
-    "ip-address": "10.7.4",
-    "js-yaml": "4.3.2",
-    "proxy-addr": "2.0.8",
-    "qs": "6.16.1",
-    "smol-toml": "1.9.1",
-    "tinypool": "2.2.0",
-  },
   "catalog": {
     "@anthropic-ai/claude-agent-sdk": "0.3.296",
     "@better-auth/mcp": "1.7.7",

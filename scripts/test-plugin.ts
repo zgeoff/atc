@@ -1,11 +1,13 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { availableParallelism, tmpdir, totalmem } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
 import { collectPackageClosure } from './collect-package-closure';
 import type { WorkspacePackage } from './load-workspace-packages';
 import { loadWorkspacePackages } from './load-workspace-packages';
+import { readOptionalText } from './read-memory-budget';
+import { readWorkerCount } from './read-worker-count';
 
 // Tests one plugin package in a workspace holding only it, the packages its
 // rule reaches and the test helpers, so a plugin that reaches past its rule
@@ -49,6 +51,20 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  const workers = await readWorkerCount({
+    env: process.env,
+    cores: availableParallelism(),
+    totalMemory: totalmem(),
+    procRoot: '/proc',
+    cgroupRoot: '/sys/fs/cgroup',
+    readText: readOptionalText,
+  });
+
+  if (workers.kind === 'invalid') {
+    console.error(`test-plugin: ${workers.message}`);
+    process.exit(2);
+  }
+
   // the plugin, and the shared test helpers its tests import
   const packages = collectPackageClosure(workspace, [plugin.name, 'test-utils']);
   const directory = mkdtempSync(join(tmpdir(), `atc-test-plugin-${plugin.name}-`));
@@ -62,7 +78,15 @@ async function main(): Promise<void> {
       // tsc's shebang finds `node` on PATH, which can be a version-manager shim
       // that fails to read its own state under the test home
       ['bun', 'node_modules/.bin/tsc', '-p', 'tsconfig.json', '--noEmit'],
-      ['bash', 'scripts/with-test-home.sh', 'bun', 'test', plugin.directory],
+      [
+        'bash',
+        'scripts/with-test-home.sh',
+        'bun',
+        'test',
+        `--parallel=${workers.count}`,
+        '--no-isolate',
+        plugin.directory,
+      ],
     ];
 
     let passed = true;

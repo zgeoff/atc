@@ -123,3 +123,32 @@ test('it gives up after five seconds of retries every twenty milliseconds by def
 
   expect(wait).rejects.toThrowWithMessage(Error, 'attempt 251 failed');
 });
+
+test('it stops making attempts once its signal aborts, and rejects with the reason', async () => {
+  const ctx = setupTest();
+
+  const controller = new AbortController();
+
+  let attempts = 0;
+
+  const wait = waitFor(
+    () => {
+      attempts++;
+
+      if (attempts === 3) {
+        controller.abort(new Error('the test ended'));
+      }
+
+      throw new Error('not ready yet');
+    },
+    { now: ctx.now, wait: ctx.wait, signal: controller.signal },
+  );
+
+  const failure = await wait.then(
+    () => null,
+    (error: unknown) => error,
+  );
+
+  expect(failure).toStrictEqual(new Error('the test ended'));
+  expect(attempts).toBe(3);
+});
