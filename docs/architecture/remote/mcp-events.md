@@ -1,13 +1,13 @@
 # MCP Events
 
-`atc mcp --http` lets a hosted assistant subscribe to the fleet's events by webhook, under the draft
-MCP Events extension, so that atc wakes the assistant when a session finishes a turn, ends, sends a
-note or waits on its owner. A delivery is only a wake: it carries the event's name, its session and
-a cursor, and the assistant reads what happened from the event trail with `atc_events_read`. The
-server stores each subscription in the authorization server's database and delivers from the trail,
-so a restart of the server or of the daemon loses no event the trail still holds. Events is a draft
-that ChatGPT implemented ahead of its final form, so where the draft and ChatGPT differ, atc serves
-both.
+`atc mcp --http` and atc-gateway let a hosted assistant subscribe to the fleet's events by webhook,
+under the draft MCP Events extension, so that atc wakes the assistant when a session finishes a
+turn, ends, sends a note or waits on its owner. A delivery is only a wake: it carries the event's
+name, its session and a cursor, and the assistant reads what happened from the event trail with
+`atc_events_read`. The server stores each subscription in the authorization server's database and
+delivers from the trail, so a restart of the server or of the daemon loses no event the trail still
+holds. Events is a draft that ChatGPT implemented ahead of its final form, so where the draft and
+ChatGPT differ, atc serves both.
 
 [The MCP servers](./mcp.md) cover the tools and grant scopes, and
 [the event trail](../protocol/events.md#the-event-trail) covers the cursors a delivery points into.
@@ -101,6 +101,25 @@ same cursor on another daemon, because each daemon mints its session ids at rand
 gateway, the merged cursor changes when another daemon's place moves, so the server takes the place
 from the `origin` the gateway puts on each merged event: its daemon, that daemon's incarnation and
 that daemon's cursor.
+
+## Behind a gateway
+
+atc-gateway serves Events from the same HTTP server that `atc mcp --http` runs, so the gateway holds
+every subscription in its own authorization database and runs every watcher, and the daemons behind
+it hold none. Each watcher reads the gateway's merged trail as the subscription's client, so one
+subscription covers every daemon the client's principal reaches, and a daemon sees only that
+client's reads.
+
+The subscription's stored place, the cursor a client sends to `events/subscribe`, and the cursor in
+each delivery are all merged gateway cursors ([the gateway](./gateway.md#ids-and-routing)), so a
+subscriber passes a delivery's cursor to `atc_events_read` through the same gateway, and a cursor
+that the client's own read returned starts a subscription after the events every daemon held at that
+read. A delivery holds the session's gateway id. A daemon that does not answer keeps its place in
+the merged cursor, so its events arrive once it answers again. A page that holds no event while a
+daemon is unavailable counts as a failed read, which the watcher logs and waits out before it reads
+again.
+
+## Callbacks and retries
 
 The server posts only to a callback whose host resolves to public addresses, and connects to the
 address it checked, with the URL's host name for TLS, so a DNS answer that changes between the check
