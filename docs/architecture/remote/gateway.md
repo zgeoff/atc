@@ -63,6 +63,9 @@ pass-through sends it to that daemon. Each step wraps the steps after it, so a d
 refusal comes back out through the key binding, which records it, and then through the id rules,
 which rewrite the daemon's ids before the client sees them.
 
+The gateway serves MCP Events itself: it holds each subscription and sends each webhook from the
+merged trail, and the daemons hold no subscription ([MCP Events](./mcp-events.md#behind-a-gateway)).
+
 The gateway carries no terminal stream. It serves a screen read, a transcript read and a submitted
 line, and no attach or raw input, because an MCP tool call has nowhere to put a live stream.
 
