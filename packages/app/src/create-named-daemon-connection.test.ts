@@ -67,6 +67,43 @@ test('it gives two connectors that pass the same idempotency key different keys 
   expect(keys[0]).not.toBe(keys[1]);
 });
 
+test('it gives one connector that passes two idempotency keys two different keys on the daemon', async () => {
+  const sendRequest = mock<NamedDaemonChannel['sendRequest']>(() => Promise.resolve({}));
+
+  const connection = createNamedDaemonConnection({
+    name: 'box',
+    openChannel: () =>
+      Promise.resolve({
+        onClose: () => {},
+        onEvent: () => {},
+        principal: undefined,
+        sendHello: () => Promise.resolve({}),
+        sendRequest,
+        stop: () => {},
+        procedures: { session: { get: mock(), watch: mock() } },
+      }),
+  });
+
+  onTestFinished(() => connection.caller.stop());
+
+  await connection.caller.sendRequest(
+    'session.spawn',
+    { cwd: '/srv/app', idempotencyKey: 'spawn-first' },
+    { id: 'web-panel', name: 'Web panel' },
+  );
+
+  await connection.caller.sendRequest(
+    'session.spawn',
+    { cwd: '/srv/app', idempotencyKey: 'spawn-second' },
+    { id: 'web-panel', name: 'Web panel' },
+  );
+
+  const keys = sendRequest.mock.calls.map((call) => call[1]?.['idempotencyKey']);
+
+  expect(keys).toStrictEqual([expect.toStartWith('connector-'), expect.toStartWith('connector-')]);
+  expect(keys[0]).not.toBe(keys[1]);
+});
+
 test('it gives one connector the same key on the daemon each time it passes a key', async () => {
   const sendRequest = mock<NamedDaemonChannel['sendRequest']>(() => Promise.resolve({}));
 

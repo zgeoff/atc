@@ -12,15 +12,14 @@ import { startTestDaemon } from './test-utils/start-test-daemon';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-connect-named-');
-  const tokenFile = join(temporaryDirectory.path, 'box.token');
 
-  writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
-
-  return { tokenFile };
+  return { tokenFile: join(temporaryDirectory.path, 'box.token') };
 }
 
 test('it lists the sessions of the daemon as the principal of its config entry', async () => {
   const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
   const remote = await startTestDaemon({
     options: (paths) => {
@@ -64,6 +63,8 @@ test('it lists the sessions of the daemon as the principal of its config entry',
 
 test("it lists for a connector's tool request only the sessions the connector may read", async () => {
   const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
   const remote = await startTestDaemon({
     options: (paths) => {
@@ -133,6 +134,8 @@ test("it lists for a connector's tool request only the sessions the connector ma
 test("it hides a session outside the entry principal's targets from a live-terminal viewer that reaches it", async () => {
   const ctx = setupTest();
 
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
   const remote = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
@@ -184,6 +187,8 @@ test("it hides a session outside the entry principal's targets from a live-termi
 
 test('it refuses a live-terminal viewer a watch of a session that only the entry principal may read', async () => {
   const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
   const remote = await startTestDaemon({
     options: (paths) => {
@@ -248,6 +253,8 @@ test('it refuses a live-terminal viewer a watch of a session that only the entry
 test('it lets a live-terminal viewer watch a session that the entry and the viewer may both read', async () => {
   const ctx = setupTest();
 
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
+
   const remote = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
@@ -299,6 +306,8 @@ test('it lets a live-terminal viewer watch a session that the entry and the view
 
 test('it sends a live-terminal viewer no event of a session that only the entry principal may read', async () => {
   const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
   const remote = await startTestDaemon({
     options: (paths) => {
@@ -381,6 +390,8 @@ test('it sends a live-terminal viewer no event of a session that only the entry 
 
 test('it removes a watched session from a live-terminal viewer once a child joins it on a target the viewer may not use', async () => {
   const ctx = setupTest();
+
+  writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
   const remote = await startTestDaemon({
     options: (paths) => {
