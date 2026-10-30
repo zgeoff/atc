@@ -456,6 +456,13 @@ test('it retries a refused delivery through the gateway with the same webhook-id
     payload: {},
   });
 
+  // The verification challenge, then the delivery the endpoint refused.
+  await waitFor(() => {
+    expect(receiver.received).toHaveLength(2);
+  });
+
+  // Past the refused delivery, the only gateway reads still open wait on the
+  // other daemon, so their timers fall due after the first retry's backoff.
   await waitFor(() => {
     expect(ctx.clock.collectPending()).toContain(30_000);
   });
