@@ -45,7 +45,9 @@ A grant holds one or more of four scopes, and each tool needs exactly one of the
   Answering a menu takes the same scope as typing, because an option such as trusting a folder or
   allowing a command gives the agent as much as a typed line does. Adding to a session's record
   scope and rebinding a host take `spawn` too, because each widens what a session may touch. A
-  session's own atc access needs `kill` to add to a record scope
+  session's own atc access differs for one tool: it needs `kill` to add to a record scope, because
+  an agent that holds the access acts with no person in the loop, where an MCP client's token
+  belongs to a person who approved it
   ([a session's atc access](../protocol/principals.md#a-sessions-atc-access)). The daemon opens a
   rebind to its owner only, so a remote client that holds `spawn` still gets `unauthorized`
   ([runtime auth](../execution/runtime-auth.md#revoke-and-rebind)).
