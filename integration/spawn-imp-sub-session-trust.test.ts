@@ -22,9 +22,6 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-sub-session-trust-');
   const port = createStubImpPort();
-
-  const git = await createGitFixture({ prefix: 'atc-sub-session-trust-git-' });
-
   const fakeClaude = createStubRecordingClaude(temporaryDirectory.path);
   const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
   const guestDir = join(temporaryDirectory.path, 'guest');
@@ -88,13 +85,13 @@ async function setupTest() {
     guestDir,
     otherGuestDir,
     port,
-    work: git.work,
     daemon,
   };
 }
 
 test('it trusts a sub-session in the clone root its parent trusts', async () => {
   const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-sub-session-trust-git-' });
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -115,7 +112,7 @@ test('it trusts a sub-session in the clone root its parent trusts', async () => 
     cwd: root,
     agent: 'glm',
     target: 'box',
-    workspace: { kind: 'path', path: ctx.work },
+    workspace: { kind: 'path', path: git.work },
   });
 
   const child = await ctx.daemon.client.sendRequest('session.spawn', {
@@ -146,6 +143,7 @@ test('it trusts a sub-session in the clone root its parent trusts', async () => 
 
 test('it leaves a sub-session untrusted in a folder its parent does not trust', async () => {
   const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-sub-session-trust-git-' });
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -164,11 +162,11 @@ test('it leaves a sub-session untrusted in a folder its parent does not trust', 
     cwd: join(ctx.directory, 'clone'),
     agent: 'glm',
     target: 'box',
-    workspace: { kind: 'path', path: ctx.work },
+    workspace: { kind: 'path', path: git.work },
   });
 
   const child = await ctx.daemon.client.sendRequest('session.spawn', {
-    cwd: ctx.work,
+    cwd: git.work,
     agent: 'glm',
     target: 'box',
     parent: String(getRecord(parent, 'session')['id']),
@@ -194,6 +192,7 @@ test('it leaves a sub-session untrusted in a folder its parent does not trust', 
 
 test('it leaves a sub-session untrusted in the clone of a parent that took no trust', async () => {
   const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-sub-session-trust-git-' });
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -213,7 +212,7 @@ test('it leaves a sub-session untrusted in the clone of a parent that took no tr
     cwd: root,
     agent: 'glm',
     target: 'box',
-    workspace: { kind: 'path', path: ctx.work },
+    workspace: { kind: 'path', path: git.work },
   });
 
   const child = await ctx.daemon.client.sendRequest('session.spawn', {
@@ -243,6 +242,7 @@ test('it leaves a sub-session untrusted in the clone of a parent that took no tr
 
 test('it leaves a sub-session untrusted on another target at its parent trusted path', async () => {
   const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-sub-session-trust-git-' });
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -263,7 +263,7 @@ test('it leaves a sub-session untrusted on another target at its parent trusted 
     cwd: root,
     agent: 'glm',
     target: 'box',
-    workspace: { kind: 'path', path: ctx.work },
+    workspace: { kind: 'path', path: git.work },
   });
 
   const child = await ctx.daemon.client.sendRequest('session.spawn', {
