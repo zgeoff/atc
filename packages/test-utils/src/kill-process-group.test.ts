@@ -35,5 +35,7 @@ test('it returns for a group with no process left', async () => {
 
   await leader.exited;
 
-  expect(() => killProcessGroup(leader.pid)).not.toThrow();
+  expect(() => {
+    killProcessGroup(leader.pid);
+  }).not.toThrow();
 });
