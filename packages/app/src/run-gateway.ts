@@ -5,6 +5,7 @@ import { startMCPHTTPServer } from '@atc/mcp';
 import type { MCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import { openSQLite } from '@atc/store/sqlite';
+import { GATEWAY_PATHS } from '@atcx/contract';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
@@ -97,5 +98,8 @@ export async function runGateway(
 
   io.registerSignal('SIGINT', stopServing);
   io.registerSignal('SIGTERM', stopServing);
-  io.print(`atc-gateway: serving ${server.origin}/mcp, listening on ${server.listening}`);
+
+  io.print(
+    `atc-gateway: serving ${server.origin}${GATEWAY_PATHS.machine.mcp}, listening on ${server.listening}`,
+  );
 }

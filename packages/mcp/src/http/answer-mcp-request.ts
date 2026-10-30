@@ -1,4 +1,5 @@
 import { isRecord } from '@atc/core';
+import { GATEWAY_PATHS } from '@atcx/contract';
 import {
   OAuthError,
   OAuthErrorCode,
@@ -20,7 +21,7 @@ export async function answerMCPRequest(
 ): Promise<Response> {
   const path = new URL(request.url).pathname;
 
-  const metadataURL = `${ctx.origin}/.well-known/oauth-protected-resource/mcp`;
+  const metadataURL = `${ctx.origin}${GATEWAY_PATHS.machine.mcpResourceMetadata}`;
   const authorization = request.headers.get('authorization');
   const token = /^Bearer (?<token>\S+)$/iu.exec(authorization ?? '')?.groups?.['token'];
 

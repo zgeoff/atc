@@ -1,6 +1,6 @@
 import { DaemonError } from '@atc/protocol/wire';
+import { MAX_EVENTS_CURSOR_BYTES } from '@atcx/contract';
 import { z } from 'zod';
-import { MAX_EVENTS_CURSOR_BYTES } from './max-events-cursor-bytes';
 import type { GatewayRegistry } from './types';
 
 // The fields are read one by one, so each refusal names the field it failed on.

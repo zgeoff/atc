@@ -1,3 +1,4 @@
+import { GATEWAY_PATHS } from '@atcx/contract';
 import { PASSKEY_SCRIPT } from './passkey-script';
 import { toHTMLText } from './to-html-text';
 import { toScriptJSON } from './to-script-json';
@@ -15,13 +16,13 @@ export function renderEnrollPage(view: EnrollPageView): string {
   const step =
     view.ceremony === null
       ? `<p>Type the enrollment token that <code>atc passkeys enroll</code> or <code>atc-gateway passkeys enroll</code> printed on the host.</p>
-<form method="post" action="/enroll">
+<form method="post" action="${GATEWAY_PATHS.browser.enroll}">
 <label>Enrollment token <input name="token" autocomplete="off" autofocus required></label>
 <button type="submit">Continue</button>
 </form>`
       : `<p>Create a passkey for atc. Your device asks you to verify yourself.</p>
 <script type="application/json" id="atc-passkey">${toScriptJSON({ mode: 'create', options: view.ceremony.options })}</script>
-<form method="post" action="/enroll" id="atc-passkey-form">
+<form method="post" action="${GATEWAY_PATHS.browser.enroll}" id="atc-passkey-form">
 <input type="hidden" name="token" value="${toHTMLText(view.ceremony.token)}">
 <input type="hidden" name="credential" value="">
 <button type="button" id="atc-passkey-start" autofocus>Create a passkey</button>

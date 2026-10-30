@@ -4,8 +4,9 @@ A program outside atc, such as a dashboard or another agent's tooling, reads atc
 package on npm, `@atcx/contract`, instead of keeping its own copies of the schemas. The package
 holds what such a program needs to talk to a daemon and to read what a daemon writes: the request
 contract, the event schema, the session record, the hello answer with its features, the error codes,
-the session environment names, the state paths, and the config file's schema. The daemon and every
-atc client build on the same package, so a published schema is the one the daemon serves.
+the session environment names, the state paths, the config file's schema, and the gateway's routes
+and registry schema. The daemon and every atc client build on the same package, so a published
+schema is the one the daemon serves.
 
 ## What the package holds
 
@@ -13,6 +14,13 @@ atc's own packages import the schemas from the contract package and never keep a
 published package and the daemon cannot drift apart. The package leaves out what only atc's own
 processes use: the client and its transport, the event cursor encoding, the store, the terminal
 client's helpers, and the folder that holds the daemon's restart results.
+
+The gateway's half of the package serves a program that deploys atc-gateway. The route table groups
+the HTTP server's paths by who requests them: a person's browser, a machine client, or an
+orchestrator's probe, so an ingress can put the browser routes behind a sign-in and keep the probes
+off the public origin. The registry schema holds every rule the gateway applies to its registry
+file, so a deploy tool refuses a bad registry before the gateway reads it. The gateway and
+`atc mcp --http` route by the same table, and the gateway parses its registry with the same schema.
 
 The package has a second, light entry that holds the session environment names, the state paths, the
 error codes and the message sender's schema. A hook reporter starts once per event inside a session,

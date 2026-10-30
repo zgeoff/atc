@@ -2483,6 +2483,43 @@ export declare const FLEET_EVENT_SCHEMA: z.ZodObject<{
     }, z.core.$strip>>;
 }, z.core.$strip>;
 
+// gateway-paths.d.ts
+export declare const GATEWAY_PATHS: {
+    readonly browser: {
+        readonly authorize: '/oauth2/authorize';
+        readonly login: '/login';
+        readonly enroll: '/enroll';
+        readonly consent: '/consent';
+        readonly error: '/error';
+    };
+    readonly machine: {
+        readonly mcp: '/mcp';
+        readonly root: '/';
+        readonly token: '/oauth2/token';
+        readonly revoke: '/oauth2/revoke';
+        readonly authorizationServerMetadata: '/.well-known/oauth-authorization-server';
+        readonly resourceMetadata: '/.well-known/oauth-protected-resource';
+        readonly mcpResourceMetadata: '/.well-known/oauth-protected-resource/mcp';
+    };
+    readonly probes: {
+        readonly health: '/healthz';
+        readonly ready: '/readyz';
+    };
+};
+
+// gateway-registry-schema.d.ts
+import { z } from 'zod';
+export declare const GATEWAY_REGISTRY_SCHEMA: z.ZodObject<{
+    daemons: z.ZodRecord<z.ZodString, z.ZodObject<{
+        address: z.ZodPipe<z.ZodString, z.ZodTransform<{
+            host: string;
+            port: number;
+        }, string>>;
+        daemonID: z.ZodString;
+    }, z.core.$strip>>;
+    defaultDaemon: z.ZodString;
+}, z.core.$strip>;
+
 // git-probe-result.d.ts
 import { z } from 'zod';
 export declare const GIT_PROBE_RESULT_SCHEMA: z.ZodObject<{
@@ -2553,11 +2590,15 @@ export * from './events-page.js';
 export type * from './daemon-id.js';
 export * from './fleet-entry-view.js';
 export * from './fleet-event.js';
+export * from './gateway-paths.js';
+export * from './gateway-registry-schema.js';
 export * from './git-probe-result.js';
 export * from './git-ref.js';
 export * from './grant-scope.js';
 export * from './hello-result.js';
 export * from './light/index.js';
+export * from './max-events-cursor-bytes.js';
+export * from './max-registry-daemons.js';
 export * from './menu-view.js';
 export * from './message-answer.js';
 export type * from './message-id.js';
@@ -2644,6 +2685,12 @@ export declare const SESSION_ENV_NAMES: {
     readonly sessionRecord: 'ATC_SESSION_RECORD';
     readonly scopeFile: 'AUTO_MODE_SCOPE_FILE';
 };
+
+// max-events-cursor-bytes.d.ts
+export declare const MAX_EVENTS_CURSOR_BYTES = 4096;
+
+// max-registry-daemons.d.ts
+export declare const MAX_REGISTRY_DAEMONS = 36;
 
 // menu-view.d.ts
 import { z } from 'zod';

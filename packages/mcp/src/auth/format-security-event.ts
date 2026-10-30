@@ -1,3 +1,4 @@
+import { GATEWAY_PATHS } from '@atcx/contract';
 import { normalizeClientName } from './normalize-client-name';
 import type { SecurityEvent } from './types';
 
@@ -8,22 +9,9 @@ export interface SuppressedSecurityEvent {
 }
 
 // The paths an event may hold as its route.
-const ROUTES: ReadonlySet<string> = new Set([
-  '/',
-  '/mcp',
-  '/oauth2/authorize',
-  '/oauth2/token',
-  '/oauth2/revoke',
-  '/login',
-  '/enroll',
-  '/consent',
-  '/error',
-  '/healthz',
-  '/readyz',
-  '/.well-known/oauth-authorization-server',
-  '/.well-known/oauth-protected-resource',
-  '/.well-known/oauth-protected-resource/mcp',
-]);
+const ROUTES: ReadonlySet<string> = new Set(
+  Object.values(GATEWAY_PATHS).flatMap((group) => Object.values(group)),
+);
 
 export function formatSecurityEvent(
   event: SecurityEvent | SuppressedSecurityEvent,
@@ -42,7 +30,7 @@ export function formatSecurityEvent(
     outcome: event.outcome,
     ...('reason' in event && event.reason !== undefined ? { reason: event.reason } : {}),
     ...(event.kind === 'owner_auth'
-      ? { method: event.path === '/enroll' ? 'enrollment_token' : 'passkey' }
+      ? { method: event.path === GATEWAY_PATHS.browser.enroll ? 'enrollment_token' : 'passkey' }
       : {}),
     route: ROUTES.has(event.path) ? event.path : 'other',
     ...(event.client === undefined

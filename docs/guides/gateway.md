@@ -62,6 +62,10 @@ a spawn without one goes to:
 }
 ```
 
+`GATEWAY_REGISTRY_SCHEMA` in [`@atcx/contract`](../../packages/contract/README.md) holds the file's
+rules: the form of a daemon name, an address and a daemon ID, and the most daemons a registry lists.
+A deploy tool can check a registry against it before the gateway starts.
+
 The gateway reads each daemon's token from `ATC_GATEWAY_TOKEN_<NAME>`, the name upper-cased with `-`
 as `_`, such as `ATC_GATEWAY_TOKEN_CLOUD`. A registry that cannot be read or parsed, or a daemon
 without its token, makes the gateway print each problem and exit 1.

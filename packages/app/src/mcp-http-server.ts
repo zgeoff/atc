@@ -10,6 +10,7 @@ import {
 import type { ChannelCaller, MCPAuthDatabase, WatchChannel } from '@atc/mcp';
 import { openMCPAuth, readClientViews, readPasskeyViews, startMCPHTTPServer } from '@atc/mcp';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
+import { GATEWAY_PATHS } from '@atcx/contract';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
 
@@ -154,7 +155,10 @@ export async function runMCPHTTPServer(
 
   io.registerSignal('SIGINT', stopServing);
   io.registerSignal('SIGTERM', stopServing);
-  io.print(`atc mcp --http: serving ${server.origin}/mcp, listening on ${server.listening}`);
+
+  io.print(
+    `atc mcp --http: serving ${server.origin}${GATEWAY_PATHS.machine.mcp}, listening on ${server.listening}`,
+  );
 
   const admin = await openMCPAuth({
     dbPath: io.dbPath,

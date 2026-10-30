@@ -178,6 +178,7 @@
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "@zgeoff/std": "catalog:",
         "tiny-invariant": "catalog:",
         "ts-pattern": "catalog:",
