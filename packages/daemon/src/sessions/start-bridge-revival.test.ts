@@ -192,7 +192,7 @@ test('it records a note in the session events when it writes the mod again', asy
       payload: {
         kind: 'note',
         label: 'progress',
-        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more.',
+        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more. If the tools stay gone, restart the session.',
       },
     },
   ]);
@@ -497,7 +497,7 @@ test('it doubles the wait after each write for a session that keeps losing its t
   ctx.taps.attach(id, ctx.client);
   ctx.taps.removeSession(id);
 
-  expect(ctx.clock.collectDelays()).toStrictEqual([30_000, 60_000, 120_000]);
+  expect(ctx.clock.collectPending()).toStrictEqual([120_000]);
 });
 
 test('it writes again after the doubled wait for a tap lost while a write was under way', async () => {
@@ -535,7 +535,7 @@ test('it writes again after the doubled wait for a tap lost while a write was un
   });
 });
 
-test('it makes one write per tap loss however long the tap stays gone', async () => {
+test('it writes again after the doubled wait when no tap attaches after a write', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
@@ -556,10 +556,45 @@ test('it makes one write per tap loss however long the tap stays gone', async ()
   ctx.clock.advance(30_000);
 
   await waitFor(() => {
-    expect(ctx.notes).toHaveLength(1);
+    expect(ctx.clock.collectPending()).toStrictEqual([60_000]);
   });
 
+  ctx.clock.advance(60_000);
+
+  await waitFor(() => {
+    expect(ctx.notes).toHaveLength(2);
+  });
+
+  expect(ctx.provider.transfers).toHaveLength(2);
+});
+
+test('it writes nothing more once a tap attaches after a write', async () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([60_000]);
+  });
+
+  ctx.taps.attach(id, ctx.client);
   ctx.clock.advance(60 * 60_000);
 
   expect(ctx.provider.transfers).toHaveLength(1);
+  expect(ctx.clock.collectPending()).toStrictEqual([]);
 });

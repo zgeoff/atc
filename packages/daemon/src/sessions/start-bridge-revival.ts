@@ -39,8 +39,8 @@ interface BridgeWrite {
 }
 
 // A running remote session with no tap for a while after a tap loss or an
-// agent start gets its bridge mod written again, which makes Claude Code
-// load a mod it turned off.
+// agent start gets its bridge mod written again, after each longer wait until
+// a tap attaches, which makes Claude Code load a mod it turned off.
 export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   const actors = new Map<SessionID, Actor<typeof BRIDGE_REVIVAL_MACHINE>>();
 
@@ -171,7 +171,7 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
       payload: {
         kind: 'note',
         label: 'progress',
-        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more.',
+        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more. If the tools stay gone, restart the session.',
       },
     });
   };
