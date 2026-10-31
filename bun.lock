@@ -456,7 +456,7 @@
     "@zgeoff/kysely-bun-sqlite": "0.3.0",
     "@zgeoff/oxlint-config": "0.7.5",
     "@zgeoff/skill-gate": "0.2.13",
-    "@zgeoff/std": "0.3.0",
+    "@zgeoff/std": "0.3.1",
     "better-auth": "1.7.7",
     "bun-pty": "0.5.1",
     "elysia": "1.4.30",
@@ -1003,7 +1003,7 @@
 
     "@zgeoff/skill-gate": ["@zgeoff/skill-gate@0.2.13", "", { "dependencies": { "@zgeoff/agent-hooks": "0.1.3" } }, "sha512-f1u2sjPsVztlX6oqliRGucq/6wm4oltzWhk44vP5qTgayUBqTD/RGjC9oN35Q8Qr6//qVX48bUo3jTI+8AsKIw=="],
 
-    "@zgeoff/std": ["@zgeoff/std@0.3.0", "", {}, "sha512-I9LBwkMr8uuNCAQ9/tIoObp09b8ixnNDp1f85T9Mm1Ox10nWbVrbiqoWkf+hATCt4iyYxvYIVXl4eUFLwZaU/g=="],
+    "@zgeoff/std": ["@zgeoff/std@0.3.1", "", {}, "sha512-6HLaUW2v2mbvY2gnS563TsXQ3Xtzc71nR2HmtE8cnZsnp8pvNuom+W3VMSCpX6fRfBC2OZ0/xgxt4JPgzuxyHQ=="],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 
