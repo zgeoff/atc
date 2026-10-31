@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.7.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.7.1...@zgeoff/atc@7.7.2) (2026-10-31)
+
+### Bug Fixes
+
+- **hooks:** keep format-ignored files away from format-codemod
+  ([#1036](https://github.com/zgeoff/atc/issues/1036))
+  ([f01575b](https://github.com/zgeoff/atc/commit/f01575ba82af3d1edcc462e997def8707cd7e8e8))
+
 ## [7.7.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.7.0...@zgeoff/atc@7.7.1) (2026-10-31)
 
 ### Bug Fixes
