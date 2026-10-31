@@ -55,8 +55,7 @@ Each line links the section that explains it.
 
 ## References
 
-- [Known-bug clauses](./references/known-bugs.md): a description that states a known bug, or a fix
-  that removes one.
+- [Known-bug clauses](./references/known-bugs.md): writing or removing a known-bug clause.
 - [Tool renames](./references/renames.md): renaming a tool, or a concept whose word a tool name uses
   (rule 10).
 
@@ -86,8 +85,8 @@ literally, so a soft word ("usually", "should") becomes a guess.
 
 ## Rules
 
-Every rule below carries one example quoted from the current tools, or points to the reference that
-holds it.
+Every rule below carries one example, quoted from the current tools or held in the reference it
+links.
 
 ### 1. Name the channel, then the verb
 

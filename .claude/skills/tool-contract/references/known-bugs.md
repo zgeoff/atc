@@ -1,8 +1,8 @@
 # Known-bug clauses
 
-A clause that states a known bug holds no issue reference, and the change that fixes the bug removes
-the clause. A clause of that shape, as an illustration:
+Write a clause that states a known bug with no issue reference, and remove the clause in the change
+that fixes the bug. An invented clause of that shape:
 
 > A message whose turn is interrupted stays delivered.
 
-The bug's own issue records the clause, so the fix finds it.
+Quote the clause in the bug's own issue, so whoever fixes the bug finds it.
