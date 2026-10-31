@@ -46,7 +46,8 @@ function runGit(options: Readonly<UncommittedCheckOptions>, args: readonly strin
   return result.stdout;
 }
 
-function runCLI(): void {
+// Returns the exit code: 0 when clean, 1 with a finding, and 2 when the check cannot run.
+export function runUncommittedCommand(): number {
   const cwd = process.cwd();
 
   try {
@@ -66,16 +67,16 @@ function runCLI(): void {
       );
     }
 
-    process.exitCode = changed.length === 0 ? 0 : 1;
+    return changed.length === 0 ? 0 : 1;
   } catch (error) {
     process.stderr.write(
       `uncommitted: ${error instanceof Error ? error.message : String(error)}\n`,
     );
 
-    process.exitCode = 2;
+    return 2;
   }
 }
 
 if (import.meta.main) {
-  runCLI();
+  process.exitCode = runUncommittedCommand();
 }

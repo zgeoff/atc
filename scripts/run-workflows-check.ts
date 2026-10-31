@@ -536,15 +536,15 @@ function collectWorkflowRunFindings(context: WorkflowContext): WorkflowFinding[]
       ];
 }
 
-function runCLI(): void {
-  const paths = parseCLIPaths(process.argv.slice(2));
+// Returns the exit code: 0 when clean or with a warning, since the lint only warns, and 2 when the
+// check cannot run.
+export function runWorkflowsCommand(args: readonly string[]): number {
+  const paths = parseCLIPaths(args);
 
   if (paths instanceof Error) {
-    process.stderr.write(`workflows: ${paths.message}\nusage: run-workflows-check.ts [path...]\n`);
+    process.stderr.write(`workflows: ${paths.message}\nusage: chex workflows [path...]\n`);
 
-    process.exitCode = 2;
-
-    return;
+    return 2;
   }
 
   try {
@@ -567,10 +567,12 @@ function runCLI(): void {
         `workflows: ${findings.length} ${findings.length === 1 ? 'warning' : 'warnings'}; the workflow lint warns and does not fail yet\n`,
       );
     }
+
+    return 0;
   } catch (error) {
     process.stderr.write(`workflows: ${error instanceof Error ? error.message : String(error)}\n`);
 
-    process.exitCode = 2;
+    return 2;
   }
 }
 
@@ -604,5 +606,5 @@ function formatLine(finding: WorkflowFinding): string {
 }
 
 if (import.meta.main) {
-  runCLI();
+  process.exitCode = runWorkflowsCommand(process.argv.slice(2));
 }

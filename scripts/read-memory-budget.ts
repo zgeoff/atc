@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises';
 import { totalmem } from 'node:os';
 import { join } from 'node:path';
+import { readOptionalText } from './read-optional-text.ts';
 
 export interface MemoryBudgetSources {
   readonly totalMemory: number;
@@ -59,12 +59,6 @@ async function readCgroupCap(
 
 // Bun.file's text reads as many bytes as stat reports, and procfs and cgroupfs report 0 for every
 // file; readFile reads to the end.
-export async function readOptionalText(path: string): Promise<string | undefined> {
-  const exists = await Bun.file(path).exists();
-
-  return exists ? readFile(path, 'utf8') : undefined;
-}
-
 if (import.meta.main) {
   const budget = await readMemoryBudget({
     totalMemory: totalmem(),
