@@ -14,9 +14,6 @@ interface BridgeRevivalContext {
 const FIRST_DELAY_MS = 30_000;
 const MAX_DELAY_MS = 30 * 60_000;
 
-// One session's tap and the checks that follow each loss or agent start, until
-// a tap attaches. The revival provides the guards, which read the session, and
-// the write; each write doubles the wait before the next check.
 export const BRIDGE_REVIVAL_MACHINE = setup({
   types: machineTypes<{ context: BridgeRevivalContext; events: BridgeRevivalEvent }>(),
   guards: {
