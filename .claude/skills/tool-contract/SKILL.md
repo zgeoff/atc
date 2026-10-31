@@ -53,6 +53,12 @@ Each line links the section that explains it.
 - [Checking a change](#checking-a-change): read as a newcomer, record each claim's evidence, and
   search for renamed words.
 
+## References
+
+- [Known-bug clauses](./references/known-bugs.md): a description that states a known bug, or a fix
+  that removes one.
+- [Tool renames](./references/renames.md): renaming a tool.
+
 ## How the descriptions are written
 
 Write each description for the wrong guess an agent would otherwise make, and close it. Find that
@@ -154,12 +160,7 @@ Input schemas may hold an `enum`: the bridge `note` tool's `label` takes `progre
 
 ### 7. State a known bug plainly, and remove the clause with the fix
 
-A clause that states a known bug holds no issue reference, and the change that fixes the bug removes
-the clause. A clause of that shape, as an illustration:
-
-> A message whose turn is interrupted stays delivered.
-
-The bug's own issue records the clause, so the fix finds it.
+[Known-bug clauses](./references/known-bugs.md) holds this rule.
 
 ### 8. Check every claim against the code or a live run
 
@@ -173,11 +174,7 @@ atc's code holds it.
 
 ### 9. Rename with a break, never an alias
 
-A tool rename is a breaking change with no alias in code. The old name is refused: `unknown tool` on
-stdio, or a missing-scope refusal for a remote client without the `kill` scope, since a name atc
-does not know needs the strictest scope. No tool translates an old daemon's words, because a daemon
-on another protocol version refuses the handshake with `protocol_mismatch` before any tool call
-reaches it ([the protocol](../../../docs/architecture/protocol/protocol.md#versions)).
+[Tool renames](./references/renames.md) holds this rule.
 
 ### 10. Use one word per concept everywhere
 
