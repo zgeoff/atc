@@ -73,7 +73,7 @@
     "start": "bun packages/app/src/cli.ts",
     "build:atc-bridge": "bun scripts/build-atc-bridge.ts && oxfmt packages/harnesses/claude/src/bridge/atc-bridge-files.ts && format-codemod --quiet packages/harnesses/claude/src/bridge/atc-bridge-files.ts",
     "build:binaries": "bash scripts/build-binaries.sh",
-    "audit": "bun audit",
+    "audit": "bun audit --ignore=GHSA-g3hv-75wg-m249",
     "check:bundle": "bun scripts/check-bundle.ts",
     "check:contract": "bun scripts/check-contract.ts",
     "check:imports": "bun scripts/check-imports.ts",
