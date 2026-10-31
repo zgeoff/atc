@@ -3,7 +3,7 @@ import { availableParallelism, totalmem } from 'node:os';
 import { basename, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { parseLaneLimits } from './parse-lane-limits.ts';
-import { readOptionalText } from './read-memory-budget.ts';
+import { readOptionalText } from './read-optional-text.ts';
 import { readWorkerCount } from './read-worker-count.ts';
 import type { WorkerCountSources } from './read-worker-count.ts';
 
