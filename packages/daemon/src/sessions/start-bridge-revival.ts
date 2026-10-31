@@ -38,9 +38,6 @@ interface BridgeWrite {
   readonly planFiles: (atc: string) => Record<string, string>;
 }
 
-// A running remote session with no tap for a while after a tap loss or an
-// agent start gets its bridge mod written again, after each longer wait until
-// a tap attaches, which makes Claude Code load a mod it turned off.
 export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   const actors = new Map<SessionID, Actor<typeof BRIDGE_REVIVAL_MACHINE>>();
 
