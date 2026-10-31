@@ -15,7 +15,16 @@ export function createStubGuestCLIs(directory: string) {
     'claude',
     `#!/usr/bin/env bash
 echo "UP:$$"
+tools=on
+previous=
+for arg in "$@"; do
+  if [ "$previous" = --plugin-dir ] && [ ! -f "$arg/.claude-plugin/plugin.json" ]; then tools=off; fi
+  previous=$arg
+done
 while read -r line; do
+  if [ "$tools" = off ]; then
+    case "$line" in answer\\ *|note\\ *) echo "NO-TOOL:$line"; continue ;; esac
+  fi
   case "$line" in
     start\\ *) printf '{"hook_event_name":"SessionStart","session_id":"%s","transcript_path":"/guest/only/transcript.jsonl"}' "\${line#start }" | "${atc}" hook-report --agent claude ;;
     notify\\ *) printf '{"hook_event_name":"Notification","message":"%s"}' "\${line#notify }" | "${atc}" hook-report --agent claude ;;

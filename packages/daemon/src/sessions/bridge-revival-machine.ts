@@ -9,21 +9,14 @@ type BridgeRevivalEvent =
 interface BridgeRevivalContext {
   // How long the session waits without a tap before its next check.
   readonly delayMs: number;
-
-  // Whether the tap left again while a write was under way.
-  readonly isLostAgain: boolean;
 }
 
 const FIRST_DELAY_MS = 30_000;
 const MAX_DELAY_MS = 30 * 60_000;
 
-// One session's tap and the check that follows each loss or agent start. The
-// revival provides the guards, which read the session, and the write, which
-// it performs; each write doubles the wait before the next check.
 export const BRIDGE_REVIVAL_MACHINE = setup({
   types: machineTypes<{ context: BridgeRevivalContext; events: BridgeRevivalEvent }>(),
   guards: {
-    isLostAgain: (args) => args.context.isLostAgain,
     isGone: () => false,
     hasTap: () => false,
     isAsleep: () => false,
@@ -38,7 +31,7 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
 }).createMachine({
   id: 'bridge-revival',
   initial: 'tapped',
-  context: { delayMs: FIRST_DELAY_MS, isLostAgain: false },
+  context: { delayMs: FIRST_DELAY_MS },
   states: {
     tapped: {
       on: { TAP_LEFT: 'waiting', AGENT_STARTED: 'waiting' },
@@ -59,7 +52,6 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
             target: 'writing',
             actions: assign({
               delayMs: (args) => Math.min(args.context.delayMs * 2, MAX_DELAY_MS),
-              isLostAgain: false,
             }),
           },
           { target: 'tapped' },
@@ -68,12 +60,10 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
     },
     writing: {
       entry: 'writeBridge',
-      on: {
-        WRITE_ENDED: [{ guard: 'isLostAgain', target: 'waiting' }, { target: 'tapped' }],
 
-        // a loss during the write starts its wait once the write ends
-        TAP_LEFT: { actions: assign({ isLostAgain: true }) },
-      },
+      // Claude Code can turn the mod off again before the reload a write
+      // causes starts a tap, and then no tap leaves to start another wait
+      on: { WRITE_ENDED: 'waiting' },
     },
     gone: {
       type: 'final',
