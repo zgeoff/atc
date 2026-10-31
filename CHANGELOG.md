@@ -2,10 +2,11 @@
 
 ## [7.7.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.7.0...@zgeoff/atc@7.7.1) (2026-10-31)
 
-
 ### Bug Fixes
 
-* **daemon:** write the bridge mod again until a tap attaches ([#1035](https://github.com/zgeoff/atc/issues/1035)) ([559f6c1](https://github.com/zgeoff/atc/commit/559f6c141d4272db265bcb392ecf3b3898c189bf))
+- **daemon:** write the bridge mod again until a tap attaches
+  ([#1035](https://github.com/zgeoff/atc/issues/1035))
+  ([559f6c1](https://github.com/zgeoff/atc/commit/559f6c141d4272db265bcb392ecf3b3898c189bf))
 
 ## [7.7.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.6.0...@zgeoff/atc@7.7.0) (2026-10-30)
 
