@@ -46,7 +46,7 @@
       "@zgeoff/kysely-bun-sqlite": "0.3.0",
       "@zgeoff/oxlint-config": "0.7.5",
       "@zgeoff/skill-gate": "0.2.13",
-      "@zgeoff/std": "0.3.0",
+      "@zgeoff/std": "0.3.1",
       "better-auth": "1.7.7",
       "bun-pty": "0.5.1",
       "elysia": "1.4.30",
