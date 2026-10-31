@@ -57,7 +57,8 @@ Each line links the section that explains it.
 
 - [Known-bug clauses](./references/known-bugs.md): a description that states a known bug, or a fix
   that removes one.
-- [Tool renames](./references/renames.md): renaming a tool.
+- [Tool renames](./references/renames.md): renaming a tool, or a concept whose word a tool name uses
+  (rule 10).
 
 ## How the descriptions are written
 
@@ -85,7 +86,8 @@ literally, so a soft word ("usually", "should") becomes a guess.
 
 ## Rules
 
-Every rule below carries one example quoted from the current tools.
+Every rule below carries one example quoted from the current tools, or points to the reference that
+holds it.
 
 ### 1. Name the channel, then the verb
 
@@ -160,7 +162,8 @@ Input schemas may hold an `enum`: the bridge `note` tool's `label` takes `progre
 
 ### 7. State a known bug plainly, and remove the clause with the fix
 
-[Known-bug clauses](./references/known-bugs.md) holds this rule.
+Before you write a known-bug clause or remove one, read
+[Known-bug clauses](./references/known-bugs.md).
 
 ### 8. Check every claim against the code or a live run
 
@@ -174,7 +177,7 @@ atc's code holds it.
 
 ### 9. Rename with a break, never an alias
 
-[Tool renames](./references/renames.md) holds this rule.
+Before you rename a tool, read [Tool renames](./references/renames.md).
 
 ### 10. Use one word per concept everywhere
 
