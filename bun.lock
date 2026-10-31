@@ -434,7 +434,7 @@
     "@better-auth/oauth-provider": "1.7.7",
     "@commitlint/cli": "21.2.3",
     "@faker-js/faker": "10.6.0",
-    "@impz/client": "4.2.5",
+    "@impz/client": "6.3.2",
     "@logtape/logtape": "2.4.1",
     "@maschwenk/tsrslint": "0.1.6",
     "@modelcontextprotocol/sdk": "1.32.1",
@@ -651,7 +651,7 @@
 
     "@humanwhocodes/retry": ["@humanwhocodes/retry@0.4.3", "", {}, "sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ=="],
 
-    "@impz/client": ["@impz/client@4.2.5", "", { "dependencies": { "@orpc/client": "^1.15.5", "@orpc/contract": "^1.15.5", "p-retry": "^8.0.1", "ts-pattern": "^5.9.0", "zod": "^4.6.7" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-XHJ0rGrNcaWFnP+2O6tuWO+vXHZWosF337eMYUOh8M+xa/CrlQFUzOwhqYAL9FYPZc4N6qiW25iKBZVBBZKVow=="],
+    "@impz/client": ["@impz/client@6.3.2", "", { "dependencies": { "@orpc/client": "^1.16.0", "@orpc/contract": "^1.16.0", "p-retry": "^8.0.1", "ts-pattern": "^5.9.2", "zod": "^4.6.7" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-1wbuNcvnUvR5UABthRP09PR3gaC48R3wKHi4FAQqV1rCVv8bsbPUd6YQzonr1dtwNmu2MaOD4ZItWJUy0VFAnA=="],
 
     "@jest/diff-sequences": ["@jest/diff-sequences@30.5.0", "", {}, "sha512-OsqBjHXCn8cadasoAZBP6nWYvMsRhpMzGXTpxJ5aO04NlbdhIz+FVe3q49l0AwVhsz/cEmIpBes6gAFl1/dWQg=="],
 
@@ -1526,6 +1526,8 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
+
+    "@impz/client/ts-pattern": ["ts-pattern@5.9.2", "", {}, "sha512-qAf+7M7Jjk7uebZeIo9uEzyintfuRtgHdzM9dqxRKcMi2dt76Ec+FH2wW3bnU9TuGLkZIJLoLs7cCQnU7Tu8ig=="],
 
     "@impz/client/zod": ["zod@4.6.7", "", {}, "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="],
 
