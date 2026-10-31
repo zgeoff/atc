@@ -4,9 +4,13 @@ atc learns what an agent is doing from the agent's own hooks: each hook runs a s
 sends the event to the daemon's reporter socket. How the hooks get into the agent differs per agent,
 under one rule: atc never writes into an agent's own config. Claude Code takes everything per
 invocation, through files atc writes and passes on the command line. Grok and Codex take hooks only
-from their own config, so atc prints the hook file and the owner installs it once. One exception: a
-Codex session that signs in through impd's broker gets a Codex home of its own, and atc writes the
-hooks there ([Grok and Codex](#grok-and-codex)).
+from their own config, so atc prints the hook file and the owner installs it once. The rule has two
+exceptions:
+
+- A Codex session that signs in through impd's broker gets a Codex home of its own, and atc writes
+  the hooks there ([Grok and Codex](#grok-and-codex)).
+- A local Claude Code launch that opts into clone trust adds one folder-trust entry to the owner's
+  Claude Code config ([Claude Code](#claude-code)).
 
 [Adapters](./adapters.md) covers the adapter each agent runs through, and
 [messages](../protocol/messages.md) covers the inbox the `atc-bridge` mod serves.
@@ -58,10 +62,9 @@ prompt for. The folder also holds a sign-in file whose access token is the broke
 Claude Code removes its credential variables from the environment of every tool it runs, so a Claude
 Code CLI that a tool starts finds its sign-in only in that file. A stock Claude Code session there
 also takes an allow-listed copy of the daemon host's own Claude Code config at each launch, which
-atc reads and never writes. One exception to the rule that atc never writes an agent's config: a
-local launch that opts into clone trust adds one folder-trust entry for its verified clone to the
-owner's Claude Code config, under Claude Code's own lock, since Claude Code takes trust no other
-way.
+atc reads and never writes. A local launch that opts into clone trust breaks the rule that atc never
+writes an agent's config: it adds one folder-trust entry for its verified clone to the owner's
+Claude Code config, under Claude Code's own lock, since Claude Code takes trust no other way.
 
 ## The atc-bridge mod
 
@@ -78,17 +81,16 @@ status 0, which it does once atc closes the session's inbox. The mod hands each 
 inside an `<atc-message>` envelope, as a new turn when the session is idle and inside the running
 turn otherwise. The envelope holds the message id, the sender's name and the sender's kind, plus the
 session id when the sender is a session ([messages](../protocol/messages.md#who-a-message-is-from)).
-A tap line without a kind, such as one for a message stored before atc labelled senders, gets an
-envelope with the name alone.
+A tap line without a kind gets an envelope with the name alone.
 
-The mod adds a section to the system prompt that says what the envelope means, so the model treats a
-relayed message as one from another tool rather than the owner's own words. The same section tells
-the model to answer each message with the `answer` tool, because the final reply of a turn is meant
-for the person at the terminal. The mod reports an `answer` call at once, as the answer to that one
-message. When a turn that carried messages ends with a reply, the mod reports every message the turn
-carried that has no answer as answered with that reply and the turn's id, in one call; a turn that
-ends without a reply is reported as unanswered for those messages, with the cause
-([messages](../protocol/messages.md#answers)).
+In a section it adds to the system prompt, the mod tells the model what the envelope means, so the
+model treats a relayed message as one from another tool rather than the owner's own words. In the
+same section, the mod tells the model to answer each message with the `answer` tool, because the
+final reply of a turn is meant for the person at the terminal. The mod reports an `answer` call at
+once, as the answer to that one message. When a turn that carried messages ends with a reply, the
+mod reports every message the turn carried that has no answer as answered with that reply and the
+turn's id, in one call. The mod reports a turn that ends without a reply as unanswered for those
+messages, with the cause ([messages](../protocol/messages.md#answers)).
 
 The mod's tap also asks for answer notices, and the mod hands each one to the model in an
 `<atc-answer>` envelope that holds the outcome of a message the session sent. The model learns from
@@ -97,17 +99,25 @@ the system prompt section that a notice needs no reply, and the mod never report
 
 The `note` tool sends progress mid-turn, labelled `progress`, `blocked` or `decision`, and never
 answers a message. The `answer` tool takes the id of a message the running turn carries and the text
-of its answer, and refuses a message that already has one. The mods API is early access, so CI
-validates and tests the mod against one pinned Claude Code version.
+of its answer, and refuses a message that already has one. CI validates and tests the mod against
+the one Claude Code version that `.github/workflows/checks.yml` pins, because the mods API can
+change between versions.
 
-Claude Code turns every mod off for the rest of a session when its hooks worker misses its heartbeat
-three times and no mod is to blame, as a host that stalls can make it do. The `note` and `answer`
-tools then disappear, and the mod's tap ends. A later write of the mod's files makes Claude Code
-load the mod again. So when a remote session's tap leaves, or its agent reports a start, and no tap
-attaches for a while, the daemon writes that session's bridge files again and records a note in the
-session's events. It writes only while the session's agent process runs, once per tap loss or start,
-and it doubles the wait after each write. A loss that finds the host asleep stays pending, so the
-daemon writes the files once the host wakes.
+Claude Code runs every mod in one worker thread and checks the thread with a heartbeat. When the
+thread misses its heartbeat and no hook of any mod is running, as when the machine stalls, Claude
+Code replaces the thread and loads each mod into the new one. A mod that does not load in time is
+left off: its `note` and `answer` tools disappear, and its tap ends. The mod comes back only when
+one of its files changes, because Claude Code watches each `--plugin-dir` folder and loads the mod
+again after a write.
+
+A remote session has its own copy of the mod, in a folder for the session on its host
+([the imp provider](../execution/imp-provider.md)), so a write to that copy reloads that one
+session. The daemon starts a wait for a tap when a remote session's tap leaves, and when its agent
+reports a start. When a wait ends with no tap attached, the daemon writes the session's copy of the
+mod again, records a note in the session's events, and starts a wait twice as long. It goes on
+writing after each wait, because Claude Code can turn the mod off again before the new tap starts.
+The waits stop when a tap attaches or the agent process ends. When the session's host is asleep at
+the end of a wait, the daemon writes once the host wakes.
 
 ## Grok and Codex
 
@@ -128,9 +138,9 @@ remote session, the daemon resolves that home on the host when the harness launc
 launch env or the host's own env names, or else the agent's folder under the host user's home. A
 start that attaches to a process the host kept running keeps the home stored for it.
 
-Neither Grok nor Codex has a transcript reader or a headless runner, so the daemon refuses a
-transcript read and an eject for their sessions. Grok has no message tap either, and nor does a
-Codex session without an App Server, so the daemon refuses a message for them.
+Grok and Codex have no transcript reader and no headless runner, so the daemon refuses a transcript
+read and an eject for their sessions. Grok has no message tap either, and nor does a Codex session
+without an App Server, so the daemon refuses a message for them.
 
 ## Codex on an App Server
 
