@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubRecordingATC } from './build-stub-recording-atc';
 import { createStubBin } from './create-stub-bin';
@@ -183,4 +183,46 @@ test('it runs the tap in the background, printing into the file, for tap', async
   await waitFor(() => {
     expect(readFileSync(tapFile, 'utf8')).toBe('args:tap --session s-own\nsession:s-own\nstdin:\n');
   });
+});
+
+test('it refuses note and answer when its --plugin-dir holds no mod at start', async () => {
+  const ctx = setupTest();
+  const clis = createStubGuestCLIs(ctx.directory);
+  const log = join(ctx.directory, 'atc.log');
+
+  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+
+  const result = await runCommand(
+    [clis.claude, '--plugin-dir', join(ctx.directory, 'atc-bridge')],
+    {
+      stdin: Buffer.from('note half way\nanswer m-1 the answer\n'),
+      env: { ...process.env, ATC_SESSION_ID: 's-own' },
+    },
+  );
+
+  expect(result.stdout).toMatch(
+    /^UP:\d+\nNO-TOOL:note half way\nNO-TOOL:answer m-1 the answer\n$/u,
+  );
+
+  expect(existsSync(log)).toBeFalse();
+});
+
+test('it reports a note when its --plugin-dir holds the mod at start', async () => {
+  const ctx = setupTest();
+  const clis = createStubGuestCLIs(ctx.directory);
+  const log = join(ctx.directory, 'atc.log');
+  const modDir = join(ctx.directory, 'atc-bridge');
+
+  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+  mkdirSync(join(modDir, '.claude-plugin'), { recursive: true });
+  writeFileSync(join(modDir, '.claude-plugin', 'plugin.json'), '{ "name": "atc-bridge" }');
+
+  await runCommand([clis.claude, '--plugin-dir', modDir], {
+    stdin: Buffer.from('note half way\n'),
+    env: { ...process.env, ATC_SESSION_ID: 's-own' },
+  });
+
+  expect(readFileSync(log, 'utf8')).toBe(
+    'args:note --label progress\nsession:s-own\nstdin:half way\n',
+  );
 });

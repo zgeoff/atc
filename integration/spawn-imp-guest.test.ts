@@ -159,6 +159,77 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
   ]);
 });
 
+test('it starts a remote Claude session only once its mod is in the host, so a slow write still gives the session its note tool', async () => {
+  const ctx = setupTest();
+
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    agents: { claude: { bin: ctx.clis.claude } },
+  });
+
+  // A real daemon whose one target `box`, its default, runs on the imp
+  // provider over the stub imp port.
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-guest-daemon-',
+    options: () => ({
+      adapter: createClaudeAdapter(
+        getAgentEntry(config, 'claude'),
+        config,
+        buildMockHostServices(),
+      ),
+      targets: [
+        {
+          id: 'box',
+          kind: 'imp',
+          options: {},
+          identity: 'imp:test',
+          provider: createImpProvider(
+            ctx.port,
+            { guestDir: ctx.guestDir, guestATC: ctx.clis.atc },
+            {
+              reconnectDelaysMs: [0, 0, 0],
+              atcBinary: null,
+              version: createHostServices().version,
+            },
+          ),
+        },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const write = ctx.port.startCommandHold('tar -x -z');
+
+  const spawning = daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  await write.entered;
+
+  const startsDuringWrite = ctx.port.sessionRequests.length;
+
+  write.stop();
+
+  const spawned = await spawning;
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await daemon.client.sendRequest('session.input', { session: id, data: 'note mod in place\r' });
+
+  await waitFor(async () => {
+    const read = await daemon.client.sendRequest('events.read', { session: id });
+
+    expect(read['events']).toPartiallyContain({
+      kind: 'note',
+      label: 'progress',
+      detail: 'mod in place',
+    });
+  });
+
+  expect(startsDuringWrite).toBe(0);
+});
+
 test("it takes a remote session's hook reports from a socket that serves that session alone", async () => {
   const ctx = setupTest();
 
