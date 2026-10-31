@@ -22,6 +22,7 @@ minimumReleaseAgeExcludes = [
   "@maschwenk/tsrslint-darwin-arm64",
   "@maschwenk/tsrslint-linux-arm64",
   "@maschwenk/tsrslint-linux-x64",
+  "@zgeoff/agent-hooks",
   "@zgeoff/bun-test-extended",
   "@zgeoff/format-codemod",
   "@zgeoff/kysely-bun-sqlite",
