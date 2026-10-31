@@ -35,8 +35,6 @@ test('it refuses a remote Claude spawn when the host has no atc and the daemon h
     agents: { claude: { bin: ctx.clis.claude } },
   });
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -87,8 +85,6 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
     agents: { claude: { bin: ctx.clis.claude } },
   });
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -166,8 +162,6 @@ test('it starts a remote Claude session only once its mod is in the host, so a s
     agents: { claude: { bin: ctx.clis.claude } },
   });
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -207,7 +201,17 @@ test('it starts a remote Claude session only once its mod is in the host, so a s
 
   await write.entered;
 
-  const startsDuringWrite = ctx.port.sessionRequests.length;
+  // the fault is a write that lasts: a harness start that skips the wait takes a few milliseconds,
+  // so it lands well inside a write held for 1 s
+  const startedDuringWrite = await waitFor(
+    () => {
+      expect(ctx.port.sessionRequests).not.toBeEmpty();
+    },
+    { timeoutMs: 1000 },
+  ).then(
+    () => true,
+    () => false,
+  );
 
   write.stop();
 
@@ -217,17 +221,20 @@ test('it starts a remote Claude session only once its mod is in the host, so a s
 
   await daemon.client.sendRequest('session.input', { session: id, data: 'note mod in place\r' });
 
-  await waitFor(async () => {
-    const read = await daemon.client.sendRequest('events.read', { session: id });
+  await waitFor(
+    async () => {
+      const read = await daemon.client.sendRequest('events.read', { session: id });
 
-    expect(read['events']).toPartiallyContain({
-      kind: 'note',
-      label: 'progress',
-      detail: 'mod in place',
-    });
-  });
+      expect(read['events']).toPartiallyContain({
+        kind: 'note',
+        label: 'progress',
+        detail: 'mod in place',
+      });
+    },
+    { timeoutMs: 2000 },
+  );
 
-  expect(startsDuringWrite).toBe(0);
+  expect(startedDuringWrite).toBeFalse();
 });
 
 test("it takes a remote session's hook reports from a socket that serves that session alone", async () => {
@@ -237,8 +244,6 @@ test("it takes a remote session's hook reports from a socket that serves that se
     agents: { claude: { bin: ctx.clis.claude } },
   });
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -309,8 +314,6 @@ test('it keeps a nested harness inside a remote session from rebinding that sess
     agents: { claude: { bin: ctx.clis.claude } },
   });
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -382,8 +385,6 @@ test('it copies its own atc binary into an imp that has none', async () => {
     agents: { claude: { bin: ctx.clis.claude } },
   });
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -424,8 +425,6 @@ test('it copies its own atc binary into an imp that has none', async () => {
 test('it refuses a remote spawn whose agent is not signed in on the host, before any harness starts', async () => {
   const ctx = setupTest();
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -471,8 +470,6 @@ test('it refuses a remote spawn whose agent is not signed in on the host, before
 test('it destroys the host of its own that a remote spawn readied when its agent is not signed in there', async () => {
   const ctx = setupTest();
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -524,8 +521,6 @@ test('it destroys the host of its own that a remote spawn readied when its agent
 test('it answers outcome_unknown for a spawn whose agent is not signed in on a host it cannot destroy', async () => {
   const ctx = setupTest();
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -569,8 +564,6 @@ test('it answers outcome_unknown for a spawn whose agent is not signed in on a h
 test('it keeps the key of a spawn whose agent is not signed in on a host it cannot destroy as outcome_unknown, so a retry creates no imp', async () => {
   const ctx = setupTest();
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -623,8 +616,6 @@ test('it revives a slept remote session whose transcript only its imp holds', as
     agents: { claude: { bin: ctx.clis.claude } },
   });
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -688,8 +679,6 @@ test('it refuses a remote Claude spawn when the atc the target names is missing 
     agents: { claude: { bin: ctx.clis.claude } },
   });
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
@@ -738,8 +727,6 @@ test('it refuses a remote Claude spawn when the atc the target names is missing 
 test('it refuses a remote spawn of an agent that never runs remotely, without blaming a missing atc', async () => {
   const ctx = setupTest();
 
-  // A real daemon whose one target `box`, its default, runs on the imp
-  // provider over the stub imp port.
   const daemon = await startTestDaemon({
     prefix: 'atc-imp-guest-daemon-',
     options: () => ({
