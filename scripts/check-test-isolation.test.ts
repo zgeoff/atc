@@ -16,6 +16,36 @@ test('it passes a gate that leaves the synthetic home alone', async () => {
   });
 });
 
+test("it points a gate's mise at the host's own XDG homes", async () => {
+  const run = await runCommand(
+    [
+      process.execPath,
+      join(import.meta.dir, 'check-test-isolation.ts'),
+      'sh',
+      '-c',
+      'echo "$MISE_CONFIG_DIR $MISE_DATA_DIR $MISE_STATE_DIR $MISE_CACHE_DIR"',
+    ],
+    {
+      env: {
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(([name]) => !name.startsWith('MISE_')),
+        ),
+        XDG_CONFIG_HOME: '/srv/orchard/config',
+        XDG_DATA_HOME: '/srv/orchard/data',
+        XDG_STATE_HOME: '/srv/orchard/state',
+        XDG_CACHE_HOME: '/srv/orchard/cache',
+      },
+    },
+  );
+
+  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
+    exitCode: 0,
+    stdout:
+      '/srv/orchard/config/mise /srv/orchard/data/mise /srv/orchard/state/mise /srv/orchard/cache/mise\n' +
+      'test isolation: 14 canaries unchanged and unread after: sh -c echo "$MISE_CONFIG_DIR $MISE_DATA_DIR $MISE_STATE_DIR $MISE_CACHE_DIR"\n',
+  });
+});
+
 test('it fails a gate that reads a canary', async () => {
   const run = await runCommand([
     process.execPath,

@@ -51,6 +51,14 @@ chmod 700 "$root/runtime"
 # test writes starts owner-only, as a token file on a real host does.
 umask 077
 
+# A mise shim, such as the node that `#!/usr/bin/env node` finds, reads its
+# installs, config and trust records from the XDG homes, and refuses to run
+# from a moved home. These keep mise on the user's own directories.
+export MISE_CONFIG_DIR="${MISE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/mise}"
+export MISE_DATA_DIR="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}"
+export MISE_STATE_DIR="${MISE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/mise}"
+export MISE_CACHE_DIR="${MISE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/mise}"
+
 export HOME="$root/home"
 export XDG_RUNTIME_DIR="$root/runtime"
 export XDG_CONFIG_HOME="$root/home/.config"

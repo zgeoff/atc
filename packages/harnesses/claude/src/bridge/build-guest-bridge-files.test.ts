@@ -11,3 +11,12 @@ test("it places the mod's files in the guest folder's mod folder, running the ho
       'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
   });
 });
+
+test('it marks a rewrite of the guest copy with the time it was written', () => {
+  expect(
+    buildGuestBridgeFiles(['/opt/atc/bin/atc'], 1_793_000_000_000)['atc-bridge/hooks/atc-cli.ts'],
+  ).toBe(
+    'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n' +
+      '// written again at 1793000000000: Claude Code loads a mod again only when a file of it changes\n',
+  );
+});

@@ -322,7 +322,10 @@ export interface AgentAdapter {
   // The guest-relative files of a remote session's message mod, given the
   // atc inside its host, written again when a running agent drops the mod.
   // Absent: the agent has no such mod.
-  readonly planGuestBridgeFiles?: (atc: string) => Readonly<Record<string, string>>;
+  readonly planGuestBridgeFiles?: (
+    atc: string,
+    writtenAt: number,
+  ) => Readonly<Record<string, string>>;
 
   // Guest-relative seed files for the exact root of a verified clone.
   // Absent or null means the adapter cannot accept workspace trust.

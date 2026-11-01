@@ -106,3 +106,34 @@ test('it keeps a host XDG git config away from a command it runs', async () => {
     stdout: '',
   });
 });
+
+test("it points mise at the host's own XDG homes for a command it runs", async () => {
+  const ctx = setupTest();
+
+  const read = await runCommand(
+    [
+      'bash',
+      join(import.meta.dir, 'with-test-home.sh'),
+      'sh',
+      '-c',
+      'echo "$MISE_CONFIG_DIR $MISE_DATA_DIR $MISE_STATE_DIR $MISE_CACHE_DIR"',
+    ],
+    {
+      cwd: ctx.directory,
+      env: {
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(([name]) => !name.startsWith('MISE_')),
+        ),
+        XDG_CONFIG_HOME: join(ctx.directory, 'host-config'),
+        XDG_DATA_HOME: join(ctx.directory, 'host-data'),
+        XDG_STATE_HOME: join(ctx.directory, 'host-state'),
+        XDG_CACHE_HOME: join(ctx.directory, 'host-cache'),
+      },
+    },
+  );
+
+  expect({ exitCode: read.exitCode, stdout: read.stdout }).toStrictEqual({
+    exitCode: 0,
+    stdout: `${join(ctx.directory, 'host-config', 'mise')} ${join(ctx.directory, 'host-data', 'mise')} ${join(ctx.directory, 'host-state', 'mise')} ${join(ctx.directory, 'host-cache', 'mise')}\n`,
+  });
+});

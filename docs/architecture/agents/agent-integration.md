@@ -107,17 +107,20 @@ Claude Code runs every mod in one worker thread and checks the thread with a hea
 thread misses its heartbeat and no hook of any mod is running, as when the machine stalls, Claude
 Code replaces the thread and loads each mod into the new one. A mod that does not load in time is
 left off: its `note` and `answer` tools disappear, and its tap ends. The mod comes back only when
-one of its files changes, because Claude Code watches each `--plugin-dir` folder and loads the mod
-again after a write.
+the content of one of its files changes, because Claude Code watches each `--plugin-dir` folder and
+loads the mod again after such a write. A write with the same bytes, or a new timestamp alone, loads
+nothing. During a turn, Claude Code waits for the turn to end before it loads the mod again.
 
 A remote session has its own copy of the mod, in a folder for the session on its host
-([the imp provider](../execution/imp-provider.md)), so a write to that copy reloads that one
+([the imp provider](../execution/imp-provider.md)), so a change to that copy reloads that one
 session. The daemon starts a wait for a tap when a remote session's tap leaves, and when its agent
 reports a start. When a wait ends with no tap attached, the daemon writes the session's copy of the
-mod again, records a note in the session's events, and starts a wait twice as long. It goes on
-writing after each wait, because Claude Code can turn the mod off again before the new tap starts.
-The waits stop when a tap attaches or the agent process ends. When the session's host is asleep at
-the end of a wait, the daemon writes once the host wakes.
+mod again, records a note in the session's events, and starts a wait twice as long. Each write adds
+a comment line with the time of the write to `hooks/atc-cli.ts`, so the copy differs from the one
+the session runs and Claude Code loads it again. It goes on writing after each wait, because Claude
+Code can turn the mod off again before the new tap starts. The waits stop when a tap attaches or the
+agent process ends. When the session's host is asleep at the end of a wait, the daemon writes once
+the host wakes.
 
 ## Grok and Codex
 

@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import { buildStubClock, registerTestCleanup, waitFor } from '@atc/test-utils';
@@ -39,11 +39,16 @@ function setupTest(config: SetupTestConfig) {
     transferArchive: config.transferArchive ?? (() => Promise.resolve()),
   });
 
+  const planGuestBridgeFiles = mock<(atc: string, writtenAt: number) => Record<string, string>>(
+    () => ({
+      'atc-bridge/hooks/atc-cli.ts':
+        'export const ATC_CLI = ["/var/lib/orchard-scratch/atc/bin/atc"];\n',
+    }),
+  );
+
   const adapter = {
     ...buildStubHarnessAdapter({ takesMessages: true }),
-    planGuestBridgeFiles: (atc: string) => ({
-      'atc-bridge/hooks/atc-cli.ts': `export const ATC_CLI = ["${atc}"];\n`,
-    }),
+    planGuestBridgeFiles,
   };
 
   const revival = startBridgeRevival({
@@ -71,7 +76,18 @@ function setupTest(config: SetupTestConfig) {
 
   const client: TapClient = { sendEvent: () => {} };
 
-  return { clock, taps, sessions, ended, notes, logs, provider, client, revival };
+  return {
+    clock,
+    taps,
+    sessions,
+    ended,
+    notes,
+    logs,
+    provider,
+    client,
+    revival,
+    planGuestBridgeFiles,
+  };
 }
 
 test('it writes the bridge mod of a running remote session whose tap stays gone for 30 s', async () => {
@@ -137,6 +153,41 @@ test('it writes the bridge mod of a remote session whose tap never attaches in t
   );
 });
 
+test('it plans each write of the mod with the time of that write', async () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.revival.watchAgentStart(id);
+  ctx.clock.advance(30_000);
+
+  await waitFor(() => {
+    expect(ctx.clock.collectPending()).toStrictEqual([60_000]);
+  });
+
+  ctx.clock.advance(60_000);
+
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(2);
+  });
+
+  expect(ctx.planGuestBridgeFiles.mock.calls).toStrictEqual([
+    ['/var/lib/orchard-scratch/atc/bin/atc', 130_000],
+    ['/var/lib/orchard-scratch/atc/bin/atc', 190_000],
+  ]);
+});
+
 test('it writes nothing when a tap attaches in the 30 s after the agent starts', () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
@@ -192,7 +243,7 @@ test('it records a note in the session events when it writes the mod again', asy
       payload: {
         kind: 'note',
         label: 'progress',
-        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more. If the tools stay gone, restart the session.',
+        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, and Claude Code loads it once more when the current turn ends. If the tools stay gone after that, restart the session.',
       },
     },
   ]);

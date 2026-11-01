@@ -432,7 +432,7 @@ test("it runs a headless turn with the config's plugin folders and then the sess
   );
 });
 
-test('it plans the guest bridge files a remote session launches with', () => {
+test('it plans the guest bridge files a running remote session gets written again', () => {
   const config = parseConfig([CLAUDE_PLUGIN], {});
 
   const adapter = createClaudeAdapter(
@@ -441,13 +441,40 @@ test('it plans the guest bridge files a remote session launches with', () => {
     buildMockHostServices(),
   );
 
-  expect(adapter.planGuestBridgeFiles('/opt/atc/bin/atc')).toStrictEqual({
+  expect(adapter.planGuestBridgeFiles('/opt/atc/bin/atc', 1_793_000_000_000)).toStrictEqual({
     'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
     'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
     'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
     'atc-bridge/hooks/atc-cli.ts':
-      'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
+      'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n' +
+      '// written again at 1793000000000: Claude Code loads a mod again only when a file of it changes\n',
   });
+});
+
+test('it plans a rewrite of the guest bridge mod whose content differs from the copy the session launched with', () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {});
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    { atc: '/opt/atc/bin/atc', directory: '/tmp/atc/sessions/s1' },
+  );
+
+  const rewrite = adapter.planGuestBridgeFiles('/opt/atc/bin/atc', 1_793_000_000_000);
+
+  expect(plan?.files['atc-bridge/hooks/atc-cli.ts']).toBe(
+    'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
+  );
+
+  expect(rewrite['atc-bridge/hooks/atc-cli.ts']).toBe(
+    'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n' +
+      '// written again at 1793000000000: Claude Code loads a mod again only when a file of it changes\n',
+  );
 });
 
 test('it restores an unbrokered remote session in the mode its settings set', () => {
