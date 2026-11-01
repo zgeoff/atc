@@ -182,9 +182,25 @@ function readSnapshot(canaries: readonly string[], watched: readonly string[]): 
 
 function runGate(gate: readonly string[], home: string, run: string, bin: string): Promise<number> {
   const { ATC_TEST_HOME: _testHome, ...inherited } = process.env;
+  const hostHome = inherited['HOME'] ?? home;
 
+  // A mise shim, such as the node that `#!/usr/bin/env node` finds, reads its
+  // installs, config and trust records from the XDG homes, and refuses to run
+  // from the canary home. These keep mise on the user's own directories.
   const env = {
     ...inherited,
+    MISE_CONFIG_DIR:
+      inherited['MISE_CONFIG_DIR'] ??
+      join(inherited['XDG_CONFIG_HOME'] ?? join(hostHome, '.config'), 'mise'),
+    MISE_DATA_DIR:
+      inherited['MISE_DATA_DIR'] ??
+      join(inherited['XDG_DATA_HOME'] ?? join(hostHome, '.local/share'), 'mise'),
+    MISE_STATE_DIR:
+      inherited['MISE_STATE_DIR'] ??
+      join(inherited['XDG_STATE_HOME'] ?? join(hostHome, '.local/state'), 'mise'),
+    MISE_CACHE_DIR:
+      inherited['MISE_CACHE_DIR'] ??
+      join(inherited['XDG_CACHE_HOME'] ?? join(hostHome, '.cache'), 'mise'),
     HOME: home,
     PATH: [bin, inherited['PATH']].filter(Boolean).join(delimiter),
     XDG_RUNTIME_DIR: run,
