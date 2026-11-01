@@ -91,7 +91,8 @@ function parseCommitlintOutput(hash: string, result: ProgramResult): string[] {
   return problems;
 }
 
-async function runCLI(): Promise<void> {
+// Returns the exit code: 0 when clean or skipped, 1 with a problem, and 2 when the check cannot run.
+export async function runCommitsCommand(args: readonly string[]): Promise<number> {
   const cwd = process.cwd();
 
   const commitlint = Bun.which('commitlint', {
@@ -103,7 +104,7 @@ async function runCLI(): Promise<void> {
       'the repo does not install commitlint; add @commitlint/cli and @zgeoff/commitlint-config as devDependencies to run it',
     );
 
-    return;
+    return 0;
   }
 
   if (!(await probeConfigInstalled(cwd))) {
@@ -111,7 +112,7 @@ async function runCLI(): Promise<void> {
       'the repo does not install @zgeoff/commitlint-config; add it as a devDependency to run it',
     );
 
-    return;
+    return 0;
   }
 
   try {
@@ -122,7 +123,7 @@ async function runCLI(): Promise<void> {
     const ranges = readPushedRanges({
       cwd,
       env: process.env,
-      pushedRefs: await readPushedRefsInput(process.argv.slice(2), () => Bun.stdin.text()),
+      pushedRefs: await readPushedRefsInput(args, () => Bun.stdin.text()),
       runProgram,
     });
 
@@ -139,11 +140,11 @@ async function runCLI(): Promise<void> {
       process.stdout.write(`${problem}\n`);
     }
 
-    process.exitCode = problems.length === 0 ? 0 : 1;
+    return problems.length === 0 ? 0 : 1;
   } catch (error) {
     process.stderr.write(`commits: ${error instanceof Error ? error.message : String(error)}\n`);
 
-    process.exitCode = 2;
+    return 2;
   }
 }
 
@@ -173,5 +174,5 @@ function writeSkipNotice(reason: string): void {
 }
 
 if (import.meta.main) {
-  await runCLI();
+  process.exitCode = await runCommitsCommand(process.argv.slice(2));
 }

@@ -474,7 +474,8 @@ const ticketPattern = /\b[A-Z][A-Z0-9]*-\d+\b/u;
 // a block comment's continuation stars are no evidence
 const floorPattern = /\bfloor:[\s*]*[^\s*]/u;
 
-function runCLI(): void {
+// Returns the exit code: 0 when clean, 1 with a finding, and 2 when the check cannot run.
+export function runTestTimeoutsCommand(): number {
   try {
     const findings = runTestTimeoutsCheck({ cwd: process.cwd(), env: process.env, runProgram });
 
@@ -482,16 +483,16 @@ function runCLI(): void {
       process.stdout.write(`${finding.path}: ${finding.message}\n`);
     }
 
-    process.exitCode = findings.length === 0 ? 0 : 1;
+    return findings.length === 0 ? 0 : 1;
   } catch (error) {
     process.stderr.write(
       `test-timeouts: ${error instanceof Error ? error.message : String(error)}\n`,
     );
 
-    process.exitCode = 2;
+    return 2;
   }
 }
 
 if (import.meta.main) {
-  runCLI();
+  process.exitCode = runTestTimeoutsCommand();
 }

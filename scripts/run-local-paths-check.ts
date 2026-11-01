@@ -148,12 +148,13 @@ function runMergeBlobsFetch(
   }
 }
 
-async function runCLI(): Promise<void> {
+// Returns the exit code: 0 when clean, 1 with a finding, and 2 when the check cannot run.
+export async function runLocalPathsCommand(args: readonly string[]): Promise<number> {
   try {
     const ranges = readPushedRanges({
       cwd: process.cwd(),
       env: process.env,
-      pushedRefs: await readPushedRefsInput(process.argv.slice(2), () => Bun.stdin.text()),
+      pushedRefs: await readPushedRefsInput(args, () => Bun.stdin.text()),
       runProgram,
     });
 
@@ -169,16 +170,16 @@ async function runCLI(): Promise<void> {
       process.stdout.write(`${finding.path}:${finding.line}: ${finding.message}\n`);
     }
 
-    process.exitCode = findings.length === 0 ? 0 : 1;
+    return findings.length === 0 ? 0 : 1;
   } catch (error) {
     process.stderr.write(
       `local-paths: ${error instanceof Error ? error.message : String(error)}\n`,
     );
 
-    process.exitCode = 2;
+    return 2;
   }
 }
 
 if (import.meta.main) {
-  await runCLI();
+  process.exitCode = await runLocalPathsCommand(process.argv.slice(2));
 }
