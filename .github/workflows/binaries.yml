@@ -86,13 +86,35 @@ jobs:
         if: runner.os == 'macOS'
         run: /usr/bin/git --version
 
+      # The first build through macOS's cc shim takes about 6.5 s on the Intel
+      # runner, and the native stand-in test builds with cc inside its own time.
+      - name: Warm the cc shim
+        if: runner.os == 'macOS'
+        run: cc -x c -c -o "$RUNNER_TEMP/warm-cc.o" /dev/null
+
+      - name: Mark the binary executable
+        env:
+          ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
+        run: chmod +x "$ATC_BIN"
+
+      - name: Print the binary version
+        env:
+          ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
+        run: '"$ATC_BIN" --version'
+
+      # A compiled binary copies its embedded librust_pty into TMPDIR on its
+      # first load, and on macOS one of several daemons that make that first
+      # copy at once can fail to load it. One daemon boot alone leaves the copy
+      # for the parallel suite to reuse.
+      - name: Warm the embedded PTY library
+        env:
+          ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
+        run: bun run test:e2e e2e/daemon-quit.test.ts
+
       - name: Smoke test the compiled binary
         env:
           ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
-        run: |
-          chmod +x "$ATC_BIN"
-          "$ATC_BIN" --version
-          bun run test:e2e e2e/daemon-*.test.ts
+        run: bun run test:e2e e2e/daemon-*.test.ts
 
       # The checks workflow runs the provider tests on Linux alone, and these
       # are the only macOS runners CI starts.
@@ -101,11 +123,20 @@ jobs:
         run: bun run test packages/execution/local/src/create-local-pty-provider.test.ts
 
       # The gateway ships for linux-x64 alone.
+      - name: Mark the gateway binary executable
+        if: matrix.target == 'linux-x64'
+        env:
+          ATC_GATEWAY_BIN: ${{ github.workspace }}/dist/atc-gateway-linux-x64
+        run: chmod +x "$ATC_GATEWAY_BIN"
+
+      - name: Print the gateway binary version
+        if: matrix.target == 'linux-x64'
+        env:
+          ATC_GATEWAY_BIN: ${{ github.workspace }}/dist/atc-gateway-linux-x64
+        run: '"$ATC_GATEWAY_BIN" --version'
+
       - name: Smoke test the compiled gateway
         if: matrix.target == 'linux-x64'
         env:
           ATC_GATEWAY_BIN: ${{ github.workspace }}/dist/atc-gateway-linux-x64
-        run: |
-          chmod +x "$ATC_GATEWAY_BIN"
-          "$ATC_GATEWAY_BIN" --version
-          bun run test:e2e e2e/gateway-*.test.ts
+        run: bun run test:e2e e2e/gateway-*.test.ts
