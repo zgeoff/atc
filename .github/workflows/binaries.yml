@@ -86,13 +86,18 @@ jobs:
         if: runner.os == 'macOS'
         run: /usr/bin/git --version
 
+      # Parallel daemons that each copy the binary's embedded PTY library can race for
+      # one scratch name, and the loser fails to load the library. The script lets one
+      # daemon write the copy that every later daemon reuses, and fails when it finds none.
+      - name: Copy the PTY library once
+        env:
+          ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
+        run: bun run ci:copy-pty-library
+
       - name: Smoke test the compiled binary
         env:
           ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
-        run: |
-          chmod +x "$ATC_BIN"
-          "$ATC_BIN" --version
-          bun run test:e2e e2e/daemon-*.test.ts
+        run: bun run test:e2e e2e/daemon-*.test.ts
 
       # The checks workflow runs the provider tests on Linux alone, and these
       # are the only macOS runners CI starts.
