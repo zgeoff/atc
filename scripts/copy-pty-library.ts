@@ -83,8 +83,12 @@ if (import.meta.main) {
       tempDirectory: tmpdir(),
       uid: userInfo().uid,
       runProgram,
-      writeStdout: (text) => process.stdout.write(text),
-      writeStderr: (text) => process.stderr.write(text),
+      writeStdout: (text) => {
+        process.stdout.write(text);
+      },
+      writeStderr: (text) => {
+        process.stderr.write(text);
+      },
     }),
   );
 }
