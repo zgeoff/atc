@@ -426,7 +426,7 @@ test('it ends a reverse forward as closed once its path to impd stays silent for
   expect(forward.ended).resolves.toStrictEqual({
     kind: 'closed',
     code: 1006,
-    reason: 'Connection ended',
+    reason: '',
   });
 });
 
@@ -1069,7 +1069,7 @@ test('it ends a session connection as closed once its path to impd stays silent 
 
   expect(connection.outcome).resolves.toStrictEqual({
     kind: 'closed',
-    reason: 'Connection ended',
+    reason: 'code 1006',
     closeCode: 1006,
   });
 });
