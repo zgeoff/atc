@@ -292,7 +292,6 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
 
         invariant(usage);
 
-        // oxlint-disable-next-line no-unnecessary-type-conversion -- the types declare a number, while Bun returns the microseconds as a bigint, which division by a number throws on
         cpuMs.push(Number(usage.cpuTime.total) / 1000);
       }
     }

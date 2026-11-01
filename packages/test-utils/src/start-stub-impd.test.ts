@@ -251,9 +251,8 @@ test('it closes a WebSocket that sends a message over 2 MiB', async () => {
 
   const code = await closed.promise;
 
-  // The server drops the connection without a close frame, which the client
-  // reports as an abnormal closure.
-  expect(code).toBe(1006);
+  // The server closes the connection with the code for a message too big.
+  expect(code).toBe(1009);
 });
 
 test('it drops an open WebSocket once stopped', async () => {
@@ -282,8 +281,8 @@ test('it drops an open WebSocket once stopped', async () => {
 
   const code = await closed.promise;
 
-  // Stopping drops the connection at once, without a close frame.
-  expect(code).toBe(1006);
+  // Stopping closes the connection at once, with the code for a server that goes away.
+  expect(code).toBe(1001);
 });
 
 test('it stops serving once the test finishes without a stop', () => {
