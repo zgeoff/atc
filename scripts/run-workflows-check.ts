@@ -3,10 +3,10 @@ import { collectCommandNames } from './collect-command-names.ts';
 import { collectExpressionReferences } from './collect-expression-references.ts';
 import { findInstallCachePath } from './find-install-cache-path.ts';
 import { parseShellWords } from './parse-shell-words.ts';
+import type { ChecksProfile } from './read-checks-profile.ts';
+import { readChecksProfile } from './read-checks-profile.ts';
 import type { RunProgram } from './run-program.ts';
 import { runProgram } from './run-program.ts';
-
-export type ChecksProfile = 'public' | 'private';
 
 export interface WorkflowsCheckOptions {
   readonly cwd: string;
@@ -15,7 +15,7 @@ export interface WorkflowsCheckOptions {
   // The workflow files to read, relative to the repo root; empty reads every one HEAD holds.
   readonly paths: readonly string[];
 
-  // The bun-checks profile of the run; undefined when the check cannot see it, such as in a hook.
+  // The bun-checks profile of the run; undefined when it is unknown, which applies every rule.
   readonly profile: ChecksProfile | undefined;
 
   readonly runProgram: RunProgram;
@@ -536,15 +536,15 @@ function collectWorkflowRunFindings(context: WorkflowContext): WorkflowFinding[]
       ];
 }
 
-function runCLI(): void {
-  const paths = parseCLIPaths(process.argv.slice(2));
+// Returns the exit code: 0 when clean or with a warning, since the lint only warns, and 2 when the
+// check cannot run.
+export function runWorkflowsCommand(args: readonly string[]): number {
+  const paths = parseCLIPaths(args);
 
   if (paths instanceof Error) {
-    process.stderr.write(`workflows: ${paths.message}\nusage: run-workflows-check.ts [path...]\n`);
+    process.stderr.write(`workflows: ${paths.message}\nusage: chex workflows [path...]\n`);
 
-    process.exitCode = 2;
-
-    return;
+    return 2;
   }
 
   try {
@@ -552,7 +552,14 @@ function runCLI(): void {
       cwd: process.cwd(),
       env: process.env,
       paths,
-      profile: parseChecksProfile(process.env['CHECKS_PROFILE']),
+      profile: readChecksProfile({
+        cwd: process.cwd(),
+        env: process.env,
+        runProgram,
+        writeError: (text) => {
+          process.stderr.write(text);
+        },
+      }),
       runProgram,
     });
 
@@ -567,10 +574,12 @@ function runCLI(): void {
         `workflows: ${findings.length} ${findings.length === 1 ? 'warning' : 'warnings'}; the workflow lint warns and does not fail yet\n`,
       );
     }
+
+    return 0;
   } catch (error) {
     process.stderr.write(`workflows: ${error instanceof Error ? error.message : String(error)}\n`);
 
-    process.exitCode = 2;
+    return 2;
   }
 }
 
@@ -581,10 +590,6 @@ function parseCLIPaths(args: readonly string[]): string[] | Error {
   } catch (error) {
     return error instanceof Error ? error : new Error(String(error));
   }
-}
-
-function parseChecksProfile(value: string | undefined): ChecksProfile | undefined {
-  return value === 'public' || value === 'private' ? value : undefined;
 }
 
 // GitHub reads a workflow command's properties up to `,` and `::`, and its message up to a
@@ -604,5 +609,5 @@ function formatLine(finding: WorkflowFinding): string {
 }
 
 if (import.meta.main) {
-  runCLI();
+  process.exitCode = runWorkflowsCommand(process.argv.slice(2));
 }

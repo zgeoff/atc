@@ -57,11 +57,13 @@ pre-push:
           fi
         done
         status=0
-        shellcheck --external-sources --source-path=SCRIPTDIR "--source-path=$PWD" -- {files} || status=1
-        shfmt -d -- {files} || status=1
+        bun run --silent memory-capped shellcheck --external-sources --source-path=SCRIPTDIR "--source-path=$PWD" -- {files} || status=1
+        bun run --silent memory-capped shfmt -d -- {files} || status=1
         exit "$status"
     # The docs-writing skill's scripts pick the docs they read themselves, so
-    # the glob only decides whether the job runs.
+    # the glob only decides whether the job runs. The vision check runs when
+    # the docs-vision-check entry put it beside them, and the skill check when
+    # the repo takes the skill-writing skill.
     - name: docs
       files: bun run --silent files:branch
       glob: '*.md'
@@ -71,10 +73,14 @@ pre-push:
           echo "docs: skipped, because the repo has no $scripts/check-length.sh; take the skill-docs-writing entry of repo-sync to run it"
           exit 0
         fi
+        set -- "$scripts/check-prose.sh" "$scripts/check-length.sh" "$scripts/check-links.sh"
+        [ -f "$scripts/check-vision.sh" ] && set -- "$@" "$scripts/check-vision.sh"
+        check_skill=.claude/skills/skill-writing/scripts/check-skill.sh
+        [ -f "$check_skill" ] && set -- "$@" "$check_skill"
         status=0
-        for script in check-length.sh check-links.sh; do
-          if ! bash "$scripts/$script"; then
-            echo "docs: $script failed; its output above holds each failing file and its fault"
+        for script in "$@"; do
+          if ! bash "$script"; then
+            echo "docs: ${script##*/} failed; its output above holds each failing file and its fault"
             status=1
           fi
         done
@@ -95,9 +101,9 @@ pre-push:
         if ! command -v actionlint > /dev/null; then
           echo "workflows: actionlint skipped, because it is not on the PATH; CI runs it"
         elif [ "$(date -u +%Y%m%d)" -lt 20270122 ]; then
-          actionlint -ignore 'unexpected key "queue" for "concurrency" section' -- {files} || status=1
+          bun run --silent memory-capped actionlint -ignore 'unexpected key "queue" for "concurrency" section' -- {files} || status=1
         else
-          actionlint -- {files} || status=1
+          bun run --silent memory-capped actionlint -- {files} || status=1
         fi
         bun run --silent memory-capped bun run --silent check:workflows {files} || status=1
         exit "$status"

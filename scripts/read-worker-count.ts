@@ -1,6 +1,7 @@
 import { availableParallelism, totalmem } from 'node:os';
-import { readMemoryBudget, readOptionalText } from './read-memory-budget.ts';
+import { readMemoryBudget } from './read-memory-budget.ts';
 import type { MemoryBudgetSources } from './read-memory-budget.ts';
+import { readOptionalText } from './read-optional-text.ts';
 
 export interface WorkerCountSources extends MemoryBudgetSources {
   readonly env: Readonly<Record<string, string | undefined>>;

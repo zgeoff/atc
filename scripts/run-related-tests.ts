@@ -3,7 +3,7 @@ import { availableParallelism, totalmem } from 'node:os';
 import { basename, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { parseLaneLimits } from './parse-lane-limits.ts';
-import { readOptionalText } from './read-memory-budget.ts';
+import { readOptionalText } from './read-optional-text.ts';
 import { readWorkerCount } from './read-worker-count.ts';
 import type { WorkerCountSources } from './read-worker-count.ts';
 
@@ -73,17 +73,52 @@ export function resolveRelatedTests(
     ...parseLaneLimits(sources.readConfigText(join(sources.cwd, '.oxlintrc.json'))).keys(),
   ];
 
+  const ignored = parseTestIgnorePatterns(sources.readConfigText(join(sources.cwd, 'bunfig.toml')));
+
   const selected = new Set<string>();
 
   for (const path of paths) {
     const test = findRelatedTest(path, lanes);
 
-    if (test !== undefined && sources.probeFile(join(sources.cwd, test))) {
+    if (
+      test !== undefined &&
+      !ignored.some((pattern) => pattern.match(test)) &&
+      sources.probeFile(join(sources.cwd, test))
+    ) {
       selected.add(test);
     }
   }
 
   return [...selected];
+}
+
+// bun test exits 1 with no test run when every path it is given matches a pathIgnorePatterns entry.
+function parseTestIgnorePatterns(configText: string | null): Bun.Glob[] {
+  if (configText === null) {
+    return [];
+  }
+
+  const patterns = findMember(findMember(parseBunConfig(configText), 'test'), 'pathIgnorePatterns');
+  const listed: unknown[] = Array.isArray(patterns) ? patterns : [patterns];
+
+  return listed.flatMap((pattern) => (typeof pattern === 'string' ? [new Bun.Glob(pattern)] : []));
+}
+
+function parseBunConfig(text: string): unknown {
+  try {
+    return Bun.TOML.parse(text);
+  } catch (error) {
+    throw new Error(
+      `cannot parse bunfig.toml: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+}
+
+function findMember(value: unknown, key: string): unknown {
+  return typeof value === 'object' && value !== null && Object.hasOwn(value, key)
+    ? Reflect.get(value, key)
+    : undefined;
 }
 
 type RelatedTestArgs =

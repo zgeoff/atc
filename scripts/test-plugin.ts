@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { collectPackageClosure } from './collect-package-closure';
 import type { WorkspacePackage } from './load-workspace-packages';
 import { loadWorkspacePackages } from './load-workspace-packages';
-import { readOptionalText } from './read-memory-budget';
+import { readOptionalText } from './read-optional-text';
 import { readWorkerCount } from './read-worker-count';
 
 // Tests one plugin package in a workspace holding only it, the packages its

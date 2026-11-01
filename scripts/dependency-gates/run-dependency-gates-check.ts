@@ -27,10 +27,10 @@ export function runDependencyGatesCheck(check: Readonly<DependencyGatesCheck>): 
   }
 }
 
-if (import.meta.main) {
+export function runDependencyGatesCommand(): number {
   const cwd = process.cwd();
 
-  process.exitCode = runDependencyGatesCheck({
+  return runDependencyGatesCheck({
     cwd,
     env: process.env,
     today: new Date().toISOString().slice(0, 10),
@@ -47,4 +47,8 @@ if (import.meta.main) {
       process.stderr.write(text);
     },
   });
+}
+
+if (import.meta.main) {
+  process.exitCode = runDependencyGatesCommand();
 }
