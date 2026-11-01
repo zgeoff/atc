@@ -29,6 +29,10 @@ interface DaemonProcessConfig {
   readonly args?: readonly string[];
 
   readonly freshState?: boolean;
+
+  // Where the daemon's stderr goes when a request rejects with an internal
+  // error; the test process's stderr by default.
+  readonly writeReport?: (text: string) => void;
 }
 
 interface DaemonBoot {
@@ -136,9 +140,14 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
     clients.add(client);
 
-    return buildStderrReportingClient(client, readStderr, (text) => {
-      process.stderr.write(text);
-    });
+    return buildStderrReportingClient(
+      client,
+      readStderr,
+      config.writeReport ??
+        ((text) => {
+          process.stderr.write(text);
+        }),
+    );
   };
 
   const openClient = async (): Promise<DaemonClient> => {
