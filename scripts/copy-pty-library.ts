@@ -1,7 +1,25 @@
 import { chmodSync, readdirSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
+import type { RunProgram } from './run-program';
 import { runProgram } from './run-program';
+
+export interface CopyPTYLibraryOptions {
+  readonly cwd: string;
+
+  readonly env: Readonly<Record<string, string | undefined>>;
+
+  // The daemons' TMPDIR, where Bun writes the copy.
+  readonly tempDirectory: string;
+
+  readonly uid: number;
+
+  readonly runProgram: RunProgram;
+
+  readonly writeStdout: (text: string) => void;
+
+  readonly writeStderr: (text: string) => void;
+}
 
 // Bun reuses this copy of an embedded library. Two processes that find none can pick one
 // scratch name in the same clock tick, and the loser passes dlopen the virtual /$bunfs path.
@@ -12,50 +30,61 @@ export function findPTYLibraryCopy(names: readonly string[], uid: number): strin
   );
 }
 
-function runInherited(argv: readonly string[]): void {
-  const result = runProgram(argv, { cwd: process.cwd(), env: process.env });
-
-  process.stdout.write(result.stdout);
-  process.stderr.write(result.stderr);
-
-  if (result.exitCode !== 0) {
-    throw new Error(`${argv.join(' ')} exited with ${String(result.exitCode)}`);
-  }
-}
-
-// One file of daemon tests starts its daemons one at a time, so its first daemon
-// writes the copy alone, before the parallel suite starts many daemons at once.
-function main(): void {
+// One file of daemon tests starts its daemons one at a time, so its first daemon writes the copy
+// alone, before the parallel suite starts many daemons at once. Returns the exit code.
+export function runCopyPTYLibrary(options: Readonly<CopyPTYLibraryOptions>): number {
   try {
-    const bin = process.env['ATC_BIN'];
+    const bin = options.env['ATC_BIN'];
 
     if (bin === undefined) {
       throw new Error('ATC_BIN is unset');
     }
 
     chmodSync(bin, 0o755);
-    runInherited([bin, '--version']);
-    runInherited(['bun', 'run', 'test:e2e', 'e2e/daemon-env.test.ts']);
+    runInherited(options, [bin, '--version']);
+    runInherited(options, ['bun', 'run', 'test:e2e', 'e2e/daemon-env.test.ts']);
 
-    const directory = tmpdir();
-    const copy = findPTYLibraryCopy(readdirSync(directory), userInfo().uid);
+    const copy = findPTYLibraryCopy(readdirSync(options.tempDirectory), options.uid);
 
     if (copy === undefined) {
       throw new Error(
-        `no copy of the PTY library in ${directory}, so the parallel daemons would each write one`,
+        `no copy of the PTY library in ${options.tempDirectory}, so the parallel daemons would each write one`,
       );
     }
 
-    process.stdout.write(`copy-pty-library: ${join(directory, copy)}\n`);
+    options.writeStdout(`copy-pty-library: ${join(options.tempDirectory, copy)}\n`);
+
+    return 0;
   } catch (error) {
-    process.stderr.write(
+    options.writeStderr(
       `copy-pty-library: ${error instanceof Error ? error.message : String(error)}\n`,
     );
 
-    process.exit(1);
+    return 1;
+  }
+}
+
+function runInherited(options: Readonly<CopyPTYLibraryOptions>, argv: readonly string[]): void {
+  const result = options.runProgram(argv, { cwd: options.cwd, env: options.env });
+
+  options.writeStdout(result.stdout);
+  options.writeStderr(result.stderr);
+
+  if (result.exitCode !== 0) {
+    throw new Error(`${argv.join(' ')} exited with ${String(result.exitCode)}`);
   }
 }
 
 if (import.meta.main) {
-  main();
+  process.exit(
+    runCopyPTYLibrary({
+      cwd: process.cwd(),
+      env: process.env,
+      tempDirectory: tmpdir(),
+      uid: userInfo().uid,
+      runProgram,
+      writeStdout: (text) => process.stdout.write(text),
+      writeStderr: (text) => process.stderr.write(text),
+    }),
+  );
 }
