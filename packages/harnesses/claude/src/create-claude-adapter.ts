@@ -89,7 +89,10 @@ export interface ClaudeAdapter extends AgentAdapter {
 
   // a remote session reports through the atc inside its host, so without one it cannot run there
   readonly planGuestSpawn: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
-  readonly planGuestBridgeFiles: (atc: string) => Readonly<Record<string, string>>;
+  readonly planGuestBridgeFiles: (
+    atc: string,
+    writtenAt: number,
+  ) => Readonly<Record<string, string>>;
 
   // Seeds the config folder of a session that signs in through the target's
   // broker with trust for the clone; any other remote session reads the
@@ -400,7 +403,7 @@ export function createClaudeAdapter(
       };
     },
 
-    planGuestBridgeFiles: (atc) => buildGuestBridgeFiles([atc]),
+    planGuestBridgeFiles: (atc, writtenAt) => buildGuestBridgeFiles([atc], writtenAt),
 
     planGuestWorkspaceTrust: (root) => {
       if (entry.auth === undefined) {

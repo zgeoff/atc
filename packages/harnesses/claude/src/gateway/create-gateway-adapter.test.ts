@@ -81,19 +81,20 @@ test('it takes inbox messages', () => {
   expect(adapter.takesMessages).toBeTrue();
 });
 
-test('it plans the guest bridge files a remote session launches with', () => {
+test('it plans the guest bridge files a running remote session gets written again', () => {
   const adapter = createGatewayAdapter(
     buildMockGatewayConfig(),
     parseConfig([CLAUDE_PLUGIN], {}),
     buildMockHostServices(),
   );
 
-  expect(adapter.planGuestBridgeFiles('/opt/atc/bin/atc')).toStrictEqual({
+  expect(adapter.planGuestBridgeFiles('/opt/atc/bin/atc', 1_793_000_000_000)).toStrictEqual({
     'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
     'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
     'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
     'atc-bridge/hooks/atc-cli.ts':
-      'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
+      'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n' +
+      '// written again at 1793000000000: Claude Code loads a mod again only when a file of it changes\n',
   });
 });
 

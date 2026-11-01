@@ -35,7 +35,7 @@ interface BridgeWrite {
   readonly session: Session;
   readonly provider: ExecutionProvider;
   readonly readGuest: (host: string) => Promise<GuestLayout>;
-  readonly planFiles: (atc: string) => Record<string, string>;
+  readonly planFiles: (atc: string, writtenAt: number) => Record<string, string>;
 }
 
 export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
@@ -147,10 +147,12 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
       return;
     }
 
-    const files = Object.entries(write.planFiles(guest.atc)).map(([path, content]) => ({
-      path,
-      content,
-    }));
+    const files = Object.entries(write.planFiles(guest.atc, deps.clock.now())).map(
+      ([path, content]) => ({
+        path,
+        content,
+      }),
+    );
 
     await write.provider.transferArchive(
       buildTarArchive(files),
@@ -168,7 +170,7 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
       payload: {
         kind: 'note',
         label: 'progress',
-        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, which makes Claude Code load it once more. If the tools stay gone, restart the session.',
+        text: 'atc: this session has had no atc-bridge tap for a while, so its note and answer tools may be gone. atc wrote the bridge mod again, and Claude Code loads it once more when the current turn ends. If the tools stay gone after that, restart the session.',
       },
     });
   };

@@ -73,7 +73,10 @@ export interface GatewayAdapter extends AgentAdapter {
   // the guest holds placeholders the broker swaps for the real credential on the host's side,
   // and never the credential helper, which runs on the daemon's machine alone
   readonly planGuestSpawn: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
-  readonly planGuestBridgeFiles: (atc: string) => Readonly<Record<string, string>>;
+  readonly planGuestBridgeFiles: (
+    atc: string,
+    writtenAt: number,
+  ) => Readonly<Record<string, string>>;
   readonly planGuestWorkspaceTrust: (root: string) => Readonly<Record<string, string>> | null;
 
   // The repository's own settings files reach the CLI as well, so a launch
@@ -418,7 +421,7 @@ export function createGatewayAdapter(
       };
     },
 
-    planGuestBridgeFiles: (atc) => buildGuestBridgeFiles([atc]),
+    planGuestBridgeFiles: (atc, writtenAt) => buildGuestBridgeFiles([atc], writtenAt),
 
     planGuestWorkspaceTrust: (root) => {
       if (gateway.auth === undefined) {
