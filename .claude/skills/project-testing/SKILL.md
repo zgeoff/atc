@@ -82,7 +82,10 @@ suites with `ATC_BIN` set to the compiled binary, and the `e2e/gateway-*` suites
 a file outside `e2e/`, so it never runs the whole repo. `test:related`, and so the pre-push hook,
 leaves both lanes out; the `codex` entry in the `lanes` option of `zgeoff/max-test-timeout` in
 `.oxlintrc.json` tells it the `.codex` suffix. On macOS, the smoke job first warms the
-`/usr/bin/git` shim, whose slow first run would otherwise land inside a daemon's first spawn.
+`/usr/bin/git` and `cc` shims, whose slow first runs would otherwise land inside a test's time. On
+every runner, it then boots one daemon alone through
+[`e2e/daemon-quit.test.ts`](../../../e2e/daemon-quit.test.ts), so the binary's first copy of its
+embedded PTY library into `TMPDIR` never races another daemon's.
 
 ## Shared workers
 
@@ -94,8 +97,9 @@ resets after each test are the contract; when a later file fails from state an e
 the file that leaks, never turn isolation back on. CI runs the suite with `--randomize`, so a leak
 that depends on file order fails there rather than waiting for an unlucky order.
 
-Each script takes the worker count from `scripts/read-worker-count.ts`, which zgeoff/tools delivers:
-1 worker on a host with less than 4 GiB, and a `TEST_WORKERS` that you set wins.
+Each script takes the worker count from
+[`scripts/read-worker-count.ts`](../../../scripts/read-worker-count.ts), which zgeoff/tools
+delivers: 1 worker on a host with less than 4 GiB, and a `TEST_WORKERS` that you set wins.
 
 ## The PTY harness
 
