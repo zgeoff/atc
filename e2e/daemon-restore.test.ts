@@ -294,10 +294,13 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
 
   await client.sendRequest('session.input', { session: booting['id'], data: KEYS.enter });
 
-  await waitForEvent(events, {
-    ev: 'SessionState',
-    session: { id: 's-three', kind: 'pty', agentSessionID: 's-three' },
-  });
+  // The three boots run one after another, so the wait lasts while each new
+  // event shows the next boot under way.
+  await waitForEvent(
+    events,
+    { ev: 'SessionState', session: { id: 's-three', kind: 'pty', agentSessionID: 's-three' } },
+    { progress: () => events.length },
+  );
 
   const settled = await client.sendRequest('session.list');
 
