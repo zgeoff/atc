@@ -2,10 +2,11 @@
 
 ## [7.7.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.7.2...@zgeoff/atc@7.7.3) (2026-11-01)
 
-
 ### Bug Fixes
 
-* **daemon:** change the guest atc-bridge mod on each revival write ([#1044](https://github.com/zgeoff/atc/issues/1044)) ([b3c69dd](https://github.com/zgeoff/atc/commit/b3c69dd83db57feb041d38b52a65c4acfa040f5e))
+- **daemon:** change the guest atc-bridge mod on each revival write
+  ([#1044](https://github.com/zgeoff/atc/issues/1044))
+  ([b3c69dd](https://github.com/zgeoff/atc/commit/b3c69dd83db57feb041d38b52a65c4acfa040f5e))
 
 ## [7.7.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.7.1...@zgeoff/atc@7.7.2) (2026-10-31)
 
