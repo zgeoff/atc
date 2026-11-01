@@ -19,6 +19,7 @@ import type { SessionScopes } from './create-session-scopes';
 export function createLocalPTYProvider(
   clock: Clock = systemClock,
   scopes: SessionScopes | null = null,
+  spawnPTY: typeof spawn = spawn,
 ): ExecutionProvider {
   const capabilities: ExecutionCapabilities = {
     spawn: true,
@@ -65,12 +66,14 @@ export function createLocalPTYProvider(
 
       // bun-pty sets TERM from `name` over the map's TERM, so the harness keeps
       // the TERM the map holds only when `name` is left out.
-      const pty = spawn(command.file, command.args, {
-        cols: spec.cols,
-        rows: spec.rows,
-        cwd: spec.cwd,
-        env,
-      });
+      const pty = runPTYSpawn(() =>
+        spawnPTY(command.file, command.args, {
+          cols: spec.cols,
+          rows: spec.rows,
+          cwd: spec.cwd,
+          env,
+        }),
+      );
 
       const subscriptions = new Set<{ readonly dispose: () => void }>();
 
@@ -199,6 +202,24 @@ function resolveHarnessBin(
   }
 
   return resolved;
+}
+
+// bun-pty catches a failed dlopen of its embedded librust_pty library, prints it after
+// "Failed to load lib" on stderr and leaves the library unset, so its first spawn throws
+// this TypeError in place of the load error.
+function runPTYSpawn<T>(start: () => T): T {
+  try {
+    return start();
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes("'lib.symbols'")) {
+      throw new Error(
+        'bun-pty could not load its embedded librust_pty library, so no harness can start; the daemon\'s stderr holds the dlopen error after "Failed to load lib"',
+        { cause: error },
+      );
+    }
+
+    throw error;
+  }
 }
 
 function isMissingProcessError(error: unknown): boolean {

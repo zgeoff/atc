@@ -1,4 +1,4 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, mock, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -87,6 +87,34 @@ test('it leaves the state directory for the daemon to create on a fresh state', 
   await daemon.subprocess.exited;
 
   expect(existsSync(daemon.stateDir)).toBe(false);
+});
+
+test('it reports the daemon stderr when a request rejects with an internal error, and keeps the rejection', async () => {
+  const ctx = setupTest();
+  const writeReport = mock<(text: string) => void>();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    writeReport,
+  });
+
+  const client = await daemon.openClient();
+
+  client.onAnswer = () => {
+    throw new Error('the answer check broke');
+  };
+
+  const rejection = await client.sendHello('atc/test').then(
+    () => null,
+    (error: unknown) => error,
+  );
+
+  expect(rejection).toMatchObject({ code: 'internal', message: 'Error: the answer check broke' });
+
+  expect(writeReport).toHaveBeenCalledExactlyOnceWith(
+    `the daemon answered an internal error; its stderr:\n${daemon.readStderr()}`,
+  );
 });
 
 test('it rejects a client with the daemon stderr when the daemon exits before it listens', async () => {

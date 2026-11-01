@@ -10,6 +10,7 @@ import {
 } from '@atc/test-utils';
 import type { Subprocess } from 'bun';
 import { readDaemonRecord } from '../read-daemon-record';
+import { buildStderrReportingClient } from './build-stderr-reporting-client';
 
 interface DaemonProcessConfig {
   // The command atc runs as, such as the source entry under bun or a
@@ -28,6 +29,10 @@ interface DaemonProcessConfig {
   readonly args?: readonly string[];
 
   readonly freshState?: boolean;
+
+  // Where the daemon's stderr goes when a request rejects with an internal
+  // error; the test process's stderr by default.
+  readonly writeReport?: (text: string) => void;
 }
 
 interface DaemonBoot {
@@ -135,7 +140,14 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
     clients.add(client);
 
-    return client;
+    return buildStderrReportingClient(
+      client,
+      readStderr,
+      config.writeReport ??
+        ((text) => {
+          process.stderr.write(text);
+        }),
+    );
   };
 
   const openClient = async (): Promise<DaemonClient> => {

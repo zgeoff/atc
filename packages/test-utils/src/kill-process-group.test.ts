@@ -39,3 +39,19 @@ test('it returns for a group with no process left', async () => {
     killProcessGroup(leader.pid);
   }).not.toThrow();
 });
+
+test.each(['ESRCH', 'EPERM'])('it returns when the kill fails with %s', (code) => {
+  expect(() => {
+    killProcessGroup(4242, () => {
+      throw Object.assign(new Error(`kill() failed: ${code}`), { code });
+    });
+  }).not.toThrow();
+});
+
+test('it throws when the kill fails with any other error', () => {
+  expect(() => {
+    killProcessGroup(4242, () => {
+      throw Object.assign(new Error('kill() failed: EINVAL'), { code: 'EINVAL' });
+    });
+  }).toThrowWithMessage(Error, 'kill() failed: EINVAL');
+});
