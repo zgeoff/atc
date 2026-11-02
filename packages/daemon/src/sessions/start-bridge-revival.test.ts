@@ -225,6 +225,45 @@ test('it holds an agent start until the mod is written again when no tap attache
   expect(order).toStrictEqual(['start wait ended', 'start went on after 1 write']);
 });
 
+test('it holds an agent start that comes while the daemon waits for a lost tap', async () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+
+  const order: string[] = [];
+
+  const held = (async () => {
+    await ctx.revival.watchAgentStart(id);
+
+    order.push(`start went on after ${String(ctx.provider.transfers.length)} write`);
+  })();
+
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+  order.push('start wait ended');
+  ctx.clock.advance(10_000);
+
+  await held;
+
+  expect(order).toStrictEqual(['start wait ended', 'start went on after 1 write']);
+});
+
 test('it lets an agent start go on as soon as its tap attaches', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');

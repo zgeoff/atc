@@ -62,7 +62,14 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
     },
     waiting: {
       // a later loss starts the wait again
-      on: { TAP_LEFT: { target: 'waiting', reenter: true }, TAP_ATTACHED: 'tapped' },
+      on: {
+        TAP_LEFT: { target: 'waiting', reenter: true },
+        TAP_ATTACHED: 'tapped',
+        AGENT_STARTED: [
+          { guard: 'hasTap', target: 'tapped' },
+          { guard: 'canWrite', target: 'starting' },
+        ],
+      },
       after: {
         revivalDelay: [
           { guard: 'hasTap', target: 'tapped' },
