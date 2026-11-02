@@ -12,10 +12,12 @@ The rules a task needs are not repeated here. Load the skill for the work before
 | Skill                | Load before                                                                                            |
 | -------------------- | ------------------------------------------------------------------------------------------------------ |
 | `code-style`         | writing, reviewing, or renaming any TypeScript — the role table of function verbs and the comment rule |
-| `project-code-style` | the same, beside `code-style` — the place for atc's additions to it                                    |
+| `project-code-style` | the same, beside `code-style` — atc's lint, format and type-check commands                             |
 | `testing`            | designing, writing, or reviewing tests                                                                 |
 | `project-testing`    | the same, beside `testing` — atc's test home and PTY harness                                           |
 | `docs-writing`       | writing or editing any committed prose: `docs/`, READMEs, this file, skills                            |
+| `ci-design`          | changing a workflow, a job or a step in `.github/workflows/`                                           |
+| `project-ci-design`  | the same, beside `ci-design` — atc's CI facts and its own checks workflow                              |
 | `tool-contract`      | adding, renaming, or redescribing an `atc mcp` tool or an atc-bridge tool                              |
 
 ## Repo structure
