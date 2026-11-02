@@ -453,6 +453,28 @@ test('it reports an answer with a count it does not know as unchecked', () => {
   });
 });
 
+test('it reports an answer whose label names an object built-in as unchecked', () => {
+  expect(
+    runWorkspaceCheck({
+      provider: {
+        runCommand: () =>
+          Promise.resolve({
+            exitCode: 0,
+            stdout:
+              '/srv/work/shop-main\0changes 0\nhidden 0\nstashes 0\nworktrees 0\nsubmodules 0\nconstructor 2\n',
+            stderr: '',
+          }),
+      },
+      host: null,
+      directory: '/srv/work/shop-main',
+      sha: 'c0ffee0c0ffee0c0ffee0c0ffee0c0ffee0c0ffe',
+    }),
+  ).resolves.toStrictEqual({
+    kind: 'unchecked',
+    reason: 'the check printed an unknown answer: Unrecognized key: "constructor"',
+  });
+});
+
 test('it runs the check on the host it is given', async () => {
   const commands: { readonly host?: string; readonly cwd: string }[] = [];
 

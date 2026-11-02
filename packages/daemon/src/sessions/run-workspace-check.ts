@@ -206,8 +206,9 @@ function parseCheckOutput(stdout: string): WorkspaceCheck {
     return { kind: 'unchecked', reason: 'the check printed no folder' };
   }
 
-  const printed: Record<string, { readonly ref: string | null; readonly count: number }[]> =
-    Object.fromEntries(FIELD_NAMES.map((name) => [name, []]));
+  const printed = new Map<string, { readonly ref: string | null; readonly count: number }[]>(
+    FIELD_NAMES.map((name) => [name, []]),
+  );
 
   for (const line of stdout
     .slice(split + 1)
@@ -221,13 +222,13 @@ function parseCheckOutput(stdout: string): WorkspaceCheck {
       return { kind: 'unchecked', reason: `the check printed an unknown line: ${line}` };
     }
 
-    printed[label] = [
-      ...(printed[label] ?? []),
+    printed.set(label, [
+      ...(printed.get(label) ?? []),
       { ref: groups?.['ref'] ?? null, count: Number(count) },
-    ];
+    ]);
   }
 
-  const parsed = CHECK_OUTPUT_SCHEMA.safeParse(printed);
+  const parsed = CHECK_OUTPUT_SCHEMA.safeParse(Object.fromEntries(printed));
 
   if (!parsed.success) {
     return {
