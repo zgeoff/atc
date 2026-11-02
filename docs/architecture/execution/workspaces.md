@@ -129,8 +129,9 @@ provider's `runCommand`, so a sub-session in its parent's imp is checked and rem
 It starts only once atc has seen the session's process exit. The killer and a failed spawn's
 rollback each keep the handle of every harness they end, a revive between two kills included, and
 the step waits for each exit, then ends a harness with a forced kill and waits once more. The step
-also waits for the stop of the session's message bridge, which writes in the state folder. These
-keep both folders, the workspace as unchecked:
+also waits for the stop of the session's message bridge, which writes in the state folder. When a
+launch still starts the bridge, the stop waits for that start, and then stops the bridge. These keep
+both folders, the workspace as unchecked:
 
 - a harness that still shows no exit;
 - a harness that the host ended without an exit, such as a connection it gave up on or a host that
