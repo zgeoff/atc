@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { $ } from 'bun';
 import { z } from 'zod';
+import { pickFormulaCommitMessage } from './pick-formula-commit-message';
 
 interface FormulaUpdate {
   // The checkout of the release, whose `dist/SHA256SUMS` holds each binary's checksum.
@@ -44,12 +45,14 @@ export async function runFormulaUpdate(update: FormulaUpdate): Promise<void> {
 
   await $`git add Formula/atc.rb`.cwd(tap).env(env);
 
-  const staged = await $`git diff --cached --quiet`.cwd(tap).env(env).nothrow();
+  const diff = await $`git diff --cached --quiet`.cwd(tap).env(env).nothrow();
 
-  if (staged.exitCode === 0) {
+  const message = pickFormulaCommitMessage(diff.exitCode, manifest.version);
+
+  if (message === null) {
     process.stdout.write(`formula already at ${manifest.version}\n`);
   } else {
-    await $`git commit --quiet -m ${`atc ${manifest.version}`}`.cwd(tap).env(env);
+    await $`git commit --quiet -m ${message}`.cwd(tap).env(env);
   }
 
   await $`git push --quiet`.cwd(tap).env(env);
