@@ -109,10 +109,14 @@ Every hook report and note opens a connection of its own, so the bridge closes e
 the guest has written its last line and the bridge has answered the lines before it. impd keeps a
 relayed connection open until both ends have finished, and caps how many one forward holds open. A
 bridge that waited for the guest alone would fill that cap within one long turn, and impd would then
-close each new connection unread: hooks would be lost, and notes would wait in the outbox. A Claude
-session's start report is the one line the bridge holds: it closes that connection only once the
-session's tap attaches or the daemon has written the session's mod again, as
-[the atc-bridge mod](../agents/agent-integration.md#the-atc-bridge-mod) describes.
+close each new connection unread: hooks would be lost, and notes would wait in the outbox.
+
+A Claude session's start report is the one exception. Claude Code leaves the atc-bridge mod off when
+the mod misses its load limit at launch, and starts the first turn only after the start report's
+hook ends. The bridge therefore keeps that connection open until the session's tap attaches, which
+shows that the mod loaded, or until the daemon has written the session's copy of the mod again,
+which makes Claude Code load it before the first turn
+([when the mod is left off](../agents/agent-integration.md#when-the-mod-is-left-off)).
 
 ## Reconnecting
 
