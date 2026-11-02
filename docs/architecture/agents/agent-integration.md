@@ -71,9 +71,9 @@ Claude Code config, under Claude Code's own lock, since Claude Code takes trust 
 The mod is a Claude Code plugin of function hooks. Its source lives in the repo's `mods/` folder,
 and the build embeds it in atc, so a compiled binary can write it out. The daemon writes the mod
 into its state directory with the atc command it should run rendered in, and rewrites only a file
-whose content changed, because any write reloads the mod in every running session. A headless run
-gets the same mod through the Agent SDK. Outside atc, with no atc session id in its environment, the
-mod does nothing.
+whose content changed, because a changed file loads the mod again in every running session. A
+headless run gets the same mod through the Agent SDK. Outside atc, with no atc session id in its
+environment, the mod does nothing.
 
 At session start, the mod starts `atc tap` for the session. The mod starts the tap again after it
 fails or cannot start, waiting longer after each failure, and stops only when the tap exits with
@@ -103,24 +103,43 @@ of its answer, and refuses a message that already has one. CI validates and test
 the one Claude Code version that `.github/workflows/checks.yml` pins, because the mods API can
 change between versions.
 
-Claude Code runs every mod in one worker thread and checks the thread with a heartbeat. When the
-thread misses its heartbeat and no hook of any mod is running, as when the machine stalls, Claude
-Code replaces the thread and loads each mod into the new one. A mod that does not load in time is
-left off: its `note` and `answer` tools disappear, and its tap ends. The mod comes back only when
-the content of one of its files changes, because Claude Code watches each `--plugin-dir` folder and
-loads the mod again after such a write. A write with the same bytes, or a new timestamp alone, loads
-nothing. During a turn, Claude Code waits for the turn to end before it loads the mod again.
+### When the mod is left off
 
-A remote session has its own copy of the mod, in a folder for the session on its host
-([the imp provider](../execution/imp-provider.md)), so a change to that copy reloads that one
-session. The daemon starts a wait for a tap when a remote session's tap leaves, and when its agent
-reports a start. When a wait ends with no tap attached, the daemon writes the session's copy of the
-mod again, records a note in the session's events, and starts a wait twice as long. Each write adds
-a comment line with the time of the write to `hooks/atc-cli.ts`, so the copy differs from the one
-the session runs and Claude Code loads it again. It goes on writing after each wait, because Claude
-Code can turn the mod off again before the new tap starts. The waits stop when a tap attaches or the
-agent process ends. When the session's host is asleep at the end of a wait, the daemon writes once
-the host wakes.
+Claude Code gives each mod a time limit to load, the load limit, and leaves off a mod that misses
+it. A left-off mod has no `note` or `answer` tools, and its tap ends. The mod has missed the limit
+at launch on a cloud imp. Claude Code also loads every mod again when it replaces the worker thread
+that runs them all, which it does when the thread misses its heartbeat while no mod hook runs, as
+when the machine stalls.
+
+Claude Code loads a left-off mod again only after the bytes of one of its files change in a
+`--plugin-dir` folder. A write of the same bytes, or a change to the modification time alone, loads
+nothing. Claude Code applies the change at once while the SessionStart hooks run, and only at the
+end of the turn during a turn. It runs those hooks after every mod has loaded or been left off, and
+starts the first turn after they end.
+
+A local session runs the one copy of the mod in the daemon's state directory, so a change there
+would load the mod again in every local session, and the daemon leaves it alone. A remote session
+runs a copy in a folder of its own on its imp ([the imp provider](../execution/imp-provider.md)).
+The daemon changes that copy to bring the mod back in that one session: each write puts a comment
+line with the time of the write into `hooks/atc-cli.ts`, so the bytes differ from the copy the
+session runs.
+
+The daemon makes the first such write before the first turn, while the SessionStart hook still runs.
+The hook helper sends the start report over its own connection to the daemon's reporter socket, then
+waits for the daemon to close that connection. The daemon closes it once the session's tap attaches.
+When the start wait, a time longer than the load limit, ends with no tap attached, the daemon writes
+the session's copy of the mod, then closes the connection, and Claude Code loads the mod before the
+first turn. The hook's timeout is longer than the start wait, so Claude Code never ends the hook
+first. A tap that is missing for another reason, such as a failed `atc tap`, costs a working mod
+only one more load.
+
+After that write, and whenever a remote session's tap ends, the daemon waits for a tap again. The
+first of these waits has a fixed length, and each one that ends with no tap attached doubles the
+next, up to a fixed maximum. At the end of each such wait, the daemon writes the session's copy of
+the mod again and adds an entry to the session's events. The writes go on, because the mod can miss
+its load limit or its heartbeat again before the tap starts. They stop when a tap attaches or the
+agent process ends. When the session's imp is asleep at the end of a wait, the daemon writes once
+the imp wakes.
 
 ## Grok and Codex
 

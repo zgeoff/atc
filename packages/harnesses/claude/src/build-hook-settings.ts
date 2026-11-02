@@ -11,6 +11,12 @@ export interface HookSettingsProfile {
   readonly settings?: Readonly<Record<string, unknown>>;
 }
 
+const HOOK_TIMEOUT_SECONDS = 5;
+
+// Claude Code starts the first turn only once the SessionStart hooks end, and the daemon holds a
+// remote session's start report until its bridge tap attaches or its mod is written again.
+const SESSION_START_TIMEOUT_SECONDS = 30;
+
 export function buildHookSettings(
   profile: HookSettingsProfile,
   statuslinePadding: number,
@@ -19,11 +25,17 @@ export function buildHookSettings(
   // the agent id on the command line keeps a nested harness's reports, which inherit the env
   // but not the command line, from passing as the session's own
   const command = buildHookCommand(`hook-report --agent=${toShellArg(profile.id)}`, cliArgv);
-  const entry = [buildHookEntry(command, 5)];
 
   const own = {
     hooks: mergeSessionHooks(
-      Object.fromEntries(Object.keys(CLAUDE_HOOKS).map((event) => [event, entry])),
+      Object.fromEntries(
+        Object.keys(CLAUDE_HOOKS).map((event) => {
+          const timeout =
+            event === 'SessionStart' ? SESSION_START_TIMEOUT_SECONDS : HOOK_TIMEOUT_SECONDS;
+
+          return [event, [buildHookEntry(command, timeout)]];
+        }),
+      ),
       profile.settings?.['hooks'],
     ),
 

@@ -22,7 +22,10 @@ export interface BridgeSession {
 
 export interface BridgeContext {
   readonly findSession: (sessionID: SessionID) => BridgeSession | undefined;
-  readonly applyHookEvent: (hookEvent: HookEvent) => void;
+
+  // Settles once the report is applied; a session's start report settles once its tap attached
+  // or the daemon wrote its mod again, and the connection stays open until then.
+  readonly applyHookEvent: (hookEvent: HookEvent) => Promise<void>;
 
   // Applies a note under the id its reporter gave it, and settles once
   // the note is recorded; false when the payload is no note.
@@ -249,7 +252,7 @@ export function startSessionBridge(
         return;
       }
 
-      ctx.applyHookEvent(hookEvent);
+      await ctx.applyHookEvent(hookEvent);
 
       return;
     }

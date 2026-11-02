@@ -67,7 +67,7 @@ test('it delivers a message to a top-level remote session whose agent started a 
 
   await waitFor(() => {
     expect(provider.countDroppedTapOpens()).toBe(1);
-    expect(clock.collectPending()).toContain(30_000);
+    expect(clock.collectPending()).toContain(10_000);
   });
 
   clock.advance(30_000);

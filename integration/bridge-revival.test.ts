@@ -105,10 +105,10 @@ test('it writes the bridge mod again for a started remote session that never att
   await daemon.sendHookLines({ atcId: id, event: 'SessionStart', payload: {} });
 
   await waitFor(() => {
-    expect(clock.collectPending()).toContain(30_000);
+    expect(clock.collectPending()).toContain(10_000);
   });
 
-  clock.advance(30_000);
+  clock.advance(10_000);
 
   await waitFor(() => {
     expect(daemon.events).toPartiallyContain({
@@ -117,6 +117,8 @@ test('it writes the bridge mod again for a started remote session that never att
       kind: 'progress',
     });
   });
+
+  clock.advance(5000);
 
   const refused = await daemon.client
     .sendRequest('session.message', { session: id, text: 'before the tap' })

@@ -125,7 +125,7 @@ test('it writes the bridge mod of a running remote session whose tap stays gone 
   );
 });
 
-test('it writes the bridge mod of a remote session whose tap never attaches in the 30 s after its agent starts', async () => {
+test('it writes the bridge mod of a remote session whose tap never attaches in the 10 s after its agent starts', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
@@ -141,8 +141,8 @@ test('it writes the bridge mod of a remote session whose tap never attaches in t
   });
 
   ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
-  ctx.revival.watchAgentStart(id);
-  ctx.clock.advance(30_000);
+  void ctx.revival.watchAgentStart(id);
+  ctx.clock.advance(10_000);
 
   await waitFor(() => {
     expect(ctx.provider.transfers).toHaveLength(1);
@@ -169,26 +169,124 @@ test('it plans each write of the mod with the time of that write', async () => {
   });
 
   ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
-  ctx.revival.watchAgentStart(id);
-  ctx.clock.advance(30_000);
+  void ctx.revival.watchAgentStart(id);
+  ctx.clock.advance(10_000);
 
   await waitFor(() => {
-    expect(ctx.clock.collectPending()).toStrictEqual([60_000]);
+    expect(ctx.clock.collectPending()).toStrictEqual([30_000]);
   });
 
-  ctx.clock.advance(60_000);
+  ctx.clock.advance(30_000);
 
   await waitFor(() => {
     expect(ctx.provider.transfers).toHaveLength(2);
   });
 
   expect(ctx.planGuestBridgeFiles.mock.calls).toStrictEqual([
-    ['/var/lib/orchard-scratch/atc/bin/atc', 130_000],
-    ['/var/lib/orchard-scratch/atc/bin/atc', 190_000],
+    ['/var/lib/orchard-scratch/atc/bin/atc', 110_000],
+    ['/var/lib/orchard-scratch/atc/bin/atc', 140_000],
   ]);
 });
 
-test('it writes nothing when a tap attaches in the 30 s after the agent starts', () => {
+test('it holds an agent start until the mod is written again when no tap attaches in 10 s', async () => {
+  const transfer = Promise.withResolvers<void>();
+  const ctx = setupTest({ remote: true, transferArchive: () => transfer.promise });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+
+  const order: string[] = [];
+
+  const held = (async () => {
+    await ctx.revival.watchAgentStart(id);
+
+    order.push('start went on');
+  })();
+
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+  ctx.clock.advance(10_000);
+
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(1);
+  });
+
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+  order.push('write ended');
+  transfer.resolve();
+
+  await held;
+
+  expect(order).toStrictEqual(['write ended', 'start went on']);
+});
+
+test('it holds an agent start that comes while the daemon waits for a lost tap', async () => {
+  const transfer = Promise.withResolvers<void>();
+  const ctx = setupTest({ remote: true, transferArchive: () => transfer.promise });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.taps.attach(id, ctx.client);
+  ctx.taps.removeSession(id);
+
+  const order: string[] = [];
+
+  const held = (async () => {
+    await ctx.revival.watchAgentStart(id);
+
+    order.push('start went on');
+  })();
+
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+  ctx.clock.advance(10_000);
+
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(1);
+  });
+
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+  order.push('write ended');
+  transfer.resolve();
+
+  await held;
+
+  expect(order).toStrictEqual(['write ended', 'start went on']);
+});
+
+test('it lets an agent start go on as soon as its tap attaches', async () => {
   const ctx = setupTest({ remote: true });
   const id = toSessionID('s-bridge');
 
@@ -204,10 +302,135 @@ test('it writes nothing when a tap attaches in the 30 s after the agent starts',
   });
 
   ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
-  ctx.revival.watchAgentStart(id);
-  ctx.clock.advance(10_000);
+
+  const order: string[] = [];
+
+  const held = (async () => {
+    await ctx.revival.watchAgentStart(id);
+
+    order.push('start went on');
+  })();
+
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+  order.push('tap attached');
   ctx.taps.attach(id, ctx.client);
-  ctx.clock.advance(20_000);
+
+  await held;
+
+  ctx.clock.advance(10_000);
+
+  expect([order, ctx.provider.transfers]).toStrictEqual([['tap attached', 'start went on'], []]);
+});
+
+test('it lets an agent start go on at once when its tap is already attached', async () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  ctx.taps.attach(id, ctx.client);
+
+  await ctx.revival.watchAgentStart(id);
+
+  ctx.clock.advance(10_000);
+
+  expect(ctx.provider.transfers).toStrictEqual([]);
+});
+
+test('it lets an agent start go on at once for a session on the daemon machine', async () => {
+  const ctx = setupTest({ remote: false });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+
+  await ctx.revival.watchAgentStart(id);
+
+  ctx.clock.advance(30_000);
+
+  expect(ctx.provider.transfers).toStrictEqual([]);
+});
+
+test('it lets a held agent start go on when the revival stops', async () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+
+  const order: string[] = [];
+
+  const held = (async () => {
+    await ctx.revival.watchAgentStart(id);
+
+    order.push('start went on');
+  })();
+
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+  order.push('revival stopped');
+  ctx.revival.stop();
+
+  await held;
+
+  expect(order).toStrictEqual(['revival stopped', 'start went on']);
+});
+
+test('it writes nothing when a tap attaches in the 10 s after the agent starts', () => {
+  const ctx = setupTest({ remote: true });
+  const id = toSessionID('s-bridge');
+
+  const pty = ctx.provider.spawnHarness({
+    session: id,
+    host: id,
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.sessions.push(buildMockSession({ id, pty, state: 'running' }));
+  void ctx.revival.watchAgentStart(id);
+  ctx.clock.advance(5000);
+  ctx.taps.attach(id, ctx.client);
+  ctx.clock.advance(25_000);
 
   expect(ctx.provider.transfers).toStrictEqual([]);
 });

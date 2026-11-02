@@ -111,6 +111,13 @@ relayed connection open until both ends have finished, and caps how many one for
 bridge that waited for the guest alone would fill that cap within one long turn, and impd would then
 close each new connection unread: hooks would be lost, and notes would wait in the outbox.
 
+A Claude session's start report is the one exception. Claude Code leaves the atc-bridge mod off when
+the mod misses its load limit at launch, and starts the first turn only after the start report's
+hook ends. The bridge therefore keeps that connection open until the session's tap attaches, which
+shows that the mod loaded, or until the daemon has written the session's copy of the mod again,
+which makes Claude Code load it before the first turn
+([when the mod is left off](../agents/agent-integration.md#when-the-mod-is-left-off)).
+
 ## Reconnecting
 
 A connection to a harness that ends without an exit reconnects without waking the imp, and the

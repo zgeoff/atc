@@ -537,7 +537,7 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
             {
               type: 'command',
               command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -652,7 +652,7 @@ test('it plans a remote spawn in the permission mode its configured arguments se
             {
               type: 'command',
               command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -759,7 +759,7 @@ test('it carries the settings file in the resume command of an entry with its ow
             {
               type: 'command',
               command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -1080,7 +1080,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
             {
               type: 'command',
               command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -1240,7 +1240,7 @@ test("it ships the host's Claude config as the session's user settings and keeps
             {
               type: 'command',
               command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -1672,7 +1672,7 @@ test('it plans a guest spawn without a broker binding in the config of the host 
             {
               type: 'command',
               command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -2128,7 +2128,7 @@ test("it sets a profile's variables in a subscription guest's settings env and s
             {
               type: 'command',
               command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -2252,7 +2252,7 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
             {
               type: 'command',
               command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
