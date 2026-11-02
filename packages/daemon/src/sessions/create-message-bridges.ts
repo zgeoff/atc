@@ -198,18 +198,86 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
     }
   };
 
+  // The bridge starts still running, by session. A stop takes each one over and stops the bridge
+  // it gives, since the start's caller has no bridge to stop until the start returns.
+  const starting = new Map<SessionID, Set<Promise<MessageBridge>>>();
+  const stoppedStarts = new Set<Promise<MessageBridge>>();
+
+  const stopStartedBridge = async (
+    sessionID: SessionID,
+    start: Promise<MessageBridge>,
+  ): Promise<void> => {
+    // a start that fails stops what it started before it rejects, and its caller sees the error
+    const bridge = await start.catch(() => null);
+
+    if (bridge !== null) {
+      await stopTracked(sessionID, bridge);
+    }
+  };
+
   const stopBridge = async (sessionID: SessionID): Promise<void> => {
     const bridge = bridges.get(sessionID);
     const failed = [...(failedStops.get(sessionID) ?? [])];
+    const pending = [...(starting.get(sessionID) ?? [])];
 
     bridges.delete(sessionID);
+
+    for (const start of pending) {
+      stoppedStarts.add(start);
+    }
 
     await Promise.all([
       ...(stopping.get(sessionID) ?? []),
       ...[...new Set([...failed, ...(bridge === undefined ? [] : [bridge])])].map((stopped) =>
         stopTracked(sessionID, stopped),
       ),
+      ...pending.map((start) => stopStartedBridge(sessionID, start)),
     ]);
+  };
+
+  const awaitBridgeStart = async (
+    sessionID: SessionID,
+    start: Promise<MessageBridge>,
+  ): Promise<MessageBridge> => {
+    const pending = starting.get(sessionID) ?? new Set<Promise<MessageBridge>>();
+
+    pending.add(start);
+    starting.set(sessionID, pending);
+
+    const untrack = () => {
+      pending.delete(start);
+      stoppedStarts.delete(start);
+
+      if (pending.size === 0 && starting.get(sessionID) === pending) {
+        starting.delete(sessionID);
+      }
+    };
+
+    const bridge = await start.catch((error: unknown) => {
+      untrack();
+      throw error;
+    });
+
+    const stopped = stoppedStarts.has(start);
+
+    // the check and the map write share one turn, so no stop lands between them
+    untrack();
+
+    if (stopped) {
+      return bridge;
+    }
+
+    // A second launch of the session can start its bridge while this one
+    // started, so the bridge this one replaces stops here.
+    const replaced = bridges.get(sessionID);
+
+    bridges.set(sessionID, bridge);
+
+    if (replaced !== undefined && replaced !== bridge) {
+      await stopTracked(sessionID, replaced);
+    }
+
+    return bridge;
   };
 
   return {
@@ -220,25 +288,18 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
 
       await stopBridge(launch.session);
 
-      const bridge = await launch.adapter.startMessageBridge({
-        session: launch.session,
-        cwd: launch.cwd,
-        env: launch.env,
-        withheldEnv: launch.withheldEnv,
-        options: launch.options,
-        directory: join(stateDir, 'sessions', launch.session, 'codex'),
-        host: buildHost(launch.session),
-      });
-
-      // A second launch of the session can start its bridge while this one
-      // started, so the bridge this one replaces stops here.
-      const replaced = bridges.get(launch.session);
-
-      bridges.set(launch.session, bridge);
-
-      if (replaced !== undefined && replaced !== bridge) {
-        await stopTracked(launch.session, replaced);
-      }
+      const bridge = await awaitBridgeStart(
+        launch.session,
+        launch.adapter.startMessageBridge({
+          session: launch.session,
+          cwd: launch.cwd,
+          env: launch.env,
+          withheldEnv: launch.withheldEnv,
+          options: launch.options,
+          directory: join(stateDir, 'sessions', launch.session, 'codex'),
+          host: buildHost(launch.session),
+        }),
+      );
 
       return bridge.plan;
     },
@@ -246,7 +307,9 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
     stopBridge,
 
     stopAll: async () => {
-      await Promise.all([...bridges.keys()].map((id) => stopBridge(id)));
+      const sessionIDs = new Set([...bridges.keys(), ...starting.keys()]);
+
+      await Promise.all([...sessionIDs].map((id) => stopBridge(id)));
     },
 
     startDelivery: (sessionID) => {

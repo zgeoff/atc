@@ -354,6 +354,125 @@ test('it settles a stop of a session only once the stop of a bridge an overlappi
   expect(pendingBeforeFinish).toBe('pending');
 });
 
+test('it settles a stop of a session only once a bridge start under way finishes and its bridge stops', async () => {
+  const ctx = await setupTest();
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.stub.holdStarts();
+
+  const starting = ctx.bridges.startBridge({
+    adapter: ctx.adapter,
+    session: session.id,
+    cwd: ctx.directory,
+    env: {},
+    withheldEnv: [],
+    options: { prompt: '', resume: false },
+  });
+
+  await waitFor(() => {
+    expect(ctx.stub.bridges).toHaveLength(1);
+  });
+
+  const [started] = ctx.stub.bridges;
+
+  invariant(started !== undefined);
+
+  const stop = ctx.bridges.stopBridge(session.id);
+
+  // every microtask runs before the next turn, so a stop that waits on nothing has settled by then
+  await setImmediate();
+
+  const pendingBeforeStart = Bun.peek.status(stop);
+
+  ctx.stub.finishStarts();
+
+  await Promise.all([starting, stop]);
+
+  expect({ pendingBeforeStart, stops: started.countStops() }).toStrictEqual({
+    pendingBeforeStart: 'pending',
+    stops: 1,
+  });
+});
+
+test('it keeps no bridge for a session whose bridge start a stop took over', async () => {
+  const ctx = await setupTest();
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.stub.holdStarts();
+
+  const starting = ctx.bridges.startBridge({
+    adapter: ctx.adapter,
+    session: session.id,
+    cwd: ctx.directory,
+    env: {},
+    withheldEnv: [],
+    options: { prompt: '', resume: false },
+  });
+
+  await waitFor(() => {
+    expect(ctx.stub.bridges).toHaveLength(1);
+  });
+
+  const stop = ctx.bridges.stopBridge(session.id);
+
+  ctx.stub.finishStarts();
+
+  await Promise.all([starting, stop]);
+
+  ctx.bridges.startDelivery(session.id);
+
+  expect(ctx.stub.bridges.map((bridge) => bridge.countDeliveryStarts())).toStrictEqual([0]);
+});
+
+test('it stops a bridge still starting when the daemon stops', async () => {
+  const ctx = await setupTest();
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  ctx.stub.holdStarts();
+
+  const starting = ctx.bridges.startBridge({
+    adapter: ctx.adapter,
+    session: session.id,
+    cwd: ctx.directory,
+    env: {},
+    withheldEnv: [],
+    options: { prompt: '', resume: false },
+  });
+
+  await waitFor(() => {
+    expect(ctx.stub.bridges).toHaveLength(1);
+  });
+
+  const stopping = ctx.bridges.stopAll();
+
+  ctx.stub.finishStarts();
+
+  await Promise.all([starting, stopping]);
+
+  expect(ctx.stub.bridges.map((bridge) => bridge.countStops())).toStrictEqual([1]);
+});
+
 test('it stops every bridge when the daemon stops', async () => {
   const ctx = await setupTest();
 
