@@ -1,9 +1,10 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
-import { createMigratedStateDB, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { createMigratedStateDB, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import invariant from 'tiny-invariant';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
@@ -548,6 +549,70 @@ test('it destroys the host of a forgotten host owner and removes every session o
   expect(ctx.registry.sessions.map((session) => session.id)).toStrictEqual([
     toSessionID('s-other'),
   ]);
+});
+
+test('it still waits on a harness a second kill ended while an earlier probe waited on the first', async () => {
+  const local = buildStubMemoryProvider();
+
+  const ctx = await setupTest({
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      }),
+    ],
+  });
+
+  const spec = {
+    session: 's-worker',
+    host: 's-worker',
+    bin: 'claude',
+    args: [],
+    cwd: '/work/proj',
+    env: {},
+    cols: 80,
+    rows: 24,
+  };
+
+  const session = buildMockSession({
+    id: toSessionID('s-worker'),
+    state: 'running',
+    pty: local.spawnHarness(spec),
+  });
+
+  const [first] = local.harnesses;
+
+  invariant(first !== undefined);
+
+  ctx.registry.sessions.push(session);
+  first.holdExit();
+
+  await ctx.killer.kill(session.id, true);
+
+  const probing = ctx.killer.probeHarnessEnded(session.id);
+
+  await waitFor(() => {
+    expect(first.hasExitWaiters()).toBeTrue();
+  });
+
+  session.pty = local.spawnHarness(spec);
+  session.state = 'running';
+
+  const [, second] = local.harnesses;
+
+  invariant(second !== undefined);
+
+  second.holdExit();
+
+  await ctx.killer.kill(session.id, true);
+
+  first.emitExit({ exitCode: 143 });
+
+  const ended = await probing;
+
+  expect(ended).toBeFalse();
 });
 
 test('it leaves a dead session unchanged when the kill only stops', async () => {

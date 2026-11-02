@@ -329,7 +329,8 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
         ptys.map(async (pty) => ({ pty, exited: await waitForKilledExit(pty, waitMs) })),
       );
 
-      const running = collectRunningHarnesses(waits);
+      // a kill during the wait may have added a harness this probe never waited for
+      const running = collectRunningHarnesses(endingHarnesses.get(id) ?? [], waits);
 
       if (running.length === 0) {
         endingHarnesses.delete(id);
@@ -347,7 +348,12 @@ interface HarnessWait {
   readonly exited: boolean;
 }
 
-// The harnesses a probe still has to wait for: each one whose wait saw no exit.
-function collectRunningHarnesses(waits: readonly HarnessWait[]): HarnessHandle[] {
-  return waits.filter((wait) => !wait.exited).map((wait) => wait.pty);
+// The ending harnesses still to wait for: each one but those whose wait saw an exit.
+function collectRunningHarnesses(
+  ending: readonly HarnessHandle[],
+  waits: readonly HarnessWait[],
+): HarnessHandle[] {
+  const exited = new Set(waits.filter((wait) => wait.exited).map((wait) => wait.pty));
+
+  return ending.filter((pty) => !exited.has(pty));
 }
