@@ -9,6 +9,8 @@
     { "match": "**/src/mcp/mcp-tools.ts", "skills": ["tool-contract"] },
     { "match": "**/src/mcp/build-spawn-descriptions.ts", "skills": ["tool-contract"] },
     { "match": "**/src/mcp/require-daemon-features.ts", "skills": ["tool-contract"] },
-    { "match": "**/mods/atc-bridge/hooks/register.ts", "skills": ["tool-contract"] }
+    { "match": "**/mods/atc-bridge/hooks/register.ts", "skills": ["tool-contract"] },
+    { "match": "**/skills/*/SKILL.md", "skills": ["skill-writing", "docs-writing", "deslop"] },
+    { "match": "**/skills/*/references/**", "skills": ["skill-writing", "docs-writing", "deslop"] }
   ]
 }
