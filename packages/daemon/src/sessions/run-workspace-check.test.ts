@@ -51,6 +51,30 @@ test('it counts each uncommitted and untracked path', async () => {
   });
 });
 
+test.each([['--skip-worktree'], ['--assume-unchanged']])(
+  'it counts a tracked path that %s hides from git status',
+  async (flag) => {
+    const ctx = await setupTest();
+
+    await $`git update-index ${flag} README.md`.env(ctx.env).cwd(ctx.work).quiet();
+
+    writeFileSync(join(ctx.work, 'README.md'), 'hello, edited out of sight\n');
+
+    const check = await runWorkspaceCheck({
+      provider: ctx.provider,
+      host: null,
+      directory: ctx.work,
+      sha: ctx.sha,
+    });
+
+    expect(check).toStrictEqual({
+      kind: 'checked',
+      path: realpathSync(ctx.work),
+      findings: ['1 path hidden from git status'],
+    });
+  },
+);
+
 test('it finds nothing in an ignored file', async () => {
   const ctx = await setupTest();
 
