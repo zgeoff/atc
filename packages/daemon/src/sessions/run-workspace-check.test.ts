@@ -233,6 +233,56 @@ test('it counts a committed submodule, whose own work the other checks never see
   });
 });
 
+test('it reads every line the script prints for a checkout that holds each kind of work', async () => {
+  const ctx = setupTest();
+
+  const git = await createGitFixture({ prefix: 'atc-workspace-check-' });
+
+  const linked = join(git.directory, 'shop-hotfix');
+
+  writeFileSync(join(git.work, 'README.md'), 'hello, stashed\n');
+
+  await $`git stash --quiet`.env(git.env).cwd(git.work).quiet();
+  await $`git switch --quiet -c fix-login`.env(git.env).cwd(git.work).quiet();
+  await $`git commit --quiet --allow-empty -m one`.env(git.env).cwd(git.work).quiet();
+  await $`git switch --quiet --detach`.env(git.env).cwd(git.work).quiet();
+
+  mkdirSync(join(git.work, 'vendor', 'pricing'), { recursive: true });
+
+  await $`git update-index --add --cacheinfo 160000,${git.sha},vendor/pricing`
+    .env(git.env)
+    .cwd(git.work)
+    .quiet();
+
+  await $`git commit --quiet -m vendor`.env(git.env).cwd(git.work).quiet();
+  await $`git worktree add --quiet --detach ${linked}`.env(git.env).cwd(git.work).quiet();
+  await $`git update-index --assume-unchanged README.md`.env(git.env).cwd(git.work).quiet();
+
+  writeFileSync(join(git.work, 'README.md'), 'hello, edited out of sight\n');
+  writeFileSync(join(git.work, 'notes.md'), '- ship it\n');
+
+  const check = await runWorkspaceCheck({
+    provider: ctx.provider,
+    host: null,
+    directory: git.work,
+    sha: git.sha,
+  });
+
+  expect(check).toStrictEqual({
+    kind: 'checked',
+    path: realpathSync(git.work),
+    findings: [
+      '1 uncommitted or untracked path',
+      '1 path hidden from git status',
+      '1 stash',
+      '1 linked worktree',
+      '1 submodule',
+      '1 unpushed commit on fix-login',
+      '2 unpushed commits on a detached HEAD',
+    ],
+  });
+});
+
 test('it checks a folder given with a trailing slash', async () => {
   const ctx = setupTest();
 
@@ -377,7 +427,7 @@ test('it reports an answer that lacks a count as unchecked', () => {
   ).resolves.toStrictEqual({
     kind: 'unchecked',
     reason:
-      'the check printed an unknown answer: Invalid input: expected number, received undefined at counts.hidden; Invalid input: expected number, received undefined at counts.worktrees; Invalid input: expected number, received undefined at counts.submodules',
+      'the check printed an unknown answer: expected exactly one line at hidden; expected exactly one line at worktrees; expected exactly one line at submodules',
   });
 });
 
@@ -399,7 +449,7 @@ test('it reports an answer with a count it does not know as unchecked', () => {
     }),
   ).resolves.toStrictEqual({
     kind: 'unchecked',
-    reason: 'the check printed an unknown answer: Unrecognized key: "notes" at counts',
+    reason: 'the check printed an unknown answer: Unrecognized key: "notes"',
   });
 });
 

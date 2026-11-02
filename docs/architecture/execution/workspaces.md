@@ -149,9 +149,9 @@ since atc never builds a workspace as one, and enters it through any symlink in 
 The script reads no system or global git config and turns off an fsmonitor that the repository's own
 config names, since `git status` would start it. It refuses a directory that is not the top of a git
 checkout holding the row's commit, and the forget then keeps it. A directory already gone gives
-`none`. One table of count fields in `run-workspace-check.ts` writes the script's output lines and
-the schema that reads them, so an answer that lacks a count or adds one keeps the directory as
-unchecked.
+`none`. One table of fields in `run-workspace-check.ts`, the per-branch and detached-HEAD counts
+included, writes every line the script prints and the schema that reads them, so an answer that
+lacks a line, adds one, or labels one differently keeps the directory as unchecked.
 
 | Case                                                    | Workspace                        |
 | ------------------------------------------------------- | -------------------------------- |

@@ -28,43 +28,82 @@ const MISSING_EXIT = 80;
 const FOREIGN_EXIT = 81;
 const GIT_FAILED_EXIT = 82;
 
-interface CountField {
-  // A shell snippet that prints the count, and exits with the git failure status when git fails.
-  readonly count: string;
+// How many lines a field prints: exactly one, at most one, or one per local branch with its ref.
+type FieldLines = 'one' | 'optional' | 'per-branch';
+
+interface CountNouns {
   readonly singular: string;
   readonly plural: string;
 }
 
-const COUNT_NAMES = ['changes', 'hidden', 'stashes', 'worktrees', 'submodules'] as const;
+interface CheckField {
+  // The shell that prints the field's lines, each `<label> <count>` or `<label> <count> <ref>`,
+  // given the label; it exits with the git failure status when git fails.
+  readonly print: (label: string) => string;
+  readonly lines: FieldLines;
+  readonly describe: (ref: string | null) => CountNouns;
+}
+
+const FIELD_NAMES = [
+  'changes',
+  'hidden',
+  'stashes',
+  'worktrees',
+  'submodules',
+  'branch',
+  'detached',
+] as const;
 
 // git status skips what a submodule's ignore setting or an assume-unchanged or skip-worktree flag
 // hides, so the script overrides the one and counts the other; a linked worktree or a submodule
 // counts as work, since no check sees inside one
-const COUNT_FIELDS: Readonly<Record<(typeof COUNT_NAMES)[number], CountField>> = {
-  changes: {
-    count: buildLineCount('status --porcelain --untracked-files=all --ignore-submodules=none', '^'),
-    singular: 'uncommitted or untracked path',
-    plural: 'uncommitted or untracked paths',
+const CHECK_FIELDS: Readonly<Record<(typeof FIELD_NAMES)[number], CheckField>> = {
+  changes: buildCountField(
+    buildLineCount('status --porcelain --untracked-files=all --ignore-submodules=none', '^'),
+    'uncommitted or untracked path',
+    'uncommitted or untracked paths',
+  ),
+  hidden: buildCountField(
+    buildLineCount('ls-files -v', '^[a-zS] '),
+    'path hidden from git status',
+    'paths hidden from git status',
+  ),
+  stashes: buildCountField(buildLineCount('stash list', '^'), 'stash', 'stashes'),
+  worktrees: buildCountField(
+    `out=$(g worktree list --porcelain) || exit ${GIT_FAILED_EXIT}; all=$(printf '%s' "$out" | grep -c '^worktree '); stale=$(printf '%s' "$out" | grep -c '^prunable'); echo $((all - 1 - stale))`,
+    'linked worktree',
+    'linked worktrees',
+  ),
+  submodules: buildCountField(
+    buildLineCount('ls-files --stage', '^160000 '),
+    'submodule',
+    'submodules',
+  ),
+  branch: {
+    print: (
+      label,
+    ) => `refs=$(g for-each-ref --format='%(refname)' refs/heads) || exit ${GIT_FAILED_EXIT}
+set -f
+for ref in $refs; do
+  count=$(g rev-list --count "$ref" --not --remotes --) || exit ${GIT_FAILED_EXIT}
+  printf '${label} %s %s\\n' "$count" "$ref"
+done`,
+    lines: 'per-branch',
+    describe: (ref) => ({
+      singular: `unpushed commit on ${ref}`,
+      plural: `unpushed commits on ${ref}`,
+    }),
   },
-  hidden: {
-    count: buildLineCount('ls-files -v', '^[a-zS] '),
-    singular: 'path hidden from git status',
-    plural: 'paths hidden from git status',
-  },
-  stashes: {
-    count: buildLineCount('stash list', '^'),
-    singular: 'stash',
-    plural: 'stashes',
-  },
-  worktrees: {
-    count: `out=$(g worktree list --porcelain) || exit ${GIT_FAILED_EXIT}; all=$(printf '%s' "$out" | grep -c '^worktree '); stale=$(printf '%s' "$out" | grep -c '^prunable'); echo $((all - 1 - stale))`,
-    singular: 'linked worktree',
-    plural: 'linked worktrees',
-  },
-  submodules: {
-    count: buildLineCount('ls-files --stage', '^160000 '),
-    singular: 'submodule',
-    plural: 'submodules',
+  detached: {
+    print: (label) => `if ! g symbolic-ref -q HEAD > /dev/null; then
+  count=$(g rev-list --count HEAD --not --remotes --) || exit ${GIT_FAILED_EXIT}
+  printf '${label} %s\\n' "$count"
+fi`,
+    lines: 'optional',
+    describe: () => ({
+      singular: 'unpushed commit on a detached HEAD',
+      plural: 'unpushed commits on a detached HEAD',
+    }),
   },
 };
 
@@ -81,19 +120,8 @@ g() { git -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }
 top=$(g rev-parse --show-toplevel) || exit ${FOREIGN_EXIT}
 [ "$top" = "$here" ] || exit ${FOREIGN_EXIT}
 g cat-file -e "$sha^{commit}" || exit ${FOREIGN_EXIT}
-refs=$(g for-each-ref --format='%(refname)' refs/heads) || exit ${GIT_FAILED_EXIT}
-${COUNT_NAMES.map((name) => `${name}=$(${COUNT_FIELDS[name].count}) || exit ${GIT_FAILED_EXIT}`).join('\n')}
 printf '%s\\0' "$here"
-${COUNT_NAMES.map((name) => `printf '${name} %s\\n' "$${name}"`).join('\n')}
-set -f
-for ref in $refs; do
-  count=$(g rev-list --count "$ref" --not --remotes --) || exit ${GIT_FAILED_EXIT}
-  printf 'branch %s %s\\n' "$count" "$ref"
-done
-if ! g symbolic-ref -q HEAD > /dev/null; then
-  count=$(g rev-list --count HEAD --not --remotes --) || exit ${GIT_FAILED_EXIT}
-  printf 'detached %s\\n' "$count"
-fi`;
+${FIELD_NAMES.map((name) => CHECK_FIELDS[name].print(name)).join('\n')}`;
 
 export async function runWorkspaceCheck(request: WorkspaceCheckRequest): Promise<WorkspaceCheck> {
   let run: CommandResult;
@@ -127,6 +155,15 @@ export async function runWorkspaceCheck(request: WorkspaceCheckRequest): Promise
     }));
 }
 
+function buildCountField(count: string, singular: string, plural: string): CheckField {
+  return {
+    print: (label) =>
+      `count=$(${count}) || exit ${GIT_FAILED_EXIT}\nprintf '${label} %s\\n' "$count"`,
+    lines: 'one',
+    describe: () => ({ singular, plural }),
+  };
+}
+
 function buildLineCount(gitArgs: string, pattern: string): string {
   return `out=$(g ${gitArgs}) || exit ${GIT_FAILED_EXIT}; printf '%s' "$out" | grep -c -- '${pattern}' || true`;
 }
@@ -137,16 +174,30 @@ function trimTrailingSlashes(directory: string): string {
     : directory;
 }
 
-const COUNT = z.number().int().nonnegative();
-const BRANCH_COUNT = z.object({ name: z.string().min(1), count: COUNT });
-
-const CHECK_OUTPUT_SCHEMA = z.object({
-  counts: z.record(z.enum(COUNT_NAMES), COUNT),
-  branches: z.array(BRANCH_COUNT),
-  detached: COUNT.nullable(),
+const FIELD_LINE = z.object({
+  ref: z.string().min(1).nullable(),
+  count: z.number().int().nonnegative(),
 });
 
-const CHECK_LINE = /^(?<name>[a-z]+) (?<count>\d+)(?: refs\/heads\/(?<branch>.+))?$/u;
+const FIELD_LINES_MESSAGES: Readonly<Record<FieldLines, string>> = {
+  one: 'expected exactly one line',
+  optional: 'expected at most one line',
+  'per-branch': 'expected a branch on each line',
+};
+
+const CHECK_OUTPUT_SCHEMA = z
+  .record(z.enum(FIELD_NAMES), z.array(FIELD_LINE))
+  .superRefine((answer, ctx) => {
+    for (const name of FIELD_NAMES) {
+      const expected = CHECK_FIELDS[name].lines;
+
+      if (!hasFieldLines(expected, answer[name])) {
+        ctx.addIssue({ code: 'custom', message: FIELD_LINES_MESSAGES[expected], path: [name] });
+      }
+    }
+  });
+
+const CHECK_LINE = /^(?<label>[a-z]+) (?<count>\d+)(?: refs\/heads\/(?<ref>.+))?$/u;
 
 function parseCheckOutput(stdout: string): WorkspaceCheck {
   const split = stdout.indexOf('\0');
@@ -155,58 +206,41 @@ function parseCheckOutput(stdout: string): WorkspaceCheck {
     return { kind: 'unchecked', reason: 'the check printed no folder' };
   }
 
-  const counts: Record<string, number> = {};
-  const branches: { readonly name: string; readonly count: number }[] = [];
-  let detached: number | null = null;
+  const printed: Record<string, { readonly ref: string | null; readonly count: number }[]> =
+    Object.fromEntries(FIELD_NAMES.map((name) => [name, []]));
 
   for (const line of stdout
     .slice(split + 1)
     .split('\n')
-    .filter((printed) => printed !== '')) {
+    .filter((text) => text !== '')) {
     const groups = CHECK_LINE.exec(line)?.groups;
-    const name = groups?.['name'];
-    const printedCount = groups?.['count'];
-    const branch = groups?.['branch'];
+    const label = groups?.['label'];
+    const count = groups?.['count'];
 
-    if (name === undefined || printedCount === undefined) {
+    if (label === undefined || count === undefined) {
       return { kind: 'unchecked', reason: `the check printed an unknown line: ${line}` };
     }
 
-    const count = Number(printedCount);
-
-    if (name === 'branch' && branch !== undefined) {
-      branches.push({ name: branch, count });
-    } else if (name === 'detached' && branch === undefined && detached === null) {
-      detached = count;
-    } else if (branch === undefined && !Object.hasOwn(counts, name)) {
-      counts[name] = count;
-    } else {
-      return { kind: 'unchecked', reason: `the check printed an unknown line: ${line}` };
-    }
+    printed[label] = [
+      ...(printed[label] ?? []),
+      { ref: groups?.['ref'] ?? null, count: Number(count) },
+    ];
   }
 
-  const parsed = CHECK_OUTPUT_SCHEMA.safeParse({ counts, branches, detached });
+  const parsed = CHECK_OUTPUT_SCHEMA.safeParse(printed);
 
   if (!parsed.success) {
     return {
       kind: 'unchecked',
-      reason: `the check printed an unknown answer: ${parsed.error.issues.map((issue) => `${issue.message} at ${issue.path.join('.')}`).join('; ')}`,
+      reason: `the check printed an unknown answer: ${parsed.error.issues.map((issue) => (issue.path.length === 0 ? issue.message : `${issue.message} at ${issue.path.join('.')}`)).join('; ')}`,
     };
   }
 
-  const findings = [
-    ...COUNT_NAMES.map((name) => formatCount(parsed.data.counts[name], COUNT_FIELDS[name])),
-    ...parsed.data.branches.map((held) =>
-      formatCount(held.count, {
-        singular: `unpushed commit on ${held.name}`,
-        plural: `unpushed commits on ${held.name}`,
-      }),
+  const findings = FIELD_NAMES.flatMap((name) =>
+    parsed.data[name].map((entry) =>
+      formatCount(entry.count, CHECK_FIELDS[name].describe(entry.ref)),
     ),
-    formatCount(parsed.data.detached ?? 0, {
-      singular: 'unpushed commit on a detached HEAD',
-      plural: 'unpushed commits on a detached HEAD',
-    }),
-  ];
+  );
 
   return {
     kind: 'checked',
@@ -215,6 +249,17 @@ function parseCheckOutput(stdout: string): WorkspaceCheck {
   };
 }
 
-function formatCount(count: number, nouns: Pick<CountField, 'singular' | 'plural'>): string | null {
+function hasFieldLines(
+  expected: FieldLines,
+  lines: readonly { readonly ref: string | null }[],
+): boolean {
+  return match(expected)
+    .with('one', () => lines.length === 1 && lines.every((line) => line.ref === null))
+    .with('optional', () => lines.length <= 1 && lines.every((line) => line.ref === null))
+    .with('per-branch', () => lines.every((line) => line.ref !== null))
+    .exhaustive();
+}
+
+function formatCount(count: number, nouns: CountNouns): string | null {
   return count === 0 ? null : `${count} ${count === 1 ? nouns.singular : nouns.plural}`;
 }
