@@ -40,9 +40,12 @@ row that replaced it, and a row whose parent is gone or would form a cycle becom
 The daemon writes the fleet as sessions change, so a crash leaves a restorable fleet. A spawn, a
 kill, an attach or a new agent session id rewrites every row this daemon lists, and a hook report
 that changes nothing else updates its session's row alone. A death the owner never asked for
-rewrites nothing, so the last known fleet survives it. A killed session persists as an exited row
-until a second kill or a forget removes it. Either one also removes the state folder of each session
-it takes off the list, `sessions/<session id>/` under the state directory, unless the config turns
+rewrites nothing, so the last known fleet survives it. A rewrite leaves alone every row the daemon
+has not restored yet, so a spawn or a rename before the restore keeps the stored fleet intact.
+
+A killed session persists as an exited row until a second kill or a forget removes it. Either one
+also removes the state folder of each session it takes off the list, `sessions/<session id>/` under
+the state directory, unless the config turns
 [cleanup](../../guides/configuration/workspaces.md#cleanup-when-you-forget-a-session) off, or atc
 saw no exit of the session's process or no end of its message bridge's stop. The killer and a failed
 spawn's rollback each keep the handle of every harness they end, a revive between two kills
@@ -51,9 +54,7 @@ more. A harness that the host ended without an exit, such as a connection it gav
 still running until a new harness attaches to the session. A session that ever started a headless
 turn keeps its folder: the turn's runner reports no exit to wait on, and its result or its stop
 comes before its process ends. A session id that names a folder other than its own under `sessions/`
-also keeps the folder. A folder that fails to go is logged, and the forget still succeeds. A rewrite
-leaves alone every row the daemon has not restored yet, so a spawn or a rename before the restore
-keeps the stored fleet intact.
+also keeps the folder. A folder that fails to go is logged, and the forget still succeeds.
 
 The store also records which daemon owns each row, by the daemon id minted into the store when the
 daemon first opened it, and a restore loads only this daemon's rows.
