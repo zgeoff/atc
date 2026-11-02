@@ -127,16 +127,17 @@ and only the daemon log carries those outcomes.
 The step runs inside the forget, once the session is off the list, on the session's host through the
 provider's `runCommand`, so a sub-session in its parent's imp is checked and removed inside the imp.
 It starts only once atc has seen the session's process exit. The killer and a failed spawn's
-rollback each keep the handle of a harness they end, and the step waits for its exit, then ends it
-with a forced kill and waits once more. The step also waits for the stop of the session's message
-bridge, which writes in the state folder. These keep both folders, the workspace as unchecked:
+rollback each keep the handle of every harness they end, a revive between two kills included, and
+the step waits for each exit, then ends a harness with a forced kill and waits once more. The step
+also waits for the stop of the session's message bridge, which writes in the state folder. These
+keep both folders, the workspace as unchecked:
 
 - a harness that still shows no exit;
 - a harness that the host ended without an exit, such as a connection it gave up on or a host that
   went to sleep, until a new harness attaches to the session;
 - a bridge stop that fails;
-- a headless turn that ran or that a stop aborted, since the turn's runner reports no exit to wait
-  on.
+- a headless turn the session ever started, since the turn's runner reports no exit to wait on, and
+  its result or its stop comes before its process ends.
 
 A session id that names a folder other than its own under `sessions/`, such as one with a `..`
 segment, keeps the state folder too.

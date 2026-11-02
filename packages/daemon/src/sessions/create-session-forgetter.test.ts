@@ -6,6 +6,7 @@ import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import {
   buildStubClock,
+  buildStubHeadlessRunner,
   buildStubLog,
   createGitFixture,
   createMigratedStateDB,
@@ -13,7 +14,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
-import { toSessionID } from '@atcx/contract';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
@@ -27,6 +28,7 @@ import { createSessionManager } from './create-session-manager';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
 import { WORKSPACE_CHECK_SCRIPT } from './run-workspace-check';
+import { startHeadlessTurn } from './start-headless-turn';
 
 interface SetupTestConfig {
   // Whether the target's provider can destroy a session's host.
@@ -59,12 +61,13 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   const stopMessageBridge = mock<(id: SessionID) => Promise<void>>(() => Promise.resolve());
+  const headless = buildStubHeadlessRunner();
 
   const manager = createSessionManager({
     fallback: null,
     store,
     statusPath: join(temporaryDirectory.path, 'status.json'),
-    adapters: [buildStubHarnessAdapter()],
+    adapters: [{ ...buildStubHarnessAdapter(), headlessRunner: headless.runner }],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     events: {
       stopMessageBridge,
@@ -109,6 +112,7 @@ async function setupTest(config: SetupTestConfig) {
     manager,
     runtimes,
     stopMessageBridge,
+    headless,
     forgetter,
   };
 }
@@ -783,11 +787,16 @@ test('it keeps the workspace of a session whose headless turn ran when the forge
     2000,
   );
 
-  const runtime = ctx.runtimes.get(session.id);
+  const started = startHeadlessTurn({
+    manager: ctx.manager,
+    findRuntime: (id) => ctx.runtimes.get(id),
+    sessionID: session.id,
+    prompt: 'tidy the notes',
+    recordTurnEvent: () => {},
+    reporterSocket: join(ctx.directory, 'reporter.sock'),
+  });
 
-  invariant(runtime !== undefined);
-
-  runtime.headlessRun = { stop: () => {} };
+  invariant(started, 'the headless turn did not start');
 
   const forgotten = await ctx.forgetter.forgetSession(
     session.id,
@@ -842,9 +851,82 @@ test('it keeps the workspace of a session whose headless turn a stop aborted bef
 
   invariant(runtime !== undefined);
 
-  runtime.headlessRun = { stop: () => {} };
+  const started = startHeadlessTurn({
+    manager: ctx.manager,
+    findRuntime: (id) => ctx.runtimes.get(id),
+    sessionID: session.id,
+    prompt: 'tidy the notes',
+    recordTurnEvent: () => {},
+    reporterSocket: join(ctx.directory, 'reporter.sock'),
+  });
+
+  invariant(started, 'the headless turn did not start');
 
   runtime.stopHeadlessRun();
+
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: {
+      outcome: 'kept',
+      path: git.work,
+      reasons: ["unchecked: atc could not confirm that the session's process exited"],
+    },
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
+});
+
+test('it keeps the workspace of a session whose headless turn reported its result before the forget', async () => {
+  const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-headless-' });
+
+  const session = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  const started = startHeadlessTurn({
+    manager: ctx.manager,
+    findRuntime: (id) => ctx.runtimes.get(id),
+    sessionID: session.id,
+    prompt: 'tidy the notes',
+    recordTurnEvent: () => {},
+    reporterSocket: join(ctx.directory, 'reporter.sock'),
+  });
+
+  invariant(started, 'the headless turn did not start');
+
+  const run = await ctx.headless.waitForRun(0);
+
+  run.events.onDone('the notes are tidy');
 
   const forgotten = await ctx.forgetter.forgetSession(
     session.id,
@@ -921,6 +1003,86 @@ test('it removes the folders of a killed session only once its harness exits lat
   const keptWhileRunning = { workspace: existsSync(git.work), folder: existsSync(folder) };
 
   harness.emitExit({ exitCode: 143 });
+
+  const forgotten = await forgetting;
+
+  expect(keptWhileRunning).toStrictEqual({ workspace: true, folder: true });
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'removed', path, found: [] },
+  });
+
+  expect({ workspace: existsSync(git.work), folder: existsSync(folder) }).toStrictEqual({
+    workspace: false,
+    folder: false,
+  });
+});
+
+test('it removes the folders of a session killed, revived and forgotten only once its first harness exits late', async () => {
+  const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-revived-' });
+
+  const session = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const folder = join(ctx.stateDir, 'sessions', session.id);
+
+  mkdirSync(folder, { recursive: true });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  const [firstHarness] = ctx.provider.harnesses;
+
+  invariant(firstHarness !== undefined);
+
+  session.agentSessionID = toAgentSessionID('c-worker');
+
+  firstHarness.holdExit();
+
+  await ctx.forgetter.killSession(session.id, true);
+
+  const revived = await ctx.manager.adoptTerminal(session.id, 80, 24);
+
+  invariant(revived !== null, 'the revive did not start a harness');
+
+  const path = realpathSync(git.work);
+
+  const forgetting = ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  await waitFor(() => {
+    expect(firstHarness.hasExitWaiters()).toBeTrue();
+  });
+
+  const keptWhileRunning = { workspace: existsSync(git.work), folder: existsSync(folder) };
+
+  firstHarness.emitExit({ exitCode: 143 });
 
   const forgotten = await forgetting;
 
