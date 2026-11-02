@@ -105,8 +105,8 @@ client in a `bun-pty` pseudo-terminal, in a new test home.
   [`buildStubTUIClaude`](../../../packages/test-utils/src/build-stub-tui-claude.ts). It reports its
   hook events through the real reporter over the real socket. To change what it reports, write a
   scenario file into the harness's `home`, such as `fake-transcript.jsonl` with a `custom-title`
-  line. To list the scenario files, search `buildStubTUIClaude` for `$HOME/fake-`. Never add a flag
-  to the stand-in's script.
+  line. To list the scenario files, search `buildStubTUIClaude` for `fake-`. Never add a flag to the
+  stand-in's script.
 - Call `reset()` on the harness before the action whose output you check. The captured output grows
   from boot, so a check that text is absent can pass on a screen drawn earlier.
 - Wait with `waitFor` for each key's effect before you send the next key. Two `pty.write()` calls
