@@ -9,6 +9,7 @@ import {
   createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
+  waitFor,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
@@ -100,6 +101,60 @@ test('it removes a pushed workspace and the state folder, and logs the removal',
   expect(ctx.log.lines).toStrictEqual([
     `atc: removed the workspace ${path} of forgotten session ${session.id}`,
   ]);
+});
+
+test('it refuses a spawn into the workspace while the check that decides its removal runs', async () => {
+  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-forget-cleanup-' });
+
+  const session = buildMockSession({ cwd: git.work });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  ctx.provider.holdCommands();
+
+  const removing = ctx.cleanup.removeSessionFolders(session, {
+    hostDestroyed: false,
+    harnessEnded: true,
+  });
+
+  await waitFor(() => {
+    expect(ctx.provider.hasHeldCommands()).toBeTrue();
+  });
+
+  const spawn = ctx.manager.spawn({
+    cwd: git.work,
+    name: 'late-worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const refusal = await spawn.then(
+    () => null,
+    (error: unknown) => error,
+  );
+
+  ctx.provider.finishCommands();
+
+  await removing;
+
+  expect(refusal).toMatchObject({ code: 'workspace_overlap' });
 });
 
 test('it keeps a workspace with an uncommitted change, removes the state folder, and logs why', async () => {

@@ -135,7 +135,8 @@ keep both folders, the workspace as unchecked:
 - a harness that still shows no exit;
 - a harness that the host ended without an exit, such as a connection it gave up on or a host that
   went to sleep, until a new harness attaches to the session;
-- a bridge stop that fails;
+- a bridge stop that fails, this one or an earlier one that no later stop of the session has retried
+  with success;
 - a headless turn the session ever started, since the turn's runner reports no exit to wait on, and
   its result or its stop comes before its process ends.
 
@@ -162,8 +163,10 @@ The script reads no system or global git config and turns off an fsmonitor that 
 config names, since `git status` would start it. It refuses a directory that is not the top of a git
 checkout holding the row's commit, and the forget then keeps it. A directory already gone gives
 `none`. One table of fields in `run-workspace-check.ts`, the per-ref and detached-HEAD counts
-included, writes every line the script prints and the schema that reads them, so an answer that
-lacks a line, adds one, or labels one differently keeps the directory as unchecked.
+included, writes every line the script prints and the schema that reads them. An answer that lacks
+one of the five count lines, or holds a label the table does not name, keeps the directory as
+unchecked. The schema takes any number of branch, tag and notes lines and at most one detached-HEAD
+line, so it never notices one of those missing.
 
 | Case                                                    | Workspace                        |
 | ------------------------------------------------------- | -------------------------------- |
@@ -184,11 +187,11 @@ still resolves to itself, and it refuses while the directory of a listed session
 session not yet seen to end, or of a claim lies inside, as the host resolves each one. A refused or
 failed removal keeps the directory with its reason. Every spawn that builds a workspace claims its
 directory before the clone creates it: on a shared host as before, and on the daemon's own machine
-from its landing. While a removal runs, a claim on that shared host, or one on the daemon's machine
-that overlaps the directory, is refused as `workspace_overlap`, so no spawn builds inside a
-directory that a removal is emptying. The session's state folder on the daemon's host goes after the
-workspace step, whatever that step decided, unless cleanup is off or atc saw no exit of the
-session's process.
+from its landing. From before the check until the removal ends, a claim on that shared host, or one
+on the daemon's machine that overlaps the directory, is refused as `workspace_overlap`. So no
+session starts inside a directory after the check has found it clean. The session's state folder on
+the daemon's host goes after the workspace step, whatever that step decided, unless cleanup is off
+or atc saw no exit of the session's process.
 
 ## Sources
 

@@ -135,6 +135,7 @@ export interface SessionManager {
   readonly isLocalTarget: (target: string) => boolean;
   readonly hasHostLifecycle: (target: string) => boolean;
   readonly removeClaimedDir: HostDirClaims['removeClaimedDir'];
+  readonly withRemovalHold: HostDirClaims['withRemovalHold'];
   readonly heldSessions: HostDirClaims['heldSessions'];
   readonly holdSessions: HostDirClaims['holdSessions'];
   readonly releaseSessions: HostDirClaims['releaseSessions'];
@@ -437,6 +438,8 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
     hasHostLifecycle: registry.hasHostLifecycle,
 
     removeClaimedDir: claims.removeClaimedDir,
+
+    withRemovalHold: claims.withRemovalHold,
 
     heldSessions: claims.heldSessions,
 

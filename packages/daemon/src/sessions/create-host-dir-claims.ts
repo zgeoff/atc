@@ -43,6 +43,8 @@ interface RemoveClaimedDirOptions {
   readonly directory: string;
 }
 
+type RemovalHold = Omit<RemoveClaimedDirOptions, 'provider'>;
+
 interface ClaimHostDirOptions extends RemoveClaimedDirOptions {
   readonly picked?: boolean;
 }
@@ -95,6 +97,10 @@ export interface HostDirClaims {
   // listed session's or another claim's directory, or no longer resolves to itself; it then
   // stays for an operator to remove
   readonly removeClaimedDir: (options: RemoveClaimedDirOptions) => Promise<boolean>;
+
+  // Refuses every spawn that a removal of the directory refuses, from before the run starts
+  // until it ends, so no session starts in a directory whose removal is still being decided.
+  readonly withRemovalHold: <T>(hold: RemovalHold, run: () => Promise<T>) => Promise<T>;
 
   // a relative directory resolves as a harness started in it sees it, since the provider starts
   // both from the home of the user they run as; a stricter script must print the same form
@@ -360,6 +366,38 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     return physical;
   };
 
+  // a target without hosts runs on the daemon's machine, where a hold refuses spawns in or around
+  // its directory; on a shared host it refuses every spawn there
+  const withRemovalHold = async <T>(hold: RemovalHold, run: () => Promise<T>): Promise<T> => {
+    if (!registry.hasHostLifecycle(hold.target)) {
+      const removal = { id: hold.id, directory: hold.directory };
+
+      machineRemovals.push(removal);
+
+      try {
+        return await run();
+      } finally {
+        machineRemovals.splice(machineRemovals.indexOf(removal), 1);
+      }
+    }
+
+    const slot = buildHostSlot(hold.hostKey, hold.target);
+
+    removals.set(slot, (removals.get(slot) ?? 0) + 1);
+
+    try {
+      return await run();
+    } finally {
+      const left = (removals.get(slot) ?? 1) - 1;
+
+      if (left === 0) {
+        removals.delete(slot);
+      } else {
+        removals.set(slot, left);
+      }
+    }
+  };
+
   const removeClaimedDir = async (options: RemoveClaimedDirOptions): Promise<boolean> => {
     // targets without hosts run on the daemon's machine, so the directory stays while a session on
     // any of them, or a plain spawn starting there, runs inside; while the removal runs, a plain
@@ -391,20 +429,14 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
         return false;
       }
 
-      const removal = { id: options.id, directory: options.directory };
-
-      machineRemovals.push(removal);
-
-      try {
+      return withRemovalHold(options, async () => {
         const removed = await options.provider.runCommand({
           argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', options.directory, `${options.directory}\nx`],
           cwd: '/',
         });
 
         return removed.exitCode === 0;
-      } finally {
-        machineRemovals.splice(machineRemovals.indexOf(removal), 1);
-      }
+      });
     }
 
     const before = collectHostSessionIDs(options.hostKey, options.target);
@@ -431,11 +463,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       return false;
     }
 
-    const slot = buildHostSlot(options.hostKey, options.target);
-
-    removals.set(slot, (removals.get(slot) ?? 0) + 1);
-
-    try {
+    return withRemovalHold(options, async () => {
       const removed = await options.provider.runCommand({
         argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', options.directory, `${options.directory}\nx`],
         cwd: '/',
@@ -443,15 +471,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       });
 
       return removed.exitCode === 0;
-    } finally {
-      const left = (removals.get(slot) ?? 1) - 1;
-
-      if (left === 0) {
-        removals.delete(slot);
-      } else {
-        removals.set(slot, left);
-      }
-    }
+    });
   };
 
   return {
@@ -548,6 +568,8 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     claimHostDir,
 
     removeClaimedDir,
+
+    withRemovalHold,
 
     resolveHostDir,
 

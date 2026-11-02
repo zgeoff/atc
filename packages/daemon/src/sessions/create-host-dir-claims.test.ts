@@ -162,6 +162,49 @@ test('it refuses a workspace landing on the daemon host inside a directory a rem
   await removal;
 });
 
+test('it refuses a plain claim on a shared host while a removal hold runs there', async () => {
+  const provider = buildStubMemoryProvider({ capabilities: { suspend: true, destroy: true } });
+  const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'imp', provider })] });
+  const deciding = Promise.withResolvers<void>();
+
+  const hold = ctx.claims.withRemovalHold(
+    {
+      id: toSessionID('forgotten-1'),
+      hostKey: toSessionID('host-1'),
+      target: 'imp',
+      directory: '/work/a',
+    },
+    () => deciding.promise,
+  );
+
+  expect(() => {
+    ctx.claims.claimPlainDir(toSessionID('spawn-1'), toSessionID('host-1'), 'imp', '/work/a');
+  }).toThrow(expect.objectContaining({ code: 'workspace_overlap' }));
+
+  deciding.resolve();
+
+  await hold;
+});
+
+test('it passes a claim on the daemon host inside a directory once its removal hold ends', async () => {
+  const provider = buildStubMemoryProvider();
+  const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'local', provider })] });
+
+  await ctx.claims.withRemovalHold(
+    {
+      id: toSessionID('forgotten-1'),
+      hostKey: toSessionID('forgotten-1'),
+      target: 'local',
+      directory: '/work/a',
+    },
+    () => Promise.resolve(),
+  );
+
+  expect(() => {
+    ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/a/nested');
+  }).not.toThrow();
+});
+
 test('it keeps a directory on the daemon host that a workspace spawn claimed inside it first', async () => {
   const provider = buildStubMemoryProvider({
     runCommand: (spec) =>

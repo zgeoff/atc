@@ -1,11 +1,13 @@
-import { join, posix } from 'node:path';
+import { join } from 'node:path';
 import type { WorkspaceCleanupConfig } from '@atc/config';
 import type { StateStore } from '@atc/store';
 import type { SessionID, WorkspaceCleanup } from '@atcx/contract';
 import { match } from 'ts-pattern';
+import { formatError } from '../auth/format-error';
 import type { SessionManager } from './create-session-manager';
 import { isPathWithin } from './is-path-within';
 import { pickWorkspaceCleanup } from './pick-workspace-cleanup';
+import { UNENDED_REASON, pickWorkspaceEligibility } from './pick-workspace-eligibility';
 import { runWorkspaceCheck } from './run-workspace-check';
 import type { Session } from './session';
 
@@ -17,6 +19,7 @@ interface ForgetCleanupDeps {
     | 'requireExecution'
     | 'hasHostLifecycle'
     | 'removeClaimedDir'
+    | 'withRemovalHold'
     | 'heldSessions'
     | 'releaseSessions'
     | 'log'
@@ -50,7 +53,6 @@ export interface ForgetCleanup {
 }
 
 const NO_WORKSPACE: WorkspaceCleanup = { outcome: 'none' };
-const UNENDED_REASON = "unchecked: atc could not confirm that the session's process exited";
 
 export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   const manager = deps.manager;
@@ -100,53 +102,51 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
     session: Session,
     harnessEnded: boolean,
   ): Promise<WorkspaceCleanup> => {
-    const row = await deps.store.readMaterialization(session.id);
+    const eligibility = pickWorkspaceEligibility({
+      row: await deps.store.readMaterialization(session.id),
+      target: session.target,
+      harnessEnded,
+      bindingRefusal: manager.findExecutionRefusal(session, 'run')?.message ?? null,
+    });
 
-    // only a workspace atc finished building is atc's to remove
-    if (row === null || row.phase !== 'ready' || row.target !== session.target) {
-      return NO_WORKSPACE;
-    }
+    // the hold starts before the check, since a session that starts in the folder while the
+    // check runs would find its work removed
+    return match(eligibility)
+      .returnType<Promise<WorkspaceCleanup>>()
+      .with({ kind: 'none' }, () => Promise.resolve(NO_WORKSPACE))
+      .with({ kind: 'kept' }, (kept) =>
+        Promise.resolve({ outcome: 'kept', path: kept.path, reasons: [kept.reason] }),
+      )
+      .with({ kind: 'check' }, (checked) =>
+        manager.withRemovalHold(
+          {
+            id: session.id,
+            hostKey: session.hostKey,
+            target: session.target,
+            directory: checked.directory,
+          },
+          () => checkAndRemoveWorkspace(session, checked.directory, checked.sha),
+        ),
+      )
+      .exhaustive();
+  };
 
-    if (!harnessEnded) {
-      return { outcome: 'kept', path: row.directory, reasons: [UNENDED_REASON] };
-    }
-
-    // a target whose config changed since the session started may now run somewhere else, where
-    // the recorded folder is not the session's
-    const bindingRefusal = manager.findExecutionRefusal(session, 'run');
-
-    if (bindingRefusal !== null) {
-      return {
-        outcome: 'kept',
-        path: row.directory,
-        reasons: [`unchecked: ${bindingRefusal.message}`],
-      };
-    }
-
-    if (row.sha === null || !posix.isAbsolute(row.directory)) {
-      return {
-        outcome: 'kept',
-        path: row.directory,
-        reasons: ['unchecked: atc recorded no commit or no absolute folder for it'],
-      };
-    }
-
+  const checkAndRemoveWorkspace = async (
+    session: Session,
+    directory: string,
+    sha: string,
+  ): Promise<WorkspaceCleanup> => {
     const provider = manager.requireExecution(session, 'run').provider;
     const host = manager.hasHostLifecycle(session.target) ? session.hostKey : null;
 
-    const result = await runWorkspaceCheck({
-      provider,
-      host,
-      directory: row.directory,
-      sha: row.sha,
-    });
+    const result = await runWorkspaceCheck({ provider, host, directory, sha });
 
     const plan = pickWorkspaceCleanup({
       check: settings.check,
-      directory: row.directory,
+      directory,
       result,
       user: findWorkspaceUser(session, [
-        row.directory,
+        directory,
         ...(result.kind === 'checked' ? [result.path] : []),
       ]),
     });
@@ -212,10 +212,6 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
       return workspace;
     },
   };
-}
-
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function logWorkspaceCleanup(
