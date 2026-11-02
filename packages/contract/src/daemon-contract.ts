@@ -20,14 +20,20 @@ import { SOURCE_CANDIDATE_SCHEMA } from './source-candidate';
 import { SOURCE_INTERPRETATION_SCHEMA } from './source-interpretation';
 import { SPAWN_ANSWER_SCHEMA } from './spawn-answer';
 import { TRANSCRIPT_ROW_SCHEMA } from './transcript-row';
+import { WORKSPACE_CLEANUP_SCHEMA } from './workspace-cleanup';
 
 const EMPTY = z.object({});
 const STRINGS = z.array(z.string()).readonly();
 
 // A forget that destroys a host answers first with the token its confirming
-// retry carries, and then with what it forgot.
+// retry carries, and then with what it forgot and what became of the session's workspace.
 const FORGET_CONFIRM = z.object({ confirmToken: z.string(), expiresAt: z.number() });
-const FORGET_DONE = z.object({ forgotten: z.literal(true), destroyed: z.boolean() });
+
+const FORGET_DONE = z.object({
+  forgotten: z.literal(true),
+  destroyed: z.boolean(),
+  workspace: WORKSPACE_CLEANUP_SCHEMA,
+});
 
 // The message a session's pending permission prompt shows.
 const PENDING_PROMPT = z.object({ message: z.string() });

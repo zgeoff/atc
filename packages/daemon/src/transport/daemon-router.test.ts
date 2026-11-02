@@ -21,7 +21,13 @@ test('#session.ack answers with what the procedure returns', async () => {
 });
 
 test('#session.forget leaves out an answer field the procedure does not declare', async () => {
-  const forgotten = { forgotten: true as const, destroyed: false, host: 'h-1' };
+  const forgotten = {
+    forgotten: true as const,
+    destroyed: false,
+    workspace: { outcome: 'none' as const },
+    host: 'h-1',
+  };
+
   const ctx = buildStubDaemonContext({ forgetSession: () => Promise.resolve(forgotten) });
 
   const answer = await call(
@@ -30,7 +36,11 @@ test('#session.forget leaves out an answer field the procedure does not declare'
     { context: buildMockProcedureContext({ ctx }) },
   );
 
-  expect(answer).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(answer).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
 });
 
 test('#session.ack passes on the refusal the procedure throws', () => {

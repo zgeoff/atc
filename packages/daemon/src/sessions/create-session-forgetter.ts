@@ -125,7 +125,7 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
 
       stopEndedHeadlessRuns(set);
 
-      return { forgotten: true, destroyed };
+      return { forgotten: true, destroyed, workspace: { outcome: 'none' } };
     },
   };
 }

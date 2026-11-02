@@ -312,8 +312,8 @@ test('it refuses a peer handshake that speaks another protocol and ends the conn
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/old speaks protocol v1, daemon atc/test speaks v12; update or reopen the client so both run the same build',
-    data: { daemonProtocol: 12 },
+      'atc/old speaks protocol v1, daemon atc/test speaks v13; update or reopen the client so both run the same build',
+    data: { daemonProtocol: 13 },
   });
 
   await refused.catch(() => {});
@@ -335,12 +335,12 @@ test('it tells a peer client on a later protocol to restart the daemon', async (
   });
 
   expect(
-    client.sendRequest('daemon.hello', { client: 'atc/new', protocol: 13 }),
+    client.sendRequest('daemon.hello', { client: 'atc/new', protocol: 14 }),
   ).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/new speaks protocol v13, daemon atc/test speaks v12; restart the daemon so both run the same build',
-    data: { daemonProtocol: 12 },
+      'atc/new speaks protocol v14, daemon atc/test speaks v13; restart the daemon so both run the same build',
+    data: { daemonProtocol: 13 },
   });
 });
 
@@ -2152,7 +2152,7 @@ test('it answers a peer handshake with the session the kernel names as its peer 
         idempotency: { completedRetentionMs: 86_400_000 },
         lastUsedAgent: 'claude',
         peerSession: 's-1',
-        features: ['events.read.from-start', 'daemon.hello.viewer'],
+        features: ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace'],
       },
     }),
   ]);

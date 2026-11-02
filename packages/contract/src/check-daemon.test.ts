@@ -7,7 +7,7 @@ test.each<[string, string, string[], DaemonCheck]>([
   [
     'a matching daemon',
     'atc/7.4.2+lq2x9a',
-    ['events.read.from-start', 'daemon.hello.viewer'],
+    ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace'],
     { verdict: 'match', missing: [], added: [] },
   ],
   [
@@ -26,12 +26,16 @@ test.each<[string, string, string[], DaemonCheck]>([
     'a daemon of the same major that lacks a feature',
     'atc/7.0.3+lq2x9a',
     [],
-    { verdict: 'match', missing: ['events.read.from-start', 'daemon.hello.viewer'], added: [] },
+    {
+      verdict: 'match',
+      missing: ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace'],
+      added: [],
+    },
   ],
   [
     'a daemon of the same major that adds a feature',
     'atc/7.9.0+lq2x9a',
-    ['events.read.from-start', 'daemon.hello.viewer', 'session.watch'],
+    ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace', 'session.watch'],
     { verdict: 'match', missing: [], added: ['session.watch'] },
   ],
   ['a daemon string with no version', 'atc/dev', [], { verdict: 'unreadable', daemon: 'atc/dev' }],
@@ -43,7 +47,7 @@ test('it matches a daemon of its own version that lists every feature', () => {
   expect(
     checkDaemon({
       daemon: `atc/${CONTRACT_VERSION}+lq2x9a`,
-      features: ['events.read.from-start', 'daemon.hello.viewer'],
+      features: ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace'],
     }),
   ).toStrictEqual({ verdict: 'match', missing: [], added: [] });
 });

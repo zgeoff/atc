@@ -2587,7 +2587,12 @@ test('it lets a principal forget a session on a target it may use', async () => 
 
   const forgotten = await daemon.client.sendRequest('session.forget', { session: shown }, 'narrow');
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
+
   expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });
 

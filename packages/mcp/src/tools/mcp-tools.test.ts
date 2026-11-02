@@ -375,8 +375,35 @@ test('it declares both results of a forget: the confirm token and the outcome', 
       .success,
   ).toBeTrue();
 
-  expect(parse.safeParse({ forgotten: true, destroyed: false }).success).toBeTrue();
+  expect(
+    parse.safeParse({
+      forgotten: true,
+      destroyed: false,
+      workspace: {
+        outcome: 'kept',
+        path: '/srv/work/shop-main-4',
+        reasons: ['1 stash'],
+      },
+    }).success,
+  ).toBeTrue();
+
   expect(parse.safeParse({ forgotten: 'yes', destroyed: false }).success).toBeFalse();
+});
+
+test('it refuses a forget outcome whose workspace reasons are not text', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_session_forget')?.outputSchema;
+
+  invariant(schema !== undefined, 'the forget tool declares no output schema');
+
+  const parse = z.fromJSONSchema(schema);
+
+  expect(
+    parse.safeParse({
+      forgotten: true,
+      destroyed: false,
+      workspace: { outcome: 'kept', path: '/srv/work/shop-main-4', reasons: [1] },
+    }).success,
+  ).toBeFalse();
 });
 
 test('it accepts a gateway session list whose entries carry the gateway locator and a parent', () => {

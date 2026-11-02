@@ -20,6 +20,7 @@ import type {
   SessionDescriptor,
   SessionID,
   SpawnWorkspaceSource,
+  WorkspaceCleanup,
 } from '@atcx/contract';
 import type { TargetAccess, TargetGrant } from './auth/build-target-access-from-grants';
 import type { AuthRebound } from './auth/create-auth-setup';
@@ -98,7 +99,11 @@ export interface SessionRecord {
 
 export type ForgetResult =
   | { readonly confirmToken: string; readonly expiresAt: number }
-  | { readonly forgotten: true; readonly destroyed: boolean };
+  | {
+      readonly forgotten: true;
+      readonly destroyed: boolean;
+      readonly workspace: WorkspaceCleanup;
+    };
 
 // a pinned session, or a sub-session of one unless the pin belongs to the caller or a
 // session above the caller; and a live session

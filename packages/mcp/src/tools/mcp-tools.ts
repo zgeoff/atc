@@ -989,6 +989,29 @@ const SESSION_FORGET_OUTPUT: Readonly<Record<string, unknown>> = {
       type: 'boolean',
       description: 'true when the forget also destroyed the host the session owned',
     },
+    workspace: {
+      type: 'object',
+      description: 'what the forget did with the workspace folder atc created for the session',
+      properties: {
+        outcome: {
+          type: 'string',
+          description:
+            'removed: atc removed the folder; kept: the folder stays, and reasons says why; none: atc created no folder for the session, workspace cleanup is off, or the forget destroyed the host with the folder on it',
+        },
+        path: { type: 'string', description: 'the folder, on the host the session ran on' },
+        found: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'on removed: what the checks found in the folder before atc removed it anyway, one line each; empty when they found nothing',
+        },
+        reasons: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'on kept: one line for each reason atc kept the folder',
+        },
+      },
+    },
   },
 };
 
