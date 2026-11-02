@@ -17,6 +17,7 @@ test('it reads the GitHub owner, the source order, the git transports, the globa
       gitTransports: ['https', 'ssh', 'http', 'file'],
       root: '~/ws',
       targetRoots: new Map([['box', '/home/dev/ws']]),
+      cleanup: { enabled: true },
     },
     errors: [],
   });
@@ -38,6 +39,7 @@ test.each([
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
+      cleanup: { enabled: true },
     },
     errors: [],
   });
@@ -53,6 +55,7 @@ test.each([[{ sources: 'dirs' }], [{ sources: ['dirs', 7] }], [{ sources: ['dirs
         gitTransports: ['https', 'ssh'],
         root: null,
         targetRoots: new Map(),
+        cleanup: { enabled: true },
       },
       errors: [],
     });
@@ -72,6 +75,7 @@ test.each([
       gitTransports: { invalid: error },
       root: null,
       targetRoots: new Map(),
+      cleanup: { enabled: true },
     },
     errors: [error],
   });
@@ -99,6 +103,48 @@ test.each([
       gitTransports: { invalid: error },
       root: null,
       targetRoots: new Map(),
+      cleanup: { enabled: true },
+    },
+    errors: [error],
+  });
+});
+
+test.each([[{ cleanup: {} }], [{ cleanup: { enabled: true } }]])(
+  'it reads cleanup as on from %p',
+  (raw) => {
+    expect(collectWorkspacesConfig(raw).workspaces.cleanup).toStrictEqual({ enabled: true });
+  },
+);
+
+test('it reads cleanup as off when the config turns it off', () => {
+  expect(collectWorkspacesConfig({ cleanup: { enabled: false } })).toStrictEqual({
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+      cleanup: { enabled: false },
+    },
+    errors: [],
+  });
+});
+
+test.each([
+  [{ cleanup: 'on' }, 'workspaces.cleanup is not an object'],
+  [{ cleanup: null }, 'workspaces.cleanup is not an object'],
+  [{ cleanup: { enabled: 'yes' } }, 'workspaces.cleanup.enabled is not true or false'],
+])('it turns cleanup off for %p, with a config error', (raw, problem) => {
+  const error = `${problem}; a forget removes no workspace and no state folder until it is fixed`;
+
+  expect(collectWorkspacesConfig(raw)).toStrictEqual({
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+      cleanup: { enabled: false },
     },
     errors: [error],
   });
@@ -112,6 +158,7 @@ test('it reads an empty transport list as one that allows no transport', () => {
       gitTransports: [],
       root: null,
       targetRoots: new Map(),
+      cleanup: { enabled: true },
     },
     errors: [],
   });

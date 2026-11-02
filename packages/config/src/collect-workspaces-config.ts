@@ -5,6 +5,10 @@ export interface InvalidGitTransports {
   readonly invalid: string;
 }
 
+export interface WorkspaceCleanupConfig {
+  readonly enabled: boolean;
+}
+
 // a root is kept as written; whether it fits its target, such as `~` on a
 // remote target, is checked where the target is known.
 export interface WorkspacesConfig {
@@ -13,6 +17,7 @@ export interface WorkspacesConfig {
   readonly gitTransports: readonly string[] | InvalidGitTransports;
   readonly root: string | null;
   readonly targetRoots: ReadonlyMap<string, string>;
+  readonly cleanup: WorkspaceCleanupConfig;
 }
 
 interface CollectedWorkspacesConfig {
@@ -32,6 +37,7 @@ export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig
   const root = section['root'];
   const targets = isRecord(section['targets']) ? section['targets'] : {};
   const transports = collectGitTransports(section['gitTransports']);
+  const cleanup = collectCleanup(section['cleanup']);
 
   return {
     workspaces: {
@@ -48,8 +54,9 @@ export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig
           typeof directory === 'string' && directory !== '' ? [[id, directory] as const] : [],
         ),
       ),
+      cleanup: cleanup.cleanup,
     },
-    errors: transports.errors,
+    errors: [...transports.errors, ...cleanup.errors],
   };
 }
 
@@ -95,4 +102,33 @@ function collectGitTransports(raw: unknown): {
   return errors.length === 0
     ? { transports: raw.filter((name): name is string => typeof name === 'string'), errors }
     : { transports: { invalid: errors.join('; ') }, errors };
+}
+
+function collectCleanup(raw: unknown): {
+  readonly cleanup: WorkspaceCleanupConfig;
+  readonly errors: readonly string[];
+} {
+  if (raw === undefined) {
+    return { cleanup: { enabled: true }, errors: [] };
+  }
+
+  const fallback = 'a forget removes no workspace and no state folder until it is fixed';
+
+  if (!isRecord(raw)) {
+    return {
+      cleanup: { enabled: false },
+      errors: [`workspaces.cleanup is not an object; ${fallback}`],
+    };
+  }
+
+  const enabled = raw['enabled'];
+
+  if (enabled !== undefined && typeof enabled !== 'boolean') {
+    return {
+      cleanup: { enabled: false },
+      errors: [`workspaces.cleanup.enabled is not true or false; ${fallback}`],
+    };
+  }
+
+  return { cleanup: { enabled: enabled ?? true }, errors: [] };
 }

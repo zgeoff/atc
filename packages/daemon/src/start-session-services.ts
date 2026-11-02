@@ -14,6 +14,7 @@ import type { ExecutionTarget } from './fleet/build-execution-targets';
 import { createFleetRestorer } from './fleet/create-fleet-restorer';
 import type { FleetRestorer } from './fleet/create-fleet-restorer';
 import { createConfirmTokens } from './sessions/create-confirm-tokens';
+import { createForgetCleanup } from './sessions/create-forget-cleanup';
 import { createHookIntake } from './sessions/create-hook-intake';
 import type { HookIntake } from './sessions/create-hook-intake';
 import { createMessageBridges } from './sessions/create-message-bridges';
@@ -290,6 +291,13 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     tokens: createConfirmTokens({
       now: opts.forgetClock ?? (() => clock.now()),
       lifetimeMs: opts.forgetConfirmMs ?? FORGET_CONFIRM_MS,
+    }),
+    cleanup: createForgetCleanup({
+      log: (line) => {
+        manager.log(line);
+      },
+      stateDir,
+      settings: opts.workspaceCleanup ?? { enabled: true },
     }),
   });
 

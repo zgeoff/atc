@@ -103,6 +103,7 @@ const DEFAULTS: Omit<Config, 'agents' | 'agentErrors' | 'defaultAgent'> = {
     gitTransports: DEFAULT_GIT_TRANSPORTS,
     root: null,
     targetRoots: new Map(),
+    cleanup: { enabled: true },
   },
   authProfiles: new Map(),
   authProfileErrors: [],

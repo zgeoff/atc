@@ -41,8 +41,12 @@ The daemon writes the fleet as sessions change, so a crash leaves a restorable f
 kill, an attach or a new agent session id rewrites every row this daemon lists, and a hook report
 that changes nothing else updates its session's row alone. A death the owner never asked for
 rewrites nothing, so the last known fleet survives it. A killed session persists as an exited row
-until a second kill or a forget removes it. A rewrite leaves alone every row the daemon has not
-restored yet, so a spawn or a rename before the restore keeps the stored fleet intact.
+until a second kill or a forget removes it. Either one also removes the state folder of each session
+it takes off the list, `sessions/<session id>/` under the state directory, unless the config turns
+[cleanup](../../guides/configuration/workspaces.md#cleanup-when-you-forget-a-session) off. A folder
+that fails to go is logged, and the forget still succeeds. A rewrite leaves alone every row the
+daemon has not restored yet, so a spawn or a rename before the restore keeps the stored fleet
+intact.
 
 The store also records which daemon owns each row, by the daemon id minted into the store when the
 daemon first opened it, and a restore loads only this daemon's rows.

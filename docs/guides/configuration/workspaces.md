@@ -91,3 +91,19 @@ session list shows it.
 
 A destination you type replaces the picked one. It must be an absolute path on the target, and `~`
 in it expands only on the daemon's own machine.
+
+## Cleanup when you forget a session
+
+A forget removes the session's state folder, `~/.local/state/atc/sessions/<session id>/`, which
+holds atc's own files for the session, such as its scratch folder. A kill of a session that has
+already exited forgets it the same way. `workspaces.cleanup.enabled` turns this off:
+
+```json
+{
+  "workspaces": { "cleanup": { "enabled": false } }
+}
+```
+
+`enabled` defaults to `true`. A value other than `true` or `false`, or a `cleanup` that is not an
+object, is a config error: the daemon prints it at startup and removes nothing on a forget until you
+fix it.

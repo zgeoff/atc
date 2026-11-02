@@ -1,4 +1,9 @@
-import type { HooksConfig, InvalidGitTransports, TargetConfigError } from '@atc/config';
+import type {
+  HooksConfig,
+  InvalidGitTransports,
+  TargetConfigError,
+  WorkspaceCleanupConfig,
+} from '@atc/config';
 import type { AgentID, Clock } from '@atc/core';
 import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
 import type { SessionID } from '@atcx/contract';
@@ -162,6 +167,10 @@ export interface DaemonOptions {
     root: string | null;
     targetRoots: ReadonlyMap<string, string>;
   }>;
+
+  // What a forget removes besides the session; it removes the session's
+  // state folder when unset.
+  readonly workspaceCleanup?: WorkspaceCleanupConfig;
 
   // The home a git workspace without a directory lands under on a target
   // on the daemon's own machine when no root applies, and the one a spawn's

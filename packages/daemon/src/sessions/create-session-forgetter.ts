@@ -1,7 +1,8 @@
 import { DaemonError } from '@atc/protocol/wire';
-import type { SessionID } from '@atcx/contract';
+import type { SessionID, WorkspaceCleanup } from '@atcx/contract';
 import type { ForgetRefusals, ForgetResult, KillOutcome } from '../daemon-context';
 import type { ConfirmTokens } from './create-confirm-tokens';
+import type { ForgetCleanup } from './create-forget-cleanup';
 import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 import type { Session } from './session';
@@ -20,6 +21,7 @@ interface SessionForgetterDeps {
   >;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
   readonly tokens: Pick<ConfirmTokens, 'mintToken' | 'claimToken'>;
+  readonly cleanup: ForgetCleanup;
 }
 
 export interface SessionForgetter {
@@ -41,6 +43,7 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
   const manager = deps.manager;
   const findRuntime = deps.findRuntime;
   const tokens = deps.tokens;
+  const cleanup = deps.cleanup;
 
   // runs once the manager has acted: a removed session already lost its run
   // with its runtime, and a promoted sub-session, or any session of a failed
@@ -51,6 +54,33 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
         findRuntime(session.id)?.stopHeadlessRun();
       }
     }
+  };
+
+  // A forget may take off the list the session, its sub-sessions, and every session on its host,
+  // which a destroy takes with it; read before the forget, which changes all three.
+  const collectForgettable = (session: Session): Session[] => [
+    ...new Set([
+      session,
+      ...manager.collectChildren(session.id),
+      ...manager.sessions.filter(
+        (other) => other.hostKey === session.hostKey && other.target === session.target,
+      ),
+    ]),
+  ];
+
+  const removeForgottenFolders = async (
+    session: Session,
+    forgettable: readonly Session[],
+  ): Promise<WorkspaceCleanup> => {
+    const workspace = await cleanup.removeSessionFolders(session);
+
+    for (const other of forgettable) {
+      if (other !== session && !manager.sessions.includes(other)) {
+        await cleanup.removeSessionFolders(other);
+      }
+    }
+
+    return workspace;
   };
 
   return {
@@ -68,10 +98,16 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
       }
 
       const set = [session, ...manager.collectChildren(id)];
+      const forgettable = collectForgettable(session);
 
       const outcome = await manager.kill(id, stopOnly);
 
       stopEndedHeadlessRuns(set);
+
+      // a kill of a session that already exited forgets it
+      if (outcome === 'removed') {
+        await removeForgottenFolders(session, forgettable);
+      }
 
       return outcome;
     },
@@ -120,12 +156,15 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
       }
 
       const set = [session, ...manager.collectChildren(id)];
+      const forgettable = collectForgettable(session);
 
       const destroyed = await manager.forget(id);
 
       stopEndedHeadlessRuns(set);
 
-      return { forgotten: true, destroyed, workspace: { outcome: 'none' } };
+      const workspace = await removeForgottenFolders(session, forgettable);
+
+      return { forgotten: true, destroyed, workspace };
     },
   };
 }
