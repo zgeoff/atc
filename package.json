@@ -48,7 +48,7 @@
       "@zgeoff/skill-gate": "0.2.13",
       "@zgeoff/std": "0.3.1",
       "better-auth": "1.7.13",
-      "bun-pty": "0.5.1",
+      "bun-pty": "0.5.2",
       "elysia": "1.4.30",
       "gunshi": "1.0.0-rc.1",
       "knip": "6.43.0",
