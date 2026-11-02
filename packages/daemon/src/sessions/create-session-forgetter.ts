@@ -19,6 +19,7 @@ interface SessionForgetterDeps {
     | 'findProvider'
     | 'forget'
     | 'probeHarnessEnded'
+    | 'stopMessageBridge'
   >;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
   readonly tokens: Pick<ConfirmTokens, 'mintToken' | 'claimToken'>;
@@ -72,15 +73,33 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
   // A headless turn's runner gives no exit to wait on, so a session that ran one when the forget
   // began counts as possibly still running in its folders.
   const collectHeadlessRunning = (forgettable: readonly Session[]): Set<Session> =>
-    new Set(forgettable.filter((other) => (findRuntime(other.id)?.headlessRun ?? null) !== null));
+    new Set(
+      forgettable.filter((other) => {
+        const runtime = findRuntime(other.id);
+
+        return runtime !== undefined && (runtime.headlessRun !== null || runtime.headlessStopped);
+      }),
+    );
 
   const removeForgottenFolders = async (
     session: Session,
     forgettable: readonly Session[],
     headlessRunning: ReadonlySet<Session>,
   ): Promise<WorkspaceCleanup> => {
-    const probeHarnessEnded = (other: Session): Promise<boolean> =>
-      headlessRunning.has(other) ? Promise.resolve(false) : manager.probeHarnessEnded(other.id);
+    // A message bridge runs beside the daemon and writes in the session's state folder, so its
+    // stop must finish before the folder goes.
+    const probeHarnessEnded = async (other: Session): Promise<boolean> => {
+      const bridgeStopped = await manager.stopMessageBridge(other.id).then(
+        () => true,
+        () => false,
+      );
+
+      if (!bridgeStopped || headlessRunning.has(other)) {
+        return false;
+      }
+
+      return manager.probeHarnessEnded(other.id);
+    };
 
     const removeFolders = async (other: Session): Promise<WorkspaceCleanup> => {
       const harnessEnded = await probeHarnessEnded(other);

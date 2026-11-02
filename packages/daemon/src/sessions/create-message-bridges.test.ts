@@ -186,6 +186,47 @@ test('it stops the earlier bridge of a session a new launch starts', async () =>
   expect(ctx.stub.bridges.map((bridge) => bridge.countStops())).toStrictEqual([1, 0]);
 });
 
+test('it settles a second stop of a session only once the stop already under way finishes', async () => {
+  const ctx = await setupTest();
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.bridges.startBridge({
+    adapter: ctx.adapter,
+    session: session.id,
+    cwd: ctx.directory,
+    env: {},
+    withheldEnv: [],
+    options: { prompt: '', resume: false },
+  });
+
+  const [bridge] = ctx.stub.bridges;
+
+  invariant(bridge !== undefined);
+
+  bridge.holdStops();
+
+  const first = ctx.bridges.stopBridge(session.id);
+  const second = ctx.bridges.stopBridge(session.id);
+
+  await Promise.resolve();
+
+  const pendingBeforeFinish = Bun.peek.status(second);
+
+  bridge.finishStops();
+
+  await Promise.all([first, second]);
+
+  expect(pendingBeforeFinish).toBe('pending');
+  expect(bridge.countStops()).toBe(1);
+});
+
 test('it stops every bridge when the daemon stops', async () => {
   const ctx = await setupTest();
 

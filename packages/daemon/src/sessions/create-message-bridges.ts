@@ -151,12 +151,35 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
     };
   };
 
+  // A stop that a second caller asks for while the first one runs waits for the first, since
+  // a caller may remove the folder the bridge writes in once its stop resolves.
+  const stopping = new Map<SessionID, Set<Promise<void>>>();
+
+  const stopTracked = async (sessionID: SessionID, bridge: MessageBridge): Promise<void> => {
+    const stop = bridge.stop();
+    const running = stopping.get(sessionID) ?? new Set<Promise<void>>();
+
+    running.add(stop);
+    stopping.set(sessionID, running);
+
+    await stop.finally(() => {
+      running.delete(stop);
+
+      if (running.size === 0 && stopping.get(sessionID) === running) {
+        stopping.delete(sessionID);
+      }
+    });
+  };
+
   const stopBridge = async (sessionID: SessionID): Promise<void> => {
     const bridge = bridges.get(sessionID);
 
     bridges.delete(sessionID);
 
-    await bridge?.stop();
+    await Promise.all([
+      ...(stopping.get(sessionID) ?? []),
+      ...(bridge === undefined ? [] : [stopTracked(sessionID, bridge)]),
+    ]);
   };
 
   return {
@@ -184,7 +207,7 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
       bridges.set(launch.session, bridge);
 
       if (replaced !== undefined && replaced !== bridge) {
-        await replaced.stop();
+        await stopTracked(launch.session, replaced);
       }
 
       return bridge.plan;

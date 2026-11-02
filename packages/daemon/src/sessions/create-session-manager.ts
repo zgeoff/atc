@@ -29,7 +29,6 @@ import { createSessionAdopter } from './create-session-adopter';
 import { createSessionHarnesses } from './create-session-harnesses';
 import { createSessionHookApplier } from './create-session-hook-applier';
 import { createSessionKiller } from './create-session-killer';
-import type { SessionKiller } from './create-session-killer';
 import { createSessionRegistry } from './create-session-registry';
 import type { SessionRegistry, TargetBinding } from './create-session-registry';
 import { createSessionSpawner } from './create-session-spawner';
@@ -162,7 +161,9 @@ export interface SessionManager {
   ) => Promise<'stopped' | 'unchanged' | 'removed'>;
 
   readonly forget: (id: SessionID) => Promise<boolean>;
-  readonly probeHarnessEnded: SessionKiller['probeHarnessEnded'];
+
+  // Whether every process that a kill, a forget or a failed spawn's rollback ended has exited.
+  readonly probeHarnessEnded: (id: SessionID) => Promise<boolean>;
   readonly pickKillCapability: (session: Session) => ExecutionCapability;
   readonly writeStatus: () => void;
   readonly writeFleet: () => Promise<void>;
@@ -469,7 +470,12 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
 
     forget: (id) => killer.forget(id),
 
-    probeHarnessEnded: killer.probeHarnessEnded,
+    probeHarnessEnded: async (id) => {
+      const killed = await killer.probeHarnessEnded(id);
+      const rolledBack = await rollback.probeRollbackSettled(id);
+
+      return killed && rolledBack;
+    },
 
     pickKillCapability: (session) => killer.pickKillCapability(session),
 

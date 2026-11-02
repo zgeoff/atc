@@ -5,6 +5,11 @@ interface StubMessageBridge extends MessageBridge {
   readonly threads: string[];
   readonly countDeliveryStarts: () => number;
   readonly countStops: () => number;
+
+  // Keeps each later stop pending until the test finishes the stops, as an App Server that takes
+  // time to exit.
+  readonly holdStops: () => void;
+  readonly finishStops: () => void;
 }
 
 interface StubMessageBridges {
@@ -39,12 +44,20 @@ function buildStubMessageBridge(): StubMessageBridge {
   const threads: string[] = [];
   let deliveryStarts = 0;
   let stops = 0;
+  let heldStops: PromiseWithResolvers<void> | null = null;
 
   return {
     plan: { bin: 'stub-bridge', args: [] },
     threads,
     countDeliveryStarts: () => deliveryStarts,
     countStops: () => stops,
+    holdStops: () => {
+      heldStops = Promise.withResolvers<void>();
+    },
+    finishStops: () => {
+      heldStops?.resolve();
+      heldStops = null;
+    },
     startDelivery: () => {
       deliveryStarts += 1;
     },
@@ -54,7 +67,7 @@ function buildStubMessageBridge(): StubMessageBridge {
     stop: () => {
       stops += 1;
 
-      return Promise.resolve();
+      return heldStops?.promise ?? Promise.resolve();
     },
   };
 }

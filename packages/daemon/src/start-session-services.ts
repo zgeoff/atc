@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { InvalidGitTransports, TargetConfigError } from '@atc/config';
 import { parseRestoreBootTimeoutMs } from '@atc/config';
@@ -297,6 +298,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
         manager.log(line);
       },
       stateDir,
+      removeDir: (directory) => rm(directory, { recursive: true, force: true }),
       settings: opts.workspaceCleanup ?? { enabled: true },
     }),
   });

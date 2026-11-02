@@ -36,6 +36,10 @@ export interface SessionRuntime {
 
   headlessRun: HeadlessRunHandle | null;
 
+  // Whether a stop has aborted a headless turn; the runner reports no exit, so its process may
+  // still run in the session's folders.
+  headlessStopped: boolean;
+
   pendingEject: (() => void) | null;
 
   bootWaiter: (() => void) | null;
@@ -101,6 +105,8 @@ export function createSessionRuntime(): SessionRuntime {
 
     headlessRun: null,
 
+    headlessStopped: false,
+
     pendingEject: null,
 
     bootWaiter: null,
@@ -146,7 +152,12 @@ export function createSessionRuntime(): SessionRuntime {
     },
 
     stopHeadlessRun: () => {
-      runtime.headlessRun?.stop();
+      if (runtime.headlessRun !== null) {
+        runtime.headlessRun.stop();
+
+        runtime.headlessStopped = true;
+      }
+
       runtime.headlessRun = null;
     },
   };

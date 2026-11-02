@@ -63,3 +63,40 @@ test('it records what the daemon asks of a bridge', async () => {
   expect(bridge?.threads).toStrictEqual(['thread-2']);
   expect(bridge?.countStops()).toBe(1);
 });
+
+test('it keeps a held stop pending until the test finishes the stops', async () => {
+  const stub = buildStubMessageBridges();
+
+  const bridge = await stub.startMessageBridge({
+    session: toSessionID('s-1'),
+    cwd: '/work/app',
+    env: {},
+    withheldEnv: [],
+    options: { prompt: '', resume: false },
+    directory: '/state/sessions/s-1/codex',
+    host: {
+      attachTap: mock<MessageBridgeHost['attachTap']>(),
+      detachTap: mock<MessageBridgeHost['detachTap']>(),
+      ackMessage: mock<MessageBridgeHost['ackMessage']>(),
+      ackNotice: mock<MessageBridgeHost['ackNotice']>(),
+      applyNote: mock<MessageBridgeHost['applyNote']>(),
+      readUnsettledMessages: mock<MessageBridgeHost['readUnsettledMessages']>(),
+      log: mock<MessageBridgeHost['log']>(),
+    },
+  });
+
+  bridge.holdStops();
+
+  const stop = bridge.stop();
+
+  await Promise.resolve();
+
+  const pendingBeforeFinish = Bun.peek.status(stop);
+
+  bridge.finishStops();
+
+  await stop;
+
+  expect(pendingBeforeFinish).toBe('pending');
+  expect(Bun.peek.status(stop)).toBe('fulfilled');
+});

@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { buildStubLog, setupTempDir } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
@@ -14,7 +15,12 @@ function setupTest() {
   return {
     stateDir,
     log,
-    cleanup: createForgetCleanup({ log: log.log, stateDir, settings: { enabled: true } }),
+    cleanup: createForgetCleanup({
+      log: log.log,
+      stateDir,
+      removeDir: (directory) => rm(directory, { recursive: true, force: true }),
+      settings: { enabled: true },
+    }),
   };
 }
 
@@ -60,6 +66,7 @@ test('it keeps the state folder when cleanup is off', async () => {
   const cleanup = createForgetCleanup({
     log: ctx.log.log,
     stateDir: ctx.stateDir,
+    removeDir: (directory) => rm(directory, { recursive: true, force: true }),
     settings: { enabled: false },
   });
 
@@ -83,5 +90,22 @@ test('it logs and leaves a state folder whose session id would reach outside the
 
   expect(ctx.log.lines).toStrictEqual([
     `atc: left the state folder of session ../records, since its id names no folder of its own under ${join(ctx.stateDir, 'sessions')}`,
+  ]);
+});
+
+test("it leaves another session's state folder that a session id names through a dot-dot segment", async () => {
+  const ctx = setupTest();
+  const session = buildMockSession({ id: toSessionID('unused/../kept') });
+  const kept = join(ctx.stateDir, 'sessions', 'kept');
+
+  mkdirSync(kept, { recursive: true });
+
+  const workspace = await ctx.cleanup.removeSessionFolders(session, { harnessEnded: true });
+
+  expect(workspace).toStrictEqual({ outcome: 'none' });
+  expect(existsSync(kept)).toBeTrue();
+
+  expect(ctx.log.lines).toStrictEqual([
+    `atc: left the state folder of session unused/../kept, since its id names no folder of its own under ${join(ctx.stateDir, 'sessions')}`,
   ]);
 });

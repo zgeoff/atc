@@ -930,3 +930,51 @@ test('it gives the event handler it was built with a session restored at daemon 
 
   expect(onEvent).toHaveBeenCalledExactlyOnceWith('added', restored);
 });
+
+test("it reports a session's harness as running while a failed spawn's kill of it is unconfirmed", async () => {
+  const ctx = await setupTest();
+
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  });
+
+  registerTestCleanup(() => {
+    manager.detachAll();
+  });
+
+  manager.log = ctx.log;
+  manager.failedSpawnExitWaitMs = 1;
+
+  const spawn = manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+    answer: () => {
+      ctx.local.harnesses[0]?.holdExit();
+      throw new Error('the answer step refused');
+    },
+  });
+
+  expect(spawn).rejects.toThrow(/taking back its harness step failed/u);
+
+  const [session] = manager.sessions;
+
+  invariant(session !== undefined);
+
+  const ended = await manager.probeHarnessEnded(session.id);
+
+  expect(ended).toBeFalse();
+});
