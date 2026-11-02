@@ -100,3 +100,64 @@ test('it keeps a held stop pending until the test finishes the stops', async () 
   expect(pendingBeforeFinish).toBe('pending');
   expect(Bun.peek.status(stop)).toBe('fulfilled');
 });
+
+test('it rejects each stop while the test makes stops fail', async () => {
+  const stub = buildStubMessageBridges();
+
+  const bridge = await stub.startMessageBridge({
+    session: toSessionID('s-1'),
+    cwd: '/work/app',
+    env: {},
+    withheldEnv: [],
+    options: { prompt: '', resume: false },
+    directory: '/state/sessions/s-1/codex',
+    host: {
+      attachTap: mock<MessageBridgeHost['attachTap']>(),
+      detachTap: mock<MessageBridgeHost['detachTap']>(),
+      ackMessage: mock<MessageBridgeHost['ackMessage']>(),
+      ackNotice: mock<MessageBridgeHost['ackNotice']>(),
+      applyNote: mock<MessageBridgeHost['applyNote']>(),
+      readUnsettledMessages: mock<MessageBridgeHost['readUnsettledMessages']>(),
+      log: mock<MessageBridgeHost['log']>(),
+    },
+  });
+
+  bridge.updateStopsFail(true);
+
+  expect(bridge.stop()).rejects.toThrowWithMessage(Error, 'the app server did not exit');
+});
+
+test('it keeps a held start pending until the test finishes the starts, and lists its bridge at once', async () => {
+  const stub = buildStubMessageBridges();
+
+  stub.holdStarts();
+
+  const start = stub.startMessageBridge({
+    session: toSessionID('s-1'),
+    cwd: '/work/app',
+    env: {},
+    withheldEnv: [],
+    options: { prompt: '', resume: false },
+    directory: '/state/sessions/s-1/codex',
+    host: {
+      attachTap: mock<MessageBridgeHost['attachTap']>(),
+      detachTap: mock<MessageBridgeHost['detachTap']>(),
+      ackMessage: mock<MessageBridgeHost['ackMessage']>(),
+      ackNotice: mock<MessageBridgeHost['ackNotice']>(),
+      applyNote: mock<MessageBridgeHost['applyNote']>(),
+      readUnsettledMessages: mock<MessageBridgeHost['readUnsettledMessages']>(),
+      log: mock<MessageBridgeHost['log']>(),
+    },
+  });
+
+  await Promise.resolve();
+
+  const before = { status: Bun.peek.status(start), bridges: stub.bridges.length };
+
+  stub.finishStarts();
+
+  const bridge = await start;
+
+  expect(before).toStrictEqual({ status: 'pending', bridges: 1 });
+  expect(stub.bridges).toStrictEqual([bridge]);
+});

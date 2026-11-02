@@ -10,6 +10,10 @@ interface StubMessageBridge extends MessageBridge {
   // time to exit.
   readonly holdStops: () => void;
   readonly finishStops: () => void;
+
+  // Makes each later stop reject, as an App Server that refuses to exit, until the test sets it
+  // back.
+  readonly updateStopsFail: (fail: boolean) => void;
 }
 
 interface StubMessageBridges {
@@ -19,23 +23,38 @@ interface StubMessageBridges {
   // Every bridge started, in order.
   readonly bridges: StubMessageBridge[];
   readonly startMessageBridge: (request: MessageBridgeRequest) => Promise<StubMessageBridge>;
+
+  // Keeps each later start pending until the test finishes the starts, so two launches overlap.
+  // The bridge joins `bridges` when its start is asked for.
+  readonly holdStarts: () => void;
+  readonly finishStarts: () => void;
 }
 
 export function buildStubMessageBridges(): StubMessageBridges {
   const requests: MessageBridgeRequest[] = [];
   const bridges: StubMessageBridge[] = [];
+  let heldStarts: PromiseWithResolvers<void> | null = null;
 
   return {
     requests,
     bridges,
-    startMessageBridge: (request) => {
+    startMessageBridge: async (request) => {
       requests.push(request);
 
       const bridge = buildStubMessageBridge();
 
       bridges.push(bridge);
 
-      return Promise.resolve(bridge);
+      await heldStarts?.promise;
+
+      return bridge;
+    },
+    holdStarts: () => {
+      heldStarts = Promise.withResolvers<void>();
+    },
+    finishStarts: () => {
+      heldStarts?.resolve();
+      heldStarts = null;
     },
   };
 }
@@ -45,6 +64,7 @@ function buildStubMessageBridge(): StubMessageBridge {
   let deliveryStarts = 0;
   let stops = 0;
   let heldStops: PromiseWithResolvers<void> | null = null;
+  let stopsFail = false;
 
   return {
     plan: { bin: 'stub-bridge', args: [] },
@@ -58,6 +78,9 @@ function buildStubMessageBridge(): StubMessageBridge {
       heldStops?.resolve();
       heldStops = null;
     },
+    updateStopsFail: (fail) => {
+      stopsFail = fail;
+    },
     startDelivery: () => {
       deliveryStarts += 1;
     },
@@ -66,6 +89,10 @@ function buildStubMessageBridge(): StubMessageBridge {
     },
     stop: () => {
       stops += 1;
+
+      if (stopsFail) {
+        return Promise.reject(new Error('the app server did not exit'));
+      }
 
       return heldStops?.promise ?? Promise.resolve();
     },

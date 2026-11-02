@@ -155,6 +155,26 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
   // a caller may remove the folder the bridge writes in once its stop resolves.
   const stopping = new Map<SessionID, Set<Promise<void>>>();
 
+  // A bridge whose stop failed may still write in the folder, so the next stop of its session
+  // tries it again, and fails while it still fails.
+  const failedStops = new Map<SessionID, Set<MessageBridge>>();
+
+  const updateFailedStop = (sessionID: SessionID, bridge: MessageBridge, failed: boolean) => {
+    const bridgesLeft = new Set(failedStops.get(sessionID));
+
+    if (failed) {
+      bridgesLeft.add(bridge);
+    } else {
+      bridgesLeft.delete(bridge);
+    }
+
+    if (bridgesLeft.size === 0) {
+      failedStops.delete(sessionID);
+    } else {
+      failedStops.set(sessionID, bridgesLeft);
+    }
+  };
+
   const stopTracked = async (sessionID: SessionID, bridge: MessageBridge): Promise<void> => {
     const stop = bridge.stop();
     const running = stopping.get(sessionID) ?? new Set<Promise<void>>();
@@ -162,23 +182,33 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
     running.add(stop);
     stopping.set(sessionID, running);
 
-    await stop.finally(() => {
+    try {
+      await stop;
+
+      updateFailedStop(sessionID, bridge, false);
+    } catch (error) {
+      updateFailedStop(sessionID, bridge, true);
+      throw error;
+    } finally {
       running.delete(stop);
 
       if (running.size === 0 && stopping.get(sessionID) === running) {
         stopping.delete(sessionID);
       }
-    });
+    }
   };
 
   const stopBridge = async (sessionID: SessionID): Promise<void> => {
     const bridge = bridges.get(sessionID);
+    const failed = [...(failedStops.get(sessionID) ?? [])];
 
     bridges.delete(sessionID);
 
     await Promise.all([
       ...(stopping.get(sessionID) ?? []),
-      ...(bridge === undefined ? [] : [stopTracked(sessionID, bridge)]),
+      ...[...new Set([...failed, ...(bridge === undefined ? [] : [bridge])])].map((stopped) =>
+        stopTracked(sessionID, stopped),
+      ),
     ]);
   };
 

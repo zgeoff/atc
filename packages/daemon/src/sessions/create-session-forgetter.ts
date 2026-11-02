@@ -88,11 +88,9 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
         () => false,
       );
 
-      if (!bridgeStopped || headlessRunning.has(other)) {
-        return false;
-      }
+      const harnessEnded = await manager.probeHarnessEnded(other.id);
 
-      return manager.probeHarnessEnded(other.id);
+      return isSessionEnded({ bridgeStopped, harnessEnded, headless: headlessRunning.has(other) });
     };
 
     const removeFolders = async (other: Session): Promise<WorkspaceCleanup> => {
@@ -198,4 +196,17 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
       return { forgotten: true, destroyed, workspace };
     },
   };
+}
+
+interface SessionEndFacts {
+  readonly bridgeStopped: boolean;
+  readonly harnessEnded: boolean;
+
+  // Whether the session ran a headless turn, whose runner reports no exit.
+  readonly headless: boolean;
+}
+
+// Whether nothing of a forgotten session can still write in its folders.
+function isSessionEnded(facts: SessionEndFacts): boolean {
+  return facts.bridgeStopped && facts.harnessEnded && !facts.headless;
 }

@@ -329,7 +329,7 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
         ptys.map(async (pty) => ({ pty, exited: await waitForKilledExit(pty, waitMs) })),
       );
 
-      const running = waits.filter((wait) => !wait.exited).map((wait) => wait.pty);
+      const running = collectRunningHarnesses(waits);
 
       if (running.length === 0) {
         endingHarnesses.delete(id);
@@ -340,4 +340,14 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
       return running.length === 0;
     },
   };
+}
+
+interface HarnessWait {
+  readonly pty: HarnessHandle;
+  readonly exited: boolean;
+}
+
+// The harnesses a probe still has to wait for: each one whose wait saw no exit.
+function collectRunningHarnesses(waits: readonly HarnessWait[]): HarnessHandle[] {
+  return waits.filter((wait) => !wait.exited).map((wait) => wait.pty);
 }
