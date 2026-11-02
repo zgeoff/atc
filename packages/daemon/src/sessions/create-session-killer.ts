@@ -325,9 +325,11 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
       const ptys = endingHarnesses.get(id) ?? [];
       const waitMs = deps.readExitWaitMs();
 
-      const exits = await Promise.all(ptys.map((pty) => waitForKilledExit(pty, waitMs)));
+      const waits = await Promise.all(
+        ptys.map(async (pty) => ({ pty, exited: await waitForKilledExit(pty, waitMs) })),
+      );
 
-      const running = ptys.filter((_, index) => !exits[index]);
+      const running = waits.filter((wait) => !wait.exited).map((wait) => wait.pty);
 
       if (running.length === 0) {
         endingHarnesses.delete(id);
