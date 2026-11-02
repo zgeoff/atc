@@ -131,7 +131,73 @@ test('it counts a commit made on a detached HEAD that no branch or remote holds'
   });
 });
 
-test('it checks the folder a symlink leads to, and reports that folder', async () => {
+test('it counts a linked worktree, whose own work the other checks never see', async () => {
+  const ctx = await setupTest();
+
+  const linked = join(ctx.directory, 'shop-hotfix');
+
+  await $`git worktree add --quiet --detach ${linked}`.env(ctx.env).cwd(ctx.work).quiet();
+
+  const check = await runWorkspaceCheck({
+    provider: ctx.provider,
+    host: null,
+    directory: ctx.work,
+    sha: ctx.sha,
+  });
+
+  expect(check).toStrictEqual({
+    kind: 'checked',
+    path: realpathSync(ctx.work),
+    findings: ['1 linked worktree'],
+  });
+});
+
+test('it leaves out a linked worktree whose folder is gone', async () => {
+  const ctx = await setupTest();
+
+  const linked = join(ctx.directory, 'shop-hotfix');
+
+  await $`git worktree add --quiet --detach ${linked}`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`rm -rf ${linked}`.quiet();
+
+  const check = await runWorkspaceCheck({
+    provider: ctx.provider,
+    host: null,
+    directory: ctx.work,
+    sha: ctx.sha,
+  });
+
+  expect(check).toStrictEqual({ kind: 'checked', path: realpathSync(ctx.work), findings: [] });
+});
+
+test('it counts a committed submodule, whose own work the other checks never see', async () => {
+  const ctx = await setupTest();
+
+  mkdirSync(join(ctx.work, 'vendor', 'pricing'), { recursive: true });
+
+  await $`git update-index --add --cacheinfo 160000,${ctx.sha},vendor/pricing`
+    .env(ctx.env)
+    .cwd(ctx.work)
+    .quiet();
+
+  await $`git commit --quiet -m vendor`.env(ctx.env).cwd(ctx.work).quiet();
+  await $`git push --quiet origin main`.env(ctx.env).cwd(ctx.work).quiet();
+
+  const check = await runWorkspaceCheck({
+    provider: ctx.provider,
+    host: null,
+    directory: ctx.work,
+    sha: ctx.sha,
+  });
+
+  expect(check).toStrictEqual({
+    kind: 'checked',
+    path: realpathSync(ctx.work),
+    findings: ['1 submodule'],
+  });
+});
+
+test('it checks a folder a symlink leads to, and reports that folder', async () => {
   const ctx = await setupTest();
 
   const alias = join(ctx.directory, 'alias');

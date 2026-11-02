@@ -25,8 +25,9 @@ const MISSING_EXIT = 80;
 const FOREIGN_EXIT = 81;
 const GIT_FAILED_EXIT = 82;
 
-// git status starts an fsmonitor that the repository's own config names, so the script turns
-// it off; a branch or HEAD count is of the commits that no remote-tracking ref holds
+// git status starts an fsmonitor that the repository's own config names, and skips what a
+// submodule's ignore setting hides, so the script overrides both; a linked worktree or a
+// submodule counts as work, since no other check sees inside one
 export const WORKSPACE_CHECK_SCRIPT = `dir=$1 sha=$2
 if [ ! -e "$dir" ] && [ ! -L "$dir" ]; then exit ${MISSING_EXIT}; fi
 cd -P -- "$dir" || exit ${GIT_FAILED_EXIT}
@@ -37,12 +38,18 @@ g() { git -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }
 top=$(g rev-parse --show-toplevel) || exit ${FOREIGN_EXIT}
 [ "$top" = "$here" ] || exit ${FOREIGN_EXIT}
 g cat-file -e "$sha^{commit}" || exit ${FOREIGN_EXIT}
-changes=$(g status --porcelain --untracked-files=all) || exit ${GIT_FAILED_EXIT}
+changes=$(g status --porcelain --untracked-files=all --ignore-submodules=none) || exit ${GIT_FAILED_EXIT}
 stashes=$(g stash list) || exit ${GIT_FAILED_EXIT}
+worktrees=$(g worktree list --porcelain) || exit ${GIT_FAILED_EXIT}
+index=$(g ls-files --stage) || exit ${GIT_FAILED_EXIT}
 refs=$(g for-each-ref --format='%(refname)' refs/heads) || exit ${GIT_FAILED_EXIT}
+listed=$(printf '%s\\n' "$worktrees" | grep -c '^worktree ')
+stale=$(printf '%s\\n' "$worktrees" | grep -c '^prunable')
 printf '%s\\0' "$here"
 printf 'changes %s\\n' "$(printf '%s' "$changes" | grep -c '^')"
 printf 'stashes %s\\n' "$(printf '%s' "$stashes" | grep -c '^')"
+printf 'worktrees %s\\n' "$((listed - 1 - stale))"
+printf 'submodules %s\\n' "$(printf '%s\\n' "$index" | grep -c '^160000 ')"
 set -f
 for ref in $refs; do
   count=$(g rev-list --count "$ref" --not --remotes --) || exit ${GIT_FAILED_EXIT}
@@ -86,7 +93,7 @@ export async function runWorkspaceCheck(request: WorkspaceCheckRequest): Promise
 }
 
 const CHECK_LINE =
-  /^(?<kind>changes|stashes|branch|detached) (?<count>\d+)(?: refs\/heads\/(?<branch>.+))?$/u;
+  /^(?<kind>changes|stashes|worktrees|submodules|branch|detached) (?<count>\d+)(?: refs\/heads\/(?<branch>.+))?$/u;
 
 function parseCheckOutput(stdout: string): WorkspaceCheck {
   const split = stdout.indexOf('\0');
@@ -124,6 +131,14 @@ function pickCountNouns(
       plural: 'uncommitted or untracked paths',
     }))
     .with({ kind: 'stashes', branch: P.nullish }, () => ({ singular: 'stash', plural: 'stashes' }))
+    .with({ kind: 'worktrees', branch: P.nullish }, () => ({
+      singular: 'linked worktree',
+      plural: 'linked worktrees',
+    }))
+    .with({ kind: 'submodules', branch: P.nullish }, () => ({
+      singular: 'submodule',
+      plural: 'submodules',
+    }))
     .with({ kind: 'branch', branch: P.string }, (matched) => ({
       singular: `unpushed commit on ${matched.branch}`,
       plural: `unpushed commits on ${matched.branch}`,

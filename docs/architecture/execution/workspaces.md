@@ -126,13 +126,17 @@ and only the daemon log carries those outcomes.
 
 The step runs inside the forget, once the session is off the list, on the session's host through the
 provider's `runCommand`, so a sub-session in its parent's imp is checked and removed inside the imp.
-One script enters the directory through every symlink and answers four checks:
+One script enters the directory through every symlink and answers six checks:
 
-1. `git status --porcelain --untracked-files=all` prints nothing. An ignored file never counts.
+1. `git status --porcelain --untracked-files=all --ignore-submodules=none` prints nothing. An
+   ignored file never counts.
 2. `git stash list` prints nothing.
 3. Every commit reachable from HEAD or from a local branch is on a remote-tracking ref, so a commit
    made on a detached HEAD counts as unpushed.
-4. The host answers. A host that fails the command keeps the directory as unchecked.
+4. `git worktree list` names no linked worktree whose folder still exists. A linked worktree keeps
+   its git data inside the workspace, and the other checks never look inside it.
+5. The index holds no submodule, since the other checks never look inside one either.
+6. The host answers. A host that fails the command keeps the directory as unchecked.
 
 The script reads no system or global git config and turns off an fsmonitor that the repository's own
 config names, since `git status` would start it. It refuses a directory that is not the top of a git
