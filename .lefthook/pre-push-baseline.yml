@@ -16,6 +16,16 @@
 # it through the memory-capped script, so a run that outgrows the host fails
 # alone, with its peak memory in the output.
 
+# A pre-commit or a pre-push in a linked worktree exports GIT_DIR, which git
+# reads before a -C path, so a job command that runs git in a folder of its
+# own, such as a temp clone, would write to this repository instead. Each job
+# starts with clear-git-env, which unsets every variable git lists as local to
+# a repository; git then finds the repository from the job's folder. lefthook
+# expands a template in run only, so each files command that runs a program
+# unsets the same variables itself.
+templates:
+  clear-git-env: unset $(git rev-parse --local-env-vars);
+
 pre-commit:
   # Sequential, so typecheck reads the files the fixers before it rewrote.
   piped: true
@@ -23,7 +33,7 @@ pre-commit:
     # lefthook skips the job when no staged file matches the glob.
     - name: typecheck
       glob: '*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,json,jsonc}'
-      run: bun run --silent memory-capped bun run typecheck
+      run: '{clear-git-env} bun run --silent memory-capped bun run typecheck'
 
 pre-push:
   # Sequential, to bound memory on a small host or with parallel agents.
@@ -33,23 +43,24 @@ pre-push:
     # push when a file the branch changes or deletes holds a change that is
     # not committed, and names each such file.
     - name: uncommitted
-      run: bun run --silent memory-capped bun run --silent check:uncommitted
+      run: '{clear-git-env} bun run --silent memory-capped bun run --silent check:uncommitted'
     - name: format:check
-      run: bun run --silent memory-capped bun run format:check
+      run: '{clear-git-env} bun run --silent memory-capped bun run format:check'
     # Plain oxlint, without the unused-directive check: a directive for a
     # type-aware rule reads as unused in plain mode.
     - name: lint
-      files: bun run --silent files:branch
+      files: unset $(git rev-parse --local-env-vars); bun run --silent files:branch
       glob: '*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'
-      run: bun run --silent memory-capped bun run lint:files {files}
+      run: '{clear-git-env} bun run --silent memory-capped bun run lint:files {files}'
     # Each file check reads only the files the branch changes that match its
     # glob, so a file the branch leaves unchanged never fails a push. A check
     # whose program the machine lacks prints a notice and passes: CI installs
     # the program and runs the check on every pull request.
     - name: shell
-      files: bun run --silent files:branch
+      files: unset $(git rev-parse --local-env-vars); bun run --silent files:branch
       glob: '*.sh'
       run: |
+        {clear-git-env}
         for program in shellcheck shfmt; do
           if ! command -v "$program" > /dev/null; then
             echo "shell: skipped, because $program is not on the PATH; CI runs the check"
@@ -65,9 +76,10 @@ pre-push:
     # the docs-vision-check entry put it beside them, and the skill check when
     # the repo takes the skill-writing skill.
     - name: docs
-      files: bun run --silent files:branch
+      files: unset $(git rev-parse --local-env-vars); bun run --silent files:branch
       glob: '*.md'
       run: |
+        {clear-git-env}
         scripts=.claude/skills/docs-writing/scripts
         if [ ! -f "$scripts/check-length.sh" ]; then
           echo "docs: skipped, because the repo has no $scripts/check-length.sh; take the skill-docs-writing entry of repo-sync to run it"
@@ -92,11 +104,12 @@ pre-push:
     # The workflow lint runs after actionlint, even when actionlint is missing
     # or fails.
     - name: workflows
-      files: bun run --silent files:branch
+      files: unset $(git rev-parse --local-env-vars); bun run --silent files:branch
       glob:
         - '.github/workflows/*.{yml,yaml}'
         - 'sync/workflow-callers/*.{yml,yaml}'
       run: |
+        {clear-git-env}
         status=0
         if ! command -v actionlint > /dev/null; then
           echo "workflows: actionlint skipped, because it is not on the PATH; CI runs it"
@@ -119,27 +132,25 @@ pre-push:
     - name: commits
       files: echo package.json
       use_stdin: true
-      run: 'bun run --silent memory-capped bun run --silent check:commits --pushed-refs # {files}'
+      run:
+        '{clear-git-env} bun run --silent memory-capped bun run --silent check:commits --pushed-refs
+        # {files}'
     # package.json keeps this job from the same lefthook skip.
     - name: local-paths
       files: echo package.json
       use_stdin: true
       run:
-        'bun run --silent memory-capped bun run --silent check:local-paths --pushed-refs # {files}'
+        '{clear-git-env} bun run --silent memory-capped bun run --silent check:local-paths
+        --pushed-refs # {files}'
     - name: test-timeouts
-      run: bun run --silent memory-capped bun run --silent check:test-timeouts
+      run: '{clear-git-env} bun run --silent memory-capped bun run --silent check:test-timeouts'
     - name: dependency-gates
-      run: bun run --silent memory-capped bun run --silent check:dependency-gates
+      run: '{clear-git-env} bun run --silent memory-capped bun run --silent check:dependency-gates'
     - name: typecheck
-      run: bun run --silent memory-capped bun run typecheck
-    # A pre-push in a linked worktree exports GIT_DIR, and a test that runs git
-    # in a temp folder would inherit it and write to the real repository: a
-    # git init there sets core.bare=true. The tests run without git's
-    # repository variables. A bunfig.toml reaches the job too, because a change
-    # to it skips the related tests.
+      run: '{clear-git-env} bun run --silent memory-capped bun run typecheck'
+    # A bunfig.toml reaches the job too, because a change to it skips the
+    # related tests.
     - name: test
-      files: bun run --silent files:branch
+      files: unset $(git rev-parse --local-env-vars); bun run --silent files:branch
       glob: '*.{ts,tsx,toml}'
-      run:
-        env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR bun run --silent
-        memory-capped bun run test:related {files}
+      run: '{clear-git-env} bun run --silent memory-capped bun run test:related {files}'
