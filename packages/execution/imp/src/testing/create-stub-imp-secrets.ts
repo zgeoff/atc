@@ -157,7 +157,7 @@ export function createStubImpSecrets(deps: StubImpSecretsOptions): StubImpSecret
 
           const listed: ImpdListedSecret = {
             name: secret.name,
-            kind: secret.kind,
+            kind: secret.kind === 'oauth' ? 'oauth' : 'static',
             rules: secret.rules.map((rule) => ({
               host: rule.host,
               header: rule.header,

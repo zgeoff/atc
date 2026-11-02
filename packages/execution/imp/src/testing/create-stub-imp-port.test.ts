@@ -1721,7 +1721,7 @@ test('it grants a secret to an imp within the patterns once however often it is 
   expect(grants).toStrictEqual(['glm']);
 });
 
-test('it lists each secret with the imps it is granted to', async () => {
+test('it lists each secret with the imps it is granted to, and any kind but oauth as static', async () => {
   const ctx = setupTest();
 
   ctx.port.setIdentity(buildMockImpIdentity({ grantable: ['glm'] }));
@@ -1738,7 +1738,7 @@ test('it lists each secret with the imps it is granted to', async () => {
   expect(secrets).toStrictEqual([
     {
       name: 'glm',
-      kind: 'custom',
+      kind: 'static',
       rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
       imps: ['atc-s1'],
     },
