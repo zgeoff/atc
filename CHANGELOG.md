@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.7.4](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.7.3...@zgeoff/atc@7.7.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* **daemon:** hold a remote session's start until its bridge tap attaches ([#1052](https://github.com/zgeoff/atc/issues/1052)) ([6805025](https://github.com/zgeoff/atc/commit/6805025606773953524fb9215fefb0ad970d2efa))
+
 ## [7.7.3](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.7.2...@zgeoff/atc@7.7.3) (2026-11-01)
 
 ### Bug Fixes
