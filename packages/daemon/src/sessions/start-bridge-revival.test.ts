@@ -189,7 +189,8 @@ test('it plans each write of the mod with the time of that write', async () => {
 });
 
 test('it holds an agent start until the mod is written again when no tap attaches in 10 s', async () => {
-  const ctx = setupTest({ remote: true });
+  const transfer = Promise.withResolvers<void>();
+  const ctx = setupTest({ remote: true, transferArchive: () => transfer.promise });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({
@@ -210,23 +211,34 @@ test('it holds an agent start until the mod is written again when no tap attache
   const held = (async () => {
     await ctx.revival.watchAgentStart(id);
 
-    order.push(`start went on after ${String(ctx.provider.transfers.length)} write`);
+    order.push('start went on');
   })();
 
   await new Promise((resolve) => {
     setImmediate(resolve);
   });
 
-  order.push('start wait ended');
   ctx.clock.advance(10_000);
+
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(1);
+  });
+
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+  order.push('write ended');
+  transfer.resolve();
 
   await held;
 
-  expect(order).toStrictEqual(['start wait ended', 'start went on after 1 write']);
+  expect(order).toStrictEqual(['write ended', 'start went on']);
 });
 
 test('it holds an agent start that comes while the daemon waits for a lost tap', async () => {
-  const ctx = setupTest({ remote: true });
+  const transfer = Promise.withResolvers<void>();
+  const ctx = setupTest({ remote: true, transferArchive: () => transfer.promise });
   const id = toSessionID('s-bridge');
 
   const pty = ctx.provider.spawnHarness({
@@ -249,19 +261,29 @@ test('it holds an agent start that comes while the daemon waits for a lost tap',
   const held = (async () => {
     await ctx.revival.watchAgentStart(id);
 
-    order.push(`start went on after ${String(ctx.provider.transfers.length)} write`);
+    order.push('start went on');
   })();
 
   await new Promise((resolve) => {
     setImmediate(resolve);
   });
 
-  order.push('start wait ended');
   ctx.clock.advance(10_000);
+
+  await waitFor(() => {
+    expect(ctx.provider.transfers).toHaveLength(1);
+  });
+
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+  order.push('write ended');
+  transfer.resolve();
 
   await held;
 
-  expect(order).toStrictEqual(['start wait ended', 'start went on after 1 write']);
+  expect(order).toStrictEqual(['write ended', 'start went on']);
 });
 
 test('it lets an agent start go on as soon as its tap attaches', async () => {
