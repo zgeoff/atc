@@ -1,13 +1,18 @@
 ---
 name: project-code-style
 description:
-  The place for atc's additions to the shared code-style skill. atc adds no rule to it, so the
-  shared skill applies as written. Load beside code-style before writing, reviewing, or renaming any
-  TypeScript in atc.
+  "The one folder of atc that doesn't follow the shared code-style skill: the Claude Code mod in
+  mods/. Load it beside code-style before you write or review TypeScript in atc."
+metadata:
+  kind: rule-set
 ---
 
 # atc code style
 
-The shared `code-style` skill holds the module layout, the acronym rule, state lifecycles, and the
-role table of function verbs. This skill holds only what atc adds to it, and it never relaxes a rule
-there.
+## Departures
+
+- In `mods/`, skip code-style's rules. Each folder there, such as `mods/atc-bridge/`, is a Claude
+  Code mod, and Claude Code's mod API decides how its code looks.
+  [`.oxlintrc.mods.json`](../../../.oxlintrc.mods.json) checks only which packages a mod imports and
+  how it imports them, and `bun run test:atc-bridge` checks the mod with `claude plugin validate`
+  and `claude plugin test`.
