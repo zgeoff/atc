@@ -40,16 +40,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
       - name: Require every check
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          for result in $RESULTS; do
-            if [ "$result" != "success" ]; then
-              echo "a required job ended as $result" >&2
-              exit 1
-            fi
-          done
+        run: bun run --silent ci:require-every-check
 
   binaries:
     concurrency:
@@ -137,13 +135,16 @@ jobs:
         with:
           name: binaries
           path: dist
-      # --clobber makes a re-run replace assets a failed run left behind.
+      - name: Set up bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - name: Install
+        run: bun install --frozen-lockfile
       - name: Attach binaries to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          version=$(jq -r .version package.json)
-          gh release upload "@zgeoff/atc@$version" dist/atc-* dist/SHA256SUMS --clobber --repo "$GITHUB_REPOSITORY"
+        run: bun run --silent ci:release-upload
 
       # The tap is a second repository, so the release App has to be
       # installed on it as well and HOMEBREW_TAP set to its name (see
@@ -162,22 +163,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.tap-token.outputs.token }}
           TAP: ${{ github.repository_owner }}/${{ vars.HOMEBREW_TAP }}
-        run: |
-          version=$(jq -r .version package.json)
-          git clone "https://x-access-token:$GH_TOKEN@github.com/$TAP.git" tap
-          mkdir -p tap/Formula
-          scripts/build-formula.sh "$version" dist/SHA256SUMS > tap/Formula/atc.rb
-          cd tap
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/atc.rb
-          git commit -m "atc $version" || echo "formula already at $version"
-          git push
-
-      - name: Set up bun for publish
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version-file: .bun-version
+        run: bun run --silent ci:formula-update
 
       # npm publishes, because bun publish has no trusted publishing, and
       # trusted publishing needs npm 11.5.1 or later, which Node 24 bundles
@@ -189,9 +175,7 @@ jobs:
       # a version npm holds already is skipped, so a re-run after a failed
       # step publishes nothing twice
       - name: Publish @atcx/contract
-        run: |
-          bun install --frozen-lockfile
-          bash scripts/publish-contract.sh
+        run: bash scripts/publish-contract.sh
 
   # The run at the tag checks and ships it. A dispatch is the one GITHUB_TOKEN
   # event that starts a workflow.
