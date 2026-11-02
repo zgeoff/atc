@@ -5,6 +5,7 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import type { SessionRegistry } from './create-session-registry';
 import { isPathWithin } from './is-path-within';
+import type { Session } from './session';
 
 // A workspace directory a spawn on a shared host holds, as the spawn gave
 // it and as the host resolves it once checked there.
@@ -55,6 +56,13 @@ export interface HostDirClaims {
   // the daemon's own machine, holds from its overlap check until its session
   // lists or its spawn fails, by spawn id.
   readonly reservations: Map<SessionID, WorkspaceReservation>;
+
+  // Each session a kill or forget may take off the list, from before it goes until atc sees its
+  // processes end; every check here counts a held session's directory as a listed one's, so no
+  // removal empties a directory a process may still run in.
+  readonly heldSessions: ReadonlyMap<SessionID, Session>;
+  readonly holdSessions: (sessions: readonly Session[]) => void;
+  readonly releaseSessions: (sessions: readonly Session[]) => void;
 
   // a failed spawn whose effects may still stand keeps its reservation, so no other workspace
   // lands in or around what it left
@@ -123,6 +131,14 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   const machineRemovals: { readonly id: SessionID; readonly directory: string }[] = [];
   const registry = deps.registry;
 
+  const heldSessions = new Map<SessionID, Session>();
+
+  // The listed sessions and the held ones a forget took off the list.
+  const collectSessions = (): Session[] => [
+    ...registry.sessions,
+    ...[...heldSessions.values()].filter((session) => !registry.sessions.includes(session)),
+  ];
+
   // The directories plain spawns still starting on a host hold, as given.
   const collectPlainDirs = (hostKey: SessionID, target: string): (readonly [SessionID, string])[] =>
     [...reservations]
@@ -138,7 +154,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   // starting there, as one string a later read compares against.
   const collectHostSessionIDs = (hostKey: SessionID, target: string): string =>
     [
-      ...registry.sessions
+      ...collectSessions()
         .filter((session) => session.hostKey === hostKey && session.target === target)
         .map((session) => session.id),
       ...collectPlainDirs(hostKey, target).map(([id]) => id),
@@ -148,7 +164,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   // the given spawn's: every session listed on a target without hosts, and
   // every plain spawn still starting there, as given.
   const collectMachineDirs = (id: SessionID): (readonly [SessionID, string])[] => [
-    ...registry.sessions
+    ...collectSessions()
       .filter((session) => session.id !== id && !registry.hasHostLifecycle(session.target))
       .map((session) => [session.id, session.cwd] as const),
     ...[...reservations]
@@ -227,7 +243,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     readonly unresolved: (readonly [SessionID, string])[];
   }> => {
     const onHost = [
-      ...registry.sessions.filter(
+      ...collectSessions().filter(
         (session) => session.hostKey === hostKey && session.target === target,
       ),
       ...collectPlainDirs(hostKey, target).map(([id, cwd]) => ({ id, cwd })),
@@ -441,12 +457,26 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   return {
     reservations,
 
+    heldSessions,
+
+    holdSessions: (sessions) => {
+      for (const session of sessions) {
+        heldSessions.set(session.id, session);
+      }
+    },
+
+    releaseSessions: (sessions) => {
+      for (const session of sessions) {
+        heldSessions.delete(session.id);
+      }
+    },
+
     releaseWorkspace: (id) => {
       reservations.delete(id);
     },
 
     claimWorkspace: (id, hostKey, target, directory) => {
-      const listed = registry.sessions
+      const listed = collectSessions()
         .filter(
           (session) =>
             session.hostKey === hostKey &&

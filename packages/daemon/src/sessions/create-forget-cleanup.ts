@@ -17,6 +17,8 @@ interface ForgetCleanupDeps {
     | 'requireExecution'
     | 'hasHostLifecycle'
     | 'removeClaimedDir'
+    | 'heldSessions'
+    | 'releaseSessions'
     | 'log'
   >;
   readonly store: Pick<StateStore, 'readMaterialization'>;
@@ -39,16 +41,8 @@ interface ForgottenSessionState {
 }
 
 export interface ForgetCleanup {
-  // Counts each session as a user of any workspace its directory lies in, from before a forget
-  // takes it off the list until atc sees its processes end, so a workspace never goes from under
-  // a process that may still run.
-  readonly holdSessions: (sessions: readonly Session[]) => void;
-
-  // Ends the hold on each session given, for one the forget left listed.
-  readonly releaseSessions: (sessions: readonly Session[]) => void;
-
-  // Runs once the forget took the session off the list, and ends its hold once its processes
-  // ended.
+  // Runs once the forget took the session off the list, and ends the hold on it once its
+  // processes ended.
   readonly removeSessionFolders: (
     session: Session,
     state: ForgottenSessionState,
@@ -61,8 +55,6 @@ const UNENDED_REASON = "unchecked: atc could not confirm that the session's proc
 export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   const manager = deps.manager;
   const settings = deps.settings;
-
-  const held = new Map<SessionID, Session>();
 
   const removeStateDir = async (id: SessionID): Promise<void> => {
     const sessions = join(deps.stateDir, 'sessions');
@@ -92,7 +84,7 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   const findWorkspaceUser = (session: Session, forms: readonly string[]): SessionID | null => {
     const hosted = manager.hasHostLifecycle(session.target);
 
-    const user = [...manager.sessions, ...held.values()].find(
+    const user = [...manager.sessions, ...manager.heldSessions.values()].find(
       (other) =>
         other.id !== session.id &&
         (hosted
@@ -188,21 +180,9 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   };
 
   return {
-    holdSessions: (sessions) => {
-      for (const session of sessions) {
-        held.set(session.id, session);
-      }
-    },
-
-    releaseSessions: (sessions) => {
-      for (const session of sessions) {
-        held.delete(session.id);
-      }
-    },
-
     removeSessionFolders: async (session, state) => {
       if (state.harnessEnded) {
-        held.delete(session.id);
+        manager.releaseSessions([session]);
       }
 
       if (!settings.enabled) {

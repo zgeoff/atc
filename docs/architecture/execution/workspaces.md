@@ -178,14 +178,15 @@ lacks a line, adds one, or labels one differently keeps the directory as uncheck
 | Every check passes                                      | `removed`                        |
 
 The removal is the rollback's: it removes the contents from inside the directory while the directory
-still resolves to itself, and it refuses while a listed session's or a claim's directory lies
-inside, as the host resolves each one. A refused or failed removal keeps the directory with its
-reason. Every spawn that builds a workspace claims its directory before the clone creates it: on a
-shared host as before, and on the daemon's own machine from its landing. While a removal runs, a
-claim on that shared host, or one on the daemon's machine that overlaps the directory, is refused as
-`workspace_overlap`, so no spawn builds inside a directory that a removal is emptying. The session's
-state folder on the daemon's host goes after the workspace step, whatever that step decided, unless
-cleanup is off or atc saw no exit of the session's process.
+still resolves to itself, and it refuses while the directory of a listed session, of a forgotten
+session not yet seen to end, or of a claim lies inside, as the host resolves each one. A refused or
+failed removal keeps the directory with its reason. Every spawn that builds a workspace claims its
+directory before the clone creates it: on a shared host as before, and on the daemon's own machine
+from its landing. While a removal runs, a claim on that shared host, or one on the daemon's machine
+that overlaps the directory, is refused as `workspace_overlap`, so no spawn builds inside a
+directory that a removal is emptying. The session's state folder on the daemon's host goes after the
+workspace step, whatever that step decided, unless cleanup is off or atc saw no exit of the
+session's process.
 
 ## Sources
 

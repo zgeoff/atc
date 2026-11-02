@@ -20,6 +20,8 @@ interface SessionForgetterDeps {
     | 'forget'
     | 'probeHarnessEnded'
     | 'stopMessageBridge'
+    | 'holdSessions'
+    | 'releaseSessions'
   >;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
   readonly tokens: Pick<ConfirmTokens, 'mintToken' | 'claimToken'>;
@@ -121,7 +123,7 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
 
     const removed = forgettable.filter((other) => !manager.sessions.includes(other));
 
-    cleanup.releaseSessions(forgettable.filter((other) => manager.sessions.includes(other)));
+    manager.releaseSessions(forgettable.filter((other) => manager.sessions.includes(other)));
 
     // the sessions taken with it go first, so a sub-session that ran in the session's workspace
     // and ended no longer holds it
@@ -139,12 +141,12 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
     forgettable: readonly Session[],
     run: () => Promise<T>,
   ): Promise<T> => {
-    cleanup.holdSessions(forgettable);
+    manager.holdSessions(forgettable);
 
     try {
       return await run();
     } catch (error) {
-      cleanup.releaseSessions(forgettable.filter((other) => manager.sessions.includes(other)));
+      manager.releaseSessions(forgettable.filter((other) => manager.sessions.includes(other)));
       throw error;
     }
   };
@@ -176,7 +178,7 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
         if (outcome === 'removed') {
           await removeForgottenFolders(session, forgettable, headlessRunning, false);
         } else {
-          cleanup.releaseSessions(forgettable);
+          manager.releaseSessions(forgettable);
         }
 
         return outcome;

@@ -6,6 +6,7 @@ import { toSessionID } from '@atcx/contract';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildMockSession } from '../testing/build-mock-session';
+import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildStubStaleRelativeProvider } from '../testing/build-stub-stale-relative-provider';
 import {
@@ -440,4 +441,57 @@ test('it keeps a claimed directory on the host when a stale relative directory i
 
   expect(removed).toBeFalse();
   expect(readFileSync(join(workspace, 'keep.txt'), 'utf8')).toBe('kept\n');
+});
+
+test('it keeps a directory on the daemon host that a held session reaches through a symlink', async () => {
+  const provider = buildStubLocalProvider();
+  const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'local', provider })] });
+  const temporaryDirectory = setupTempDir('atc-held-claims-');
+  const workspace = join(temporaryDirectory.path, 'workspace');
+  const alias = join(temporaryDirectory.path, 'alias');
+
+  mkdirSync(join(workspace, 'inner'), { recursive: true });
+  writeFileSync(join(workspace, 'keep.txt'), 'kept\n');
+  symlinkSync(join(workspace, 'inner'), alias);
+
+  ctx.claims.holdSessions([
+    buildMockSession({ id: toSessionID('held-1'), target: 'local', cwd: alias }),
+  ]);
+
+  const removed = await ctx.claims.removeClaimedDir({
+    provider,
+    id: toSessionID('forgotten-1'),
+    hostKey: toSessionID('forgotten-1'),
+    target: 'local',
+    directory: workspace,
+  });
+
+  expect(removed).toBeFalse();
+  expect(readFileSync(join(workspace, 'keep.txt'), 'utf8')).toBe('kept\n');
+});
+
+test('it removes a directory on the daemon host once the session that reached it is released', async () => {
+  const provider = buildStubLocalProvider();
+  const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'local', provider })] });
+  const temporaryDirectory = setupTempDir('atc-held-claims-');
+  const workspace = join(temporaryDirectory.path, 'workspace');
+  const alias = join(temporaryDirectory.path, 'alias');
+
+  mkdirSync(join(workspace, 'inner'), { recursive: true });
+  symlinkSync(join(workspace, 'inner'), alias);
+
+  const held = buildMockSession({ id: toSessionID('held-1'), target: 'local', cwd: alias });
+
+  ctx.claims.holdSessions([held]);
+  ctx.claims.releaseSessions([held]);
+
+  const removed = await ctx.claims.removeClaimedDir({
+    provider,
+    id: toSessionID('forgotten-1'),
+    hostKey: toSessionID('forgotten-1'),
+    target: 'local',
+    directory: workspace,
+  });
+
+  expect(removed).toBeTrue();
 });
