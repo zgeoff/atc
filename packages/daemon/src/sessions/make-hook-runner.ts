@@ -2,6 +2,7 @@ import type { HookEntry, HooksConfig } from '@atc/config';
 import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { EventMsg } from '@atc/protocol/wire';
+import type { Subprocess } from 'bun';
 
 export interface HookScope {
   readonly cwd: string;
@@ -13,7 +14,7 @@ type RunHooks = (event: EventMsg, scope: HookScope | null) => void;
 export interface HookOutcome {
   readonly command: string;
   readonly exitCode: number | null;
-  readonly signalCode: string | null;
+  readonly signalCode: Subprocess['signalCode'];
 }
 
 interface HookRunnerOptions {

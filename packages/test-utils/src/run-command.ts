@@ -1,3 +1,4 @@
+import type { Subprocess } from 'bun';
 import { killProcessGroup } from './kill-process-group';
 import { registerTestCleanup } from './register-test-cleanup';
 
@@ -14,7 +15,7 @@ interface CommandOptions {
 interface CommandResult {
   // Null when a signal ended the run.
   readonly exitCode: number | null;
-  readonly signalCode: string | null;
+  readonly signalCode: Subprocess['signalCode'];
   readonly stdout: string;
   readonly stderr: string;
 }

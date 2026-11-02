@@ -1602,10 +1602,10 @@ test('it refuses a code exchange with the wrong PKCE verifier', async () => {
 
   const refusal = await readJSONRecord(exchanged);
 
-  expect(exchanged.status).toBe(401);
+  expect(exchanged.status).toBe(400);
 
   expect(refusal).toStrictEqual({
-    error: 'invalid_request',
+    error: 'invalid_grant',
     error_description: 'code verification failed',
   });
 });
@@ -3176,7 +3176,7 @@ test('it writes a token exchange for an unknown client without the client', asyn
       ts: new Date(ctx.clock.now()).toISOString(),
       kind: 'token_exchange',
       outcome: 'rejected',
-      reason: 'invalid_grant',
+      reason: 'invalid_client',
       route: '/oauth2/token',
       peer: { address: '127.0.0.1', provenance: 'socket' },
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
