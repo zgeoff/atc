@@ -66,7 +66,7 @@ if (import.meta.main) {
   } catch (error) {
     // the shell error names the command and its arguments, which hold the tap token
     process.stderr.write(
-      `run-formula-update: ${error instanceof $.ShellError ? `a command exited ${error.exitCode}: ${error.stderr.toString()}` : String(error)}\n`,
+      `run-formula-update: ${error instanceof $.ShellError ? `a command exited ${error.exitCode}: ${error.stderr.toString().trim()}` : String(error)}\n`,
     );
 
     process.exit(1);

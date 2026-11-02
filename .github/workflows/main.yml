@@ -69,8 +69,15 @@ jobs:
   # the tag must land while the merge commit is still main's head, as the
   # release App's token cannot tag a commit behind a workflow change. With no
   # App configured, the release PR still opens, without checks.
+  #
+  # Its group holds the commit, so no run waits in it behind an earlier one:
+  # a release run that queued could find the merge commit no longer main's
+  # head when it starts, and fail to tag.
   release:
     if: github.event_name == 'push'
+    concurrency:
+      group: main-release-${{ github.sha }}
+      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write

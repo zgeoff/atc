@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createGitFixture } from '@atc/test-utils';
+import { createGitFixture, createStubBin, runCommand, setupTempDir } from '@atc/test-utils';
 import { $ } from 'bun';
 import { runFormulaUpdate } from './run-formula-update';
 
@@ -65,4 +65,37 @@ test('it commits nothing to a tap whose formula is already at the checkout versi
   const after = await $`git rev-parse HEAD`.cwd(git.upstream).env(git.env).text();
 
   expect(after).toBe(before);
+});
+
+test('it exits 1 with the failing command status and stderr, and leaves the tap token out', async () => {
+  const temporaryDirectory = setupTempDir('run-formula-update-');
+  const bin = join(temporaryDirectory.path, 'bin');
+
+  createStubBin(bin, 'git', `#!/bin/sh\necho 'fatal: repository not found' >&2\nexit 128\n`);
+
+  writeFileSync(
+    join(temporaryDirectory.path, 'package.json'),
+    JSON.stringify({ version: '4.2.0' }),
+  );
+
+  const update = await runCommand(
+    [process.execPath, join(import.meta.dir, 'run-formula-update.ts')],
+    {
+      cwd: temporaryDirectory.path,
+      env: {
+        ...process.env,
+        GH_TOKEN: 'tap-token-for-a-test',
+        TAP: 'example/homebrew-tower',
+        PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+      },
+    },
+  );
+
+  expect({ exitCode: update.exitCode, stdout: update.stdout, stderr: update.stderr }).toStrictEqual(
+    {
+      exitCode: 1,
+      stdout: '',
+      stderr: 'run-formula-update: a command exited 128: fatal: repository not found\n',
+    },
+  );
 });
