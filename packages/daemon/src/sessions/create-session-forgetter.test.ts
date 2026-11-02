@@ -7,6 +7,7 @@ import { createStateStore } from '@atc/store';
 import {
   buildStubClock,
   buildStubHeadlessRunner,
+  buildStubHostHold,
   buildStubLog,
   createGitFixture,
   createMigratedStateDB,
@@ -63,9 +64,18 @@ async function setupTest(config: SetupTestConfig) {
   const stopMessageBridge = mock<(id: SessionID) => Promise<void>>(() => Promise.resolve());
   const headless = buildStubHeadlessRunner();
 
+  // Pauses each fleet write once a test starts it, as a slow disk.
+  const fleetWrites = buildStubHostHold();
+
   const manager = createSessionManager({
     fallback: null,
-    store,
+    store: {
+      ...store,
+      writeFleet: async (entries, removed) => {
+        await fleetWrites.waitForRelease();
+        await store.writeFleet(entries, removed);
+      },
+    },
     statusPath: join(temporaryDirectory.path, 'status.json'),
     adapters: [{ ...buildStubHarnessAdapter(), headlessRunner: headless.runner }],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
@@ -113,6 +123,7 @@ async function setupTest(config: SetupTestConfig) {
     runtimes,
     stopMessageBridge,
     headless,
+    fleetWrites,
     forgetter,
   };
 }
@@ -946,6 +957,52 @@ test('it keeps the workspace of a session whose headless turn reported its resul
   });
 
   expect(existsSync(git.work)).toBeTrue();
+});
+
+test('it keeps the hold of a forget that waits on a late exit when a kill paused at its fleet write ends', async () => {
+  const ctx = await setupTest({ destroy: false });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness !== undefined);
+
+  harness.holdExit();
+  ctx.fleetWrites.startHold();
+
+  const killing = ctx.forgetter.killSession(session.id, true);
+
+  await ctx.fleetWrites.entered;
+
+  const forgetting = ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  ctx.fleetWrites.release();
+
+  await killing;
+
+  await waitFor(() => {
+    expect(harness.hasExitWaiters()).toBeTrue();
+  });
+
+  const heldWhileWaiting = ctx.manager.collectHeldSessions().includes(session);
+
+  harness.emitExit({ exitCode: 143 });
+
+  await forgetting;
+
+  expect(heldWhileWaiting).toBeTrue();
 });
 
 test('it removes the folders of a killed session only once its harness exits late', async () => {

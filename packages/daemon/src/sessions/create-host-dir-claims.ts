@@ -53,18 +53,22 @@ interface HostDirClaimsDeps {
   readonly registry: Pick<SessionRegistry, 'sessions' | 'hasHostLifecycle'>;
 }
 
+// One kill's or forget's hold; it releases only the sessions this hold has.
+export interface SessionHold {
+  readonly release: (sessions: readonly Session[]) => void;
+}
+
 export interface HostDirClaims {
   // The workspace directory each spawn on a shared host, and each spawn on
   // the daemon's own machine, holds from its overlap check until its session
   // lists or its spawn fails, by spawn id.
   readonly reservations: Map<SessionID, WorkspaceReservation>;
 
-  // Each session a kill or forget may take off the list, from before it goes until atc sees its
-  // processes end; every check here counts a held session's directory as a listed one's, so no
-  // removal empties a directory a process may still run in.
-  readonly heldSessions: ReadonlyMap<SessionID, Session>;
-  readonly holdSessions: (sessions: readonly Session[]) => void;
-  readonly releaseSessions: (sessions: readonly Session[]) => void;
+  // Each session a kill or forget may take off the list, until atc sees its processes end; every
+  // check here counts a held session's directory as a listed one's. A session stays held while
+  // any hold has it, so a kill that ends never lets go of one a concurrent forget waits on.
+  readonly collectHeldSessions: () => Session[];
+  readonly holdSessions: (sessions: readonly Session[]) => SessionHold;
 
   // a failed spawn whose effects may still stand keeps its reservation, so no other workspace
   // lands in or around what it left
@@ -137,12 +141,25 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   const machineRemovals: { readonly id: SessionID; readonly directory: string }[] = [];
   const registry = deps.registry;
 
-  const heldSessions = new Map<SessionID, Session>();
+  // The sessions each live hold still has.
+  const sessionHolds = new Set<Set<Session>>();
+
+  const collectHeldSessions = (): Session[] => {
+    const held = new Set<Session>();
+
+    for (const sessions of sessionHolds) {
+      for (const session of sessions) {
+        held.add(session);
+      }
+    }
+
+    return [...held];
+  };
 
   // The listed sessions and the held ones a forget took off the list.
   const collectSessions = (): Session[] => [
     ...registry.sessions,
-    ...[...heldSessions.values()].filter((session) => !registry.sessions.includes(session)),
+    ...collectHeldSessions().filter((session) => !registry.sessions.includes(session)),
   ];
 
   // The directories plain spawns still starting on a host hold, as given.
@@ -477,18 +494,24 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   return {
     reservations,
 
-    heldSessions,
+    collectHeldSessions,
 
     holdSessions: (sessions) => {
-      for (const session of sessions) {
-        heldSessions.set(session.id, session);
-      }
-    },
+      const held = new Set(sessions);
 
-    releaseSessions: (sessions) => {
-      for (const session of sessions) {
-        heldSessions.delete(session.id);
-      }
+      sessionHolds.add(held);
+
+      return {
+        release: (released) => {
+          for (const session of released) {
+            held.delete(session);
+          }
+
+          if (held.size === 0) {
+            sessionHolds.delete(held);
+          }
+        },
+      };
     },
 
     releaseWorkspace: (id) => {

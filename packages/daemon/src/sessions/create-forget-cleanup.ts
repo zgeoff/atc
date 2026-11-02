@@ -4,6 +4,7 @@ import type { StateStore } from '@atc/store';
 import type { SessionID, WorkspaceCleanup } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import { formatError } from '../auth/format-error';
+import type { SessionHold } from './create-host-dir-claims';
 import type { SessionManager } from './create-session-manager';
 import { isPathWithin } from './is-path-within';
 import { pickWorkspaceCleanup } from './pick-workspace-cleanup';
@@ -20,8 +21,7 @@ interface ForgetCleanupDeps {
     | 'hasHostLifecycle'
     | 'removeClaimedDir'
     | 'withRemovalHold'
-    | 'heldSessions'
-    | 'releaseSessions'
+    | 'collectHeldSessions'
     | 'log'
   >;
   readonly store: Pick<StateStore, 'readMaterialization'>;
@@ -41,6 +41,9 @@ interface ForgottenSessionState {
 
   // atc saw every process the session ran exit, so nothing writes in its folders any more.
   readonly harnessEnded: boolean;
+
+  // The hold the kill or forget took on the session, which this cleanup ends.
+  readonly hold: SessionHold;
 }
 
 export interface ForgetCleanup {
@@ -86,7 +89,7 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   const findWorkspaceUser = (session: Session, forms: readonly string[]): SessionID | null => {
     const hosted = manager.hasHostLifecycle(session.target);
 
-    const user = [...manager.sessions, ...manager.heldSessions.values()].find(
+    const user = [...manager.sessions, ...manager.collectHeldSessions()].find(
       (other) =>
         other.id !== session.id &&
         (hosted
@@ -182,7 +185,7 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   return {
     removeSessionFolders: async (session, state) => {
       if (state.harnessEnded) {
-        manager.releaseSessions([session]);
+        state.hold.release([session]);
       }
 
       if (!settings.enabled) {

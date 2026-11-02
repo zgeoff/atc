@@ -525,8 +525,7 @@ test('it removes a directory on the daemon host once the session that reached it
 
   const held = buildMockSession({ id: toSessionID('held-1'), target: 'local', cwd: alias });
 
-  ctx.claims.holdSessions([held]);
-  ctx.claims.releaseSessions([held]);
+  ctx.claims.holdSessions([held]).release([held]);
 
   const removed = await ctx.claims.removeClaimedDir({
     provider,
@@ -537,4 +536,34 @@ test('it removes a directory on the daemon host once the session that reached it
   });
 
   expect(removed).toBeTrue();
+});
+
+test('it keeps holding a session that a second hold has after the first hold releases it', async () => {
+  const provider = buildStubLocalProvider();
+  const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'local', provider })] });
+  const temporaryDirectory = setupTempDir('atc-held-claims-');
+  const workspace = join(temporaryDirectory.path, 'workspace');
+
+  mkdirSync(join(workspace, 'inner'), { recursive: true });
+  writeFileSync(join(workspace, 'keep.txt'), 'kept\n');
+
+  const held = buildMockSession({
+    id: toSessionID('held-1'),
+    target: 'local',
+    cwd: join(workspace, 'inner'),
+  });
+
+  ctx.claims.holdSessions([held]);
+  ctx.claims.holdSessions([held]).release([held]);
+
+  const removed = await ctx.claims.removeClaimedDir({
+    provider,
+    id: toSessionID('forgotten-1'),
+    hostKey: toSessionID('forgotten-1'),
+    target: 'local',
+    directory: workspace,
+  });
+
+  expect(removed).toBeFalse();
+  expect(readFileSync(join(workspace, 'keep.txt'), 'utf8')).toBe('kept\n');
 });

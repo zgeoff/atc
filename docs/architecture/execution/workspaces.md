@@ -184,14 +184,16 @@ line, so it never notices one of those missing.
 
 The removal is the rollback's: it removes the contents from inside the directory while the directory
 still resolves to itself, and it refuses while the directory of a listed session, of a forgotten
-session not yet seen to end, or of a claim lies inside, as the host resolves each one. A refused or
-failed removal keeps the directory with its reason. Every spawn that builds a workspace claims its
-directory before the clone creates it: on a shared host as before, and on the daemon's own machine
-from its landing. From before the check until the removal ends, a claim on that shared host, or one
-on the daemon's machine that overlaps the directory, is refused as `workspace_overlap`. So no
-session starts inside a directory after the check has found it clean. The session's state folder on
-the daemon's host goes after the workspace step, whatever that step decided, unless cleanup is off
-or atc saw no exit of the session's process.
+session not yet seen to end, or of a claim lies inside, as the host resolves each one. Each kill or
+forget holds the sessions it may take off the list and releases only its own hold, so a session
+stays counted while any kill or forget still waits on it. A refused or failed removal keeps the
+directory with its reason. Every spawn that builds a workspace claims its directory before the clone
+creates it: on a shared host as before, and on the daemon's own machine from its landing. From
+before the check until the removal ends, a claim on that shared host, or one on the daemon's machine
+that overlaps the directory, is refused as `workspace_overlap`. So no session starts inside a
+directory after the check has found it clean. The session's state folder on the daemon's host goes
+after the workspace step, whatever that step decided, unless cleanup is off or atc saw no exit of
+the session's process.
 
 ## Sources
 

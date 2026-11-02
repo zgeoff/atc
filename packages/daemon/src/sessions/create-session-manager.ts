@@ -136,9 +136,8 @@ export interface SessionManager {
   readonly hasHostLifecycle: (target: string) => boolean;
   readonly removeClaimedDir: HostDirClaims['removeClaimedDir'];
   readonly withRemovalHold: HostDirClaims['withRemovalHold'];
-  readonly heldSessions: HostDirClaims['heldSessions'];
+  readonly collectHeldSessions: HostDirClaims['collectHeldSessions'];
   readonly holdSessions: HostDirClaims['holdSessions'];
-  readonly releaseSessions: HostDirClaims['releaseSessions'];
   readonly isCallerTree: (id: SessionID, caller: SessionID) => boolean;
   readonly collectChildren: (id: SessionID) => Session[];
   readonly countStates: () => ReturnType<SessionRegistry['countStates']>;
@@ -441,11 +440,9 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
 
     withRemovalHold: claims.withRemovalHold,
 
-    heldSessions: claims.heldSessions,
+    collectHeldSessions: claims.collectHeldSessions,
 
     holdSessions: claims.holdSessions,
-
-    releaseSessions: claims.releaseSessions,
 
     isCallerTree: (id, caller) => registry.isCallerTree(id, caller),
 

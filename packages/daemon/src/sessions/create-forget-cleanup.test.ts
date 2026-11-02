@@ -92,6 +92,7 @@ test('it removes a pushed workspace and the state folder, and logs the removal',
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({ outcome: 'removed', path, found: [] });
@@ -131,6 +132,7 @@ test('it refuses a spawn into the workspace while the check that decides its rem
   const removing = ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   await waitFor(() => {
@@ -188,6 +190,7 @@ test('it keeps a workspace with an uncommitted change, removes the state folder,
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({
@@ -233,6 +236,7 @@ test("it keeps both folders, and runs no check, when atc could not confirm that 
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: false,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({
@@ -288,6 +292,7 @@ test('it removes a workspace with an unpushed commit under the none check, and l
   const workspace = await cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({
@@ -340,6 +345,7 @@ test('it keeps both folders when cleanup is off', async () => {
   const workspace = await cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({ outcome: 'none' });
@@ -377,6 +383,7 @@ test('it runs no check when the forget destroyed the host, and still removes the
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: true,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({ outcome: 'none' });
@@ -410,6 +417,7 @@ test('it leaves a workspace whose build never finished', async () => {
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({ outcome: 'none' });
@@ -438,6 +446,7 @@ test('it reports nothing for a workspace someone already removed', async () => {
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({ outcome: 'none' });
@@ -455,6 +464,7 @@ test('it logs and leaves a state folder whose session id would reach outside the
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({ outcome: 'none' });
@@ -491,6 +501,7 @@ test('it keeps, and runs no check on, the workspace of a session whose target ch
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({
@@ -520,6 +531,7 @@ test("it leaves another session's state folder that a session id names through a
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({ outcome: 'none' });
@@ -562,6 +574,7 @@ test('it keeps a workspace a listed session reaches through a symlink, as the re
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({
@@ -608,6 +621,7 @@ test('it never removes a clean pushed checkout that a symlink in place of the wo
   const workspace = await ctx.cleanup.removeSessionFolders(session, {
     hostDestroyed: false,
     harnessEnded: true,
+    hold: ctx.manager.holdSessions([session]),
   });
 
   expect(workspace).toStrictEqual({
