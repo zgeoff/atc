@@ -12,12 +12,12 @@ metadata:
 
 ## Facts
 
-| Fact               | Value                                                                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Lint command       | `bun run lint:full`; `bun run lint:mods` for `mods/`. CI runs both                                                                  |
-| Lint config        | [`.oxlintrc.json`](../../../.oxlintrc.json), which skips `mods/`; [`.oxlintrc.mods.json`](../../../.oxlintrc.mods.json) for `mods/` |
-| Format command     | `bun run format` formats the whole repo; the pre-commit hook formats staged files; CI runs `bun run format:check`                   |
-| Type-check command | `bun run typecheck`, over the `include` list in [`tsconfig.json`](../../../tsconfig.json), which leaves out `mods/`                 |
+| Fact               | Value                                                                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint command       | `bun run lint`; `bun run lint:mods` for `mods/`. CI also runs `bun run lint:full`, the type-aware pass, which you never run locally, as [AGENTS.md](../../../AGENTS.md) says |
+| Lint config        | [`.oxlintrc.json`](../../../.oxlintrc.json), which skips `mods/`; [`.oxlintrc.mods.json`](../../../.oxlintrc.mods.json) for `mods/`                                          |
+| Format command     | `bun run format` formats the whole repo; the pre-commit hook formats staged files; CI runs `bun run format:check`                                                            |
+| Type-check command | `bun run typecheck`, over the `include` list in [`tsconfig.json`](../../../tsconfig.json), which leaves out `mods/`                                                          |
 
 ## Departures
 
