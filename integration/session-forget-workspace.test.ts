@@ -425,7 +425,7 @@ test.each([['unpushed' as const], ['none' as const]])(
 
     const neighbour = await daemon.client.sendRequest('session.spawn', { cwd, cols: 80, rows: 24 });
 
-    const neighbourID = getRecord(neighbour, 'session')['id'];
+    const neighbourID = String(getRecord(neighbour, 'session')['id']);
 
     await daemon.client.sendRequest('session.kill', { session: session['id'] });
 
