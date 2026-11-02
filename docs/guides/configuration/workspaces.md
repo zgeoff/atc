@@ -95,15 +95,31 @@ in it expands only on the daemon's own machine.
 ## Cleanup when you forget a session
 
 A forget removes the session's state folder, `~/.local/state/atc/sessions/<session id>/`, which
-holds atc's own files for the session, such as its scratch folder. A kill of a session that has
-already exited forgets it the same way. `workspaces.cleanup.enabled` turns this off:
+holds atc's own files for the session, such as its scratch folder. It also removes the workspace
+that atc cloned for the session, once the work there is pushed. A kill of a session that has already
+exited forgets it the same way. A directory you made yourself is never removed, even when a session
+ran in it.
+
+atc keeps a workspace that holds work found nowhere else: an uncommitted or untracked file, a stash,
+or a commit that no remote-tracking branch holds, a commit on a detached HEAD included. It also
+keeps one that another session runs in, or one whose host does not answer. The forget still
+succeeds, and its answer and the daemon log say why atc kept it, such as
+`2 unpushed commits on fix-x`. A file that git ignores, such as `node_modules/`, never keeps a
+workspace.
 
 ```json
 {
-  "workspaces": { "cleanup": { "enabled": false } }
+  "workspaces": { "cleanup": { "enabled": true, "check": "unpushed" } }
 }
 ```
 
-`enabled` defaults to `true`. A value other than `true` or `false`, or a `cleanup` that is not an
-object, is a config error: the daemon prints it at startup and removes nothing on a forget until you
-fix it.
+- `enabled` defaults to `true`. `false` removes neither the workspace nor the state folder.
+- `check` defaults to `"unpushed"`, which removes a workspace only when nothing in it is unpushed.
+  `"none"` removes every workspace atc cloned, whatever it holds, and the daemon logs what it held.
+  It still keeps a workspace that another session runs in.
+
+A `cleanup` that is not an object, or an `enabled` other than `true` or `false`, is a config error:
+the daemon prints it at startup and removes nothing on a forget until you fix it. Any other `check`
+value is a config error too, and the daemon uses `"unpushed"` until you fix it.
+
+[Workspaces](../../architecture/execution/workspaces.md#cleanup-on-forget) gives the checks in full.

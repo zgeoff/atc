@@ -1,4 +1,3 @@
-import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { InvalidGitTransports, TargetConfigError } from '@atc/config';
 import { parseRestoreBootTimeoutMs } from '@atc/config';
@@ -294,12 +293,10 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
       lifetimeMs: opts.forgetConfirmMs ?? FORGET_CONFIRM_MS,
     }),
     cleanup: createForgetCleanup({
-      log: (line) => {
-        manager.log(line);
-      },
+      manager,
+      store,
       stateDir,
-      removeDir: (directory) => rm(directory, { recursive: true, force: true }),
-      settings: opts.workspaceCleanup ?? { enabled: true },
+      settings: opts.workspaceCleanup ?? { enabled: true, check: 'unpushed' },
     }),
   });
 

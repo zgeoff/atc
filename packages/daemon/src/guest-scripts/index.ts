@@ -8,6 +8,7 @@ import {
 } from '../sessions/create-host-dir-claims';
 import { PLACE_COPY_SCRIPT, REFRESH_COPY_SCRIPT } from '../sessions/create-published-records';
 import { READ_TRANSCRIPT_WINDOW_SCRIPT } from '../sessions/guest-transcript-window';
+import { WORKSPACE_CHECK_SCRIPT } from '../sessions/run-workspace-check';
 import { CLAIM_DIR_SCRIPT } from '../workspace/claim-landing';
 import { ASKPASS_SCRIPT } from '../workspace/create-git-askpass';
 import { GUEST_CLONE_SCRIPT } from '../workspace/create-guest-clone';
@@ -27,4 +28,5 @@ export const DAEMON_GUEST_SCRIPTS = {
   RESOLVE_HOME_SCRIPT,
   RESOLVE_UNLINKED_DIR_SCRIPT,
   VERIFY_SCRIPT,
+  WORKSPACE_CHECK_SCRIPT,
 };

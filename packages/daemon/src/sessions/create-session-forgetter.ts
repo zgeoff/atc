@@ -18,8 +18,6 @@ interface SessionForgetterDeps {
     | 'isCallerTree'
     | 'findProvider'
     | 'forget'
-    | 'probeHarnessEnded'
-    | 'stopMessageBridge'
   >;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
   readonly tokens: Pick<ConfirmTokens, 'mintToken' | 'claimToken'>;
@@ -70,40 +68,19 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
     ]),
   ];
 
-  // A headless turn's runner gives no exit to wait on, so a session that ever started one counts
-  // as possibly still running in its folders.
-  const collectHeadlessRunning = (forgettable: readonly Session[]): Set<Session> =>
-    new Set(forgettable.filter((other) => findRuntime(other.id)?.headlessStarted === true));
-
   const removeForgottenFolders = async (
     session: Session,
     forgettable: readonly Session[],
-    headlessRunning: ReadonlySet<Session>,
+    destroyed: boolean,
   ): Promise<WorkspaceCleanup> => {
-    // A message bridge runs beside the daemon and writes in the session's state folder, so its
-    // stop must finish before the folder goes.
-    const probeHarnessEnded = async (other: Session): Promise<boolean> => {
-      const bridgeStopped = await manager.stopMessageBridge(other.id).then(
-        () => true,
-        () => false,
-      );
+    const isOnDestroyedHost = (other: Session): boolean =>
+      destroyed && other.hostKey === session.hostKey && other.target === session.target;
 
-      const harnessEnded = await manager.probeHarnessEnded(other.id);
-
-      return isSessionEnded({ bridgeStopped, harnessEnded, headless: headlessRunning.has(other) });
-    };
-
-    const removeFolders = async (other: Session): Promise<WorkspaceCleanup> => {
-      const harnessEnded = await probeHarnessEnded(other);
-
-      return cleanup.removeSessionFolders(other, { harnessEnded });
-    };
-
-    const workspace = await removeFolders(session);
+    const workspace = await cleanup.removeSessionFolders(session, isOnDestroyedHost(session));
 
     for (const other of forgettable) {
       if (other !== session && !manager.sessions.includes(other)) {
-        await removeFolders(other);
+        await cleanup.removeSessionFolders(other, isOnDestroyedHost(other));
       }
     }
 
@@ -126,7 +103,6 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
 
       const set = [session, ...manager.collectChildren(id)];
       const forgettable = collectForgettable(session);
-      const headlessRunning = collectHeadlessRunning(forgettable);
 
       const outcome = await manager.kill(id, stopOnly);
 
@@ -134,7 +110,7 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
 
       // a kill of a session that already exited forgets it
       if (outcome === 'removed') {
-        await removeForgottenFolders(session, forgettable, headlessRunning);
+        await removeForgottenFolders(session, forgettable, false);
       }
 
       return outcome;
@@ -185,28 +161,14 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
 
       const set = [session, ...manager.collectChildren(id)];
       const forgettable = collectForgettable(session);
-      const headlessRunning = collectHeadlessRunning(forgettable);
 
       const destroyed = await manager.forget(id);
 
       stopEndedHeadlessRuns(set);
 
-      const workspace = await removeForgottenFolders(session, forgettable, headlessRunning);
+      const workspace = await removeForgottenFolders(session, forgettable, destroyed);
 
       return { forgotten: true, destroyed, workspace };
     },
   };
-}
-
-interface SessionEndFacts {
-  readonly bridgeStopped: boolean;
-  readonly harnessEnded: boolean;
-
-  // Whether the session ran a headless turn, whose runner reports no exit.
-  readonly headless: boolean;
-}
-
-// Whether nothing of a forgotten session can still write in its folders.
-function isSessionEnded(facts: SessionEndFacts): boolean {
-  return facts.bridgeStopped && facts.harnessEnded && !facts.headless;
 }

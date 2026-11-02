@@ -114,6 +114,48 @@ the host cannot resolve its home.
 A daemon that stops partway leaves a row short of ready. The next daemon fails every such row as
 `workspace_interrupted` before it serves a request, and the directory stays on the target.
 
+## Cleanup on forget
+
+A forget removes the workspace atc built for the session, and so does a kill of a session that has
+already exited, which forgets it. atc removes only the directory that the session's ready
+materialization row names on the session's own target, so a session in a directory atc did not build
+never loses it. The forget answers with `workspace`: `removed` with the path and what the checks
+found, `kept` with the path and one reason per check that failed, or `none`. The daemon logs every
+`removed` and `kept`. The same step runs for each sub-session that the forget takes off the list,
+and only the daemon log carries those outcomes.
+
+The step runs inside the forget, once the session is off the list, on the session's host through the
+provider's `runCommand`, so a sub-session in its parent's imp is checked and removed inside the imp.
+One script enters the directory through every symlink and answers four checks:
+
+1. `git status --porcelain --untracked-files=all` prints nothing. An ignored file never counts.
+2. `git stash list` prints nothing.
+3. Every commit reachable from HEAD or from a local branch is on a remote-tracking ref, so a commit
+   made on a detached HEAD counts as unpushed.
+4. The host answers. A host that fails the command keeps the directory as unchecked.
+
+The script reads no system or global git config and turns off an fsmonitor that the repository's own
+config names, since `git status` would start it. It refuses a directory that is not the top of a git
+checkout holding the row's commit, and the forget then keeps it. A directory already gone gives
+`none`.
+
+| Case                                                   | Workspace                        |
+| ------------------------------------------------------ | -------------------------------- |
+| `workspaces.cleanup.enabled` is `false`                | `none`, and nothing is removed   |
+| The forget destroyed the session's host                | `none`, and no check runs        |
+| No ready materialization row for the session           | `none`                           |
+| Another listed session's directory lies inside it      | `kept`, `in use by session <id>` |
+| A check fails, under `check: "unpushed"`               | `kept`, one reason per check     |
+| A check fails, under `check: "none"`                   | `removed`, with `found`          |
+| The host does not answer, or the checkout is not atc's | `kept`, under either check       |
+| Every check passes                                     | `removed`                        |
+
+The removal is the rollback's: it removes the contents from inside the directory while the directory
+still resolves to itself, and it refuses while a listed session's or a claim's directory lies
+inside, as the host resolves each one. A refused or failed removal keeps the directory with its
+reason. The session's state folder on the daemon's host goes after the workspace step, whatever that
+step decided, unless cleanup is off.
+
 ## Sources
 
 A source is where the spawn picker finds what a session runs in: directories on the daemon's host, a

@@ -4,6 +4,7 @@ import type { ExecutionProvider } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import type { SessionRegistry } from './create-session-registry';
+import { isPathWithin } from './is-path-within';
 
 // A workspace directory a spawn on a shared host holds, as the spawn gave
 // it and as the host resolves it once checked there.
@@ -521,12 +522,6 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
 // the same.
 function isPathOverlapping(left: string, right: string): boolean {
   return isPathWithin(left, right) || isPathWithin(right, left);
-}
-
-function isPathWithin(child: string, parent: string): boolean {
-  const relative = posix.relative(parent, child);
-
-  return relative !== '..' && !relative.startsWith('../') && !posix.isAbsolute(relative);
 }
 
 async function resolveHostDir(

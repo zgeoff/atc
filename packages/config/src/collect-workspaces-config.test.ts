@@ -17,7 +17,7 @@ test('it reads the GitHub owner, the source order, the git transports, the globa
       gitTransports: ['https', 'ssh', 'http', 'file'],
       root: '~/ws',
       targetRoots: new Map([['box', '/home/dev/ws']]),
-      cleanup: { enabled: true },
+      cleanup: { enabled: true, check: 'unpushed' },
     },
     errors: [],
   });
@@ -39,7 +39,7 @@ test.each([
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
-      cleanup: { enabled: true },
+      cleanup: { enabled: true, check: 'unpushed' },
     },
     errors: [],
   });
@@ -55,7 +55,7 @@ test.each([[{ sources: 'dirs' }], [{ sources: ['dirs', 7] }], [{ sources: ['dirs
         gitTransports: ['https', 'ssh'],
         root: null,
         targetRoots: new Map(),
-        cleanup: { enabled: true },
+        cleanup: { enabled: true, check: 'unpushed' },
       },
       errors: [],
     });
@@ -75,7 +75,7 @@ test.each([
       gitTransports: { invalid: error },
       root: null,
       targetRoots: new Map(),
-      cleanup: { enabled: true },
+      cleanup: { enabled: true, check: 'unpushed' },
     },
     errors: [error],
   });
@@ -103,16 +103,52 @@ test.each([
       gitTransports: { invalid: error },
       root: null,
       targetRoots: new Map(),
-      cleanup: { enabled: true },
+      cleanup: { enabled: true, check: 'unpushed' },
     },
     errors: [error],
   });
 });
 
-test.each([[{ cleanup: {} }], [{ cleanup: { enabled: true } }]])(
-  'it reads cleanup as on from %p',
+test.each([[{ cleanup: {} }], [{ cleanup: { enabled: true, check: 'unpushed' } }]])(
+  'it reads cleanup as on with the unpushed check from %p',
   (raw) => {
-    expect(collectWorkspacesConfig(raw).workspaces.cleanup).toStrictEqual({ enabled: true });
+    expect(collectWorkspacesConfig(raw).workspaces.cleanup).toStrictEqual({
+      enabled: true,
+      check: 'unpushed',
+    });
+  },
+);
+
+test('it reads the none check', () => {
+  expect(collectWorkspacesConfig({ cleanup: { check: 'none' } })).toStrictEqual({
+    workspaces: {
+      githubOwner: null,
+      sources: null,
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+      cleanup: { enabled: true, check: 'none' },
+    },
+    errors: [],
+  });
+});
+
+test.each([['nnone'], [false]])(
+  'it falls back to the unpushed check for %p, with a config error',
+  (check) => {
+    expect(collectWorkspacesConfig({ cleanup: { check } })).toStrictEqual({
+      workspaces: {
+        githubOwner: null,
+        sources: null,
+        gitTransports: ['https', 'ssh'],
+        root: null,
+        targetRoots: new Map(),
+        cleanup: { enabled: true, check: 'unpushed' },
+      },
+      errors: [
+        `workspaces.cleanup.check holds ${JSON.stringify(check)}, which is neither "unpushed" nor "none"; a forget removes only a workspace whose work is pushed until it is fixed`,
+      ],
+    });
   },
 );
 
@@ -124,7 +160,7 @@ test('it reads cleanup as off when the config turns it off', () => {
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
-      cleanup: { enabled: false },
+      cleanup: { enabled: false, check: 'unpushed' },
     },
     errors: [],
   });
@@ -144,7 +180,7 @@ test.each([
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
-      cleanup: { enabled: false },
+      cleanup: { enabled: false, check: 'unpushed' },
     },
     errors: [error],
   });
@@ -158,7 +194,7 @@ test('it reads an empty transport list as one that allows no transport', () => {
       gitTransports: [],
       root: null,
       targetRoots: new Map(),
-      cleanup: { enabled: true },
+      cleanup: { enabled: true, check: 'unpushed' },
     },
     errors: [],
   });

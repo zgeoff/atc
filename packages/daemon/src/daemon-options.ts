@@ -169,7 +169,8 @@ export interface DaemonOptions {
   }>;
 
   // What a forget removes besides the session; it removes the session's
-  // state folder when unset.
+  // state folder, and its workspace once the work there is pushed, when
+  // unset.
   readonly workspaceCleanup?: WorkspaceCleanupConfig;
 
   // The home a git workspace without a directory lands under on a target

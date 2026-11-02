@@ -1,35 +1,38 @@
 import { expect, mock, test } from 'bun:test';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import {
   buildStubClock,
-  buildStubHeadlessRunner,
   buildStubLog,
+  createGitFixture,
   createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
-  waitFor,
 } from '@atc/test-utils';
-import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { createConfirmTokens } from './create-confirm-tokens';
 import { createForgetCleanup } from './create-forget-cleanup';
+import { REMOVE_DIR_SCRIPT } from './create-host-dir-claims';
 import { createSessionForgetter } from './create-session-forgetter';
 import { createSessionManager } from './create-session-manager';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
-import { startHeadlessTurn } from './start-headless-turn';
+import { WORKSPACE_CHECK_SCRIPT } from './run-workspace-check';
 
 interface SetupTestConfig {
   // Whether the target's provider can destroy a session's host.
   readonly destroy: boolean;
+
+  // Whether the target's provider can put a host to sleep, which gives each
+  // sub-session its parent's host; it can when it can destroy one.
+  readonly suspend?: boolean;
 
   // Whether a forget removes what atc kept for the session; on when absent.
   readonly cleanupEnabled?: boolean;
@@ -49,22 +52,17 @@ async function setupTest(config: SetupTestConfig) {
 
   const runtimes = new Map<SessionID, SessionRuntime>();
 
-  const provider = buildStubMemoryProvider({
-    kind: 'local-pty',
-    capabilities: { suspend: config.destroy, destroy: config.destroy },
+  const provider = buildStubLocalProvider({
+    capabilities: { suspend: config.suspend ?? config.destroy, destroy: config.destroy },
   });
-
-  const stopMessageBridge = mock<(id: SessionID) => Promise<void>>(() => Promise.resolve());
-  const headless = buildStubHeadlessRunner();
 
   const manager = createSessionManager({
     fallback: null,
     store,
     statusPath: join(temporaryDirectory.path, 'status.json'),
-    adapters: [{ ...buildStubHarnessAdapter(), headlessRunner: headless.runner }],
+    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     events: {
-      stopMessageBridge,
       onEvent: (kind, session) => {
         if (kind === 'added') {
           runtimes.set(session.id, createSessionRuntime());
@@ -89,22 +87,21 @@ async function setupTest(config: SetupTestConfig) {
     findRuntime: (id) => runtimes.get(id),
     tokens: createConfirmTokens({ now: () => clock.now(), lifetimeMs: 60_000 }),
     cleanup: createForgetCleanup({
-      log: log.log,
+      manager,
+      store,
       stateDir,
-      removeDir: (directory) => rm(directory, { recursive: true, force: true }),
-      settings: { enabled: config.cleanupEnabled !== false },
+      settings: { enabled: config.cleanupEnabled !== false, check: 'unpushed' },
     }),
   });
 
   return {
     directory: temporaryDirectory.path,
     stateDir,
+    store,
     log,
     provider,
     manager,
     runtimes,
-    stopMessageBridge,
-    headless,
     forgetter,
   };
 }
@@ -553,8 +550,8 @@ test('it logs a state folder it cannot remove and still forgets the session', as
   );
 });
 
-test('it keeps the state folder of a session whose killed process atc never sees exit, even after a forced kill', async () => {
-  const ctx = await setupTest({ destroy: false });
+test('it reports no workspace and runs no check when the forget destroys the host', async () => {
+  const ctx = await setupTest({ destroy: true });
 
   const session = await ctx.manager.spawn({
     cwd: ctx.directory,
@@ -564,298 +561,128 @@ test('it keeps the state folder of a session whose killed process atc never sees
     rows: 24,
   });
 
-  const folder = join(ctx.stateDir, 'sessions', session.id);
-  const [harness] = ctx.provider.harnesses;
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: ctx.directory,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
 
-  invariant(harness !== undefined);
-  mkdirSync(join(folder, 'scratch'), { recursive: true });
-
-  // a detached harness reports no exit, as a process atc lost track of
-  harness.detach();
-
-  ctx.manager.failedSpawnExitWaitMs = 1;
+  await ctx.store.updateMaterialization(
+    session.id,
+    {
+      phase: 'ready',
+      repoURL: 'https://example.com/shop.git',
+      sha: 'c0ffee0c0ffee0c0ffee0c0ffee0c0ffee0c0ffe',
+      materializedAt: 2000,
+    },
+    2000,
+  );
 
   await ctx.forgetter.killSession(session.id, false);
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
 
-  expect(existsSync(join(folder, 'scratch'))).toBeTrue();
-});
-
-test('it keeps the state folder of a session whose headless turn ran when the forget began', async () => {
-  const ctx = await setupTest({ destroy: false });
-
-  const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
-    name: 'worker',
-    prompt: '',
-    cols: 80,
-    rows: 24,
-  });
-
-  const folder = join(ctx.stateDir, 'sessions', session.id);
-
-  mkdirSync(join(folder, 'scratch'), { recursive: true });
-
-  const started = startHeadlessTurn({
-    manager: ctx.manager,
-    findRuntime: (id) => ctx.runtimes.get(id),
-    sessionID: session.id,
-    prompt: 'tidy the notes',
-    recordTurnEvent: () => {},
-    reporterSocket: join(ctx.directory, 'reporter.sock'),
-  });
-
-  invariant(started, 'the headless turn did not start');
-
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
-
-  expect(existsSync(join(folder, 'scratch'))).toBeTrue();
-});
-
-test('it keeps the state folder of a session whose headless turn a stop aborted before the forget', async () => {
-  const ctx = await setupTest({ destroy: false });
-
-  const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
-    name: 'worker',
-    prompt: '',
-    cols: 80,
-    rows: 24,
-  });
-
-  const folder = join(ctx.stateDir, 'sessions', session.id);
-  const runtime = ctx.runtimes.get(session.id);
-
-  invariant(runtime !== undefined);
-  mkdirSync(join(folder, 'scratch'), { recursive: true });
-
-  const started = startHeadlessTurn({
-    manager: ctx.manager,
-    findRuntime: (id) => ctx.runtimes.get(id),
-    sessionID: session.id,
-    prompt: 'tidy the notes',
-    recordTurnEvent: () => {},
-    reporterSocket: join(ctx.directory, 'reporter.sock'),
-  });
-
-  invariant(started, 'the headless turn did not start');
-
-  runtime.stopHeadlessRun();
-
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
-
-  expect(existsSync(join(folder, 'scratch'))).toBeTrue();
-});
-
-test('it keeps the state folder of a session whose headless turn reported its result before the forget', async () => {
-  const ctx = await setupTest({ destroy: false });
-
-  const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
-    name: 'worker',
-    prompt: '',
-    cols: 80,
-    rows: 24,
-  });
-
-  const folder = join(ctx.stateDir, 'sessions', session.id);
-
-  mkdirSync(join(folder, 'scratch'), { recursive: true });
-
-  const started = startHeadlessTurn({
-    manager: ctx.manager,
-    findRuntime: (id) => ctx.runtimes.get(id),
-    sessionID: session.id,
-    prompt: 'tidy the notes',
-    recordTurnEvent: () => {},
-    reporterSocket: join(ctx.directory, 'reporter.sock'),
-  });
-
-  invariant(started, 'the headless turn did not start');
-
-  const run = await ctx.headless.waitForRun(0);
-
-  run.events.onDone('the notes are tidy');
-
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
-
-  expect(existsSync(join(folder, 'scratch'))).toBeTrue();
-});
-
-test('it removes the state folder of a killed session only once its harness exits late', async () => {
-  const ctx = await setupTest({ destroy: false });
-
-  const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
-    name: 'worker',
-    prompt: '',
-    cols: 80,
-    rows: 24,
-  });
-
-  const folder = join(ctx.stateDir, 'sessions', session.id);
-  const [harness] = ctx.provider.harnesses;
-
-  invariant(harness !== undefined);
-  mkdirSync(folder, { recursive: true });
-
-  harness.holdExit();
-
-  const forgetting = ctx.forgetter.forgetSession(
+  const answer = await ctx.forgetter.forgetSession(
     session.id,
     undefined,
     { pinned: false, live: false },
     null,
   );
 
-  await waitFor(() => {
-    expect(harness.hasExitWaiters()).toBeTrue();
+  invariant(typeof answer === 'object' && 'confirmToken' in answer);
+
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    answer.confirmToken,
+    { pinned: false, live: false },
+    null,
+  );
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: true,
+    workspace: { outcome: 'none' },
   });
 
-  const keptWhileRunning = existsSync(folder);
+  expect(
+    ctx.provider.commands.filter((spec) => spec.argv.includes(WORKSPACE_CHECK_SCRIPT)),
+  ).toBeEmpty();
 
-  harness.emitExit({ exitCode: 143 });
-
-  await forgetting;
-
-  expect(keptWhileRunning).toBeTrue();
-  expect(existsSync(folder)).toBeFalse();
+  expect(existsSync(ctx.directory)).toBeTrue();
 });
 
-test('it removes the state folder of a session killed, revived and forgotten only once its first harness exits late', async () => {
-  const ctx = await setupTest({ destroy: false });
+test("it checks and removes the workspace of a sub-session on its parent's host through the provider", async () => {
+  const ctx = await setupTest({ destroy: false, suspend: true });
+  const git = await createGitFixture({ prefix: 'atc-forget-shared-host-' });
 
-  const session = await ctx.manager.spawn({
+  const parent = await ctx.manager.spawn({
     cwd: ctx.directory,
-    name: 'worker',
+    name: 'lead',
     prompt: '',
     cols: 80,
     rows: 24,
   });
 
-  const folder = join(ctx.stateDir, 'sessions', session.id);
-  const [firstHarness] = ctx.provider.harnesses;
+  const child = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'helper',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    parent: parent.id,
+  });
 
-  invariant(firstHarness !== undefined);
-  mkdirSync(folder, { recursive: true });
+  await ctx.store.createMaterialization(
+    {
+      sessionID: child.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
 
-  session.agentSessionID = toAgentSessionID('c-worker');
+  await ctx.store.updateMaterialization(
+    child.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
 
-  firstHarness.holdExit();
+  const path = realpathSync(git.work);
 
-  await ctx.forgetter.killSession(session.id, true);
+  await ctx.forgetter.killSession(child.id, false);
 
-  const revived = await ctx.manager.adoptTerminal(session.id, 80, 24);
-
-  invariant(revived !== null, 'the revive did not start a harness');
-
-  const forgetting = ctx.forgetter.forgetSession(
-    session.id,
+  const forgotten = await ctx.forgetter.forgetSession(
+    child.id,
     undefined,
     { pinned: false, live: false },
     null,
   );
 
-  await waitFor(() => {
-    expect(firstHarness.hasExitWaiters()).toBeTrue();
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'removed', path, found: [] },
   });
 
-  const keptWhileRunning = existsSync(folder);
+  expect(
+    ctx.provider.commands
+      .filter(
+        (spec) =>
+          spec.argv.includes(WORKSPACE_CHECK_SCRIPT) || spec.argv.includes(REMOVE_DIR_SCRIPT),
+      )
+      .map((spec) => ({
+        step: spec.argv.includes(REMOVE_DIR_SCRIPT) ? 'removal' : 'check',
+        host: spec.host,
+      })),
+  ).toStrictEqual([
+    { step: 'check', host: parent.id },
+    { step: 'removal', host: parent.id },
+  ]);
 
-  firstHarness.emitExit({ exitCode: 143 });
-
-  await forgetting;
-
-  expect(keptWhileRunning).toBeTrue();
-  expect(existsSync(folder)).toBeFalse();
-});
-
-test('it keeps the state folder of a session whose host lost its harness without an exit', async () => {
-  const ctx = await setupTest({ destroy: false });
-
-  const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
-    name: 'worker',
-    prompt: '',
-    cols: 80,
-    rows: 24,
-  });
-
-  const folder = join(ctx.stateDir, 'sessions', session.id);
-
-  mkdirSync(folder, { recursive: true });
-
-  ctx.provider.harnesses[0]?.emitExit({
-    exitCode: 1,
-    reason: 'ended',
-    detail: 'reconnects ran out',
-  });
-
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
-
-  expect(existsSync(folder)).toBeTrue();
-});
-
-test("it removes a session's state folder only once the stop of its message bridge resolves", async () => {
-  const ctx = await setupTest({ destroy: false });
-
-  const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
-    name: 'worker',
-    prompt: '',
-    cols: 80,
-    rows: 24,
-  });
-
-  const folder = join(ctx.stateDir, 'sessions', session.id);
-
-  mkdirSync(folder, { recursive: true });
-
-  const bridgeStop = Promise.withResolvers<undefined>();
-
-  ctx.stopMessageBridge.mockImplementation(() => bridgeStop.promise);
-
-  const forgetting = ctx.forgetter.forgetSession(
-    session.id,
-    undefined,
-    { pinned: false, live: false },
-    null,
-  );
-
-  await waitFor(() => {
-    expect(ctx.stopMessageBridge).toHaveBeenCalledWith(session.id);
-  });
-
-  const keptWhileStopping = existsSync(folder);
-
-  bridgeStop.resolve(undefined);
-
-  await forgetting;
-
-  expect(keptWhileStopping).toBeTrue();
-  expect(existsSync(folder)).toBeFalse();
-});
-
-test("it leaves a session's state folder when the stop of its message bridge fails", async () => {
-  const ctx = await setupTest({ destroy: false });
-
-  const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
-    name: 'worker',
-    prompt: '',
-    cols: 80,
-    rows: 24,
-  });
-
-  const folder = join(ctx.stateDir, 'sessions', session.id);
-
-  mkdirSync(folder, { recursive: true });
-
-  ctx.stopMessageBridge.mockImplementation(() =>
-    Promise.reject(new Error('the app server did not stop')),
-  );
-
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
-
-  expect(existsSync(folder)).toBeTrue();
+  expect(existsSync(git.work)).toBeFalse();
 });
