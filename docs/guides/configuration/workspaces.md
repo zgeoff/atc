@@ -103,7 +103,9 @@ ran in it.
 atc keeps a workspace that holds work found nowhere else: an uncommitted or untracked file, a stash,
 or a commit that no remote-tracking branch holds, a commit on a detached HEAD included. It also
 keeps one that has a linked worktree, a submodule, or a file marked `--assume-unchanged` or
-`--skip-worktree`, one that another session runs in, or one whose host does not answer. The forget
+`--skip-worktree`, one that another session runs in, or one whose host does not answer. It waits for
+the session's process to exit first, and keeps both folders when it cannot see the process end, such
+as during a headless turn. A folder that atc built but that is now a symlink stays too. The forget
 still succeeds, and its answer and the daemon log say why atc kept it, such as
 `2 unpushed commits on fix-x`. A file that git ignores, such as `node_modules/`, never keeps a
 workspace.

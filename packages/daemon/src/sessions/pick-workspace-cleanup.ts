@@ -35,7 +35,9 @@ export function pickWorkspaceCleanup(input: WorkspaceCleanupInput): WorkspaceCle
     .with({ result: { kind: 'foreign' } }, () => ({
       action: 'keep',
       path,
-      reasons: ['not the checkout atc created: no git checkout of its commit is there'],
+      reasons: [
+        'not the checkout atc created: a symlink, or no git checkout of its commit at its top',
+      ],
     }))
     .with({ result: { kind: 'unchecked' } }, (matched) => ({
       action: 'keep',

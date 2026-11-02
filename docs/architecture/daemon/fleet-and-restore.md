@@ -43,11 +43,12 @@ that changes nothing else updates its session's row alone. A death the owner nev
 rewrites nothing, so the last known fleet survives it. A killed session persists as an exited row
 until a second kill or a forget removes it. Either one also removes the state folder of each session
 it takes off the list, `sessions/<session id>/` under the state directory, unless the config turns
-[cleanup](../../guides/configuration/workspaces.md#cleanup-when-you-forget-a-session) off. A folder
-that fails to go is logged, and the forget still succeeds. The same forget removes the session's
-workspace when its work is pushed, as [workspaces](../execution/workspaces.md#cleanup-on-forget)
-describes. A rewrite leaves alone every row the daemon has not restored yet, so a spawn or a rename
-before the restore keeps the stored fleet intact.
+[cleanup](../../guides/configuration/workspaces.md#cleanup-when-you-forget-a-session) off or atc saw
+no exit of the session's process. A folder that fails to go is logged, and the forget still
+succeeds. The same forget removes the session's workspace when its work is pushed, as
+[workspaces](../execution/workspaces.md#cleanup-on-forget) describes. A rewrite leaves alone every
+row the daemon has not restored yet, so a spawn or a rename before the restore keeps the stored
+fleet intact.
 
 The store also records which daemon owns each row, by the daemon id minted into the store when the
 daemon first opened it, and a restore loads only this daemon's rows.

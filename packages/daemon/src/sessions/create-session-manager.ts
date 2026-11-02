@@ -431,9 +431,9 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
 
     isLocalTarget: (target) => registry.isLocalTarget(target),
 
-    hasHostLifecycle: (target) => registry.hasHostLifecycle(target),
+    hasHostLifecycle: registry.hasHostLifecycle,
 
-    removeClaimedDir: (request) => claims.removeClaimedDir(request),
+    removeClaimedDir: claims.removeClaimedDir,
 
     isCallerTree: (id, caller) => registry.isCallerTree(id, caller),
 

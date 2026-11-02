@@ -103,7 +103,9 @@ test.each([['unpushed' as const], ['none' as const]])(
     ).toStrictEqual({
       action: 'keep',
       path: '/srv/work/shop-main',
-      reasons: ['not the checkout atc created: no git checkout of its commit is there'],
+      reasons: [
+        'not the checkout atc created: a symlink, or no git checkout of its commit at its top',
+      ],
     });
   },
 );

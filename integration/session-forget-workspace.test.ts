@@ -2,27 +2,22 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createLocalPTYProvider } from '@atc/execution-local';
-import { buildMockAgentAdapter, createGitFixture, getRecord } from '@atc/test-utils';
+import {
+  buildMockAgentAdapter,
+  createGitFixture,
+  getRecord,
+  setupTempDir,
+  waitFor,
+} from '@atc/test-utils';
 import { $ } from 'bun';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-// Each session runs `sleep` in a real terminal on the daemon's machine, in a
-// workspace the daemon clones from the fixture's upstream.
-async function setupTest() {
-  const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });
-
-  // The clone holds no git identity of its own under the test home.
-  const runGit = (cwd: string, args: readonly string[]) =>
-    $`git -c user.name=tester -c user.email=tester@example.com ${args}`
-      .env(git.env)
-      .cwd(cwd)
-      .quiet();
-
-  return { upstream: git.upstream, directory: git.directory, runGit };
-}
+// Each session runs `sleep` in a real terminal on the daemon's machine, in a workspace the daemon
+// clones from the fixture's upstream; a git command a test runs there passes an identity, since
+// the clone holds none under the test home.
 
 test('it removes a workspace whose work is pushed, and the state folder, and reports removed', async () => {
-  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -42,8 +37,8 @@ test('it removes a workspace whose work is pushed, and the state folder, and rep
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.directory, 'shop-main'),
-    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    cwd: join(git.directory, 'shop-main'),
+    workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
     cols: 80,
     rows: 24,
   });
@@ -69,7 +64,7 @@ test('it removes a workspace whose work is pushed, and the state folder, and rep
 });
 
 test('it keeps a workspace with an uncommitted change, removes the state folder, and reports why', async () => {
-  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -89,8 +84,8 @@ test('it keeps a workspace with an uncommitted change, removes the state folder,
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.directory, 'shop-main'),
-    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    cwd: join(git.directory, 'shop-main'),
+    workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
     cols: 80,
     rows: 24,
   });
@@ -116,8 +111,65 @@ test('it keeps a workspace with an uncommitted change, removes the state folder,
   expect(existsSync(stateFolder)).toBeFalse();
 });
 
+test('it waits for a killed session that exits late, and keeps what it wrote on the way out', async () => {
+  const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });
+
+  const trapped = join(git.directory, 'trap-ready');
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapter: buildMockAgentAdapter({
+        planSpawn: () => ({
+          bin: 'sh',
+          args: [
+            '-c',
+            `trap 'sleep 0.5; echo "- ship the cart fix" > late-notes.md; exit 0' HUP TERM; : > '${trapped}'; while :; do sleep 0.1; done`,
+          ],
+        }),
+      }),
+      gitTransports: ['file'],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: createLocalPTYProvider(),
+        },
+      ],
+      workspaceCleanup: { enabled: true, check: 'unpushed' },
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: join(git.directory, 'shop-main'),
+    workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
+    cols: 80,
+    rows: 24,
+  });
+
+  const session = getRecord(spawned, 'session');
+  const cwd = String(session['cwd']);
+
+  await waitFor(() => {
+    expect(existsSync(trapped)).toBeTrue();
+  });
+
+  await daemon.client.sendRequest('session.kill', { session: session['id'] });
+
+  const forgotten = await daemon.client.sendRequest('session.forget', { session: session['id'] });
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'kept', path: cwd, reasons: ['1 uncommitted or untracked path'] },
+  });
+
+  expect(existsSync(join(cwd, 'late-notes.md'))).toBeTrue();
+});
+
 test('it keeps a workspace with a stash and reports it', async () => {
-  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -137,8 +189,8 @@ test('it keeps a workspace with a stash and reports it', async () => {
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.directory, 'shop-main'),
-    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    cwd: join(git.directory, 'shop-main'),
+    workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
     cols: 80,
     rows: 24,
   });
@@ -148,7 +200,11 @@ test('it keeps a workspace with a stash and reports it', async () => {
 
   writeFileSync(join(cwd, 'README.md'), 'hello, set aside\n');
 
-  await ctx.runGit(cwd, ['stash', '--quiet']);
+  await $`git -c user.name=tester -c user.email=tester@example.com stash --quiet`
+    .env(git.env)
+    .cwd(cwd)
+    .quiet();
+
   await daemon.client.sendRequest('session.kill', { session: session['id'] });
 
   const forgotten = await daemon.client.sendRequest('session.forget', { session: session['id'] });
@@ -163,7 +219,7 @@ test('it keeps a workspace with a stash and reports it', async () => {
 });
 
 test('it keeps a workspace with unpushed commits on a branch and reports them', async () => {
-  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -183,8 +239,8 @@ test('it keeps a workspace with unpushed commits on a branch and reports them', 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.directory, 'shop-main'),
-    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    cwd: join(git.directory, 'shop-main'),
+    workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
     cols: 80,
     rows: 24,
   });
@@ -192,9 +248,18 @@ test('it keeps a workspace with unpushed commits on a branch and reports them', 
   const session = getRecord(spawned, 'session');
   const cwd = String(session['cwd']);
 
-  await ctx.runGit(cwd, ['switch', '--quiet', '-c', 'fix-cart']);
-  await ctx.runGit(cwd, ['commit', '--quiet', '--allow-empty', '-m', 'fix the cart total']);
-  await ctx.runGit(cwd, ['commit', '--quiet', '--allow-empty', '-m', 'cover the cart total']);
+  await $`git switch --quiet -c fix-cart`.env(git.env).cwd(cwd).quiet();
+
+  await $`git -c user.name=tester -c user.email=tester@example.com commit --quiet --allow-empty -m ${'fix the cart total'}`
+    .env(git.env)
+    .cwd(cwd)
+    .quiet();
+
+  await $`git -c user.name=tester -c user.email=tester@example.com commit --quiet --allow-empty -m ${'cover the cart total'}`
+    .env(git.env)
+    .cwd(cwd)
+    .quiet();
+
   await daemon.client.sendRequest('session.kill', { session: session['id'] });
 
   const forgotten = await daemon.client.sendRequest('session.forget', { session: session['id'] });
@@ -209,7 +274,7 @@ test('it keeps a workspace with unpushed commits on a branch and reports them', 
 });
 
 test('it keeps a workspace with a commit made on a detached HEAD and reports it', async () => {
-  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -229,8 +294,8 @@ test('it keeps a workspace with a commit made on a detached HEAD and reports it'
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.directory, 'shop-main'),
-    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    cwd: join(git.directory, 'shop-main'),
+    workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
     cols: 80,
     rows: 24,
   });
@@ -238,8 +303,13 @@ test('it keeps a workspace with a commit made on a detached HEAD and reports it'
   const session = getRecord(spawned, 'session');
   const cwd = String(session['cwd']);
 
-  await ctx.runGit(cwd, ['switch', '--quiet', '--detach']);
-  await ctx.runGit(cwd, ['commit', '--quiet', '--allow-empty', '-m', 'try a lighter query']);
+  await $`git switch --quiet --detach`.env(git.env).cwd(cwd).quiet();
+
+  await $`git -c user.name=tester -c user.email=tester@example.com commit --quiet --allow-empty -m ${'try a lighter query'}`
+    .env(git.env)
+    .cwd(cwd)
+    .quiet();
+
   await daemon.client.sendRequest('session.kill', { session: session['id'] });
 
   const forgotten = await daemon.client.sendRequest('session.forget', { session: session['id'] });
@@ -254,7 +324,7 @@ test('it keeps a workspace with a commit made on a detached HEAD and reports it'
 });
 
 test('it keeps the workspace and the state folder when cleanup is off', async () => {
-  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -274,8 +344,8 @@ test('it keeps the workspace and the state folder when cleanup is off', async ()
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.directory, 'shop-main'),
-    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    cwd: join(git.directory, 'shop-main'),
+    workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
     cols: 80,
     rows: 24,
   });
@@ -300,7 +370,7 @@ test('it keeps the workspace and the state folder when cleanup is off', async ()
 });
 
 test('it removes a workspace with an unpushed commit under the none check, and lists the commit', async () => {
-  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });
 
   const daemon = await startTestDaemon({
     options: () => ({
@@ -320,8 +390,8 @@ test('it removes a workspace with an unpushed commit under the none check, and l
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', {
-    cwd: join(ctx.directory, 'shop-main'),
-    workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+    cwd: join(git.directory, 'shop-main'),
+    workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
     cols: 80,
     rows: 24,
   });
@@ -329,7 +399,11 @@ test('it removes a workspace with an unpushed commit under the none check, and l
   const session = getRecord(spawned, 'session');
   const cwd = String(session['cwd']);
 
-  await ctx.runGit(cwd, ['commit', '--quiet', '--allow-empty', '-m', 'draft the cart total']);
+  await $`git -c user.name=tester -c user.email=tester@example.com commit --quiet --allow-empty -m ${'draft the cart total'}`
+    .env(git.env)
+    .cwd(cwd)
+    .quiet();
+
   await daemon.client.sendRequest('session.kill', { session: session['id'] });
 
   const forgotten = await daemon.client.sendRequest('session.forget', { session: session['id'] });
@@ -346,7 +420,7 @@ test('it removes a workspace with an unpushed commit under the none check, and l
 test.each([['unpushed' as const], ['none' as const]])(
   'it keeps a folder atc did not create under the %s check',
   async (check) => {
-    const ctx = await setupTest();
+    const temporaryDirectory = setupTempDir('atc-forget-plain-');
 
     const daemon = await startTestDaemon({
       options: () => ({
@@ -364,7 +438,7 @@ test.each([['unpushed' as const], ['none' as const]])(
       }),
     });
 
-    const folder = join(ctx.directory, 'hand-made');
+    const folder = join(temporaryDirectory.path, 'hand-made');
 
     mkdirSync(folder);
     writeFileSync(join(folder, 'notes.md'), '# mine\n');
@@ -394,7 +468,7 @@ test.each([['unpushed' as const], ['none' as const]])(
 test.each([['unpushed' as const], ['none' as const]])(
   'it keeps a workspace another listed session runs in under the %s check',
   async (check) => {
-    const ctx = await setupTest();
+    const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });
 
     const daemon = await startTestDaemon({
       options: () => ({
@@ -414,8 +488,8 @@ test.each([['unpushed' as const], ['none' as const]])(
     });
 
     const spawned = await daemon.client.sendRequest('session.spawn', {
-      cwd: join(ctx.directory, 'shop-main'),
-      workspace: { kind: 'git', url: `file://${ctx.upstream}`, ref: 'main' },
+      cwd: join(git.directory, 'shop-main'),
+      workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
       cols: 80,
       rows: 24,
     });

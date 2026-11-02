@@ -126,7 +126,13 @@ and only the daemon log carries those outcomes.
 
 The step runs inside the forget, once the session is off the list, on the session's host through the
 provider's `runCommand`, so a sub-session in its parent's imp is checked and removed inside the imp.
-One script enters the directory through every symlink and answers seven checks:
+It starts only once atc has seen the session's process exit. The killer keeps the handle of each
+harness that a kill or forget ends, and the step waits for its exit, then ends it with a forced kill
+and waits once more. A harness that still shows no exit, or a headless turn that ran when the forget
+began, keeps both folders as unchecked, since the turn's runner reports no exit to wait on.
+
+One script answers seven checks. It refuses the directory when the row's path is now a symlink,
+since atc never builds a workspace as one, and enters it through any symlink in a parent:
 
 1. `git status --porcelain --untracked-files=all --ignore-submodules=none` prints nothing. An
    ignored file never counts.
@@ -143,24 +149,31 @@ One script enters the directory through every symlink and answers seven checks:
 The script reads no system or global git config and turns off an fsmonitor that the repository's own
 config names, since `git status` would start it. It refuses a directory that is not the top of a git
 checkout holding the row's commit, and the forget then keeps it. A directory already gone gives
-`none`.
+`none`. One table of count fields in `run-workspace-check.ts` writes the script's output lines and
+the schema that reads them, so an answer that lacks a count or adds one keeps the directory as
+unchecked.
 
-| Case                                                   | Workspace                        |
-| ------------------------------------------------------ | -------------------------------- |
-| `workspaces.cleanup.enabled` is `false`                | `none`, and nothing is removed   |
-| The forget destroyed the session's host                | `none`, and no check runs        |
-| No ready materialization row for the session           | `none`                           |
-| Another listed session's directory lies inside it      | `kept`, `in use by session <id>` |
-| A check fails, under `check: "unpushed"`               | `kept`, one reason per check     |
-| A check fails, under `check: "none"`                   | `removed`, with `found`          |
-| The host does not answer, or the checkout is not atc's | `kept`, under either check       |
-| Every check passes                                     | `removed`                        |
+| Case                                                    | Workspace                        |
+| ------------------------------------------------------- | -------------------------------- |
+| `workspaces.cleanup.enabled` is `false`                 | `none`, and nothing is removed   |
+| The forget destroyed the session's host                 | `none`, and no check runs        |
+| No ready materialization row for the session            | `none`                           |
+| atc saw no exit of the session's process                | `kept`, and both folders stay    |
+| Another listed session's directory lies inside it       | `kept`, `in use by session <id>` |
+| A check fails, under `check: "unpushed"`                | `kept`, one reason per check     |
+| A check fails, under `check: "none"`                    | `removed`, with `found`          |
+| The host does not answer, or the directory is not atc's | `kept`, under either check       |
+| Every check passes                                      | `removed`                        |
 
 The removal is the rollback's: it removes the contents from inside the directory while the directory
 still resolves to itself, and it refuses while a listed session's or a claim's directory lies
 inside, as the host resolves each one. A refused or failed removal keeps the directory with its
-reason. The session's state folder on the daemon's host goes after the workspace step, whatever that
-step decided, unless cleanup is off.
+reason. Every spawn that builds a workspace claims its directory before the clone creates it: on a
+shared host as before, and on the daemon's own machine from its landing. While a removal runs, a
+claim on that shared host, or one on the daemon's machine that overlaps the directory, is refused as
+`workspace_overlap`, so no spawn builds inside a directory that a removal is emptying. The session's
+state folder on the daemon's host goes after the workspace step, whatever that step decided, unless
+cleanup is off or atc saw no exit of the session's process.
 
 ## Sources
 

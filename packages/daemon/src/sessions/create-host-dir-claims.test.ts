@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir, waitFor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
@@ -92,6 +92,95 @@ test('it refuses a plain directory around a workspace still being built on the s
   expect(() => {
     ctx.claims.claimPlainDir(toSessionID('spawn-2'), toSessionID('host-1'), 'imp', '/work');
   }).toThrow(expect.objectContaining({ code: 'workspace_overlap' }));
+});
+
+test('it refuses a workspace claim on a shared host while a removal runs there', async () => {
+  const removing = Promise.withResolvers<{ exitCode: number; stdout: string; stderr: string }>();
+
+  const provider = buildStubMemoryProvider({
+    capabilities: { suspend: true, destroy: true },
+    runCommand: (spec) =>
+      spec.argv[2] === REMOVE_DIR_SCRIPT
+        ? removing.promise
+        : Promise.resolve({ exitCode: 0, stdout: `${spec.argv[4] ?? ''}\n\0`, stderr: '' }),
+  });
+
+  const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'imp', provider })] });
+
+  const removal = ctx.claims.removeClaimedDir({
+    provider,
+    id: toSessionID('forgotten-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'imp',
+    directory: '/work/a',
+  });
+
+  await waitFor(() => {
+    expect(provider.commands.map((command) => command.argv[2])).toContain(REMOVE_DIR_SCRIPT);
+  });
+
+  expect(() => {
+    ctx.claims.claimWorkspace(toSessionID('spawn-1'), toSessionID('host-1'), 'imp', '/work/a/b');
+  }).toThrow(expect.objectContaining({ code: 'workspace_overlap' }));
+
+  removing.resolve({ exitCode: 0, stdout: '', stderr: '' });
+
+  await removal;
+});
+
+test('it refuses a workspace landing on the daemon host inside a directory a removal is emptying', async () => {
+  const removing = Promise.withResolvers<{ exitCode: number; stdout: string; stderr: string }>();
+
+  const provider = buildStubMemoryProvider({
+    runCommand: (spec) =>
+      spec.argv[2] === REMOVE_DIR_SCRIPT
+        ? removing.promise
+        : Promise.resolve({ exitCode: 0, stdout: `${spec.argv[4] ?? ''}\n\0`, stderr: '' }),
+  });
+
+  const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'local', provider })] });
+
+  const removal = ctx.claims.removeClaimedDir({
+    provider,
+    id: toSessionID('forgotten-1'),
+    hostKey: toSessionID('forgotten-1'),
+    target: 'local',
+    directory: '/work/a',
+  });
+
+  await waitFor(() => {
+    expect(provider.commands.map((command) => command.argv[2])).toContain(REMOVE_DIR_SCRIPT);
+  });
+
+  expect(() => {
+    ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/a/nested');
+  }).toThrow(expect.objectContaining({ code: 'workspace_overlap' }));
+
+  removing.resolve({ exitCode: 0, stdout: '', stderr: '' });
+
+  await removal;
+});
+
+test('it keeps a directory on the daemon host that a workspace spawn claimed inside it first', async () => {
+  const provider = buildStubMemoryProvider({
+    runCommand: (spec) =>
+      Promise.resolve({ exitCode: 0, stdout: `${spec.argv[4] ?? ''}\n\0`, stderr: '' }),
+  });
+
+  const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'local', provider })] });
+
+  ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/a/nested');
+
+  const removed = await ctx.claims.removeClaimedDir({
+    provider,
+    id: toSessionID('forgotten-1'),
+    hostKey: toSessionID('forgotten-1'),
+    target: 'local',
+    directory: '/work/a',
+  });
+
+  expect(removed).toBeFalse();
+  expect(provider.commands.map((command) => command.argv[2])).not.toContain(REMOVE_DIR_SCRIPT);
 });
 
 test('it resolves a host directory through its nearest existing directory', async () => {

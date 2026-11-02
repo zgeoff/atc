@@ -775,6 +775,52 @@ test.each([
   },
 );
 
+test("it holds a local workspace spawn's landing from before its clone until the session lists", async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty', runCommand: runLocalCommand });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const id = toSessionID('s-landing');
+  const cwd = join(ctx.directory, 'clone');
+  const held: unknown[] = [];
+
+  await ctx.spawner.spawn({
+    cwd,
+    name: 'clone',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    id,
+    target: 'local',
+    materialize: async (host) => {
+      await host.readyHost(1);
+
+      held.push(ctx.claims.reservations.get(id));
+
+      mkdirSync(cwd);
+
+      return {
+        workspace: {
+          repoURL: 'https://example.test/harbor.git',
+          sha: 'a1b2c3d',
+          materializedAt: 0,
+        },
+        branch: 'main',
+        withheldEnv: [],
+      };
+    },
+    answer: () => {},
+  });
+
+  expect({ held, listed: ctx.claims.reservations.has(id) }).toStrictEqual({
+    held: [{ hostKey: id, target: 'local', directory: cwd, resolved: null, kind: 'plain' }],
+    listed: false,
+  });
+});
+
 test('it stops the unwind at an undo that fails and throws that the spawn may still stand', async () => {
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 

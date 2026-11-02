@@ -23,16 +23,24 @@ interface ForgetCleanupDeps {
   readonly settings: WorkspaceCleanupConfig;
 }
 
+interface ForgottenSessionState {
+  // The forget destroyed the session's host, and the workspace went with it.
+  readonly hostDestroyed: boolean;
+
+  // atc saw every process the session ran exit, so nothing writes in its folders any more.
+  readonly harnessEnded: boolean;
+}
+
 export interface ForgetCleanup {
-  // Runs once the forget took the session off the list; a session whose host the forget
-  // destroyed lost its workspace with the host.
+  // Runs once the forget took the session off the list.
   readonly removeSessionFolders: (
     session: Session,
-    hostDestroyed: boolean,
+    state: ForgottenSessionState,
   ) => Promise<WorkspaceCleanup>;
 }
 
 const NO_WORKSPACE: WorkspaceCleanup = { outcome: 'none' };
+const UNENDED_REASON = "unchecked: atc could not confirm that the session's process exited";
 
 export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   const manager = deps.manager;
@@ -76,12 +84,19 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
     return user?.id ?? null;
   };
 
-  const removeWorkspace = async (session: Session): Promise<WorkspaceCleanup> => {
+  const removeWorkspace = async (
+    session: Session,
+    harnessEnded: boolean,
+  ): Promise<WorkspaceCleanup> => {
     const row = await deps.store.readMaterialization(session.id);
 
     // only a workspace atc finished building is atc's to remove
     if (row === null || row.phase !== 'ready' || row.target !== session.target) {
       return NO_WORKSPACE;
+    }
+
+    if (!harnessEnded) {
+      return { outcome: 'kept', path: row.directory, reasons: [UNENDED_REASON] };
     }
 
     const provider = manager.findProvider(session);
@@ -146,20 +161,28 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   };
 
   return {
-    removeSessionFolders: async (session, hostDestroyed) => {
+    removeSessionFolders: async (session, state) => {
       if (!settings.enabled) {
         return NO_WORKSPACE;
       }
 
-      const workspace = hostDestroyed
+      const workspace = state.hostDestroyed
         ? NO_WORKSPACE
-        : await removeWorkspace(session).catch((error: unknown): WorkspaceCleanup => ({
-            outcome: 'kept',
-            path: session.cwd,
-            reasons: [`unchecked: ${formatError(error)}`],
-          }));
+        : await removeWorkspace(session, state.harnessEnded).catch(
+            (error: unknown): WorkspaceCleanup => ({
+              outcome: 'kept',
+              path: session.cwd,
+              reasons: [`unchecked: ${formatError(error)}`],
+            }),
+          );
 
       logWorkspaceCleanup(manager.log, session.id, workspace);
+
+      if (!state.harnessEnded) {
+        manager.log(`atc: left the state folder of session ${session.id}: ${UNENDED_REASON}`);
+
+        return workspace;
+      }
 
       await removeStateDir(session.id);
 

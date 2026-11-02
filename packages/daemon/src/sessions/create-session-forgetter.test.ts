@@ -686,3 +686,118 @@ test("it checks and removes the workspace of a sub-session on its parent's host 
 
   expect(existsSync(git.work)).toBeFalse();
 });
+
+test('it keeps the workspace of a session whose killed process atc never sees exit, even after a forced kill', async () => {
+  const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-unended-' });
+
+  const session = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness !== undefined);
+
+  // a detached harness reports no exit, as a process atc lost track of
+  harness.detach();
+
+  ctx.manager.failedSpawnExitWaitMs = 1;
+
+  await ctx.forgetter.killSession(session.id, false);
+
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: {
+      outcome: 'kept',
+      path: git.work,
+      reasons: ["unchecked: atc could not confirm that the session's process exited"],
+    },
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
+});
+
+test('it keeps the workspace of a session whose headless turn ran when the forget began', async () => {
+  const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-headless-' });
+
+  const session = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  const runtime = ctx.runtimes.get(session.id);
+
+  invariant(runtime !== undefined);
+
+  runtime.headlessRun = { stop: () => {} };
+
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: {
+      outcome: 'kept',
+      path: git.work,
+      reasons: ["unchecked: atc could not confirm that the session's process exited"],
+    },
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
+});
