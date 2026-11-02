@@ -132,6 +132,8 @@ with a forced kill and waits once more. The step also waits for the stop of the 
 bridge, which writes in the state folder. These keep both folders, the workspace as unchecked:
 
 - a harness that still shows no exit;
+- a harness that the host ended without an exit, such as a connection it gave up on or a host that
+  went to sleep, until a new harness attaches to the session;
 - a bridge stop that fails;
 - a headless turn that ran or that a stop aborted, since the turn's runner reports no exit to wait
   on.
@@ -167,7 +169,9 @@ lacks a line, adds one, or labels one differently keeps the directory as uncheck
 | The forget destroyed the session's host                 | `none`, and no check runs        |
 | No ready materialization row for the session            | `none`                           |
 | atc saw no exit of the session's process                | `kept`, and both folders stay    |
+| The session's target changed since it started           | `kept`, and no check runs        |
 | Another listed session's directory lies inside it       | `kept`, `in use by session <id>` |
+| A forgotten session not yet seen to end runs inside it  | `kept`, `in use by session <id>` |
 | A check fails, under `check: "unpushed"`                | `kept`, one reason per check     |
 | A check fails, under `check: "none"`                    | `removed`, with `found`          |
 | The host does not answer, or the directory is not atc's | `kept`, under either check       |

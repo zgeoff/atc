@@ -12,7 +12,12 @@ import type { Session } from './session';
 interface ForgetCleanupDeps {
   readonly manager: Pick<
     SessionManager,
-    'sessions' | 'findProvider' | 'hasHostLifecycle' | 'removeClaimedDir' | 'log'
+    | 'sessions'
+    | 'findExecutionRefusal'
+    | 'requireExecution'
+    | 'hasHostLifecycle'
+    | 'removeClaimedDir'
+    | 'log'
   >;
   readonly store: Pick<StateStore, 'readMaterialization'>;
 
@@ -34,7 +39,16 @@ interface ForgottenSessionState {
 }
 
 export interface ForgetCleanup {
-  // Runs once the forget took the session off the list.
+  // Counts each session as a user of any workspace its directory lies in, from before a forget
+  // takes it off the list until atc sees its processes end, so a workspace never goes from under
+  // a process that may still run.
+  readonly holdSessions: (sessions: readonly Session[]) => void;
+
+  // Ends the hold on each session given, for one the forget left listed.
+  readonly releaseSessions: (sessions: readonly Session[]) => void;
+
+  // Runs once the forget took the session off the list, and ends its hold once its processes
+  // ended.
   readonly removeSessionFolders: (
     session: Session,
     state: ForgottenSessionState,
@@ -47,6 +61,8 @@ const UNENDED_REASON = "unchecked: atc could not confirm that the session's proc
 export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   const manager = deps.manager;
   const settings = deps.settings;
+
+  const held = new Map<SessionID, Session>();
 
   const removeStateDir = async (id: SessionID): Promise<void> => {
     const sessions = join(deps.stateDir, 'sessions');
@@ -71,12 +87,12 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
     }
   };
 
-  // A listed session on the same host whose directory lies inside the folder, in any of the
-  // forms given; the removal checks again with every directory as the host resolves it.
+  // A listed or held session on the same host whose directory lies inside the folder, in any of
+  // the forms given; the removal checks again with every directory as the host resolves it.
   const findWorkspaceUser = (session: Session, forms: readonly string[]): SessionID | null => {
     const hosted = manager.hasHostLifecycle(session.target);
 
-    const user = manager.sessions.find(
+    const user = [...manager.sessions, ...held.values()].find(
       (other) =>
         other.id !== session.id &&
         (hosted
@@ -103,20 +119,27 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
       return { outcome: 'kept', path: row.directory, reasons: [UNENDED_REASON] };
     }
 
-    const provider = manager.findProvider(session);
+    // a target whose config changed since the session started may now run somewhere else, where
+    // the recorded folder is not the session's
+    const bindingRefusal = manager.findExecutionRefusal(session, 'run');
 
-    if (provider === null || row.sha === null || !posix.isAbsolute(row.directory)) {
+    if (bindingRefusal !== null) {
       return {
         outcome: 'kept',
         path: row.directory,
-        reasons: [
-          provider === null
-            ? `unchecked: target '${session.target}' is not configured`
-            : 'unchecked: atc recorded no commit or no absolute folder for it',
-        ],
+        reasons: [`unchecked: ${bindingRefusal.message}`],
       };
     }
 
+    if (row.sha === null || !posix.isAbsolute(row.directory)) {
+      return {
+        outcome: 'kept',
+        path: row.directory,
+        reasons: ['unchecked: atc recorded no commit or no absolute folder for it'],
+      };
+    }
+
+    const provider = manager.requireExecution(session, 'run').provider;
     const host = manager.hasHostLifecycle(session.target) ? session.hostKey : null;
 
     const result = await runWorkspaceCheck({
@@ -165,7 +188,23 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   };
 
   return {
+    holdSessions: (sessions) => {
+      for (const session of sessions) {
+        held.set(session.id, session);
+      }
+    },
+
+    releaseSessions: (sessions) => {
+      for (const session of sessions) {
+        held.delete(session.id);
+      }
+    },
+
     removeSessionFolders: async (session, state) => {
+      if (state.harnessEnded) {
+        held.delete(session.id);
+      }
+
       if (!settings.enabled) {
         return NO_WORKSPACE;
       }

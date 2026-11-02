@@ -410,6 +410,46 @@ test('it logs and leaves a state folder whose session id would reach outside the
   ]);
 });
 
+test('it keeps, and runs no check on, the workspace of a session whose target changed since it started', async () => {
+  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-forget-cleanup-' });
+
+  const session = buildMockSession({ cwd: git.work, targetIdentity: 'remote-vm:earlier-host' });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  const workspace = await ctx.cleanup.removeSessionFolders(session, {
+    hostDestroyed: false,
+    harnessEnded: true,
+  });
+
+  expect(workspace).toStrictEqual({
+    outcome: 'kept',
+    path: git.work,
+    reasons: [
+      "unchecked: execution target 'local' changed since this session started on it (was remote-vm:earlier-host, now local-pty:test). Restore the target's earlier config to use the session, or kill it",
+    ],
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
+  expect(ctx.provider.commands).toBeEmpty();
+});
+
 test("it leaves another session's state folder that a session id names through a dot-dot segment", async () => {
   const ctx = await setupTest();
 

@@ -119,15 +119,34 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
       return cleanup.removeSessionFolders(other, { hostDestroyed, harnessEnded });
     };
 
-    const workspace = await removeFolders(session);
+    const removed = forgettable.filter((other) => !manager.sessions.includes(other));
 
-    for (const other of forgettable) {
-      if (other !== session && !manager.sessions.includes(other)) {
+    cleanup.releaseSessions(forgettable.filter((other) => manager.sessions.includes(other)));
+
+    // the sessions taken with it go first, so a sub-session that ran in the session's workspace
+    // and ended no longer holds it
+    for (const other of removed) {
+      if (other !== session) {
         await removeFolders(other);
       }
     }
 
-    return workspace;
+    return removeFolders(session);
+  };
+
+  // A kill or forget that throws leaves its sessions listed, so they need no hold.
+  const withHeldSessions = async <T>(
+    forgettable: readonly Session[],
+    run: () => Promise<T>,
+  ): Promise<T> => {
+    cleanup.holdSessions(forgettable);
+
+    try {
+      return await run();
+    } catch (error) {
+      cleanup.releaseSessions(forgettable.filter((other) => manager.sessions.includes(other)));
+      throw error;
+    }
   };
 
   return {
@@ -148,16 +167,22 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
       const forgettable = collectForgettable(session);
       const headlessRunning = collectHeadlessRunning(forgettable);
 
-      const outcome = await manager.kill(id, stopOnly);
+      const killed = await withHeldSessions(forgettable, async () => {
+        const outcome = await manager.kill(id, stopOnly);
 
-      stopEndedHeadlessRuns(set);
+        stopEndedHeadlessRuns(set);
 
-      // a kill of a session that already exited forgets it
-      if (outcome === 'removed') {
-        await removeForgottenFolders(session, forgettable, headlessRunning, false);
-      }
+        // a kill of a session that already exited forgets it
+        if (outcome === 'removed') {
+          await removeForgottenFolders(session, forgettable, headlessRunning, false);
+        } else {
+          cleanup.releaseSessions(forgettable);
+        }
 
-      return outcome;
+        return outcome;
+      });
+
+      return killed;
     },
 
     forgetSession: async (id, confirmToken, refuse, caller) => {
@@ -207,18 +232,22 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
       const forgettable = collectForgettable(session);
       const headlessRunning = collectHeadlessRunning(forgettable);
 
-      const destroyed = await manager.forget(id);
+      const forgotten = await withHeldSessions<ForgetResult>(forgettable, async () => {
+        const destroyed = await manager.forget(id);
 
-      stopEndedHeadlessRuns(set);
+        stopEndedHeadlessRuns(set);
 
-      const workspace = await removeForgottenFolders(
-        session,
-        forgettable,
-        headlessRunning,
-        destroyed,
-      );
+        const workspace = await removeForgottenFolders(
+          session,
+          forgettable,
+          headlessRunning,
+          destroyed,
+        );
 
-      return { forgotten: true, destroyed, workspace };
+        return { forgotten: true, destroyed, workspace };
+      });
+
+      return forgotten;
     },
   };
 }
