@@ -150,8 +150,9 @@ since atc never builds a workspace as one, and enters it through any symlink in 
 2. `git ls-files -v` marks no path assume-unchanged or skip-worktree, since `git status` skips the
    edits to such a path.
 3. `git stash list` prints nothing.
-4. Every commit reachable from HEAD or from a local branch is on a remote-tracking ref, so a commit
-   made on a detached HEAD counts as unpushed.
+4. Every commit reachable from HEAD, a local branch, a tag or a notes ref is on a remote-tracking
+   ref, so a commit made on a detached HEAD counts as unpushed. A tag or a notes ref that points at
+   no commit, such as a tag on a tree, fails the check, since the count sees no commit behind it.
 5. `git worktree list` names no linked worktree whose folder still exists. A linked worktree keeps
    its git data inside the workspace, and the other checks never look inside it.
 6. The index holds no submodule, since the other checks never look inside one either.
@@ -160,7 +161,7 @@ since atc never builds a workspace as one, and enters it through any symlink in 
 The script reads no system or global git config and turns off an fsmonitor that the repository's own
 config names, since `git status` would start it. It refuses a directory that is not the top of a git
 checkout holding the row's commit, and the forget then keeps it. A directory already gone gives
-`none`. One table of fields in `run-workspace-check.ts`, the per-branch and detached-HEAD counts
+`none`. One table of fields in `run-workspace-check.ts`, the per-ref and detached-HEAD counts
 included, writes every line the script prints and the schema that reads them, so an answer that
 lacks a line, adds one, or labels one differently keeps the directory as unchecked.
 

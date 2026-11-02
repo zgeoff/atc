@@ -28,8 +28,8 @@ const MISSING_EXIT = 80;
 const FOREIGN_EXIT = 81;
 const GIT_FAILED_EXIT = 82;
 
-// How many lines a field prints: exactly one, at most one, or one per local branch with its ref.
-type FieldLines = 'one' | 'optional' | 'per-branch';
+// How many lines a field prints: exactly one, at most one, or one per local ref with its name.
+type FieldLines = 'one' | 'optional' | 'per-ref';
 
 interface CountNouns {
   readonly singular: string;
@@ -51,6 +51,8 @@ const FIELD_NAMES = [
   'worktrees',
   'submodules',
   'branch',
+  'tag',
+  'notes',
   'detached',
 ] as const;
 
@@ -79,21 +81,19 @@ const CHECK_FIELDS: Readonly<Record<(typeof FIELD_NAMES)[number], CheckField>> =
     'submodule',
     'submodules',
   ),
-  branch: {
-    print: (
-      label,
-    ) => `refs=$(g for-each-ref --format='%(refname)' refs/heads) || exit ${GIT_FAILED_EXIT}
-set -f
-for ref in $refs; do
-  count=$(g rev-list --count "$ref" --not --remotes --) || exit ${GIT_FAILED_EXIT}
-  printf '${label} %s %s\\n' "$count" "$ref"
-done`,
-    lines: 'per-branch',
-    describe: (ref) => ({
-      singular: `unpushed commit on ${ref}`,
-      plural: `unpushed commits on ${ref}`,
-    }),
-  },
+  branch: buildRefField('refs/heads', (ref) => ({
+    singular: `unpushed commit on ${ref}`,
+    plural: `unpushed commits on ${ref}`,
+  })),
+
+  tag: buildRefField('refs/tags', (ref) => ({
+    singular: `unpushed commit on tag ${ref}`,
+    plural: `unpushed commits on tag ${ref}`,
+  })),
+  notes: buildRefField('refs/notes', (ref) => ({
+    singular: `unpushed commit on notes ref ${ref}`,
+    plural: `unpushed commits on notes ref ${ref}`,
+  })),
   detached: {
     print: (label) => `if ! g symbolic-ref -q HEAD > /dev/null; then
   count=$(g rev-list --count HEAD --not --remotes --) || exit ${GIT_FAILED_EXIT}
@@ -168,6 +168,24 @@ function buildLineCount(gitArgs: string, pattern: string): string {
   return `out=$(g ${gitArgs}) || exit ${GIT_FAILED_EXIT}; printf '%s' "$out" | grep -c -- '${pattern}' || true`;
 }
 
+// Prints, for each ref under the prefix, the commits it reaches that no remote-tracking ref holds.
+// rev-list counts no commit behind a ref to a tree or a blob, so such a ref fails the check.
+function buildRefField(prefix: string, describe: (ref: string) => CountNouns): CheckField {
+  return {
+    print: (
+      label,
+    ) => `refs=$(g for-each-ref --format='%(refname)' ${prefix}) || exit ${GIT_FAILED_EXIT}
+set -f
+for ref in $refs; do
+  g rev-parse --quiet --verify "$ref^{commit}" > /dev/null || exit ${GIT_FAILED_EXIT}
+  count=$(g rev-list --count "$ref" --not --remotes --) || exit ${GIT_FAILED_EXIT}
+  printf '${label} %s %s\\n' "$count" "\${ref#${prefix}/}"
+done`,
+    lines: 'per-ref',
+    describe: (ref) => describe(ref ?? ''),
+  };
+}
+
 function trimTrailingSlashes(directory: string): string {
   return directory.length > 1 && directory.endsWith('/')
     ? trimTrailingSlashes(directory.slice(0, -1))
@@ -182,7 +200,7 @@ const FIELD_LINE = z.object({
 const FIELD_LINES_MESSAGES: Readonly<Record<FieldLines, string>> = {
   one: 'expected exactly one line',
   optional: 'expected at most one line',
-  'per-branch': 'expected a branch on each line',
+  'per-ref': 'expected a ref on each line',
 };
 
 const CHECK_OUTPUT_SCHEMA = z
@@ -197,7 +215,7 @@ const CHECK_OUTPUT_SCHEMA = z
     }
   });
 
-const CHECK_LINE = /^(?<label>[a-z]+) (?<count>\d+)(?: refs\/heads\/(?<ref>.+))?$/u;
+const CHECK_LINE = /^(?<label>[a-z]+) (?<count>\d+)(?: (?<ref>.+))?$/u;
 
 function parseCheckOutput(stdout: string): WorkspaceCheck {
   const split = stdout.indexOf('\0');
@@ -257,7 +275,7 @@ function hasFieldLines(
   return match(expected)
     .with('one', () => lines.length === 1 && lines.every((line) => line.ref === null))
     .with('optional', () => lines.length <= 1 && lines.every((line) => line.ref === null))
-    .with('per-branch', () => lines.every((line) => line.ref !== null))
+    .with('per-ref', () => lines.every((line) => line.ref !== null))
     .exhaustive();
 }
 

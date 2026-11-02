@@ -161,6 +161,71 @@ test('it counts a commit made on a detached HEAD that no branch or remote holds'
   });
 });
 
+test('it counts the commits on a local tag that no branch or remote holds', async () => {
+  const ctx = setupTest();
+
+  const git = await createGitFixture({ prefix: 'atc-workspace-check-' });
+
+  await $`git switch --quiet --detach`.env(git.env).cwd(git.work).quiet();
+  await $`git commit --quiet --allow-empty -m tagged`.env(git.env).cwd(git.work).quiet();
+  await $`git tag release-candidate`.env(git.env).cwd(git.work).quiet();
+  await $`git switch --quiet -`.env(git.env).cwd(git.work).quiet();
+
+  const check = await runWorkspaceCheck({
+    provider: ctx.provider,
+    host: null,
+    directory: git.work,
+    sha: git.sha,
+  });
+
+  expect(check).toStrictEqual({
+    kind: 'checked',
+    path: realpathSync(git.work),
+    findings: ['1 unpushed commit on tag release-candidate'],
+  });
+});
+
+test('it reports a checkout with a tag on an object that is not a commit as unchecked', async () => {
+  const ctx = setupTest();
+
+  const git = await createGitFixture({ prefix: 'atc-workspace-check-' });
+
+  await $`git tag tree-snapshot HEAD^{tree}`.env(git.env).cwd(git.work).quiet();
+
+  const check = await runWorkspaceCheck({
+    provider: ctx.provider,
+    host: null,
+    directory: git.work,
+    sha: git.sha,
+  });
+
+  expect(check).toStrictEqual({
+    kind: 'unchecked',
+    reason: expect.stringMatching(/^git failed: .*refs\/tags\/tree-snapshot/u),
+  });
+});
+
+test('it counts the commits on a notes ref that no remote holds', async () => {
+  const ctx = setupTest();
+
+  const git = await createGitFixture({ prefix: 'atc-workspace-check-' });
+
+  await $`git notes add -m ${'reviewed by the release crew'}`.env(git.env).cwd(git.work).quiet();
+
+  const check = await runWorkspaceCheck({
+    provider: ctx.provider,
+    host: null,
+    directory: git.work,
+    sha: git.sha,
+  });
+
+  expect(check).toStrictEqual({
+    kind: 'checked',
+    path: realpathSync(git.work),
+    findings: ['1 unpushed commit on notes ref commits'],
+  });
+});
+
 test('it counts a linked worktree, whose own work the other checks never see', async () => {
   const ctx = setupTest();
 
@@ -439,7 +504,7 @@ test('it reports an answer with a count it does not know as unchecked', () => {
           Promise.resolve({
             exitCode: 0,
             stdout:
-              '/srv/work/shop-main\0changes 0\nhidden 0\nstashes 0\nworktrees 0\nsubmodules 0\nnotes 2\n',
+              '/srv/work/shop-main\0changes 0\nhidden 0\nstashes 0\nworktrees 0\nsubmodules 0\nrefunds 2\n',
             stderr: '',
           }),
       },
@@ -449,7 +514,7 @@ test('it reports an answer with a count it does not know as unchecked', () => {
     }),
   ).resolves.toStrictEqual({
     kind: 'unchecked',
-    reason: 'the check printed an unknown answer: Unrecognized key: "notes"',
+    reason: 'the check printed an unknown answer: Unrecognized key: "refunds"',
   });
 });
 
