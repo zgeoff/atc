@@ -1,1 +1,1 @@
-export const firstPartyScopes = ['@zgeoff/', '@impz/'] as const;
+export const firstPartyScopes = ['@zgeoff/', '@impz/', '@wringer/'] as const;
