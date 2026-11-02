@@ -12,14 +12,10 @@ metadata:
 
 ## Facts
 
-| Fact         | Value                                                                                                                                                            |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Test command | `bun run test`                                                                                                                                                   |
-| Test timeout | 5 s, Bun's default                                                                                                                                               |
-| Lanes        | `.codex` suffix: the installed Codex CLI, `bun run test:codex`, 5 s; `e2e/` folder: atc's CLI, daemon and gateway started as processes, `bun run test:e2e`, 15 s |
-| Test preload | [`bunfig.toml`](../../../bunfig.toml): `isolate-home.ts`; `seed-faker.ts`; `load-web-authn-early.ts`; `@zgeoff/bun-test-extended`                                |
-| Test utils   | [`packages/test-utils/src/`](../../../packages/test-utils/src/)                                                                                                  |
-| Isolation    | `--no-isolate`: the files in a worker share one process, so undo every change a test makes                                                                       |
+| Fact       | Where                                                                                                                                                                      |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lanes      | the `lanes` option of `zgeoff/max-test-timeout` in [`.oxlintrc.json`](../../../.oxlintrc.json), and each lane's `test:*` script in [`package.json`](../../../package.json) |
+| Test utils | [`packages/test-utils/src/`](../../../packages/test-utils/src/)                                                                                                            |
 
 ## Departures
 

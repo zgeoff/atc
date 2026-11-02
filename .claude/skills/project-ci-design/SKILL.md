@@ -1,9 +1,9 @@
 ---
 name: project-ci-design
 description:
-  "atc's CI facts, and the one ci-design rule it replaces: atc runs its own checks workflow in place
-  of bun-checks.yml. Also how a new job becomes part of the required checks. Load it beside
-  ci-design before you add or change a workflow, a job or a step in atc."
+  "atc's test budget and required checks, and the one ci-design rule it replaces: atc runs its own
+  checks workflow in place of bun-checks.yml. Also how a new job becomes part of the required
+  checks. Load it beside ci-design before you add or change a workflow, a job or a step in atc."
 metadata:
   kind: rule-set
 ---
@@ -12,15 +12,10 @@ metadata:
 
 ## Facts
 
-| Fact                        | Value                                                                                                                                                                                                                                                                                                                               |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Visibility                  | public                                                                                                                                                                                                                                                                                                                              |
-| Test budget                 | 3 min                                                                                                                                                                                                                                                                                                                               |
-| `BUN_CHECK_TIMEOUT_MINUTES` | none: atc doesn't call `bun-checks.yml`                                                                                                                                                                                                                                                                                             |
-| `BUN_CHECK_SCRIPTS`         | none: atc doesn't call `bun-checks.yml`                                                                                                                                                                                                                                                                                             |
-| Required checks             | `checks` and `gitleaks`, both jobs in [`pr.yml`](../../../.github/workflows/pr.yml)                                                                                                                                                                                                                                                 |
-| Heavy checks                | the `smoke` job of [`binaries.yml`](../../../.github/workflows/binaries.yml) on its two macOS runners, on every pull request, as ci-design allows in a public repo                                                                                                                                                                  |
-| Reusable workflow pin       | a commit on `main` of zgeoff/tools, in [`repo-sync.yml`](../../../.github/workflows/repo-sync.yml), [`repo-sync-guard.yml`](../../../.github/workflows/repo-sync-guard.yml), [`audit-fix.yml`](../../../.github/workflows/audit-fix.yml) and [`main.yml`](../../../.github/workflows/main.yml); the repo-sync pull requests move it |
+| Fact            | Where                                                                            |
+| --------------- | -------------------------------------------------------------------------------- |
+| Test budget     | 3 min                                                                            |
+| Required checks | `gh api repos/zgeoff/atc/rules/branches/main`, the `required_status_checks` rule |
 
 ## Departures
 
@@ -39,7 +34,6 @@ you add there needs no required check of its own.
 - Add a step that runs tests to the `test` job in `checks.yml`. That job sets up the temp folder and
   the memory cap the suite needs.
 - Add a job to `checks.yml` only when it can't be a step, such as one that needs its own runner.
-- Add a job that builds or runs on macOS or on arm64 to `binaries.yml`. Add a macOS job to the Heavy
-  checks row above.
+- Add a job that builds or runs on macOS or on arm64 to `binaries.yml`.
 - Keep `gitleaks` as its own required check. Its action comments on the pull request, so it needs
   write access to pull requests and the full git history, which no other job takes.
