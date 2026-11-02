@@ -64,7 +64,7 @@ test('it reads an imp as a host with its id and name', async () => {
 test('it reads each secret with its kind and rules', async () => {
   const ctx = setupTest();
 
-  ctx.port.createSecret('glm', 'custom', [
+  ctx.port.createSecret('glm', 'static', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
@@ -73,7 +73,7 @@ test('it reads each secret with its kind and rules', async () => {
   expect(secrets).toStrictEqual([
     {
       name: 'glm',
-      kind: 'custom',
+      kind: 'static',
       rules: [{ host: 'api.z.ai', header: 'authorization', scheme: 'bearer' }],
     },
   ]);
