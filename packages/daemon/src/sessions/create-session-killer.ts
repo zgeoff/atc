@@ -40,7 +40,7 @@ export interface SessionKiller {
   // and the process stays inside the host for a revive to find.
   readonly updateSuspended: (session: Session) => void;
 
-  // Whether the last harness a kill or forget ended for the session has exited, ending it by
+  // Whether every harness a kill or forget ended for the session has exited, ending each by
   // force when a wait runs out; a forget removes nothing the session ran in until it has.
   readonly probeHarnessEnded: (id: SessionID) => Promise<boolean>;
 }
@@ -51,8 +51,9 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
   const callbacks = deps.callbacks;
   const restarts = deps.restarts;
 
-  // The harness each kill or forget ended, by session, until a probe sees it exit.
-  const endingHarnesses = new Map<SessionID, HarnessHandle>();
+  // The harnesses each kill or forget ended, by session, until a probe sees each exit; a revive
+  // between two kills leaves more than one.
+  const endingHarnesses = new Map<SessionID, HarnessHandle[]>();
 
   const removeWithChildren = (session: Session, forgettable: readonly Session[]): void => {
     const kept: Session[] = [];
@@ -122,7 +123,7 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
       // a provider may report the exit inside the kill call, which clears the session's handle
       const pty = session.pty;
 
-      endingHarnesses.set(session.id, pty);
+      endingHarnesses.set(session.id, [...(endingHarnesses.get(session.id) ?? []), pty]);
       pty.kill();
 
       session.pty = null;
@@ -321,19 +322,20 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
     updateSuspended,
 
     probeHarnessEnded: async (id) => {
-      const pty = endingHarnesses.get(id);
+      const ptys = endingHarnesses.get(id) ?? [];
+      const waitMs = deps.readExitWaitMs();
 
-      if (pty === undefined) {
-        return true;
-      }
+      const exits = await Promise.all(ptys.map((pty) => waitForKilledExit(pty, waitMs)));
 
-      const exited = await waitForKilledExit(pty, deps.readExitWaitMs());
+      const running = ptys.filter((_, index) => !exits[index]);
 
-      if (exited) {
+      if (running.length === 0) {
         endingHarnesses.delete(id);
+      } else {
+        endingHarnesses.set(id, running);
       }
 
-      return exited;
+      return running.length === 0;
     },
   };
 }

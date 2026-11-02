@@ -70,16 +70,10 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
     ]),
   ];
 
-  // A headless turn's runner gives no exit to wait on, so a session that ran one when the forget
-  // began counts as possibly still running in its folders.
+  // A headless turn's runner gives no exit to wait on, so a session that ever started one counts
+  // as possibly still running in its folders.
   const collectHeadlessRunning = (forgettable: readonly Session[]): Set<Session> =>
-    new Set(
-      forgettable.filter((other) => {
-        const runtime = findRuntime(other.id);
-
-        return runtime !== undefined && (runtime.headlessRun !== null || runtime.headlessStopped);
-      }),
-    );
+    new Set(forgettable.filter((other) => findRuntime(other.id)?.headlessStarted === true));
 
   const removeForgottenFolders = async (
     session: Session,
