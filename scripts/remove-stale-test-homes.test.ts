@@ -45,11 +45,19 @@ test.skipIf(process.platform !== 'linux')(
     mkdirSync(root);
     writeFileSync(join(root, 'owner.pid'), `${owner.pid}\n`);
 
-    const left = Bun.spawn(['sleep', '30'], { env: { ...process.env, ATC_TEST_HOME: root } });
+    const left = Bun.spawn(['sh', '-c', 'echo started; read -r line'], {
+      stdin: 'pipe',
+      env: { ...process.env, ATC_TEST_HOME: root },
+      stdout: 'pipe',
+    });
 
     onTestFinished(() => {
       left.kill('SIGKILL');
     });
+
+    // Linux shows a child's environment in /proc only once it runs its program, which the
+    // spawn call returns before; the first line comes after that.
+    await left.stdout.getReader().read();
 
     await removeStaleTestHomes({
       tmpDir: ctx.directory,
