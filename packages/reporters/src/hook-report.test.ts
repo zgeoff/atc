@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { setupTempDir, startStubReporterSocket, updateEnv } from '@atc/test-utils';
 import { runHookReport } from './hook-report';
@@ -38,6 +38,43 @@ test('it forwards a Claude SessionStart envelope as SessionStart', async () => {
     event: 'SessionStart',
     payload: { hook_event_name: 'SessionStart', session_id: 'claude-1' },
   });
+});
+
+test('it waits past 2 s for the daemon to close a session start report', async () => {
+  const temporaryDirectory = setupTempDir('atc-hook-report-held-');
+  const sock = join(temporaryDirectory.path, 'reporter.sock');
+  const order: string[] = [];
+
+  // a remote host's relay keeps a guest's connection open after the guest closes its writing side
+  const server = Bun.listen({
+    unix: sock,
+    allowHalfOpen: true,
+    socket: {
+      data(socket) {
+        setTimeout(() => {
+          order.push('closed by the daemon');
+          socket.end();
+        }, 2500);
+      },
+      end() {},
+    },
+  });
+
+  onTestFinished(() => {
+    server.stop(true);
+  });
+
+  updateEnv('ATC_SOCKET', sock);
+  updateEnv('ATC_SESSION_ID', 's1');
+
+  await runHookReport('', {
+    readStdin: () => Promise.resolve(JSON.stringify({ hook_event_name: 'SessionStart' })),
+    exit: (code) => {
+      order.push(`exited ${String(code)}`);
+    },
+  });
+
+  expect(order).toStrictEqual(['closed by the daemon', 'exited 0']);
 });
 
 test('it forwards a Grok session_start envelope as SessionStart', async () => {

@@ -182,8 +182,11 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
       bridges.updateThread(sessionID, agentSessionID);
     },
     onAgentStarted: (sessionID) => {
-      revival.watchAgentStart(sessionID);
+      const held = revival.watchAgentStart(sessionID);
+
       detection.applyAgentStart(sessionID);
+
+      return held;
     },
     ...(opts.onNoteIgnored === undefined ? {} : { onNoteIgnored: opts.onNoteIgnored }),
     ...(opts.onLastUsedUnchanged === undefined
@@ -266,7 +269,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   const reads = createSessionReads({ manager, store, records });
 
   const reporter = startHookServer((hookEvent) => {
-    hooks.applyHookEvent(hookEvent);
+    void hooks.applyHookEvent(hookEvent);
   }, opts.reporterSocketPath);
 
   const spawns = createSpawnService({

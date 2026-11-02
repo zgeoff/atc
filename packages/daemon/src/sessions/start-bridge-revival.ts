@@ -4,7 +4,7 @@ import type { ExecutionProvider, GuestLayout } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import type { SessionID } from '@atcx/contract';
 import { createActor } from 'xstate';
-import type { Actor } from 'xstate';
+import type { Actor, SnapshotFrom } from 'xstate';
 import type { TapClient } from '../daemon-context';
 import { BRIDGE_REVIVAL_MACHINE } from './bridge-revival-machine';
 import type { SessionManager } from './create-session-manager';
@@ -13,7 +13,7 @@ import type { Session } from './session';
 
 interface BridgeRevivalDeps {
   readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'requireExecution' | 'log'>;
-  readonly taps: Pick<TapRegistry<TapClient>, 'hasTap' | 'subscribeToDetach'>;
+  readonly taps: Pick<TapRegistry<TapClient>, 'hasTap' | 'subscribeToDetach' | 'subscribeToAttach'>;
   readonly clock: Clock;
 
   // Whether the session's agent process has ended, though its terminal
@@ -25,7 +25,8 @@ interface BridgeRevivalDeps {
 }
 
 export interface BridgeRevival {
-  readonly watchAgentStart: (sessionID: SessionID) => void;
+  // Settles once the start's tap attached, or once the mod was written again after none did.
+  readonly watchAgentStart: (sessionID: SessionID) => Promise<void>;
 
   readonly stop: () => void;
 }
@@ -175,21 +176,63 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
     });
   };
 
-  const unsubscribe = deps.taps.subscribeToDetach((sessionID) => {
+  const unsubscribeDetach = deps.taps.subscribeToDetach((sessionID) => {
     const actor = actors.get(sessionID) ?? startSessionActor(sessionID);
 
     actor.send({ type: 'TAP_LEFT' });
   });
+
+  const unsubscribeAttach = deps.taps.subscribeToAttach((sessionID) => {
+    actors.get(sessionID)?.send({ type: 'TAP_ATTACHED' });
+  });
+
+  // Each start hold that has not ended, so a stop ends them all.
+  const holds = new Set<() => void>();
+
+  // Ends once the machine leaves the start wait and any write that ended it.
+  const holdStart = (actor: Actor<typeof BRIDGE_REVIVAL_MACHINE>): Promise<void> => {
+    if (!isStartHeld(actor.getSnapshot())) {
+      return Promise.resolve();
+    }
+
+    const released = Promise.withResolvers<void>();
+
+    const release = () => {
+      holds.delete(release);
+      subscription.unsubscribe();
+      released.resolve();
+    };
+
+    const subscription = actor.subscribe({
+      next: (snapshot) => {
+        if (!isStartHeld(snapshot)) {
+          release();
+        }
+      },
+      complete: release,
+    });
+
+    holds.add(release);
+
+    return released.promise;
+  };
 
   return {
     watchAgentStart: (sessionID) => {
       const actor = actors.get(sessionID) ?? startSessionActor(sessionID);
 
       actor.send({ type: 'AGENT_STARTED' });
+
+      return holdStart(actor);
     },
 
     stop: () => {
-      unsubscribe();
+      unsubscribeDetach();
+      unsubscribeAttach();
+
+      for (const release of holds) {
+        release();
+      }
 
       for (const actor of actors.values()) {
         actor.stop();
@@ -198,4 +241,8 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
       actors.clear();
     },
   };
+}
+
+function isStartHeld(snapshot: SnapshotFrom<typeof BRIDGE_REVIVAL_MACHINE>): boolean {
+  return snapshot.matches('starting') || snapshot.matches('writing');
 }

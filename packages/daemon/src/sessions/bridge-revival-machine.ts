@@ -3,6 +3,7 @@ import { assign, setup } from 'xstate';
 
 type BridgeRevivalEvent =
   | { readonly type: 'TAP_LEFT' }
+  | { readonly type: 'TAP_ATTACHED' }
   | { readonly type: 'AGENT_STARTED' }
   | { readonly type: 'WRITE_ENDED' };
 
@@ -11,6 +12,9 @@ interface BridgeRevivalContext {
   readonly delayMs: number;
 }
 
+// Claude Code drops a mod that does not load within 10 s and runs the SessionStart hooks only
+// once the load settles, so a tap missing this long after the start belongs to a dropped mod.
+const START_DELAY_MS = 10_000;
 const FIRST_DELAY_MS = 30_000;
 const MAX_DELAY_MS = 30 * 60_000;
 
@@ -26,6 +30,7 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
     writeBridge: () => {},
   },
   delays: {
+    startDelay: START_DELAY_MS,
     revivalDelay: (args) => args.context.delayMs,
   },
 }).createMachine({
@@ -34,11 +39,30 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
   context: { delayMs: FIRST_DELAY_MS },
   states: {
     tapped: {
-      on: { TAP_LEFT: 'waiting', AGENT_STARTED: 'waiting' },
+      on: {
+        TAP_LEFT: 'waiting',
+        AGENT_STARTED: [
+          { guard: 'hasTap', target: 'tapped' },
+          { guard: 'canWrite', target: 'starting' },
+          { target: 'waiting' },
+        ],
+      },
+    },
+    starting: {
+      on: { TAP_ATTACHED: 'tapped', TAP_LEFT: 'waiting' },
+      after: {
+        startDelay: [
+          { guard: 'hasTap', target: 'tapped' },
+          { guard: 'isAsleep', target: 'waiting' },
+          { guard: 'isGone', target: 'gone' },
+          { guard: 'canWrite', target: 'writing' },
+          { target: 'tapped' },
+        ],
+      },
     },
     waiting: {
       // a later loss starts the wait again
-      on: { TAP_LEFT: { target: 'waiting', reenter: true } },
+      on: { TAP_LEFT: { target: 'waiting', reenter: true }, TAP_ATTACHED: 'tapped' },
       after: {
         revivalDelay: [
           { guard: 'hasTap', target: 'tapped' },

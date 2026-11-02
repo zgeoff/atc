@@ -225,6 +225,53 @@ test('it closes the relay of a guest that ended after it sent a hook line', asyn
   });
 });
 
+test('it keeps the relay of an ended guest open until its hook report is applied in full', async () => {
+  const ctx = setupTest();
+
+  ctx.sessions.set(toSessionID('s1'), {
+    id: toSessionID('s1'),
+    target: 'box',
+    targetIdentity: 'imp:a',
+    hostKey: toSessionID('s1'),
+    bridgeEpoch: 3,
+    state: 'running',
+    lastMsg: 'started',
+  });
+
+  const startHold = Promise.withResolvers<void>();
+
+  ctx.applyHookEvent.mockImplementation(() => startHold.promise);
+
+  startSessionBridge(
+    ctx.stub.relay,
+    {
+      sessionID: toSessionID('s1'),
+      target: 'box',
+      targetIdentity: 'imp:a',
+      hostKey: toSessionID('s1'),
+      epoch: 3,
+    },
+    ctx.daemon,
+  );
+
+  ctx.stub.sendLine({ atcId: 's1', event: 'SessionStart', payload: {} });
+  ctx.stub.emitEnd();
+
+  await waitFor(() => {
+    expect(ctx.applyHookEvent).toHaveBeenCalledTimes(1);
+  });
+
+  const isClosedWhileHeld = ctx.stub.isClosed();
+
+  startHold.resolve();
+
+  await waitFor(() => {
+    expect(ctx.stub.isClosed()).toBeTrue();
+  });
+
+  expect(isClosedWhileHeld).toBeFalse();
+});
+
 test('it answers a note before it closes the relay of a guest that ended after sending it', async () => {
   const ctx = setupTest();
   const recorded = Promise.withResolvers<boolean>();

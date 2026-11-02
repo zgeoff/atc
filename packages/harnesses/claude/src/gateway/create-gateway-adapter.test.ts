@@ -531,7 +531,7 @@ test("it runs a headless turn with the gateway's settings file, its permission h
             {
               type: 'command',
               command: `"/opt/atc/bin/atc" hook-report --agent='manual-hook'`,
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -808,7 +808,7 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
             {
               type: 'command',
               command: `"/opt/atc/bin/atc" hook-report --agent='glm-local'`,
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -1226,7 +1226,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
             {
               type: 'command',
               command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -1384,7 +1384,7 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
             {
               type: 'command',
               command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -1615,7 +1615,7 @@ test('it carries an extra placeholder variable and the gateway args into a broke
             {
               type: 'command',
               command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -2543,7 +2543,7 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
             {
               type: 'command',
               command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },

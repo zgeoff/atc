@@ -20,6 +20,13 @@ const PROCESS_IO: HookReportIO = {
 // atc strips it from every session it starts, so a hook that sees it runs
 // in a harness that a tool started inside the session.
 const CODEX_TOOL_THREAD_KEY = 'CODEX_THREAD_ID';
+const REPORT_TIMEOUT_MS = 2000;
+
+// The daemon holds a remote session's start report until the session's bridge tap attaches or
+// its mod is written again, which takes up to its 10 s start wait and the write; Claude Code
+// starts the first turn only once the report's hook ends, so the reporter waits that long.
+const SESSION_START_EVENT = 'SessionStart';
+const SESSION_START_REPORT_TIMEOUT_MS = 25_000;
 
 export async function runHookReport(agent: string, io: HookReportIO = PROCESS_IO): Promise<void> {
   const session = readSessionEnv(process.env);
@@ -48,8 +55,11 @@ export async function runHookReport(agent: string, io: HookReportIO = PROCESS_IO
     // the agent id lets the daemon tell a nested harness's report from the
     // session's own
     const line = `${JSON.stringify({ atcId, ...(agent === '' ? {} : { agent }), event, payload })}\n`;
+    const isStart = event === SESSION_START_EVENT;
+    const timeoutMs = isStart ? SESSION_START_REPORT_TIMEOUT_MS : REPORT_TIMEOUT_MS;
+    const end = isStart ? 'wait' : 'close';
 
-    await sendReport(sock, line, 2000);
+    await sendReport(sock, line, timeoutMs, end);
   }
 
   // always 0, so the hook never blocks the session it reports on

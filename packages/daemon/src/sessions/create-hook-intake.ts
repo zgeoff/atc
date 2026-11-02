@@ -56,7 +56,8 @@ interface HookIntakeDeps {
   // shows.
   readonly updateBridgeThread: (sessionID: SessionID, agentSessionID: string) => void;
 
-  readonly onAgentStarted: (sessionID: SessionID) => void;
+  // Settles once the start may go on: at once, or once the session's start hold ends.
+  readonly onAgentStarted: (sessionID: SessionID) => Promise<void>;
 
   // Called when a Note line changes nothing: a note from a session the
   // fleet does not list, or an answer or unanswered report that matches no
@@ -70,7 +71,8 @@ interface HookIntakeDeps {
 }
 
 export interface HookIntake {
-  readonly applyHookEvent: (hookEvent: HookEvent) => void;
+  // Settles once the report is applied, and a report that starts the agent once its hold ends.
+  readonly applyHookEvent: (hookEvent: HookEvent) => Promise<void>;
 
   // A note id, which a remote session's reporter gives each note, makes a
   // resent note land once; a resent answer changes nothing, since only an
@@ -177,11 +179,11 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
     } catch {}
   };
 
-  const applyHookEvent = (hookEvent: HookEvent): void => {
+  const applyHookEvent = (hookEvent: HookEvent): Promise<void> => {
     if (hookEvent.event === 'Note') {
       void applyNote(hookEvent);
 
-      return;
+      return Promise.resolve();
     }
 
     const before = manager.sessions.find((session) => session.id === hookEvent.atcId);
@@ -203,7 +205,7 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
         `atc hook event=dropped session=${formatLogField(hookEvent.atcId)} agent=${formatLogField(hookEvent.agent ?? '')} hook=${formatLogField(hookEvent.event)}`,
       );
 
-      return;
+      return Promise.resolve();
     }
 
     if (runtime !== undefined && hookEvent.agent !== undefined) {
@@ -242,6 +244,8 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
       updateBridgeThread(hookEvent.atcId, currentAgentSessionID);
     }
 
+    let startHold = Promise.resolve();
+
     for (const ev of events) {
       if (ev.kind === 'ended') {
         runtime?.pendingEject?.();
@@ -255,7 +259,7 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
         }
 
         runtime?.bootWaiter?.();
-        onAgentStarted(hookEvent.atcId);
+        startHold = onAgentStarted(hookEvent.atcId);
 
         const started = manager.sessions.find((session) => session.id === hookEvent.atcId);
 
@@ -267,6 +271,8 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
         }
       }
     }
+
+    return startHold;
   };
 
   return {
@@ -319,9 +325,7 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
     startRelay: (binding, relay) => {
       startSessionBridge(relay, binding, {
         findSession: (sessionID) => manager.sessions.find((x) => x.id === sessionID),
-        applyHookEvent: (hookEvent) => {
-          applyHookEvent(hookEvent);
-        },
+        applyHookEvent,
         applyNote: async (sessionID, payload, noteID) => {
           if (parseNote(payload) === null) {
             return false;

@@ -22,7 +22,7 @@ test('it points the settings at the credential helper command', () => {
             {
               type: 'command',
               command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },
@@ -243,7 +243,7 @@ test('it gives every command it registers the agent id of its session', () => {
             {
               type: 'command',
               command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
-              timeout: 5,
+              timeout: 30,
             },
           ],
         },

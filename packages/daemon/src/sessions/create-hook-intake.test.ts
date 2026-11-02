@@ -101,7 +101,7 @@ async function setupTest(config: SetupTestConfig) {
   });
 
   const updateBridgeThread = mock<(sessionID: SessionID, agentSessionID: string) => void>();
-  const onAgentStarted = mock<(sessionID: SessionID) => void>();
+  const onAgentStarted = mock<(sessionID: SessionID) => Promise<void>>(() => Promise.resolve());
   const onNoteIgnored = mock<(sessionID: string, kind: string) => void>();
   const onLastUsedUnchanged = mock<(sessionID: SessionID) => void>();
 
@@ -149,7 +149,7 @@ test('it records a hook line in the trail under the event its adapter planned', 
     rows: 24,
   });
 
-  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'Stop', payload: {} });
+  await ctx.hooks.applyHookEvent({ atcId: session.id, event: 'Stop', payload: {} });
 
   await waitFor(async () => {
     const rows = await ctx.store.readLatestEvents(10, null);
@@ -169,8 +169,8 @@ test('it passes back the harness state the same session last returned', async ()
     rows: 24,
   });
 
-  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'PreToolUse', payload: {} });
-  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'PreToolUse', payload: {} });
+  await ctx.hooks.applyHookEvent({ atcId: session.id, event: 'PreToolUse', payload: {} });
+  await ctx.hooks.applyHookEvent({ atcId: session.id, event: 'PreToolUse', payload: {} });
 
   expect(ctx.adapter.hookReads.map((read) => read.previous)).toStrictEqual([undefined, 1]);
 });
@@ -186,14 +186,19 @@ test('it drops a hook line from a harness nested inside the session', async () =
     rows: 24,
   });
 
-  ctx.hooks.applyHookEvent({
+  await ctx.hooks.applyHookEvent({
     atcId: session.id,
     event: 'PreToolUse',
     payload: {},
     agent: 'claude',
   });
 
-  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'PreToolUse', payload: {}, agent: 'grok' });
+  await ctx.hooks.applyHookEvent({
+    atcId: session.id,
+    event: 'PreToolUse',
+    payload: {},
+    agent: 'grok',
+  });
 
   expect(ctx.adapter.hookReads).toHaveLength(1);
   expect(ctx.lines).toSatisfyAny((line: string) => line.startsWith('atc hook event=dropped'));
@@ -216,7 +221,7 @@ test('it writes the last-used agent when a spawned session reports its start', a
 
   runtime.pendingLastUsed = true;
 
-  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
+  await ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
   await waitFor(async () => {
     const agent = await ctx.store.loadLastUsedAgent();
@@ -236,7 +241,7 @@ test('it leaves the last-used agent when no spawn waits on the start a session r
     rows: 24,
   });
 
-  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
+  await ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
   expect(ctx.onLastUsedUnchanged).toHaveBeenCalledExactlyOnceWith(session.id);
 });
@@ -252,9 +257,43 @@ test('it reports the start of a session agent so its tap is watched for', async 
     rows: 24,
   });
 
-  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
+  await ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
   expect(ctx.onAgentStarted).toHaveBeenCalledExactlyOnceWith(session.id);
+});
+
+test('it settles a start report only once the agent start lets it go on', async () => {
+  const ctx = await setupTest({ hooks: { SessionStart: [{ kind: 'started' }] } });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const startHold = Promise.withResolvers<void>();
+  const order: string[] = [];
+
+  ctx.onAgentStarted.mockImplementation(() => startHold.promise);
+
+  const applied = (async () => {
+    await ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
+
+    order.push('report settled');
+  })();
+
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
+  order.push('start released');
+  startHold.resolve();
+
+  await applied;
+
+  expect(order).toStrictEqual(['start released', 'report settled']);
 });
 
 test('it moves the bridge to the conversation a session start shows', async () => {
@@ -270,7 +309,7 @@ test('it moves the bridge to the conversation a session start shows', async () =
     rows: 24,
   });
 
-  ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
+  await ctx.hooks.applyHookEvent({ atcId: session.id, event: 'SessionStart', payload: {} });
 
   expect(ctx.updateBridgeThread).toHaveBeenCalledExactlyOnceWith(session.id, 'a-2');
 });

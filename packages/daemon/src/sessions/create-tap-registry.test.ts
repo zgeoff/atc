@@ -73,6 +73,36 @@ test('it tells a listener nothing once it unsubscribes', () => {
   expect(detached).toStrictEqual([]);
 });
 
+test('it tells an attach listener about each tap that attaches, a replacement included', () => {
+  const taps = createTapRegistry<{ name: string }>();
+  const attached: string[] = [];
+
+  taps.subscribeToAttach((sessionID) => {
+    attached.push(sessionID);
+  });
+
+  taps.attach(toSessionID('s1'), { name: 'a' });
+  taps.attach(toSessionID('s1'), { name: 'b' });
+  taps.attach(toSessionID('s2'), { name: 'c' });
+
+  expect(attached).toStrictEqual(['s1', 's1', 's2']);
+});
+
+test('it tells an attach listener nothing once it unsubscribes', () => {
+  const taps = createTapRegistry<{ name: string }>();
+  const attached: string[] = [];
+
+  const unsubscribe = taps.subscribeToAttach((sessionID) => {
+    attached.push(sessionID);
+  });
+
+  unsubscribe();
+
+  taps.attach(toSessionID('s1'), { name: 'a' });
+
+  expect(attached).toStrictEqual([]);
+});
+
 test('it hands a message to the tap', () => {
   const taps = createTapRegistry<{ name: string }>();
   const session = toSessionID('s1');

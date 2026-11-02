@@ -41,6 +41,9 @@ export interface TapRegistry<TClient> {
   // that another replaces is no departure.
   readonly subscribeToDetach: (listener: (sessionID: SessionID) => void) => () => void;
 
+  // Hears each session whose tap attaches, a tap that replaces another included.
+  readonly subscribeToAttach: (listener: (sessionID: SessionID) => void) => () => void;
+
   readonly findTap: (sessionID: SessionID) => TapGeneration | null;
   readonly hasTap: (sessionID: SessionID) => boolean;
   readonly isTap: (sessionID: SessionID, client: TClient) => boolean;
@@ -59,6 +62,7 @@ export function createTapRegistry<TClient>(): TapRegistry<TClient> {
   let nextGeneration = 0;
 
   const detachListeners = new Set<(sessionID: SessionID) => void>();
+  const attachListeners = new Set<(sessionID: SessionID) => void>();
 
   const emitDetached = (sessionID: SessionID): void => {
     for (const listener of detachListeners) {
@@ -79,6 +83,10 @@ export function createTapRegistry<TClient>(): TapRegistry<TClient> {
         notices,
         generation: nextGeneration,
       });
+
+      for (const listener of attachListeners) {
+        listener(sessionID);
+      }
 
       return previous === client ? null : previous;
     },
@@ -110,6 +118,14 @@ export function createTapRegistry<TClient>(): TapRegistry<TClient> {
 
       return () => {
         detachListeners.delete(listener);
+      };
+    },
+
+    subscribeToAttach: (listener) => {
+      attachListeners.add(listener);
+
+      return () => {
+        attachListeners.delete(listener);
       };
     },
 
