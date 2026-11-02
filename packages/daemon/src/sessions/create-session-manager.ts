@@ -162,7 +162,8 @@ export interface SessionManager {
 
   readonly forget: (id: SessionID) => Promise<boolean>;
 
-  // Whether every process that a kill, a forget or a failed spawn's rollback ended has exited.
+  // Whether every process that a kill, a forget or a failed spawn's rollback ended has exited, and
+  // the session's last harness ended with an exit of its process.
   readonly probeHarnessEnded: (id: SessionID) => Promise<boolean>;
   readonly pickKillCapability: (session: Session) => ExecutionCapability;
   readonly writeStatus: () => void;
@@ -474,7 +475,7 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
       const killed = await killer.probeHarnessEnded(id);
       const rolledBack = await rollback.probeRollbackSettled(id);
 
-      return killed && rolledBack;
+      return killed && rolledBack && !harnesses.unconfirmedEnds.has(id);
     },
 
     pickKillCapability: (session) => killer.pickKillCapability(session),

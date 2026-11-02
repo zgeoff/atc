@@ -37,6 +37,10 @@ export interface SessionHarnesses {
   // launch, so a harness that launched under an older one can show it.
   readonly authRevisions: Map<SessionID, number>;
 
+  // The sessions whose last harness ended without an exit, such as a connection the host gave up
+  // on or a host that went to sleep, so their process may still run there; a new harness clears it.
+  readonly unconfirmedEnds: ReadonlySet<SessionID>;
+
   readonly attachHarness: (session: Session, pty: HarnessHandle, hostLifecycle: boolean) => void;
 
   // a harness attached to a process the host still ran keeps the revision
@@ -86,6 +90,7 @@ export function createSessionHarnesses(deps: SessionHarnessesDeps): SessionHarne
   const readying = new Map<SessionID, number>();
   const startingSpawns = new Map<SessionID, SpawnReadied>();
   const authRevisions = new Map<SessionID, number>();
+  const unconfirmedEnds = new Set<SessionID>();
 
   // The epoch the next harness start or attach takes, unique across every
   // session this manager holds.
@@ -142,7 +147,11 @@ export function createSessionHarnesses(deps: SessionHarnessesDeps): SessionHarne
 
     authRevisions,
 
+    unconfirmedEnds,
+
     attachHarness: (session, pty, hostLifecycle) => {
+      unconfirmedEnds.delete(session.id);
+
       session.vm = hostLifecycle ? 'awake' : 'none';
       session.attachment = hostLifecycle ? 'attached' : 'local';
 
@@ -176,7 +185,12 @@ export function createSessionHarnesses(deps: SessionHarnessesDeps): SessionHarne
           session.attachment = 'detached';
         }
 
-        const transition = HARNESS_EXIT_TRANSITIONS[exit.reason ?? 'exited'];
+        const reason = exit.reason ?? 'exited';
+        const transition = HARNESS_EXIT_TRANSITIONS[reason];
+
+        if (reason !== 'exited') {
+          unconfirmedEnds.add(session.id);
+        }
 
         // a session mid-handoff keeps its headless state, since its terminal
         // dying is expected there

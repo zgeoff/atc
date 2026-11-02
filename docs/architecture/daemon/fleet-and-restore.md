@@ -46,11 +46,13 @@ it takes off the list, `sessions/<session id>/` under the state directory, unles
 [cleanup](../../guides/configuration/workspaces.md#cleanup-when-you-forget-a-session) off, or atc
 saw no exit of the session's process or no end of its message bridge's stop. The killer and a failed
 spawn's rollback each keep the handle of a harness they end, and the forget waits for its exit, then
-ends it with a forced kill and waits once more. A headless turn that ran, or that a stop aborted,
-has no exit to wait on, so its folder stays. A session id that names a folder other than its own
-under `sessions/` also keeps the folder. A folder that fails to go is logged, and the forget still
-succeeds. A rewrite leaves alone every row the daemon has not restored yet, so a spawn or a rename
-before the restore keeps the stored fleet intact.
+ends it with a forced kill and waits once more. A harness that the host ended without an exit, such
+as a connection it gave up on, counts as still running until a new harness attaches to the session.
+A headless turn that ran, or that a stop aborted, has no exit to wait on, so its folder stays. A
+session id that names a folder other than its own under `sessions/` also keeps the folder. A folder
+that fails to go is logged, and the forget still succeeds. A rewrite leaves alone every row the
+daemon has not restored yet, so a spawn or a rename before the restore keeps the stored fleet
+intact.
 
 The store also records which daemon owns each row, by the daemon id minted into the store when the
 daemon first opened it, and a restore loads only this daemon's rows.

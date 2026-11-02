@@ -667,6 +667,32 @@ test('it removes the state folder of a killed session only once its harness exit
   expect(existsSync(folder)).toBeFalse();
 });
 
+test('it keeps the state folder of a session whose host lost its harness without an exit', async () => {
+  const ctx = await setupTest({ destroy: false });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const folder = join(ctx.stateDir, 'sessions', session.id);
+
+  mkdirSync(folder, { recursive: true });
+
+  ctx.provider.harnesses[0]?.emitExit({
+    exitCode: 1,
+    reason: 'ended',
+    detail: 'reconnects ran out',
+  });
+
+  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
+
+  expect(existsSync(folder)).toBeTrue();
+});
+
 test("it removes a session's state folder only once the stop of its message bridge resolves", async () => {
   const ctx = await setupTest({ destroy: false });
 
