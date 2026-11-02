@@ -184,7 +184,7 @@ jobs:
       - name: Set up node for publish
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: 24
+          node-version: 26
 
       # a version npm holds already is skipped, so a re-run after a failed
       # step publishes nothing twice
