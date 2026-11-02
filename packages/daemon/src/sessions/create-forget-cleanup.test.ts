@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createStateStore } from '@atc/store';
 import {
@@ -54,6 +55,7 @@ async function setupTest() {
       manager,
       store,
       stateDir,
+      removeDir: (directory) => rm(directory, { recursive: true, force: true }),
       settings: { enabled: true, check: 'unpushed' },
     }),
   };
@@ -224,6 +226,7 @@ test('it removes a workspace with an unpushed commit under the none check, and l
     manager: ctx.manager,
     store: ctx.store,
     stateDir: ctx.stateDir,
+    removeDir: (directory) => rm(directory, { recursive: true, force: true }),
     settings: { enabled: true, check: 'none' },
   });
 
@@ -275,6 +278,7 @@ test('it keeps both folders when cleanup is off', async () => {
     manager: ctx.manager,
     store: ctx.store,
     stateDir: ctx.stateDir,
+    removeDir: (directory) => rm(directory, { recursive: true, force: true }),
     settings: { enabled: false, check: 'none' },
   });
 
@@ -403,6 +407,31 @@ test('it logs and leaves a state folder whose session id would reach outside the
 
   expect(ctx.log.lines).toStrictEqual([
     `atc: left the state folder of session ../records, since its id names no folder of its own under ${join(ctx.stateDir, 'sessions')}`,
+  ]);
+});
+
+test("it leaves another session's state folder that a session id names through a dot-dot segment", async () => {
+  const ctx = await setupTest();
+
+  const session = buildMockSession({
+    id: toSessionID('unused/../kept'),
+    cwd: '/srv/work/shop-main',
+  });
+
+  const kept = join(ctx.stateDir, 'sessions', 'kept');
+
+  mkdirSync(kept, { recursive: true });
+
+  const workspace = await ctx.cleanup.removeSessionFolders(session, {
+    hostDestroyed: false,
+    harnessEnded: true,
+  });
+
+  expect(workspace).toStrictEqual({ outcome: 'none' });
+  expect(existsSync(kept)).toBeTrue();
+
+  expect(ctx.log.lines).toStrictEqual([
+    `atc: left the state folder of session unused/../kept, since its id names no folder of its own under ${join(ctx.stateDir, 'sessions')}`,
   ]);
 });
 

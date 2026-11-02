@@ -1,5 +1,4 @@
-import { rm } from 'node:fs/promises';
-import { dirname, join, posix } from 'node:path';
+import { join, posix } from 'node:path';
 import type { WorkspaceCleanupConfig } from '@atc/config';
 import type { StateStore } from '@atc/store';
 import type { SessionID, WorkspaceCleanup } from '@atcx/contract';
@@ -19,6 +18,9 @@ interface ForgetCleanupDeps {
 
   // The daemon's state folder, which holds each session's own folder under `sessions/`.
   readonly stateDir: string;
+
+  // Removes a folder on the daemon's host and everything in it; a folder already gone is no error.
+  readonly removeDir: (directory: string) => Promise<void>;
 
   readonly settings: WorkspaceCleanupConfig;
 }
@@ -50,7 +52,9 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
     const sessions = join(deps.stateDir, 'sessions');
     const directory = join(sessions, id);
 
-    if (dirname(directory) !== sessions) {
+    // join folds `.` and `..` segments, so an id such as `unused/../kept` would name another
+    // session's folder; only an id that join leaves as one segment names its own
+    if (id.includes('/') || directory !== `${sessions}/${id}`) {
       manager.log(
         `atc: left the state folder of session ${id}, since its id names no folder of its own under ${sessions}`,
       );
@@ -59,7 +63,7 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
     }
 
     try {
-      await rm(directory, { recursive: true, force: true });
+      await deps.removeDir(directory);
     } catch (error) {
       manager.log(
         `atc: left ${directory} after session ${id} was forgotten, since removing it failed: ${formatError(error)}`,

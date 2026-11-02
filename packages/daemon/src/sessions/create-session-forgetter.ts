@@ -19,6 +19,7 @@ interface SessionForgetterDeps {
     | 'findProvider'
     | 'forget'
     | 'probeHarnessEnded'
+    | 'stopMessageBridge'
   >;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
   readonly tokens: Pick<ConfirmTokens, 'mintToken' | 'claimToken'>;
@@ -72,7 +73,13 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
   // A headless turn's runner gives no exit to wait on, so a session that ran one when the forget
   // began counts as possibly still running in its folders.
   const collectHeadlessRunning = (forgettable: readonly Session[]): Set<Session> =>
-    new Set(forgettable.filter((other) => (findRuntime(other.id)?.headlessRun ?? null) !== null));
+    new Set(
+      forgettable.filter((other) => {
+        const runtime = findRuntime(other.id);
+
+        return runtime !== undefined && (runtime.headlessRun !== null || runtime.headlessStopped);
+      }),
+    );
 
   const removeForgottenFolders = async (
     session: Session,
@@ -80,13 +87,24 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
     headlessRunning: ReadonlySet<Session>,
     destroyed: boolean,
   ): Promise<WorkspaceCleanup> => {
-    const probeHarnessEnded = (other: Session, hostDestroyed: boolean): Promise<boolean> => {
+    // A message bridge runs beside the daemon and writes in the session's state folder, so its
+    // stop must finish even when the session's host is gone.
+    const probeHarnessEnded = async (other: Session, hostDestroyed: boolean): Promise<boolean> => {
+      const bridgeStopped = await manager.stopMessageBridge(other.id).then(
+        () => true,
+        () => false,
+      );
+
+      if (!bridgeStopped) {
+        return false;
+      }
+
       if (hostDestroyed) {
-        return Promise.resolve(true);
+        return true;
       }
 
       if (headlessRunning.has(other)) {
-        return Promise.resolve(false);
+        return false;
       }
 
       return manager.probeHarnessEnded(other.id);

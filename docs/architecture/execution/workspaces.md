@@ -126,10 +126,18 @@ and only the daemon log carries those outcomes.
 
 The step runs inside the forget, once the session is off the list, on the session's host through the
 provider's `runCommand`, so a sub-session in its parent's imp is checked and removed inside the imp.
-It starts only once atc has seen the session's process exit. The killer keeps the handle of each
-harness that a kill or forget ends, and the step waits for its exit, then ends it with a forced kill
-and waits once more. A harness that still shows no exit, or a headless turn that ran when the forget
-began, keeps both folders as unchecked, since the turn's runner reports no exit to wait on.
+It starts only once atc has seen the session's process exit. The killer and a failed spawn's
+rollback each keep the handle of a harness they end, and the step waits for its exit, then ends it
+with a forced kill and waits once more. The step also waits for the stop of the session's message
+bridge, which writes in the state folder. These keep both folders, the workspace as unchecked:
+
+- a harness that still shows no exit;
+- a bridge stop that fails;
+- a headless turn that ran or that a stop aborted, since the turn's runner reports no exit to wait
+  on.
+
+A session id that names a folder other than its own under `sessions/`, such as one with a `..`
+segment, keeps the state folder too.
 
 One script answers seven checks. It refuses the directory when the row's path is now a symlink,
 since atc never builds a workspace as one, and enters it through any symlink in a parent:

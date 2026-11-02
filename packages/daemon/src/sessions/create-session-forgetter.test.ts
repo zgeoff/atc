@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
@@ -10,6 +11,7 @@ import {
   createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
+  waitFor,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
@@ -56,6 +58,8 @@ async function setupTest(config: SetupTestConfig) {
     capabilities: { suspend: config.suspend ?? config.destroy, destroy: config.destroy },
   });
 
+  const stopMessageBridge = mock<(id: SessionID) => Promise<void>>(() => Promise.resolve());
+
   const manager = createSessionManager({
     fallback: null,
     store,
@@ -63,6 +67,7 @@ async function setupTest(config: SetupTestConfig) {
     adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
     events: {
+      stopMessageBridge,
       onEvent: (kind, session) => {
         if (kind === 'added') {
           runtimes.set(session.id, createSessionRuntime());
@@ -90,6 +95,7 @@ async function setupTest(config: SetupTestConfig) {
       manager,
       store,
       stateDir,
+      removeDir: (directory) => rm(directory, { recursive: true, force: true }),
       settings: { enabled: config.cleanupEnabled !== false, check: 'unpushed' },
     }),
   });
@@ -102,6 +108,7 @@ async function setupTest(config: SetupTestConfig) {
     provider,
     manager,
     runtimes,
+    stopMessageBridge,
     forgetter,
   };
 }
@@ -800,4 +807,197 @@ test('it keeps the workspace of a session whose headless turn ran when the forge
   });
 
   expect(existsSync(git.work)).toBeTrue();
+});
+
+test('it keeps the workspace of a session whose headless turn a stop aborted before the forget', async () => {
+  const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-headless-' });
+
+  const session = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  const runtime = ctx.runtimes.get(session.id);
+
+  invariant(runtime !== undefined);
+
+  runtime.headlessRun = { stop: () => {} };
+
+  runtime.stopHeadlessRun();
+
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: {
+      outcome: 'kept',
+      path: git.work,
+      reasons: ["unchecked: atc could not confirm that the session's process exited"],
+    },
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
+});
+
+test('it removes the folders of a killed session only once its harness exits late', async () => {
+  const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-late-exit-' });
+
+  const session = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const folder = join(ctx.stateDir, 'sessions', session.id);
+
+  mkdirSync(folder, { recursive: true });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness !== undefined);
+
+  harness.holdExit();
+
+  const path = realpathSync(git.work);
+
+  const forgetting = ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  await waitFor(() => {
+    expect(harness.hasExitWaiters()).toBeTrue();
+  });
+
+  const keptWhileRunning = { workspace: existsSync(git.work), folder: existsSync(folder) };
+
+  harness.emitExit({ exitCode: 143 });
+
+  const forgotten = await forgetting;
+
+  expect(keptWhileRunning).toStrictEqual({ workspace: true, folder: true });
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'removed', path, found: [] },
+  });
+
+  expect({ workspace: existsSync(git.work), folder: existsSync(folder) }).toStrictEqual({
+    workspace: false,
+    folder: false,
+  });
+});
+
+test("it removes a session's folders only once the stop of its message bridge resolves", async () => {
+  const ctx = await setupTest({ destroy: false });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const folder = join(ctx.stateDir, 'sessions', session.id);
+
+  mkdirSync(folder, { recursive: true });
+
+  const bridgeStop = Promise.withResolvers<undefined>();
+
+  ctx.stopMessageBridge.mockImplementation(() => bridgeStop.promise);
+
+  const forgetting = ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  await waitFor(() => {
+    expect(ctx.stopMessageBridge).toHaveBeenCalledWith(session.id);
+  });
+
+  const keptWhileStopping = existsSync(folder);
+
+  bridgeStop.resolve(undefined);
+
+  await forgetting;
+
+  expect(keptWhileStopping).toBeTrue();
+  expect(existsSync(folder)).toBeFalse();
+});
+
+test("it leaves a session's state folder when the stop of its message bridge fails", async () => {
+  const ctx = await setupTest({ destroy: false });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const folder = join(ctx.stateDir, 'sessions', session.id);
+
+  mkdirSync(folder, { recursive: true });
+
+  ctx.stopMessageBridge.mockImplementation(() =>
+    Promise.reject(new Error('the app server did not stop')),
+  );
+
+  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
+
+  expect(existsSync(folder)).toBeTrue();
 });
