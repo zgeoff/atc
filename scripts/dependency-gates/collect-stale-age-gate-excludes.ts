@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { firstPartyScopes } from './first-party-scopes.ts';
-import { isRecord } from './is-record.ts';
+import { parseAgeGate } from './parse-age-gate.ts';
 import type { DependencyGateFinding } from './types.ts';
 
 export function collectStaleAgeGateExcludes(
@@ -9,8 +9,8 @@ export function collectStaleAgeGateExcludes(
 ): DependencyGateFinding[] {
   const removalDates = collectRemovalDates(bunfig);
 
-  return parseAgeGateExcludes(bunfig)
-    .filter((name) => !firstPartyScopes.some((scope) => name.startsWith(scope)))
+  return parseAgeGate(bunfig)
+    .excludes.filter((name) => !firstPartyScopes.some((scope) => name.startsWith(scope)))
     .flatMap((name) => {
       const removalDate = removalDates.get(name);
 
@@ -60,24 +60,4 @@ function collectRemovalDates(bunfig: string): Map<string, string> {
   }
 
   return removalDates;
-}
-
-function parseAgeGateExcludes(bunfig: string): string[] {
-  const parsed: unknown = Bun.TOML.parse(bunfig);
-  const install = isRecord(parsed) ? parsed['install'] : undefined;
-  const excludes = isRecord(install) ? install['minimumReleaseAgeExcludes'] : undefined;
-
-  if (excludes === undefined) {
-    return [];
-  }
-
-  if (!isStringList(excludes)) {
-    throw new TypeError('bunfig.toml sets a minimumReleaseAgeExcludes that is not a list of names');
-  }
-
-  return excludes;
-}
-
-function isStringList(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item: unknown) => typeof item === 'string');
 }

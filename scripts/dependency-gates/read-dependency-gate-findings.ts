@@ -1,11 +1,14 @@
 import type { RunProgram } from '../run-program.ts';
+import { collectMissingFirstPartyExcludes } from './collect-missing-first-party-excludes.ts';
 import { collectStaleAgeGateExcludes } from './collect-stale-age-gate-excludes.ts';
 import { collectUnneededAuditIgnores } from './collect-unneeded-audit-ignores.ts';
 import { collectUnneededOverrides } from './collect-unneeded-overrides.ts';
+import { parseAgeGate } from './parse-age-gate.ts';
 import { parseAuditAdvisories } from './parse-audit-advisories.ts';
 import { parseAuditIgnoreIDs } from './parse-audit-ignore-ids.ts';
 import { parseFixablePackages } from './parse-fixable-packages.ts';
 import { parseLockfileDependents } from './parse-lockfile-dependents.ts';
+import { parseLockfileRegistryNames } from './parse-lockfile-registry-names.ts';
 import type { RootManifest } from './parse-root-manifest.ts';
 import { parseRootManifest } from './parse-root-manifest.ts';
 import type { DependencyGateFinding } from './types.ts';
@@ -36,23 +39,29 @@ export function readDependencyGateFindings(
 
   const manifest = parseRootManifest(manifestText);
   const ignoreIDs = parseAuditIgnoreIDs(manifest.auditScript);
+  const bunfig = sources.readRepoFile('bunfig.toml') ?? '';
+  const lockfile = sources.readRepoFile('bun.lock');
 
   return [
-    ...collectStaleAgeGateExcludes(sources.readRepoFile('bunfig.toml') ?? '', sources.today),
-    ...readOverrideFindings(sources, manifest),
+    ...collectStaleAgeGateExcludes(bunfig, sources.today),
+    ...(lockfile === null
+      ? []
+      : collectMissingFirstPartyExcludes(
+          parseAgeGate(bunfig),
+          parseLockfileRegistryNames(lockfile),
+        )),
+    ...collectOverrideFindings(manifest, lockfile),
     ...(ignoreIDs.length === 0 ? [] : readIgnoreFindings(sources, ignoreIDs)),
   ];
 }
 
-function readOverrideFindings(
-  sources: Readonly<DependencyGateSources>,
+function collectOverrideFindings(
   manifest: RootManifest,
+  lockfile: string | null,
 ): DependencyGateFinding[] {
   if (Object.keys(manifest.overrides).length === 0) {
     return [];
   }
-
-  const lockfile = sources.readRepoFile('bun.lock');
 
   if (lockfile === null) {
     throw new Error('package.json sets overrides, and the repo has no bun.lock');
