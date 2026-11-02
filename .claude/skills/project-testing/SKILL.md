@@ -72,6 +72,9 @@ None.
 - Name a Codex suite `<module>.codex.test.ts`, beside the module it tests. It runs the Codex CLI
   installed on the machine. CI installs the version that `CODEX_VERSION` in
   [`checks.yml`](../../../.github/workflows/checks.yml) pins.
+- Name a suite that runs a real `bun install`, type check and test run of a temp workspace
+  `<module>.toolchain.test.ts`. `bun run test:toolchain` runs it with a 15 s limit, because the
+  install and type check alone pass the unit run's 5 s on a loaded host.
 - Give a test in `e2e/` no timeout of its own: `test:e2e` gives every test there 15 s.
 - Run one e2e suite with `bun run test:e2e e2e/<file>.test.ts`. You may add `-t` or another option
   that [`with-e2e-paths.sh`](../../../scripts/with-e2e-paths.sh) lists. It refuses anything else, so

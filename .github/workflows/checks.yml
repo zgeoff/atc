@@ -175,6 +175,16 @@ jobs:
           --source-suites --randomize --reporter=junit
           --reporter-outfile="$RUNNER_TEMP/test-times-e2e.xml"
 
+      # the toolchain lane: a real install, type check and test run of a plugin
+      # workspace, which the unit run above leaves out
+      - name: Test toolchain
+        if: ${{ !cancelled() }}
+        env:
+          TMPDIR: /dev/shm
+        run:
+          bash scripts/run-memory-capped.sh 8192 bun run test:isolation bun run test:toolchain
+          --randomize
+
       # the per-test times of each run on main, which the weekly audit reads
       - name: Upload test times
         if: github.event_name == 'push' && !cancelled()
