@@ -68,7 +68,13 @@ async function setupTest(config: SetupConfig) {
     },
   };
 
-  const killer = createSessionKiller({ registry, fleet, callbacks, restarts });
+  const killer = createSessionKiller({
+    registry,
+    fleet,
+    callbacks,
+    restarts,
+    readExitWaitMs: () => 1000,
+  });
 
   return { store, registry, killer, callbacks, stoppedRestarts };
 }

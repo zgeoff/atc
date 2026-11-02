@@ -541,3 +541,55 @@ test('it logs a state folder it cannot remove and still forgets the session', as
     `atc: left ${join(ctx.stateDir, 'sessions', session.id)} after session ${session.id} was forgotten, since removing it failed: ENOTDIR: not a directory, rm '${join(ctx.stateDir, 'sessions', session.id)}'`,
   );
 });
+
+test('it keeps the state folder of a session whose killed process atc never sees exit, even after a forced kill', async () => {
+  const ctx = await setupTest({ destroy: false });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const folder = join(ctx.stateDir, 'sessions', session.id);
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness !== undefined);
+  mkdirSync(join(folder, 'scratch'), { recursive: true });
+
+  // a detached harness reports no exit, as a process atc lost track of
+  harness.detach();
+
+  ctx.manager.failedSpawnExitWaitMs = 1;
+
+  await ctx.forgetter.killSession(session.id, false);
+  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
+
+  expect(existsSync(join(folder, 'scratch'))).toBeTrue();
+});
+
+test('it keeps the state folder of a session whose headless turn ran when the forget began', async () => {
+  const ctx = await setupTest({ destroy: false });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const folder = join(ctx.stateDir, 'sessions', session.id);
+  const runtime = ctx.runtimes.get(session.id);
+
+  invariant(runtime !== undefined);
+  mkdirSync(join(folder, 'scratch'), { recursive: true });
+
+  runtime.headlessRun = { stop: () => {} };
+
+  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
+
+  expect(existsSync(join(folder, 'scratch'))).toBeTrue();
+});

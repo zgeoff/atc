@@ -29,6 +29,7 @@ import { createSessionAdopter } from './create-session-adopter';
 import { createSessionHarnesses } from './create-session-harnesses';
 import { createSessionHookApplier } from './create-session-hook-applier';
 import { createSessionKiller } from './create-session-killer';
+import type { SessionKiller } from './create-session-killer';
 import { createSessionRegistry } from './create-session-registry';
 import type { SessionRegistry, TargetBinding } from './create-session-registry';
 import { createSessionSpawner } from './create-session-spawner';
@@ -161,6 +162,7 @@ export interface SessionManager {
   ) => Promise<'stopped' | 'unchanged' | 'removed'>;
 
   readonly forget: (id: SessionID) => Promise<boolean>;
+  readonly probeHarnessEnded: SessionKiller['probeHarnessEnded'];
   readonly pickKillCapability: (session: Session) => ExecutionCapability;
   readonly writeStatus: () => void;
   readonly writeFleet: () => Promise<void>;
@@ -282,7 +284,15 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
 
   // The killer reaches the adopter, built after it, only once a kill runs.
   const restarts = { stopRestart: (id: SessionID) => adopter.stopRestart(id) };
-  const killer = createSessionKiller({ registry, fleet, callbacks, restarts });
+
+  const killer = createSessionKiller({
+    registry,
+    fleet,
+    callbacks,
+    restarts,
+    readExitWaitMs: () => rollback.failedSpawnExitWaitMs,
+  });
+
   const harnesses = createSessionHarnesses({ registry, fleet, killer, callbacks });
   const rollback = createSpawnRollback({ registry, fleet, claims, harnesses, callbacks });
 
@@ -458,6 +468,8 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
     kill: (id, stopOnly = false) => killer.kill(id, stopOnly),
 
     forget: (id) => killer.forget(id),
+
+    probeHarnessEnded: killer.probeHarnessEnded,
 
     pickKillCapability: (session) => killer.pickKillCapability(session),
 

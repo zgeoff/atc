@@ -13,12 +13,21 @@ interface ForgetCleanupDeps {
   readonly settings: WorkspaceCleanupConfig;
 }
 
+interface ForgottenSessionState {
+  // atc saw every process the session ran exit, so nothing writes in its folders any more.
+  readonly harnessEnded: boolean;
+}
+
 export interface ForgetCleanup {
   // Runs once the forget took the session off the list.
-  readonly removeSessionFolders: (session: Session) => Promise<WorkspaceCleanup>;
+  readonly removeSessionFolders: (
+    session: Session,
+    state: ForgottenSessionState,
+  ) => Promise<WorkspaceCleanup>;
 }
 
 const NO_WORKSPACE: WorkspaceCleanup = { outcome: 'none' };
+const UNENDED_REASON = "unchecked: atc could not confirm that the session's process exited";
 
 export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   const removeStateDir = async (id: SessionID): Promise<void> => {
@@ -43,8 +52,14 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
   };
 
   return {
-    removeSessionFolders: async (session) => {
+    removeSessionFolders: async (session, state) => {
       if (!deps.settings.enabled) {
+        return NO_WORKSPACE;
+      }
+
+      if (!state.harnessEnded) {
+        deps.log(`atc: left the state folder of session ${session.id}: ${UNENDED_REASON}`);
+
         return NO_WORKSPACE;
       }
 
