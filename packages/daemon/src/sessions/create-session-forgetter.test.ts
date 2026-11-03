@@ -96,7 +96,12 @@ test('it forgets a session at once on a target that cannot destroy its host', as
     null,
   );
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
+
   expect(ctx.manager.sessions).toBeEmpty();
 });
 
@@ -154,7 +159,12 @@ test('it destroys the host and forgets the session when the forget carries its t
     null,
   );
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: true });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: true,
+    workspace: { outcome: 'none' },
+  });
+
   expect(ctx.provider.destroyed).toHaveLength(1);
 });
 
@@ -212,7 +222,11 @@ test('it forgets a sub-session of a pinned session when its parent asks', async 
     parent.id,
   );
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
 });
 
 test('it refuses a sub-session of a pinned session that another caller asks to forget', async () => {

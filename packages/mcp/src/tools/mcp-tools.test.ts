@@ -363,20 +363,61 @@ test('it lists no enum in any output schema, so a value a later daemon adds neve
   expect(text).not.toInclude('"enum"');
 });
 
-test('it declares both results of a forget: the confirm token and the outcome', () => {
+test('it accepts the confirm token a forget returns for a host it would destroy', () => {
   const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_session_forget')?.outputSchema;
 
   invariant(schema !== undefined, 'the forget tool declares no output schema');
 
-  const parse = z.fromJSONSchema(schema);
+  const result = z
+    .fromJSONSchema(schema)
+    .safeParse({ confirmToken: '9b1f0c2e-forget-token', expiresAt: 1_760_000_060_000 });
 
-  expect(
-    parse.safeParse({ confirmToken: '9b1f0c2e-forget-token', expiresAt: 1_760_000_060_000 })
-      .success,
-  ).toBeTrue();
+  expect(result.data).toStrictEqual({
+    confirmToken: '9b1f0c2e-forget-token',
+    expiresAt: 1_760_000_060_000,
+  });
+});
 
-  expect(parse.safeParse({ forgotten: true, destroyed: false }).success).toBeTrue();
-  expect(parse.safeParse({ forgotten: 'yes', destroyed: false }).success).toBeFalse();
+test('it accepts a forget outcome with the workspace it kept', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_session_forget')?.outputSchema;
+
+  invariant(schema !== undefined, 'the forget tool declares no output schema');
+
+  const result = z.fromJSONSchema(schema).safeParse({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'kept', path: '/srv/work/shop-main-4', reasons: ['1 stash'] },
+  });
+
+  expect(result.data).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'kept', path: '/srv/work/shop-main-4', reasons: ['1 stash'] },
+  });
+});
+
+test('it refuses a forget outcome whose forgotten flag is not a boolean', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_session_forget')?.outputSchema;
+
+  invariant(schema !== undefined, 'the forget tool declares no output schema');
+
+  const result = z.fromJSONSchema(schema).safeParse({ forgotten: 'yes', destroyed: false });
+
+  expect(result.error?.issues).toPartiallyContain({ path: ['forgotten'] });
+});
+
+test('it refuses a forget outcome whose workspace reasons are not text', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_session_forget')?.outputSchema;
+
+  invariant(schema !== undefined, 'the forget tool declares no output schema');
+
+  const result = z.fromJSONSchema(schema).safeParse({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'kept', path: '/srv/work/shop-main-4', reasons: [1] },
+  });
+
+  expect(result.error?.issues).toPartiallyContain({ path: ['workspace', 'reasons', 0] });
 });
 
 test('it accepts a gateway session list whose entries carry the gateway locator and a parent', () => {

@@ -853,6 +853,17 @@ export declare const DAEMON_CONTRACT: {
         }, z.core.$strip>, z.ZodObject<{
             forgotten: z.ZodLiteral<true>;
             destroyed: z.ZodBoolean;
+            workspace: z.ZodDiscriminatedUnion<[z.ZodObject<{
+                outcome: z.ZodLiteral<"removed">;
+                path: z.ZodString;
+                found: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+            }, z.core.$strip>, z.ZodObject<{
+                outcome: z.ZodLiteral<"kept">;
+                path: z.ZodString;
+                reasons: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+            }, z.core.$strip>, z.ZodObject<{
+                outcome: z.ZodLiteral<"none">;
+            }, z.core.$strip>], "outcome">;
         }, z.core.$strip>]>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
             access: "owner" | "principal";
             readOnly: boolean;
@@ -2364,7 +2375,7 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
 export type DaemonEvent = z.output<typeof DAEMON_EVENT_SCHEMA>;
 
 // daemon-features.d.ts
-export declare const DAEMON_FEATURES: readonly ['events.read.from-start', 'daemon.hello.viewer'];
+export declare const DAEMON_FEATURES: readonly ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace'];
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];
 
 // daemon-id.d.ts
@@ -2625,6 +2636,7 @@ export * from './to-daemon-id.js';
 export * from './to-message-id.js';
 export * from './to-session-id.js';
 export * from './transcript-row.js';
+export * from './workspace-cleanup.js';
 
 // light/error-codes.d.ts
 export declare const ERROR_CODES: readonly ['protocol_mismatch', 'unauthorized', 'unknown_method', 'bad_args', 'no_such_session', 'session_dead', 'permission_pending', 'menu_changed', 'menu_label_mismatch', 'menu_busy', 'unsupported', 'unsupported_operation', 'unknown_target', 'target_unavailable', 'target_changed', 'target_config_invalid', 'target_forbidden', 'not_a_git_repo', 'no_commits', 'unreadable_tree', 'has_submodules', 'lfs_unsupported', 'workspace_dirty', 'no_origin', 'invalid_git_url', 'git_transports_invalid', 'unpushed_head', 'credential_in_url', 'credential_missing', 'ref_not_found', 'clone_failed', 'git_output_open', 'sanitize_failed', 'tar_failed', 'workspace_exists', 'workspace_overlap', 'transfer_failed', 'workspace_mismatch', 'scope_invalid', 'github_unavailable', 'host_unavailable', 'auth_not_configured', 'auth_target_unsupported', 'auth_signin_needed', 'auth_token_scope', 'auth_token_too_broad', 'auth_host_out_of_scope', 'auth_secret_not_grantable', 'auth_secret_mismatch', 'auth_runtime_mismatch', 'auth_runtime_exists', 'auth_grant_missing', 'auth_grants_mismatch', 'auth_rebind_required', 'auth_blocked', 'auth_binding_mismatch', 'auth_binding_invalid', 'auth_revocation_pending', 'broker_not_ready', 'auth_placeholder_unsupported', 'host_leased', 'confirmation_required', 'confirm_token_invalid', 'session_pinned', 'session_live', 'already_answered', 'too_slow', 'stale_epoch', 'idempotency_conflict', 'outcome_unknown', 'idempotency_key_unknown', 'internal'];
@@ -3447,3 +3459,18 @@ export declare const TRANSCRIPT_ROW_SCHEMA: z.ZodObject<{
     at: z.ZodNullable<z.ZodNumber>;
 }, z.core.$strip>;
 export type TranscriptRow = Readonly<z.output<typeof TRANSCRIPT_ROW_SCHEMA>>;
+
+// workspace-cleanup.d.ts
+import { z } from 'zod';
+export declare const WORKSPACE_CLEANUP_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    outcome: z.ZodLiteral<"removed">;
+    path: z.ZodString;
+    found: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+}, z.core.$strip>, z.ZodObject<{
+    outcome: z.ZodLiteral<"kept">;
+    path: z.ZodString;
+    reasons: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+}, z.core.$strip>, z.ZodObject<{
+    outcome: z.ZodLiteral<"none">;
+}, z.core.$strip>], "outcome">;
+export type WorkspaceCleanup = Readonly<z.output<typeof WORKSPACE_CLEANUP_SCHEMA>>;

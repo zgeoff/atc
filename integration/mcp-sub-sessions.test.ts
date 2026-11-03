@@ -76,7 +76,12 @@ test('it leaves a detached spawn unpinned and forgettable when its caller is pin
 
   expect(listed.structured?.['sessions']).not.toPartiallyContain({ id: solo, parent: wrangler });
   expect(forgotten.isError).toBeUndefined();
-  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+
+  expect(forgotten.structured).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
 });
 
 test('it forgets a detached sub-session while its former parent stays pinned', async () => {
@@ -112,7 +117,12 @@ test('it forgets a detached sub-session while its former parent stays pinned', a
 
   expect(refused.text).toStartWith('session_pinned');
   expect(detached.isError).toBeUndefined();
-  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+
+  expect(forgotten.structured).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
 
   expect(listed.structured?.['sessions']).toStrictEqual([
     expect.objectContaining({ id: wrangler, pinned: true }),
@@ -136,7 +146,11 @@ test('it forgets its own sub-session from inside its pinned session and stays pi
   const forgotten = await inner.sendToolCall('atc_session_forget', { session: worker, stop: true });
   const listed = await ctx.mcp.sendToolCall('atc_sessions_list', {});
 
-  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten.structured).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
 
   expect(listed.structured?.['sessions']).toStrictEqual([
     expect.objectContaining({ id: wrangler, pinned: true }),

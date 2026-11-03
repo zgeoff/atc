@@ -86,7 +86,12 @@ test('it destroys the host and forgets the session when the forget carries its t
     confirmToken: offered['confirmToken'],
   });
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: true });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: true,
+    workspace: { outcome: 'none' },
+  });
+
   expect<readonly unknown[]>(provider.destroyed).toStrictEqual([id]);
   expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
   expect(daemon.client.sendRequest('fleet.list')).resolves.toStrictEqual({ fleet: [] });
@@ -262,7 +267,11 @@ test('it takes a confirm token up to the last millisecond of its lifetime', asyn
     confirmToken: offered['confirmToken'],
   });
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: true });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: true,
+    workspace: { outcome: 'none' },
+  });
 });
 
 test('it refuses a confirm token handed out for another session', async () => {
@@ -331,7 +340,12 @@ test('it forgets a session on the local target at once without a token', async (
 
   const forgotten = await daemon.client.sendRequest('session.forget', { session: id });
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
+
   expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });
 
@@ -476,7 +490,11 @@ test('it forgets a sub-session of a pinned session when its parent asks and keep
     refuseLive: true,
   });
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
 
   expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id: parent, pinned: true })],
@@ -713,7 +731,11 @@ test('it forgets a detached sub-session of a pinned session and keeps the former
     refuseLive: true,
   });
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
 
   expect(daemon.client.sendRequest('session.list')).resolves.toMatchObject({
     sessions: [expect.objectContaining({ id: parent, pinned: true })],
@@ -824,7 +846,12 @@ test('it forgets a dead unpinned session when the forget refuses pinned and live
     refuseLive: true,
   });
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
+
   expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });
 
@@ -1133,7 +1160,12 @@ test('it destroys the host when a principal that may use its target forgets with
     'insider',
   );
 
-  expect(forgotten).toStrictEqual({ forgotten: true, destroyed: true });
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: true,
+    workspace: { outcome: 'none' },
+  });
+
   expect<readonly unknown[]>(provider.destroyed).toStrictEqual([id]);
   expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
 });

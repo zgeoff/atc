@@ -1402,7 +1402,12 @@ test('it destroys the host and drops the live session when the second call carri
     { callerSessionID: null },
   );
 
-  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: true });
+  expect(forgotten.structured).toStrictEqual({
+    forgotten: true,
+    destroyed: true,
+    workspace: { outcome: 'none' },
+  });
+
   expect<readonly unknown[]>(ctx.stubProvider.destroyed).toStrictEqual([id]);
 
   expect(
@@ -1463,7 +1468,11 @@ test('it forgets a dead session on a local target in one call', async () => {
     { callerSessionID: null },
   );
 
-  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten.structured).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
 
   expect(
     runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),
@@ -1488,7 +1497,11 @@ test('it stops and forgets a live session on a local target in one call when sto
     { callerSessionID: null },
   );
 
-  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten.structured).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
 
   expect(
     runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),

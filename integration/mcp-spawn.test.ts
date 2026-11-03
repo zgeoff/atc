@@ -155,6 +155,11 @@ test('it stops a session without removing it and forgets it in a later call', as
   const forgotten = await ctx.mcp.sendToolCall('atc_session_forget', { session });
   const after = await ctx.mcp.sendToolCall('atc_sessions_list', {});
 
-  expect(forgotten.structured).toStrictEqual({ forgotten: true, destroyed: false });
+  expect(forgotten.structured).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
+
   expect(after.text).not.toInclude(session);
 });

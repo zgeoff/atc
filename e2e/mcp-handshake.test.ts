@@ -1005,6 +1005,34 @@ test('it lists the fleet tools', async () => {
                   "description": "true once atc removed the session from the list",
                   "type": "boolean",
                 },
+                "workspace": {
+                  "description": "what the forget did with the workspace folder atc created for the session",
+                  "properties": {
+                    "found": {
+                      "description": "on removed: what the checks found in the folder before atc removed it anyway, one line each; empty when they found nothing",
+                      "items": {
+                        "type": "string",
+                      },
+                      "type": "array",
+                    },
+                    "outcome": {
+                      "description": "removed: atc removed the folder; kept: the folder stays, and reasons says why; none: atc created no folder for the session, workspace cleanup is off, or the forget destroyed the host with the folder on it",
+                      "type": "string",
+                    },
+                    "path": {
+                      "description": "the folder, on the host the session ran on",
+                      "type": "string",
+                    },
+                    "reasons": {
+                      "description": "on kept: one line for each reason atc kept the folder",
+                      "items": {
+                        "type": "string",
+                      },
+                      "type": "array",
+                    },
+                  },
+                  "type": "object",
+                },
               },
               "type": "object",
             },
