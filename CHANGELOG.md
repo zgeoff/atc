@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.8.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.7.4...@zgeoff/atc@7.8.0) (2026-11-03)
+
+
+### Features
+
+* **contract:** report the workspace outcome in the forget result ([#1059](https://github.com/zgeoff/atc/issues/1059)) ([d0a0f09](https://github.com/zgeoff/atc/commit/d0a0f09ffe25e562f46604f5cc38aa167d43cb80))
+* **daemon:** remove a forgotten session's state folder ([#1060](https://github.com/zgeoff/atc/issues/1060)) ([c01f769](https://github.com/zgeoff/atc/commit/c01f7697f22307f96de72645ffce09552b6ff2f1))
+* **daemon:** remove a forgotten session's workspace once it is pushed ([#1061](https://github.com/zgeoff/atc/issues/1061)) ([9f8a0fb](https://github.com/zgeoff/atc/commit/9f8a0fbeadf86be9db0cf2d18d123c23765945b6))
+
+
+### Bug Fixes
+
+* **tui:** scroll the picker to items past the tenth ([#1077](https://github.com/zgeoff/atc/issues/1077)) ([01c2a4c](https://github.com/zgeoff/atc/commit/01c2a4c1c4bf07cf9132fcf878b4150fd5ae2536))
+
 ## [7.7.4](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.7.3...@zgeoff/atc@7.7.4) (2026-11-02)
 
 ### Bug Fixes
