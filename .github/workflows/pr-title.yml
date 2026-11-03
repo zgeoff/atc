@@ -19,8 +19,6 @@ jobs:
   pr-title:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    env:
-      LEFTHOOK: 0
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,11 +30,10 @@ jobs:
         with:
           bun-version-file: .bun-version
 
-      - name: Install
-        run: bun install --frozen-lockfile
-
-      # the title reaches the script through the environment, never through
-      # expression interpolation, so a crafted title cannot inject a command
+      # The script installs commitlint alone into RUNNER_TEMP, so the job skips
+      # the workspace install. The title reaches the script through the
+      # environment, never through expression interpolation, so a crafted title
+      # cannot inject a command.
       - name: Lint Title
         env:
           TITLE: ${{ github.event.pull_request.title }}
