@@ -2584,6 +2584,54 @@ test('it swaps the fresh listing in for the cached one when it answers, keeping 
   ]);
 });
 
+test('it picks a repository listed past the tenth row', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: Array.from({ length: 12 }, (_, index) => ({
+      label: `acme/tool-${index + 1}`,
+      pick: { kind: 'git', url: `git@github.com:acme/tool-${index + 1}.git` },
+    })),
+    scope: 'acme',
+  });
+
+  for (let press = 0; press < 11; press += 1) {
+    picker.applyKey(Buffer.from(KEYS.down));
+  }
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('git.probe')).toStrictEqual([
+    { url: 'git@github.com:acme/tool-12.git', target: 'local' },
+  ]);
+});
+
 test('it lists again on ctrl-r and shows a repository created since the last listing', async () => {
   const ctx = setupTest();
 

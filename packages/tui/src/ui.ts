@@ -489,12 +489,20 @@ export interface PickerView {
   dimmed?: ReadonlySet<number>;
 }
 
+const PICKER_WINDOW_ROWS = 10;
+
 export function drawPicker(view: PickerView, write: (chunk: string) => void = out) {
   const width = getPickerWidth();
   const rowsList: Row[] = [boxTop(width, view.title)];
-  const shown = view.items.slice(0, 10);
+  const start = planPickerWindowStart(view.items.length, view.selected);
+  const end = Math.min(view.items.length, start + PICKER_WINDOW_ROWS);
 
-  for (const [index, item] of shown.entries()) {
+  if (start > 0) {
+    rowsList.push(dimRow(width, `↑ ${start} more`));
+  }
+
+  for (const [offset, item] of view.items.slice(start, end).entries()) {
+    const index = start + offset;
     const sel = index === view.selected;
     const truncated = truncate(item, width - 4);
     const dim = view.dimmed?.has(index) === true;
@@ -503,6 +511,10 @@ export function drawPicker(view: PickerView, write: (chunk: string) => void = ou
     const plainLen = sel ? width - 4 : truncated.length;
 
     rowsList.push(boxRow(width, styled, plainLen));
+  }
+
+  if (end < view.items.length) {
+    rowsList.push(dimRow(width, `↓ ${view.items.length - end} more`));
   }
 
   // The cursor always sits at the end of the input, so show the tail and
@@ -533,6 +545,10 @@ export function drawPicker(view: PickerView, write: (chunk: string) => void = ou
   );
 
   drawBox(rowsList, write);
+}
+
+function planPickerWindowStart(count: number, selected: number): number {
+  return Math.max(0, Math.min(selected - PICKER_WINDOW_ROWS + 1, count - PICKER_WINDOW_ROWS));
 }
 
 export function drawHome(fleetCount = 0, leaderLabel = '^Space') {

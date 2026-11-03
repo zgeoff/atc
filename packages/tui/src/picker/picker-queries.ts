@@ -75,9 +75,9 @@ export function getSelectedIndex(ctx: PickerContext): number {
   return match(ctx.step)
     .with('agent', () => Math.min(ctx.selected, ctx.picks.length - 1))
     .with('target', () => Math.min(ctx.selected, ctx.targets.length - 1))
-    .with('dir', () => clampToRows(ctx.selected, collectDirItems(ctx).length))
-    .with('source', () => clampToRows(ctx.selected, collectCandidateItems(ctx).length))
-    .with('ref', () => clampToRows(ctx.selected, collectRefItems(ctx).length))
+    .with('dir', () => clampToItems(ctx.selected, collectDirItems(ctx).length))
+    .with('source', () => clampToItems(ctx.selected, collectCandidateItems(ctx).length))
+    .with('ref', () => clampToItems(ctx.selected, collectRefItems(ctx).length))
     .with('confirm', 'name', 'prompt', 'spawned', () => ctx.selected)
     .exhaustive();
 }
@@ -110,6 +110,6 @@ export function buildDestination(ctx: PickerContext): string {
     : `${ctx.destination}-${ctx.destinationAttempt}`;
 }
 
-function clampToRows(selected: number, items: number): number {
-  return Math.min(selected, Math.max(0, Math.min(items, 10) - 1));
+function clampToItems(selected: number, items: number): number {
+  return Math.min(selected, Math.max(0, items - 1));
 }
