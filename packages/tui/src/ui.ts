@@ -489,12 +489,19 @@ export interface PickerView {
   dimmed?: ReadonlySet<number>;
 }
 
+const PICKER_WINDOW_ROWS = 10;
+
 export function drawPicker(view: PickerView, write: (chunk: string) => void = out) {
   const width = getPickerWidth();
   const rowsList: Row[] = [boxTop(width, view.title)];
-  const shown = view.items.slice(0, 10);
+  const visible = planPickerWindow(view.items.length, view.selected);
 
-  for (const [index, item] of shown.entries()) {
+  if (visible.start > 0) {
+    rowsList.push(dimRow(width, `↑ ${visible.start} more`));
+  }
+
+  for (const [offset, item] of view.items.slice(visible.start, visible.end).entries()) {
+    const index = visible.start + offset;
     const sel = index === view.selected;
     const truncated = truncate(item, width - 4);
     const dim = view.dimmed?.has(index) === true;
@@ -503,6 +510,10 @@ export function drawPicker(view: PickerView, write: (chunk: string) => void = ou
     const plainLen = sel ? width - 4 : truncated.length;
 
     rowsList.push(boxRow(width, styled, plainLen));
+  }
+
+  if (visible.end < view.items.length) {
+    rowsList.push(dimRow(width, `↓ ${view.items.length - visible.end} more`));
   }
 
   // The cursor always sits at the end of the input, so show the tail and
@@ -533,6 +544,33 @@ export function drawPicker(view: PickerView, write: (chunk: string) => void = ou
   );
 
   drawBox(rowsList, write);
+}
+
+interface PickerWindow {
+  readonly start: number;
+  readonly end: number;
+}
+
+// Each count row takes the place of an item row, so a short terminal that fits
+// the box with no count row fits it with both.
+function planPickerWindow(count: number, selected: number): PickerWindow {
+  if (count <= PICKER_WINDOW_ROWS) {
+    return { start: 0, end: count };
+  }
+
+  const edgeItems = PICKER_WINDOW_ROWS - 1;
+
+  if (selected < edgeItems) {
+    return { start: 0, end: edgeItems };
+  }
+
+  const hiddenBelow = count - selected - 1;
+
+  if (hiddenBelow <= 1) {
+    return { start: count - edgeItems, end: count };
+  }
+
+  return { start: selected - edgeItems + 2, end: selected + 1 };
 }
 
 export function drawHome(fleetCount = 0, leaderLabel = '^Space') {
