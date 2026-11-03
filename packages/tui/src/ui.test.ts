@@ -532,7 +532,7 @@ test('#drawOverlay draws session rows inside the overlay box borders', () => {
   expect(drawnRows).toSatisfyAny((row: string) => /^│.*auth.*│$/u.test(row));
 });
 
-test('#drawPicker scrolls to a selection past the tenth item and counts the items above and below', () => {
+test('#drawPicker scrolls to a selection past the tenth item and counts the items above it', () => {
   const terminal = buildStubTerminal();
 
   drawPicker(
@@ -555,9 +555,7 @@ test('#drawPicker scrolls to a selection past the tenth item and counts the item
     .map((row) => row.slice(1, -1).trim());
 
   expect(contentRows).toStrictEqual([
-    '↑ 3 more',
-    'agent-4',
-    'agent-5',
+    '↑ 5 more',
     'agent-6',
     'agent-7',
     'agent-8',
@@ -566,7 +564,45 @@ test('#drawPicker scrolls to a selection past the tenth item and counts the item
     'agent-11',
     'agent-12',
     'agent-13',
-    '↓ 1 more',
+    'agent-14',
+    '> █',
+    '⏎ pick · esc cancel',
+  ]);
+});
+
+test('#drawPicker keeps both counts and the selection inside ten rows mid-list', () => {
+  const terminal = buildStubTerminal();
+
+  drawPicker(
+    {
+      title: 'spawn: repository',
+      items: Array.from({ length: 20 }, (_, index) => `acme/tool-${index + 1}`),
+      selected: 11,
+      input: '',
+      hint: '⏎ pick · esc cancel',
+    },
+    terminal.write,
+  );
+
+  const contentRows = terminal
+    .getText()
+    .replaceAll(KEYS.esc, '')
+    .split(/\[[0-9;]+H/u)
+    .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim())
+    .filter((row) => row.startsWith('│'))
+    .map((row) => row.slice(1, -1).trim());
+
+  expect(contentRows).toStrictEqual([
+    '↑ 4 more',
+    'acme/tool-5',
+    'acme/tool-6',
+    'acme/tool-7',
+    'acme/tool-8',
+    'acme/tool-9',
+    'acme/tool-10',
+    'acme/tool-11',
+    'acme/tool-12',
+    '↓ 8 more',
     '> █',
     '⏎ pick · esc cancel',
   ]);
