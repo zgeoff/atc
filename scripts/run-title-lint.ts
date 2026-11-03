@@ -64,6 +64,8 @@ function parseCommitlintVersion(manifestText: string): string {
   return version;
 }
 
+// The job runs this script with no node_modules, where `@atc/core` cannot resolve, and
+// check:manifests refuses a relative import into packages/, so the script keeps its own copy.
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
