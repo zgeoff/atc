@@ -9,7 +9,7 @@ const NO_WORKSPACES: WorkspacesConfig = {
   gitTransports: DEFAULT_GIT_TRANSPORTS,
   root: null,
   targetRoots: new Map(),
-  cleanup: { enabled: true },
+  cleanup: { enabled: true, check: 'unpushed' },
 };
 
 export function buildPickerContext(

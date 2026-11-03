@@ -16,11 +16,20 @@ test.skipIf(process.platform !== 'linux')(
   async () => {
     const ctx = setupTest();
     const root = join(ctx.directory, 'atc-test-home-left');
-    const left = Bun.spawn(['sleep', '30'], { env: { ...process.env, ATC_TEST_HOME: root } });
+
+    const left = Bun.spawn(['sh', '-c', 'echo started; read -r line'], {
+      stdin: 'pipe',
+      env: { ...process.env, ATC_TEST_HOME: root },
+      stdout: 'pipe',
+    });
 
     onTestFinished(() => {
       left.kill('SIGKILL');
     });
+
+    // Linux shows a child's environment in /proc only once it runs its program, which the
+    // spawn call returns before; the first line comes after that.
+    await left.stdout.getReader().read();
 
     const stopped = await stopTestHomeProcesses({ root, procRoot: '/proc', ownPID: process.pid });
 
@@ -36,13 +45,17 @@ test.skipIf(process.platform !== 'linux')(
   async () => {
     const ctx = setupTest();
 
-    const other = Bun.spawn(['sleep', '30'], {
+    const other = Bun.spawn(['sh', '-c', 'echo started; read -r line'], {
+      stdin: 'pipe',
       env: { ...process.env, ATC_TEST_HOME: join(ctx.directory, 'atc-test-home-other') },
+      stdout: 'pipe',
     });
 
     onTestFinished(() => {
       other.kill('SIGKILL');
     });
+
+    await other.stdout.getReader().read();
 
     const stopped = await stopTestHomeProcesses({
       root: join(ctx.directory, 'atc-test-home-mine'),
@@ -60,11 +73,18 @@ test.skipIf(process.platform !== 'linux')(
   async () => {
     const ctx = setupTest();
     const root = join(ctx.directory, 'atc-test-home-left');
-    const left = Bun.spawn(['sleep', '30'], { env: { ...process.env, ATC_TEST_HOME: root } });
+
+    const left = Bun.spawn(['sh', '-c', 'echo started; read -r line'], {
+      stdin: 'pipe',
+      env: { ...process.env, ATC_TEST_HOME: root },
+      stdout: 'pipe',
+    });
 
     onTestFinished(() => {
       left.kill('SIGKILL');
     });
+
+    await left.stdout.getReader().read();
 
     const run = await $`bun ${join(import.meta.dir, 'stop-test-home-processes.ts')} ${root} extra`
       .nothrow()

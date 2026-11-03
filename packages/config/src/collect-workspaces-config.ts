@@ -5,8 +5,12 @@ export interface InvalidGitTransports {
   readonly invalid: string;
 }
 
+// unpushed removes a workspace only once its work is pushed; none removes it whatever it holds
+export type WorkspaceCleanupCheck = 'unpushed' | 'none';
+
 export interface WorkspaceCleanupConfig {
   readonly enabled: boolean;
+  readonly check: WorkspaceCleanupCheck;
 }
 
 // a root is kept as written; whether it fits its target, such as `~` on a
@@ -109,26 +113,36 @@ function collectCleanup(raw: unknown): {
   readonly errors: readonly string[];
 } {
   if (raw === undefined) {
-    return { cleanup: { enabled: true }, errors: [] };
+    return { cleanup: { enabled: true, check: 'unpushed' }, errors: [] };
   }
 
   const fallback = 'a forget removes no workspace and no state folder until it is fixed';
 
   if (!isRecord(raw)) {
     return {
-      cleanup: { enabled: false },
+      cleanup: { enabled: false, check: 'unpushed' },
       errors: [`workspaces.cleanup is not an object; ${fallback}`],
     };
   }
 
   const enabled = raw['enabled'];
+  const check = raw['check'];
 
   if (enabled !== undefined && typeof enabled !== 'boolean') {
     return {
-      cleanup: { enabled: false },
+      cleanup: { enabled: false, check: 'unpushed' },
       errors: [`workspaces.cleanup.enabled is not true or false; ${fallback}`],
     };
   }
 
-  return { cleanup: { enabled: enabled ?? true }, errors: [] };
+  if (check !== undefined && check !== 'unpushed' && check !== 'none') {
+    return {
+      cleanup: { enabled: enabled ?? true, check: 'unpushed' },
+      errors: [
+        `workspaces.cleanup.check holds ${JSON.stringify(check)}, which is neither "unpushed" nor "none"; a forget removes only a workspace whose work is pushed until it is fixed`,
+      ],
+    };
+  }
+
+  return { cleanup: { enabled: enabled ?? true, check: check ?? 'unpushed' }, errors: [] };
 }

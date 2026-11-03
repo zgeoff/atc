@@ -72,7 +72,10 @@ test('it attaches and acks the session that needs you on tab', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
+  // The daemon writes status.json before the client hears of the change, and a Tab the client
+  // reads first finds nothing to jump to.
   await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('need you: urgent');
 
   ctx.reset();
   ctx.write(KEYS.tab);
@@ -111,7 +114,10 @@ test('it tab-jumps to a finished session when none need you', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
+  // The daemon writes status.json before the client hears of the change, and a Tab the client
+  // reads first finds nothing to jump to.
   await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('✓ 1 done');
 
   ctx.reset();
   ctx.write(KEYS.tab);

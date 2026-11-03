@@ -4,6 +4,8 @@ import type { ExecutionProvider } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import type { SessionRegistry } from './create-session-registry';
+import { isPathWithin } from './is-path-within';
+import type { Session } from './session';
 
 // A workspace directory a spawn on a shared host holds, as the spawn gave
 // it and as the host resolves it once checked there.
@@ -41,6 +43,8 @@ interface RemoveClaimedDirOptions {
   readonly directory: string;
 }
 
+type RemovalHold = Omit<RemoveClaimedDirOptions, 'provider'>;
+
 interface ClaimHostDirOptions extends RemoveClaimedDirOptions {
   readonly picked?: boolean;
 }
@@ -49,11 +53,22 @@ interface HostDirClaimsDeps {
   readonly registry: Pick<SessionRegistry, 'sessions' | 'hasHostLifecycle'>;
 }
 
+// One kill's or forget's hold; it releases only the sessions this hold has.
+export interface SessionHold {
+  readonly release: (sessions: readonly Session[]) => void;
+}
+
 export interface HostDirClaims {
-  // The workspace directory each spawn on a shared host, and each plain
-  // spawn on the daemon's own machine, holds from its overlap check until
-  // its session lists or its spawn fails, by spawn id.
+  // The workspace directory each spawn on a shared host, and each spawn on
+  // the daemon's own machine, holds from its overlap check until its session
+  // lists or its spawn fails, by spawn id.
   readonly reservations: Map<SessionID, WorkspaceReservation>;
+
+  // Each session a kill or forget may take off the list, until atc sees its processes end; every
+  // check here counts a held session's directory as a listed one's. A session stays held while
+  // any hold has it, so a kill that ends never lets go of one a concurrent forget waits on.
+  readonly collectHeldSessions: () => Session[];
+  readonly holdSessions: (sessions: readonly Session[]) => SessionHold;
 
   // a failed spawn whose effects may still stand keeps its reservation, so no other workspace
   // lands in or around what it left
@@ -74,7 +89,7 @@ export interface HostDirClaims {
     directory: string,
   ) => void;
 
-  // the check and the hold run in one turn: a running rollback resolves each held directory and
+  // the check and the hold run in one turn: a running removal resolves each held directory and
   // keeps a directory that holds one
   readonly claimMachineDir: (id: SessionID, target: string, directory: string) => void;
 
@@ -86,6 +101,10 @@ export interface HostDirClaims {
   // listed session's or another claim's directory, or no longer resolves to itself; it then
   // stays for an operator to remove
   readonly removeClaimedDir: (options: RemoveClaimedDirOptions) => Promise<boolean>;
+
+  // Refuses every spawn that a removal of the directory refuses, from before the run starts
+  // until it ends, so no session starts in a directory whose removal is still being decided.
+  readonly withRemovalHold: <T>(hold: RemovalHold, run: () => Promise<T>) => Promise<T>;
 
   // a relative directory resolves as a harness started in it sees it, since the provider starts
   // both from the home of the user they run as; a stricter script must print the same form
@@ -122,6 +141,27 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   const machineRemovals: { readonly id: SessionID; readonly directory: string }[] = [];
   const registry = deps.registry;
 
+  // The sessions each live hold still has.
+  const sessionHolds = new Set<Set<Session>>();
+
+  const collectHeldSessions = (): Session[] => {
+    const held = new Set<Session>();
+
+    for (const sessions of sessionHolds) {
+      for (const session of sessions) {
+        held.add(session);
+      }
+    }
+
+    return [...held];
+  };
+
+  // The listed sessions and the held ones a forget took off the list.
+  const collectSessions = (): Session[] => [
+    ...registry.sessions,
+    ...collectHeldSessions().filter((session) => !registry.sessions.includes(session)),
+  ];
+
   // The directories plain spawns still starting on a host hold, as given.
   const collectPlainDirs = (hostKey: SessionID, target: string): (readonly [SessionID, string])[] =>
     [...reservations]
@@ -137,7 +177,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   // starting there, as one string a later read compares against.
   const collectHostSessionIDs = (hostKey: SessionID, target: string): string =>
     [
-      ...registry.sessions
+      ...collectSessions()
         .filter((session) => session.hostKey === hostKey && session.target === target)
         .map((session) => session.id),
       ...collectPlainDirs(hostKey, target).map(([id]) => id),
@@ -147,7 +187,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   // the given spawn's: every session listed on a target without hosts, and
   // every plain spawn still starting there, as given.
   const collectMachineDirs = (id: SessionID): (readonly [SessionID, string])[] => [
-    ...registry.sessions
+    ...collectSessions()
       .filter((session) => session.id !== id && !registry.hasHostLifecycle(session.target))
       .map((session) => [session.id, session.cwd] as const),
     ...[...reservations]
@@ -185,6 +225,18 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     return dirs;
   };
 
+  // a directory may reach the one a removal is emptying through a symlink no check has resolved
+  // yet, so every claim on the host waits for the removal
+  const requireNoHostRemoval = (hostKey: SessionID, target: string, directory: string): void => {
+    if ((removals.get(buildHostSlot(hostKey, target)) ?? 0) > 0) {
+      throw new DaemonError(
+        'workspace_overlap',
+        `atc is removing a directory on the host of session ${hostKey}; spawn again once it is done`,
+        { phase: 'resolving', directory, session: hostKey },
+      );
+    }
+  };
+
   const requireSeparateWorkspace = (options: RequireSeparateWorkspaceOptions): void => {
     const other = collectOtherWorkspaceDirs(
       options.id,
@@ -214,7 +266,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     readonly unresolved: (readonly [SessionID, string])[];
   }> => {
     const onHost = [
-      ...registry.sessions.filter(
+      ...collectSessions().filter(
         (session) => session.hostKey === hostKey && session.target === target,
       ),
       ...collectPlainDirs(hostKey, target).map(([id, cwd]) => ({ id, cwd })),
@@ -308,6 +360,8 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     // a picked directory is reserved only here, once checked, so two spawns that picked the same
     // one never refuse each other before either holds it
     if (reservation !== undefined || options.picked === true) {
+      requireNoHostRemoval(options.hostKey, options.target, options.directory);
+
       requireSeparateWorkspace({
         id: options.id,
         hostKey: options.hostKey,
@@ -327,6 +381,38 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     }
 
     return physical;
+  };
+
+  // a target without hosts runs on the daemon's machine, where a hold refuses spawns in or around
+  // its directory; on a shared host it refuses every spawn there
+  const withRemovalHold = async <T>(hold: RemovalHold, run: () => Promise<T>): Promise<T> => {
+    if (!registry.hasHostLifecycle(hold.target)) {
+      const removal = { id: hold.id, directory: hold.directory };
+
+      machineRemovals.push(removal);
+
+      try {
+        return await run();
+      } finally {
+        machineRemovals.splice(machineRemovals.indexOf(removal), 1);
+      }
+    }
+
+    const slot = buildHostSlot(hold.hostKey, hold.target);
+
+    removals.set(slot, (removals.get(slot) ?? 0) + 1);
+
+    try {
+      return await run();
+    } finally {
+      const left = (removals.get(slot) ?? 1) - 1;
+
+      if (left === 0) {
+        removals.delete(slot);
+      } else {
+        removals.set(slot, left);
+      }
+    }
   };
 
   const removeClaimedDir = async (options: RemoveClaimedDirOptions): Promise<boolean> => {
@@ -360,20 +446,14 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
         return false;
       }
 
-      const removal = { id: options.id, directory: options.directory };
-
-      machineRemovals.push(removal);
-
-      try {
+      return withRemovalHold(options, async () => {
         const removed = await options.provider.runCommand({
           argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', options.directory, `${options.directory}\nx`],
           cwd: '/',
         });
 
         return removed.exitCode === 0;
-      } finally {
-        machineRemovals.splice(machineRemovals.indexOf(removal), 1);
-      }
+      });
     }
 
     const before = collectHostSessionIDs(options.hostKey, options.target);
@@ -400,11 +480,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       return false;
     }
 
-    const slot = buildHostSlot(options.hostKey, options.target);
-
-    removals.set(slot, (removals.get(slot) ?? 0) + 1);
-
-    try {
+    return withRemovalHold(options, async () => {
       const removed = await options.provider.runCommand({
         argv: ['sh', '-c', REMOVE_DIR_SCRIPT, 'sh', options.directory, `${options.directory}\nx`],
         cwd: '/',
@@ -412,26 +488,38 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       });
 
       return removed.exitCode === 0;
-    } finally {
-      const left = (removals.get(slot) ?? 1) - 1;
-
-      if (left === 0) {
-        removals.delete(slot);
-      } else {
-        removals.set(slot, left);
-      }
-    }
+    });
   };
 
   return {
     reservations,
+
+    collectHeldSessions,
+
+    holdSessions: (sessions) => {
+      const held = new Set(sessions);
+
+      sessionHolds.add(held);
+
+      return {
+        release: (released) => {
+          for (const session of released) {
+            held.delete(session);
+          }
+
+          if (held.size === 0) {
+            sessionHolds.delete(held);
+          }
+        },
+      };
+    },
 
     releaseWorkspace: (id) => {
       reservations.delete(id);
     },
 
     claimWorkspace: (id, hostKey, target, directory) => {
-      const listed = registry.sessions
+      const listed = collectSessions()
         .filter(
           (session) =>
             session.hostKey === hostKey &&
@@ -440,21 +528,14 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
         )
         .map((session) => [session.id, session.cwd] as const);
 
+      requireNoHostRemoval(hostKey, target, directory);
       requireSeparateWorkspace({ id, hostKey, target, directory, forms: [directory], listed });
 
       reservations.set(id, { hostKey, target, directory, resolved: null, kind: 'workspace' });
     },
 
     claimPlainDir: (id, hostKey, target, directory) => {
-      // a plain directory may reach the one a rollback is removing through a symlink no check has
-      // resolved yet, so every plain spawn on the host waits for the removal
-      if ((removals.get(buildHostSlot(hostKey, target)) ?? 0) > 0) {
-        throw new DaemonError(
-          'workspace_overlap',
-          `a failed workspace spawn is removing its directory on the host of session ${hostKey}; spawn again once it is done`,
-          { phase: 'resolving', directory, session: hostKey },
-        );
-      }
+      requireNoHostRemoval(hostKey, target, directory);
 
       // a workspace still being built may be removed by its rollback; plain spawns share freely
       for (const [other, reservation] of reservations) {
@@ -498,7 +579,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
         if (removal !== undefined) {
           throw new DaemonError(
             'workspace_overlap',
-            `${directory} overlaps ${removal.directory}, which the failed workspace spawn of session ${removal.id} is removing on the daemon host; spawn again once it is done`,
+            `${directory} overlaps ${removal.directory}, which atc is removing for session ${removal.id} on the daemon host; spawn again once it is done`,
             { phase: 'resolving', directory, session: removal.id },
           );
         }
@@ -511,22 +592,23 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
 
     removeClaimedDir,
 
+    withRemovalHold,
+
     resolveHostDir,
 
     resolveHostHome,
   };
 }
 
+// The key of a shared host on one target, for state kept per host.
+function buildHostSlot(hostKey: SessionID, target: string): string {
+  return `${target}\0${hostKey}`;
+}
+
 // Whether either of two directories on a host holds the other, or they are
 // the same.
 function isPathOverlapping(left: string, right: string): boolean {
   return isPathWithin(left, right) || isPathWithin(right, left);
-}
-
-function isPathWithin(child: string, parent: string): boolean {
-  const relative = posix.relative(parent, child);
-
-  return relative !== '..' && !relative.startsWith('../') && !posix.isAbsolute(relative);
 }
 
 async function resolveHostDir(
@@ -581,11 +663,6 @@ async function resolveHostHome(provider: ExecutionProvider, hostKey: SessionID):
   }
 
   return home;
-}
-
-// The key of a shared host on one target, for state kept per host.
-function buildHostSlot(hostKey: SessionID, target: string): string {
-  return `${target}\0${hostKey}`;
 }
 
 // An absolute directory on the daemon's own machine with every symlink in

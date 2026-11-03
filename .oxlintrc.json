@@ -46,11 +46,13 @@
     // GEO-1196 splits the 19 files over the shared 500-line limit
     "max-lines": "off",
     // a `<module>.codex.test.ts` suite runs the installed Codex CLI in the
-    // test:codex lane, and tests the module beside it
-    "zgeoff/test-beside-module": ["error", { "lanes": ["codex"] }],
-    // the pre-push baseline reads the lanes here, so the hook leaves the
-    // codex lane to CI as it leaves e2e/
-    "zgeoff/max-test-timeout": ["error", { "lanes": ["codex"] }]
+    // test:codex lane, a `<module>.toolchain.test.ts` suite runs a real bun
+    // install, type check and test run in the test:toolchain lane, and each
+    // tests the module beside it
+    "zgeoff/test-beside-module": ["error", { "lanes": ["codex", "toolchain"] }],
+    // the pre-push baseline reads the lanes here, so the hook leaves these
+    // lanes to CI as it leaves e2e/
+    "zgeoff/max-test-timeout": ["error", { "lanes": ["codex", "toolchain"] }]
   },
   "overrides": [
     {

@@ -14,7 +14,7 @@ test.each([
     gitTransports: DEFAULT_GIT_TRANSPORTS,
     root,
     targetRoots: new Map(targetRoots),
-    cleanup: { enabled: true },
+    cleanup: { enabled: true, check: 'unpushed' as const },
   };
 
   expect(canPickOnTarget(workspaces, 'box')).toBe(true);
@@ -35,7 +35,7 @@ test.each([
       gitTransports: DEFAULT_GIT_TRANSPORTS,
       root,
       targetRoots: new Map(targetRoots),
-      cleanup: { enabled: true },
+      cleanup: { enabled: true, check: 'unpushed' as const },
     };
 
     expect(canPickOnTarget(workspaces, 'box')).toBe(false);

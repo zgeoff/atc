@@ -443,6 +443,29 @@ test('it answers each command through the config', async () => {
   expect(result).toStrictEqual({ exitCode: 1, stdout: 'git status', stderr: 'failed' });
 });
 
+test('it records a held command at once and runs it only once the test finishes the commands', async () => {
+  const provider = buildStubMemoryProvider();
+
+  provider.holdCommands();
+
+  const run = provider.runCommand({ argv: ['git', 'status'], cwd: '/work' });
+
+  await Promise.resolve();
+
+  const before = {
+    status: Bun.peek.status(run),
+    held: provider.hasHeldCommands(),
+    commands: provider.commands.length,
+  };
+
+  provider.finishCommands();
+
+  await run;
+
+  expect(before).toStrictEqual({ status: 'pending', held: true, commands: 1 });
+  expect(provider.hasHeldCommands()).toBeFalse();
+});
+
 test('it records each host it readies, puts to sleep, and destroys', async () => {
   const provider = buildStubMemoryProvider();
 

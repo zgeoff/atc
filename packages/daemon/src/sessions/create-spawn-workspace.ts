@@ -10,7 +10,7 @@ export interface SpawnWorkspaceDeps {
   readonly registry: Pick<SessionRegistry, 'hasHostLifecycle'>;
   readonly claims: Pick<
     HostDirClaims,
-    'claimHostDir' | 'removeClaimedDir' | 'resolveHostDir' | 'resolveHostHome'
+    'claimHostDir' | 'claimMachineDir' | 'removeClaimedDir' | 'resolveHostDir' | 'resolveHostHome'
   >;
   readonly rollback: Pick<SpawnRollback, 'removeSpawnWorkspace' | 'shouldTakeHost'>;
 }
@@ -66,18 +66,24 @@ export async function createSpawnWorkspace(
             const base = posix.isAbsolute(directory) ? directory : posix.join(hostHome, directory);
             const candidate = attempt === 1 ? base : `${base}-${attempt}`;
 
-            const landing = await timer.withStep('dir-claim', () =>
-              deps.registry.hasHostLifecycle(target)
-                ? deps.claims.claimHostDir({
-                    provider,
-                    id,
-                    hostKey,
-                    target,
-                    directory: candidate,
-                    picked: spawn.autoDir && hostKey !== id,
-                  })
-                : deps.claims.resolveHostDir(provider, null, candidate),
-            );
+            const landing = await timer.withStep('dir-claim', () => {
+              if (deps.registry.hasHostLifecycle(target)) {
+                return deps.claims.claimHostDir({
+                  provider,
+                  id,
+                  hostKey,
+                  target,
+                  directory: candidate,
+                  picked: spawn.autoDir && hostKey !== id,
+                });
+              }
+
+              // held before the clone creates it, so a removal running now refuses it and one
+              // that starts later keeps a directory that holds it
+              deps.claims.claimMachineDir(id, target, candidate);
+
+              return deps.claims.resolveHostDir(provider, null, candidate);
+            });
 
             landed = landing;
 

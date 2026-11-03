@@ -104,6 +104,12 @@ export interface StubMemoryProvider extends ExecutionProvider {
   }[];
   readonly commands: CommandSpec[];
 
+  // Keeps each later command pending, recorded but not yet run, until the test finishes the
+  // commands, as a host that answers slowly.
+  readonly holdCommands: () => void;
+  readonly finishCommands: () => void;
+  readonly hasHeldCommands: () => boolean;
+
   // How many times the daemon disposed of the provider.
   readonly countDisposals: () => number;
 }
@@ -117,6 +123,8 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
   const commands: CommandSpec[] = [];
   const guest = config.guest;
   let disposals = 0;
+  let heldCommands: PromiseWithResolvers<void> | null = null;
+  let waitingCommands = 0;
 
   return {
     kind: config.kind ?? 'memory',
@@ -147,6 +155,14 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
     destroyed,
     transfers,
     commands,
+    holdCommands: () => {
+      heldCommands = Promise.withResolvers<void>();
+    },
+    finishCommands: () => {
+      heldCommands?.resolve();
+      heldCommands = null;
+    },
+    hasHeldCommands: () => waitingCommands > 0,
     countDisposals: () => disposals,
     prepareHost: (request) => {
       prepared.push(request);
@@ -175,10 +191,18 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
 
       return config.transferArchive?.(archive, directory, host) ?? Promise.resolve();
     },
-    runCommand: (spec) => {
+    runCommand: async (spec) => {
       commands.push(spec);
 
-      return config.runCommand?.(spec) ?? Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
+      if (heldCommands !== null) {
+        waitingCommands += 1;
+
+        await heldCommands.promise;
+
+        waitingCommands -= 1;
+      }
+
+      return config.runCommand?.(spec) ?? { exitCode: 0, stdout: '', stderr: '' };
     },
     suspendHost: (host, isIdle) => {
       suspended.push(host);

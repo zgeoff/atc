@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DaemonError } from '@atc/protocol/wire';
@@ -7,7 +7,9 @@ import { createStateStore } from '@atc/store';
 import {
   buildStubClock,
   buildStubHeadlessRunner,
+  buildStubHostHold,
   buildStubLog,
+  createGitFixture,
   createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
@@ -18,18 +20,24 @@ import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { createConfirmTokens } from './create-confirm-tokens';
 import { createForgetCleanup } from './create-forget-cleanup';
+import { REMOVE_DIR_SCRIPT } from './create-host-dir-claims';
 import { createSessionForgetter } from './create-session-forgetter';
 import { createSessionManager } from './create-session-manager';
 import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
+import { WORKSPACE_CHECK_SCRIPT } from './run-workspace-check';
 import { startHeadlessTurn } from './start-headless-turn';
 
 interface SetupTestConfig {
   // Whether the target's provider can destroy a session's host.
   readonly destroy: boolean;
+
+  // Whether the target's provider can put a host to sleep, which gives each
+  // sub-session its parent's host; it can when it can destroy one.
+  readonly suspend?: boolean;
 
   // Whether a forget removes what atc kept for the session; on when absent.
   readonly cleanupEnabled?: boolean;
@@ -49,17 +57,25 @@ async function setupTest(config: SetupTestConfig) {
 
   const runtimes = new Map<SessionID, SessionRuntime>();
 
-  const provider = buildStubMemoryProvider({
-    kind: 'local-pty',
-    capabilities: { suspend: config.destroy, destroy: config.destroy },
+  const provider = buildStubLocalProvider({
+    capabilities: { suspend: config.suspend ?? config.destroy, destroy: config.destroy },
   });
 
   const stopMessageBridge = mock<(id: SessionID) => Promise<void>>(() => Promise.resolve());
   const headless = buildStubHeadlessRunner();
 
+  // Pauses each fleet write once a test starts it, as a slow disk.
+  const fleetWrites = buildStubHostHold();
+
   const manager = createSessionManager({
     fallback: null,
-    store,
+    store: {
+      ...store,
+      writeFleet: async (entries, removed) => {
+        await fleetWrites.waitForRelease();
+        await store.writeFleet(entries, removed);
+      },
+    },
     statusPath: join(temporaryDirectory.path, 'status.json'),
     adapters: [{ ...buildStubHarnessAdapter(), headlessRunner: headless.runner }],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
@@ -89,22 +105,25 @@ async function setupTest(config: SetupTestConfig) {
     findRuntime: (id) => runtimes.get(id),
     tokens: createConfirmTokens({ now: () => clock.now(), lifetimeMs: 60_000 }),
     cleanup: createForgetCleanup({
-      log: log.log,
+      manager,
+      store,
       stateDir,
       removeDir: (directory) => rm(directory, { recursive: true, force: true }),
-      settings: { enabled: config.cleanupEnabled !== false },
+      settings: { enabled: config.cleanupEnabled !== false, check: 'unpushed' },
     }),
   });
 
   return {
     directory: temporaryDirectory.path,
     stateDir,
+    store,
     log,
     provider,
     manager,
     runtimes,
     stopMessageBridge,
     headless,
+    fleetWrites,
     forgetter,
   };
 }
@@ -553,8 +572,8 @@ test('it logs a state folder it cannot remove and still forgets the session', as
   );
 });
 
-test('it keeps the state folder of a session whose killed process atc never sees exit, even after a forced kill', async () => {
-  const ctx = await setupTest({ destroy: false });
+test('it reports no workspace and runs no check when the forget destroys the host', async () => {
+  const ctx = await setupTest({ destroy: true });
 
   const session = await ctx.manager.spawn({
     cwd: ctx.directory,
@@ -564,11 +583,164 @@ test('it keeps the state folder of a session whose killed process atc never sees
     rows: 24,
   });
 
-  const folder = join(ctx.stateDir, 'sessions', session.id);
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: ctx.directory,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    {
+      phase: 'ready',
+      repoURL: 'https://example.com/shop.git',
+      sha: 'c0ffee0c0ffee0c0ffee0c0ffee0c0ffee0c0ffe',
+      materializedAt: 2000,
+    },
+    2000,
+  );
+
+  await ctx.forgetter.killSession(session.id, false);
+
+  const answer = await ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  invariant(typeof answer === 'object' && 'confirmToken' in answer);
+
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    answer.confirmToken,
+    { pinned: false, live: false },
+    null,
+  );
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: true,
+    workspace: { outcome: 'none' },
+  });
+
+  expect(
+    ctx.provider.commands.filter((spec) => spec.argv.includes(WORKSPACE_CHECK_SCRIPT)),
+  ).toBeEmpty();
+
+  expect(existsSync(ctx.directory)).toBeTrue();
+});
+
+test("it checks and removes the workspace of a sub-session on its parent's host through the provider", async () => {
+  const ctx = await setupTest({ destroy: false, suspend: true });
+  const git = await createGitFixture({ prefix: 'atc-forget-shared-host-' });
+
+  const parent = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'lead',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const child = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'helper',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    parent: parent.id,
+  });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: child.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    child.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  const path = realpathSync(git.work);
+
+  await ctx.forgetter.killSession(child.id, false);
+
+  const forgotten = await ctx.forgetter.forgetSession(
+    child.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'removed', path, found: [] },
+  });
+
+  expect(
+    ctx.provider.commands
+      .filter(
+        (spec) =>
+          spec.argv.includes(WORKSPACE_CHECK_SCRIPT) || spec.argv.includes(REMOVE_DIR_SCRIPT),
+      )
+      .map((spec) => ({
+        step: spec.argv.includes(REMOVE_DIR_SCRIPT) ? 'removal' : 'check',
+        host: spec.host,
+      })),
+  ).toStrictEqual([
+    { step: 'check', host: parent.id },
+    { step: 'removal', host: parent.id },
+  ]);
+
+  expect(existsSync(git.work)).toBeFalse();
+});
+
+test('it keeps the workspace of a session whose killed process atc never sees exit, even after a forced kill', async () => {
+  const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-unended-' });
+
+  const session = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
   const [harness] = ctx.provider.harnesses;
 
   invariant(harness !== undefined);
-  mkdirSync(join(folder, 'scratch'), { recursive: true });
 
   // a detached harness reports no exit, as a process atc lost track of
   harness.detach();
@@ -576,25 +748,55 @@ test('it keeps the state folder of a session whose killed process atc never sees
   ctx.manager.failedSpawnExitWaitMs = 1;
 
   await ctx.forgetter.killSession(session.id, false);
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
 
-  expect(existsSync(join(folder, 'scratch'))).toBeTrue();
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: {
+      outcome: 'kept',
+      path: git.work,
+      reasons: ["unchecked: atc could not confirm that the session's process exited"],
+    },
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
 });
 
-test('it keeps the state folder of a session whose headless turn ran when the forget began', async () => {
+test('it keeps the workspace of a session whose headless turn ran when the forget began', async () => {
   const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-headless-' });
 
   const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
+    cwd: git.work,
     name: 'worker',
     prompt: '',
     cols: 80,
     rows: 24,
   });
 
-  const folder = join(ctx.stateDir, 'sessions', session.id);
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
 
-  mkdirSync(join(folder, 'scratch'), { recursive: true });
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
 
   const started = startHeadlessTurn({
     manager: ctx.manager,
@@ -607,27 +809,58 @@ test('it keeps the state folder of a session whose headless turn ran when the fo
 
   invariant(started, 'the headless turn did not start');
 
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
 
-  expect(existsSync(join(folder, 'scratch'))).toBeTrue();
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: {
+      outcome: 'kept',
+      path: git.work,
+      reasons: ["unchecked: atc could not confirm that the session's process exited"],
+    },
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
 });
 
-test('it keeps the state folder of a session whose headless turn a stop aborted before the forget', async () => {
+test('it keeps the workspace of a session whose headless turn a stop aborted before the forget', async () => {
   const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-headless-' });
 
   const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
+    cwd: git.work,
     name: 'worker',
     prompt: '',
     cols: 80,
     rows: 24,
   });
 
-  const folder = join(ctx.stateDir, 'sessions', session.id);
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
   const runtime = ctx.runtimes.get(session.id);
 
   invariant(runtime !== undefined);
-  mkdirSync(join(folder, 'scratch'), { recursive: true });
 
   const started = startHeadlessTurn({
     manager: ctx.manager,
@@ -642,25 +875,54 @@ test('it keeps the state folder of a session whose headless turn a stop aborted 
 
   runtime.stopHeadlessRun();
 
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
 
-  expect(existsSync(join(folder, 'scratch'))).toBeTrue();
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: {
+      outcome: 'kept',
+      path: git.work,
+      reasons: ["unchecked: atc could not confirm that the session's process exited"],
+    },
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
 });
 
-test('it keeps the state folder of a session whose headless turn reported its result before the forget', async () => {
+test('it keeps the workspace of a session whose headless turn reported its result before the forget', async () => {
   const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-headless-' });
 
   const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
+    cwd: git.work,
     name: 'worker',
     prompt: '',
     cols: 80,
     rows: 24,
   });
 
-  const folder = join(ctx.stateDir, 'sessions', session.id);
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
 
-  mkdirSync(join(folder, 'scratch'), { recursive: true });
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
 
   const started = startHeadlessTurn({
     manager: ctx.manager,
@@ -677,12 +939,27 @@ test('it keeps the state folder of a session whose headless turn reported its re
 
   run.events.onDone('the notes are tidy');
 
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
 
-  expect(existsSync(join(folder, 'scratch'))).toBeTrue();
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: {
+      outcome: 'kept',
+      path: git.work,
+      reasons: ["unchecked: atc could not confirm that the session's process exited"],
+    },
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
 });
 
-test('it removes the state folder of a killed session only once its harness exits late', async () => {
+test('it keeps the hold of a forget that waits on a late exit when a kill paused at its fleet write ends', async () => {
   const ctx = await setupTest({ destroy: false });
 
   const session = await ctx.manager.spawn({
@@ -693,13 +970,81 @@ test('it removes the state folder of a killed session only once its harness exit
     rows: 24,
   });
 
-  const folder = join(ctx.stateDir, 'sessions', session.id);
   const [harness] = ctx.provider.harnesses;
 
   invariant(harness !== undefined);
-  mkdirSync(folder, { recursive: true });
 
   harness.holdExit();
+  ctx.fleetWrites.startHold();
+
+  const killing = ctx.forgetter.killSession(session.id, true);
+
+  await ctx.fleetWrites.entered;
+
+  const forgetting = ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  ctx.fleetWrites.release();
+
+  await killing;
+
+  await waitFor(() => {
+    expect(harness.hasExitWaiters()).toBeTrue();
+  });
+
+  const heldWhileWaiting = ctx.manager.collectHeldSessions().includes(session);
+
+  harness.emitExit({ exitCode: 143 });
+
+  await forgetting;
+
+  expect(heldWhileWaiting).toBeTrue();
+});
+
+test('it removes the folders of a killed session only once its harness exits late', async () => {
+  const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-late-exit-' });
+
+  const session = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const folder = join(ctx.stateDir, 'sessions', session.id);
+
+  mkdirSync(folder, { recursive: true });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness !== undefined);
+
+  harness.holdExit();
+
+  const path = realpathSync(git.work);
 
   const forgetting = ctx.forgetter.forgetSession(
     session.id,
@@ -712,21 +1057,32 @@ test('it removes the state folder of a killed session only once its harness exit
     expect(harness.hasExitWaiters()).toBeTrue();
   });
 
-  const keptWhileRunning = existsSync(folder);
+  const keptWhileRunning = { workspace: existsSync(git.work), folder: existsSync(folder) };
 
   harness.emitExit({ exitCode: 143 });
 
-  await forgetting;
+  const forgotten = await forgetting;
 
-  expect(keptWhileRunning).toBeTrue();
-  expect(existsSync(folder)).toBeFalse();
+  expect(keptWhileRunning).toStrictEqual({ workspace: true, folder: true });
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'removed', path, found: [] },
+  });
+
+  expect({ workspace: existsSync(git.work), folder: existsSync(folder) }).toStrictEqual({
+    workspace: false,
+    folder: false,
+  });
 });
 
-test('it removes the state folder of a session killed, revived and forgotten only once its first harness exits late', async () => {
+test('it removes the folders of a session killed, revived and forgotten only once its first harness exits late', async () => {
   const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-revived-' });
 
   const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
+    cwd: git.work,
     name: 'worker',
     prompt: '',
     cols: 80,
@@ -734,10 +1090,29 @@ test('it removes the state folder of a session killed, revived and forgotten onl
   });
 
   const folder = join(ctx.stateDir, 'sessions', session.id);
+
+  mkdirSync(folder, { recursive: true });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
   const [firstHarness] = ctx.provider.harnesses;
 
   invariant(firstHarness !== undefined);
-  mkdirSync(folder, { recursive: true });
 
   session.agentSessionID = toAgentSessionID('c-worker');
 
@@ -748,6 +1123,8 @@ test('it removes the state folder of a session killed, revived and forgotten onl
   const revived = await ctx.manager.adoptTerminal(session.id, 80, 24);
 
   invariant(revived !== null, 'the revive did not start a harness');
+
+  const path = realpathSync(git.work);
 
   const forgetting = ctx.forgetter.forgetSession(
     session.id,
@@ -760,30 +1137,132 @@ test('it removes the state folder of a session killed, revived and forgotten onl
     expect(firstHarness.hasExitWaiters()).toBeTrue();
   });
 
-  const keptWhileRunning = existsSync(folder);
+  const keptWhileRunning = { workspace: existsSync(git.work), folder: existsSync(folder) };
 
   firstHarness.emitExit({ exitCode: 143 });
 
-  await forgetting;
+  const forgotten = await forgetting;
 
-  expect(keptWhileRunning).toBeTrue();
-  expect(existsSync(folder)).toBeFalse();
+  expect(keptWhileRunning).toStrictEqual({ workspace: true, folder: true });
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'removed', path, found: [] },
+  });
+
+  expect({ workspace: existsSync(git.work), folder: existsSync(folder) }).toStrictEqual({
+    workspace: false,
+    folder: false,
+  });
 });
 
-test('it keeps the state folder of a session whose host lost its harness without an exit', async () => {
+test("it keeps a session's workspace while another forgotten session that ran in it has not exited", async () => {
   const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-shared-' });
+
+  const owner = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'owner',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const guest = await ctx.manager.spawn({
+    cwd: git.work,
+    name: 'guest',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: owner.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.updateMaterialization(
+    owner.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
+
+  const [, guestHarness] = ctx.provider.harnesses;
+
+  invariant(guestHarness !== undefined);
+
+  guestHarness.holdExit();
+
+  const forgettingGuest = ctx.forgetter.forgetSession(
+    guest.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  await waitFor(() => {
+    expect(guestHarness.hasExitWaiters()).toBeTrue();
+  });
+
+  const forgotten = await ctx.forgetter.forgetSession(
+    owner.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  guestHarness.emitExit({ exitCode: 143 });
+
+  await forgettingGuest;
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: {
+      outcome: 'kept',
+      path: realpathSync(git.work),
+      reasons: [`in use by session ${guest.id}`],
+    },
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
+});
+
+test('it keeps the workspace of a session whose host lost its harness without an exit', async () => {
+  const ctx = await setupTest({ destroy: false });
+  const git = await createGitFixture({ prefix: 'atc-forget-lost-' });
 
   const session = await ctx.manager.spawn({
-    cwd: ctx.directory,
+    cwd: git.work,
     name: 'worker',
     prompt: '',
     cols: 80,
     rows: 24,
   });
 
-  const folder = join(ctx.stateDir, 'sessions', session.id);
+  await ctx.store.createMaterialization(
+    {
+      sessionID: session.id,
+      target: 'local',
+      directory: git.work,
+      sourceKind: 'git',
+      withheldEnv: [],
+    },
+    1000,
+  );
 
-  mkdirSync(folder, { recursive: true });
+  await ctx.store.updateMaterialization(
+    session.id,
+    { phase: 'ready', repoURL: 'https://example.com/shop.git', sha: git.sha, materializedAt: 2000 },
+    2000,
+  );
 
   ctx.provider.harnesses[0]?.emitExit({
     exitCode: 1,
@@ -791,12 +1270,27 @@ test('it keeps the state folder of a session whose host lost its harness without
     detail: 'reconnects ran out',
   });
 
-  await ctx.forgetter.forgetSession(session.id, undefined, { pinned: false, live: false }, null);
+  const forgotten = await ctx.forgetter.forgetSession(
+    session.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
 
-  expect(existsSync(folder)).toBeTrue();
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: {
+      outcome: 'kept',
+      path: git.work,
+      reasons: ["unchecked: atc could not confirm that the session's process exited"],
+    },
+  });
+
+  expect(existsSync(git.work)).toBeTrue();
 });
 
-test("it removes a session's state folder only once the stop of its message bridge resolves", async () => {
+test("it removes a session's folders only once the stop of its message bridge resolves", async () => {
   const ctx = await setupTest({ destroy: false });
 
   const session = await ctx.manager.spawn({

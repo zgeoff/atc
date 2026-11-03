@@ -24,6 +24,7 @@ import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { createSessionRestorer } from '../fleet/create-session-restorer';
 import { collectSessionDescriptors } from './collect-session-descriptors';
 import { createHostDirClaims } from './create-host-dir-claims';
+import type { HostDirClaims } from './create-host-dir-claims';
 import type { PublishedRecords } from './create-published-records';
 import { createSessionAdopter } from './create-session-adopter';
 import { createSessionHarnesses } from './create-session-harnesses';
@@ -132,6 +133,11 @@ export interface SessionManager {
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
   readonly collectAdapters: () => AgentAdapter[];
   readonly isLocalTarget: (target: string) => boolean;
+  readonly hasHostLifecycle: (target: string) => boolean;
+  readonly removeClaimedDir: HostDirClaims['removeClaimedDir'];
+  readonly withRemovalHold: HostDirClaims['withRemovalHold'];
+  readonly collectHeldSessions: HostDirClaims['collectHeldSessions'];
+  readonly holdSessions: HostDirClaims['holdSessions'];
   readonly isCallerTree: (id: SessionID, caller: SessionID) => boolean;
   readonly collectChildren: (id: SessionID) => Session[];
   readonly countStates: () => ReturnType<SessionRegistry['countStates']>;
@@ -427,6 +433,16 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
     collectAdapters: () => registry.collectAdapters(),
 
     isLocalTarget: (target) => registry.isLocalTarget(target),
+
+    hasHostLifecycle: registry.hasHostLifecycle,
+
+    removeClaimedDir: claims.removeClaimedDir,
+
+    withRemovalHold: claims.withRemovalHold,
+
+    collectHeldSessions: claims.collectHeldSessions,
+
+    holdSessions: claims.holdSessions,
 
     isCallerTree: (id, caller) => registry.isCallerTree(id, caller),
 
