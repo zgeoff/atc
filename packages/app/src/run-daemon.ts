@@ -108,6 +108,7 @@ export async function runDaemon(invocation: DaemonInvocation): Promise<void> {
       sources: sources.sources,
       gitTransports: config.workspaces.gitTransports,
       workspaceRoots: { root: config.workspaces.root, targetRoots: config.workspaces.targetRoots },
+      workspaceCleanup: config.workspaces.cleanup,
       ...(listen === null || invocation.tokenFile === null
         ? {}
         : { listen: { host: listen.host, port: listen.port, tokenFile: invocation.tokenFile } }),

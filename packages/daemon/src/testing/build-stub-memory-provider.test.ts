@@ -277,6 +277,63 @@ test('it ends a force-killed harness with exit code 137', async () => {
   expect(provider.harnesses[0]?.readExit()).toStrictEqual({ exitCode: 137 });
 });
 
+test('it keeps a held harness running through a kill and a forced kill until the test ends it', async () => {
+  const provider = buildStubMemoryProvider();
+
+  const harness = provider.spawnHarness({
+    session: 's-1',
+    host: 's-1',
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  const [held] = provider.harnesses;
+
+  held?.holdExit();
+  harness.kill();
+  harness.killForced?.();
+  const wait = harness.waitForExit(60_000);
+
+  await Promise.resolve();
+
+  const waitingAfterKills = held?.hasExitWaiters();
+
+  held?.emitExit({ exitCode: 143 });
+
+  const exited = await wait;
+
+  expect(waitingAfterKills).toBeTrue();
+  expect(exited).toBeTrue();
+  expect(held?.readExit()).toStrictEqual({ exitCode: 143 });
+});
+
+test('it reports no pending exit wait once the harness exits', async () => {
+  const provider = buildStubMemoryProvider();
+
+  const harness = provider.spawnHarness({
+    session: 's-1',
+    host: 's-1',
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  const wait = harness.waitForExit(60_000);
+
+  harness.kill();
+
+  await wait;
+
+  expect(provider.harnesses[0]?.hasExitWaiters()).toBeFalse();
+});
+
 test('it reports no exit for a harness that runs past the wait', async () => {
   const clock = buildStubClock(0);
   const provider = buildStubMemoryProvider({ clock });

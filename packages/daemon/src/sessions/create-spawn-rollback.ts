@@ -6,6 +6,7 @@ import type { HostDirClaims } from './create-host-dir-claims';
 import type { SessionHarnesses } from './create-session-harnesses';
 import type { SessionRegistry } from './create-session-registry';
 import type { SessionCallbacks } from './session-callbacks';
+import { waitForKilledExit } from './wait-for-killed-exit';
 
 // How long a failed spawn's rollback waits for the killed process to exit
 // unless the manager is given another wait.
@@ -163,31 +164,13 @@ export function createSpawnRollback(deps: SpawnRollbackDeps): SpawnRollback {
     await binder.removeAttempt(host, hostKey, attemptID);
   };
 
-  // Waits for a killed harness to exit, ending it with a signal it cannot
-  // ignore when the first wait runs out and its provider can send one.
-  const waitForKilledExit = async (pty: HarnessHandle): Promise<boolean> => {
-    const exited = await pty.waitForExit(failedSpawnExitWaitMs);
-
-    if (exited) {
-      return true;
-    }
-
-    if (pty.killForced === undefined) {
-      return false;
-    }
-
-    pty.killForced();
-
-    return pty.waitForExit(failedSpawnExitWaitMs);
-  };
-
   const killHarness = async (id: SessionID, pty: HarnessHandle): Promise<boolean> => {
     // stays recorded as possibly running, blocking revives, until a check
     // finds the process gone
     unconfirmedKills.set(id, pty);
     pty.kill();
 
-    const exited = await waitForKilledExit(pty);
+    const exited = await waitForKilledExit(pty, failedSpawnExitWaitMs);
 
     if (exited) {
       unconfirmedKills.delete(id);

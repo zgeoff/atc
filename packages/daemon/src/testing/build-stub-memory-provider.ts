@@ -32,6 +32,13 @@ export interface StubMemoryHarness extends HarnessHandle {
   // Ends the harness with the exit given; a harness that already ended, or
   // that the daemon let go of, records nothing more.
   readonly emitExit: (exit: HarnessExit) => void;
+
+  // Keeps the harness running through each later kill and forced kill, as a process that exits
+  // only when the test ends it.
+  readonly holdExit: () => void;
+
+  // Whether a wait for the harness's exit is pending.
+  readonly hasExitWaiters: () => boolean;
 }
 
 interface StubMemoryProviderConfig {
@@ -199,6 +206,7 @@ function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarn
   const sizes: (readonly [number, number])[] = [];
   let exit: HarnessExit | null = null;
   let detached = false;
+  let exitHeld = false;
 
   // Settles every pending exit wait: true on an exit, false once the
   // harness stops being followed without one.
@@ -225,6 +233,10 @@ function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarn
   };
 
   const scheduleExit = (exitCode: number): void => {
+    if (exitHeld) {
+      return;
+    }
+
     // a process's exit arrives after its signal, never inside the kill call
     queueMicrotask(() => {
       emitExit({ exitCode });
@@ -243,6 +255,10 @@ function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarn
       }
     },
     emitExit,
+    holdExit: () => {
+      exitHeld = true;
+    },
+    hasExitWaiters: () => exitWaiters.size > 0,
     onData: (listener) => {
       dataListeners.add(listener);
 

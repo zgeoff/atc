@@ -1,10 +1,11 @@
-import type { ExecutionCapability } from '@atc/plugin-api';
+import type { ExecutionCapability, HarnessHandle } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { SessionRegistry } from './create-session-registry';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
+import { waitForKilledExit } from './wait-for-killed-exit';
 
 interface SessionKillerDeps {
   readonly registry: Pick<
@@ -20,6 +21,9 @@ interface SessionKillerDeps {
   // Stops a revive's restart that waits on the kill of its outdated
   // harness, and returns whether one was waiting.
   readonly restarts: { readonly stopRestart: (id: SessionID) => Promise<boolean> };
+
+  // How long a wait for a killed harness to exit runs before it is ended by force.
+  readonly readExitWaitMs: () => number;
 }
 
 export interface SessionKiller {
@@ -35,6 +39,10 @@ export interface SessionKiller {
   // A harness inside a host that went to sleep: the daemon lets go of it,
   // and the process stays inside the host for a revive to find.
   readonly updateSuspended: (session: Session) => void;
+
+  // Whether every harness a kill or forget ended for the session has exited, ending each by
+  // force when a wait runs out; a forget removes nothing the session ran in until it has.
+  readonly probeHarnessEnded: (id: SessionID) => Promise<boolean>;
 }
 
 export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
@@ -42,6 +50,10 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
   const fleet = deps.fleet;
   const callbacks = deps.callbacks;
   const restarts = deps.restarts;
+
+  // The harnesses each kill or forget ended, by session, until a probe sees each exit; a revive
+  // between two kills leaves more than one.
+  const endingHarnesses = new Map<SessionID, HarnessHandle[]>();
 
   const removeWithChildren = (session: Session, forgettable: readonly Session[]): void => {
     const kept: Session[] = [];
@@ -108,7 +120,11 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
   // session already dead is left as it is.
   const killTerminal = (session: Session) => {
     if (session.pty !== null) {
-      session.pty.kill();
+      // a provider may report the exit inside the kill call, which clears the session's handle
+      const pty = session.pty;
+
+      endingHarnesses.set(session.id, [...(endingHarnesses.get(session.id) ?? []), pty]);
+      pty.kill();
 
       session.pty = null;
     } else if (session.kind !== 'headless' || session.state === 'exited') {
@@ -304,5 +320,40 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
     pickKillCapability: (session) => (canSuspendHost(session) ? 'suspend' : 'kill'),
 
     updateSuspended,
+
+    probeHarnessEnded: async (id) => {
+      const ptys = endingHarnesses.get(id) ?? [];
+      const waitMs = deps.readExitWaitMs();
+
+      const waits = await Promise.all(
+        ptys.map(async (pty) => ({ pty, exited: await waitForKilledExit(pty, waitMs) })),
+      );
+
+      // a kill during the wait may have added a harness this probe never waited for
+      const running = collectRunningHarnesses(endingHarnesses.get(id) ?? [], waits);
+
+      if (running.length === 0) {
+        endingHarnesses.delete(id);
+      } else {
+        endingHarnesses.set(id, running);
+      }
+
+      return running.length === 0;
+    },
   };
+}
+
+interface HarnessWait {
+  readonly pty: HarnessHandle;
+  readonly exited: boolean;
+}
+
+// The ending harnesses still to wait for: each one but those whose wait saw an exit.
+function collectRunningHarnesses(
+  ending: readonly HarnessHandle[],
+  waits: readonly HarnessWait[],
+): HarnessHandle[] {
+  const exited = new Set(waits.filter((wait) => wait.exited).map((wait) => wait.pty));
+
+  return ending.filter((pty) => !exited.has(pty));
 }

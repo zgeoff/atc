@@ -36,6 +36,10 @@ export interface SessionRuntime {
 
   headlessRun: HeadlessRunHandle | null;
 
+  // Whether a headless turn has started; the runner reports no exit, and a turn's result or its
+  // stop comes before its process ends, so that process may still run in the session's folders.
+  headlessStarted: boolean;
+
   pendingEject: (() => void) | null;
 
   bootWaiter: (() => void) | null;
@@ -100,6 +104,8 @@ export function createSessionRuntime(): SessionRuntime {
     cancelDetect: undefined,
 
     headlessRun: null,
+
+    headlessStarted: false,
 
     pendingEject: null,
 

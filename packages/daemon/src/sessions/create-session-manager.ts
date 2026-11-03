@@ -161,6 +161,10 @@ export interface SessionManager {
   ) => Promise<'stopped' | 'unchanged' | 'removed'>;
 
   readonly forget: (id: SessionID) => Promise<boolean>;
+
+  // Whether every process that a kill, a forget or a failed spawn's rollback ended has exited, and
+  // the session's last harness ended with an exit of its process.
+  readonly probeHarnessEnded: (id: SessionID) => Promise<boolean>;
   readonly pickKillCapability: (session: Session) => ExecutionCapability;
   readonly writeStatus: () => void;
   readonly writeFleet: () => Promise<void>;
@@ -282,7 +286,15 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
 
   // The killer reaches the adopter, built after it, only once a kill runs.
   const restarts = { stopRestart: (id: SessionID) => adopter.stopRestart(id) };
-  const killer = createSessionKiller({ registry, fleet, callbacks, restarts });
+
+  const killer = createSessionKiller({
+    registry,
+    fleet,
+    callbacks,
+    restarts,
+    readExitWaitMs: () => rollback.failedSpawnExitWaitMs,
+  });
+
   const harnesses = createSessionHarnesses({ registry, fleet, killer, callbacks });
   const rollback = createSpawnRollback({ registry, fleet, claims, harnesses, callbacks });
 
@@ -458,6 +470,13 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
     kill: (id, stopOnly = false) => killer.kill(id, stopOnly),
 
     forget: (id) => killer.forget(id),
+
+    probeHarnessEnded: async (id) => {
+      const killed = await killer.probeHarnessEnded(id);
+      const rolledBack = await rollback.probeRollbackSettled(id);
+
+      return killed && rolledBack && !harnesses.unconfirmedEnds.has(id);
+    },
 
     pickKillCapability: (session) => killer.pickKillCapability(session),
 

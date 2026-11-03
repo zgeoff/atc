@@ -197,6 +197,75 @@ test('it marks a session asleep and suspended and writes the fleet without repor
   expect(ctx.callbacks.onProcessEnded).not.toHaveBeenCalled();
 });
 
+test.each([
+  ['ended', true],
+  ['suspended', true],
+  ['exited', false],
+] as const)(
+  'it records the end of a harness whose host reports %s as unconfirmed: %p',
+  (reason, unconfirmed) => {
+    const ctx = setupTest();
+    const session = buildMockSession({ id: toSessionID('s-1'), state: 'running', kind: 'pty' });
+
+    const harness = ctx.provider.spawnHarness({
+      session: 's-1',
+      host: 's-1',
+      bin: 'claude',
+      args: [],
+      cwd: '/work',
+      env: {},
+      cols: 80,
+      rows: 24,
+    });
+
+    session.pty = harness;
+
+    ctx.registry.sessions.push(session);
+    ctx.harnesses.attachHarness(session, harness, true);
+    ctx.provider.harnesses[0]?.emitExit({ exitCode: 1, reason });
+    expect(ctx.harnesses.unconfirmedEnds.has(toSessionID('s-1'))).toBe(unconfirmed);
+  },
+);
+
+test('it clears an unconfirmed end once a new harness attaches to the session', () => {
+  const ctx = setupTest();
+  const session = buildMockSession({ id: toSessionID('s-1'), state: 'running', kind: 'pty' });
+
+  const lost = ctx.provider.spawnHarness({
+    session: 's-1',
+    host: 's-1',
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  session.pty = lost;
+
+  ctx.registry.sessions.push(session);
+  ctx.harnesses.attachHarness(session, lost, true);
+  ctx.provider.harnesses[0]?.emitExit({ exitCode: 1, reason: 'ended', detail: 'imp is stopped' });
+
+  const reattached = ctx.provider.spawnHarness({
+    session: 's-1',
+    host: 's-1',
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  session.pty = reattached;
+
+  ctx.harnesses.attachHarness(session, reattached, true);
+
+  expect(ctx.harnesses.unconfirmedEnds.has(toSessionID('s-1'))).toBeFalse();
+});
+
 test('it logs and leaves the sessions on a host as they are when putting the host to sleep rejects', async () => {
   const ctx = setupTest();
 
