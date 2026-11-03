@@ -2632,6 +2632,130 @@ test('it picks a repository listed past the tenth row', async () => {
   ]);
 });
 
+test('it spawns in a directory listed past the tenth row', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    remoteDaemon: true,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    source: 'dirs',
+    scope: null,
+    candidates: Array.from({ length: 12 }, (_, index) => ({
+      label: `~/work/site-${index + 1}`,
+      pick: { kind: 'path', directory: `/home/far/work/site-${index + 1}` },
+    })),
+  });
+
+  for (let press = 0; press < 11; press += 1) {
+    picker.applyKey(Buffer.from(KEYS.down));
+  }
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('session.spawn')).toPartiallyContain({
+    cwd: '/home/far/work/site-12',
+  });
+});
+
+test('it spawns a repository at a ref listed past the tenth row', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'box',
+        provider: 'imp',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'fake', label: 'fake repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
+
+  picker.applyKey(Buffer.from('https://example.com/app.git'));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('git.probe', {
+    url: 'https://example.com/app.git',
+    head: 'release-1',
+    refs: Array.from({ length: 12 }, (_, index) => ({
+      name: `release-${index + 1}`,
+      kind: 'branch',
+      sha: `${index + 1}`.padStart(40, '0'),
+    })),
+    resolved: null,
+  });
+
+  for (let press = 0; press < 11; press += 1) {
+    picker.applyKey(Buffer.from(KEYS.down));
+  }
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
+    {
+      name: '',
+      prompt: '',
+      cols: expect.any(Number),
+      rows: 24,
+      agent: 'claude',
+      target: 'box',
+      workspace: {
+        kind: 'git',
+        url: 'https://example.com/app.git',
+        ref: 'release-12',
+        sha: '12'.padStart(40, '0'),
+      },
+    },
+  ]);
+});
+
 test('it lists again on ctrl-r and shows a repository created since the last listing', async () => {
   const ctx = setupTest();
 
