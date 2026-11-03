@@ -29,6 +29,7 @@ jobs:
         run: bun run audit
 
       # informational: Renovate opens the upgrade PRs from the shared preset in
-      # zgeoff/tools
+      # zgeoff/tools, so a failure here never fails the job
       - name: Outdated
-        run: bun outdated || true
+        continue-on-error: true
+        run: bun outdated
