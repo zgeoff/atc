@@ -531,6 +531,48 @@ test('it exits 1 on a command it does not know', async () => {
   expect(io.runClients).not.toHaveBeenCalled();
 });
 
+test('it prints the version it is given, not the app package version, on --version', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    runPasskeys: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(['--version'], {}, io, '9.1.0');
+
+  expect(io.print).toHaveBeenCalledExactlyOnceWith('9.1.0');
+});
+
+test('it serves under the build of the version it is given, not the app package version', async () => {
+  const io = {
+    runGateway: mock(),
+    runClients: mock(),
+    runPasskeys: mock(),
+    print: mock(),
+    printError: mock(),
+    exit: mock(),
+  };
+
+  await runGatewayCLI(
+    ['serve', '--public-url', 'https://atc.example.com', '--registry', 'registry.json'],
+    { ATC_GATEWAY_STATE_DIR: 'from-env' },
+    io,
+    '9.1.0',
+  );
+
+  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith('atc-gateway/9.1.0', {
+    host: '127.0.0.1',
+    port: 8414,
+    publicURL: 'https://atc.example.com',
+    trustForwardedFrom: [],
+    registryPath: 'registry.json',
+    stateDir: 'from-env',
+  });
+});
+
 test("it prints the gateway package's version and exits 0 on --version", async () => {
   const io = {
     runGateway: mock(),

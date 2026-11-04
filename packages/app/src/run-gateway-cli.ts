@@ -56,6 +56,7 @@ export async function runGatewayCLI(
   argv: readonly string[],
   env: Readonly<Record<string, string | undefined>>,
   io: GatewayCLIIO = GATEWAY_CLI_IO,
+  version: string = GATEWAY_VERSION,
 ): Promise<void> {
   // Runs a subcommand on the state directory, or prints why there is none
   // and exits 1.
@@ -84,7 +85,7 @@ export async function runGatewayCLI(
   const serve = lazy(
     () => async (ctx) => {
       await withStateDir(ctx.values, (stateDir) =>
-        io.runGateway(`atc-gateway/${GATEWAY_VERSION}`, {
+        io.runGateway(`atc-gateway/${version}`, {
           host: ctx.values.host ?? '127.0.0.1',
           port: ctx.values.port ?? 8414,
           publicURL: ctx.values['public-url'],
@@ -157,7 +158,7 @@ export async function runGatewayCLI(
     entry,
     {
       name: 'atc-gateway',
-      version: GATEWAY_VERSION,
+      version,
       description: GATEWAY_DESCRIPTION,
       subCommands: { serve, clients, passkeys },
     },
