@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import pkg from '../package.json';
+import { GATEWAY_VERSION } from '@atc/gateway/version';
 import { runGatewayCLI } from './run-gateway-cli';
 
 test.each([
@@ -119,7 +119,7 @@ test.each([
     io,
   );
 
-  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${pkg.version}`, {
+  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${GATEWAY_VERSION}`, {
     host: '127.0.0.1',
     port: 8414,
     publicURL: 'https://atc.example.com',
@@ -295,7 +295,7 @@ test('it serves on port 0 for the kernel to pick a free port', async () => {
     io,
   );
 
-  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${pkg.version}`, {
+  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${GATEWAY_VERSION}`, {
     host: '127.0.0.1',
     port: 0,
     publicURL: 'https://atc.example.com',
@@ -333,7 +333,7 @@ test('it serves trusting every proxy address that --trust-forwarded-from repeats
     io,
   );
 
-  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${pkg.version}`, {
+  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${GATEWAY_VERSION}`, {
     host: '127.0.0.1',
     port: 8414,
     publicURL: 'https://atc.example.com',
@@ -531,7 +531,7 @@ test('it exits 1 on a command it does not know', async () => {
   expect(io.runClients).not.toHaveBeenCalled();
 });
 
-test('it prints the version and exits 0 on --version', async () => {
+test("it prints the gateway package's version and exits 0 on --version", async () => {
   const io = {
     runGateway: mock(),
     runClients: mock(),
@@ -543,7 +543,7 @@ test('it prints the version and exits 0 on --version', async () => {
 
   await runGatewayCLI(['--version'], {}, io);
 
-  expect(io.print).toHaveBeenCalledExactlyOnceWith(pkg.version);
+  expect(io.print).toHaveBeenCalledExactlyOnceWith(GATEWAY_VERSION);
   expect(io.exit).toHaveBeenCalledExactlyOnceWith(0);
 });
 

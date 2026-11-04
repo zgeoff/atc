@@ -10,13 +10,13 @@ releases two packages, each with its own version, changelog and tag:
 | the gateway federation | `@atc/gateway@<version>` | `packages/gateway/CHANGELOG.md` | each commit to `packages/gateway/` |
 
 Only the atc release ships files. The gateway binary ships with it, since it builds from the same
-commit. The `release` job in `main.yml` calls the shared release-please workflow of `zgeoff/tools`
-at the repo's sync tag, with its merge input off, so no workflow merges that PR. The run of the
-merge tags the release at once, and once its checks pass, its `ship-release` job attaches the
-compiled binaries, pushes the Homebrew formula and publishes `@atcx/contract` to npm. A run that
-cannot ship the tag it made dispatches `main.yml` at the tag, and that run ships it. This runbook
-covers what the automation does not: its one-time setup, cutting a release, and the recoveries a
-failed release needs.
+commit, and reports the gateway's version. The `release` job in `main.yml` calls the shared
+release-please workflow of `zgeoff/tools` at the repo's sync tag, with its merge input off, so no
+workflow merges that PR. The run of the merge tags the release at once, and once its checks pass,
+its `ship-release` job attaches the compiled binaries, pushes the Homebrew formula and publishes
+`@atcx/contract` to npm. A run that cannot ship the tag it made dispatches `main.yml` at the tag,
+and that run ships it. This runbook covers what the automation does not: its one-time setup, cutting
+a release, and the recoveries a failed release needs.
 
 ## One-time setup
 

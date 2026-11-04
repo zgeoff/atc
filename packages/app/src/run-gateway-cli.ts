@@ -1,7 +1,7 @@
 import { join } from 'node:path';
+import { GATEWAY_VERSION } from '@atc/gateway/version';
 import { define, lazy } from 'gunshi';
 import { integer } from 'gunshi/combinators';
-import pkg from '../package.json';
 import type { runClients } from './clients';
 import { createClientsCommand } from './create-clients-command';
 import { createPasskeysCommand } from './create-passkeys-command';
@@ -84,7 +84,7 @@ export async function runGatewayCLI(
   const serve = lazy(
     () => async (ctx) => {
       await withStateDir(ctx.values, (stateDir) =>
-        io.runGateway(`atc-gateway/${pkg.version}`, {
+        io.runGateway(`atc-gateway/${GATEWAY_VERSION}`, {
           host: ctx.values.host ?? '127.0.0.1',
           port: ctx.values.port ?? 8414,
           publicURL: ctx.values['public-url'],
@@ -157,7 +157,7 @@ export async function runGatewayCLI(
     entry,
     {
       name: 'atc-gateway',
-      version: pkg.version,
+      version: GATEWAY_VERSION,
       description: GATEWAY_DESCRIPTION,
       subCommands: { serve, clients, passkeys },
     },

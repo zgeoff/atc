@@ -22,6 +22,11 @@ The gateway ships as its own release binary, compiled from its own entry point. 
 daemon, pseudo-terminal or agent code, and the import check fails when the entry reaches any, so the
 gateway's host needs no agent CLI and can never run a session by accident.
 
+The binary reports the gateway package's version, which has its own release track
+([releasing](../../runbooks/releasing.md)), in `atc-gateway --version`, in its MCP server info and
+in its handshake with each daemon. It ships as an asset of the atc release built from the same
+commit.
+
 The registry file lists each daemon by name with its TCP address and its daemon id, plus the daemon
 a spawn without one goes to. The bearer token for each daemon comes from the gateway's environment,
 one variable per daemon name. Each connection pins the daemon's identity: a daemon whose handshake
