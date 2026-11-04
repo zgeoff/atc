@@ -7,6 +7,22 @@ import invariant from 'tiny-invariant';
 import pkg from '../package.json';
 import { runGatewayCLI } from './run-gateway-cli';
 
+function setupTest() {
+  const temporaryDirectory = setupTempDir('atc-run-gateway-cli-');
+
+  return {
+    directory: temporaryDirectory.path,
+    io: {
+      runGateway: mock(),
+      runClients: mock(),
+      runPasskeys: mock(),
+      print: mock(),
+      printError: mock(),
+      exit: mock(),
+    },
+  };
+}
+
 test.each([
   { before: ['--state-dir', 'flagged', 'clients', 'add'], after: [] },
   { before: ['--state-dir=flagged', 'clients', 'add'], after: [] },
@@ -17,14 +33,7 @@ test.each([
 ])(
   'it adds a client to the state directory in $before $after over the environment',
   async (row) => {
-    const io = {
-      runGateway: mock(),
-      runClients: mock(),
-      runPasskeys: mock(),
-      print: mock(),
-      printError: mock(),
-      exit: mock(),
-    };
+    const ctx = setupTest();
 
     await runGatewayCLI(
       [
@@ -35,10 +44,10 @@ test.each([
         ...row.after,
       ],
       { ATC_GATEWAY_STATE_DIR: 'from-env' },
-      io,
+      ctx.io,
     );
 
-    expect(io.runClients).toHaveBeenCalledExactlyOnceWith(
+    expect(ctx.io.runClients).toHaveBeenCalledExactlyOnceWith(
       { kind: 'add', name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
       { dbPath: join('flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
     );
@@ -53,18 +62,11 @@ test.each([
   { args: ['clients', 'list', '--state-dir', 'flagged'] },
   { args: ['clients', 'list', '--state-dir=flagged'] },
 ])('it lists the clients in the state directory in $args over the environment', async (row) => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
-  await runGatewayCLI(row.args, { ATC_GATEWAY_STATE_DIR: 'from-env' }, io);
+  await runGatewayCLI(row.args, { ATC_GATEWAY_STATE_DIR: 'from-env' }, ctx.io);
 
-  expect(io.runClients).toHaveBeenCalledExactlyOnceWith(
+  expect(ctx.io.runClients).toHaveBeenCalledExactlyOnceWith(
     { kind: 'list' },
     { dbPath: join('flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
   );
@@ -80,22 +82,15 @@ test.each([
 ])(
   'it removes a client from the state directory in $before $after over the environment',
   async (row) => {
-    const io = {
-      runGateway: mock(),
-      runClients: mock(),
-      runPasskeys: mock(),
-      print: mock(),
-      printError: mock(),
-      exit: mock(),
-    };
+    const ctx = setupTest();
 
     await runGatewayCLI(
       [...row.before, 'client-1', ...row.after],
       { ATC_GATEWAY_STATE_DIR: 'from-env' },
-      io,
+      ctx.io,
     );
 
-    expect(io.runClients).toHaveBeenCalledExactlyOnceWith(
+    expect(ctx.io.runClients).toHaveBeenCalledExactlyOnceWith(
       { kind: 'remove', clientID: 'client-1' },
       { dbPath: join('flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
     );
@@ -108,22 +103,15 @@ test.each([
   { args: ['serve', '--state-dir', 'flagged'] },
   { args: ['serve', '--state-dir=flagged'] },
 ])('it serves from the state directory in $args over the environment', async (row) => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
   await runGatewayCLI(
     [...row.args, '--public-url', 'https://atc.example.com', '--registry', 'registry.json'],
     { ATC_GATEWAY_STATE_DIR: 'from-env' },
-    io,
+    ctx.io,
   );
 
-  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${GATEWAY_VERSION}`, {
+  expect(ctx.io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${GATEWAY_VERSION}`, {
     host: '127.0.0.1',
     port: 8414,
     publicURL: 'https://atc.example.com',
@@ -134,38 +122,24 @@ test.each([
 });
 
 test('it exits 1 when it serves with no state directory', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
   await runGatewayCLI(
     ['serve', '--public-url', 'https://atc.example.com', '--registry', 'registry.json'],
     {},
-    io,
+    ctx.io,
   );
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith(
     'atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR',
   );
 
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
-  expect(io.runGateway).not.toHaveBeenCalled();
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(ctx.io.runGateway).not.toHaveBeenCalled();
 });
 
 test('it exits 1 on two state directories that differ', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
   await runGatewayCLI(
     [
@@ -179,50 +153,36 @@ test('it exits 1 on two state directories that differ', async () => {
       'second',
     ],
     {},
-    io,
+    ctx.io,
   );
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith(
     "atc-gateway: --state-dir gives different directories: 'first', 'second'",
   );
 
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
-  expect(io.runClients).not.toHaveBeenCalled();
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(ctx.io.runClients).not.toHaveBeenCalled();
 });
 
 test('it exits 1 when a flag takes the state directory flag as its value', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
   await runGatewayCLI(
     ['clients', 'add', 'Claude', '--redirect-uri', '--state-dir', 'flagged'],
     { ATC_GATEWAY_STATE_DIR: 'from-env' },
-    io,
+    ctx.io,
   );
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith(
     "Optional argument '--redirect-uri' requires a value",
   );
 
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
-  expect(io.runClients).not.toHaveBeenCalled();
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(ctx.io.runClients).not.toHaveBeenCalled();
 });
 
 test('it exits 1 on a flag it does not know at the root', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
   await runGatewayCLI(
     [
@@ -234,23 +194,16 @@ test('it exits 1 on a flag it does not know at the root', async () => {
       'https://claude.ai/api/mcp/auth_callback',
     ],
     { ATC_GATEWAY_STATE_DIR: 'from-env' },
-    io,
+    ctx.io,
   );
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith('Unknown option: --stat-dir');
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
-  expect(io.runClients).not.toHaveBeenCalled();
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith('Unknown option: --stat-dir');
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(ctx.io.runClients).not.toHaveBeenCalled();
 });
 
 test('it exits 1 on a port it cannot parse', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
   await runGatewayCLI(
     [
@@ -265,23 +218,16 @@ test('it exits 1 on a port it cannot parse', async () => {
       'flagged',
     ],
     {},
-    io,
+    ctx.io,
   );
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith("Expected an integer, got 'abc'");
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
-  expect(io.runGateway).not.toHaveBeenCalled();
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith("Expected an integer, got 'abc'");
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(ctx.io.runGateway).not.toHaveBeenCalled();
 });
 
 test('it serves on port 0 for the kernel to pick a free port', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
   await runGatewayCLI(
     [
@@ -296,10 +242,10 @@ test('it serves on port 0 for the kernel to pick a free port', async () => {
       'flagged',
     ],
     {},
-    io,
+    ctx.io,
   );
 
-  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${GATEWAY_VERSION}`, {
+  expect(ctx.io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${GATEWAY_VERSION}`, {
     host: '127.0.0.1',
     port: 0,
     publicURL: 'https://atc.example.com',
@@ -310,14 +256,7 @@ test('it serves on port 0 for the kernel to pick a free port', async () => {
 });
 
 test('it serves trusting every proxy address that --trust-forwarded-from repeats', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
   await runGatewayCLI(
     [
@@ -334,10 +273,10 @@ test('it serves trusting every proxy address that --trust-forwarded-from repeats
       '::1',
     ],
     {},
-    io,
+    ctx.io,
   );
 
-  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${GATEWAY_VERSION}`, {
+  expect(ctx.io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${GATEWAY_VERSION}`, {
     host: '127.0.0.1',
     port: 8414,
     publicURL: 'https://atc.example.com',
@@ -355,65 +294,50 @@ test.each([
   },
   { args: ['clients', 'remove', 'client-1'] },
 ])('it exits 1 on $args with no state directory', async (row) => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
-  await runGatewayCLI(row.args, {}, io);
+  await runGatewayCLI(row.args, {}, ctx.io);
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith(
     'atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR',
   );
 
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
-  expect(io.runClients).not.toHaveBeenCalled();
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(ctx.io.runClients).not.toHaveBeenCalled();
 });
 
 test('it prints the usage of the command --help follows and exits 0', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
-  await runGatewayCLI(['--state-dir', 'flagged', 'clients', 'add', '--help'], {}, io);
+  await runGatewayCLI(['--state-dir', 'flagged', 'clients', 'add', '--help'], {}, ctx.io);
 
-  expect(io.print).toHaveBeenCalledExactlyOnceWith(
+  expect(ctx.io.print).toHaveBeenCalledExactlyOnceWith(
     expect.toInclude('atc-gateway clients add <OPTIONS> <name>'),
   );
 
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(0);
-  expect(io.runClients).not.toHaveBeenCalled();
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(0);
+  expect(ctx.io.runClients).not.toHaveBeenCalled();
 });
 
 test('it prints the usage and the reason and exits 1 on a missing required flag', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
-  await runGatewayCLI(['--state-dir', 'flagged', 'serve', '--registry', 'registry.json'], {}, io);
+  await runGatewayCLI(
+    ['--state-dir', 'flagged', 'serve', '--registry', 'registry.json'],
+    {},
+    ctx.io,
+  );
 
-  expect(io.print).toHaveBeenCalledExactlyOnceWith(expect.toInclude('atc-gateway serve <OPTIONS>'));
+  expect(ctx.io.print).toHaveBeenCalledExactlyOnceWith(
+    expect.toInclude('atc-gateway serve <OPTIONS>'),
+  );
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith(
     "Optional argument '--public-url' is required",
   );
 
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
-  expect(io.runGateway).not.toHaveBeenCalled();
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(ctx.io.runGateway).not.toHaveBeenCalled();
 });
 
 test.each([
@@ -423,32 +347,18 @@ test.each([
   { args: ['passkeys', 'enroll', '--reset'], action: { kind: 'enroll', reset: true } },
   { args: ['passkeys', 'remove', 'cred-1'], action: { kind: 'remove', id: 'cred-1' } },
 ])('it hands $args to the passkey command for the state directory', async (row) => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
-  await runGatewayCLI([...row.args, '--state-dir', 'flagged'], {}, io);
+  await runGatewayCLI([...row.args, '--state-dir', 'flagged'], {}, ctx.io);
 
-  expect(io.runPasskeys).toHaveBeenCalledExactlyOnceWith(row.action, {
+  expect(ctx.io.runPasskeys).toHaveBeenCalledExactlyOnceWith(row.action, {
     dbPath: join('flagged', 'mcp-auth.db'),
     command: 'atc-gateway passkeys',
   });
 });
 
 test('it adds a client with every redirect URI, in order, in either flag form', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
   await runGatewayCLI(
     [
@@ -462,10 +372,10 @@ test('it adds a client with every redirect URI, in order, in either flag form', 
       'flagged',
     ],
     {},
-    io,
+    ctx.io,
   );
 
-  expect(io.runClients).toHaveBeenCalledExactlyOnceWith(
+  expect(ctx.io.runClients).toHaveBeenCalledExactlyOnceWith(
     {
       kind: 'add',
       name: 'Claude',
@@ -479,66 +389,48 @@ test('it adds a client with every redirect URI, in order, in either flag form', 
 });
 
 test('it exits 1 on an empty state directory flag', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
-  await runGatewayCLI(['clients', '--state-dir='], { ATC_GATEWAY_STATE_DIR: 'from-env' }, io);
+  await runGatewayCLI(['clients', '--state-dir='], { ATC_GATEWAY_STATE_DIR: 'from-env' }, ctx.io);
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith(
     'atc-gateway: --state-dir needs a value; write --state-dir=<value>',
   );
 
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
-  expect(io.runClients).not.toHaveBeenCalled();
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(ctx.io.runClients).not.toHaveBeenCalled();
 });
 
 test.each([{ args: [] }, { args: ['--state-dir', 'flagged'] }])(
   'it prints the usage and exits 1 on $args, which names no command',
   async (row) => {
-    const io = {
-      runGateway: mock(),
-      runClients: mock(),
-      runPasskeys: mock(),
-      print: mock(),
-      printError: mock(),
-      exit: mock(),
-    };
+    const ctx = setupTest();
 
-    await runGatewayCLI(row.args, {}, io);
+    await runGatewayCLI(row.args, {}, ctx.io);
 
-    expect(io.print).toHaveBeenCalledExactlyOnceWith(expect.toInclude('atc-gateway [COMMANDS]'));
-    expect(io.printError).toHaveBeenCalledExactlyOnceWith('No command specified.');
-    expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
+    expect(ctx.io.print).toHaveBeenCalledExactlyOnceWith(
+      expect.toInclude('atc-gateway [COMMANDS]'),
+    );
+
+    expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith('No command specified.');
+    expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
   },
 );
 
 test('it exits 1 on a command it does not know', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
-  await runGatewayCLI(['clients', 'rename', '--state-dir', 'flagged'], {}, io);
+  await runGatewayCLI(['clients', 'rename', '--state-dir', 'flagged'], {}, ctx.io);
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith('Command not found: rename');
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
-  expect(io.runClients).not.toHaveBeenCalled();
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith('Command not found: rename');
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(ctx.io.runClients).not.toHaveBeenCalled();
 });
 
 test('it reports the gateway manifest version, not the app manifest version, in --version and serve by default', async () => {
-  const directory = setupTempDir('atc-run-gateway-cli-version-');
-  const preload = join(directory.path, 'gateway-manifest.ts');
-  const script = join(directory.path, 'run.ts');
+  const ctx = setupTest();
+  const preload = join(ctx.directory, 'gateway-manifest.ts');
+  const script = join(ctx.directory, 'run.ts');
 
   // Serves the gateway package's manifest at 9.1.0 while the app's stays at
   // its own version, so the run shows which manifest the CLI read. Bun's
@@ -581,7 +473,7 @@ test('it reports the gateway manifest version, not the app manifest version, in 
 
   invariant(pkg.version !== '9.1.0', 'the app manifest must hold another version than 9.1.0');
 
-  const ran = await runCommand(['bun', '--preload', preload, script], { cwd: directory.path });
+  const ran = await runCommand(['bun', '--preload', preload, script], { cwd: ctx.directory });
 
   expect({ exitCode: ran.exitCode, stdout: ran.stdout }).toStrictEqual({
     exitCode: 0,
@@ -590,38 +482,24 @@ test('it reports the gateway manifest version, not the app manifest version, in 
 });
 
 test('it prints the version it is given, not the app package version, on --version', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
-  await runGatewayCLI(['--version'], {}, io, '9.1.0');
+  await runGatewayCLI(['--version'], {}, ctx.io, '9.1.0');
 
-  expect(io.print).toHaveBeenCalledExactlyOnceWith('9.1.0');
+  expect(ctx.io.print).toHaveBeenCalledExactlyOnceWith('9.1.0');
 });
 
 test('it serves under the build of the version it is given, not the app package version', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
   await runGatewayCLI(
     ['serve', '--public-url', 'https://atc.example.com', '--registry', 'registry.json'],
     { ATC_GATEWAY_STATE_DIR: 'from-env' },
-    io,
+    ctx.io,
     '9.1.0',
   );
 
-  expect(io.runGateway).toHaveBeenCalledExactlyOnceWith('atc-gateway/9.1.0', {
+  expect(ctx.io.runGateway).toHaveBeenCalledExactlyOnceWith('atc-gateway/9.1.0', {
     host: '127.0.0.1',
     port: 8414,
     publicURL: 'https://atc.example.com',
@@ -632,37 +510,23 @@ test('it serves under the build of the version it is given, not the app package 
 });
 
 test("it prints the gateway package's version and exits 0 on --version", async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
-  await runGatewayCLI(['--version'], {}, io);
+  await runGatewayCLI(['--version'], {}, ctx.io);
 
-  expect(io.print).toHaveBeenCalledExactlyOnceWith(GATEWAY_VERSION);
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(0);
+  expect(ctx.io.print).toHaveBeenCalledExactlyOnceWith(GATEWAY_VERSION);
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(0);
 });
 
 test('it exits 1 when it enrolls a passkey with no state directory', async () => {
-  const io = {
-    runGateway: mock(),
-    runClients: mock(),
-    runPasskeys: mock(),
-    print: mock(),
-    printError: mock(),
-    exit: mock(),
-  };
+  const ctx = setupTest();
 
-  await runGatewayCLI(['passkeys', 'enroll'], {}, io);
+  await runGatewayCLI(['passkeys', 'enroll'], {}, ctx.io);
 
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+  expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith(
     'atc-gateway: give --state-dir or set ATC_GATEWAY_STATE_DIR',
   );
 
-  expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
-  expect(io.runPasskeys).not.toHaveBeenCalled();
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(ctx.io.runPasskeys).not.toHaveBeenCalled();
 });
