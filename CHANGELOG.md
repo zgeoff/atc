@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.8.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.8.0...@zgeoff/atc@7.8.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* extract the pty library before bun-pty loads it ([#1088](https://github.com/zgeoff/atc/issues/1088)) ([0fa8a9a](https://github.com/zgeoff/atc/commit/0fa8a9aea045b22d1fae3f3a9678fb5aa28e2591))
+* restore local sessions without queueing them behind remote wakes ([#1092](https://github.com/zgeoff/atc/issues/1092)) ([66e05d1](https://github.com/zgeoff/atc/commit/66e05d15774d55850e5640896ca3d55bb23eb669))
+
 ## [7.8.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.7.4...@zgeoff/atc@7.8.0) (2026-11-03)
 
 ### Features
