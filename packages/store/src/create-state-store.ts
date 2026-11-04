@@ -300,8 +300,7 @@ export async function createStateStore(
     readAnswer: (id, scope = null) => trail.readAnswer(id, scope),
     readLatestEvents: (limit, scope = null) => trail.readLatestEvents(limit, scope),
     loadLastActivityAt: (atcID, agentSessionID) => trail.loadLastActivityAt(atcID, agentSessionID),
-    readLatestAttention: (atcID, agentSessionID) =>
-      trail.readLatestAttention(atcID, agentSessionID),
+    readLatestAttention: trail.readLatestAttention,
     removeExpiredEvents: (before) => trail.removeExpiredEvents(before),
 
     recordSpawnDir: async (cwd, grant, at) => {
