@@ -1,6 +1,7 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import type { AgentAdapter } from '@atc/plugin-api';
+import { DaemonError } from '@atc/protocol/wire';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -2379,6 +2380,75 @@ test('it starts every local session while the remote host of a session queued be
       's-local-1',
       's-local-2',
     ]);
+  });
+
+  expect(remote.harnesses).toStrictEqual([]);
+});
+
+test('it retries a refused local session while a remote session queued before it still wakes', async () => {
+  const clock = buildStubClock(0);
+
+  const prepares = [
+    () =>
+      Promise.reject(
+        new DaemonError('host_unavailable', 'the local host cannot start a terminal yet'),
+      ),
+  ];
+
+  const local = buildStubMemoryProvider({
+    kind: 'local-pty',
+    prepareHost: () => prepares.shift()?.() ?? Promise.resolve(),
+  });
+
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+    prepareHost: () => Promise.withResolvers<void>().promise,
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-local'), cwd: ctx.directory }),
+  ]);
+
+  void restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [5000],
+    clock,
+  });
+
+  await waitFor(() => {
+    expect(clock.collectPending()).toStrictEqual([1000]);
+  });
+
+  clock.advance(5000);
+
+  await waitFor(() => {
+    expect(local.harnesses.map((harness) => harness.spec.session)).toStrictEqual(['s-local']);
   });
 
   expect(remote.harnesses).toStrictEqual([]);
