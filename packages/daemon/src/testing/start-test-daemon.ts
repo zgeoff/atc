@@ -54,6 +54,10 @@ export interface TestDaemonConfig {
   // Builds the targets of a boot whose options name none; one in-memory
   // local target when absent.
   readonly defaultTargets?: () => DaemonOptions['targets'];
+
+  // The build string the daemon and every client the harness opens send in
+  // their handshake; `atc/test-build` when absent.
+  readonly build?: string;
 }
 
 interface TestDaemon extends TestDaemonPaths {
@@ -76,16 +80,13 @@ export type StartedTestDaemon<Config extends TestDaemonConfig> = Config extends 
   ? Omit<TestDaemon, 'client' | 'events'>
   : TestDaemon;
 
-// The build string the daemon and every client the harness opens send in
-// their handshake.
-const BUILD = 'atc/test-build';
-
 export function startTestDaemon<const Config extends TestDaemonConfig = TestDaemonConfig>(
   config?: Config,
 ): Promise<StartedTestDaemon<Config>>;
 
 export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<TestDaemon> {
   const temporaryDirectory = setupTempDir(config.prefix ?? 'atc-test-daemon-');
+  const build = config.build ?? 'atc/test-build';
 
   // Registered after the directory, so it releases first: the daemon stops
   // before its directory is removed.
@@ -120,7 +121,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
     clients.add(client);
 
     await client.sendRequest('daemon.hello', {
-      client: BUILD,
+      client: build,
       auth: { scheme: 'none' },
       ...hello,
     });
@@ -177,7 +178,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
       eventsSocketPath: paths.eventsSocketPath,
       dbPath: paths.dbPath,
       statusPath: paths.statusPath,
-      build: BUILD,
+      build,
     });
 
     live = daemon;
@@ -211,7 +212,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
 
   return {
     ...paths,
-    build: BUILD,
+    build,
     logs,
     events,
     get daemon(): DaemonHandle {

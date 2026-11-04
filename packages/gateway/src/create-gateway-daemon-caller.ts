@@ -5,7 +5,9 @@ import { PROCEDURE_TRAITS } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
+import { HELLO_RESULT_SCHEMA, checkDaemon } from '@atcx/contract';
 import { GatewayError } from './gateway-error';
+import { pickDaemonAdmission } from './pick-daemon-admission';
 import type { DaemonHello, GatewayChannel, ParamsPreparer, RegistryDaemon } from './types';
 
 interface GatewayDaemonCallerOptions {
@@ -22,6 +24,10 @@ interface GatewayDaemonCallerOptions {
 
   // Runs the connect and response timers; the system clock when unset.
   readonly clock?: Clock;
+
+  // Takes the line about a daemon the gateway serves despite a gap in its
+  // handshake, such as a feature it lacks.
+  readonly onWarning: (message: string) => void;
 }
 
 // One handshaken connection and what its handshake returned.
@@ -53,6 +59,8 @@ export interface GatewayDaemonCaller {
   readonly stop: () => Promise<void>;
 }
 
+const HANDSHAKE_SCHEMA = HELLO_RESULT_SCHEMA.pick({ daemon: true, features: true });
+
 export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): GatewayDaemonCaller {
   const scheduleTimeout = (onTimeout: () => void, delayMs: number): (() => void) =>
     (opts.clock ?? systemClock).schedule(onTimeout, delayMs);
@@ -65,7 +73,8 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
     );
 
   // Connects and handshakes, refusing a daemon behind another state
-  // identity than the pin before anything is sent to it.
+  // identity than the pin, or on another major version than the contract,
+  // before anything is sent to it.
   const openHandshaken = async (): Promise<OpenConnection> => {
     const daemon = opts.daemon;
     let channel: GatewayChannel;
@@ -96,6 +105,14 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
         );
       }
 
+      if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
+        throw new GatewayError(
+          'daemon_unavailable',
+          `daemon '${daemon.name}' speaks another protocol version than this gateway; upgrade the older of the two`,
+          { daemon: daemon.name, reason: 'daemon_mismatched' },
+        );
+      }
+
       throw new GatewayError(
         'daemon_unavailable',
         `daemon '${daemon.name}' did not complete the handshake`,
@@ -113,7 +130,40 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
       );
     }
 
-    return { channel, hello: buildDaemonHello(answer, daemon.daemonID) };
+    const handshake = HANDSHAKE_SCHEMA.safeParse(answer);
+
+    if (!handshake.success) {
+      channel.stop();
+
+      throw new GatewayError(
+        'daemon_unavailable',
+        `daemon '${daemon.name}' answered a handshake outside the atc contract`,
+        { daemon: daemon.name, reason: 'daemon_mismatched' },
+      );
+    }
+
+    const hello = buildDaemonHello(answer, daemon.daemonID);
+
+    const admission = pickDaemonAdmission(
+      daemon.name,
+      handshake.data.daemon,
+      checkDaemon(handshake.data),
+    );
+
+    if (admission.kind === 'refuse') {
+      channel.stop();
+
+      throw new GatewayError('daemon_unavailable', admission.message, {
+        daemon: daemon.name,
+        reason: 'daemon_mismatched',
+      });
+    }
+
+    if (admission.kind === 'warn') {
+      opts.onWarning(admission.message);
+    }
+
+    return { channel, hello };
   };
 
   // Connects and handshakes within the connect time, stopping a connection

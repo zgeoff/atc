@@ -4,6 +4,9 @@
   "include-component-in-tag": true,
   "include-v-in-tag": false,
   "tag-separator": "@",
+  "separate-pull-requests": false,
+  "group-pull-request-title-pattern": "chore${scope}: release${component} ${version}",
+  "bootstrap-sha": "d098cb2fb3d9c645f726d85d7cfb9115ec48616c",
   "packages": {
     ".": {
       "component": "@zgeoff/atc",
@@ -23,6 +26,9 @@
           "path": "packages/contract/src/contract-version.ts"
         }
       ]
+    },
+    "packages/gateway": {
+      "component": "@atc/gateway"
     }
   }
 }

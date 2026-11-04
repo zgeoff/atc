@@ -175,6 +175,7 @@
     },
     "packages/gateway": {
       "name": "@atc/gateway",
+      "version": "7.8.1",
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",

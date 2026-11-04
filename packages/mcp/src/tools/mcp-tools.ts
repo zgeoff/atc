@@ -793,7 +793,7 @@ const SESSIONS_LIST_OUTPUT: Readonly<Record<string, unknown>> = {
           state: {
             type: 'string',
             description:
-              'up, down, unauthorized, changed or refused (it answered with an error); a later daemon may add a value',
+              'up, down, unauthorized, changed, mismatched (it runs an atc version the gateway cannot serve) or refused (it answered with an error); a later daemon may add a value',
           },
         },
         required: ['name', 'state'],
@@ -887,7 +887,7 @@ const DAEMONS_OUTPUT: Readonly<Record<string, unknown>> = {
           state: {
             type: 'string',
             description:
-              'up, down, unauthorized or changed (another daemon answers at its address); a later gateway may add a value',
+              'up, down, unauthorized, changed (another daemon answers at its address) or mismatched (it runs an atc version the gateway cannot serve); a later gateway may add a value',
           },
           build: {
             type: ['string', 'null'],
@@ -1261,7 +1261,7 @@ export const MCP_TOOLS: readonly MCPToolDefinition[] = [
     annotations: READ_ONLY,
     scope: 'read',
     description:
-      "List the daemons this gateway routes to: name, state (up, down, unauthorized or changed), build, and daemonID, plus defaultDaemon, where a spawn without daemon goes. It reads each daemon's handshake only; a daemon that is not up has build null. Session and message ids start with the daemon's name and incarnation, so an id shows which daemon holds it.",
+      "List the daemons this gateway routes to: name, state (up, down, unauthorized, changed or mismatched), build, and daemonID, plus defaultDaemon, where a spawn without daemon goes. It reads each daemon's handshake only; a daemon that is not up has build null. A mismatched daemon runs another major atc version or another protocol version than the gateway, and every call to it fails with daemon_unavailable until the older of the two is upgraded. Session and message ids start with the daemon's name and incarnation, so an id shows which daemon holds it.",
     inputSchema: NO_INPUT,
     outputSchema: DAEMONS_OUTPUT,
     requires: { tool: 'fleet.daemons' },

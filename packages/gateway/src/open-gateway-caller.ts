@@ -23,6 +23,10 @@ interface GatewayCallerOptions {
   // fan-out waits, and reads the time for the binding store; the system
   // clock when unset.
   readonly clock?: Clock;
+
+  // Takes the line about a daemon the gateway serves despite a gap in its
+  // handshake, such as a feature it lacks.
+  readonly onWarning: (message: string) => void;
 }
 
 export function openGatewayCaller(opts: GatewayCallerOptions): {
@@ -36,6 +40,7 @@ export function openGatewayCaller(opts: GatewayCallerOptions): {
     build: opts.build,
     openChannel: opts.openChannel,
     ...(opts.clock === undefined ? {} : { clock: opts.clock }),
+    onWarning: opts.onWarning,
   });
 
   const caller = createRoutingCaller({

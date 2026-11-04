@@ -117,6 +117,7 @@ async function setupTest() {
       bindings: openTestBindingDatabase(join(temporaryDirectory.path, 'gateway.db')),
       fanOutTimeoutMs: 1000,
       clock,
+      onWarning: () => {},
     });
 
     registerTestCleanup(() => gateway.stop());

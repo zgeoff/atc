@@ -2,7 +2,7 @@ import { DaemonError } from '@atc/protocol/wire';
 import { GatewayError } from './gateway-error';
 import type { CallOutcome } from './wait-for-outcome';
 
-export type DaemonState = 'up' | 'down' | 'unauthorized' | 'changed' | 'refused';
+export type DaemonState = 'up' | 'down' | 'unauthorized' | 'changed' | 'mismatched' | 'refused';
 
 export function pickDaemonState(outcome: CallOutcome<unknown>): DaemonState {
   if (outcome.kind === 'answered') {
@@ -21,6 +21,10 @@ export function pickDaemonState(outcome: CallOutcome<unknown>): DaemonState {
 
   if (error instanceof GatewayError && error.data['reason'] === 'daemon_changed') {
     return 'changed';
+  }
+
+  if (error instanceof GatewayError && error.data['reason'] === 'daemon_mismatched') {
+    return 'mismatched';
   }
 
   if (error instanceof DaemonError) {

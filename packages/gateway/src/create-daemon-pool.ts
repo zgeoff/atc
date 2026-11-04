@@ -10,6 +10,7 @@ interface DaemonPoolOptions {
   readonly connectTimeoutMs?: number;
   readonly responseTimeoutMs?: number;
   readonly clock?: Clock;
+  readonly onWarning: (message: string) => void;
 }
 
 export interface DaemonPool {
@@ -30,6 +31,7 @@ export function createDaemonPool(opts: DaemonPoolOptions): DaemonPool {
           ? {}
           : { responseTimeoutMs: opts.responseTimeoutMs }),
         ...(opts.clock === undefined ? {} : { clock: opts.clock }),
+        onWarning: opts.onWarning,
       }),
     ]),
   );
