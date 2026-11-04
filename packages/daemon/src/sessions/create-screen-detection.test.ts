@@ -421,11 +421,7 @@ test('it moves a done session to needs_you once its screen shows a menu', async 
     adapters: [
       {
         ...buildStubHarnessAdapter(),
-        screenDetector: {
-          detectAttention: (screen) =>
-            screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
-          untilAgentStart: true,
-        },
+        screenDetector: { detectAttention: () => 'needs-input', untilAgentStart: true },
       },
     ],
   });
@@ -446,7 +442,7 @@ test('it moves a done session to needs_you once its screen shows a menu', async 
 
   invariant(harness);
 
-  harness.emitData('Trust this folder? READY>');
+  harness.emitData('Trust this folder?');
   ctx.clock.advance(300);
 
   await waitFor(() => {
@@ -460,8 +456,9 @@ test('it moves a done session the screen flagged back to done with its earlier m
       {
         ...buildStubHarnessAdapter(),
         screenDetector: {
-          detectAttention: (screen) =>
-            screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
+          detectAttention: mock<() => 'needs-input' | 'working'>(
+            () => 'working',
+          ).mockReturnValueOnce('needs-input'),
           untilAgentStart: true,
         },
       },
@@ -484,7 +481,7 @@ test('it moves a done session the screen flagged back to done with its earlier m
 
   invariant(harness);
 
-  harness.emitData('Trust this folder? READY>');
+  harness.emitData('Trust this folder?');
   ctx.clock.advance(300);
 
   await waitFor(() => {
