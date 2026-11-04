@@ -261,11 +261,12 @@ function formatTargetRefusal(code: ErrorCode, target: string, isUnconfirmed: boo
   return `target '${target}' cannot start a terminal`;
 }
 
-// A session with no attention event in the trail may be inside a turn, so it lists as running.
-function pickRestoredState(attention: AttentionKind | null): 'running' | 'needs_you' | 'done' {
+// A relaunched agent shows no prompt it showed before the restart, and the screen flags one an
+// attached agent still shows, so a prompt restores as done. A session with no attention event in
+// the trail may be inside a turn, so it lists as running.
+function pickRestoredState(attention: AttentionKind | null): 'running' | 'done' {
   return match(attention)
-    .with('turn-done', () => 'done' as const)
-    .with('needs-input', () => 'needs_you' as const)
+    .with('turn-done', 'needs-input', () => 'done' as const)
     .with('prompt-submitted', null, () => 'running' as const)
     .exhaustive();
 }

@@ -109,8 +109,9 @@ terminal beside the turn.
    restart reaches the same session after it. A terminal starts at a default size until the first
    attach resizes it. A resumed agent starts no turn, so the session keeps the state of the last
    turn event its agent reported before the restart, until the agent reports again:
-   - `done` after a finished turn;
-   - `needs_you` after a prompt for input, such as a permission prompt or an idle notice;
+   - `done` after a finished turn or a prompt for input. A relaunched agent no longer shows the
+     prompt. For an attached Claude agent that still shows it, the screen check moves the session to
+     `needs_you` until the prompt closes, then back to `done`.
    - `running` after a submitted prompt, or when the trail holds no turn event, since the agent may
      still be inside that turn.
 

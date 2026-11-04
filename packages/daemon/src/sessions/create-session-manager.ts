@@ -199,11 +199,12 @@ export interface SessionManager {
     result?: string,
   ) => void;
 
-  // The detector-stack screen tier reports through here: only flips between
-  // running and needs_you — hook-driven done/exited states always win.
+  // The detector-stack screen tier reports through here: it moves a running or
+  // done session into needs_you and back out, never between running and done,
+  // and never moves an exited session.
   readonly updateAttention: (
     id: SessionID,
-    state: 'needs_you' | 'running',
+    state: 'needs_you' | 'running' | 'done',
     message: string,
   ) => boolean;
 
@@ -559,7 +560,10 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
         return false;
       }
 
-      if (session.state !== 'running' && session.state !== 'needs_you') {
+      const isRaise = state === 'needs_you' && session.state !== 'exited';
+      const isLower = state !== 'needs_you' && session.state === 'needs_you';
+
+      if (!isRaise && !isLower) {
         return false;
       }
 

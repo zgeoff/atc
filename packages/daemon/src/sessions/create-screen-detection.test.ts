@@ -2,6 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
+import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildStubClock,
   createMigratedStateDB,
@@ -10,6 +11,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import type { SessionID } from '@atcx/contract';
+import { toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
@@ -412,4 +414,125 @@ test('it skips the screen of a session whose agent has no screen detector while 
 
   expect(ctx.onDetectSkipped).toHaveBeenCalledExactlyOnceWith(session.id);
   expect(ctx.clock.collectPending()).toBeEmpty();
+});
+
+test('it moves a done session to needs_you once its screen shows a menu', async () => {
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...buildStubHarnessAdapter(),
+        screenDetector: {
+          detectAttention: (screen) =>
+            screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
+          untilAgentStart: true,
+        },
+      },
+    ],
+  });
+
+  const restored = ctx.manager.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-idle'),
+      cwd: ctx.directory,
+      target: 'local',
+      targetIdentity: 'local-pty:test',
+    }),
+    'turn-done',
+  );
+
+  await ctx.manager.adoptTerminal(restored.id, 80, 24);
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitData('Trust this folder? READY>');
+  ctx.clock.advance(300);
+
+  await waitFor(() => {
+    expect([restored.state, restored.lastMsg]).toStrictEqual(['needs_you', 'waiting at a prompt']);
+  });
+});
+
+test('it moves a done session the screen flagged back to done with its earlier message once the menu closes', async () => {
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...buildStubHarnessAdapter(),
+        screenDetector: {
+          detectAttention: (screen) =>
+            screen.trimEnd().endsWith('READY>') ? 'needs-input' : 'working',
+          untilAgentStart: true,
+        },
+      },
+    ],
+  });
+
+  const restored = ctx.manager.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-idle'),
+      cwd: ctx.directory,
+      target: 'local',
+      targetIdentity: 'local-pty:test',
+    }),
+    'turn-done',
+  );
+
+  await ctx.manager.adoptTerminal(restored.id, 80, 24);
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitData('Trust this folder? READY>');
+  ctx.clock.advance(300);
+
+  await waitFor(() => {
+    expect(restored.state).toBe('needs_you');
+  });
+
+  harness.emitData('\r\ntrusted');
+  ctx.clock.advance(300);
+
+  await waitFor(() => {
+    expect([restored.state, restored.lastMsg]).toStrictEqual(['done', 'revived']);
+  });
+});
+
+test('it moves a done session the screen flagged back to done when its agent starts', async () => {
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...buildStubHarnessAdapter(),
+        screenDetector: { detectAttention: () => 'needs-input', untilAgentStart: true },
+      },
+    ],
+  });
+
+  const restored = ctx.manager.restore(
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-idle'),
+      cwd: ctx.directory,
+      target: 'local',
+      targetIdentity: 'local-pty:test',
+    }),
+    'turn-done',
+  );
+
+  await ctx.manager.adoptTerminal(restored.id, 80, 24);
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitData('Trust this folder?');
+  ctx.clock.advance(300);
+
+  await waitFor(() => {
+    expect(restored.state).toBe('needs_you');
+  });
+
+  ctx.detection.applyAgentStart(restored.id);
+
+  expect([restored.state, restored.lastMsg]).toStrictEqual(['done', 'revived']);
 });

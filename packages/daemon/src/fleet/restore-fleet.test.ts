@@ -137,7 +137,12 @@ test.each([
   {
     before: 'an idle notice',
     kinds: ['prompt-submitted', 'turn-done', 'needs-input'],
-    state: 'needs_you',
+    state: 'done',
+  },
+  {
+    before: 'a permission prompt',
+    kinds: ['prompt-submitted', 'needs-input'],
+    state: 'done',
   },
   {
     before: 'a turn still under way',
