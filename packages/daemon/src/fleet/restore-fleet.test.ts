@@ -2242,6 +2242,93 @@ test('it starts every local session while a remote session queued before them wa
   expect(remote.harnesses.map((harness) => harness.spec.session)).toStrictEqual(['s-remote-1']);
 });
 
+test('it starts each of ten local sessions a second after the one before while three remote sessions ahead of them wake and wait out their boot caps', async () => {
+  const clock = buildStubClock(0);
+  const localSpawnsMs: number[] = [];
+
+  const local = buildStubMemoryProvider({
+    kind: 'local-pty',
+    onSpawn: () => {
+      localSpawnsMs.push(clock.now());
+    },
+  });
+
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+    prepareHost: () => {
+      const wake = Promise.withResolvers<void>();
+
+      clock.schedule(wake.resolve, 10_000);
+
+      return wake.promise;
+    },
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  const remoteIDs = ['s-remote-1', 's-remote-2', 's-remote-3'].map((id) => toSessionID(id));
+  const localIDs = Array.from({ length: 10 }, (_, index) => toSessionID(`s-local-${index}`));
+
+  const runtimes = new Map<SessionID, SessionRuntime>(
+    [...remoteIDs, ...localIDs].map((id) => [id, createSessionRuntime()]),
+  );
+
+  await ctx.store.writeFleet([
+    ...remoteIDs.map((sessionID) =>
+      buildMockFleetEntry({
+        sessionID,
+        cwd: '/work',
+        target: 'box',
+        targetIdentity: 'imp-like:test',
+      }),
+    ),
+    ...localIDs.map((sessionID) => buildMockFleetEntry({ sessionID, cwd: ctx.directory })),
+  ]);
+
+  void restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: (id) => runtimes.get(id),
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+    clock,
+  });
+
+  for (const id of localIDs.slice(0, -1)) {
+    const runtime = runtimes.get(id);
+
+    invariant(runtime);
+
+    await waitFor(() => {
+      expect(runtime.bootWaiter).toBeFunction();
+    });
+
+    clock.advance(1000);
+
+    runtime.startedAt = clock.now();
+    runtime.bootWaiter?.();
+  }
+
+  await waitFor(() => {
+    expect(localSpawnsMs).toStrictEqual([0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]);
+  });
+});
+
 test('it starts every local session while the remote host of a session queued before them still wakes', async () => {
   const local = buildStubMemoryProvider({ kind: 'local-pty' });
   const wake = Promise.withResolvers<void>();
