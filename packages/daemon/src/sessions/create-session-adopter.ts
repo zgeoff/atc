@@ -139,8 +139,10 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     session.lastMsg = 'revived';
 
     // a revive starts no turn, so a restored session keeps the state its agent last reported
-    // before the daemon restarted
-    if (!registry.unrestored.delete(session.id)) {
+    // before the daemon restarted; a stop before its first terminal leaves the mark in place
+    const isRestored = registry.unrestored.delete(session.id);
+
+    if (!isRestored || session.state === 'exited') {
       session.state = 'running';
     }
 
