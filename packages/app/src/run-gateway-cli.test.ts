@@ -1,6 +1,9 @@
 import { expect, mock, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GATEWAY_VERSION } from '@atc/gateway/version';
+import { runCommand, setupTempDir } from '@atc/test-utils';
+import pkg from '../package.json';
 import { runGatewayCLI } from './run-gateway-cli';
 
 test.each([
@@ -529,6 +532,59 @@ test('it exits 1 on a command it does not know', async () => {
   expect(io.printError).toHaveBeenCalledExactlyOnceWith('Command not found: rename');
   expect(io.exit).toHaveBeenCalledExactlyOnceWith(1);
   expect(io.runClients).not.toHaveBeenCalled();
+});
+
+test('it reports the gateway manifest version, not the app manifest version, in --version and serve by default', async () => {
+  const directory = setupTempDir('atc-run-gateway-cli-version-');
+  const preload = join(directory.path, 'gateway-manifest.ts');
+  const script = join(directory.path, 'run.ts');
+
+  // Serves the gateway package's manifest at 9.1.0 while the app's stays at
+  // its own version, so the run shows which manifest the CLI read. Bun's
+  // plugin json loader refuses this content, so the manifest loads as a module.
+  writeFileSync(
+    preload,
+    [
+      'Bun.plugin({',
+      "  name: 'gateway-manifest',",
+      '  setup(build) {',
+      String.raw`    build.onLoad({ filter: /packages[/\\]gateway[/\\]package\.json$/ }, () => ({`,
+      `      contents: "export default { name: '@atc/gateway', version: '9.1.0' };",`,
+      "      loader: 'js',",
+      '    }));',
+      '  },',
+      '});',
+      '',
+    ].join('\n'),
+  );
+
+  writeFileSync(
+    script,
+    [
+      `import { runGatewayCLI } from ${JSON.stringify(join(import.meta.dir, 'run-gateway-cli.ts'))};`,
+      'const lines = [];',
+      'const io = {',
+      '  runGateway: async (build) => { lines.push(build); },',
+      '  runClients: async () => {},',
+      '  runPasskeys: async () => {},',
+      '  print: (line) => { lines.push(line); },',
+      '  printError: (line) => { lines.push(line); },',
+      '  exit: () => {},',
+      '};',
+      "await runGatewayCLI(['--version'], {}, io);",
+      "await runGatewayCLI(['serve', '--public-url', 'https://atc.example.com', '--registry', 'registry.json', '--state-dir', 'state'], {}, io);",
+      'console.log(JSON.stringify(lines));',
+      '',
+    ].join('\n'),
+  );
+
+  const ran = await runCommand(['bun', '--preload', preload, script], { cwd: directory.path });
+
+  expect({ exitCode: ran.exitCode, stdout: ran.stdout, appVersion: pkg.version }).toStrictEqual({
+    exitCode: 0,
+    stdout: '["9.1.0","atc-gateway/9.1.0"]\n',
+    appVersion: expect.not.stringMatching(/^9\.1\.0$/u),
+  });
 });
 
 test('it prints the version it is given, not the app package version, on --version', async () => {
