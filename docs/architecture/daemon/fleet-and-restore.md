@@ -57,26 +57,45 @@ daemon first opened it, and a restore loads only this daemon's rows.
 
 A daemon restores the fleet itself once it is listening, unless the config turns that off, and a
 client can ask for a restore at any time. The daemon keeps one restore in flight: a request that
-arrives during one joins it and starts nothing. A later request, after it finishes, revives every
-session that died since and every session an earlier restore could not start a terminal for, and
-skips every live one. A live session that resumed a row's agent session on another target does not
-stand for that row, because the fleet keeps a live row on each target, so the row still restores. A
-headless turn makes such a session live, so a later restore never starts a terminal beside the turn.
+arrives during one joins it and starts nothing. A request after the restore in flight finishes
+revives every session that died since and every session an earlier restore could not start a
+terminal for, and skips every live one. A live session that resumed a row's agent session on another
+target does not stand for that row, because the fleet keeps a live row on each target, so the row
+still restores. A headless turn makes such a session live, so a later restore never starts a
+terminal beside the turn.
 
 1. **Register every row.** Each row becomes a session without a terminal before any process starts,
    so every client lists the whole incoming fleet at once, marked "waiting to restore". A row whose
-   session is still listed, dead, revives that session in place instead of listing the id twice. An
-   exited row only registers, and stays exited until the owner revives it.
+   session is still listed but dead revives that session in place instead of listing the id twice.
+   An exited row only registers, and stays exited until the owner revives it.
 2. **Order the boots.** Top-level sessions boot before their sub-sessions, and within each group the
    session with the latest event in the trail boots first, so the sessions the owner was working in
    come back before long-idle ones.
-3. **Stagger the terminals.** The first session gets its terminal at once, so the caller can attach.
-   Each later one waits until the session before it reports that its agent started, or until a
-   per-session cap passes, so a restore after an upgrade never starts every agent at the same
-   instant, and a session that never reports cannot hold up the rest. `ATC_RESTORE_BOOT_TIMEOUT_MS`
-   sets the cap for every restore, the automatic one included, and the restart's wait for the
-   restored fleet reads the same variable. The cap never turns off: a value of 0, or one that is not
-   a positive number, leaves the default in place.
+3. **Stagger the terminals.** The restore starts terminals in two lanes at the same time, in the
+   boot order within each lane. A remote host can take longer to wake from sleep than a local agent
+   takes to start, and with two lanes no session on the daemon's own machine waits for that wake.
+   - The local lane holds the sessions whose agent runs on the daemon's machine. The remote lane
+     holds the sessions on remote hosts. A sub-session goes in the lane of its top-level session, so
+     it still starts after that session.
+   - Each lane starts its first session at once. Each later session waits until the session before
+     it in the lane reports that its agent started, or until a per-session cap passes. A restore
+     after an upgrade thus never starts every agent at the same instant, and a session that never
+     reports cannot hold up the rest.
+   - A remote session whose host still runs its agent attaches to that agent. An agent that keeps
+     running reports no start, so the next session in the lane starts at once.
+   - The daemon answers the restore request once the first session in the boot order, from either
+     lane, has its terminal or a refusal, so the caller can attach. When that session is remote, its
+     wake delays the answer, and the local lane still starts its sessions meanwhile.
+   - `ATC_RESTORE_BOOT_TIMEOUT_MS` sets the cap for every restore, the automatic one included, and
+     `atc daemon restart` reads the same variable for its wait on the restored fleet. The cap never
+     turns off: a value of 0, or one that is not a positive number, leaves the default in place.
+   - Once both lanes end, the daemon logs one line. The line gives the rows the restore registered.
+     For each lane, it gives the terminals the lane started, those that attached, those whose agent
+     reported a start, and the time from the restore's start to the lane's last start:
+
+     ```text
+     atc restored the fleet (registered 3; local: terminals 2, attached 0, started 2, last start 4.2s; remote: terminals 1, attached 1, started 0, last start none)
+     ```
 4. **Resume each agent.** The adapter builds the resume command for the stored agent session id, and
    the session comes back under its stored atc session id, so a client that held the id before the
    restart reaches the same session after it. A terminal starts at a default size until the first
@@ -96,7 +115,8 @@ again after a delay, a few times, once the rest of the fleet is through.
 Between registering and getting its terminal, a session holds no pseudo-terminal: it lists as
 "waiting to restore", and its descriptor reads as a running headless session. Input sent to a Claude
 Code session in that window starts a headless turn rather than waiting for the terminal. The restore
-then starts no terminal for that session, and it checks again after each wait while a host wakes.
+then starts no terminal for that session. It checks for such a turn before each try at the session,
+and again while the session's remote host wakes.
 
 ## What each failure costs
 

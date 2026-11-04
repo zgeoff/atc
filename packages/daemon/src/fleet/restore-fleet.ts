@@ -200,7 +200,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const hasHeadlessTurnStarted = (session: Session) =>
     markedAtQueue.has(session) && session.pty === null && !manager.isUnrestored(session.id);
 
-  // The sessions whose terminal attached to an agent its host still ran.
   const attached = new Set<SessionID>();
 
   const watchHarnessStart = async (
@@ -270,7 +269,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   // session at a time.
   const lanes = Map.groupBy(queued, pickLane);
 
-  // The sessions the restore started a terminal for.
   const started = new Set<Session>();
 
   // a failed or refused revive lists its reason without a terminal and the restore moves

@@ -5,15 +5,12 @@ export type RestoreLane = 'local' | 'remote';
 // What one lane's terminals did during a restore.
 export interface RestoreLaneReport {
   readonly lane: RestoreLane;
-
-  // The terminals the restore started.
   readonly terminals: number;
 
   // The terminals that attached to an agent their host still ran, which
   // reports no start.
   readonly attached: number;
 
-  // The terminals whose agent reported its start.
   readonly started: number;
 
   // The time from the restore's start to the lane's last reported start;
