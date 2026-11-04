@@ -757,6 +757,55 @@ test('it refuses a daemon whose handshake lists a feature that is not a string a
   });
 });
 
+test('it serves a daemon on the contract version that lacks a feature and warns once per connection', async () => {
+  const legacy = startStubLegacyDaemon(
+    { hostname: '127.0.0.1', port: 0 },
+    {
+      replies: {
+        'daemon.hello': {
+          daemon: `atc/${CONTRACT_VERSION}+lq2x9a`,
+          daemonID: 'd-legacy',
+          limits: { maxLine: 1_048_576, maxChunk: 65_536 },
+          lastUsedAgent: 'claude',
+          features: ['events.read.from-start', 'daemon.hello.viewer'],
+        },
+        'session.list': { sessions: [] },
+      },
+    },
+  );
+
+  invariant(legacy.port !== null, 'the stub daemon bound no TCP port');
+
+  const warnings: string[] = [];
+
+  const caller = createGatewayDaemonCaller({
+    daemon: buildMockRegistryDaemon({
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: legacy.port },
+      daemonID: 'd-legacy',
+      token: 'a'.repeat(32),
+    }),
+    build: 'atc-gateway/test',
+    onWarning: (message) => {
+      warnings.push(message);
+    },
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+  });
+
+  registerTestCleanup(() => caller.stop());
+
+  const listed = [
+    await caller.sendRequest('session.list', {}, { id: 'gw', name: 'Lantern Notes' }),
+    await caller.sendRequest('session.list', {}, { id: 'gw', name: 'Lantern Notes' }),
+  ];
+
+  expect(listed).toStrictEqual([{ sessions: [] }, { sessions: [] }]);
+
+  expect(warnings).toStrictEqual([
+    `daemon 'cloud' runs atc/${CONTRACT_VERSION}+lq2x9a, which lacks session.forget.workspace; a call that needs one fails`,
+  ]);
+});
+
 test('it warns once per connection about a daemon whose build names no version', async () => {
   const ctx = await setupTest();
 

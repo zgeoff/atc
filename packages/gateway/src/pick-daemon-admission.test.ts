@@ -17,7 +17,7 @@ test.each<[string, string, DaemonCheck, DaemonAdmission]>([
     {
       kind: 'warn',
       message:
-        "daemon 'harbor' runs atc/7.0.3+lq2x9a, which lacks daemon.hello.viewer, session.forget.workspace; calls that need them fail",
+        "daemon 'harbor' runs atc/7.0.3+lq2x9a, which lacks daemon.hello.viewer, session.forget.workspace; a call that needs one fails",
     },
   ],
   [

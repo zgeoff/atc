@@ -18,7 +18,7 @@ export function pickDaemonAdmission(
         ? { kind: 'admit' }
         : {
             kind: 'warn',
-            message: `daemon '${daemonName}' runs ${build}, which lacks ${matched.missing.join(', ')}; calls that need them fail`,
+            message: `daemon '${daemonName}' runs ${build}, which lacks ${matched.missing.join(', ')}; a call that needs one fails`,
           },
     )
     .with({ verdict: 'older' }, (skew) => ({
