@@ -2751,16 +2751,86 @@ test('it keeps the start a local session had in the restore when it restarts bef
   clock.advance(1000);
 
   second.startedAt = clock.now();
-
+  second.bootWaiter?.();
   clock.advance(18_000);
 
   first.startedAt = clock.now();
-
+  first.bootWaiter?.();
   clock.advance(10_000);
 
   await waitFor(() => {
     expect(ctx.logged).toContain(
       'atc restored the fleet (registered 3; local: terminals 2, attached 0, started 2, last start 2.0s; remote: terminals 1, attached 0, started 0, last start none)',
+    );
+  });
+});
+
+test("it keeps the start of a lane's last session when it restarts before the other lane ends", async () => {
+  const clock = buildStubClock(0);
+  const local = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+    prepareHost: makeQueuedAnswers([{ kind: 'succeed-after', clock, delayMs: 30_000 }]),
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  ctx.manager.log = ctx.log;
+
+  const runtime = createSessionRuntime();
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s-local'), cwd: ctx.directory }),
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  ]);
+
+  void restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: (id) => (id === toSessionID('s-local') ? runtime : undefined),
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+    clock,
+  });
+
+  await waitFor(() => {
+    expect(runtime.bootWaiter).toBeFunction();
+  });
+
+  clock.advance(1000);
+
+  runtime.startedAt = clock.now();
+  runtime.bootWaiter?.();
+  clock.advance(19_000);
+
+  runtime.startedAt = clock.now();
+  runtime.bootWaiter?.();
+  clock.advance(10_000);
+
+  await waitFor(() => {
+    expect(ctx.logged).toContain(
+      'atc restored the fleet (registered 2; local: terminals 1, attached 0, started 1, last start 1.0s; remote: terminals 1, attached 0, started 0, last start none)',
     );
   });
 });

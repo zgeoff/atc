@@ -61,6 +61,20 @@ type RoundEnd =
       readonly retrying: readonly Session[];
     };
 
+// A started terminal's boot: released ends the lane's wait, and recorded ends
+// once the start is in the record or no start can come.
+interface BootWatch {
+  readonly released: Promise<void>;
+  readonly recorded: Promise<void>;
+  readonly stop: () => void;
+}
+
+const SETTLED_BOOT: BootWatch = {
+  released: Promise.resolve(),
+  recorded: Promise.resolve(),
+  stop: () => {},
+};
+
 // How one try at a queued session ended: its terminal started, it got none,
 // or its host refused it for now and it waits for another try.
 type QueuedTry = 'started' | 'skipped' | 'retrying';
@@ -203,9 +217,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
 
   const attached = new Set<SessionID>();
 
-  // Each start the restore saw, read when its boot wait ended, so a later
-  // restart of the session never moves the report.
+  // The start each terminal's agent reported first, recorded once, so a
+  // later restart of the session never moves the report.
   const startTimes = new Map<SessionID, number>();
+  const boots = new Map<SessionID, BootWatch>();
 
   const watchHarnessStart = async (
     sessionID: SessionID,
@@ -225,48 +240,55 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     }
   };
 
-  // A session that announced itself, or whose terminal died, before the wait
-  // began has nothing to wait for; nor has one that attached to an agent its
-  // host still ran, or whose harness never started, as no agent starts there.
-  const waitForBoot = (sessionID: SessionID): Promise<void> => {
-    const runtime = findRuntime(sessionID);
-    const session = manager.sessions.find((candidate) => candidate.id === sessionID);
+  // The cap releases the lane but leaves the watch listening, so a start that
+  // comes later still reaches the record.
+  const watchBoot = (session: Session): BootWatch => {
+    const runtime = findRuntime(session.id);
+    const harness = session.pty;
 
-    if (startTimes.has(sessionID)) {
-      return Promise.resolve();
+    if (runtime === undefined || harness === null) {
+      return SETTLED_BOOT;
     }
 
-    if (runtime !== undefined && runtime.startedAt !== null) {
-      startTimes.set(sessionID, runtime.startedAt);
+    if (runtime.startedAt !== null) {
+      startTimes.set(session.id, runtime.startedAt);
+
+      return SETTLED_BOOT;
     }
 
-    if (
-      runtime === undefined ||
-      runtime.startedAt !== null ||
-      session === undefined ||
-      session.pty === null
-    ) {
-      return Promise.resolve();
-    }
+    const recorded = Promise.withResolvers<void>();
+    const released = Promise.withResolvers<void>();
+    const cancelCap = capMs > 0 ? clock.schedule(released.resolve, capMs) : null;
 
-    // The runtime's dispose releases the waiter, which cancels the cap.
-    const settled = Promise.withResolvers<void>();
-    const cancelCap = capMs > 0 ? clock.schedule(settled.resolve, capMs) : null;
-
-    runtime.bootWaiter = settled.resolve;
-    void watchHarnessStart(sessionID, session.pty, settled.resolve);
-
-    return (async () => {
-      await settled.promise;
-
-      runtime.bootWaiter = null;
-      cancelCap?.();
-
-      if (runtime.startedAt !== null) {
-        startTimes.set(sessionID, runtime.startedAt);
+    const stop = () => {
+      if (runtime.bootWaiter === waiter) {
+        runtime.bootWaiter = null;
       }
-    })();
+
+      cancelCap?.();
+      recorded.resolve();
+      released.resolve();
+    };
+
+    // The agent's start and the runtime's dispose both call the waiter.
+    const waiter = () => {
+      if (runtime.startedAt !== null) {
+        startTimes.set(session.id, runtime.startedAt);
+      }
+
+      stop();
+    };
+
+    runtime.bootWaiter = waiter;
+
+    // an agent the host still ran, or a harness that never starts, reports no start
+    void watchHarnessStart(session.id, harness, stop);
+
+    return { released: released.promise, recorded: recorded.promise, stop };
   };
+
+  const waitForBoot = (sessionID: SessionID): Promise<void> =>
+    boots.get(sessionID)?.released ?? Promise.resolve();
 
   const [first] = queued;
 
@@ -362,6 +384,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     }
 
     started.add(session);
+    boots.set(session.id, watchBoot(session));
 
     return 'started';
   };
@@ -503,10 +526,20 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return outcome;
   };
 
-  // Every terminal still to report gets one more capped wait, side by side,
-  // so a start or an attach that came after its lane moved on still counts.
+  // The watches still listening get one more cap, side by side, so a start or
+  // an attach that came after its lane moved on still counts.
   const writeReportOnceBooted = async (): Promise<void> => {
-    await Promise.all([...started].map((session) => waitForBoot(session.id)));
+    const cap = Promise.withResolvers<void>();
+    const cancelCap = capMs > 0 ? clock.schedule(cap.resolve, capMs) : null;
+    const watches = [...boots.values()];
+
+    await Promise.race([Promise.all(watches.map((watch) => watch.recorded)), cap.promise]);
+
+    cancelCap?.();
+
+    for (const watch of watches) {
+      watch.stop();
+    }
 
     if (!isStopped()) {
       manager.log(formatRestoreReport(registered.length, collectLaneReports()));
