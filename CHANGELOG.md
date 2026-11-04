@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.8.2](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.8.1...@zgeoff/atc@7.8.2) (2026-11-04)
+
+
+### Bug Fixes
+
+* keep a restored session's last reported state through its revive ([#1102](https://github.com/zgeoff/atc/issues/1102)) ([d098cb2](https://github.com/zgeoff/atc/commit/d098cb2fb3d9c645f726d85d7cfb9115ec48616c))
+
 ## [7.8.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.8.0...@zgeoff/atc@7.8.1) (2026-11-04)
 
 ### Bug Fixes
