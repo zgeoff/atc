@@ -57,8 +57,8 @@ export interface EventTrailStore {
     agentSessionID: AgentSessionID | undefined,
   ) => Promise<number | null>;
 
-  // Matches the session by either id, since rows written before atc session ids stayed stable
-  // across restores carry an earlier atc id; null once the trail holds no attention event.
+  // Matches the session by either id, since a stored event can carry another atc id than the
+  // session's; null once the trail holds no attention event.
   readonly readLatestAttention: (
     atcID: SessionID,
     agentSessionID: AgentSessionID | undefined,
