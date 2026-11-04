@@ -1,5 +1,4 @@
 import { appendFile } from 'node:fs/promises';
-import { z } from 'zod';
 
 type ReleaseShip = 'here' | 'dispatch' | 'none';
 
@@ -40,27 +39,27 @@ export function pickReleaseShip(run: Readonly<ReleaseRun>): ReleaseShip {
 }
 
 // release-please lists each released package's path in `paths_released`, and sets the root
-// package's outputs, such as its tagged commit under `sha`, with no path prefix.
-const RELEASE_OUTPUTS_SCHEMA = z.looseObject({
-  sha: z.string().optional(),
-  paths_released: z.string().optional(),
-});
-
-const RELEASED_PATHS_SCHEMA = z.array(z.string());
-
+// package's outputs, such as its tagged commit under `sha`, with no path prefix. The job that runs
+// this script installs no packages, so it parses with no schema library.
 function parseRootReleaseSHA(releaseOutputs: string): string | null {
-  const outputs = RELEASE_OUTPUTS_SCHEMA.parse(JSON.parse(releaseOutputs));
+  const outputs: unknown = JSON.parse(releaseOutputs);
 
-  const paths =
-    outputs.paths_released === undefined
-      ? ['.']
-      : RELEASED_PATHS_SCHEMA.parse(JSON.parse(outputs.paths_released));
+  if (typeof outputs !== 'object' || outputs === null) {
+    throw new Error(`the release outputs are not an object: ${releaseOutputs}`);
+  }
+
+  const released = 'paths_released' in outputs ? outputs.paths_released : JSON.stringify(['.']);
+  const paths: unknown = typeof released === 'string' ? JSON.parse(released) : null;
+
+  if (!Array.isArray(paths)) {
+    throw new TypeError(`the release outputs list no released paths: ${releaseOutputs}`);
+  }
 
   if (!paths.includes('.')) {
     return null;
   }
 
-  if (outputs.sha === undefined) {
+  if (!('sha' in outputs) || typeof outputs.sha !== 'string') {
     throw new Error(`the release outputs hold no tagged commit: ${releaseOutputs}`);
   }
 

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { copyFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCommand, setupTempDir } from '@atc/test-utils';
 import { pickReleaseShip } from './pick-release-ship';
@@ -137,6 +137,51 @@ test('it refuses release outputs that hold no tagged commit', () => {
       sha: '4e1c2a9',
     }),
   ).toThrowWithMessage(Error, /hold no tagged commit/u);
+});
+
+test.each([
+  ['release outputs that are not an object', '"tagged"', /are not an object/u],
+  [
+    'release outputs whose released paths are not a list',
+    JSON.stringify({ sha: '4e1c2a9', paths_released: '"."' }),
+    /list no released paths/u,
+  ],
+])('it refuses %s', (_label, releaseOutputs, message) => {
+  expect(() =>
+    pickReleaseShip({
+      event: 'push',
+      releasesCreated: 'true',
+      releaseOutputs,
+      checksResult: 'success',
+      binariesResult: 'success',
+      sha: '4e1c2a9',
+    }),
+  ).toThrowWithMessage(Error, message);
+});
+
+test('it runs from a folder with no installed packages, as the release job runs it', async () => {
+  const directory = setupTempDir('pick-release-ship-bare-');
+  const output = join(directory.path, 'output');
+  const script = join(directory.path, 'pick-release-ship.ts');
+
+  copyFileSync(join(import.meta.dir, 'pick-release-ship.ts'), script);
+
+  const picked = await runCommand(['bun', '--no-install', script], {
+    cwd: directory.path,
+    env: {
+      ...process.env,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_NAME: 'push',
+      GITHUB_SHA: '4e1c2a9',
+      RELEASES_CREATED: 'true',
+      RELEASE_OUTPUTS: JSON.stringify({ sha: '4e1c2a9', paths_released: '["."]' }),
+      CHECKS_RESULT: 'success',
+      BINARIES_RESULT: 'success',
+    },
+  });
+
+  expect(picked.exitCode).toBe(0);
+  expect(readFileSync(output, 'utf8')).toBe('ship=here\n');
 });
 
 test('it writes the picked ship to the step output', async () => {
