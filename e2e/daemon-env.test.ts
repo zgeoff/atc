@@ -114,6 +114,38 @@ test('it starts a session without a parent-session variable the daemon started w
   expect(screen['text']).toInclude('FAKE_CLAUDE_PARENT:[unset]');
 });
 
+test('it starts a session without the PTY library variable the daemon loaded bun-pty with', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { bin: ctx.claude } },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const ok = await client.sendRequest('session.spawn', { cwd: ctx.home, cols: 80, rows: 24 });
+
+  const id = getString(getRecord(ok, 'session'), 'id');
+
+  const screen = await waitFor(async () => {
+    const read = await client.sendRequest('session.screen', { session: id });
+
+    // A long path wraps onto the next screen line.
+    expect(read['text']).toMatch(/FAKE_CLAUDE_PTY_LIB:\[[^\]]*\]/u);
+
+    return read;
+  });
+
+  expect(screen['text']).toInclude('FAKE_CLAUDE_PTY_LIB:[unset]');
+});
+
 test('it starts a native program whose path holds an equals sign with the DYLD_ variable the daemon started with', async () => {
   const ctx = setupTest();
 

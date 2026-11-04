@@ -572,30 +572,7 @@ test('it fails the spawn of a program the harness PATH does not hold', () => {
   ).toThrowWithMessage(Error, /PTY spawn failed/u);
 });
 
-test('it names the failed load of the embedded librust_pty library when bun-pty has none', () => {
-  const ctx = setupTest();
-
-  const provider = createLocalPTYProvider(systemClock, null, () => {
-    throw new TypeError("undefined is not an object (evaluating 'lib.symbols')");
-  });
-
-  registerTestCleanup(() => provider.dispose());
-
-  expect(() =>
-    provider.spawnHarness({
-      session: 's1',
-      host: 's1',
-      bin: 'bash',
-      args: [],
-      cwd: ctx.directory,
-      env: { PATH: '/usr/bin:/bin' },
-      cols: 80,
-      rows: 24,
-    }),
-  ).toThrowWithMessage(Error, /bun-pty could not load its embedded librust_pty library/u);
-});
-
-test('it passes on any other error the PTY spawn throws', () => {
+test('it passes on the error the PTY spawn throws', () => {
   const ctx = setupTest();
 
   const provider = createLocalPTYProvider(systemClock, null, () => {
