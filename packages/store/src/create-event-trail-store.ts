@@ -11,7 +11,6 @@ import type { TrailEntry } from './trail-entry';
 
 const ATTENTION_KINDS = ['turn-done', 'needs-input', 'prompt-submitted'] as const;
 
-// An event kind that sets whether the session's agent works, waits on a person, or has finished.
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
 // The hook events and trail entries a session leaves behind, kept in the
