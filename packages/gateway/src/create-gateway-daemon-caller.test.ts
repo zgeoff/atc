@@ -5,6 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import {
   buildMockAgentAdapter,
   buildStubChannelOpener,
@@ -12,10 +13,12 @@ import {
   getRecord,
   registerTestCleanup,
   startCutProxy,
+  startStubLegacyDaemon,
   startStubUnansweringListener,
   waitFor,
 } from '@atc/test-utils';
 import { CONTRACT_VERSION } from '@atcx/contract';
+import invariant from 'tiny-invariant';
 import { createGatewayDaemonCaller } from './create-gateway-daemon-caller';
 import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 import type { RegistryDaemon } from './types';
@@ -686,6 +689,34 @@ test.each([
   });
 
   expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+});
+
+test('it refuses a daemon that refuses its protocol version as daemon_mismatched', () => {
+  const legacy = startStubLegacyDaemon(
+    { hostname: '127.0.0.1', port: 0 },
+    { protocol: PROTOCOL_V + 1 },
+  );
+
+  invariant(legacy.port !== null, 'the stub daemon bound no TCP port');
+
+  const caller = createGatewayDaemonCaller({
+    daemon: buildMockRegistryDaemon({
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: legacy.port },
+      daemonID: 'd-legacy',
+      token: 'a'.repeat(32),
+    }),
+    build: 'atc-gateway/test',
+    onWarning: () => {},
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+  });
+
+  registerTestCleanup(() => caller.stop());
+
+  expect(caller.readHello()).rejects.toMatchObject({
+    code: 'daemon_unavailable',
+    data: { daemon: 'cloud', reason: 'daemon_mismatched' },
+  });
 });
 
 test('it warns once per connection about a daemon whose build names no version', async () => {

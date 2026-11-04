@@ -103,6 +103,14 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
         );
       }
 
+      if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
+        throw new GatewayError(
+          'daemon_unavailable',
+          `daemon '${daemon.name}' speaks another protocol version than this gateway; upgrade the older of the two`,
+          { daemon: daemon.name, reason: 'daemon_mismatched' },
+        );
+      }
+
       throw new GatewayError(
         'daemon_unavailable',
         `daemon '${daemon.name}' did not complete the handshake`,

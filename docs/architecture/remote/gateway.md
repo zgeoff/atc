@@ -31,14 +31,18 @@ The registry file lists each daemon by name with its TCP address and its daemon 
 a spawn without one goes to. The bearer token for each daemon comes from the gateway's environment,
 one variable per daemon name. Each connection pins the daemon's identity: a daemon whose handshake
 gives another daemon id is refused before the gateway sends it anything, so a reused address never
-routes calls to the wrong fleet. The gateway also checks each handshake with `checkDaemon` from
-[the published contract](../protocol/contract.md#checking-a-daemon), against the contract version it
-was built with. It refuses a daemon on another major atc version with `daemon_unavailable` and the
-reason `daemon_mismatched`, and sends it nothing. It serves a daemon that lacks a feature the
-contract lists, or whose build string holds no version, and prints a warning line on stderr for each
-such connection. The gateway acts as the OAuth client that made each call, so every daemon limits
-that client to the targets its own `principals` key grants
-([principals](../protocol/principals.md)).
+routes calls to the wrong fleet.
+
+The gateway refuses a daemon whose version it cannot serve with `daemon_unavailable` and the reason
+`daemon_mismatched`, and sends it nothing. A daemon on another protocol version refuses the
+gateway's handshake itself, with `protocol_mismatch` ([versions](../protocol/protocol.md#versions)),
+and the gateway takes that refusal as the mismatch. A daemon that accepts the handshake goes through
+`checkDaemon` from [the published contract](../protocol/contract.md#checking-a-daemon), against the
+contract version the gateway was built with, and the gateway refuses it when it runs another major
+atc version. It serves a daemon that lacks a feature the contract lists, or whose build string holds
+no version, and prints a warning line on stderr for each such connection. The gateway acts as the
+OAuth client that made each call, so every daemon limits that client to the targets its own
+`principals` key grants ([principals](../protocol/principals.md)).
 
 The gateway writes only in its state directory, which it requires, so one volume holds all its
 state: the authorization server's database and a database of idempotency key bindings.
@@ -56,7 +60,7 @@ A call goes to the daemon its ids name, then to the daemon its params name, then
 daemon. A call whose ids and params name two different daemons is refused with `bad_args`. A call
 never fails over to another daemon. Listings of sessions and agents fan out to every daemon and
 report each daemon's state beside the merged answer: up, down, unauthorized, refused, changed when
-its identity no longer matches the registry, or mismatched when it runs another major atc version.
+its identity no longer matches the registry, or mismatched when the gateway refused its version.
 
 An event read merges every daemon's trail under one gateway cursor that keeps each daemon's place,
 so a daemon that did not answer resumes from where it stopped on the next call. Each merged event
