@@ -196,7 +196,7 @@ test('it fails after 5 edits when a newer release takes the latest mark before e
   ]);
 });
 
-test('it runs in the main workflow after each shipped release, in the group every branch shares', () => {
+test('it runs in the main workflow after each shipped or tagged release, in the group every branch shares', () => {
   const workflow = Bun.YAML.parse(
     readFileSync(join(import.meta.dir, '../.github/workflows/main.yml'), 'utf8'),
   );
@@ -204,8 +204,8 @@ test('it runs in the main workflow after each shipped release, in the group ever
   expect(workflow).toMatchObject({
     jobs: {
       'latest-release': {
-        needs: ['ship-release'],
-        if: `\${{ !cancelled() && needs.ship-release.result != 'skipped' }}`,
+        needs: ['release', 'ship-release'],
+        if: `\${{ !cancelled() && (needs.ship-release.result != 'skipped' || needs.release.outputs.releases_created == 'true') }}`,
         concurrency: { group: 'atc-latest-release', 'cancel-in-progress': false },
         permissions: { contents: 'write' },
         steps: expect.arrayContaining([
