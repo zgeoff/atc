@@ -89,9 +89,11 @@ terminal beside the turn.
    - `ATC_RESTORE_BOOT_TIMEOUT_MS` sets the cap for every restore, the automatic one included, and
      `atc daemon restart` reads the same variable for its wait on the restored fleet. The cap never
      turns off: a value of 0, or one that is not a positive number, leaves the default in place.
-   - Once both lanes end, the daemon logs one line. The line gives the rows the restore registered.
-     For each lane, it gives the terminals the lane started, those that attached, those whose agent
-     reported a start, and the time from the restore's start to the lane's last start:
+   - The restore settles once both lanes have tried every session. The last session each lane
+     started still gets its boot wait, and after that wait the daemon logs one line. The line gives
+     the rows the restore registered. For each lane, it gives the terminals the lane started, those
+     that attached, those whose agent reported a start, and the time from the restore's start to the
+     lane's last start:
 
      ```text
      atc restored the fleet (registered 3; local: terminals 2, attached 0, started 2, last start 4.2s; remote: terminals 1, attached 1, started 0, last start none)
