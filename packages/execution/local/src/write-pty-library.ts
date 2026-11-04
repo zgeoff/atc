@@ -19,7 +19,6 @@ export function writePTYLibrary(
     `.atc-pty-${process.geteuid?.() ?? 0}-${Bun.hash(library.bytes).toString(16)}${extname(library.name)}`,
   );
 
-  // A name no other process picks, so no two writers share a file.
   const scratch = `${path}.${randomUUID()}`;
 
   try {
