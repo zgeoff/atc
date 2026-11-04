@@ -58,6 +58,10 @@ export interface SessionRuntime {
   // runs no hook before its start.
   needsYouFromScreen: boolean;
 
+  // The last message of a done session that the screen moved to needs_you,
+  // so the screen moves it back to done rather than running; null otherwise.
+  doneMsgUnderScreen: string | null;
+
   needsInputUnrecorded: boolean;
 
   // Whether a tap has attached since the terminal last booted. A tap that
@@ -117,6 +121,8 @@ export function createSessionRuntime(): SessionRuntime {
 
     needsYouFromScreen: false,
 
+    doneMsgUnderScreen: null,
+
     needsInputUnrecorded: false,
 
     tapAttached: false,
@@ -129,6 +135,7 @@ export function createSessionRuntime(): SessionRuntime {
       runtime.dims = dims;
       runtime.startedAt = null;
       runtime.needsYouFromScreen = false;
+      runtime.doneMsgUnderScreen = null;
       runtime.needsInputUnrecorded = false;
       runtime.tapAttached = false;
       runtime.hasAgentHookLines = false;

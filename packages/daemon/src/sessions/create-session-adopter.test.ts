@@ -104,6 +104,7 @@ async function setupTest(config: SetupTestConfig) {
     stopMessageBridge,
     registry,
     adopter,
+    kill: (id: SessionID) => killer.kill(id, true),
   };
 }
 
@@ -186,6 +187,40 @@ test('it starts a harness that resumes the agent session of a session without a 
   expect(adopted).toMatchObject({ kind: 'pty', state: 'running', lastMsg: 'revived' });
   expect(adopted?.pty).toBe(provider.harnesses[0]);
   expect(ctx.callbacks.onBoot).toHaveBeenCalledExactlyOnceWith(session, 100, 30);
+});
+
+test('it revives as running a restored session that a stop ended before its first terminal', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-idle'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'done',
+    lastMsg: 'waiting to restore',
+    agentSessionID: toAgentSessionID('c-idle'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.unrestored.add(session.id);
+
+  await ctx.kill(session.id);
+
+  const adopted = await ctx.adopter.adoptTerminal(session.id, 80, 24);
+
+  expect([adopted?.kind, adopted?.state, adopted?.lastMsg]).toStrictEqual([
+    'pty',
+    'running',
+    'revived',
+  ]);
 });
 
 test('it keeps the agent home the remote host resolves for the revived harness on the session', async () => {

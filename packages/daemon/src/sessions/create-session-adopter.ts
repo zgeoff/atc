@@ -136,10 +136,15 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     session.bridgeEpoch = binding.epoch;
     session.pty = pty;
     session.kind = 'pty';
-    session.state = 'running';
     session.lastMsg = 'revived';
 
-    registry.unrestored.delete(session.id);
+    // a revive starts no turn, so a restored session keeps the state its agent last reported
+    // before the daemon restarted; a stop before its first terminal leaves the mark in place
+    const isRestored = registry.unrestored.delete(session.id);
+
+    if (!isRestored || session.state === 'exited') {
+      session.state = 'running';
+    }
 
     if (plan.admission === null) {
       delete session.authRevision;

@@ -56,7 +56,10 @@ daemon reads its screen each time the output goes quiet. A menu on the screen mo
 `needs_you` and writes a needs-input event to the session's events, which an event subscriber sees
 as the session waiting on the owner. A screen without a menu moves it back to `running`. The start
 report ends the screen reads, and it moves a session that the screen put in `needs_you` back to
-`running`, since every dialog before the start is answered by then.
+`running`, since every dialog before the start is answered by then. A session that the screen moved
+from `done` goes back to `done` in both cases, with its earlier message, because the dialog started
+no turn. A [restore](./fleet-and-restore.md#restoring-the-fleet) lists a revived session as `done`
+when its agent was out of a turn before the daemon restarted.
 
 ## Names
 

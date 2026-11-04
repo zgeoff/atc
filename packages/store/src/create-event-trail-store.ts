@@ -9,6 +9,10 @@ import type { StateStoreSchema } from './sqlite/state-store-schema';
 import type { EventScope, StoredAnswer, StoredEvent, StoredNote } from './stored-event';
 import type { TrailEntry } from './trail-entry';
 
+const ATTENTION_KINDS = ['turn-done', 'needs-input', 'prompt-submitted'] as const;
+
+export type AttentionKind = (typeof ATTENTION_KINDS)[number];
+
 // The hook events and trail entries a session leaves behind, kept in the
 // events table.
 export interface EventTrailStore {
@@ -52,6 +56,13 @@ export interface EventTrailStore {
     atcID: SessionID,
     agentSessionID: AgentSessionID | undefined,
   ) => Promise<number | null>;
+
+  // Matches the session by either id, since a stored event can carry another atc id than the
+  // session's; null once the trail holds no attention event.
+  readonly readLatestAttention: (
+    atcID: SessionID,
+    agentSessionID: AgentSessionID | undefined,
+  ) => Promise<AttentionKind | null>;
 
   // The newest row under each atc id and each agent session id stays, so a
   // session's last activity and restore order survive; past the cutoff it
@@ -263,6 +274,24 @@ export function createEventTrailStore(db: Kysely<StateStoreSchema>): EventTrailS
         .executeTakeFirst();
 
       return row?.ts === null || row?.ts === undefined ? null : Date.parse(row.ts);
+    },
+
+    readLatestAttention: async (atcID, agentSessionID) => {
+      const row = await db
+        .selectFrom('events')
+        .select('kind')
+        .where('kind', 'in', ATTENTION_KINDS)
+        .where((eb) =>
+          eb.or([
+            eb('atc_id', '=', atcID),
+            ...(agentSessionID === undefined ? [] : [eb('session_id', '=', agentSessionID)]),
+          ]),
+        )
+        .orderBy('id', 'desc')
+        .limit(1)
+        .executeTakeFirst();
+
+      return ATTENTION_KINDS.find((kind) => kind === row?.kind) ?? null;
     },
 
     removeExpiredEvents: async (before) => {

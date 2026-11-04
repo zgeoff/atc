@@ -22,6 +22,7 @@ import type { BridgeBinding } from '../auth/is-binding-current';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { createSessionRestorer } from '../fleet/create-session-restorer';
+import type { SessionRestorer } from '../fleet/create-session-restorer';
 import { collectSessionDescriptors } from './collect-session-descriptors';
 import { createHostDirClaims } from './create-host-dir-claims';
 import type { HostDirClaims } from './create-host-dir-claims';
@@ -143,7 +144,7 @@ export interface SessionManager {
   readonly countStates: () => ReturnType<SessionRegistry['countStates']>;
   readonly sortSessions: () => Session[];
   readonly resolveRestoredEntry: (entry: FleetEntry) => Promise<FleetEntry>;
-  readonly restore: (entry: FleetEntry) => Session;
+  readonly restore: SessionRestorer['restore'];
   readonly isUnrestored: (id: SessionID) => boolean;
   readonly removeUnrestoredMark: (id: SessionID) => void;
   readonly updateRestoreRefusal: (session: Session, reason: string, code: string | null) => void;
@@ -198,11 +199,12 @@ export interface SessionManager {
     result?: string,
   ) => void;
 
-  // The detector-stack screen tier reports through here: only flips between
-  // running and needs_you — hook-driven done/exited states always win.
+  // The detector-stack screen tier reports through here: it moves a running or
+  // done session into needs_you and back out, never between running and done,
+  // and never moves an exited session.
   readonly updateAttention: (
     id: SessionID,
-    state: 'needs_you' | 'running',
+    state: 'needs_you' | 'running' | 'done',
     message: string,
   ) => boolean;
 
@@ -454,7 +456,7 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
 
     resolveRestoredEntry: (entry) => restorer.resolveRestoredEntry(entry),
 
-    restore: (entry) => restorer.restore(entry),
+    restore: (entry, attention) => restorer.restore(entry, attention),
 
     isUnrestored: (id) => restorer.isUnrestored(id),
 
@@ -558,7 +560,10 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
         return false;
       }
 
-      if (session.state !== 'running' && session.state !== 'needs_you') {
+      const isRaise = state === 'needs_you' && session.state !== 'exited';
+      const isLower = state !== 'needs_you' && session.state === 'needs_you';
+
+      if (!isRaise && !isLower) {
         return false;
       }
 

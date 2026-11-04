@@ -61,10 +61,13 @@ export function createScreenDetection(deps: ScreenDetectionDeps): ScreenDetectio
     const judgment = detector.detectAttention(screen.text);
 
     if (judgment === 'needs-input') {
+      const before = manager.sessions.find((x) => x.id === sessionID);
+      const doneMsg = before?.state === 'done' ? before.lastMsg : null;
       const isFlagged = manager.updateAttention(sessionID, 'needs_you', NEEDS_INPUT_MESSAGE);
 
       if (isFlagged) {
         runtime.needsYouFromScreen = true;
+        runtime.doneMsgUnderScreen = doneMsg;
       }
 
       const isStillNeedsYou =
@@ -79,10 +82,27 @@ export function createScreenDetection(deps: ScreenDetectionDeps): ScreenDetectio
       }
     }
 
-    if (judgment === 'working' && manager.updateAttention(sessionID, 'running', 'working')) {
-      runtime.needsYouFromScreen = false;
+    if (judgment === 'working' && updateLoweredAttention(sessionID, runtime, 'working')) {
       runtime.needsInputUnrecorded = false;
     }
+  };
+
+  // A done session the screen flagged goes back to done with its own message,
+  // since the menu that flagged it started no turn.
+  const updateLoweredAttention = (
+    sessionID: SessionID,
+    runtime: SessionRuntime,
+    message: string,
+  ): boolean => {
+    const isLowered =
+      runtime.doneMsgUnderScreen === null
+        ? manager.updateAttention(sessionID, 'running', message)
+        : manager.updateAttention(sessionID, 'done', runtime.doneMsgUnderScreen);
+
+    runtime.needsYouFromScreen = false;
+    runtime.doneMsgUnderScreen = null;
+
+    return isLowered;
   };
 
   return {
@@ -128,9 +148,7 @@ export function createScreenDetection(deps: ScreenDetectionDeps): ScreenDetectio
       runtime.needsInputUnrecorded = false;
 
       if (runtime.needsYouFromScreen) {
-        runtime.needsYouFromScreen = false;
-
-        manager.updateAttention(sessionID, 'running', 'started');
+        updateLoweredAttention(sessionID, runtime, 'started');
       }
     },
   };

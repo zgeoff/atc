@@ -189,12 +189,16 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
       }
 
       // a session still listed, though dead, revives in place rather than listing twice
-      const row =
-        listed === undefined
-          ? { session: manager.restore(resolved), revive: false }
-          : { session: listed, revive: true };
+      if (listed === undefined) {
+        const attention = await store.readLatestAttention(
+          resolved.sessionID,
+          resolved.agentSessionID,
+        );
 
-      registered.push(row);
+        registered.push({ session: manager.restore(resolved, attention), revive: false });
+      } else {
+        registered.push({ session: listed, revive: true });
+      }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
 
