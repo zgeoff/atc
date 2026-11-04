@@ -122,6 +122,23 @@ test('it reports the start the config gives for each harness', async () => {
   expect(start).toStrictEqual({ created: false });
 });
 
+test('it rejects each harness start with the refusal the config gives', () => {
+  const provider = buildStubMemoryProvider({ harnessStartRefusal: new Error('host gone') });
+
+  const harness = provider.spawnHarness({
+    session: 's-1',
+    host: 's-1',
+    bin: 'claude',
+    args: [],
+    cwd: '/work',
+    env: {},
+    cols: 80,
+    rows: 24,
+  });
+
+  expect(harness.waitForStart?.()).rejects.toThrow('host gone');
+});
+
 test('it reports no start for a harness when the config gives none', () => {
   const provider = buildStubMemoryProvider();
 
