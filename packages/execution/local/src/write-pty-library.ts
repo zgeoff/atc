@@ -25,12 +25,22 @@ export function writePTYLibrary(
     writeFileSync(scratch, library.bytes, { flag: 'wx', mode: 0o600 });
     renameSync(scratch, path);
   } catch (error) {
-    rmSync(scratch, { force: true });
-
     console.error(`atc could not copy its PTY library into ${directory}`, error);
+
+    removeScratch(scratch);
 
     return;
   }
 
   env['BUN_PTY_LIB'] = path;
+}
+
+// A write that fails partway leaves part of the file behind, and the folder
+// that refused the write can refuse its removal too.
+function removeScratch(scratch: string): void {
+  try {
+    rmSync(scratch, { force: true });
+  } catch (error) {
+    console.error(`atc could not remove ${scratch}`, error);
+  }
 }

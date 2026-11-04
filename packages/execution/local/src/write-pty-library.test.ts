@@ -64,6 +64,22 @@ test('it replaces a copy another process left in the folder', () => {
   expect(readFileSync(path, 'utf8')).toBe('library bytes');
 });
 
+test('it leaves BUN_PTY_LIB unset when the folder path runs through a file', () => {
+  const ctx = setupTest();
+  const env: Record<string, string | undefined> = {};
+  const file = join(ctx.directory, 'not-a-folder');
+
+  writeFileSync(file, '');
+
+  writePTYLibrary(
+    env,
+    { name: 'librust_pty-sxf464jf.so', bytes: Buffer.from('library bytes') },
+    join(file, 'tmp'),
+  );
+
+  expect(env).toStrictEqual({});
+});
+
 test('it leaves BUN_PTY_LIB unset and no scratch file when the rename into place fails', () => {
   const ctx = setupTest();
   const env: Record<string, string | undefined> = {};
