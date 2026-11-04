@@ -36,13 +36,14 @@ routes calls to the wrong fleet.
 The gateway refuses a daemon whose version it cannot serve with `daemon_unavailable` and the reason
 `daemon_mismatched`, and sends it nothing. A daemon on another protocol version refuses the
 gateway's handshake itself, with `protocol_mismatch` ([versions](../protocol/protocol.md#versions)),
-and the gateway takes that refusal as the mismatch. A daemon that accepts the handshake goes through
-`checkDaemon` from [the published contract](../protocol/contract.md#checking-a-daemon), against the
-contract version the gateway was built with, and the gateway refuses it when it runs another major
-atc version. It serves a daemon that lacks a feature the contract lists, or whose build string holds
-no version, and prints a warning line on stderr for each such connection. The gateway acts as the
-OAuth client that made each call, so every daemon limits that client to the targets its own
-`principals` key grants ([principals](../protocol/principals.md)).
+and the gateway takes that refusal as the mismatch. The gateway parses an accepted handshake with
+the contract's hello schema, refuses one the schema rejects, and passes the rest to `checkDaemon`
+from [the published contract](../protocol/contract.md#checking-a-daemon), against the contract
+version the gateway was built with. It refuses a daemon on another major atc version. It serves a
+daemon that lacks a feature the contract lists, or whose build string holds no version, and prints a
+warning line on stderr for each such connection. The gateway acts as the OAuth client that made each
+call, so every daemon limits that client to the targets its own `principals` key grants
+([principals](../protocol/principals.md)).
 
 The gateway writes only in its state directory, which it requires, so one volume holds all its
 state: the authorization server's database and a database of idempotency key bindings.

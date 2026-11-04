@@ -5,7 +5,7 @@ import { PROCEDURE_TRAITS } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
-import { checkDaemon } from '@atcx/contract';
+import { HELLO_RESULT_SCHEMA, checkDaemon } from '@atcx/contract';
 import { GatewayError } from './gateway-error';
 import { pickDaemonAdmission } from './pick-daemon-admission';
 import type { DaemonHello, GatewayChannel, ParamsPreparer, RegistryDaemon } from './types';
@@ -58,6 +58,8 @@ export interface GatewayDaemonCaller {
   readonly readHello: () => Promise<DaemonHello>;
   readonly stop: () => Promise<void>;
 }
+
+const HANDSHAKE_SCHEMA = HELLO_RESULT_SCHEMA.pick({ daemon: true, features: true });
 
 export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): GatewayDaemonCaller {
   const scheduleTimeout = (onTimeout: () => void, delayMs: number): (() => void) =>
@@ -128,12 +130,24 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
       );
     }
 
+    const handshake = HANDSHAKE_SCHEMA.safeParse(answer);
+
+    if (!handshake.success) {
+      channel.stop();
+
+      throw new GatewayError(
+        'daemon_unavailable',
+        `daemon '${daemon.name}' answered a handshake outside the atc contract`,
+        { daemon: daemon.name, reason: 'daemon_mismatched' },
+      );
+    }
+
     const hello = buildDaemonHello(answer, daemon.daemonID);
 
     const admission = pickDaemonAdmission(
       daemon.name,
-      hello.build,
-      checkDaemon({ daemon: hello.build, features: collectFeatures(answer) }),
+      handshake.data.daemon,
+      checkDaemon(handshake.data),
     );
 
     if (admission.kind === 'refuse') {
@@ -349,12 +363,4 @@ function buildDaemonHello(
     daemonID,
     retentionMs: typeof retention === 'number' && retention > 0 ? retention : null,
   };
-}
-
-function collectFeatures(answer: Readonly<Record<string, unknown>>): readonly string[] {
-  const features = answer['features'];
-
-  return Array.isArray(features)
-    ? features.filter((feature: unknown): feature is string => typeof feature === 'string')
-    : [];
 }

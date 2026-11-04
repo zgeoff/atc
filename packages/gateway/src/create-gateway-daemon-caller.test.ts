@@ -719,6 +719,44 @@ test('it refuses a daemon that refuses its protocol version as daemon_mismatched
   });
 });
 
+test('it refuses a daemon whose handshake lists a feature that is not a string as daemon_mismatched', () => {
+  const legacy = startStubLegacyDaemon(
+    { hostname: '127.0.0.1', port: 0 },
+    {
+      replies: {
+        'daemon.hello': {
+          daemon: `atc/${CONTRACT_VERSION}+lq2x9a`,
+          daemonID: 'd-legacy',
+          limits: { maxLine: 1_048_576, maxChunk: 65_536 },
+          lastUsedAgent: 'claude',
+          features: ['events.read.from-start', 42],
+        },
+      },
+    },
+  );
+
+  invariant(legacy.port !== null, 'the stub daemon bound no TCP port');
+
+  const caller = createGatewayDaemonCaller({
+    daemon: buildMockRegistryDaemon({
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: legacy.port },
+      daemonID: 'd-legacy',
+      token: 'a'.repeat(32),
+    }),
+    build: 'atc-gateway/test',
+    onWarning: () => {},
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+  });
+
+  registerTestCleanup(() => caller.stop());
+
+  expect(caller.readHello()).rejects.toMatchObject({
+    code: 'daemon_unavailable',
+    data: { daemon: 'cloud', reason: 'daemon_mismatched' },
+  });
+});
+
 test('it warns once per connection about a daemon whose build names no version', async () => {
   const ctx = await setupTest();
 
