@@ -947,11 +947,13 @@ test('it logs a later session whose revive fails and leaves it without a termina
 
   expect(restored.restored).toBe(2);
 
-  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
-    expect.stringMatching(/^atc: wake of session s-first on target 'box' took /u),
-    'atc could not revive session s-second (no plan for s-second)',
-    'atc restored the fleet (registered 2; remote: terminals 1, attached 0, started 0, last start none)',
-  ]);
+  await waitFor(() => {
+    expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+      expect.stringMatching(/^atc: wake of session s-first on target 'box' took /u),
+      'atc could not revive session s-second (no plan for s-second)',
+      'atc restored the fleet (registered 2; remote: terminals 1, attached 0, started 0, last start none)',
+    ]);
+  });
 
   expect<readonly unknown[]>(
     manager.sessions.map((session) => [session.id, session.pty !== null]),
@@ -1025,11 +1027,13 @@ test('it logs a first session whose revive fails with a plain error and still re
     ['s-second', true],
   ]);
 
-  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
-    'atc could not revive session s-first (no plan for s-first)',
-    expect.stringMatching(/^atc: wake of session s-second on target 'box' took /u),
-    'atc restored the fleet (registered 2; remote: terminals 1, attached 0, started 0, last start none)',
-  ]);
+  await waitFor(() => {
+    expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+      'atc could not revive session s-first (no plan for s-first)',
+      expect.stringMatching(/^atc: wake of session s-second on target 'box' took /u),
+      'atc restored the fleet (registered 2; remote: terminals 1, attached 0, started 0, last start none)',
+    ]);
+  });
 });
 
 test("it lists the plugin refusal of a session on a remote target once its agent's config sets plugin folders, and still revives a local session", async () => {
@@ -1123,10 +1127,12 @@ test("it lists the plugin refusal of a session on a remote target once its agent
     restoreRefusal: { code: 'unsupported', message: refusal },
   });
 
-  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
-    `atc could not revive session s-remote (${refusal})`,
-    'atc restored the fleet (registered 2; remote: terminals 0, attached 0, started 0, last start none; local: terminals 1, attached 0, started 0, last start none)',
-  ]);
+  await waitFor(() => {
+    expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+      `atc could not revive session s-remote (${refusal})`,
+      'atc restored the fleet (registered 2; remote: terminals 0, attached 0, started 0, last start none; local: terminals 1, attached 0, started 0, last start none)',
+    ]);
+  });
 
   expect(manager.sessions.find((session) => session.id === toSessionID('s-local'))).toMatchObject({
     kind: 'pty',
@@ -1271,10 +1277,12 @@ test('it lists and logs the refusal of a session whose imp refuses it with no re
     { id: 's-busy', kind: 'headless', state: 'running', pty: null, lastMsg: refusal },
   ]);
 
-  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
-    `atc could not revive session s-busy (${refusal})`,
-    'atc restored the fleet (registered 1; remote: terminals 0, attached 0, started 0, last start none)',
-  ]);
+  await waitFor(() => {
+    expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+      `atc could not revive session s-busy (${refusal})`,
+      'atc restored the fleet (registered 1; remote: terminals 0, attached 0, started 0, last start none)',
+    ]);
+  });
 });
 
 test('it revives a session on a later try once its imp stops refusing it', async () => {
@@ -1321,11 +1329,13 @@ test('it revives a session on a later try once its imp stops refusing it', async
 
   expect(manager.sessions).toMatchObject([{ id: 's-busy', kind: 'pty', lastMsg: 'revived' }]);
 
-  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
-    `atc could not revive session s-busy (imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)); trying again`,
-    expect.stringMatching(/^atc: wake of session s-busy on target 'box' took /u),
-    'atc restored the fleet (registered 1; remote: terminals 1, attached 0, started 0, last start none)',
-  ]);
+  await waitFor(() => {
+    expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+      `atc could not revive session s-busy (imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)); trying again`,
+      expect.stringMatching(/^atc: wake of session s-busy on target 'box' took /u),
+      'atc restored the fleet (registered 1; remote: terminals 1, attached 0, started 0, last start none)',
+    ]);
+  });
 });
 
 test('it waits for the last session a round started to boot before a retry starts another', async () => {
@@ -1527,10 +1537,12 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
 
   expect(ctx.impProvider.harnesses).toStrictEqual([]);
 
-  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
-    `atc could not revive session s-busy (imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE))`,
-    'atc restored the fleet (registered 1; remote: terminals 0, attached 0, started 0, last start none)',
-  ]);
+  await waitFor(() => {
+    expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+      `atc could not revive session s-busy (imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE))`,
+      'atc restored the fleet (registered 1; remote: terminals 0, attached 0, started 0, last start none)',
+    ]);
+  });
 });
 
 test('it revives on a later restore a session an earlier restore left without a terminal', async () => {
@@ -2405,10 +2417,42 @@ test("it logs each lane's terminals, attaches, and starts, with the time from th
 
   await restored.settled;
 
-  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
-    expect.stringMatching(/^atc: wake of session s-remote on target 'box' took /u),
-    'atc restored the fleet (registered 2; remote: terminals 1, attached 1, started 0, last start none; local: terminals 1, attached 0, started 1, last start 4.2s)',
+  await waitFor(() => {
+    expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+      expect.stringMatching(/^atc: wake of session s-remote on target 'box' took /u),
+      'atc restored the fleet (registered 2; remote: terminals 1, attached 1, started 0, last start none; local: terminals 1, attached 0, started 1, last start 4.2s)',
+    ]);
+  });
+});
+
+test('it settles without waiting for the last session to boot, and logs no report until it boots', async () => {
+  const ctx = await setupTest();
+
+  ctx.manager.log = ctx.log;
+
+  const runtimes = new Map<SessionID, SessionRuntime>([
+    [toSessionID('s-last'), createSessionRuntime()],
   ]);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s-last'), cwd: ctx.directory }),
+  ]);
+
+  const restored = await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: (id) => runtimes.get(id),
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+    clock: buildStubClock(Date.now()),
+  });
+
+  const outcome = await restored.settled;
+
+  expect(outcome).toBe('finished');
+  expect(ctx.logged).toStrictEqual([]);
 });
 
 test('it boots a local sub-session of a remote session after its parent, in the remote lane', async () => {

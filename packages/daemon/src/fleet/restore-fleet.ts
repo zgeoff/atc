@@ -419,9 +419,12 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     manager.sessions.includes(session) &&
     session.lastMsg === refusals.get(session);
 
+  // The session each lane started last, which the restore settles without
+  // waiting on, and whose boot the report still waits for.
+  const lastStarted: SessionID[] = [];
+
   // A lane retries its own refused sessions, so a refusal in one lane never
-  // delays the other, and ends once its last terminal boots, so the report
-  // holds that start.
+  // delays the other.
   const adoptLane = async (sessions: readonly Session[]): Promise<RestoreOutcome> => {
     let ended = await adoptEach(sessions, null, retryDelaysMs.length > 0, () => true);
 
@@ -444,10 +447,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     }
 
     if (ended.last !== null) {
-      await waitForBoot(ended.last.id);
+      lastStarted.push(ended.last.id);
     }
 
-    return isStopped() ? 'stopped' : 'finished';
+    return 'finished';
   };
 
   const adoptLaneLogged = async (sessions: readonly Session[]): Promise<RestoreOutcome> => {
@@ -487,10 +490,18 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     const outcome = pickRestoreOutcome(ends, failed);
 
     if (outcome !== 'stopped') {
-      manager.log(formatRestoreReport(registered.length, collectLaneReports()));
+      void writeReportOnceBooted();
     }
 
     return outcome;
+  };
+
+  const writeReportOnceBooted = async (): Promise<void> => {
+    await Promise.all(lastStarted.map((sessionID) => waitForBoot(sessionID)));
+
+    if (!isStopped()) {
+      manager.log(formatRestoreReport(registered.length, collectLaneReports()));
+    }
   };
 
   if (isStopped()) {
