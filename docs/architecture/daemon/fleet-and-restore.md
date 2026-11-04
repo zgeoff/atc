@@ -107,7 +107,12 @@ terminal beside the turn.
 4. **Resume each agent.** The adapter builds the resume command for the stored agent session id, and
    the session comes back under its stored atc session id, so a client that held the id before the
    restart reaches the same session after it. A terminal starts at a default size until the first
-   attach resizes it.
+   attach resizes it. A resumed agent starts no turn, so the session keeps the state of the last
+   turn event its agent reported before the restart, until the agent reports again:
+   - `done` after a finished turn;
+   - `needs_you` after a prompt for input, such as a permission prompt or an idle notice;
+   - `running` after a submitted prompt, or when the trail holds no turn event, since the agent may
+     still be inside that turn.
 
 A row whose agent id the config no longer registers keeps its place and refuses to revive, so a
 backend dropped from the config never comes back as plain Claude. A row whose target cannot run it
@@ -121,10 +126,10 @@ can lift by itself, such as an imp that cannot take a lease yet, the restore tri
 again after a delay, a few times, once the rest of the fleet is through.
 
 Between registering and getting its terminal, a session holds no pseudo-terminal: it lists as
-"waiting to restore", and its descriptor reads as a running headless session. Input sent to a Claude
-Code session in that window starts a headless turn rather than waiting for the terminal. The restore
-then starts no terminal for that session. It checks for such a turn before each try at the session,
-and again while the session's remote host wakes.
+"waiting to restore", and its descriptor reads as a live headless session, in the state that step 4
+gives it. Input sent to a Claude Code session in that window starts a headless turn rather than
+waiting for the terminal. The restore then starts no terminal for that session. It checks for such a
+turn before each try at the session, and again while the session's remote host wakes.
 
 ## What each failure costs
 

@@ -1,7 +1,8 @@
 import { LOCAL_TARGET } from '@atc/config';
-import type { FleetEntry } from '@atc/store';
+import type { AttentionKind, FleetEntry } from '@atc/store';
 import type { SessionID, SessionLifecycle } from '@atcx/contract';
 import type { ErrorCode } from '@atcx/contract/light';
+import { match } from 'ts-pattern';
 import { LOCAL_TARGET_IDENTITY } from '../sessions/create-session-registry';
 import type { SessionRegistry } from '../sessions/create-session-registry';
 import { resolveRepoRoot } from '../sessions/resolve-repo-root';
@@ -18,8 +19,9 @@ export interface SessionRestorer {
   readonly resolveRestoredEntry: (entry: FleetEntry) => Promise<FleetEntry>;
 
   // Registers a fleet entry without a terminal, so the fleet lists before
-  // adoption. Exited entries stay exited until revived by hand.
-  readonly restore: (entry: FleetEntry) => Session;
+  // adoption. Exited entries stay exited until revived by hand. Any other
+  // entry lists in the state the agent's last attention event gave it.
+  readonly restore: (entry: FleetEntry, attention: AttentionKind | null) => Session;
 
   // Whether a restore registered the session and neither a terminal nor a
   // headless turn has started for it since.
@@ -113,7 +115,7 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
         : { ...entry, targetIdentity };
     },
 
-    restore: (entry) => {
+    restore: (entry, attention) => {
       const target = entry.target ?? LOCAL_TARGET.id;
       const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
       const targetRefusal = findTargetRefusal(entry);
@@ -153,7 +155,7 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
         cwd: entry.cwd,
         kind: 'headless',
         pty: null,
-        state: exited ? 'exited' : 'running',
+        state: exited ? 'exited' : pickRestoredState(attention),
         unread: false,
         lastMsg,
         ...(entry.agentSessionID === undefined ? {} : { agentSessionID: entry.agentSessionID }),
@@ -257,4 +259,13 @@ function formatTargetRefusal(code: ErrorCode, target: string, isUnconfirmed: boo
   }
 
   return `target '${target}' cannot start a terminal`;
+}
+
+// A session with no attention event in the trail may be inside a turn, so it lists as running.
+function pickRestoredState(attention: AttentionKind | null): 'running' | 'needs_you' | 'done' {
+  return match(attention)
+    .with('turn-done', () => 'done' as const)
+    .with('needs-input', () => 'needs_you' as const)
+    .with('prompt-submitted', null, () => 'running' as const)
+    .exhaustive();
 }

@@ -1890,6 +1890,68 @@ test('it loads no last activity time for a session that never reported', async (
   expect(at).toBeNull();
 });
 
+test("it reads a session's latest attention event past the heartbeats and notes after it", async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'UserPromptSubmit', payload: { session_id: 'c1' } },
+    { kind: 'prompt-submitted' },
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'c1' } },
+    { kind: 'turn-done' },
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'PostToolUse', payload: { session_id: 'c1' } },
+    { kind: 'heartbeat' },
+  );
+
+  await ctx.store.recordTrailEntry({
+    kind: 'note',
+    at: Date.now(),
+    atcID: toSessionID('s1'),
+    agentSessionID: toAgentSessionID('c1'),
+    detail: 'tidied the docs',
+    label: 'progress',
+    text: 'tidied the docs',
+  });
+
+  const attention = await ctx.store.readLatestAttention(toSessionID('s1'), toAgentSessionID('c1'));
+
+  expect(attention).toBe('turn-done');
+});
+
+test("it reads a session's latest attention event by its agent session id", async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s-old'), event: 'Notification', payload: { session_id: 'c1' } },
+    { kind: 'needs-input' },
+  );
+
+  const attention = await ctx.store.readLatestAttention(
+    toSessionID('s-new'),
+    toAgentSessionID('c1'),
+  );
+
+  expect(attention).toBe('needs-input');
+});
+
+test('it reads no attention event for a session that never reported one', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: { session_id: 'c1' } },
+    { kind: 'started' },
+  );
+
+  const attention = await ctx.store.readLatestAttention(toSessionID('s1'), undefined);
+
+  expect(attention).toBeNull();
+});
+
 test('it updates one fleet row without touching its siblings', async () => {
   const ctx = await setupTest();
 

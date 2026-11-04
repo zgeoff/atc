@@ -127,6 +127,65 @@ test('it lists every restored session under the session id its row holds', async
   expect(ctx.manager.sessions.map((session) => session.id)).toStrictEqual([toSessionID('s-kept')]);
 });
 
+test.each([
+  { before: 'a finished turn', kinds: ['prompt-submitted', 'turn-done'], state: 'done' },
+  {
+    before: 'a heartbeat after a finished turn',
+    kinds: ['prompt-submitted', 'turn-done', 'heartbeat'],
+    state: 'done',
+  },
+  {
+    before: 'an idle notice',
+    kinds: ['prompt-submitted', 'turn-done', 'needs-input'],
+    state: 'needs_you',
+  },
+  {
+    before: 'a turn still under way',
+    kinds: ['prompt-submitted', 'turn-done', 'prompt-submitted'],
+    state: 'running',
+  },
+  { before: 'no turn', kinds: ['started'], state: 'running' },
+] as const)(
+  'it revives a session whose agent last reported $before in state $state',
+  async (row) => {
+    const ctx = await setupTest();
+
+    await ctx.store.writeFleet([
+      buildMockFleetEntry({
+        sessionID: toSessionID('s-quiet'),
+        cwd: ctx.directory,
+        agentSessionID: toAgentSessionID('c-quiet'),
+      }),
+    ]);
+
+    for (const [index, kind] of row.kinds.entries()) {
+      await ctx.store.recordEvent(
+        { atcId: toSessionID('s-quiet'), event: 'Hook', payload: { session_id: 'c-quiet' } },
+        { kind },
+        1_700_000_000_000 + index,
+      );
+    }
+
+    await restoreFleet({
+      manager: ctx.manager,
+      store: ctx.store,
+      findRuntime: ctx.findRuntime,
+      cols: 80,
+      rows: 24,
+      capMs: 0,
+    });
+
+    expect(
+      ctx.manager.sessions.map((session) => [
+        session.id,
+        session.kind,
+        session.state,
+        session.lastMsg,
+      ]),
+    ).toStrictEqual([['s-quiet', 'pty', row.state, 'revived']]);
+  },
+);
+
 test('it revives a listed dead session in place instead of listing its id twice', async () => {
   const ctx = await setupTest();
 
@@ -197,6 +256,7 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
       agentSessionID: toAgentSessionID('c-parent'),
       exited: true,
     }),
+    null,
   );
 
   const child = await ctx.manager.spawn({
@@ -270,6 +330,7 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
       agentSessionID: toAgentSessionID('c-parent'),
       exited: true,
     }),
+    null,
   );
 
   const child = await ctx.manager.spawn({
@@ -351,6 +412,7 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
       agentSessionID: toAgentSessionID('c-a'),
       exited: true,
     }),
+    null,
   );
 
   const second = ctx.manager.restore(
@@ -361,6 +423,7 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
       agentSessionID: toAgentSessionID('c-b'),
       exited: true,
     }),
+    null,
   );
 
   const resumedFirst = await ctx.manager.spawn({

@@ -22,6 +22,7 @@ import type { BridgeBinding } from '../auth/is-binding-current';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { createSessionRestorer } from '../fleet/create-session-restorer';
+import type { SessionRestorer } from '../fleet/create-session-restorer';
 import { collectSessionDescriptors } from './collect-session-descriptors';
 import { createHostDirClaims } from './create-host-dir-claims';
 import type { HostDirClaims } from './create-host-dir-claims';
@@ -143,7 +144,7 @@ export interface SessionManager {
   readonly countStates: () => ReturnType<SessionRegistry['countStates']>;
   readonly sortSessions: () => Session[];
   readonly resolveRestoredEntry: (entry: FleetEntry) => Promise<FleetEntry>;
-  readonly restore: (entry: FleetEntry) => Session;
+  readonly restore: SessionRestorer['restore'];
   readonly isUnrestored: (id: SessionID) => boolean;
   readonly removeUnrestoredMark: (id: SessionID) => void;
   readonly updateRestoreRefusal: (session: Session, reason: string, code: string | null) => void;
@@ -454,7 +455,7 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
 
     resolveRestoredEntry: (entry) => restorer.resolveRestoredEntry(entry),
 
-    restore: (entry) => restorer.restore(entry),
+    restore: (entry, attention) => restorer.restore(entry, attention),
 
     isUnrestored: (id) => restorer.isUnrestored(id),
 
