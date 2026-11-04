@@ -19,8 +19,7 @@ export interface SessionRestorer {
   readonly resolveRestoredEntry: (entry: FleetEntry) => Promise<FleetEntry>;
 
   // Registers a fleet entry without a terminal, so the fleet lists before
-  // adoption. Exited entries stay exited until revived by hand. Any other
-  // entry lists in the state the agent's last attention event gave it.
+  // adoption. Exited entries stay exited until revived by hand.
   readonly restore: (entry: FleetEntry, attention: AttentionKind | null) => Session;
 
   // Whether a restore registered the session and neither a terminal nor a
