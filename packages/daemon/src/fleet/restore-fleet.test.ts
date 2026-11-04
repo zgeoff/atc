@@ -2932,14 +2932,13 @@ test("it logs each lane's terminals, attaches, and starts, with the time from th
   });
 });
 
-test('it settles without waiting for the last session to boot, and logs no report until it boots', async () => {
+test('it settles without waiting for the last session to boot, and logs the report once it boots', async () => {
   const ctx = await setupTest();
 
   ctx.manager.log = ctx.log;
 
-  const runtimes = new Map<SessionID, SessionRuntime>([
-    [toSessionID('s-last'), createSessionRuntime()],
-  ]);
+  const clock = buildStubClock(0);
+  const runtime = createSessionRuntime();
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('s-last'), cwd: ctx.directory }),
@@ -2948,18 +2947,30 @@ test('it settles without waiting for the last session to boot, and logs no repor
   const restored = await restoreFleet({
     manager: ctx.manager,
     store: ctx.store,
-    findRuntime: (id) => runtimes.get(id),
+    findRuntime: (id) => (id === toSessionID('s-last') ? runtime : undefined),
     cols: 80,
     rows: 24,
     capMs: 15_000,
     retryDelaysMs: [],
-    clock: buildStubClock(Date.now()),
+    clock,
   });
 
   const outcome = await restored.settled;
 
+  const loggedAtSettle = [...ctx.logged];
+
+  clock.advance(3000);
+
+  runtime.startedAt = clock.now();
+  runtime.bootWaiter?.();
   expect(outcome).toBe('finished');
-  expect(ctx.logged).toStrictEqual([]);
+  expect(loggedAtSettle).toStrictEqual([]);
+
+  await waitFor(() => {
+    expect(ctx.logged).toStrictEqual([
+      'atc restored the fleet (registered 1; local: terminals 1, attached 0, started 1, last start 3.0s)',
+    ]);
+  });
 });
 
 test('it boots a local sub-session of a remote session after its parent, in the remote lane', async () => {
