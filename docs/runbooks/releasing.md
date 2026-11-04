@@ -1,14 +1,22 @@
 # Releasing
 
 A release happens when someone merges the release PR by hand. release-please keeps one release PR
-open on `main`, and each releasable commit that lands updates its version bump and changelog. The
-`release` job in `main.yml` calls the shared release-please workflow of `zgeoff/tools` at the repo's
-sync tag, with its merge input off, so no workflow merges that PR. The run of the merge tags the
-release at once, and once its checks pass, its `ship-release` job attaches the compiled binaries,
-pushes the Homebrew formula and publishes `@atcx/contract` to npm. A run that cannot ship the tag it
-made dispatches `main.yml` at the tag, and that run ships it. This runbook covers what the
-automation does not: its one-time setup, cutting a release, and the recoveries a failed release
-needs.
+open on `main`, and each releasable commit that lands updates its version bump and changelog. The PR
+releases two packages, each with its own version, changelog and tag:
+
+| Package                | Tag                      | Changelog                       | Commits it counts                  |
+| ---------------------- | ------------------------ | ------------------------------- | ---------------------------------- |
+| atc, the root package  | `@zgeoff/atc@<version>`  | `CHANGELOG.md`                  | every commit                       |
+| the gateway federation | `@atc/gateway@<version>` | `packages/gateway/CHANGELOG.md` | each commit to `packages/gateway/` |
+
+Only the atc release ships files. The gateway binary ships with it, since it builds from the same
+commit. The `release` job in `main.yml` calls the shared release-please workflow of `zgeoff/tools`
+at the repo's sync tag, with its merge input off, so no workflow merges that PR. The run of the
+merge tags the release at once, and once its checks pass, its `ship-release` job attaches the
+compiled binaries, pushes the Homebrew formula and publishes `@atcx/contract` to npm. A run that
+cannot ship the tag it made dispatches `main.yml` at the tag, and that run ships it. This runbook
+covers what the automation does not: its one-time setup, cutting a release, and the recoveries a
+failed release needs.
 
 ## One-time setup
 
@@ -52,9 +60,8 @@ hand before step 1.
 
 ## Cutting a release
 
-1. Open the release PR, the one release-please opened from the
-   `release-please--branches--main--components--@zgeoff/atc` branch, and wait for its checks to
-   pass.
+1. Open the release PR, the one release-please opened from the `release-please--branches--main`
+   branch, and wait for its checks to pass.
 2. Squash-merge it. The merge starts the release run on `main`.
 
 ## Recovering a release

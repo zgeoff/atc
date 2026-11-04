@@ -1,4 +1,5 @@
 import { appendFile } from 'node:fs/promises';
+import { z } from 'zod';
 
 type ReleaseShip = 'here' | 'dispatch' | 'none';
 
@@ -28,19 +29,38 @@ export function pickReleaseShip(run: Readonly<ReleaseRun>): ReleaseShip {
     return 'none';
   }
 
-  return checked && parseReleaseSHA(run.releaseOutputs) === run.sha ? 'here' : 'dispatch';
+  const rootSHA = parseRootReleaseSHA(run.releaseOutputs);
+
+  // The binaries, the formula and the npm package ship with the root package's release alone.
+  if (rootSHA === null) {
+    return 'none';
+  }
+
+  return checked && rootSHA === run.sha ? 'here' : 'dispatch';
 }
 
-// A root package's release outputs hold its tagged commit under `sha`.
-function parseReleaseSHA(releaseOutputs: string): string {
-  const outputs: unknown = JSON.parse(releaseOutputs);
+// release-please lists each released package's path in `paths_released`, and sets the root
+// package's outputs, such as its tagged commit under `sha`, with no path prefix.
+const RELEASE_OUTPUTS_SCHEMA = z.looseObject({
+  sha: z.string().optional(),
+  paths_released: z.string().optional(),
+});
 
-  if (
-    typeof outputs !== 'object' ||
-    outputs === null ||
-    !('sha' in outputs) ||
-    typeof outputs.sha !== 'string'
-  ) {
+const RELEASED_PATHS_SCHEMA = z.array(z.string());
+
+function parseRootReleaseSHA(releaseOutputs: string): string | null {
+  const outputs = RELEASE_OUTPUTS_SCHEMA.parse(JSON.parse(releaseOutputs));
+
+  const paths =
+    outputs.paths_released === undefined
+      ? ['.']
+      : RELEASED_PATHS_SCHEMA.parse(JSON.parse(outputs.paths_released));
+
+  if (!paths.includes('.')) {
+    return null;
+  }
+
+  if (outputs.sha === undefined) {
     throw new Error(`the release outputs hold no tagged commit: ${releaseOutputs}`);
   }
 

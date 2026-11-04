@@ -82,11 +82,11 @@ jobs:
       contents: write
       pull-requests: write
     uses: zgeoff/tools/.github/workflows/release-please.yml@81ddce053c3723b97b6846e61c7dc6c4c8bcd9a3 # main
+    # atc and the gateway release from one release PR, whose branch is the
+    # workflow's default, release-please--branches--main
     with:
       app-id: ${{ vars.RELEASE_APP_ID }}
       merge: false
-      # release-please names the branch for the root package's component
-      release-branch: release-please--branches--main--components--@zgeoff/atc
     secrets:
       app-private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
@@ -209,9 +209,13 @@ jobs:
   # workflow runs this job in the same group, so the last run reads the final
   # state. GitHub keeps one pending run per group, and a run that replaces a
   # pending one reads the same state later, so one group serves every branch.
+  # A gateway release takes the mark as well and ships nothing, so a run that
+  # tagged any release runs this job.
   latest-release:
-    needs: [ship-release]
-    if: ${{ !cancelled() && needs.ship-release.result != 'skipped' }}
+    needs: [release, ship-release]
+    if: >-
+      ${{ !cancelled() && (needs.ship-release.result != 'skipped' ||
+      needs.release.outputs.releases_created == 'true') }}
     concurrency:
       group: atc-latest-release
       cancel-in-progress: false

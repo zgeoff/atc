@@ -61,6 +61,35 @@ test.each([
     expected: 'dispatch',
   },
   {
+    label: 'a tag of the root package and the gateway on this commit whose checks passed',
+    run: {
+      event: 'push',
+      releasesCreated: 'true',
+      releaseOutputs: JSON.stringify({
+        sha: '4e1c2a9',
+        'packages/gateway--sha': '4e1c2a9',
+        paths_released: '[".","packages/gateway"]',
+      }),
+      checksResult: 'success',
+      binariesResult: 'success',
+    },
+    expected: 'here',
+  },
+  {
+    label: 'a tag of the gateway alone',
+    run: {
+      event: 'push',
+      releasesCreated: 'true',
+      releaseOutputs: JSON.stringify({
+        'packages/gateway--sha': '4e1c2a9',
+        paths_released: '["packages/gateway"]',
+      }),
+      checksResult: 'success',
+      binariesResult: 'success',
+    },
+    expected: 'none',
+  },
+  {
     label: 'a push that tagged nothing',
     run: {
       event: 'push',
