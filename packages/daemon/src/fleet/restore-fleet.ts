@@ -40,6 +40,7 @@ interface RestoreFleetParams {
 }
 
 const RESTORE_RETRY_DELAYS_MS: readonly number[] = [5000, 15_000, 45_000];
+const RESTORE_LANES: readonly RestoreLane[] = ['local', 'remote'];
 
 // The longest single timer a retry delay waits on, so a stop ends the wait
 // soon after.
@@ -202,6 +203,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
 
   const attached = new Set<SessionID>();
 
+  // Each start the restore saw, read when its boot wait ended, so a later
+  // restart of the session never moves the report.
+  const startTimes = new Map<SessionID, number>();
+
   const watchHarnessStart = async (
     sessionID: SessionID,
     harness: HarnessHandle,
@@ -227,6 +232,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     const runtime = findRuntime(sessionID);
     const session = manager.sessions.find((candidate) => candidate.id === sessionID);
 
+    if (runtime !== undefined && runtime.startedAt !== null) {
+      startTimes.set(sessionID, runtime.startedAt);
+    }
+
     if (
       runtime === undefined ||
       runtime.startedAt !== null ||
@@ -248,6 +257,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
 
       runtime.bootWaiter = null;
       cancelCap?.();
+
+      if (runtime.startedAt !== null) {
+        startTimes.set(sessionID, runtime.startedAt);
+      }
     })();
   };
 
@@ -421,10 +434,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     manager.sessions.includes(session) &&
     session.lastMsg === refusals.get(session);
 
-  // The session each lane started last, which the restore settles without
-  // waiting on, and whose boot the report still waits for.
-  const lastStarted: SessionID[] = [];
-
   // A lane retries its own refused sessions, so a refusal in one lane never
   // delays the other.
   const adoptLane = async (sessions: readonly Session[]): Promise<RestoreOutcome> => {
@@ -444,15 +453,7 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
       ended = await adoptEach(ended.retrying, ended.last, canRetry, isStillRefused);
     }
 
-    if (ended.stopped) {
-      return 'stopped';
-    }
-
-    if (ended.last !== null) {
-      lastStarted.push(ended.last.id);
-    }
-
-    return 'finished';
+    return ended.stopped ? 'stopped' : 'finished';
   };
 
   const adoptLaneLogged = async (sessions: readonly Session[]): Promise<RestoreOutcome> => {
@@ -468,19 +469,19 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   };
 
   const collectLaneReports = (): RestoreLaneReport[] =>
-    [...lanes].map(([lane, sessions]) => {
-      const terminals = sessions.filter((session) => started.has(session));
+    RESTORE_LANES.filter((lane) => lanes.has(lane)).map((lane) => {
+      const terminals = (lanes.get(lane) ?? []).filter((session) => started.has(session));
 
-      const startTimes = terminals
-        .map((session) => findRuntime(session.id)?.startedAt ?? null)
-        .filter((startedAt) => startedAt !== null);
+      const laneStarts = terminals
+        .map((session) => startTimes.get(session.id))
+        .filter((startedAt) => startedAt !== undefined);
 
       return {
         lane,
         terminals: terminals.length,
         attached: terminals.filter((session) => attached.has(session.id)).length,
-        started: startTimes.length,
-        lastStartMs: startTimes.length === 0 ? null : Math.max(...startTimes) - beganAtMs,
+        started: laneStarts.length,
+        lastStartMs: laneStarts.length === 0 ? null : Math.max(...laneStarts) - beganAtMs,
       };
     });
 
@@ -498,8 +499,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return outcome;
   };
 
+  // Every terminal still to report gets one more capped wait, side by side,
+  // so a start or an attach that came after its lane moved on still counts.
   const writeReportOnceBooted = async (): Promise<void> => {
-    await Promise.all(lastStarted.map((sessionID) => waitForBoot(sessionID)));
+    await Promise.all([...started].map((session) => waitForBoot(session.id)));
 
     if (!isStopped()) {
       manager.log(formatRestoreReport(registered.length, collectLaneReports()));

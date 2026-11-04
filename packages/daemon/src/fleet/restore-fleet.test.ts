@@ -1131,7 +1131,7 @@ test("it lists the plugin refusal of a session on a remote target once its agent
   await waitFor(() => {
     expect<readonly unknown[]>(ctx.logged).toStrictEqual([
       `atc could not revive session s-remote (${refusal})`,
-      'atc restored the fleet (registered 2; remote: terminals 0, attached 0, started 0, last start none; local: terminals 1, attached 0, started 0, last start none)',
+      'atc restored the fleet (registered 2; local: terminals 1, attached 0, started 0, last start none; remote: terminals 0, attached 0, started 0, last start none)',
     ]);
   });
 
@@ -2564,6 +2564,123 @@ test('it starts the next remote session once the harness start of the one before
   ]);
 });
 
+test('it counts in the report a start that arrives after its boot cap passed', async () => {
+  const ctx = await setupTest();
+
+  ctx.manager.log = ctx.log;
+
+  const clock = buildStubClock(Date.now());
+  const first = createSessionRuntime();
+  const second = createSessionRuntime();
+
+  const runtimes = new Map<SessionID, SessionRuntime>([
+    [toSessionID('s-slow'), first],
+    [toSessionID('s-next'), second],
+  ]);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s-slow'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-next'), cwd: ctx.directory }),
+  ]);
+
+  const restored = await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: (id) => runtimes.get(id),
+    cols: 80,
+    rows: 24,
+    capMs: 1000,
+    retryDelaysMs: [],
+    clock,
+  });
+
+  await waitFor(() => {
+    expect(first.bootWaiter).toBeFunction();
+  });
+
+  clock.advance(1000);
+
+  await restored.settled;
+
+  await waitFor(() => {
+    expect(second.bootWaiter).toBeFunction();
+  });
+
+  clock.advance(500);
+
+  first.startedAt = clock.now();
+  first.bootWaiter?.();
+  second.startedAt = clock.now();
+  second.bootWaiter?.();
+
+  await waitFor(() => {
+    expect(ctx.logged).toStrictEqual([
+      'atc restored the fleet (registered 2; local: terminals 2, attached 0, started 2, last start 1.5s)',
+    ]);
+  });
+});
+
+test('it reports the start a session had when its boot wait ended, not one from a later restart', async () => {
+  const ctx = await setupTest();
+
+  ctx.manager.log = ctx.log;
+
+  const clock = buildStubClock(Date.now());
+  const first = createSessionRuntime();
+  const second = createSessionRuntime();
+
+  const runtimes = new Map<SessionID, SessionRuntime>([
+    [toSessionID('s-first'), first],
+    [toSessionID('s-second'), second],
+  ]);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s-first'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-second'), cwd: ctx.directory }),
+  ]);
+
+  const restored = await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: (id) => runtimes.get(id),
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+    clock,
+  });
+
+  await waitFor(() => {
+    expect(first.bootWaiter).toBeFunction();
+  });
+
+  clock.advance(1000);
+
+  first.startedAt = clock.now();
+  first.bootWaiter?.();
+
+  await restored.settled;
+
+  await waitFor(() => {
+    expect(second.bootWaiter).toBeFunction();
+  });
+
+  clock.advance(1000);
+
+  second.startedAt = clock.now();
+
+  clock.advance(5000);
+
+  first.startedAt = clock.now();
+  second.bootWaiter?.();
+
+  await waitFor(() => {
+    expect(ctx.logged).toStrictEqual([
+      'atc restored the fleet (registered 2; local: terminals 2, attached 0, started 2, last start 2.0s)',
+    ]);
+  });
+});
+
 test('it logs the report for a restore that starts no terminal', async () => {
   const ctx = await setupTest();
 
@@ -2656,7 +2773,7 @@ test("it logs each lane's terminals, attaches, and starts, with the time from th
   await waitFor(() => {
     expect<readonly unknown[]>(ctx.logged).toStrictEqual([
       expect.stringMatching(/^atc: wake of session s-remote on target 'box' took /u),
-      'atc restored the fleet (registered 2; remote: terminals 1, attached 1, started 0, last start none; local: terminals 1, attached 0, started 1, last start 4.2s)',
+      'atc restored the fleet (registered 2; local: terminals 1, attached 0, started 1, last start 4.2s; remote: terminals 1, attached 1, started 0, last start none)',
     ]);
   });
 });

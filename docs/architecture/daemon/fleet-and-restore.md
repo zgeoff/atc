@@ -73,13 +73,15 @@ terminal beside the turn.
    come back before long-idle ones.
 3. **Stagger the terminals.** The restore starts terminals in two lanes at the same time, in the
    boot order within each lane. A remote host can take longer to wake from sleep than a local agent
-   takes to start, and with two lanes no session on the daemon's own machine waits for that wake.
-   - The local lane holds the sessions whose agent runs on the daemon's machine. The remote lane
-     holds the sessions on remote hosts. A sub-session goes in the lane of its top-level session, so
-     it still starts after that session.
+   takes to start, and with two lanes a top-level session on the daemon's own machine never waits
+   for that wake.
+   - The local lane holds the top-level sessions whose agent runs on the daemon's machine. The
+     remote lane holds those on remote hosts. A sub-session goes in the lane of its top-level
+     session, so it still starts after that session. A local sub-session of a remote session can
+     thus wait for a remote wake, and it can start beside an agent the local lane starts.
    - Each lane starts its first session at once. Each later session waits until the session before
      it in the lane reports that its agent started, or until a per-session cap passes. A restore
-     after an upgrade thus never starts every agent at the same instant, and a session that never
+     after an upgrade thus starts at most one agent at a time in each lane, and a session that never
      reports cannot hold up the rest.
    - A remote session whose host still runs its agent attaches to that agent. An agent that keeps
      running reports no start, so the next session in the lane starts at once.
@@ -89,11 +91,12 @@ terminal beside the turn.
    - `ATC_RESTORE_BOOT_TIMEOUT_MS` sets the cap for every restore, the automatic one included, and
      `atc daemon restart` reads the same variable for its wait on the restored fleet. The cap never
      turns off: a value of 0, or one that is not a positive number, leaves the default in place.
-   - The restore settles once both lanes have tried every session. The last session each lane
-     started still gets its boot wait, and after that wait the daemon logs one line. The line gives
-     the rows the restore registered. For each lane, it gives the terminals the lane started, those
-     that attached, those whose agent reported a start, and the time from the restore's start to the
-     lane's last start:
+   - The restore settles once both lanes have tried every session. Each terminal the restore started
+     then gets one more capped wait for its start, all side by side, and after those waits the
+     daemon logs one line. The line gives the rows the restore registered. For each lane, local
+     first, it gives the terminals the lane started, those that attached, those whose agent reported
+     a start, and the time from the restore's start to the lane's last start. Each start time is the
+     one the agent reported when its wait ended, so a later restart never changes the line:
 
      ```text
      atc restored the fleet (registered 3; local: terminals 2, attached 0, started 2, last start 4.2s; remote: terminals 1, attached 1, started 0, last start none)
