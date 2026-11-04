@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GATEWAY_VERSION } from '@atc/gateway/version';
 import { runCommand, setupTempDir } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import pkg from '../package.json';
 import { runGatewayCLI } from './run-gateway-cli';
 
@@ -578,12 +579,13 @@ test('it reports the gateway manifest version, not the app manifest version, in 
     ].join('\n'),
   );
 
+  invariant(pkg.version !== '9.1.0', 'the app manifest must hold another version than 9.1.0');
+
   const ran = await runCommand(['bun', '--preload', preload, script], { cwd: directory.path });
 
-  expect({ exitCode: ran.exitCode, stdout: ran.stdout, appVersion: pkg.version }).toStrictEqual({
+  expect({ exitCode: ran.exitCode, stdout: ran.stdout }).toStrictEqual({
     exitCode: 0,
     stdout: '["9.1.0","atc-gateway/9.1.0"]\n',
-    appVersion: expect.not.stringMatching(/^9\.1\.0$/u),
   });
 });
 
