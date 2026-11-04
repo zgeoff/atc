@@ -950,6 +950,7 @@ test('it logs a later session whose revive fails and leaves it without a termina
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     expect.stringMatching(/^atc: wake of session s-first on target 'box' took /u),
     'atc could not revive session s-second (no plan for s-second)',
+    'atc restored the fleet (registered 2; remote: terminals 1, attached 0, started 0, last start none)',
   ]);
 
   expect<readonly unknown[]>(
@@ -1027,6 +1028,7 @@ test('it logs a first session whose revive fails with a plain error and still re
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     'atc could not revive session s-first (no plan for s-first)',
     expect.stringMatching(/^atc: wake of session s-second on target 'box' took /u),
+    'atc restored the fleet (registered 2; remote: terminals 1, attached 0, started 0, last start none)',
   ]);
 });
 
@@ -1123,6 +1125,7 @@ test("it lists the plugin refusal of a session on a remote target once its agent
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     `atc could not revive session s-remote (${refusal})`,
+    'atc restored the fleet (registered 2; remote: terminals 0, attached 0, started 0, last start none; local: terminals 1, attached 0, started 0, last start none)',
   ]);
 
   expect(manager.sessions.find((session) => session.id === toSessionID('s-local'))).toMatchObject({
@@ -1270,6 +1273,7 @@ test('it lists and logs the refusal of a session whose imp refuses it with no re
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     `atc could not revive session s-busy (${refusal})`,
+    'atc restored the fleet (registered 1; remote: terminals 0, attached 0, started 0, last start none)',
   ]);
 });
 
@@ -1320,6 +1324,7 @@ test('it revives a session on a later try once its imp stops refusing it', async
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     `atc could not revive session s-busy (imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)); trying again`,
     expect.stringMatching(/^atc: wake of session s-busy on target 'box' took /u),
+    'atc restored the fleet (registered 1; remote: terminals 1, attached 0, started 0, last start none)',
   ]);
 });
 
@@ -1524,6 +1529,7 @@ test('it leaves stopped a session a caller stops while a try its imp then refuse
 
   expect<readonly unknown[]>(ctx.logged).toStrictEqual([
     `atc could not revive session s-busy (imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE))`,
+    'atc restored the fleet (registered 1; remote: terminals 0, attached 0, started 0, last start none)',
   ]);
 });
 
@@ -2149,4 +2155,330 @@ test('it starts no harness for a queued session once the daemon stops during its
 
   expect(outcome).toBe('stopped');
   expect(ctx.held.harnesses.map((harness) => harness.spec.session)).toStrictEqual(['s-a', 's-b']);
+});
+
+test('it starts every local session while a remote session queued before them waits out its boot cap', async () => {
+  const local = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  const runtimes = new Map<SessionID, SessionRuntime>([
+    [toSessionID('s-remote-1'), createSessionRuntime()],
+    [toSessionID('s-remote-2'), createSessionRuntime()],
+    [toSessionID('s-local-1'), createSessionRuntime()],
+    [toSessionID('s-local-2'), createSessionRuntime()],
+  ]);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote-1'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote-2'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-local-1'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-local-2'), cwd: ctx.directory }),
+  ]);
+
+  await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: (id) => runtimes.get(id),
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+    clock: buildStubClock(Date.now()),
+  });
+
+  await waitFor(() => {
+    expect(runtimes.get(toSessionID('s-local-1'))?.bootWaiter).toBeFunction();
+  });
+
+  runtimes.get(toSessionID('s-local-1'))?.bootWaiter?.();
+
+  await waitFor(() => {
+    expect(local.harnesses.map((harness) => harness.spec.session)).toStrictEqual([
+      's-local-1',
+      's-local-2',
+    ]);
+  });
+
+  expect(remote.harnesses.map((harness) => harness.spec.session)).toStrictEqual(['s-remote-1']);
+});
+
+test('it starts every local session while the remote host of a session queued before them still wakes', async () => {
+  const local = buildStubMemoryProvider({ kind: 'local-pty' });
+  const wake = Promise.withResolvers<void>();
+
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+    prepareHost: () => wake.promise,
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-local-1'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-local-2'), cwd: ctx.directory }),
+  ]);
+
+  void restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+  });
+
+  await waitFor(() => {
+    expect(local.harnesses.map((harness) => harness.spec.session)).toStrictEqual([
+      's-local-1',
+      's-local-2',
+    ]);
+  });
+
+  expect(remote.harnesses).toStrictEqual([]);
+});
+
+test('it starts the next remote session once the one before it attaches to an agent its host still runs', async () => {
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+    harnessStart: { created: false },
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  const runtimes = new Map<SessionID, SessionRuntime>([
+    [toSessionID('s-remote-1'), createSessionRuntime()],
+    [toSessionID('s-remote-2'), createSessionRuntime()],
+  ]);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote-1'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote-2'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  ]);
+
+  const restored = await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: (id) => runtimes.get(id),
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+    clock: buildStubClock(Date.now()),
+  });
+
+  const outcome = await restored.settled;
+
+  expect(outcome).toBe('finished');
+
+  expect(remote.harnesses.map((harness) => harness.spec.session)).toStrictEqual([
+    's-remote-1',
+    's-remote-2',
+  ]);
+});
+
+test("it logs each lane's terminals, attaches, and starts, with the time from the restore's start to the lane's last start", async () => {
+  const local = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+    harnessStart: { created: false },
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  ctx.manager.log = ctx.log;
+
+  const clock = buildStubClock(Date.now());
+  const localRuntime = createSessionRuntime();
+
+  const runtimes = new Map<SessionID, SessionRuntime>([
+    [toSessionID('s-remote'), createSessionRuntime()],
+    [toSessionID('s-local'), localRuntime],
+  ]);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-local'), cwd: ctx.directory }),
+  ]);
+
+  const restored = await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: (id) => runtimes.get(id),
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+    clock,
+  });
+
+  await waitFor(() => {
+    expect(localRuntime.bootWaiter).toBeFunction();
+  });
+
+  clock.advance(4200);
+
+  localRuntime.startedAt = clock.now();
+  localRuntime.bootWaiter?.();
+
+  await restored.settled;
+
+  expect<readonly unknown[]>(ctx.logged).toStrictEqual([
+    expect.stringMatching(/^atc: wake of session s-remote on target 'box' took /u),
+    'atc restored the fleet (registered 2; remote: terminals 1, attached 1, started 0, last start none; local: terminals 1, attached 0, started 1, last start 4.2s)',
+  ]);
+});
+
+test('it boots a local sub-session of a remote session after its parent, in the remote lane', async () => {
+  const spawned: string[] = [];
+  const wake = Promise.withResolvers<void>();
+
+  const local = buildStubMemoryProvider({
+    kind: 'local-pty',
+    onSpawn: (spec) => {
+      spawned.push(spec.session);
+    },
+  });
+
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+    prepareHost: () => wake.promise,
+    onSpawn: (spec) => {
+      spawned.push(spec.session);
+    },
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-child'),
+      cwd: ctx.directory,
+      parent: toSessionID('s-remote'),
+    }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-local'), cwd: ctx.directory }),
+  ]);
+
+  const restoring = restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+  });
+
+  await waitFor(() => {
+    expect(spawned).toStrictEqual(['s-local']);
+  });
+
+  wake.resolve();
+
+  const restored = await restoring;
+
+  await restored.settled;
+
+  expect(spawned).toStrictEqual(['s-local', 's-remote', 's-child']);
 });
