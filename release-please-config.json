@@ -6,7 +6,7 @@
   "tag-separator": "@",
   "separate-pull-requests": false,
   "group-pull-request-title-pattern": "chore${scope}: release${component} ${version}",
-  "bootstrap-sha": "d098cb2fb3d9c645f726d85d7cfb9115ec48616c",
+  "bootstrap-sha": "a5de83de6f7db3bab947de16e8f8ab1d6ee5e51e",
   "packages": {
     ".": {
       "component": "@zgeoff/atc",
