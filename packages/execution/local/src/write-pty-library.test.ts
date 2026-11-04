@@ -23,7 +23,7 @@ test('it points BUN_PTY_LIB at a whole copy of the library in the folder', () =>
 
   const path = env['BUN_PTY_LIB'];
 
-  invariant(path);
+  invariant(path !== undefined, 'expected a copy of the library');
 
   expect({ directory: dirname(path), bytes: readFileSync(path, 'utf8') }).toStrictEqual({
     directory: ctx.directory,
@@ -43,7 +43,7 @@ test('it leaves only the copy in the folder', () => {
 
   const path = env['BUN_PTY_LIB'];
 
-  invariant(path);
+  invariant(path !== undefined, 'expected a copy of the library');
 
   expect(readdirSync(ctx.directory)).toStrictEqual([basename(path)]);
 });
@@ -57,7 +57,7 @@ test('it replaces a copy another process left in the folder', () => {
 
   const path = env['BUN_PTY_LIB'];
 
-  invariant(path);
+  invariant(path !== undefined, 'expected a copy of the library');
   writeFileSync(path, 'library');
   writePTYLibrary(env, library, ctx.directory);
 
@@ -73,7 +73,7 @@ test('it leaves BUN_PTY_LIB unset and no scratch file when the rename into place
 
   const target = env['BUN_PTY_LIB'];
 
-  invariant(target);
+  invariant(target !== undefined, 'expected a copy of the library');
   rmSync(target);
   mkdirSync(target);
   writeFileSync(join(target, 'occupied'), '');
