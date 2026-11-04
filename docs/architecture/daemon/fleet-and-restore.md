@@ -98,6 +98,9 @@ terminal beside the turn.
      ```text
      atc restored the fleet (registered 3; local: terminals 2, attached 0, started 2, last start 4.2s; remote: terminals 1, attached 1, started 0, last start none)
      ```
+
+     A restore that queues no terminal, such as one with only exited rows, logs the line at once,
+     with the registered count alone.
 4. **Resume each agent.** The adapter builds the resume command for the stored agent session id, and
    the session comes back under its stored atc session id, so a client that held the id before the
    restart reaches the same session after it. A terminal starts at a default size until the first

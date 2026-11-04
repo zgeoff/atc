@@ -2407,6 +2407,30 @@ test('it starts the next remote session once the harness start of the one before
   ]);
 });
 
+test('it logs the report for a restore that starts no terminal', async () => {
+  const ctx = await setupTest();
+
+  ctx.manager.log = ctx.log;
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s-gone'), cwd: ctx.directory, exited: true }),
+  ]);
+
+  const restored = await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+  });
+
+  await restored.settled;
+
+  expect(ctx.logged).toStrictEqual(['atc restored the fleet (registered 1)']);
+});
+
 test("it logs each lane's terminals, attaches, and starts, with the time from the restore's start to the lane's last start", async () => {
   const local = buildStubMemoryProvider({ kind: 'local-pty' });
 

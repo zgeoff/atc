@@ -254,6 +254,8 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const [first] = queued;
 
   if (first === undefined) {
+    manager.log(formatRestoreReport(registered.length, []));
+
     return { restored: registered.length, settled: Promise.resolve('finished') };
   }
 
