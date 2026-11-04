@@ -21,6 +21,7 @@ export function createStubClaude(directory: string, config: StubClaudeConfig): s
 echo "FAKE_CLAUDE_UP args: $@"
 echo "FAKE_CLAUDE_TERM:[\${TERM-unset}]"
 echo "FAKE_CLAUDE_PARENT:[\${CLAUDE_CODE_ATC_TEST-unset}]"
+echo "FAKE_CLAUDE_PTY_LIB:[\${BUN_PTY_LIB-unset}]"
 echo "$ATC_SESSION_ID" >> "$HOME/fake-claude-starts.log"
 settings=""
 resume=""

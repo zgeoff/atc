@@ -102,15 +102,6 @@ jobs:
           ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
         run: '"$ATC_BIN" --version'
 
-      # A compiled binary copies its embedded librust_pty into TMPDIR on its
-      # first load, and on macOS one of several daemons that make that first
-      # copy at once can fail to load it. One daemon boot alone leaves the copy
-      # for the parallel suite to reuse.
-      - name: Warm the embedded PTY library
-        env:
-          ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
-        run: bun run test:e2e e2e/daemon-quit.test.ts
-
       - name: Smoke test the compiled binary
         env:
           ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}

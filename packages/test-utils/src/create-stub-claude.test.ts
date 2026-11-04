@@ -55,7 +55,7 @@ test('it reports a start and a permission prompt through the settings hook comma
   ]);
 });
 
-test('it prints its arguments, its TERM, and the parent-session variable it inherited', async () => {
+test('it prints its arguments, its TERM, the parent-session variable, and the PTY library variable it inherited', async () => {
   const ctx = setupTest();
 
   const stub = createStubClaude(ctx.directory, {
@@ -64,11 +64,17 @@ test('it prints its arguments, its TERM, and the parent-session variable it inhe
   });
 
   const run = await runCommand([stub, '--settings', ctx.settings], {
-    env: { ...process.env, HOME: ctx.directory, TERM: 'dumb', CLAUDE_CODE_ATC_TEST: 'parent' },
+    env: {
+      ...process.env,
+      HOME: ctx.directory,
+      TERM: 'dumb',
+      CLAUDE_CODE_ATC_TEST: 'parent',
+      BUN_PTY_LIB: '/opt/pty/librust_pty.so',
+    },
   });
 
   expect(run.stdout).toBe(
-    `FAKE_CLAUDE_UP args: --settings ${ctx.settings}\nFAKE_CLAUDE_TERM:[dumb]\nFAKE_CLAUDE_PARENT:[parent]\n`,
+    `FAKE_CLAUDE_UP args: --settings ${ctx.settings}\nFAKE_CLAUDE_TERM:[dumb]\nFAKE_CLAUDE_PARENT:[parent]\nFAKE_CLAUDE_PTY_LIB:[/opt/pty/librust_pty.so]\n`,
   );
 });
 
