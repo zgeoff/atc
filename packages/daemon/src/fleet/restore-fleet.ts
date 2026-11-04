@@ -534,8 +534,6 @@ function isOnEntryTarget(session: Session, entry: FleetEntry): boolean {
   );
 }
 
-// The top-level session above a sub-session, or the session itself when it
-// has no listed parent.
 function getTopLevelSession(session: Session, sessions: readonly Session[]): Session {
   const seen = new Set<Session>([session]);
 
@@ -615,8 +613,6 @@ async function tryAdoptTerminal(
   }
 }
 
-// A restore stopped when any lane stopped, and failed when any lane or
-// revive failed.
 function pickRestoreOutcome(ends: readonly RestoreOutcome[], failed: boolean): RestoreOutcome {
   if (ends.includes('stopped')) {
     return 'stopped';
