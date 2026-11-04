@@ -26,6 +26,7 @@ import { startHeadlessTurn } from '../sessions/start-headless-turn';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { buildStubRestoreImpProvider } from '../testing/build-stub-restore-imp-provider';
+import { makeQueuedAnswers } from '../testing/make-queued-answers';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildExecutionTargets } from './build-execution-targets';
 import { restoreFleet } from './restore-fleet';
@@ -2258,13 +2259,11 @@ test('it starts each of ten local sessions a second after the one before while t
     kind: 'imp-like',
     remote: true,
     guest: { directory: '/guest/atc', atc: null },
-    prepareHost: () => {
-      const wake = Promise.withResolvers<void>();
-
-      clock.schedule(wake.resolve, 10_000);
-
-      return wake.promise;
-    },
+    prepareHost: makeQueuedAnswers([
+      { kind: 'succeed-after', clock, delayMs: 10_000 },
+      { kind: 'succeed-after', clock, delayMs: 10_000 },
+      { kind: 'succeed-after', clock, delayMs: 10_000 },
+    ]),
   });
 
   const ctx = await setupTest({
@@ -2388,16 +2387,15 @@ test('it starts every local session while the remote host of a session queued be
 test('it retries a refused local session while a remote session queued before it still wakes', async () => {
   const clock = buildStubClock(0);
 
-  const prepares = [
-    () =>
-      Promise.reject(
-        new DaemonError('host_unavailable', 'the local host cannot start a terminal yet'),
-      ),
-  ];
-
   const local = buildStubMemoryProvider({
     kind: 'local-pty',
-    prepareHost: () => prepares.shift()?.() ?? Promise.resolve(),
+    prepareHost: makeQueuedAnswers([
+      {
+        kind: 'refuse',
+        error: new DaemonError('host_unavailable', 'the local host cannot start a terminal yet'),
+      },
+      { kind: 'succeed' },
+    ]),
   });
 
   const remote = buildStubMemoryProvider({
@@ -2678,6 +2676,92 @@ test('it reports the start a session had when its boot wait ended, not one from 
     expect(ctx.logged).toStrictEqual([
       'atc restored the fleet (registered 2; local: terminals 2, attached 0, started 2, last start 2.0s)',
     ]);
+  });
+});
+
+test('it keeps the start a local session had in the restore when it restarts before the remote lane ends', async () => {
+  const clock = buildStubClock(0);
+  const local = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+    prepareHost: makeQueuedAnswers([{ kind: 'succeed-after', clock, delayMs: 30_000 }]),
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      {
+        id: 'local',
+        kind: 'local-pty',
+        options: {},
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: local,
+      },
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  ctx.manager.log = ctx.log;
+
+  const first = createSessionRuntime();
+  const second = createSessionRuntime();
+
+  const runtimes = new Map<SessionID, SessionRuntime>([
+    [toSessionID('s-local-1'), first],
+    [toSessionID('s-local-2'), second],
+  ]);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('s-local-1'), cwd: ctx.directory }),
+    buildMockFleetEntry({ sessionID: toSessionID('s-local-2'), cwd: ctx.directory }),
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  ]);
+
+  void restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: (id) => runtimes.get(id),
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+    clock,
+  });
+
+  await waitFor(() => {
+    expect(first.bootWaiter).toBeFunction();
+  });
+
+  clock.advance(1000);
+
+  first.startedAt = clock.now();
+  first.bootWaiter?.();
+
+  await waitFor(() => {
+    expect(local.harnesses).toBeArrayOfSize(2);
+  });
+
+  clock.advance(1000);
+
+  second.startedAt = clock.now();
+
+  clock.advance(18_000);
+
+  first.startedAt = clock.now();
+
+  clock.advance(10_000);
+
+  await waitFor(() => {
+    expect(ctx.logged).toContain(
+      'atc restored the fleet (registered 3; local: terminals 2, attached 0, started 2, last start 2.0s; remote: terminals 1, attached 0, started 0, last start none)',
+    );
   });
 });
 

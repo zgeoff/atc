@@ -232,6 +232,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     const runtime = findRuntime(sessionID);
     const session = manager.sessions.find((candidate) => candidate.id === sessionID);
 
+    if (startTimes.has(sessionID)) {
+      return Promise.resolve();
+    }
+
     if (runtime !== undefined && runtime.startedAt !== null) {
       startTimes.set(sessionID, runtime.startedAt);
     }
