@@ -51,8 +51,11 @@ export async function runRelatedTests(
     return 2;
   }
 
+  // Without `--no-isolate`, `bun test --parallel` gives each file a fresh global, while a test
+  // script with neither flag runs every file in one global.
   const flags = [
     `--parallel=${workers.count}`,
+    '--no-isolate',
     ...(workers.count === 1 ? [`--timeout=${slowHostTestTimeoutMs}`] : []),
   ];
 
