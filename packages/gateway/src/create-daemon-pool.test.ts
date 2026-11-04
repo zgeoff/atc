@@ -84,6 +84,7 @@ test('it gives each registry daemon its own caller that reaches only that daemon
       defaultDaemon: 'cloud',
     },
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -109,6 +110,7 @@ test('it refuses a caller for a name the registry does not hold', () => {
   const pool = createDaemonPool({
     registry: { daemons: new Map(), defaultDaemon: 'cloud' },
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 

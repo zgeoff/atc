@@ -51,6 +51,9 @@ export async function runGateway(
     build,
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
     bindings: openSQLite(join(flags.stateDir, 'gateway.db'), { strict: true }),
+    onWarning: (message) => {
+      io.printError(`atc-gateway: ${message}`);
+    },
   });
 
   let server: MCPHTTPServer;

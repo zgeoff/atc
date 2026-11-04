@@ -5,7 +5,9 @@ import { PROCEDURE_TRAITS } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
+import { checkDaemon } from '@atcx/contract';
 import { GatewayError } from './gateway-error';
+import { pickDaemonAdmission } from './pick-daemon-admission';
 import type { DaemonHello, GatewayChannel, ParamsPreparer, RegistryDaemon } from './types';
 
 interface GatewayDaemonCallerOptions {
@@ -22,6 +24,10 @@ interface GatewayDaemonCallerOptions {
 
   // Runs the connect and response timers; the system clock when unset.
   readonly clock?: Clock;
+
+  // Takes the line about a daemon the gateway serves despite a gap in its
+  // handshake, such as a feature it lacks.
+  readonly onWarning: (message: string) => void;
 }
 
 // One handshaken connection and what its handshake returned.
@@ -65,7 +71,8 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
     );
 
   // Connects and handshakes, refusing a daemon behind another state
-  // identity than the pin before anything is sent to it.
+  // identity than the pin, or on another major version than the contract,
+  // before anything is sent to it.
   const openHandshaken = async (): Promise<OpenConnection> => {
     const daemon = opts.daemon;
     let channel: GatewayChannel;
@@ -113,7 +120,28 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
       );
     }
 
-    return { channel, hello: buildDaemonHello(answer, daemon.daemonID) };
+    const hello = buildDaemonHello(answer, daemon.daemonID);
+
+    const admission = pickDaemonAdmission(
+      daemon.name,
+      hello.build,
+      checkDaemon({ daemon: hello.build, features: collectFeatures(answer) }),
+    );
+
+    if (admission.kind === 'refuse') {
+      channel.stop();
+
+      throw new GatewayError('daemon_unavailable', admission.message, {
+        daemon: daemon.name,
+        reason: 'daemon_mismatched',
+      });
+    }
+
+    if (admission.kind === 'warn') {
+      opts.onWarning(admission.message);
+    }
+
+    return { channel, hello };
   };
 
   // Connects and handshakes within the connect time, stopping a connection
@@ -313,4 +341,12 @@ function buildDaemonHello(
     daemonID,
     retentionMs: typeof retention === 'number' && retention > 0 ? retention : null,
   };
+}
+
+function collectFeatures(answer: Readonly<Record<string, unknown>>): readonly string[] {
+  const features = answer['features'];
+
+  return Array.isArray(features)
+    ? features.filter((feature: unknown): feature is string => typeof feature === 'string')
+    : [];
 }

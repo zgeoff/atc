@@ -15,6 +15,7 @@ import {
   startStubUnansweringListener,
   waitFor,
 } from '@atc/test-utils';
+import { CONTRACT_VERSION } from '@atcx/contract';
 import { createGatewayDaemonCaller } from './create-gateway-daemon-caller';
 import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 import type { RegistryDaemon } from './types';
@@ -63,6 +64,7 @@ test('it answers a request through a daemon whose handshake returns the pinned i
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -84,6 +86,7 @@ test('it reads the build and key retention from the handshake', async () => {
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -109,6 +112,7 @@ test('it refuses a daemon behind another state identity as daemon_changed and se
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -139,6 +143,7 @@ test('it refuses a daemon that rejects the token as daemon_unauthorized', async 
       token: 'w'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -161,6 +166,7 @@ test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
       address: { host: '127.0.0.1', port: 0 },
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -186,6 +192,7 @@ test("it passes a daemon's own error through with its code", async () => {
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -217,6 +224,7 @@ test('it retries a keyed spawn whose response was lost once on the same daemon, 
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -253,6 +261,7 @@ test('it answers outcome_unknown for an unkeyed spawn whose response was lost', 
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -286,6 +295,7 @@ test('it answers outcome_unknown for a keyed spawn whose retry also lost its res
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -326,6 +336,7 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: opener.open,
     responseTimeoutMs: 500,
     clock,
@@ -372,6 +383,7 @@ test('it refuses a daemon that never answers the handshake as daemon_unavailable
       address: { host: '127.0.0.1', port: silent.port },
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
     connectTimeoutMs: 300,
     clock,
@@ -417,6 +429,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: opener.open,
   });
 
@@ -459,6 +472,7 @@ test('it holds concurrent first requests until the handshake answers, so the dae
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -491,6 +505,7 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: opener.open,
     connectTimeoutMs: 10_000,
     responseTimeoutMs: 500,
@@ -548,6 +563,7 @@ test('it sends the name of the principal beside it', async () => {
       token: 'a'.repeat(32),
     }),
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -572,4 +588,131 @@ test('it sends the name of the principal beside it', async () => {
     from: 'Lantern Notes',
     sender: { kind: 'connector', client: 'gw', name: 'Lantern Notes' },
   });
+});
+
+test('it serves a daemon on the contract version without a warning', async () => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-caller-',
+    build: `atc/${CONTRACT_VERSION}+lq2x9a`,
+    options: (paths) => {
+      writeFileSync(join(paths.directory, 'token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'token') },
+      };
+    },
+  });
+
+  const prober = await openDaemonClient(daemon.socketPath);
+
+  registerTestCleanup(() => {
+    prober.stop();
+  });
+
+  const hello = await prober.sendHello(daemon.build);
+
+  const warnings: string[] = [];
+
+  const caller = createGatewayDaemonCaller({
+    daemon: buildMockRegistryDaemon({
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: Number(daemon.daemon.listenPort) },
+      daemonID: String(hello['daemonID']),
+      token: 'a'.repeat(32),
+    }),
+    build: 'atc-gateway/test',
+    onWarning: (message) => {
+      warnings.push(message);
+    },
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+  });
+
+  registerTestCleanup(() => caller.stop());
+
+  await caller.sendRequest('session.list', {}, { id: 'gw', name: 'Lantern Notes' });
+
+  expect(warnings).toStrictEqual([]);
+});
+
+test.each([
+  ['an older', 'atc/6.9.0+lq2x9a'],
+  ['a newer', 'atc/99.0.0+lq2x9a'],
+])('it refuses %s daemon as daemon_mismatched and sends it nothing', async (_label, build) => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-daemon-caller-',
+    build,
+    options: (paths) => {
+      writeFileSync(join(paths.directory, 'token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        principals: new Map([['gw', ['local']]]),
+        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'token') },
+      };
+    },
+  });
+
+  const prober = await openDaemonClient(daemon.socketPath);
+
+  registerTestCleanup(() => {
+    prober.stop();
+  });
+
+  const hello = await prober.sendHello(daemon.build);
+
+  const caller = createGatewayDaemonCaller({
+    daemon: buildMockRegistryDaemon({
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: Number(daemon.daemon.listenPort) },
+      daemonID: String(hello['daemonID']),
+      token: 'a'.repeat(32),
+    }),
+    build: 'atc-gateway/test',
+    onWarning: () => {},
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+  });
+
+  registerTestCleanup(() => caller.stop());
+
+  const spawned = caller.sendRequest(
+    'session.spawn',
+    { cwd: daemon.directory, resume: `a-${randomUUID()}` },
+    { id: 'gw', name: 'Lantern Notes' },
+  );
+
+  expect(spawned).rejects.toMatchObject({
+    code: 'daemon_unavailable',
+    data: { daemon: 'cloud', reason: 'daemon_mismatched' },
+  });
+
+  expect(daemon.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
+});
+
+test('it warns once per connection about a daemon whose build names no version', async () => {
+  const ctx = await setupTest();
+
+  const warnings: string[] = [];
+
+  const caller = createGatewayDaemonCaller({
+    daemon: buildMockRegistryDaemon({
+      name: 'cloud',
+      address: { host: '127.0.0.1', port: ctx.port },
+      daemonID: ctx.daemonID,
+      token: 'a'.repeat(32),
+    }),
+    build: 'atc-gateway/test',
+    onWarning: (message) => {
+      warnings.push(message);
+    },
+    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+  });
+
+  registerTestCleanup(() => caller.stop());
+
+  await caller.sendRequest('session.list', {}, { id: 'gw', name: 'Lantern Notes' });
+  await caller.sendRequest('session.list', {}, { id: 'gw', name: 'Lantern Notes' });
+
+  expect(warnings).toStrictEqual([
+    "daemon 'cloud' runs atc/test-build, which names no version, so the gateway cannot check its protocol",
+  ]);
 });

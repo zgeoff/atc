@@ -128,6 +128,7 @@ async function setupTest() {
     build: 'atc-gateway/test',
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
     bindings: openTestBindingDatabase(join(temporaryDirectory.path, 'gateway.db')),
+    onWarning: () => {},
 
     // Bounds a call asked of every daemon, so a daemon that never answers
     // cannot hold a test for the 5 s default. No test waits it out: a

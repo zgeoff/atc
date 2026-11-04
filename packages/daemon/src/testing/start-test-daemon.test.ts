@@ -101,6 +101,20 @@ test('it serves a TCP handshake on the listener the options ask for', async () =
   ).resolves.toContainKey('daemonID');
 });
 
+test('it reports the build the config gives in the daemon handshake', async () => {
+  const harness = await startTestDaemon({ build: 'atc/6.2.0+kq81zd' });
+  const client = await openDaemonClient(harness.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  expect(client.sendHello('atc/test-client')).resolves.toContainEntry([
+    'daemon',
+    'atc/6.2.0+kq81zd',
+  ]);
+});
+
 test('it refuses a TCP client when the daemon has no listener', async () => {
   const harness = await startTestDaemon();
 

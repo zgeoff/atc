@@ -1241,6 +1241,7 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
   const pool = createDaemonPool({
     registry,
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
@@ -1312,6 +1313,7 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
   const pool = createDaemonPool({
     registry,
     build: 'atc-gateway/test',
+    onWarning: () => {},
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
   });
 
