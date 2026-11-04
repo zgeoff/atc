@@ -69,6 +69,10 @@ interface StubMemoryProviderConfig {
   // nothing.
   readonly harnessStart?: HarnessStart;
 
+  // What each harness's start rejects with, as a host that ends the harness
+  // before it starts; absent, the start follows the reported start.
+  readonly harnessStartRefusal?: Error;
+
   // Answers each command; absent, every command exits 0 and prints nothing.
   readonly runCommand?: (spec: CommandSpec) => Promise<CommandResult>;
 
@@ -172,12 +176,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
     spawnHarness: (spec) => {
       config.onSpawn?.(spec);
       const built = buildStubMemoryHarness(spec, config.clock ?? systemClock);
-      const harnessStart = config.harnessStart;
-
-      const harness: StubMemoryHarness =
-        harnessStart === undefined
-          ? built
-          : { ...built, waitForStart: () => Promise.resolve(harnessStart) };
+      const harness = buildStartedHarness(built, config);
 
       harnesses.push(harness);
       config.onStart?.(harness);
@@ -352,4 +351,22 @@ function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarn
       emitWaitOutcome(false);
     },
   };
+}
+
+function buildStartedHarness(
+  harness: StubMemoryHarness,
+  config: StubMemoryProviderConfig,
+): StubMemoryHarness {
+  const refusal = config.harnessStartRefusal;
+  const harnessStart = config.harnessStart;
+
+  if (refusal !== undefined) {
+    return { ...harness, waitForStart: () => Promise.reject(refusal) };
+  }
+
+  if (harnessStart !== undefined) {
+    return { ...harness, waitForStart: () => Promise.resolve(harnessStart) };
+  }
+
+  return harness;
 }

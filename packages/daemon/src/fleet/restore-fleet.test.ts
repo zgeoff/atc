@@ -2352,6 +2352,61 @@ test('it starts the next remote session once the one before it attaches to an ag
   ]);
 });
 
+test('it starts the next remote session once the harness start of the one before it fails', async () => {
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+    harnessStartRefusal: new Error('host ended the harness'),
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  const runtimes = new Map<SessionID, SessionRuntime>([
+    [toSessionID('s-remote-1'), createSessionRuntime()],
+    [toSessionID('s-remote-2'), createSessionRuntime()],
+  ]);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote-1'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-remote-2'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+    }),
+  ]);
+
+  const restored = await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: (id) => runtimes.get(id),
+    cols: 80,
+    rows: 24,
+    capMs: 15_000,
+    retryDelaysMs: [],
+    clock: buildStubClock(Date.now()),
+  });
+
+  const outcome = await restored.settled;
+
+  expect(outcome).toBe('finished');
+
+  expect(remote.harnesses.map((harness) => harness.spec.session)).toStrictEqual([
+    's-remote-1',
+    's-remote-2',
+  ]);
+});
+
 test("it logs each lane's terminals, attaches, and starts, with the time from the restore's start to the lane's last start", async () => {
   const local = buildStubMemoryProvider({ kind: 'local-pty' });
 
