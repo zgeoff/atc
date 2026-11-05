@@ -71,7 +71,7 @@ jobs:
 
       # packs @atcx/contract as the release publishes it, installs the tarball
       # into a Node project that imports it and type-checks against it, and
-      # runs npm's publish as a dry run
+      # runs npm's publish as a dry run unless npm holds its version already
       - name: Contract Package
         run: bash scripts/publish-contract.sh --dry-run
 
@@ -176,7 +176,8 @@ jobs:
           --reporter-outfile="$RUNNER_TEMP/test-times-e2e.xml"
 
       # the toolchain lane: a real install, type check and test run of a plugin
-      # workspace, which the unit run above leaves out
+      # workspace, and a real install and type check of a contract tarball,
+      # which the unit run above leaves out
       - name: Test toolchain
         if: ${{ !cancelled() }}
         env:
