@@ -11,7 +11,7 @@ function setupTest() {
   const temporaryDirectory = setupTempDir('publish-contract-toolchain-');
   const npm = Bun.which('npm');
 
-  invariant(npm, 'the toolchain lane needs npm on PATH');
+  invariant(npm !== null, 'the toolchain lane needs npm on PATH');
   mkdirSync(join(temporaryDirectory.path, 'scripts'));
 
   for (const script of ['publish-contract.sh', 'publish-tarball.sh']) {
