@@ -86,3 +86,35 @@ test('it records the arguments of each call in order', async () => {
     'view @atcx/contract@7.1.0 version\npublish contract.tgz --provenance\n',
   );
 });
+
+test('it runs an install through the npm it is given, after it records the call', async () => {
+  const ctx = setupTest();
+
+  const installer = createStubBin(
+    join(ctx.directory, 'real'),
+    'npm',
+    '#!/bin/sh\necho "installed $*"\nexit 3\n',
+  );
+
+  const npm = createStubBin(
+    ctx.directory,
+    'npm',
+    buildStubNpm(join(ctx.directory, 'npm.log'), null, { installWith: installer }),
+  );
+
+  const installed = await runCommand([npm, 'install', '--prefix', 'consumer', 'contract.tgz']);
+
+  expect({
+    exitCode: installed.exitCode,
+    stdout: installed.stdout,
+    stderr: installed.stderr,
+  }).toStrictEqual({
+    exitCode: 3,
+    stdout: 'installed install --prefix consumer contract.tgz\n',
+    stderr: '',
+  });
+
+  expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8')).toBe(
+    'install --prefix consumer contract.tgz\n',
+  );
+});

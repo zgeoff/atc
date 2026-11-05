@@ -3,7 +3,7 @@
 #   publish-contract.sh [--dry-run]
 # npm publishes it, because bun publish has no trusted publishing. --dry-run checks that Node imports the installed
 # tarball and that TypeScript's nodenext resolution reads its declarations, then runs npm's publish
-# as a dry run.
+# as a dry run, which it skips when npm holds the version already.
 set -euo pipefail
 
 usage='usage: publish-contract.sh [--dry-run]'
@@ -79,7 +79,7 @@ EOF
   (cd "$consumer" && ./node_modules/.bin/tsc -p tsconfig.json)
   echo "TypeScript's nodenext resolution typechecks a program that imports $name"
 
-  npm publish "$tarball" --access public --dry-run
+  bash "$root/scripts/publish-tarball.sh" --dry-run "$tarball"
   exit 0
 fi
 
