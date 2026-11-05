@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolvePaths } from '@atc/config/host';
+import { buildDaemonStatePaths, resolvePaths } from '@atc/config/host';
 import type { ProtocolMismatch } from '@atc/protocol';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import {
@@ -17,19 +17,20 @@ import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-boot-daemon-');
-  const stateDir = join(temporaryDirectory.path, '.local', 'state', 'atc');
+
+  const paths = resolvePaths({
+    HOME: temporaryDirectory.path,
+    XDG_RUNTIME_DIR: temporaryDirectory.path,
+  });
 
   // The daemon and the client both expect the state directory to exist.
-  mkdirSync(stateDir, { recursive: true });
+  mkdirSync(paths.stateDir, { recursive: true });
 
   return {
     directory: temporaryDirectory.path,
-    stateDir,
-    sockPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
-    paths: resolvePaths({
-      HOME: temporaryDirectory.path,
-      XDG_RUNTIME_DIR: temporaryDirectory.path,
-    }),
+    stateDir: paths.stateDir,
+    sockPath: paths.daemonSocketPath,
+    paths,
     legacyDaemon: join(
       import.meta.dir,
       '..',
@@ -200,7 +201,7 @@ test('it never asks to restart a daemon on another protocol whose pid it cannot 
 
   const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
 
-  rmSync(join(ctx.stateDir, 'daemon.json'));
+  rmSync(ctx.paths.daemonRecordFile);
 
   const asked: (number | null)[] = [];
 
@@ -258,7 +259,7 @@ test('it rejects with the socket it waited on, and starts no daemon, when none a
 
   expect(notices).toStrictEqual(['waiting without starting a daemon']);
   expect(steps).toStrictEqual([100, 100, 100]);
-  expect(existsSync(join(ctx.stateDir, 'daemon.lock'))).toBeFalse();
+  expect(existsSync(buildDaemonStatePaths(ctx.paths.dbFile).lockFile)).toBeFalse();
   expect(existsSync(ctx.sockPath)).toBeFalse();
 });
 

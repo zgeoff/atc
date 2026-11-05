@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
 import { unlinkSync } from 'node:fs';
-import { join } from 'node:path';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { startStubLegacyDaemonProcess, startTUIHarness } from '@atc/test-utils';
@@ -10,13 +9,13 @@ import invariant from 'tiny-invariant';
 // taken, so the client's reconnect after the first daemon dies meets it.
 async function setupTest() {
   const harness = startTUIHarness();
-  const stateDir = join(harness.home, '.local', 'state', 'atc');
-  const socketPath = join(harness.home, 'atc-daemon.sock');
+  const stateDir = harness.paths.stateDir;
+  const socketPath = harness.paths.daemonSocketPath;
   const pty = harness.boot();
 
   await harness.waitFor('idle');
 
-  const first = readDaemonRecord(join(stateDir, 'daemon.json'));
+  const first = readDaemonRecord(harness.paths.daemonRecordFile);
 
   invariant(first !== null, 'the first daemon wrote no record');
 

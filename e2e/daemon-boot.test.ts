@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
@@ -17,22 +18,25 @@ import { createHostServices } from '../packages/app/src/create-host-services';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-boot-');
-  const stateDir = join(temporaryDirectory.path, '.local', 'state', 'atc');
+
+  // The client reads its paths from its environment, so each test boots it in a subprocess.
+  const env = {
+    ...process.env,
+    HOME: temporaryDirectory.path,
+    XDG_RUNTIME_DIR: temporaryDirectory.path,
+  };
+
+  const paths = resolvePaths(env);
 
   // The daemon and the client both expect the state directory to exist.
-  mkdirSync(stateDir, { recursive: true });
+  mkdirSync(paths.stateDir, { recursive: true });
 
   return {
     directory: temporaryDirectory.path,
-    stateDir,
-    sockPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
-
-    // The client reads its paths from its environment, so each test boots it in a subprocess.
-    env: {
-      ...process.env,
-      HOME: temporaryDirectory.path,
-      XDG_RUNTIME_DIR: temporaryDirectory.path,
-    },
+    paths,
+    stateDir: paths.stateDir,
+    sockPath: paths.daemonSocketPath,
+    env,
     bootModule: join(import.meta.dir, '..', 'packages', 'lifecycle', 'src', 'boot-daemon.ts'),
     hostModule: join(import.meta.dir, '..', 'packages', 'app', 'src', 'build-lifecycle-host.ts'),
     servicesModule: join(
@@ -86,13 +90,13 @@ console.log('connected');
 
   const waiting = new TextDecoder().decode(message.value);
 
-  const autostarted = existsSync(join(ctx.stateDir, 'atc.db'));
+  const autostarted = existsSync(ctx.paths.dbFile);
 
   const daemon = await startDaemon({
     socketPath: ctx.sockPath,
-    reporterSocketPath: join(ctx.directory, 'atc.sock'),
-    dbPath: join(ctx.stateDir, 'atc.db'),
-    statusPath: join(ctx.stateDir, 'status.json'),
+    reporterSocketPath: ctx.paths.socketPath,
+    dbPath: ctx.paths.dbFile,
+    statusPath: ctx.paths.statusFile,
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
     targets: [],
@@ -114,7 +118,7 @@ test('it connects to the daemon it starts once that daemon is ready, before any 
   const ctx = setupTest();
 
   registerTestCleanup(async () => {
-    const pid = Number(readFileSync(join(ctx.directory, 'atc-daemon.pid'), 'utf8'));
+    const pid = Number(readFileSync(ctx.paths.daemonPidFile, 'utf8'));
 
     process.kill(pid, 'SIGTERM');
 
@@ -215,8 +219,8 @@ test('it finds a running daemon through the state directory when XDG_RUNTIME_DIR
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
     targets: [],
-    dbPath: join(ctx.stateDir, 'atc.db'),
-    statusPath: join(ctx.stateDir, 'status.json'),
+    dbPath: ctx.paths.dbFile,
+    statusPath: ctx.paths.statusFile,
   });
 
   registerTestCleanup(() => daemon.stop());
@@ -372,8 +376,8 @@ test('it finds a running daemon through the record at the paths it is given', as
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter(),
     targets: [],
-    dbPath: join(ctx.stateDir, 'atc.db'),
-    statusPath: join(ctx.stateDir, 'status.json'),
+    dbPath: ctx.paths.dbFile,
+    statusPath: ctx.paths.statusFile,
   });
 
   registerTestCleanup(() => daemon.stop());
@@ -381,7 +385,7 @@ test('it finds a running daemon through the record at the paths it is given', as
   const boot = await bootDaemonClient(buildMockLifecycleHost(), {
     paths: {
       socketPath: join(ctx.directory, 'elsewhere', 'atc-daemon.sock'),
-      recordFile: join(ctx.stateDir, 'daemon.json'),
+      recordFile: ctx.paths.daemonRecordFile,
       pidFile: join(ctx.directory, 'elsewhere', 'atc-daemon.pid'),
     },
   });

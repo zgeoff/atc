@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { readClientViews, readPasskeyViews } from '@atc/mcp';
 import { readJSONRecord } from '@atc/test-utils';
 import { setupMCPHTTP } from './setup-mcp-http';
@@ -27,7 +27,7 @@ test('it collects a request line for each request the server answers', async () 
 test('it keeps the authorization database where atc keeps it under the home directory', async () => {
   const server = await setupMCPHTTP();
 
-  expect(server.dbPath).toBe(join(server.home, '.local', 'state', 'atc', 'mcp-auth.db'));
+  expect(server.dbPath).toBe(resolvePaths({ HOME: server.home }).mcpAuthDBFile);
   expect(existsSync(server.dbPath)).toBeTrue();
 });
 

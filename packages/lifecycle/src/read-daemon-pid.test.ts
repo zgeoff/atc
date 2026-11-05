@@ -1,13 +1,14 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config/host';
 import { setupTempDir } from '@atc/test-utils';
 import { readDaemonPID } from './read-daemon-pid';
 
 function setupTest() {
   const directory = setupTempDir('find-daemon-pid-').path;
   const procRoot = join(directory, 'proc');
-  const stateDir = join(directory, 'home', '.local', 'state', 'atc');
+  const stateDir = resolvePaths({ HOME: join(directory, 'home') }).stateDir;
 
   // The test process stands in for a live daemon: its `/proc` entry shows
   // the daemon's command line and a home that holds the state directory.
@@ -108,12 +109,10 @@ test('it never takes a recorded pid that runs the daemon of another state direct
     }),
   );
 
+  const otherStateDir = resolvePaths({ HOME: join(ctx.directory, 'other') }).stateDir;
+
   expect(
-    readDaemonPID(null, {
-      paths: ctx.paths,
-      stateDir: join(ctx.directory, 'other', '.local', 'state', 'atc'),
-      procRoot: ctx.procRoot,
-    }),
+    readDaemonPID(null, { paths: ctx.paths, stateDir: otherStateDir, procRoot: ctx.procRoot }),
   ).toBeNull();
 });
 

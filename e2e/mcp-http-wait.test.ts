@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, resolveATCCommand, setupTempDir, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
@@ -8,14 +8,17 @@ import invariant from 'tiny-invariant';
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-mcp-http-wait-');
 
+  const env = {
+    ...process.env,
+    HOME: temporaryDirectory.path,
+    XDG_RUNTIME_DIR: temporaryDirectory.path,
+  };
+
   return {
     directory: temporaryDirectory.path,
+    paths: resolvePaths(env),
     atc: resolveATCCommand(),
-    env: {
-      ...process.env,
-      HOME: temporaryDirectory.path,
-      XDG_RUNTIME_DIR: temporaryDirectory.path,
-    },
+    env,
   };
 }
 
@@ -85,7 +88,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
   const response = await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST' });
 
   const record = await waitFor((): unknown =>
-    JSON.parse(readFileSync(join(ctx.directory, '.local', 'state', 'atc', 'daemon.json'), 'utf8')),
+    JSON.parse(readFileSync(ctx.paths.daemonRecordFile, 'utf8')),
   );
 
   // The server prints its no-clients and no-passkey lines after it opens
@@ -101,7 +104,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
 
   // A handshake answered after the server stopped proves the daemon still
   // serves.
-  const client = await openDaemonClient(join(ctx.directory, 'atc-daemon.sock'));
+  const client = await openDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     client.stop();
@@ -122,9 +125,9 @@ test('it waits for a daemon started after it, starting none of its own, and serv
 
   expect(record).toStrictEqual({
     pid: daemon.pid,
-    socketPath: join(ctx.directory, 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.directory, 'atc.sock'),
-    eventsSocketPath: join(ctx.directory, 'atc-events.sock'),
+    socketPath: ctx.paths.daemonSocketPath,
+    reporterSocketPath: ctx.paths.socketPath,
+    eventsSocketPath: ctx.paths.eventsSocketPath,
     listenPort: null,
     protocol: 13,
   });

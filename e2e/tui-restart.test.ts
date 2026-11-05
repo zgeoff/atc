@@ -22,14 +22,14 @@ function setupTest() {
 
 test('it restarts a daemon on another protocol after the user confirms and restores the fleet', async () => {
   const ctx = setupTest();
-  const stateDir = join(ctx.home, '.local', 'state', 'atc');
-  const socketPath = join(ctx.home, 'atc-daemon.sock');
+  const stateDir = ctx.paths.stateDir;
+  const socketPath = ctx.paths.daemonSocketPath;
 
   // The fleet a daemon that already ran here left behind: one resumable
   // Claude session in the home.
   mkdirSync(stateDir, { recursive: true });
 
-  const seed = await createStateStore(join(stateDir, 'atc.db'));
+  const seed = await createStateStore(ctx.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -83,8 +83,8 @@ test('it restarts a daemon on another protocol after the user confirms and resto
 
 test('it stops a daemon on another protocol after the user confirms, and the managed daemon after it restores the fleet', async () => {
   const ctx = setupTest();
-  const stateDir = join(ctx.home, '.local', 'state', 'atc');
-  const socketPath = join(ctx.home, 'atc-daemon.sock');
+  const stateDir = ctx.paths.stateDir;
+  const socketPath = ctx.paths.daemonSocketPath;
   const unitDir = join(ctx.home, '.config', 'systemd', 'user');
 
   // An installed unit makes the client wait for the unit's daemon instead
@@ -93,7 +93,7 @@ test('it stops a daemon on another protocol after the user confirms, and the man
   mkdirSync(unitDir, { recursive: true });
   writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
 
-  const seed = await createStateStore(join(stateDir, 'atc.db'));
+  const seed = await createStateStore(ctx.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -125,9 +125,9 @@ test('it stops a daemon on another protocol after the user confirms, and the man
   const next = await startDaemon({
     restoreFleetOnRestart: true,
     socketPath,
-    reporterSocketPath: join(ctx.home, 'atc.sock'),
-    dbPath: join(stateDir, 'atc.db'),
-    statusPath: join(stateDir, 'status.json'),
+    reporterSocketPath: ctx.paths.socketPath,
+    dbPath: ctx.paths.dbFile,
+    statusPath: ctx.paths.statusFile,
     build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
@@ -146,8 +146,8 @@ test('it stops a daemon on another protocol after the user confirms, and the man
 
 test('it stops a daemon of an older build when the user asks for the update and boots its own build', async () => {
   const ctx = setupTest();
-  const stateDir = join(ctx.home, '.local', 'state', 'atc');
-  const socketPath = join(ctx.home, 'atc-daemon.sock');
+  const stateDir = ctx.paths.stateDir;
+  const socketPath = ctx.paths.daemonSocketPath;
 
   mkdirSync(stateDir, { recursive: true });
 

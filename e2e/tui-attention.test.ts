@@ -26,9 +26,7 @@ test('it clears the need state when attaching a needy session', async () => {
 
   await waitFor(
     () => {
-      expect(
-        readFileSync(join(ctx.home, '.local', 'state', 'atc', 'status.json'), 'utf8'),
-      ).toInclude('"needs_you":0');
+      expect(readFileSync(ctx.paths.statusFile, 'utf8')).toInclude('"needs_you":0');
     },
     { timeoutMs: 3000 },
   );
@@ -36,7 +34,7 @@ test('it clears the need state when attaching a needy session', async () => {
 
 test('it attaches and acks the session that needs you on tab', async () => {
   const ctx = setupTest();
-  const statusPath = join(ctx.home, '.local', 'state', 'atc', 'status.json');
+  const statusPath = ctx.paths.statusFile;
 
   ctx.boot();
 
@@ -106,9 +104,7 @@ test('it tab-jumps to a finished session when none need you', async () => {
   await spawnClaudeSession(ctx, 'finished');
 
   await waitFor(() => {
-    expect(readFileSync(join(ctx.home, '.local', 'state', 'atc', 'status.json'), 'utf8')).toInclude(
-      '"done":1',
-    );
+    expect(readFileSync(ctx.paths.statusFile, 'utf8')).toInclude('"done":1');
   });
 
   ctx.reset();

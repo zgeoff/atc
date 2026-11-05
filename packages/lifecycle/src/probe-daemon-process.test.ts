@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config/host';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { probeDaemonProcess } from './probe-daemon-process';
 
@@ -37,7 +38,7 @@ test('it accepts a daemon process whose home holds this state directory', async 
 
   const accepted = probeDaemonProcess(
     daemon.pid,
-    join(ctx.directory, 'home', '.local', 'state', 'atc'),
+    resolvePaths({ HOME: join(ctx.directory, 'home') }).stateDir,
     '/proc',
   );
 
@@ -65,7 +66,7 @@ test('it rejects a daemon process of another home', async () => {
 
   const accepted = probeDaemonProcess(
     daemon.pid,
-    join(ctx.directory, 'other', '.local', 'state', 'atc'),
+    resolvePaths({ HOME: join(ctx.directory, 'other') }).stateDir,
     '/proc',
   );
 
@@ -75,9 +76,13 @@ test('it rejects a daemon process of another home', async () => {
 test('it rejects a live process that is not an atc daemon', () => {
   const ctx = setupTest();
 
-  expect(
-    probeDaemonProcess(process.pid, join(ctx.directory, 'home', '.local', 'state', 'atc'), '/proc'),
-  ).toBeFalse();
+  const accepted = probeDaemonProcess(
+    process.pid,
+    resolvePaths({ HOME: join(ctx.directory, 'home') }).stateDir,
+    '/proc',
+  );
+
+  expect(accepted).toBeFalse();
 });
 
 test('it rejects a pid with no process', () => {

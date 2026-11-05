@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
+import { buildHookSettingsPath } from '@atc/harness-claude';
 import { setupMCPHome } from '@atc/lifecycle/testing';
 import { startMCPStdio } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
@@ -11,6 +12,7 @@ function setupTest() {
 
   return {
     home: mcpHome.home,
+    paths: mcpHome.paths,
     claudeBin: mcpHome.claudeBin,
     grokBin: mcpHome.grokBin,
   };
@@ -143,10 +145,7 @@ test('it writes a backend settings file that carries the base URL and no credent
 
   await mcp.spawnSession({ cwd: ctx.home, agent: 'zai' });
 
-  const written = readFileSync(
-    join(ctx.home, '.local', 'state', 'atc', 'hook-settings-zai.json'),
-    'utf8',
-  );
+  const written = readFileSync(buildHookSettingsPath(ctx.paths.stateDir, 'zai'), 'utf8');
 
   expect(written).not.toInclude('ANTHROPIC_AUTH_TOKEN');
 

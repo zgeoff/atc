@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { mergeDeep } from '@zgeoff/std';
 import { spawn } from 'bun-pty';
 import type { IDisposable, IPty } from 'bun-pty';
@@ -75,10 +76,6 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
     writeFileSync(configPath, JSON.stringify(mergeDeep(bootConfig, fields)));
   };
 
-  writeConfig();
-  mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true, mode: 0o700 });
-  createMigratedStateDB(join(home, '.local', 'state', 'atc', 'atc.db'));
-
   // A test that drops an executable into the home's bin directory puts it
   // on the PATH of the client and of the daemons it starts.
   const env = {
@@ -88,6 +85,12 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
     PATH: `${join(home, 'bin')}:/usr/sbin:/usr/bin:/bin`,
     ATC_CLIENT_LOG: clientLogPath,
   };
+
+  const paths = resolvePaths(env);
+
+  writeConfig();
+  mkdirSync(paths.stateDir, { recursive: true, mode: 0o700 });
+  createMigratedStateDB(paths.dbFile);
 
   let pty: IPty | null = null;
   let capture: IDisposable | null = null;
@@ -99,12 +102,13 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
   // budget, and waits after it their own.
   let firstOutputAt: number | null = null;
 
-  owned.defer(() => stopClientAndDaemon(home, pty, firstOutputAt === null));
+  owned.defer(() => stopClientAndDaemon(paths.daemonPidFile, pty, firstOutputAt === null));
 
   return {
     home,
     configPath,
     env,
+    paths,
     writeConfig,
 
     // The client drops the head of a text too long for the row, so a wait for
@@ -241,12 +245,12 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
 // The harness finds the daemon through its pid file, which the daemon writes
 // once its modules load, so a client killed before its first frame can leave
 // a daemon that has not written it yet.
-async function stopClientAndDaemon(home: string, pty: IPty | null, beforeFirstFrame: boolean) {
+async function stopClientAndDaemon(pidFile: string, pty: IPty | null, beforeFirstFrame: boolean) {
   pty?.kill();
 
   const pid = await waitFor(
     () => {
-      const read = Number(readFileSync(join(home, 'atc-daemon.pid'), 'utf8'));
+      const read = Number(readFileSync(pidFile, 'utf8'));
 
       if (!Number.isInteger(read) || read <= 1) {
         throw new Error(`the daemon pid file holds no pid: ${read}`);

@@ -6,6 +6,7 @@ import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { setupTempDir, startStubLegacyDaemon } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { buildRemoteListingCachePath } from './build-remote-listing-cache-path';
 import { createRemoteTUIHost } from './create-remote-tui-host';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 
@@ -21,9 +22,8 @@ test('it holds the daemon name', () => {
 test("it keeps the daemon's listings in a cache of its own beside the local one", async () => {
   const temporaryDirectory = setupTempDir('atc-remote-host-');
   const paths = resolvePaths({ HOME: temporaryDirectory.path });
-  const stateDirectory = join(temporaryDirectory.path, '.local', 'state', 'atc');
 
-  mkdirSync(stateDirectory, { recursive: true });
+  mkdirSync(paths.stateDir, { recursive: true });
 
   const host = createRemoteTUIHost(
     buildMockLifecycleHost({ paths }),
@@ -32,8 +32,8 @@ test("it keeps the daemon's listings in a cache of its own beside the local one"
 
   await host.listingCache.writeListing('github', { candidates: [], scope: 'acme', listedAt: 1 });
 
-  expect(existsSync(join(stateDirectory, 'listing-cache-box.json'))).toBeTrue();
-  expect(existsSync(join(stateDirectory, 'listing-cache.json'))).toBeFalse();
+  expect(existsSync(buildRemoteListingCachePath(paths.listingCacheFile, 'box'))).toBeTrue();
+  expect(existsSync(paths.listingCacheFile)).toBeFalse();
 });
 
 test('it refuses a restart, since the daemon host restarts it', () => {

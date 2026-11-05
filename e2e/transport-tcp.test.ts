@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { collectTargets } from '@atc/config';
+import { buildDaemonStatePaths, collectTargets } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock } from '@atc/lifecycle';
@@ -1513,7 +1513,9 @@ test('it releases the daemon lock and leaves no socket or record behind when the
 
   await Promise.allSettled([started]);
 
-  const lock = await claimDaemonLock(join(ctx.directory, 'daemon.lock'), 0);
+  const statePaths = buildDaemonStatePaths(ctx.dbPath);
+
+  const lock = await claimDaemonLock(statePaths.lockFile, 0);
 
   registerTestCleanup(() => {
     lock?.dispose();
@@ -1522,7 +1524,7 @@ test('it releases the daemon lock and leaves no socket or record behind when the
   expect(started).rejects.toMatchObject({ code: 'listen_refused' });
   expect(lock).not.toBeNil();
   expect(existsSync(ctx.socketPath)).toBe(false);
-  expect(existsSync(join(ctx.directory, 'daemon.json'))).toBe(false);
+  expect(existsSync(statePaths.recordFile)).toBe(false);
 });
 
 test('it closes an unauthenticated TCP connection that sends a malformed line without a reply', async () => {

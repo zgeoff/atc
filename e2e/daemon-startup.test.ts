@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { LOCAL_TARGET } from '@atc/config';
+import { LOCAL_TARGET, resolvePaths } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { buildStubTargets } from '@atc/daemon/testing';
 import { readDaemonRecord } from '@atc/lifecycle';
@@ -24,19 +24,20 @@ import invariant from 'tiny-invariant';
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-startup-');
   const home = temporaryDirectory.path;
-  const stateDir = join(home, '.local', 'state', 'atc');
+  const paths = resolvePaths({ HOME: home, XDG_RUNTIME_DIR: home });
   const clock = buildStubClock(0);
 
   return {
     home,
-    stateDir,
+    paths,
+    stateDir: paths.stateDir,
     clock,
     atc: resolveATCCommand(),
     buildDaemonOptions: (name: string) => ({
       socketPath: join(home, `${name}.sock`),
       reporterSocketPath: join(home, `${name}-reporter.sock`),
       statusPath: join(home, `${name}-status.json`),
-      dbPath: join(stateDir, 'atc.db'),
+      dbPath: paths.dbFile,
       build: 'atc/test',
       targets: buildStubTargets([LOCAL_TARGET], { spawned: [] }),
       log: () => {},
@@ -49,7 +50,7 @@ test('it lets exactly one of two daemons started at once serve a state directory
   const ctx = setupTest();
 
   mkdirSync(ctx.stateDir, { recursive: true, mode: 0o700 });
-  createMigratedStateDB(join(ctx.stateDir, 'atc.db'));
+  createMigratedStateDB(ctx.paths.dbFile);
 
   // Each daemon's cleanup is registered as it starts, so a failed wait below
   // still stops it.
@@ -80,7 +81,7 @@ test('it lets exactly one of two daemons started at once serve a state directory
     result.status === 'rejected' ? [result.reason] : [],
   );
 
-  const record = readDaemonRecord(join(ctx.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(ctx.paths.daemonRecordFile);
 
   invariant(record !== null, 'the serving daemon wrote no record');
 
@@ -111,7 +112,7 @@ test('it refuses a second daemon with the pid and socket of the daemon that serv
   const ctx = setupTest();
 
   mkdirSync(ctx.stateDir, { recursive: true, mode: 0o700 });
-  createMigratedStateDB(join(ctx.stateDir, 'atc.db'));
+  createMigratedStateDB(ctx.paths.dbFile);
 
   const serving = await startDaemon(ctx.buildDaemonOptions('first'));
 
@@ -133,9 +134,8 @@ test('it refuses a second daemon with the pid and socket of the daemon that serv
 
 test('it keeps the state directory and every daemon socket owner-only under a permissive umask without XDG_RUNTIME_DIR', async () => {
   const ctx = setupTest();
-  const stateDir = join(ctx.home, '.local', 'state', 'atc');
 
-  startDaemonProcess({
+  const daemon = startDaemonProcess({
     command: ['/bin/sh', '-c', 'umask 000 && exec "$@"', 'sh', ...ctx.atc],
     home: ctx.home,
     env: { XDG_RUNTIME_DIR: undefined },
@@ -143,14 +143,16 @@ test('it keeps the state directory and every daemon socket owner-only under a pe
   });
 
   // The daemon writes its record once every socket is bound.
-  await waitFor(() => statSync(join(stateDir, 'daemon.json')), { timeoutMs: 15_000 });
+  await waitFor(() => statSync(daemon.paths.daemonRecordFile), { timeoutMs: 15_000 });
 
-  const socketModes = ['atc-daemon.sock', 'atc.sock', 'atc-events.sock'].map(
-    (name) => statSync(join(stateDir, name)).mode & 0o777,
-  );
+  const socketModes = [
+    daemon.paths.daemonSocketPath,
+    daemon.paths.socketPath,
+    daemon.paths.eventsSocketPath,
+  ].map((path) => statSync(path).mode & 0o777);
 
   expect(socketModes).toStrictEqual([0o600, 0o600, 0o600]);
-  expect(statSync(stateDir).mode & 0o777).toBe(0o700);
+  expect(statSync(daemon.paths.stateDir).mode & 0o777).toBe(0o700);
 });
 
 test('it prints the running daemon id through atc daemon id', async () => {
@@ -208,8 +210,8 @@ test('it refuses to start a daemon whose --listen port another socket holds, lea
     `atc daemon: --listen cannot bind 127.0.0.1:${held.port} (EADDRINUSE)\n`,
   );
 
-  expect(existsSync(join(ctx.home, 'atc-daemon.sock'))).toBeFalse();
-  expect(existsSync(join(ctx.home, '.local', 'state', 'atc', 'daemon.json'))).toBeFalse();
+  expect(existsSync(ctx.paths.daemonSocketPath)).toBeFalse();
+  expect(existsSync(ctx.paths.daemonRecordFile)).toBeFalse();
 });
 
 // The source entry keeps Bun's .env autoload, so these run on the compiled binary only. With no
@@ -231,7 +233,7 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toInclude(join(ctx.home, '.local', 'state', 'atc', 'atc-daemon.sock'));
+    expect(result.stderr).toInclude(resolvePaths({ HOME: ctx.home }).daemonSocketPath);
     expect(result.stderr).not.toInclude('from-dotenv');
   },
 );
@@ -252,7 +254,11 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toInclude(join(ctx.home, 'from-process-env', 'atc-daemon.sock'));
+
+    expect(result.stderr).toInclude(
+      resolvePaths({ HOME: ctx.home, XDG_RUNTIME_DIR: join(ctx.home, 'from-process-env') })
+        .daemonSocketPath,
+    );
   },
 );
 

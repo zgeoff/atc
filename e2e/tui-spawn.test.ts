@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildHookSettingsPath } from '@atc/harness-claude';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   KEYS,
@@ -153,7 +154,7 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
 
   await ctx.waitFor('FAKE_CLAUDE_UP');
 
-  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
+  const daemon = await openDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();
@@ -290,6 +291,6 @@ test('it starts claude with the settings file atc generates', async () => {
   await spawnClaudeSession(ctx, 'withsettings');
 
   expect(ctx.read()).toInclude(
-    `--settings ${join(ctx.home, '.local', 'state', 'atc', 'hook-settings-claude.json')} `,
+    `--settings ${buildHookSettingsPath(ctx.paths.stateDir, 'claude')} `,
   );
 });

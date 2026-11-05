@@ -28,13 +28,13 @@ test('it waits for a managed daemon instead of starting one while the unit is do
 
   await ctx.waitFor('waiting for atc-daemon.service');
 
-  expect(existsSync(join(ctx.home, '.local', 'state', 'atc', 'daemon.json'))).toBe(false);
+  expect(existsSync(ctx.paths.daemonRecordFile)).toBe(false);
 
   const daemon = await startDaemon({
-    socketPath: join(ctx.home, 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.home, 'atc.sock'),
-    dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
-    statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
+    socketPath: ctx.paths.daemonSocketPath,
+    reporterSocketPath: ctx.paths.socketPath,
+    dbPath: ctx.paths.dbFile,
+    statusPath: ctx.paths.statusFile,
     build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
@@ -50,7 +50,7 @@ test('it waits for a managed daemon instead of starting one while the unit is do
 test('it reconnects a client after a managed daemon restarts without starting a replacement', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.local', 'state', 'atc'), { recursive: true });
+  mkdirSync(ctx.paths.stateDir, { recursive: true });
 
   const unitDir = join(ctx.home, '.config', 'systemd', 'user');
 
@@ -58,10 +58,10 @@ test('it reconnects a client after a managed daemon restarts without starting a 
   writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
 
   const options = {
-    socketPath: join(ctx.home, 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.home, 'atc.sock'),
-    dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
-    statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
+    socketPath: ctx.paths.daemonSocketPath,
+    reporterSocketPath: ctx.paths.socketPath,
+    dbPath: ctx.paths.dbFile,
+    statusPath: ctx.paths.statusFile,
     build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
@@ -105,13 +105,13 @@ test('it starts a daemon when no user unit manages it', async () => {
 
   await ctx.waitFor('no session');
 
-  expect(existsSync(join(ctx.home, '.local', 'state', 'atc', 'atc.db'))).toBe(true);
+  expect(existsSync(ctx.paths.dbFile)).toBe(true);
 });
 
 test('it reconnects again when a replacement closes during the fleet refresh', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.local', 'state', 'atc'), { recursive: true });
+  mkdirSync(ctx.paths.stateDir, { recursive: true });
 
   const unitDir = join(ctx.home, '.config', 'systemd', 'user');
 
@@ -119,10 +119,10 @@ test('it reconnects again when a replacement closes during the fleet refresh', a
   writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
 
   const options = {
-    socketPath: join(ctx.home, 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.home, 'atc.sock'),
-    dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
-    statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
+    socketPath: ctx.paths.daemonSocketPath,
+    reporterSocketPath: ctx.paths.socketPath,
+    dbPath: ctx.paths.dbFile,
+    statusPath: ctx.paths.statusFile,
     build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),
@@ -164,7 +164,7 @@ test('it reconnects again when a replacement closes during the fleet refresh', a
 test('it keeps help open when a managed daemon returns', async () => {
   const ctx = setupTest();
 
-  mkdirSync(join(ctx.home, '.local', 'state', 'atc'), { recursive: true });
+  mkdirSync(ctx.paths.stateDir, { recursive: true });
 
   const unitDir = join(ctx.home, '.config', 'systemd', 'user');
 
@@ -172,10 +172,10 @@ test('it keeps help open when a managed daemon returns', async () => {
   writeFileSync(join(unitDir, 'atc-daemon.service'), '[Service]\nExecStart=atc daemon\n');
 
   const options = {
-    socketPath: join(ctx.home, 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.home, 'atc.sock'),
-    dbPath: join(ctx.home, '.local', 'state', 'atc', 'atc.db'),
-    statusPath: join(ctx.home, '.local', 'state', 'atc', 'status.json'),
+    socketPath: ctx.paths.daemonSocketPath,
+    reporterSocketPath: ctx.paths.socketPath,
+    dbPath: ctx.paths.dbFile,
+    statusPath: ctx.paths.statusFile,
     build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { buildDaemonStatePaths } from '@atc/config';
 import { buildMockAgentAdapter } from '@atc/test-utils';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
@@ -21,7 +21,7 @@ test('it stops the daemon when its handle is disposed', async () => {
 
   await ctx.daemon[Symbol.asyncDispose]();
 
-  expect(existsSync(join(ctx.directory, 'daemon.json'))).toBeFalse();
+  expect(existsSync(buildDaemonStatePaths(ctx.dbPath).recordFile)).toBeFalse();
 });
 
 test('it releases nothing again when a stopped handle is disposed', async () => {
@@ -35,5 +35,5 @@ test('it releases nothing again when a stopped handle is disposed', async () => 
 
   await expect(disposed).toResolve();
 
-  expect(existsSync(join(ctx.directory, 'daemon.json'))).toBeTrue();
+  expect(existsSync(buildDaemonStatePaths(ctx.dbPath).recordFile)).toBeTrue();
 });

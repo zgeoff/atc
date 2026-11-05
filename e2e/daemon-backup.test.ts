@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { copyFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   getRecord,
@@ -22,7 +23,10 @@ async function setupTest() {
   const work = setupTempDir('atc-e2e-backup-work-').path;
 
   // The command finds its daemon at the socket under its runtime directory.
-  symlinkSync(source.daemon.socketPath, join(cliHome, 'atc-daemon.sock'));
+  symlinkSync(
+    source.daemon.socketPath,
+    resolvePaths({ HOME: cliHome, XDG_RUNTIME_DIR: cliHome }).daemonSocketPath,
+  );
 
   return { atc: resolveATCCommand(), source, fresh, cliHome, work };
 }

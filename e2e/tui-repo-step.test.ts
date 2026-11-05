@@ -101,7 +101,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
 
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
 
-  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
+  const daemon = await openDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();

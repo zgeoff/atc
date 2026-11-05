@@ -1,6 +1,7 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import {
   buildStubHandoffDaemon,
   createStubBin,
@@ -36,13 +37,13 @@ test('it keeps the daemon state in the home and records the daemon process there
 
   await client.sendHello('atc/test');
 
-  expect(
-    readDaemonRecord(join(ctx.directory, '.local', 'state', 'atc', 'daemon.json')),
-  ).toStrictEqual({
+  const paths = resolvePaths({ HOME: ctx.directory, XDG_RUNTIME_DIR: ctx.directory });
+
+  expect(readDaemonRecord(paths.daemonRecordFile)).toStrictEqual({
     pid: daemon.subprocess.pid,
-    socketPath: join(ctx.directory, 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.directory, 'atc.sock'),
-    eventsSocketPath: join(ctx.directory, 'atc-events.sock'),
+    socketPath: paths.daemonSocketPath,
+    reporterSocketPath: paths.socketPath,
+    eventsSocketPath: paths.eventsSocketPath,
     listenPort: null,
     protocol: 13,
   });
@@ -71,7 +72,7 @@ test('it hands the daemon a copy of the migrated database in an owner-only state
 
   await daemon.subprocess.exited;
 
-  expect(existsSync(join(daemon.stateDir, 'atc.db'))).toBe(true);
+  expect(existsSync(daemon.paths.dbFile)).toBe(true);
   expect(statSync(daemon.stateDir).mode & 0o777).toBe(0o700);
 });
 
@@ -199,13 +200,16 @@ test('it lays the config variables over the environment of the daemon', async ()
 
   await client.sendHello('atc/test');
 
-  expect(
-    readDaemonRecord(join(ctx.directory, 'other', '.local', 'state', 'atc', 'daemon.json')),
-  ).toStrictEqual({
+  const paths = resolvePaths({
+    HOME: join(ctx.directory, 'other'),
+    XDG_RUNTIME_DIR: ctx.directory,
+  });
+
+  expect(readDaemonRecord(paths.daemonRecordFile)).toStrictEqual({
     pid: daemon.subprocess.pid,
-    socketPath: join(ctx.directory, 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.directory, 'atc.sock'),
-    eventsSocketPath: join(ctx.directory, 'atc-events.sock'),
+    socketPath: paths.daemonSocketPath,
+    reporterSocketPath: paths.socketPath,
+    eventsSocketPath: paths.eventsSocketPath,
     listenPort: null,
     protocol: 13,
   });
@@ -220,10 +224,12 @@ test('it removes a variable the config sets to undefined from the environment of
     env: { XDG_RUNTIME_DIR: undefined },
   });
 
+  const paths = resolvePaths({ HOME: ctx.directory });
+
   // Without a runtime directory the daemon listens under its state
   // directory, which its record holds once it is up.
   const record = await waitFor(() => {
-    const found = readDaemonRecord(join(ctx.directory, '.local', 'state', 'atc', 'daemon.json'));
+    const found = readDaemonRecord(paths.daemonRecordFile);
 
     expect(found).not.toBeNull();
 
@@ -232,9 +238,9 @@ test('it removes a variable the config sets to undefined from the environment of
 
   expect(record).toStrictEqual({
     pid: daemon.subprocess.pid,
-    socketPath: join(ctx.directory, '.local', 'state', 'atc', 'atc-daemon.sock'),
-    reporterSocketPath: join(ctx.directory, '.local', 'state', 'atc', 'atc.sock'),
-    eventsSocketPath: join(ctx.directory, '.local', 'state', 'atc', 'atc-events.sock'),
+    socketPath: paths.daemonSocketPath,
+    reporterSocketPath: paths.socketPath,
+    eventsSocketPath: paths.eventsSocketPath,
     listenPort: null,
     protocol: 13,
   });
@@ -303,7 +309,7 @@ test('it kills the daemon the state directory records once stopped', async () =>
   await client.sendHello('atc/test');
 
   writeFileSync(
-    join(ctx.directory, '.local', 'state', 'atc', 'daemon.json'),
+    daemon.paths.daemonRecordFile,
     JSON.stringify({
       pid: recorded.pid,
       socketPath: daemon.socketPath,
@@ -405,7 +411,7 @@ test('it kills the daemon its home records and removes its stderr directory once
   mkdirSync(daemon.stateDir, { recursive: true });
 
   writeFileSync(
-    join(daemon.stateDir, 'daemon.json'),
+    daemon.paths.daemonRecordFile,
     JSON.stringify({
       pid: replacement.pid,
       socketPath: daemon.socketPath,

@@ -122,11 +122,11 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
 
   expect(Bun.peek.status(daemon.subprocess.exited)).toBe('pending');
 
-  expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))).toStrictEqual({
+  expect(readDaemonRecord(daemon.paths.daemonRecordFile)).toStrictEqual({
     pid: daemon.subprocess.pid,
     socketPath: daemon.socketPath,
     reporterSocketPath: daemon.reporterSocketPath,
-    eventsSocketPath: join(ctx.home, 'atc-events.sock'),
+    eventsSocketPath: daemon.paths.eventsSocketPath,
     listenPort: null,
     protocol: 13,
   });
@@ -224,7 +224,7 @@ test('it restores a stored exited row once and nothing on a second restore', asy
 
   await client.sendHello('atc/test');
 
-  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(daemon.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -273,7 +273,7 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
   writeFileSync(join(ctx.home, 'fake-claude-gate'), '');
 
-  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(daemon.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -358,7 +358,7 @@ test('it moves on to the next revive when one dies before announcing itself', as
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
   writeFileSync(join(ctx.home, 'fake-claude-dies-agent-dying'), '');
 
-  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(daemon.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -425,7 +425,7 @@ test('it revives the fleet most recently active first', async () => {
 
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
-  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(daemon.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -439,7 +439,7 @@ test('it revives the fleet most recently active first', async () => {
     }),
   ]);
 
-  const db = new Database(join(daemon.stateDir, 'atc.db'));
+  const db = new Database(daemon.paths.dbFile);
 
   registerTestCleanup(() => {
     db.close();

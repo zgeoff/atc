@@ -73,7 +73,7 @@ test('it shows the fleet of the remote daemon the flag selects and starts no loc
   // list, so the list can show before the daemon's name does.
   await ctx.tui.waitFor(' atc@box ▏');
 
-  expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBe(false);
+  expect(existsSync(ctx.tui.paths.daemonPidFile)).toBe(false);
 });
 
 test("it lists only the remote daemon's directories and spawns in the first of them", async () => {
@@ -316,7 +316,7 @@ test('it exits with the daemon and its address when the remote daemon is unreach
     `atc: cannot reach daemon 'box' at 127.0.0.1:${port}: ECONNREFUSED. atc did not fall back to the local daemon.`,
   );
 
-  expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBe(false);
+  expect(existsSync(ctx.tui.paths.daemonPidFile)).toBe(false);
 });
 
 test('it exits with both builds and versions when the remote daemon speaks another protocol, starting no local daemon', async () => {
@@ -354,7 +354,7 @@ test('it exits with both builds and versions when the remote daemon speaks anoth
   );
 
   expect(ctx.tui.read()).toInclude('atc did not fall back to the local daemon.');
-  expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBe(false);
+  expect(existsSync(ctx.tui.paths.daemonPidFile)).toBe(false);
 });
 
 test('it exits with the names the config holds when the flag selects a daemon the config lacks', async () => {
@@ -376,5 +376,5 @@ test('it exits with the names the config holds when the flag selects a daemon th
     `atc: the daemons map of ${ctx.tui.configPath} holds no daemon 'lab'; it holds box. atc did not fall back to the local daemon.`,
   );
 
-  expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBe(false);
+  expect(existsSync(ctx.tui.paths.daemonPidFile)).toBe(false);
 });

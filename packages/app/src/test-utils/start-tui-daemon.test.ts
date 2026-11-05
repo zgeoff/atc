@@ -1,6 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import { startTUIHarness, waitFor } from '@atc/test-utils';
 import { startTUIDaemon } from './start-tui-daemon';
@@ -19,7 +18,7 @@ test('it boots the client against the daemon in the test process and starts no d
 
   await ctx.tui.waitFor('atc — control tower');
 
-  expect(existsSync(join(ctx.tui.home, 'atc-daemon.pid'))).toBeFalse();
+  expect(existsSync(ctx.tui.paths.daemonPidFile)).toBeFalse();
 });
 
 test('it stops its daemon once the test finishes', async () => {
@@ -27,7 +26,7 @@ test('it stops its daemon once the test finishes', async () => {
 
   await startTUIDaemon(ctx.tui);
 
-  const client = await openDaemonClient(join(ctx.tui.home, 'atc-daemon.sock'));
+  const client = await openDaemonClient(ctx.tui.paths.daemonSocketPath);
 
   await client.sendHello('atc/test');
 
@@ -52,6 +51,6 @@ test('it serves at the home socket and gives sessions the harness HOME, where th
 
   await startTUIDaemon(ctx.tui);
 
-  expect(existsSync(join(ctx.tui.home, 'atc-daemon.sock'))).toBeTrue();
+  expect(existsSync(ctx.tui.paths.daemonSocketPath)).toBeTrue();
   expect(process.env['HOME']).toBe(ctx.tui.home);
 });

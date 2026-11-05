@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
 import {
@@ -36,11 +37,11 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   stack.defer(temporaryDirectory.teardown);
 
   const socketPath = join(temporaryDirectory.path, 'daemon.sock');
-  const stateDir = join(temporaryDirectory.path, '.local', 'state', 'atc');
+  const paths = resolvePaths({ HOME: temporaryDirectory.path });
 
-  mkdirSync(stateDir, { recursive: true });
+  mkdirSync(paths.stateDir, { recursive: true });
 
-  const dbPath = join(stateDir, 'mcp-auth.db');
+  const dbPath = paths.mcpAuthDBFile;
   const requests: string[] = [];
   const security: string[] = [];
 
