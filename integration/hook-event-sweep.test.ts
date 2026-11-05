@@ -1,6 +1,6 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import type { AdapterEvent } from '@atc/protocol';
+import { createStateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
   buildStubClock,
@@ -44,13 +44,11 @@ async function setupTest() {
 
   const sessionID = getRecord(spawned, 'session')['id'];
 
-  const db = new Database(daemon.dbPath, { readonly: true });
+  const store = await createStateStore(daemon.dbPath);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
-  return { clock, sweepClock, daemon, sessionID, db };
+  return { clock, sweepClock, daemon, sessionID, store };
 }
 
 test('it removes expired trail rows when it starts', async () => {
@@ -61,8 +59,10 @@ test('it removes expired trail rows when it starts', async () => {
     { atcId: ctx.sessionID, event: 'PreToolUse', payload: { session_id: 'agent-1' } },
   );
 
-  await waitFor(() => {
-    expect(ctx.db.query('SELECT id FROM events').all()).toHaveLength(2);
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
+
+    expect(rows).toHaveLength(2);
   });
 
   ctx.clock.advance(40 * 24 * 60 * 60 * 1000);
@@ -73,15 +73,19 @@ test('it removes expired trail rows when it starts', async () => {
     payload: { session_id: 'agent-1' },
   });
 
-  await waitFor(() => {
-    expect(ctx.db.query('SELECT id FROM events').all()).toHaveLength(3);
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
+
+    expect(rows).toHaveLength(3);
   });
 
   await ctx.daemon.restart();
 
-  const rows = ctx.db.query('SELECT ts, kind FROM events').all();
+  const rows = await ctx.store.readTrailRows();
 
-  expect(rows).toStrictEqual([{ ts: '2026-02-10T00:00:00.000Z', kind: 'turn-done' }]);
+  expect(rows.map((row) => ({ at: row.at, kind: row.kind }))).toStrictEqual([
+    { at: Date.parse('2026-02-10T00:00:00.000Z'), kind: 'turn-done' },
+  ]);
 });
 
 test('it removes expired trail rows on the sweep timer', async () => {
@@ -92,8 +96,10 @@ test('it removes expired trail rows on the sweep timer', async () => {
     { atcId: ctx.sessionID, event: 'PreToolUse', payload: { session_id: 'agent-1' } },
   );
 
-  await waitFor(() => {
-    expect(ctx.db.query('SELECT id FROM events').all()).toHaveLength(2);
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
+
+    expect(rows).toHaveLength(2);
   });
 
   ctx.clock.advance(40 * 24 * 60 * 60 * 1000);
@@ -104,16 +110,20 @@ test('it removes expired trail rows on the sweep timer', async () => {
     payload: { session_id: 'agent-1' },
   });
 
-  await waitFor(() => {
-    expect(ctx.db.query('SELECT id FROM events').all()).toHaveLength(3);
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
+
+    expect(rows).toHaveLength(3);
   });
 
   ctx.sweepClock.advance(60 * 60 * 1000);
 
-  await waitFor(() => {
-    const rows = ctx.db.query('SELECT ts, kind FROM events').all();
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
 
-    expect(rows).toStrictEqual([{ ts: '2026-02-10T00:00:00.000Z', kind: 'turn-done' }]);
+    expect(rows.map((row) => ({ at: row.at, kind: row.kind }))).toStrictEqual([
+      { at: Date.parse('2026-02-10T00:00:00.000Z'), kind: 'turn-done' },
+    ]);
   });
 });
 
@@ -125,8 +135,10 @@ test('it reads the events a sweep keeps after a cursor from before the sweep', a
     { atcId: ctx.sessionID, event: 'Stop', payload: { session_id: 'agent-1' } },
   );
 
-  await waitFor(() => {
-    expect(ctx.db.query('SELECT id FROM events').all()).toHaveLength(2);
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
+
+    expect(rows).toHaveLength(2);
   });
 
   const before = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
@@ -139,14 +151,18 @@ test('it reads the events a sweep keeps after a cursor from before the sweep', a
     payload: { session_id: 'agent-1' },
   });
 
-  await waitFor(() => {
-    expect(ctx.db.query('SELECT id FROM events').all()).toHaveLength(3);
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
+
+    expect(rows).toHaveLength(3);
   });
 
   ctx.sweepClock.advance(60 * 60 * 1000);
 
-  await waitFor(() => {
-    expect(ctx.db.query('SELECT id FROM events').all()).toHaveLength(1);
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
+
+    expect(rows).toHaveLength(1);
   });
 
   const after = await ctx.daemon.client.sendRequest('events.read', { cursor: before['cursor'] });
@@ -165,8 +181,10 @@ test("it answers session.get with the session's last activity time after a sweep
     { atcId: ctx.sessionID, event: 'Stop', payload: { session_id: 'agent-1' } },
   );
 
-  await waitFor(() => {
-    expect(ctx.db.query('SELECT id FROM events').all()).toHaveLength(2);
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
+
+    expect(rows).toHaveLength(2);
   });
 
   ctx.clock.advance(24 * 60 * 60 * 1000);
@@ -177,15 +195,19 @@ test("it answers session.get with the session's last activity time after a sweep
     payload: { session_id: 'agent-1' },
   });
 
-  await waitFor(() => {
-    expect(ctx.db.query('SELECT id FROM events').all()).toHaveLength(3);
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
+
+    expect(rows).toHaveLength(3);
   });
 
   ctx.clock.advance(40 * 24 * 60 * 60 * 1000);
   ctx.sweepClock.advance(60 * 60 * 1000);
 
-  await waitFor(() => {
-    expect(ctx.db.query('SELECT id FROM events').all()).toHaveLength(1);
+  await waitFor(async () => {
+    const rows = await ctx.store.readTrailRows();
+
+    expect(rows).toHaveLength(1);
   });
 
   const got = await ctx.daemon.client.sendRequest('session.get', { session: ctx.sessionID });

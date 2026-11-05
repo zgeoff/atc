@@ -1,4 +1,3 @@
-import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import {
   existsSync,
@@ -1181,14 +1180,17 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
   await spawn.catch(() => null);
 
   const listed = await daemon.client.sendRequest('session.list');
+  const store = await createStateStore(daemon.dbPath);
 
-  const db = new Database(daemon.dbPath, { readonly: true });
+  registerTestCleanup(() => store.stop());
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  const materializations = await store.readMaterializations();
 
-  const rows = db.query('SELECT phase, error_code, sha FROM workspace_materialization').all();
+  const rows = materializations.map((row) => ({
+    phase: row.phase,
+    errorCode: row.errorCode,
+    sha: row.sha,
+  }));
 
   expect(spawn).rejects.toMatchObject({
     code: 'workspace_mismatch',
@@ -1199,7 +1201,7 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
   expect(existsSync(destination)).toBeFalse();
 
   expect(rows).toStrictEqual([
-    { phase: 'failed', error_code: 'workspace_mismatch', sha: pinned.trim() },
+    { phase: 'failed', errorCode: 'workspace_mismatch', sha: pinned.trim() },
   ]);
 });
 
@@ -1244,13 +1246,11 @@ test.each([['transfer'], ['run']] as const)(
 
     await spawn.catch(() => null);
 
-    const db = new Database(daemon.dbPath, { readonly: true });
+    const store = await createStateStore(daemon.dbPath);
 
-    registerTestCleanup(() => {
-      db.close();
-    });
+    registerTestCleanup(() => store.stop());
 
-    const rows = db.query('SELECT * FROM workspace_materialization').all();
+    const rows = await store.readMaterializations();
 
     expect(spawn).rejects.toMatchObject({
       code: 'unsupported_operation',
@@ -1331,17 +1331,16 @@ test('it fails a materialization that a restart interrupts and lists no session 
   await spawn;
 
   const listed = await daemon.client.sendRequest('session.list');
+  const store = await createStateStore(daemon.dbPath);
 
-  const db = new Database(daemon.dbPath, { readonly: true });
+  registerTestCleanup(() => store.stop());
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  const materializations = await store.readMaterializations();
 
-  const rows = db.query('SELECT phase, error_code FROM workspace_materialization').all();
+  const rows = materializations.map((row) => ({ phase: row.phase, errorCode: row.errorCode }));
 
   expect(listed).toStrictEqual({ sessions: [] });
-  expect(rows).toStrictEqual([{ phase: 'failed', error_code: 'workspace_interrupted' }]);
+  expect(rows).toStrictEqual([{ phase: 'failed', errorCode: 'workspace_interrupted' }]);
 });
 
 test("it logs the failure of an interrupted materialization that resumes into the stopped daemon's closed store", async () => {
@@ -2482,13 +2481,11 @@ test('it runs a local session in a directory outside git as it stands', async ()
     workspace: { kind: 'path', path: plain },
   });
 
-  const db = new Database(daemon.dbPath, { readonly: true });
+  const store = await createStateStore(daemon.dbPath);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
-  const rows = db.query('SELECT * FROM workspace_materialization').all();
+  const rows = await store.readMaterializations();
 
   expect(getRecord(spawned, 'session')).not.toContainKey('workspace');
   expect(getRecord(spawned, 'session')['cwd']).toBe(plain);
@@ -3042,14 +3039,11 @@ test('it runs a local spawn without a workspace in its directory as it stands', 
   });
 
   const spawned = await daemon.client.sendRequest('session.spawn', { cwd: ctx.work });
+  const store = await createStateStore(daemon.dbPath);
 
-  const db = new Database(daemon.dbPath, { readonly: true });
+  registerTestCleanup(() => store.stop());
 
-  registerTestCleanup(() => {
-    db.close();
-  });
-
-  const rows = db.query('SELECT * FROM workspace_materialization').all();
+  const rows = await store.readMaterializations();
 
   expect(getRecord(spawned, 'session')).not.toContainKey('workspace');
 

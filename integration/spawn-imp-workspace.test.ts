@@ -1,4 +1,3 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import {
   existsSync,
@@ -14,6 +13,7 @@ import { dirname, join } from 'node:path';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
+import { createStateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
   buildStubBrokeredGatewayAdapter,
@@ -838,19 +838,16 @@ test('it refuses a workspace sub-session under a revoked parent before resolving
   await spawn.catch(() => null);
 
   const listed = await daemon.client.sendRequest('session.list');
+  const store = await createStateStore(daemon.dbPath);
 
-  const db = new Database(daemon.dbPath, { readonly: true });
+  registerTestCleanup(() => store.stop());
 
-  registerTestCleanup(() => {
-    db.close();
-  });
-
-  const rows = db.query('select count(*) as count from workspace_materialization').get();
+  const rows = await store.readMaterializations();
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_blocked', data: { state: 'revoked' } });
   expect(ctx.port.calls.filter((call) => !call.startsWith('leases.renew'))).toStrictEqual([]);
   expect(listed['sessions']).toStrictEqual([expect.objectContaining({ id: parentID })]);
-  expect(rows).toStrictEqual({ count: 0 });
+  expect(rows).toStrictEqual([]);
 });
 
 test('it materializes a workspace sub-session on the host of a ready parent and starts it there', async () => {
@@ -1059,13 +1056,11 @@ test('it takes back the imp and binding a brokered spawn provisioned when its wo
 
   await spawn.catch(() => null);
 
-  const db = new Database(daemon.dbPath, { readonly: true });
+  const store = await createStateStore(daemon.dbPath);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
-  const rows = db.query('select count(*) as count from runtime_auth_binding').get();
+  const rows = await store.readAuthBindings();
 
   expect(spawn).rejects.toMatchObject({ code: 'workspace_exists' });
 
@@ -1074,7 +1069,7 @@ test('it takes back the imp and binding a brokered spawn provisioned when its wo
   ]);
 
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
-  expect(rows).toStrictEqual({ count: 0 });
+  expect(rows).toStrictEqual([]);
 });
 
 test('it takes back the imp and binding of a brokered spawn whose start is refused, without removing its checkout first', async () => {
@@ -1130,17 +1125,15 @@ test('it takes back the imp and binding of a brokered spawn whose start is refus
 
   await spawn.catch(() => null);
 
-  const db = new Database(daemon.dbPath, { readonly: true });
+  const store = await createStateStore(daemon.dbPath);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
-  const rows = db.query('select count(*) as count from runtime_auth_binding').get();
+  const rows = await store.readAuthBindings();
 
   expect(spawn).rejects.toMatchObject({ code: 'broker_not_ready' });
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
-  expect(rows).toStrictEqual({ count: 0 });
+  expect(rows).toStrictEqual([]);
 });
 
 test("it leaves a parent running on its host when a sub-session's workspace fails there", async () => {
@@ -1480,17 +1473,15 @@ test('it refuses a workspace spawn whose host fails its sign-in check and takes 
 
   await spawn.catch(() => null);
 
-  const db = new Database(daemon.dbPath, { readonly: true });
+  const store = await createStateStore(daemon.dbPath);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
-  const rows = db.query('select count(*) as count from runtime_auth_binding').get();
+  const rows = await store.readAuthBindings();
 
   expect(spawn).rejects.toMatchObject({ code: 'auth_not_configured' });
   expect(ctx.port.collectImpNames()).toStrictEqual([]);
-  expect(rows).toStrictEqual({ count: 0 });
+  expect(rows).toStrictEqual([]);
 });
 
 test("it refuses a sub-session workspace inside its parent's directory before claiming or transferring anything", async () => {

@@ -1,8 +1,8 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { runHookReport } from '@atc/reporters';
 import { runTap } from '@atc/reporters/tap';
+import { createStateStore } from '@atc/store';
 import {
   getRecord,
   getString,
@@ -132,11 +132,9 @@ test('it ignores a grok hook event that names a subagent', async () => {
     },
   ]);
 
-  const db = new Database(ctx.daemon.dbPath, { readonly: true });
+  const store = await createStateStore(ctx.daemon.dbPath);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
   const ok = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.home,
@@ -149,10 +147,10 @@ test('it ignores a grok hook event that names a subagent', async () => {
 
   // The daemon records every hook it takes after it has applied it, so a
   // recorded stop is one the session has already seen.
-  await waitFor(() => {
-    expect(db.query('SELECT event FROM events WHERE atc_id = ?').values(id)).toContainEqual([
-      'Stop',
-    ]);
+  await waitFor(async () => {
+    const rows = await store.readTrailRows();
+
+    expect(rows.filter((row) => row.atcID === id).map((row) => row.event)).toContain('Stop');
   });
 
   const listed = await ctx.daemon.client.sendRequest('session.list');
@@ -218,12 +216,9 @@ test('it keeps a gone terminal exited when a late end and start arrive', async (
 
 test('it keeps a grok session needing you when an idle notification follows a permission prompt', async () => {
   const ctx = await setupTest();
+  const store = await createStateStore(ctx.daemon.dbPath);
 
-  const db = new Database(ctx.daemon.dbPath, { readonly: true });
-
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
   const ok = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.home,
@@ -253,10 +248,10 @@ test('it keeps a grok session needing you when an idle notification follows a pe
 
   // The daemon records every hook it takes after it has applied it, so a
   // second recorded notification is one the session has already seen.
-  await waitFor(() => {
-    expect(
-      db.query("SELECT event FROM events WHERE atc_id = ? AND event = 'Notification'").values(id),
-    ).toHaveLength(2);
+  await waitFor(async () => {
+    const rows = await store.readTrailRows();
+
+    expect(rows.filter((row) => row.atcID === id && row.event === 'Notification')).toHaveLength(2);
   });
 
   const listed = await ctx.daemon.client.sendRequest('session.list');

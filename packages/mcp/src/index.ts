@@ -13,6 +13,7 @@ export * from './auth/remove-client';
 export * from './auth/remove-passkey';
 export * from './auth/reset-passkeys';
 export * from './auth/revoke-grant';
+export { createSubscriptionStore } from './events/create-subscription-store';
 export * from './http/create-mcp-http-app';
 export type { WatchChannel } from './http/create-pty-viewer';
 export * from './http/start-mcp-http-server';

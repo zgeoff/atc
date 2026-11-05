@@ -984,16 +984,20 @@ test('it answers a kill whose fleet write meets a moved ownership epoch with sta
 
   const sessionID = getRecord(spawned, 'session')['id'];
 
+  const store = await createStateStore(ctx.dbPath);
+
+  registerTestCleanup(() => store.stop());
+
+  await waitFor(async () => {
+    const fleet = await store.loadFleet();
+
+    expect(fleet.map((entry) => String(entry.sessionID))).toContain(String(sessionID));
+  });
+
   const db = new Database(ctx.dbPath);
 
   registerTestCleanup(() => {
     db.close();
-  });
-
-  await waitFor(() => {
-    expect(
-      db.query('SELECT session_id FROM session_owner WHERE session_id = ?1').all(String(sessionID)),
-    ).toHaveLength(1);
   });
 
   db.run('UPDATE session_owner SET owner_epoch = 2 WHERE session_id = ?1', [String(sessionID)]);

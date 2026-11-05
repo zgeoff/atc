@@ -1,7 +1,8 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
+import { createStateStore } from '@atc/store';
 import {
   KEYS,
   registerTestCleanup,
@@ -37,19 +38,22 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
 
   rmSync(join(ctx.home, 'fake-grok-defer-start'));
 
-  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+  const store = await createStateStore(resolvePaths({ HOME: ctx.home }).dbFile);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
   // The row lands at spawn, before the agent reports its session id, so
   // the wait runs until the row holds that id.
-  await waitFor(() => {
-    expect(
-      db.query('SELECT name, cwd, agent_session_id AS agentSessionID, agent FROM fleet').all(),
-    ).toStrictEqual([
-      { name: 'groksess', cwd: ctx.home, agentSessionID: 'fake-grok-1', agent: 'grok' },
+  await waitFor(async () => {
+    const fleet = await store.loadFleet();
+
+    expect(fleet).toStrictEqual([
+      expect.objectContaining({
+        name: 'groksess',
+        cwd: ctx.home,
+        agentSessionID: 'fake-grok-1',
+        agent: 'grok',
+      }),
     ]);
   });
 
@@ -129,17 +133,17 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
 
   await ctx.waitFor('FAKE_GROK_HOOKS_DONE');
 
-  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+  const store = await createStateStore(resolvePaths({ HOME: ctx.home }).dbFile);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
   // The daemon writes each hook it takes to the trail with the kind it read
   // the hook as, after it has applied the hook to the session.
-  await waitFor(() => {
-    expect(db.query("SELECT kind FROM events WHERE event = 'Stop'").all()).toStrictEqual([
-      { kind: 'heartbeat' },
+  await waitFor(async () => {
+    const rows = await store.readTrailRows();
+
+    expect(rows.filter((row) => row.event === 'Stop').map((row) => row.kind)).toStrictEqual([
+      'heartbeat',
     ]);
   });
 
@@ -264,18 +268,18 @@ test('it keeps needs-you when grok emits idle_prompt after permission_prompt', a
 
   await ctx.waitFor('FAKE_GROK_HOOKS_DONE');
 
-  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+  const store = await createStateStore(resolvePaths({ HOME: ctx.home }).dbFile);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
   // The daemon writes each hook it takes to the trail with the kind it read
   // the hook as, after it has applied the hook to the session.
-  await waitFor(() => {
-    expect(
-      db.query("SELECT kind FROM events WHERE event = 'Notification' ORDER BY id").all(),
-    ).toStrictEqual([{ kind: 'needs-input' }, { kind: 'heartbeat' }]);
+  await waitFor(async () => {
+    const rows = await store.readTrailRows();
+
+    expect(rows.filter((row) => row.event === 'Notification').map((row) => row.kind)).toStrictEqual(
+      ['needs-input', 'heartbeat'],
+    );
   });
 
   ctx.reset();
