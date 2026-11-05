@@ -1,12 +1,18 @@
 import { parseArgs } from 'node:util';
 import { collectCommandNames } from './collect-command-names.ts';
-import { collectExpressionReferences } from './collect-expression-references.ts';
+import { collectConcurrencyFindings } from './collect-concurrency-findings.ts';
 import { findInstallCachePath } from './find-install-cache-path.ts';
+import { findMember } from './find-member.ts';
+import { getTopLevelLine } from './get-top-level-line.ts';
 import { parseShellWords } from './parse-shell-words.ts';
+import { pullRequestTriggers } from './pull-request-triggers.ts';
 import type { ChecksProfile } from './read-checks-profile.ts';
 import { readChecksProfile } from './read-checks-profile.ts';
 import type { RunProgram } from './run-program.ts';
 import { runProgram } from './run-program.ts';
+import type { Job, WorkflowContext, WorkflowFinding } from './workflow-context.ts';
+
+export type { WorkflowFinding } from './workflow-context.ts';
 
 export interface WorkflowsCheckOptions {
   readonly cwd: string;
@@ -19,14 +25,6 @@ export interface WorkflowsCheckOptions {
   readonly profile: ChecksProfile | undefined;
 
   readonly runProgram: RunProgram;
-}
-
-export interface WorkflowFinding {
-  // Relative to the repo root.
-  readonly path: string;
-
-  readonly line: number;
-  readonly message: string;
 }
 
 // GitHub runs no workflow from a subfolder of .github/workflows.
@@ -55,21 +53,6 @@ function runGit(options: Readonly<WorkflowsCheckOptions>, args: readonly string[
   }
 
   return result.stdout;
-}
-
-interface Job {
-  readonly id: string;
-  readonly definition: unknown;
-  readonly line: number;
-}
-
-interface WorkflowContext {
-  readonly path: string;
-  readonly profile: ChecksProfile | undefined;
-  readonly workflow: unknown;
-  readonly lines: readonly string[];
-  readonly jobs: readonly Job[];
-  readonly triggers: ReadonlySet<string>;
 }
 
 function collectWorkflowFindings(
@@ -129,12 +112,6 @@ function getJobLine(lines: readonly string[], jobsLine: number, id: string): num
   const offset = lines.slice(jobsLine + 1).findIndex((line) => keyPattern.test(line));
 
   return offset === -1 ? Math.max(jobsLine + 1, 1) : jobsLine + offset + 2;
-}
-
-function findMember(value: unknown, key: string): unknown {
-  return typeof value === 'object' && value !== null && Object.hasOwn(value, key)
-    ? Reflect.get(value, key)
-    : undefined;
 }
 
 function collectTriggers(on: unknown): Set<string> {
@@ -230,8 +207,6 @@ function collectTimeoutFindings(context: WorkflowContext, job: Job): WorkflowFin
     ? [{ path: context.path, line: job.line, message: `job ${job.id} sets no timeout-minutes` }]
     : [];
 }
-
-const pullRequestTriggers = ['pull_request', 'pull_request_target'];
 
 // ci-design states the rule for a private repo only, so a public run leaves it alone.
 function collectHeavyFindings(context: WorkflowContext, job: Job): WorkflowFinding[] {
@@ -344,176 +319,6 @@ function collectCheckoutFindings(context: WorkflowContext, job: Job): WorkflowFi
         ]
       : [];
   });
-}
-
-function collectConcurrencyFindings(context: WorkflowContext): WorkflowFinding[] {
-  const deployJobs = context.jobs.filter((job) => isDeployJob(job));
-  const workflowConcurrency = findMember(context.workflow, 'concurrency');
-
-  return [
-    ...deployJobs.flatMap((job) => collectDeployFindings(context, job, workflowConcurrency)),
-    ...(isChecksWorkflow(context)
-      ? collectChecksFindings(context, deployJobs, workflowConcurrency)
-      : []),
-  ];
-}
-
-const deployJobPattern = /release|deploy|migrate/iu;
-
-function isDeployJob(job: Job): boolean {
-  const name = findMember(job.definition, 'name');
-
-  return deployJobPattern.test(job.id) || (typeof name === 'string' && deployJobPattern.test(name));
-}
-
-function collectDeployFindings(
-  context: WorkflowContext,
-  job: Job,
-  workflowConcurrency: unknown,
-): WorkflowFinding[] {
-  const concurrency = findMember(job.definition, 'concurrency');
-
-  const hasOwnGroup =
-    typeof findMember(concurrency, 'group') === 'string' &&
-    findMember(concurrency, 'cancel-in-progress') === false;
-
-  return [
-    ...(hasOwnGroup
-      ? []
-      : [
-          {
-            path: context.path,
-            line: job.line,
-            message: `job ${job.id} releases or deploys, so it sets a job-level concurrency group with cancel-in-progress: false`,
-          },
-        ]),
-    ...(isCancelling(workflowConcurrency)
-      ? [
-          {
-            path: context.path,
-            line: getTopLevelLine(context.lines, 'concurrency'),
-            message: `the workflow-level cancel-in-progress: true can cancel job ${job.id}, which releases or deploys; set each concurrency group per job`,
-          },
-        ]
-      : []),
-  ];
-}
-
-function isCancelling(concurrency: unknown): boolean {
-  return findMember(concurrency, 'cancel-in-progress') === true;
-}
-
-function getTopLevelLine(lines: readonly string[], key: string): number {
-  const keyPattern = new RegExp(`^['"]?${RegExp.escape(key)}['"]?:`, 'u');
-
-  return lines.findIndex((line) => keyPattern.test(line)) + 1 || 1;
-}
-
-function isChecksWorkflow(context: WorkflowContext): boolean {
-  return context.triggers.has('pull_request') || context.triggers.has('push');
-}
-
-function collectChecksFindings(
-  context: WorkflowContext,
-  deployJobs: readonly Job[],
-  workflowConcurrency: unknown,
-): WorkflowFinding[] {
-  const otherJobs = context.jobs.filter((job) => !deployJobs.includes(job));
-
-  const isEveryJobCovered =
-    otherJobs.length > 0 &&
-    otherJobs.every((job) => isChecksGroup(context, findMember(job.definition, 'concurrency')));
-
-  const isCovered = isChecksGroup(context, workflowConcurrency) || isEveryJobCovered;
-
-  const workflowFindings =
-    deployJobs.length > 0 || isCovered
-      ? []
-      : [
-          {
-            path: context.path,
-            line: getTopLevelLine(context.lines, 'on'),
-            message:
-              'a checks workflow, which runs on pull_request or push, sets concurrency with cancel-in-progress: true; a gate that runs only on a push to main may instead group by github.sha and never cancel',
-          },
-        ];
-
-  const jobFindings =
-    deployJobs.length === 0
-      ? []
-      : otherJobs
-          .filter((job) => !isChecksGroup(context, findMember(job.definition, 'concurrency')))
-          .map((job) => ({
-            path: context.path,
-            line: job.line,
-            message: `job ${job.id} runs in a checks workflow beside a release or deploy job, so it sets a job-level concurrency group with cancel-in-progress: true`,
-          }));
-
-  return [
-    ...workflowFindings,
-    ...jobFindings,
-    ...collectPerRunGroupFindings(
-      context,
-      workflowConcurrency,
-      getTopLevelLine(context.lines, 'concurrency'),
-    ),
-    ...otherJobs.flatMap((job) =>
-      collectPerRunGroupFindings(context, findMember(job.definition, 'concurrency'), job.line),
-    ),
-  ];
-}
-
-function isChecksGroup(context: WorkflowContext, concurrency: unknown): boolean {
-  return isCancelling(concurrency) || isGateGroup(context, concurrency);
-}
-
-function isGateGroup(context: WorkflowContext, concurrency: unknown): boolean {
-  const group = findMember(concurrency, 'group');
-  const cancel = findMember(concurrency, 'cancel-in-progress');
-
-  return (
-    isMainGate(context) &&
-    typeof group === 'string' &&
-    collectExpressionReferences(group).includes('github.sha') &&
-    (cancel === undefined || cancel === false)
-  );
-}
-
-// A gate on main runs once for each commit, so a newer commit must not cancel the older run.
-function isMainGate(context: WorkflowContext): boolean {
-  const push = findMember(findMember(context.workflow, 'on'), 'push');
-  const branches = [findMember(push, 'branches')].flat();
-
-  return (
-    !pullRequestTriggers.some((name) => context.triggers.has(name)) &&
-    branches.length > 0 &&
-    branches.every((branch) => branch === 'main')
-  );
-}
-
-// A value that differs between two runs on the same branch gives each run its own group, which no
-// later run cancels.
-const perRunValues = ['github.sha', 'github.run_id', 'github.run_number', 'github.run_attempt'];
-
-function collectPerRunGroupFindings(
-  context: WorkflowContext,
-  concurrency: unknown,
-  line: number,
-): WorkflowFinding[] {
-  const group = findMember(concurrency, 'group');
-  const references = typeof group === 'string' ? collectExpressionReferences(group) : [];
-  const allowed = isGateGroup(context, concurrency) ? 'github.sha' : undefined;
-  const perRun = perRunValues.find((value) => value !== allowed && references.includes(value));
-
-  return perRun === undefined
-    ? []
-    : [
-        {
-          path: context.path,
-          line,
-          message: `the concurrency group holds ${perRun}, so no newer run cancels this one`,
-        },
-      ];
 }
 
 function collectWorkflowRunFindings(context: WorkflowContext): WorkflowFinding[] {
