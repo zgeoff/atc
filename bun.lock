@@ -49,7 +49,7 @@
     },
     "packages/app": {
       "name": "@atc/app",
-      "version": "7.8.1",
+      "version": "7.9.0",
       "dependencies": {
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
@@ -97,7 +97,7 @@
     },
     "packages/contract": {
       "name": "@atcx/contract",
-      "version": "7.8.1",
+      "version": "7.9.0",
       "dependencies": {
         "@orpc/contract": "catalog:",
         "zod": "catalog:",
@@ -175,7 +175,7 @@
     },
     "packages/gateway": {
       "name": "@atc/gateway",
-      "version": "7.8.1",
+      "version": "7.9.0",
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
