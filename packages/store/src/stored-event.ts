@@ -8,6 +8,19 @@ export interface EventScope {
   readonly agentSessionIDs: readonly AgentSessionID[];
 }
 
+// One trail row as the daemon recorded it, with the hook that wrote it. Unlike a stored
+// event, it covers the heartbeat rows and the rows with no kind, which no event read returns.
+export interface TrailRow {
+  readonly id: number;
+
+  // Epoch ms of ts.
+  readonly at: number;
+  readonly atcID: SessionID;
+  readonly agentSessionID: AgentSessionID | null;
+  readonly event: string;
+  readonly kind: string | null;
+}
+
 export interface StoredEvent {
   readonly id: number;
 

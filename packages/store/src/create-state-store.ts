@@ -38,7 +38,7 @@ import type {
 import { openSQLite } from './sqlite/open-sqlite';
 import { runMigrations } from './sqlite/run-migrations';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
-import type { EventScope, StoredAnswer, StoredEvent, StoredNote } from './stored-event';
+import type { EventScope, StoredAnswer, StoredEvent, StoredNote, TrailRow } from './stored-event';
 import type { TrailEntry } from './trail-entry';
 import type { MaterializationUpdate, WorkspaceMaterialization } from './workspace-materialization';
 import { writeBackup } from './write-backup';
@@ -145,10 +145,12 @@ export interface StateStore {
     next: AgentSessionID,
   ) => Promise<void>;
   readonly updateTrailOwner: (atcID: SessionID, next: AgentSessionID) => Promise<void>;
+  readonly readTrailRows: () => Promise<TrailRow[]>;
   readonly claimIdempotencyKey: (claim: IdempotencyClaim) => Promise<IdempotencyRecord | null>;
   readonly readIdempotencyKey: (
     id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
   ) => Promise<IdempotencyRecord | null>;
+  readonly readIdempotencyKeys: () => Promise<IdempotencyRecord[]>;
   readonly updateIdempotencyCompleted: (
     record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
     result: string,
@@ -177,6 +179,7 @@ export interface StateStore {
     at: number,
   ) => Promise<void>;
   readonly readMaterialization: (sessionID: SessionID) => Promise<WorkspaceMaterialization | null>;
+  readonly readMaterializations: () => Promise<WorkspaceMaterialization[]>;
   readonly reconcileMaterializations: (at: number) => Promise<void>;
   readonly readPublishedRecord: (sessionID: SessionID) => Promise<PublishedRecord | null>;
   readonly writePublishedRecord: (record: PublishedRecord) => Promise<void>;
@@ -381,8 +384,10 @@ export async function createStateStore(
     updateMessageOwner: (atcID, previous, next) =>
       messages.updateMessageOwner(atcID, previous, next),
     updateTrailOwner: (atcID, next) => trail.updateTrailOwner(atcID, next),
+    readTrailRows: () => trail.readTrailRows(),
     claimIdempotencyKey: (claim) => idempotency.claimIdempotencyKey(claim),
     readIdempotencyKey: (id) => idempotency.readIdempotencyKey(id),
+    readIdempotencyKeys: () => idempotency.readIdempotencyKeys(),
     updateIdempotencyCompleted: (record, result, at, effectTarget = null) =>
       idempotency.updateIdempotencyCompleted(record, result, at, effectTarget),
     updateIdempotencyOutcomeUnknown: (record, at) =>
@@ -394,6 +399,7 @@ export async function createStateStore(
     updateMaterialization: (sessionID, fields, at) =>
       materializations.updateMaterialization(sessionID, fields, at),
     readMaterialization: (sessionID) => materializations.readMaterialization(sessionID),
+    readMaterializations: () => materializations.readMaterializations(),
     reconcileMaterializations: (at) => materializations.reconcileMaterializations(at),
     readPublishedRecord: (sessionID) => publishedRecords.readPublishedRecord(sessionID),
     writePublishedRecord: (record) => publishedRecords.writePublishedRecord(record),

@@ -6,7 +6,7 @@ import { RESTART_RESULT_SCHEMA, toAgentSessionID, toMessageID, toSessionID } fro
 import { sql } from 'kysely';
 import type { Expression, ExpressionBuilder, Kysely, SqlBool } from 'kysely';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
-import type { EventScope, StoredAnswer, StoredEvent, StoredNote } from './stored-event';
+import type { EventScope, StoredAnswer, StoredEvent, StoredNote, TrailRow } from './stored-event';
 import type { TrailEntry } from './trail-entry';
 
 const ATTENTION_KINDS = ['turn-done', 'needs-input', 'prompt-submitted'] as const;
@@ -73,6 +73,7 @@ export interface EventTrailStore {
   // none; this stamps them once it is known, so they follow the session
   // across a restore.
   readonly updateTrailOwner: (atcID: SessionID, next: AgentSessionID) => Promise<void>;
+  readonly readTrailRows: () => Promise<TrailRow[]>;
 }
 
 export function createEventTrailStore(db: Kysely<StateStoreSchema>): EventTrailStore {
@@ -326,6 +327,23 @@ export function createEventTrailStore(db: Kysely<StateStoreSchema>): EventTrailS
           'note',
         ])
         .execute();
+    },
+
+    readTrailRows: async () => {
+      const rows = await db
+        .selectFrom('events')
+        .select(['id', 'ts', 'atc_id', 'session_id', 'event', 'kind'])
+        .orderBy('id')
+        .execute();
+
+      return rows.map((row) => ({
+        id: row.id,
+        at: Date.parse(row.ts),
+        atcID: toSessionID(row.atc_id),
+        agentSessionID: row.session_id === null ? null : toAgentSessionID(row.session_id),
+        event: row.event,
+        kind: row.kind,
+      }));
     },
   };
 }

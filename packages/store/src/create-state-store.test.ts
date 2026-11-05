@@ -396,6 +396,64 @@ test('it records hook events into the trail', async () => {
   ]);
 });
 
+test('#readTrailRows reads every trail row oldest first, heartbeats and rows with no kind included', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'SessionStart', payload: { session_id: 'c1' } },
+    { kind: 'started' },
+    Date.parse('2026-01-01T00:00:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s1'), event: 'PreToolUse', payload: { session_id: 'c1' } },
+    { kind: 'heartbeat' },
+    Date.parse('2026-01-01T00:01:00.000Z'),
+  );
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s2'), event: 'Notification', payload: null },
+    null,
+    Date.parse('2026-01-01T00:02:00.000Z'),
+  );
+
+  const rows = await ctx.store.readTrailRows();
+
+  expect(rows).toStrictEqual([
+    {
+      id: expect.any(Number),
+      at: Date.parse('2026-01-01T00:00:00.000Z'),
+      atcID: toSessionID('s1'),
+      agentSessionID: toAgentSessionID('c1'),
+      event: 'SessionStart',
+      kind: 'started',
+    },
+    {
+      id: expect.any(Number),
+      at: Date.parse('2026-01-01T00:01:00.000Z'),
+      atcID: toSessionID('s1'),
+      agentSessionID: toAgentSessionID('c1'),
+      event: 'PreToolUse',
+      kind: 'heartbeat',
+    },
+    {
+      id: expect.any(Number),
+      at: Date.parse('2026-01-01T00:02:00.000Z'),
+      atcID: toSessionID('s2'),
+      agentSessionID: null,
+      event: 'Notification',
+      kind: null,
+    },
+  ]);
+});
+
+test('#readTrailRows reads none from an empty trail', async () => {
+  const ctx = await setupTest();
+  const rows = await ctx.store.readTrailRows();
+
+  expect(rows).toStrictEqual([]);
+});
+
 test('it records a hook event whose payload is not an object with no message or session id', async () => {
   const ctx = await setupTest();
 
@@ -4597,6 +4655,64 @@ test('it claims a free idempotency key', async () => {
   expect(claimed).toBeNull();
 });
 
+test('#readIdempotencyKeys reads every key in the order they were claimed', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.claimIdempotencyKey({
+    principal: 'local',
+    operation: 'session.spawn',
+    key: 'k-2',
+    payloadHash: 'h-2',
+    effectRef: 's-2',
+    at: 1000,
+  });
+
+  await ctx.store.claimIdempotencyKey({
+    principal: 'local',
+    operation: 'session.message',
+    key: 'k-1',
+    payloadHash: 'h-1',
+    effectRef: 'm-1',
+    at: 2000,
+  });
+
+  const keys = await ctx.store.readIdempotencyKeys();
+
+  expect(keys).toStrictEqual([
+    {
+      principal: 'local',
+      operation: 'session.spawn',
+      key: 'k-2',
+      payloadHash: 'h-2',
+      state: 'in_progress',
+      effectRef: 's-2',
+      result: null,
+      effectTarget: null,
+      createdAt: 1000,
+      updatedAt: 1000,
+    },
+    {
+      principal: 'local',
+      operation: 'session.message',
+      key: 'k-1',
+      payloadHash: 'h-1',
+      state: 'in_progress',
+      effectRef: 'm-1',
+      result: null,
+      effectTarget: null,
+      createdAt: 2000,
+      updatedAt: 2000,
+    },
+  ]);
+});
+
+test('#readIdempotencyKeys reads none from an empty ledger', async () => {
+  const ctx = await setupTest();
+  const keys = await ctx.store.readIdempotencyKeys();
+
+  expect(keys).toStrictEqual([]);
+});
+
 test('it hands back the record of a held idempotency key', async () => {
   const ctx = await setupTest();
 
@@ -4947,6 +5063,74 @@ test('it records a workspace materialization through its phases', async () => {
     materializedAt: 3000,
     withheldEnv: ['APP_GIT_TOKEN'],
   });
+});
+
+test('#readMaterializations reads every materialization in the order they started', async () => {
+  const ctx = await setupTest();
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: toSessionID('s-second'),
+      target: 'box',
+      directory: '/w/s-second',
+      sourceKind: 'path',
+      withheldEnv: [],
+    },
+    1000,
+  );
+
+  await ctx.store.createMaterialization(
+    {
+      sessionID: toSessionID('s-first'),
+      target: 'local',
+      directory: '/w/s-first',
+      sourceKind: 'git',
+      withheldEnv: ['APP_GIT_TOKEN'],
+    },
+    2000,
+  );
+
+  const rows = await ctx.store.readMaterializations();
+
+  expect(rows).toStrictEqual([
+    {
+      sessionID: toSessionID('s-second'),
+      target: 'box',
+      directory: '/w/s-second',
+      sourceKind: 'path',
+      phase: 'resolving',
+      repoURL: null,
+      sha: null,
+      ref: null,
+      errorCode: null,
+      startedAt: 1000,
+      updatedAt: 1000,
+      materializedAt: null,
+      withheldEnv: [],
+    },
+    {
+      sessionID: toSessionID('s-first'),
+      target: 'local',
+      directory: '/w/s-first',
+      sourceKind: 'git',
+      phase: 'resolving',
+      repoURL: null,
+      sha: null,
+      ref: null,
+      errorCode: null,
+      startedAt: 2000,
+      updatedAt: 2000,
+      materializedAt: null,
+      withheldEnv: ['APP_GIT_TOKEN'],
+    },
+  ]);
+});
+
+test('#readMaterializations reads none from a store with no materialization', async () => {
+  const ctx = await setupTest();
+  const rows = await ctx.store.readMaterializations();
+
+  expect(rows).toStrictEqual([]);
 });
 
 test('it fails every materialization a stopped daemon left short of ready', async () => {

@@ -1,5 +1,6 @@
 import type { SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
+import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import { parseWithheldEnv } from './parse-withheld-env';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
@@ -21,6 +22,7 @@ export interface MaterializationStore {
     at: number,
   ) => Promise<void>;
   readonly readMaterialization: (sessionID: SessionID) => Promise<WorkspaceMaterialization | null>;
+  readonly readMaterializations: () => Promise<WorkspaceMaterialization[]>;
 
   // Runs as a daemon starts, before it serves a request: a materialization
   // short of ready or failed was cut off by a stopped daemon before its
@@ -78,6 +80,16 @@ export function createMaterializationStore(db: Kysely<StateStoreSchema>): Materi
         .executeTakeFirst();
 
       return row === undefined ? null : toWorkspaceMaterialization(row);
+    },
+
+    readMaterializations: async () => {
+      const rows = await db
+        .selectFrom('workspace_materialization')
+        .selectAll()
+        .orderBy(sql`rowid`)
+        .execute();
+
+      return rows.map((row) => toWorkspaceMaterialization(row));
     },
 
     reconcileMaterializations: async (at) => {
