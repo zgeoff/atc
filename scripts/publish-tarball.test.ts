@@ -31,7 +31,7 @@ test.each([
   );
 
   expect(published.exitCode).toBe(2);
-  expect(published.stderr).toInclude('usage: publish-tarball.sh <tarball>');
+  expect(published.stderr).toInclude('usage: publish-tarball.sh [--dry-run] <tarball>');
   expect(existsSync(join(ctx.directory, 'npm.log'))).toBeFalse();
 });
 
@@ -63,7 +63,43 @@ test('it publishes a version npm does not hold with provenance', async () => {
   );
 });
 
-test('it publishes nothing when npm holds the version already', async () => {
+test('it runs a dry run of a version npm does not hold without provenance', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'package/package.json'),
+    JSON.stringify({ name: '@atcx/contract', version: '7.1.0' }),
+  );
+
+  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], { cwd: ctx.directory });
+
+  createStubBin(
+    join(ctx.directory, 'bin'),
+    'npm',
+    buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  );
+
+  const published = await runCommand(
+    [
+      'bash',
+      join(import.meta.dir, 'publish-tarball.sh'),
+      '--dry-run',
+      join(ctx.directory, 'contract.tgz'),
+    ],
+    { env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` } },
+  );
+
+  expect(published.exitCode).toBe(0);
+
+  expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8')).toBe(
+    `view @atcx/contract@7.1.0 version\npublish ${join(ctx.directory, 'contract.tgz')} --access public --dry-run\n`,
+  );
+});
+
+test.each([
+  ['a publish', []],
+  ['a dry run', ['--dry-run']],
+])('it skips %s when npm holds the version already', async (_label, args) => {
   const ctx = setupTest();
 
   await Bun.write(
@@ -80,7 +116,12 @@ test('it publishes nothing when npm holds the version already', async () => {
   );
 
   const published = await runCommand(
-    ['bash', join(import.meta.dir, 'publish-tarball.sh'), join(ctx.directory, 'contract.tgz')],
+    [
+      'bash',
+      join(import.meta.dir, 'publish-tarball.sh'),
+      ...args,
+      join(ctx.directory, 'contract.tgz'),
+    ],
     { env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` } },
   );
 
