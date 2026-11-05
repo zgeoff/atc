@@ -7,6 +7,7 @@ export * from './auth/open-mcp-auth';
 export * from './auth/read-client-views';
 export * from './auth/read-enrollment-token';
 export * from './auth/read-grant-views';
+export * from './auth/read-owner-session-views';
 export * from './auth/read-passkey-views';
 export * from './auth/remove-client';
 export * from './auth/remove-passkey';

@@ -22,9 +22,11 @@ import invariant from 'tiny-invariant';
 import { createEnrollmentToken } from '../auth/create-enrollment-token';
 import { openMCPAuth } from '../auth/open-mcp-auth';
 import { readGrantViews } from '../auth/read-grant-views';
+import { readOwnerSessionViews } from '../auth/read-owner-session-views';
 import { removeClient } from '../auth/remove-client';
 import { resetPasskeys } from '../auth/reset-passkeys';
 import { revokeGrant } from '../auth/revoke-grant';
+import { createSubscriptionStore } from '../events/create-subscription-store';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
@@ -1075,10 +1077,7 @@ test('it removes the subscription of a client that revoked its refresh token, an
   ctx.clock.advance(5000);
 
   await waitFor(async () => {
-    const subscriptions = await ctx.store.db
-      .selectFrom('atc_event_subscription')
-      .select('id')
-      .execute();
+    const subscriptions = await createSubscriptionStore(ctx.store.db).readIDs();
 
     expect(subscriptions).toStrictEqual([]);
   });
@@ -2625,7 +2624,7 @@ test('it deletes the owner session when the operator denies the request', async 
     .map((line) => line.split(';')[0])
     .join('; ');
 
-  const before = await ctx.store.db.selectFrom('session').select('id').execute();
+  const before = await readOwnerSessionViews(ctx.store.db);
 
   invariant(before.length === 1, 'the login left no owner session');
 
@@ -2636,7 +2635,7 @@ test('it deletes the owner session when the operator denies the request', async 
     body: new URLSearchParams({ oauth_query: consent.search.slice(1), decision: 'deny' }),
   });
 
-  const after = await ctx.store.db.selectFrom('session').select('id').execute();
+  const after = await readOwnerSessionViews(ctx.store.db);
 
   expect(denied.status).toBe(302);
   expect(after).toBeEmpty();
@@ -2658,7 +2657,7 @@ test('it keeps the owner session no longer than the authorization code it approv
     ticked: ['read'],
   });
 
-  const sessions = await ctx.store.db.selectFrom('session').select('expiresAt').execute();
+  const sessions = await readOwnerSessionViews(ctx.store.db);
 
   const [session] = sessions;
 
@@ -2697,7 +2696,7 @@ test('it deletes the owner session once its authorization code is exchanged', as
 
   invariant(exchanged.status === 200, 'the exchange failed');
 
-  const sessions = await ctx.store.db.selectFrom('session').select('id').execute();
+  const sessions = await readOwnerSessionViews(ctx.store.db);
 
   expect(sessions).toBeEmpty();
 });

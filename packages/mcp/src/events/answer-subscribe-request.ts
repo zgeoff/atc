@@ -12,6 +12,7 @@ import { createSubscriptionStore } from './create-subscription-store';
 import { EVENT_ERROR_CODES } from './event-error-codes';
 import { parseSubscribeRequest } from './parse-subscribe-request';
 import type { SUBSCRIBE_PARAMS, SubscribeRequest } from './parse-subscribe-request';
+import { readCallbackVerifiedAt } from './read-callback-verified-at';
 import type { WebhookSender } from './types';
 import { verifyCallback } from './verify-callback';
 
@@ -118,14 +119,9 @@ async function requireVerifiedCallback(
 ): Promise<void> {
   const now = deps.clock.now();
 
-  const verified = await deps.db
-    .selectFrom('atc_event_callback')
-    .select('verified_at')
-    .where('client_id', '=', deps.clientID)
-    .where('url', '=', request.url)
-    .executeTakeFirst();
+  const lastVerifiedAt = await readCallbackVerifiedAt(deps.db, deps.clientID, request.url);
 
-  if (verified !== undefined && Date.parse(verified.verified_at) + VERIFIED_FOR_MS > now) {
+  if (lastVerifiedAt !== null && Date.parse(lastVerifiedAt) + VERIFIED_FOR_MS > now) {
     return;
   }
 

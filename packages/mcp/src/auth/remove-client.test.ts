@@ -9,6 +9,8 @@ import {
   setupTempDir,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { createSubscriptionStore } from '../events/create-subscription-store';
+import { readCallbackVerifiedAt } from '../events/read-callback-verified-at';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
@@ -99,10 +101,7 @@ test("it ends a removed client's event subscriptions", async () => {
 
   await removeClient(ctx.store.db, created.clientID);
 
-  const subscriptions = await ctx.store.db
-    .selectFrom('atc_event_subscription')
-    .select('id')
-    .execute();
+  const subscriptions = await createSubscriptionStore(ctx.store.db).readIDs();
 
   expect(subscriptions).toStrictEqual([]);
 });
@@ -139,14 +138,21 @@ test("it removes a removed client's verified callbacks and keeps another client'
 
   await removeClient(ctx.store.db, removed.clientID);
 
-  const callbacks = await ctx.store.db
-    .selectFrom('atc_event_callback')
-    .select(['client_id', 'url'])
-    .execute();
+  const removedVerifiedAt = await readCallbackVerifiedAt(
+    ctx.store.db,
+    removed.clientID,
+    'https://hooks.example.com/hook',
+  );
 
-  expect(callbacks).toStrictEqual([
-    { client_id: kept.clientID, url: 'https://hooks.example.com/hook' },
-  ]);
+  expect(removedVerifiedAt).toBeNull();
+
+  const keptVerifiedAt = await readCallbackVerifiedAt(
+    ctx.store.db,
+    kept.clientID,
+    'https://hooks.example.com/hook',
+  );
+
+  expect(keptVerifiedAt).toBe('2026-10-23T12:00:00.000Z');
 });
 
 test('it reports an unknown client id as not removed', async () => {
