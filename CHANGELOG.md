@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.9.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.8.1...@zgeoff/atc@7.9.0) (2026-11-05)
+
+### Features
+
+- **gateway:** check daemon versions and release on its own track
+  ([#1105](https://github.com/zgeoff/atc/issues/1105))
+  ([4b75ac2](https://github.com/zgeoff/atc/commit/4b75ac2ee60319553da2a5cdf294c09354618264))
+
+### Bug Fixes
+
+- keep a restored session's last reported state through its revive
+  ([#1102](https://github.com/zgeoff/atc/issues/1102))
+  ([d098cb2](https://github.com/zgeoff/atc/commit/d098cb2fb3d9c645f726d85d7cfb9115ec48616c))
+
 ## [7.8.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.8.0...@zgeoff/atc@7.8.1) (2026-11-04)
 
 ### Bug Fixes
