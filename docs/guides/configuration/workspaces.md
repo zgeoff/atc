@@ -34,7 +34,8 @@ second GitHub source that lists one organization's repositories:
 | `owner` | `github` | `null`                                 | The account or organization whose repositories the source lists. Typing `owner/` in the picker lists another owner. `null` lists the 500 most recently pushed repositories your `gh` account can access. |
 | `bin`   | `github` | `"gh"`                                 | The `gh` executable: a name looked up on `PATH`, or a path.                                                                                                                                              |
 
-atc shows the entry's id as the source's name, such as in the picker. An id is 1 to 64 characters.
+The entry's id identifies the source in the config and in the daemon's requests. The picker shows
+each source's label, such as `GitHub repository`, in place of its id. An id is 1 to 64 characters.
 atc refuses an id of digits alone, because JavaScript moves an integer key to the front of an
 object, which would change the order. atc also refuses `__proto__`, which JavaScript reserves.
 
