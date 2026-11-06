@@ -136,7 +136,7 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
     });
 
     // a root relative to a remote home has no absolute form here to compare rows against
-    return root.startsWith('/') ? readHostSubdirs(provider, null, root) : Promise.resolve([]);
+    return root.startsWith('/') ? readHostSubdirs(provider, root) : Promise.resolve([]);
   };
 
   const pruneWorkspace = (
@@ -217,7 +217,7 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
       return null;
     }
 
-    const bytes = await readHostDirBytes(provider, null, plan.path);
+    const bytes = await readHostDirBytes(provider, plan.path);
 
     return match(plan)
       .returnType<Promise<WorkspacePruneFolder | null>>()

@@ -20,7 +20,7 @@ test('it lists each folder under a folder, and no file or symlink', async () => 
   writeFileSync(join(ctx.directory, 'notes.txt'), 'rye\n');
   symlinkSync(join(ctx.directory, 'bakery-main'), join(ctx.directory, 'bakery-link'));
 
-  const folders = await readHostSubdirs(ctx.provider, null, ctx.directory);
+  const folders = await readHostSubdirs(ctx.provider, ctx.directory);
 
   expect(folders.toSorted()).toStrictEqual([
     join(ctx.directory, 'bakery-main'),
@@ -38,7 +38,7 @@ test('it rejects with the host error when the host cannot list the folder', () =
       }),
   });
 
-  expect(readHostSubdirs(provider, null, '/w/pantry')).rejects.toThrow(
+  expect(readHostSubdirs(provider, '/w/pantry')).rejects.toThrow(
     "atc could not list the folders under /w/pantry: find: '/w/pantry': Permission denied",
   );
 });
@@ -46,7 +46,7 @@ test('it rejects with the host error when the host cannot list the folder', () =
 test('it lists none under a folder that is not there', async () => {
   const ctx = setupTest();
 
-  const folders = await readHostSubdirs(ctx.provider, null, join(ctx.directory, 'gone'));
+  const folders = await readHostSubdirs(ctx.provider, join(ctx.directory, 'gone'));
 
   expect(folders).toStrictEqual([]);
 });

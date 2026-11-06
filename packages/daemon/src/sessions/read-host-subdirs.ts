@@ -9,13 +9,11 @@ export const LIST_SUBDIRS_SCRIPT = String.raw`[ -d "$1" ] || exit 0; find "$1" -
 // could not list them, so a failed listing never reads as an empty folder.
 export async function readHostSubdirs(
   provider: Pick<ExecutionProvider, 'runCommand'>,
-  host: string | null,
   directory: string,
 ): Promise<string[]> {
   const run = await provider.runCommand({
     argv: ['sh', '-c', LIST_SUBDIRS_SCRIPT, 'sh', directory],
     cwd: '/',
-    ...(host === null ? {} : { host }),
   });
 
   if (run.exitCode !== 0) {
