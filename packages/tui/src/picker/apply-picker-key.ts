@@ -103,10 +103,10 @@ function applyPendingCancel(flow: PickerFlow) {
 }
 
 function cancelPathListing(flow: PickerFlow) {
-  if (flow.ctx.pathListing) {
-    flow.ctx.pathListing = false;
+  if (flow.ctx.pathListing !== null) {
+    flow.effects.push({ kind: 'cancel-listing', sourceID: flow.ctx.pathListing });
 
-    flow.effects.push({ kind: 'cancel-path-listing' });
+    flow.ctx.pathListing = null;
   }
 }
 

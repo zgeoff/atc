@@ -1,6 +1,6 @@
 import { ansi } from '@atc/core';
 import { machineTypes } from '@zgeoff/std';
-import { match } from 'ts-pattern';
+import { P, match } from 'ts-pattern';
 import { assertEvent, enqueueActions, raise, setup } from 'xstate';
 import { drawPicker } from '../ui';
 import { openAgentMenu } from './agent-step';
@@ -8,19 +8,12 @@ import { applyPickerKey } from './apply-picker-key';
 import { applyRequestOutcome } from './apply-request-outcome';
 import { buildPickerContext } from './build-picker-context';
 import { buildPickerView } from './build-picker-view';
-import type {
-  CompletionOutcome,
-  GitListingOutcome,
-  PathListingOutcome,
-  RequestOutcome,
-} from './create-picker-actors';
+import type { CompletionOutcome, ListingOutcome, RequestOutcome } from './create-picker-actors';
 import { createPickerActors } from './create-picker-actors';
 import { applyCompletion, applyPathListing } from './dir-step';
 import { renderFlow } from './navigate-picker';
 import type {
   CompletionRequest,
-  GitListingRequest,
-  PathListingRequest,
   PickerContext,
   PickerFlow,
   PickerRequest,
@@ -40,12 +33,7 @@ type PickerEvent =
   | { readonly type: 'REQUEST'; readonly request: PickerRequest }
   | { readonly type: 'REQUEST_DONE'; readonly outcome: RequestOutcome }
   | { readonly type: 'CANCEL_REQUEST' }
-  | { readonly type: 'LIST_PATH'; readonly request: PathListingRequest }
-  | { readonly type: 'PATH_LISTED'; readonly outcome: PathListingOutcome }
-  | { readonly type: 'CANCEL_PATH_LISTING' }
-  | { readonly type: 'LIST_GIT'; readonly request: GitListingRequest }
-  | { readonly type: 'GIT_LISTED'; readonly outcome: GitListingOutcome }
-  | { readonly type: 'CANCEL_GIT_LISTING' }
+  | { readonly type: `xstate.done.actor.listing.${string}`; readonly output: ListingOutcome }
   | { readonly type: 'COMPLETE' }
   | { readonly type: 'COMPLETED'; readonly outcome: CompletionOutcome }
   | { readonly type: 'CANCEL_COMPLETION' };
@@ -86,17 +74,14 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
             .with({ kind: 'cancel-request' }, () => {
               enqueue.raise({ type: 'CANCEL_REQUEST' });
             })
-            .with({ kind: 'list-path' }, (listing) => {
-              enqueue.raise({ type: 'LIST_PATH', request: listing.request });
+            .with({ kind: 'list' }, (listing) => {
+              const id = toListingChildID(listing.request.sourceID);
+
+              enqueue.stopChild(id);
+              enqueue.spawnChild('listing', { id, input: listing.request });
             })
-            .with({ kind: 'cancel-path-listing' }, () => {
-              enqueue.raise({ type: 'CANCEL_PATH_LISTING' });
-            })
-            .with({ kind: 'list-git' }, (listing) => {
-              enqueue.raise({ type: 'LIST_GIT', request: listing.request });
-            })
-            .with({ kind: 'cancel-git-listing' }, () => {
-              enqueue.raise({ type: 'CANCEL_GIT_LISTING' });
+            .with({ kind: 'cancel-listing' }, (cancel) => {
+              enqueue.stopChild(toListingChildID(cancel.sourceID));
             })
             .with({ kind: 'complete' }, () => {
               enqueue.raise({ type: 'COMPLETE' });
@@ -146,6 +131,11 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
             .exhaustive();
         }
       }),
+      stopListings: enqueueActions((args) => {
+        for (const source of args.context.sources) {
+          args.enqueue.stopChild(toListingChildID(source.id));
+        }
+      }),
     },
   }).createMachine({
     id: 'spawn-picker',
@@ -159,13 +149,13 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
       closed: {},
       open: {
         type: 'parallel',
+        exit: 'stopListings',
         on: {
           CLOSE: '#spawn-picker.closed',
           KEY: { actions: 'step' },
           STOP: { actions: 'step' },
           REQUEST_DONE: { actions: 'step' },
-          PATH_LISTED: { actions: 'step' },
-          GIT_LISTED: { actions: 'step' },
+          'xstate.done.actor.listing.*': { actions: 'step' },
           COMPLETED: { actions: 'step' },
         },
         states: {
@@ -197,60 +187,6 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
                       type: 'REQUEST_DONE',
                       outcome: args.event.output,
                     })),
-                  },
-                },
-              },
-            },
-          },
-          pathListing: {
-            initial: 'idle',
-            states: {
-              idle: {
-                on: { LIST_PATH: 'running' },
-              },
-              running: {
-                on: {
-                  LIST_PATH: { target: 'running', reenter: true },
-                  CANCEL_PATH_LISTING: 'idle',
-                },
-                invoke: {
-                  // oxlint-disable-next-line zgeoff/no-abbreviated-names -- xstate's invoke config names its actor src
-                  src: 'pathListing',
-                  input: (args) => {
-                    assertEvent(args.event, 'LIST_PATH');
-
-                    return args.event.request;
-                  },
-                  onDone: {
-                    target: 'idle',
-                    actions: raise((args) => ({ type: 'PATH_LISTED', outcome: args.event.output })),
-                  },
-                },
-              },
-            },
-          },
-          gitListing: {
-            initial: 'idle',
-            states: {
-              idle: {
-                on: { LIST_GIT: 'running' },
-              },
-              running: {
-                on: {
-                  LIST_GIT: { target: 'running', reenter: true },
-                  CANCEL_GIT_LISTING: 'idle',
-                },
-                invoke: {
-                  // oxlint-disable-next-line zgeoff/no-abbreviated-names -- xstate's invoke config names its actor src
-                  src: 'gitListing',
-                  input: (args) => {
-                    assertEvent(args.event, 'LIST_GIT');
-
-                    return args.event.request;
-                  },
-                  onDone: {
-                    target: 'idle',
-                    actions: raise((args) => ({ type: 'GIT_LISTED', outcome: args.event.output })),
                   },
                 },
               },
@@ -309,11 +245,8 @@ function applyEvent(flow: PickerFlow, event: PickerEvent) {
     .with({ type: 'REQUEST_DONE' }, (done) => {
       applyRequestOutcome(flow, done.outcome);
     })
-    .with({ type: 'PATH_LISTED' }, (listed) => {
-      applyPathListing(flow, listed.outcome);
-    })
-    .with({ type: 'GIT_LISTED' }, (listed) => {
-      applyGitListing(flow, listed.outcome);
+    .with({ type: P.string.startsWith('xstate.done.actor.listing.') }, (done) => {
+      applyListing(flow, done.output);
     })
     .with({ type: 'COMPLETED' }, (completed) => {
       applyCompletion(flow, completed.outcome);
@@ -322,10 +255,6 @@ function applyEvent(flow: PickerFlow, event: PickerEvent) {
       { type: 'CLOSE' },
       { type: 'REQUEST' },
       { type: 'CANCEL_REQUEST' },
-      { type: 'LIST_PATH' },
-      { type: 'CANCEL_PATH_LISTING' },
-      { type: 'LIST_GIT' },
-      { type: 'CANCEL_GIT_LISTING' },
       { type: 'COMPLETE' },
       { type: 'CANCEL_COMPLETION' },
       () => {},
@@ -336,27 +265,39 @@ function applyEvent(flow: PickerFlow, event: PickerEvent) {
 function stopFlow(flow: PickerFlow) {
   const ctx = flow.ctx;
 
+  for (const sourceID of [ctx.listing?.sourceID, ctx.pathListing]) {
+    if (sourceID !== undefined && sourceID !== null) {
+      flow.effects.push({ kind: 'cancel-listing', sourceID });
+    }
+  }
+
   ctx.pending = null;
   ctx.listing = null;
-  ctx.pathListing = false;
+  ctx.pathListing = null;
   ctx.completion = null;
 
-  flow.effects.push(
-    { kind: 'cancel-request' },
-    { kind: 'cancel-path-listing' },
-    { kind: 'cancel-git-listing' },
-    { kind: 'cancel-completion' },
-  );
+  flow.effects.push({ kind: 'cancel-request' }, { kind: 'cancel-completion' });
+}
+
+function applyListing(flow: PickerFlow, outcome: ListingOutcome) {
+  match(outcome.request)
+    .with({ kind: 'path' }, (request) => {
+      applyPathListing(flow, { ...outcome, request });
+    })
+    .with({ kind: 'git' }, (request) => {
+      applyGitListing(flow, { ...outcome, request });
+    })
+    .exhaustive();
 }
 
 function settleFlow(flow: PickerFlow) {
   const ctx = flow.ctx;
 
   if (ctx.listing !== null && findSource(ctx)?.id !== ctx.listing.sourceID) {
+    flow.effects.push({ kind: 'cancel-listing', sourceID: ctx.listing.sourceID });
+
     ctx.listing = null;
     ctx.listedKey = null;
-
-    flow.effects.push({ kind: 'cancel-git-listing' });
   }
 
   if (ctx.completion !== null && (ctx.step !== 'dir' || ctx.input !== ctx.completion.input)) {
@@ -366,6 +307,12 @@ function settleFlow(flow: PickerFlow) {
   }
 
   ctx.selected = getSelectedIndex(ctx);
+}
+
+// Each source lists in a child of its own, so a listing of one source never
+// stops another's, and a second listing of a source replaces its first.
+function toListingChildID(sourceID: string) {
+  return `listing.${sourceID}`;
 }
 
 function getCompletion(context: PickerContext): CompletionRequest {

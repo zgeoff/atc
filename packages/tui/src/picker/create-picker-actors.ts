@@ -1,4 +1,5 @@
 import type { AgentEntry, GitProbeResult, SourceEntry, SourceInterpretation } from '@atcx/contract';
+import { match } from 'ts-pattern';
 import { fromPromise } from 'xstate';
 import { collectTargetPicks } from '../collect-target-picks';
 import type { TargetPick } from '../collect-target-picks';
@@ -14,9 +15,8 @@ import {
 import type {
   CompletionRequest,
   DroppedAnswer,
-  GitListingRequest,
   ListedCandidate,
-  PathListingRequest,
+  ListingRequest,
   PickerRequest,
   SpawnPickerDeps,
 } from './picker-flow';
@@ -52,14 +52,8 @@ export type RequestOutcome =
       readonly ok: boolean;
     };
 
-export interface PathListingOutcome {
-  readonly request: PathListingRequest;
-  readonly candidates: readonly ListedCandidate[];
-  readonly failure: string | null;
-}
-
-export interface GitListingOutcome {
-  readonly request: GitListingRequest;
+export interface ListingOutcome<TRequest extends ListingRequest = ListingRequest> {
+  readonly request: TRequest;
   readonly answer: Answer | null;
   readonly error: unknown;
 }
@@ -189,31 +183,31 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
         ok: sent.answer !== null,
       };
     }),
-    pathListing: fromPromise<PathListingOutcome, PathListingRequest>(async (args) => {
-      const sent = await sendAnswered('sources.list', args.input.params);
 
-      reportDrop(args.signal, 'directory listing');
+    listing: fromPromise<ListingOutcome, ListingRequest>(async (args) => {
+      const request = args.input;
 
-      return {
-        request: args.input,
-        candidates: sent.answer === null ? [] : parseCandidates(sent.answer['candidates']),
-        failure: sent.answer === null ? formatPickerError(sent.error) : null,
-      };
-    }),
-    gitListing: fromPromise<GitListingOutcome, GitListingRequest>(async (args) => {
-      const sent = await sendAnswered('sources.list', args.input.params);
+      const sent = await sendAnswered('sources.list', request.params);
 
-      if (sent.answer !== null && Array.isArray(sent.answer['candidates'])) {
-        void deps.listingCache?.writeListing(args.input.key, {
-          candidates: sent.answer['candidates'],
-          scope: typeof sent.answer['scope'] === 'string' ? sent.answer['scope'] : args.input.scope,
-          listedAt: args.input.requestedAt,
-        });
-      }
+      const dropped = match(request)
+        .returnType<DroppedAnswer>()
+        .with({ kind: 'path' }, () => 'directory listing')
+        .with({ kind: 'git' }, (git) => {
+          if (sent.answer !== null && Array.isArray(sent.answer['candidates'])) {
+            void deps.listingCache?.writeListing(git.key, {
+              candidates: sent.answer['candidates'],
+              scope: typeof sent.answer['scope'] === 'string' ? sent.answer['scope'] : git.scope,
+              listedAt: git.requestedAt,
+            });
+          }
 
-      reportDrop(args.signal, 'listing');
+          return 'listing';
+        })
+        .exhaustive();
 
-      return { request: args.input, answer: sent.answer, error: sent.error };
+      reportDrop(args.signal, dropped);
+
+      return { request, answer: sent.answer, error: sent.error };
     }),
     completion: fromPromise<CompletionOutcome, CompletionRequest>(async (args) => {
       const sent = await sendAnswered('sources.complete', args.input.params);

@@ -121,11 +121,13 @@ export function openPathSource(flow: PickerFlow, index: number, scope: string | 
     return;
   }
 
-  flow.ctx.pathListing = true;
+  flow.ctx.pathListing = source.id;
 
   flow.effects.push({
-    kind: 'list-path',
+    kind: 'list',
     request: {
+      kind: 'path',
+      sourceID: source.id,
       index,
       params: {
         source: source.id,
@@ -145,12 +147,14 @@ export function openGitSource(
   const ctx = flow.ctx;
   const fromGit = isGitFlow(ctx);
 
-  ctx.pathListing = false;
+  if (ctx.pathListing !== null) {
+    flow.effects.push({ kind: 'cancel-listing', sourceID: ctx.pathListing });
+  }
+
+  ctx.pathListing = null;
   ctx.sourceIndex = index;
   ctx.sourceDraft = draft;
   ctx.sourceAction = action;
-
-  flow.effects.push({ kind: 'cancel-path-listing' });
 
   if (fromGit) {
     openSourceStep(flow);
@@ -246,12 +250,17 @@ export function loadCandidates(flow: PickerFlow, scope: string | null) {
     return;
   }
 
+  if (ctx.listing !== null && ctx.listing.sourceID !== source.id) {
+    flow.effects.push({ kind: 'cancel-listing', sourceID: ctx.listing.sourceID });
+  }
+
   ctx.listing = { sourceID: source.id };
   ctx.requestedScope = scope;
 
   flow.effects.push({
-    kind: 'list-git',
+    kind: 'list',
     request: {
+      kind: 'git',
       sourceID: source.id,
       scope,
       key: buildListingKey(ctx, deps, source.id, scope),

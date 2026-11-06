@@ -1,5 +1,5 @@
 import { isGitURL } from '@atc/core';
-import type { GitListingOutcome, RequestOutcome } from './create-picker-actors';
+import type { ListingOutcome, RequestOutcome } from './create-picker-actors';
 import { findAlternateURL, formatListFailure, formatPickerError } from './format-picker-error';
 import {
   applyReading,
@@ -13,7 +13,7 @@ import {
   renderFlow,
 } from './navigate-picker';
 import { parseCandidates } from './parse-picker-answers';
-import type { ListedCandidate, PickerFlow } from './picker-flow';
+import type { ListedCandidate, ListingRequest, PickerFlow } from './picker-flow';
 import { collectCandidateItems, findSource } from './picker-queries';
 
 export function applySourceSubmit(flow: PickerFlow) {
@@ -49,11 +49,11 @@ export function applySourceCancel(flow: PickerFlow) {
   const ctx = flow.ctx;
 
   if (ctx.listing !== null && ctx.listedFrom === null) {
+    flow.effects.push({ kind: 'cancel-listing', sourceID: ctx.listing.sourceID });
+
     ctx.listing = null;
     ctx.listedKey = null;
     ctx.listNotice = 'listing stopped — type to enter one';
-
-    flow.effects.push({ kind: 'cancel-git-listing' });
 
     renderFlow(flow);
 
@@ -86,7 +86,10 @@ export function refreshCandidates(flow: PickerFlow) {
   loadCandidates(flow, ctx.requestedScope);
 }
 
-export function applyGitListing(flow: PickerFlow, outcome: GitListingOutcome) {
+export function applyGitListing(
+  flow: PickerFlow,
+  outcome: ListingOutcome<Extract<ListingRequest, { readonly kind: 'git' }>>,
+) {
   const ctx = flow.ctx;
   const scope = outcome.request.scope;
 
