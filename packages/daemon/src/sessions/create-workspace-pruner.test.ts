@@ -10,6 +10,7 @@ import {
   createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
+  waitFor,
 } from '@atc/test-utils';
 import type { SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
@@ -21,6 +22,7 @@ import { createSessionManager } from './create-session-manager';
 import { createWorkspacePruner } from './create-workspace-pruner';
 import { readDirBytes } from './read-dir-bytes';
 import { readSubdirNames } from './read-subdir-names';
+import { WORKSPACE_CHECK_SCRIPT } from './run-workspace-check';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-workspace-pruner-');
@@ -85,7 +87,7 @@ async function setupTest() {
     },
   };
 
-  return { store, manager, log, stateDir, root, pruner, seed };
+  return { store, manager, provider, log, stateDir, root, pruner, seed };
 }
 
 test('it lists a clean workspace as remove, a dirty one as keep, and a folder with no row as skip on a dry run, and removes nothing', async () => {
@@ -205,6 +207,38 @@ test('it logs each folder a prune with remove takes away or keeps', async () => 
     `atc: prune kept the workspace ${realpathSync(dirty.work)}: 1 uncommitted or untracked path`,
     `atc: prune removed the state folder ${orphan}`,
   ]);
+});
+
+test('it refuses a spawn into a workspace while the check that decides its removal runs', async () => {
+  const ctx = await setupTest();
+  const clean = await createGitFixture({ prefix: 'atc-pruner-held-' });
+
+  await ctx.seed.workspace(toSessionID('forgotten-clean'), clean.work, clean.sha);
+
+  ctx.provider.holdCommands();
+
+  const pruning = ctx.pruner.prune(true);
+
+  await waitFor(() => {
+    expect(ctx.provider.hasHeldCommands()).toBeTrue();
+  });
+
+  ctx.provider.finishCommands();
+  ctx.provider.holdCommands();
+
+  await waitFor(() => {
+    expect(ctx.provider.commands.at(-1)?.argv).toContain(WORKSPACE_CHECK_SCRIPT);
+  });
+
+  const spawned = await Promise.allSettled([
+    ctx.manager.spawn({ cwd: clean.work, name: 'late-baker', prompt: '', cols: 80, rows: 24 }),
+  ]);
+
+  ctx.provider.finishCommands();
+
+  await pruning;
+
+  expect(spawned).toMatchObject([{ status: 'rejected', reason: { code: 'workspace_overlap' } }]);
 });
 
 test('it logs nothing on a dry run', async () => {
