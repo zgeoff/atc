@@ -259,7 +259,7 @@ test('it rejects with the socket it waited on, and starts no daemon, when none a
 
   expect(notices).toStrictEqual(['waiting without starting a daemon']);
   expect(steps).toStrictEqual([100, 100, 100]);
-  expect(existsSync(buildDaemonStatePaths(ctx.paths.dbFile).lockFile)).toBeFalse();
+  expect(existsSync(buildDaemonStatePaths(ctx.paths.stateDir).lockFile)).toBeFalse();
   expect(existsSync(ctx.sockPath)).toBeFalse();
 });
 

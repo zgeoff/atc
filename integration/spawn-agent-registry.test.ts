@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConfig } from '@atc/config';
+import { parseConfig, stateDir } from '@atc/config';
+import { buildHookSettingsPath } from '@atc/harness-claude';
 import { buildMockHostServices, createStubRecordingClaude, waitFor } from '@atc/test-utils';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
@@ -70,8 +71,8 @@ test('it spawns two claude entries each with its own args and settings file', as
   expect(second['session']).toMatchObject({ agent: 'claude-b' });
   expect(firstArgv[0]).toBe('--a');
   expect(secondArgv[0]).toBe('--b');
-  expect(firstFile).toEndWith('hook-settings-claude.json');
-  expect(secondFile).toEndWith('hook-settings-claude-b.json');
+  expect(firstFile).toBe(buildHookSettingsPath(stateDir, 'claude'));
+  expect(secondFile).toBe(buildHookSettingsPath(stateDir, 'claude-b'));
 
   expect(secondSettings).toMatchObject({
     outputStyle: 'registry-marker',

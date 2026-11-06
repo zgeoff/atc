@@ -2,7 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { buildDaemonStatePaths, collectTargets } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { createLocalPTYProvider } from '@atc/execution-local';
@@ -1513,7 +1513,7 @@ test('it releases the daemon lock and leaves no socket or record behind when the
 
   await Promise.allSettled([started]);
 
-  const statePaths = buildDaemonStatePaths(ctx.dbPath);
+  const statePaths = buildDaemonStatePaths(dirname(ctx.dbPath));
 
   const lock = await claimDaemonLock(statePaths.lockFile, 0);
 

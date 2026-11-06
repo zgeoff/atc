@@ -1,25 +1,23 @@
 import { expect, test } from 'bun:test';
+import { resolvePaths } from '@atc/config/host';
 import { systemClock } from '@atc/core';
 import { buildMockLifecycleHost } from './build-mock-lifecycle-host';
 
-test('it builds a default lifecycle host', () => {
-  expect(buildMockLifecycleHost()).toMatchObject({
-    invocation: { argv: ['false'] },
-    paths: {
-      configFile: expect.toEndWith('/.config/atc/config.json'),
-      stateDir: expect.toEndWith('/.local/state/atc'),
-      socketPath: expect.toEndWith('/.local/state/atc/atc.sock'),
-      daemonSocketPath: expect.toEndWith('/.local/state/atc/atc-daemon.sock'),
-      eventsSocketPath: expect.toEndWith('/.local/state/atc/atc-events.sock'),
-      daemonPidFile: expect.toEndWith('/.local/state/atc/atc-daemon.pid'),
-      statusFile: expect.toEndWith('/.local/state/atc/status.json'),
-      dbFile: expect.toEndWith('/.local/state/atc/atc.db'),
-      mcpAuthDBFile: expect.toEndWith('/.local/state/atc/mcp-auth.db'),
-      daemonRecordFile: expect.toEndWith('/.local/state/atc/daemon.json'),
-      restartsDir: expect.toEndWith('/.local/state/atc/restarts'),
-      restartLockFile: expect.toEndWith('/.local/state/atc/daemon-restart.lock'),
-      listingCacheFile: expect.toEndWith('/.local/state/atc/listing-cache.json'),
-    },
+// The home is random, so each test takes it from the config file, which the
+// person writes and atc only reads.
+test('it builds a default lifecycle host on the paths of one home', () => {
+  const host = buildMockLifecycleHost();
+  const home = host.paths.configFile.slice(0, -'/.config/atc/config.json'.length);
+
+  expect(host.paths).toStrictEqual(resolvePaths({ HOME: home }));
+
+  expect({
+    argv: host.invocation.argv,
+    clock: host.clock,
+    procRoot: host.procRoot,
+    restoreBootTimeoutMs: host.restoreBootTimeoutMs,
+  }).toStrictEqual({
+    argv: ['false'],
     clock: systemClock,
     procRoot: '/proc',
     restoreBootTimeoutMs: 15_000,
@@ -27,17 +25,25 @@ test('it builds a default lifecycle host', () => {
 });
 
 test('it applies overrides on top of the defaults', () => {
-  expect(
-    buildMockLifecycleHost({
-      paths: { daemonSocketPath: '/run/atc-daemon.sock' },
-      procRoot: '/tmp/proc',
-    }),
-  ).toMatchObject({
-    invocation: { argv: ['false'] },
-    paths: {
-      stateDir: expect.toEndWith('/.local/state/atc'),
-      daemonSocketPath: '/run/atc-daemon.sock',
-    },
+  const host = buildMockLifecycleHost({
+    paths: { daemonSocketPath: '/run/atc-daemon.sock' },
+    procRoot: '/tmp/proc',
+  });
+
+  const home = host.paths.configFile.slice(0, -'/.config/atc/config.json'.length);
+
+  expect(host.paths).toStrictEqual({
+    ...resolvePaths({ HOME: home }),
+    daemonSocketPath: '/run/atc-daemon.sock',
+  });
+
+  expect({
+    argv: host.invocation.argv,
+    clock: host.clock,
+    procRoot: host.procRoot,
+    restoreBootTimeoutMs: host.restoreBootTimeoutMs,
+  }).toStrictEqual({
+    argv: ['false'],
     clock: systemClock,
     procRoot: '/tmp/proc',
     restoreBootTimeoutMs: 15_000,

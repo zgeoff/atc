@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
+import { buildHookSettingsPath } from '@atc/harness-claude';
 import { buildMockHostServices, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
@@ -45,7 +46,7 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
     args: [
       '--a',
       '--settings',
-      join(ctx.directory, 'state', 'hook-settings-claude.json'),
+      buildHookSettingsPath(join(ctx.directory, 'state'), 'claude'),
       '--plugin-dir',
       join(ctx.directory, 'atc-bridge'),
     ],
@@ -56,7 +57,7 @@ test('it builds two claude adapters with distinct ids and spawn plans from one r
     args: [
       '--b',
       '--settings',
-      join(ctx.directory, 'state', 'hook-settings-claude-b.json'),
+      buildHookSettingsPath(join(ctx.directory, 'state'), 'claude-b'),
       '--plugin-dir',
       join(ctx.directory, 'atc-bridge'),
     ],
@@ -91,19 +92,12 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
   invariant(gateway?.profile?.kind === 'gateway', 'expected a gateway adapter');
 
   const plan = gateway.planSpawn({ prompt: '', resume: false });
-
-  const settings: unknown = JSON.parse(
-    readFileSync(join(ctx.directory, 'state', 'hook-settings-zai.json'), 'utf8'),
-  );
+  const settingsPath = buildHookSettingsPath(join(ctx.directory, 'state'), 'zai');
+  const settings: unknown = JSON.parse(readFileSync(settingsPath, 'utf8'));
 
   expect(plan).toStrictEqual({
     bin: 'gw',
-    args: [
-      '--settings',
-      join(ctx.directory, 'state', 'hook-settings-zai.json'),
-      '--plugin-dir',
-      join(ctx.directory, 'atc-bridge'),
-    ],
+    args: ['--settings', settingsPath, '--plugin-dir', join(ctx.directory, 'atc-bridge')],
   });
 
   expect(settings).toStrictEqual({

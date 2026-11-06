@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { buildDaemonStatePaths } from '@atc/config';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
@@ -45,7 +45,7 @@ function main() {
   // Recorded the way a real daemon records itself, so a client that finds it by
   // its record can stop it.
   writeFileSync(
-    join(stateDir, 'daemon.json'),
+    buildDaemonStatePaths(stateDir).recordFile,
     JSON.stringify({
       pid: process.pid,
       socketPath,

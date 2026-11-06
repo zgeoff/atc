@@ -1,11 +1,11 @@
 import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { loadGatewayRegistry, openGatewayCaller } from '@atc/gateway';
 import { startMCPHTTPServer } from '@atc/mcp';
 import type { MCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import { openSQLite } from '@atc/store/sqlite';
 import { GATEWAY_PATHS } from '@atcx/contract';
+import { buildGatewayStatePaths } from './build-gateway-state-paths';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
@@ -46,11 +46,13 @@ export async function runGateway(
 
   mkdirSync(flags.stateDir, { recursive: true });
 
+  const statePaths = buildGatewayStatePaths(flags.stateDir);
+
   const gateway = openGatewayCaller({
     registry: loaded.registry,
     build,
     openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
-    bindings: openSQLite(join(flags.stateDir, 'gateway.db'), { strict: true }),
+    bindings: openSQLite(statePaths.bindingsDBFile, { strict: true }),
     onWarning: (message) => {
       io.printError(`atc-gateway: ${message}`);
     },
@@ -67,7 +69,7 @@ export async function runGateway(
       publicURL: flags.publicURL,
       allowedHosts: [],
       trustForwardedFrom: flags.trustForwardedFrom,
-      dbPath: join(flags.stateDir, 'mcp-auth.db'),
+      dbPath: statePaths.mcpAuthDBFile,
       openAuthDatabase: openMCPAuthDatabase,
       probes: true,
 

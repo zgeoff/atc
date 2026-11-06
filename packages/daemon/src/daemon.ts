@@ -113,7 +113,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // One daemon per state directory: the lock comes before the store, the
   // sockets, or the fleet, so a second daemon touches none of them.
   const stateDir = dirname(opts.dbPath);
-  const statePaths = buildDaemonStatePaths(opts.dbPath);
+  const statePaths = buildDaemonStatePaths(stateDir);
   const recordPath = statePaths.recordFile;
 
   const lock = await claimDaemonLock(statePaths.lockFile, LOCK_WAIT_MS, clock);

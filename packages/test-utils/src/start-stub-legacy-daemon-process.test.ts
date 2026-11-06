@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildDaemonStatePaths } from '@atc/config';
 import { openDaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { registerTestCleanup } from './register-test-cleanup';
@@ -21,7 +22,9 @@ test('it resolves once the daemon has recorded its own pid', async () => {
 
   const daemon = await startStubLegacyDaemonProcess(ctx.socketPath, ctx.directory);
 
-  const record: unknown = JSON.parse(readFileSync(join(ctx.directory, 'daemon.json'), 'utf8'));
+  const record: unknown = JSON.parse(
+    readFileSync(buildDaemonStatePaths(ctx.directory).recordFile, 'utf8'),
+  );
 
   expect(record).toMatchObject({ pid: daemon.pid, socketPath: ctx.socketPath });
 });

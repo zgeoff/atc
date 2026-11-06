@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveGatewayCommand, runCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { buildGatewayStatePaths } from '../packages/app/src/build-gateway-state-paths';
 import { runClients } from '../packages/app/src/clients';
 
 function setupTest() {
@@ -42,7 +43,10 @@ test('it adds a client in a state directory relative to where it runs over the e
 
   expect(added.stdout).toMatch(/^Added Claude\. Its client ID is \w+\n$/u);
   expect(readdirSync(ctx.directory)).toStrictEqual(['flagged']);
-  expect(readdirSync(join(ctx.directory, 'flagged'))).toContain('mcp-auth.db');
+
+  const statePaths = buildGatewayStatePaths(join(ctx.directory, 'flagged'));
+
+  expect(existsSync(statePaths.mcpAuthDBFile)).toBeTrue();
 });
 
 test('it lists the clients of a state directory relative to where it runs', async () => {
@@ -51,7 +55,10 @@ test('it lists the clients of a state directory relative to where it runs', asyn
 
   await runClients(
     { kind: 'add', name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-    { dbPath: join(ctx.directory, 'flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
+    {
+      dbPath: buildGatewayStatePaths(join(ctx.directory, 'flagged')).mcpAuthDBFile,
+      command: 'atc-gateway clients',
+    },
     {
       print: (line) => {
         printed.push(line);
@@ -83,7 +90,10 @@ test('it removes a client from a state directory relative to where it runs', asy
 
   await runClients(
     { kind: 'add', name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-    { dbPath: join(ctx.directory, 'flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
+    {
+      dbPath: buildGatewayStatePaths(join(ctx.directory, 'flagged')).mcpAuthDBFile,
+      command: 'atc-gateway clients',
+    },
     {
       print: (line) => {
         printed.push(line);

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { systemClock } from '@atc/core';
 import { buildMockHostServices, setupTempDir } from '@atc/test-utils';
 import { buildLifecycleHost } from './build-lifecycle-host';
@@ -16,8 +17,10 @@ test('it builds the paths, the /proc root, and the restore boot time from the en
     buildMockHostServices(),
   );
 
-  expect(host.paths.daemonSocketPath).toBe('/run/user/1000/atc-daemon.sock');
-  expect(host.paths.stateDir).toBe('/home/u/.local/state/atc');
+  expect(host.paths).toStrictEqual(
+    resolvePaths({ HOME: '/home/u', XDG_RUNTIME_DIR: '/run/user/1000' }),
+  );
+
   expect(host.procRoot).toBe('/tmp/proc');
   expect(host.restoreBootTimeoutMs).toBe(500);
   expect(host.clock).toBe(systemClock);
