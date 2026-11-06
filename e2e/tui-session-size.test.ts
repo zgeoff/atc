@@ -1,5 +1,4 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   KEYS,
@@ -45,7 +44,7 @@ test('it sizes a session to the client that shows it once another client moves t
 
   await spawnClaudeSession(ctx, 'second');
 
-  const viewer = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
+  const viewer = await openDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     viewer.stop();
@@ -80,7 +79,7 @@ test('it sizes a session to the smaller of two clients that both show it', async
 
   await ctx.waitFor('FAKE_CLAUDE_UP');
 
-  const viewer = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
+  const viewer = await openDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     viewer.stop();

@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import invariant from 'tiny-invariant';
 import { buildStubWaitClock } from './build-stub-wait-clock';
 import { KEYS } from './keys';
@@ -27,7 +28,9 @@ test('it boots the client in its home, where the client starts its daemon', asyn
 
   await tui.waitFor('atc — control tower');
 
-  expect(readFileSync(join(tui.home, 'atc-daemon.pid'), 'utf8')).toMatch(/^\d+$/u);
+  const paths = resolvePaths({ HOME: tui.home, XDG_RUNTIME_DIR: tui.home });
+
+  expect(readFileSync(paths.daemonPidFile, 'utf8')).toMatch(/^\d+$/u);
 });
 
 test("it puts a copy of the run's migrated database in its home before a boot", () => {
@@ -36,7 +39,7 @@ test("it puts a copy of the run's migrated database in its home before a boot", 
 
   invariant(runTemplate !== undefined, 'the test script exports no state template');
 
-  const copy = new Database(join(tui.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+  const copy = new Database(resolvePaths({ HOME: tui.home }).dbFile, { readonly: true });
   const template = new Database(runTemplate, { readonly: true });
 
   registerTestCleanup(() => {
@@ -282,7 +285,7 @@ test('it resolves the exit code of the client it booted', async () => {
 test('it stops the daemon the client started on stop', async () => {
   const ctx = await setupTest();
 
-  const pid = Number(readFileSync(join(ctx.tui.home, 'atc-daemon.pid'), 'utf8'));
+  const pid = Number(readFileSync(ctx.tui.paths.daemonPidFile, 'utf8'));
 
   await ctx.tui.stop();
 
@@ -308,7 +311,7 @@ test('it stops the daemon its pid file holds and removes the home once the test 
     daemon.kill('SIGKILL');
   });
 
-  writeFileSync(join(tui.home, 'atc-daemon.pid'), String(daemon.pid));
+  writeFileSync(tui.paths.daemonPidFile, String(daemon.pid));
 
   onTestFinished(async () => {
     await daemon.exited;

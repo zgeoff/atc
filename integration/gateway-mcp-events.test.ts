@@ -4,7 +4,12 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openGatewayCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
-import { createEnrollmentToken, openMCPAuth, startMCPHTTPServer } from '@atc/mcp';
+import {
+  createEnrollmentToken,
+  createSubscriptionStore,
+  openMCPAuth,
+  startMCPHTTPServer,
+} from '@atc/mcp';
 import type { WebhookSender } from '@atc/mcp';
 import { buildStubWebhookReceiver } from '@atc/mcp/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
@@ -587,9 +592,9 @@ test('it removes a subscription through the gateway whose endpoint answers 410, 
   await fleet.pc.sendHookLines({ atcId: sessionID, event: 'Stop', payload: {} });
 
   await waitFor(async () => {
-    const rows = await ctx.auth.db.selectFrom('atc_event_subscription').select('id').execute();
+    const subscriptions = await createSubscriptionStore(ctx.auth.db).readIDs();
 
-    expect(rows).toStrictEqual([]);
+    expect(subscriptions).toStrictEqual([]);
   });
 
   // The verification challenge and the one delivery the endpoint refused.

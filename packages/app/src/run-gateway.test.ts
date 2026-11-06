@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test';
-import { readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openMCPAuth } from '@atc/mcp';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { buildGatewayStatePaths } from './build-gateway-state-paths';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { runGateway } from './run-gateway';
 
@@ -277,7 +278,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
 
   // The gateway's database, opened the way `atc-gateway clients` opens it.
   const store = await openMCPAuth({
-    dbPath: join(ctx.directory, 'state', 'mcp-auth.db'),
+    dbPath: buildGatewayStatePaths(join(ctx.directory, 'state')).mcpAuthDBFile,
     openDatabase: openMCPAuthDatabase,
     origin: null,
   });
@@ -541,10 +542,12 @@ test('it keeps both databases in the state directory and writes nowhere else', a
   invariant(stop, 'the gateway registered no SIGTERM handler');
   registerTestCleanup(() => stop());
 
-  expect(readdirSync(join(ctx.directory, 'state'))).toIncludeAllMembers([
-    'gateway.db',
-    'mcp-auth.db',
-  ]);
+  const statePaths = buildGatewayStatePaths(join(ctx.directory, 'state'));
+
+  expect([
+    existsSync(statePaths.bindingsDBFile),
+    existsSync(statePaths.mcpAuthDBFile),
+  ]).toStrictEqual([true, true]);
 
   expect(readdirSync(ctx.directory).toSorted()).toStrictEqual(['registry.json', 'state']);
 });

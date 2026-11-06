@@ -1,6 +1,13 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createPasskey, openMCPAuth, readEnrollmentToken } from '@atc/mcp';
+import {
+  createEnrollmentToken,
+  createPasskey,
+  openMCPAuth,
+  readEnrollmentToken,
+  readOwnerSessionViews,
+  readPasskeyViews,
+} from '@atc/mcp';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
@@ -87,9 +94,11 @@ test('it keeps the enrolled passkeys when it enrolls without reset', async () =>
     { print: () => {}, printError: () => {}, setExitCode: () => {}, now: () => Date.now() },
   );
 
-  const passkeys = await ctx.store.db.selectFrom('atc_passkey').select('id').execute();
+  const passkeys = await readPasskeyViews(ctx.store.db);
 
-  expect(passkeys).toStrictEqual([{ id: 'cred-phone' }]);
+  expect(passkeys).toStrictEqual([
+    { id: 'cred-phone', createdAt: '2026-10-14T12:00:00.000Z', lastUsedAt: null },
+  ]);
 });
 
 test('it removes every passkey, earlier token, and browser sign-in on reset', async () => {
@@ -99,19 +108,14 @@ test('it removes every passkey, earlier token, and browser sign-in on reset', as
 
   await ctx.store.db
     .insertInto('atc_enrollment_token')
-    .values([
-      {
-        token_hash: 'hash-1',
-        created_at: '2026-10-14T12:00:00.000Z',
-        expires_at: '2999-01-01T00:00:00.000Z',
-      },
-      {
-        token_hash: 'hash-earlier',
-        created_at: '2026-10-14T12:00:00.000Z',
-        expires_at: '2999-01-01T00:00:00.000Z',
-      },
-    ])
+    .values({
+      token_hash: 'hash-1',
+      created_at: '2026-10-14T12:00:00.000Z',
+      expires_at: '2999-01-01T00:00:00.000Z',
+    })
     .execute();
+
+  const earlier = await createEnrollmentToken(ctx.store.db, Date.now());
 
   await createPasskey(ctx.store.db, {
     tokenHash: 'hash-1',
@@ -124,7 +128,7 @@ test('it removes every passkey, earlier token, and browser sign-in on reset', as
 
   await ctx.store.auth.api.signInOwner({ body: {} });
 
-  const signedInBefore = await ctx.store.db.selectFrom('session').select('id').execute();
+  const signedInBefore = await readOwnerSessionViews(ctx.store.db);
 
   invariant(signedInBefore.length === 1, 'the arrangement left no browser sign-in');
 
@@ -147,20 +151,24 @@ test('it removes every passkey, earlier token, and browser sign-in on reset', as
 
   expect(printed[1]).toStartWith('Enrollment token: atc-enroll-');
 
-  const passkeyRows = await ctx.store.db.selectFrom('atc_passkey').select('id').execute();
+  const passkeys = await readPasskeyViews(ctx.store.db);
 
-  expect(passkeyRows).toBeEmpty();
+  expect(passkeys).toBeEmpty();
 
-  const sessions = await ctx.store.db.selectFrom('session').select('id').execute();
+  const sessions = await readOwnerSessionViews(ctx.store.db);
 
   expect(sessions).toBeEmpty();
 
-  const tokenRows = await ctx.store.db
-    .selectFrom('atc_enrollment_token')
-    .select('token_hash')
-    .execute();
+  const earlierFound = await readEnrollmentToken(ctx.store.db, earlier.token, Date.now());
 
-  expect(tokenRows).toBeArrayOfSize(1);
+  expect(earlierFound).toBeNull();
+
+  const token = /^Enrollment token: (?<token>atc-enroll-[\w-]{43})$/u.exec(printed[1] ?? '')
+    ?.groups?.['token'];
+
+  const found = await readEnrollmentToken(ctx.store.db, token ?? '', Date.now());
+
+  expect(found).toBeString();
 });
 
 test('it lists each enrolled passkey with when it was enrolled and last used', async () => {
@@ -272,9 +280,11 @@ test('it removes one passkey and keeps the others', async () => {
 
   expect(printed).toStrictEqual(['Removed passkey cred-lost and ended every browser sign-in']);
 
-  const passkeyRows = await ctx.store.db.selectFrom('atc_passkey').select('id').execute();
+  const passkeys = await readPasskeyViews(ctx.store.db);
 
-  expect(passkeyRows).toStrictEqual([{ id: 'cred-kept' }]);
+  expect(passkeys).toStrictEqual([
+    { id: 'cred-kept', createdAt: '2026-10-14T12:30:00.000Z', lastUsedAt: null },
+  ]);
 });
 
 test('it sets exit code 1 when it removes a passkey that does not exist', async () => {

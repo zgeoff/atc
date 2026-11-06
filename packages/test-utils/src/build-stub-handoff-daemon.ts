@@ -1,5 +1,5 @@
-export function buildStubHandoffDaemon(listeningPath: string): string {
+export function buildStubHandoffDaemon(listeningPath: string, daemonSocketPath: string): string {
   return `#!/usr/bin/env bash
-mv '${listeningPath}' "$HOME/atc-daemon.sock"
+mv '${listeningPath}' '${daemonSocketPath}'
 `;
 }

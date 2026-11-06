@@ -519,7 +519,7 @@
     "packages/daemon/src/testing/build-mock-session.test.ts": 2,
     "packages/harnesses/codex/src/build-codex-hook-event.test.ts": 2,
     "packages/test-utils/src/build-stub-harness-plugins.test.ts": 2,
-    "packages/test-utils/src/get-only-effect-ref.test.ts": 2,
+    "packages/test-utils/src/read-only-effect-ref.test.ts": 2,
     "packages/sources/dirs/src/read-zoxide-dirs.test.ts": 2,
     "packages/tui/src/to-mirror-session.test.ts": 2,
     "packages/store/src/testing/build-mock-runtime-auth-binding.test.ts": 2,

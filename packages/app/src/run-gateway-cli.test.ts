@@ -5,6 +5,7 @@ import { GATEWAY_VERSION } from '@atc/gateway/version';
 import { runCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import pkg from '../package.json';
+import { buildGatewayStatePaths } from './build-gateway-state-paths';
 import { runGatewayCLI } from './run-gateway-cli';
 
 function setupTest() {
@@ -49,7 +50,7 @@ test.each([
 
     expect(ctx.io.runClients).toHaveBeenCalledExactlyOnceWith(
       { kind: 'add', name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-      { dbPath: join('flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
+      { dbPath: buildGatewayStatePaths('flagged').mcpAuthDBFile, command: 'atc-gateway clients' },
     );
   },
 );
@@ -68,7 +69,7 @@ test.each([
 
   expect(ctx.io.runClients).toHaveBeenCalledExactlyOnceWith(
     { kind: 'list' },
-    { dbPath: join('flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
+    { dbPath: buildGatewayStatePaths('flagged').mcpAuthDBFile, command: 'atc-gateway clients' },
   );
 });
 
@@ -92,7 +93,7 @@ test.each([
 
     expect(ctx.io.runClients).toHaveBeenCalledExactlyOnceWith(
       { kind: 'remove', clientID: 'client-1' },
-      { dbPath: join('flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
+      { dbPath: buildGatewayStatePaths('flagged').mcpAuthDBFile, command: 'atc-gateway clients' },
     );
   },
 );
@@ -352,7 +353,7 @@ test.each([
   await runGatewayCLI([...row.args, '--state-dir', 'flagged'], {}, ctx.io);
 
   expect(ctx.io.runPasskeys).toHaveBeenCalledExactlyOnceWith(row.action, {
-    dbPath: join('flagged', 'mcp-auth.db'),
+    dbPath: buildGatewayStatePaths('flagged').mcpAuthDBFile,
     command: 'atc-gateway passkeys',
   });
 });
@@ -384,7 +385,7 @@ test('it adds a client with every redirect URI, in order, in either flag form', 
         'https://claude.com/api/mcp/auth_callback',
       ],
     },
-    { dbPath: join('flagged', 'mcp-auth.db'), command: 'atc-gateway clients' },
+    { dbPath: buildGatewayStatePaths('flagged').mcpAuthDBFile, command: 'atc-gateway clients' },
   );
 });
 

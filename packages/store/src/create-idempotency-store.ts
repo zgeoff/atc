@@ -1,3 +1,4 @@
+import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
@@ -15,6 +16,7 @@ export interface IdempotencyStore {
   readonly readIdempotencyKey: (
     id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
   ) => Promise<IdempotencyRecord | null>;
+  readonly readIdempotencyKeys: () => Promise<IdempotencyRecord[]>;
   readonly updateIdempotencyCompleted: (
     record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
     result: string,
@@ -91,6 +93,16 @@ export function createIdempotencyStore(db: Kysely<StateStoreSchema>): Idempotenc
         .executeTakeFirst();
 
       return row === undefined ? null : toIdempotencyRecord(row);
+    },
+
+    readIdempotencyKeys: async () => {
+      const rows = await db
+        .selectFrom('idempotency')
+        .selectAll()
+        .orderBy(sql`rowid`)
+        .execute();
+
+      return rows.map((row) => toIdempotencyRecord(row));
     },
 
     updateIdempotencyCompleted: async (record, result, at, effectTarget) => {

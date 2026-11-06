@@ -70,7 +70,7 @@ test('it stops the daemon its pid file holds before removing the home', async ()
 
   await daemon.stdout.getReader().read();
 
-  writeFileSync(join(mcpHome.home, 'atc-daemon.pid'), String(daemon.pid));
+  writeFileSync(mcpHome.paths.daemonPidFile, String(daemon.pid));
 
   await mcpHome.teardown();
 

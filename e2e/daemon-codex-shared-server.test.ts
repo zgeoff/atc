@@ -1,8 +1,9 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { createStateStore } from '@atc/store';
 import {
   createStubComposer,
   createStubSharedServerCodex,
@@ -59,28 +60,30 @@ test('it keeps the hook events of two codex terminals that share a server on the
 
   const second = getString(getRecord(secondSpawned, 'session'), 'id');
 
-  const trail = new Database(join(daemon.stateDir, 'atc.db'), { readonly: true });
+  const store = await createStateStore(resolvePaths({ HOME: ctx.home }).dbFile);
 
-  registerTestCleanup(() => {
-    trail.close();
-  });
+  registerTestCleanup(() => store.stop());
 
-  const rows = await waitFor(() => {
-    const read = trail.query('SELECT atc_id, event, session_id FROM events').all();
+  const rows = await waitFor(async () => {
+    const read = await store.readTrailRows();
 
     expect(read).toHaveLength(4);
 
-    return read;
+    return read.map((row) => ({
+      atcID: row.atcID,
+      event: row.event,
+      agentSessionID: row.agentSessionID,
+    }));
   });
 
   const firstRecord = await client.sendRequest('session.get', { session: first });
   const secondRecord = await client.sendRequest('session.get', { session: second });
 
   expect(rows).toIncludeSameMembers([
-    { atc_id: first, event: 'SessionStart', session_id: `fake-thread-${first}` },
-    { atc_id: first, event: 'Stop', session_id: `fake-thread-${first}` },
-    { atc_id: second, event: 'SessionStart', session_id: `fake-thread-${second}` },
-    { atc_id: second, event: 'Stop', session_id: `fake-thread-${second}` },
+    { atcID: first, event: 'SessionStart', agentSessionID: `fake-thread-${first}` },
+    { atcID: first, event: 'Stop', agentSessionID: `fake-thread-${first}` },
+    { atcID: second, event: 'SessionStart', agentSessionID: `fake-thread-${second}` },
+    { atcID: second, event: 'Stop', agentSessionID: `fake-thread-${second}` },
   ]);
 
   expect(firstRecord).toMatchObject({
@@ -123,25 +126,27 @@ test('it keeps two resumed codex terminals that share a server on the threads th
 
   const second = getString(getRecord(secondSpawned, 'session'), 'id');
 
-  const trail = new Database(join(daemon.stateDir, 'atc.db'), { readonly: true });
+  const store = await createStateStore(resolvePaths({ HOME: ctx.home }).dbFile);
 
-  registerTestCleanup(() => {
-    trail.close();
-  });
+  registerTestCleanup(() => store.stop());
 
-  const rows = await waitFor(() => {
-    const read = trail.query('SELECT atc_id, event, session_id FROM events').all();
+  const rows = await waitFor(async () => {
+    const read = await store.readTrailRows();
 
     expect(read).toHaveLength(4);
 
-    return read;
+    return read.map((row) => ({
+      atcID: row.atcID,
+      event: row.event,
+      agentSessionID: row.agentSessionID,
+    }));
   });
 
   expect(rows).toIncludeSameMembers([
-    { atc_id: first, event: 'SessionStart', session_id: 'thread-a' },
-    { atc_id: first, event: 'Stop', session_id: 'thread-a' },
-    { atc_id: second, event: 'SessionStart', session_id: 'thread-b' },
-    { atc_id: second, event: 'Stop', session_id: 'thread-b' },
+    { atcID: first, event: 'SessionStart', agentSessionID: 'thread-a' },
+    { atcID: first, event: 'Stop', agentSessionID: 'thread-a' },
+    { atcID: second, event: 'SessionStart', agentSessionID: 'thread-b' },
+    { atcID: second, event: 'Stop', agentSessionID: 'thread-b' },
   ]);
 });
 
@@ -180,14 +185,14 @@ test('it keeps two restored codex terminals that share a server on their own thr
 
   const second = getString(getRecord(secondSpawned, 'session'), 'id');
 
-  const trail = new Database(join(daemon.stateDir, 'atc.db'), { readonly: true });
+  const store = await createStateStore(resolvePaths({ HOME: ctx.home }).dbFile);
 
-  registerTestCleanup(() => {
-    trail.close();
-  });
+  registerTestCleanup(() => store.stop());
 
-  await waitFor(() => {
-    expect(trail.query('SELECT id FROM events').all()).toHaveLength(4);
+  await waitFor(async () => {
+    const read = await store.readTrailRows();
+
+    expect(read).toHaveLength(4);
   });
 
   await daemon.restart('SIGKILL');
@@ -197,18 +202,24 @@ test('it keeps two restored codex terminals that share a server on their own thr
   await revived.sendHello('atc/test');
   await revived.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  const rows = await waitFor(() => {
-    const read = trail.query('SELECT atc_id, event, session_id FROM events WHERE id > 4').all();
+  const rows = await waitFor(async () => {
+    const read = await store.readTrailRows();
 
-    expect(read).toHaveLength(4);
+    const restored = read.filter((row) => row.id > 4);
 
-    return read;
+    expect(restored).toHaveLength(4);
+
+    return restored.map((row) => ({
+      atcID: row.atcID,
+      event: row.event,
+      agentSessionID: row.agentSessionID,
+    }));
   });
 
   expect(rows).toIncludeSameMembers([
-    { atc_id: first, event: 'SessionStart', session_id: `fake-thread-${first}` },
-    { atc_id: first, event: 'Stop', session_id: `fake-thread-${first}` },
-    { atc_id: second, event: 'SessionStart', session_id: `fake-thread-${second}` },
-    { atc_id: second, event: 'Stop', session_id: `fake-thread-${second}` },
+    { atcID: first, event: 'SessionStart', agentSessionID: `fake-thread-${first}` },
+    { atcID: first, event: 'Stop', agentSessionID: `fake-thread-${first}` },
+    { atcID: second, event: 'SessionStart', agentSessionID: `fake-thread-${second}` },
+    { atcID: second, event: 'Stop', agentSessionID: `fake-thread-${second}` },
   ]);
 });

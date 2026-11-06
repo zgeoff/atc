@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { readSourceEntry, runCommand, setupTempDir } from '@atc/test-utils';
 
 function setupTest() {
@@ -19,10 +20,12 @@ test('it chains the user statusline and appends the fleet segment', async () => 
     JSON.stringify({ statusLine: { type: 'command', command: 'echo CHAINED-SEGMENT' } }),
   );
 
-  mkdirSync(join(ctx.directory, '.local', 'state', 'atc'), { recursive: true });
+  const paths = resolvePaths({ HOME: ctx.directory });
+
+  mkdirSync(paths.stateDir, { recursive: true });
 
   writeFileSync(
-    join(ctx.directory, '.local', 'state', 'atc', 'status.json'),
+    paths.statusFile,
     JSON.stringify({ needs_you: 2, running: 1, done: 0, exited: 0, urgent: 'auth-bug' }),
   );
 

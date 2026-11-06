@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
@@ -29,6 +30,10 @@ function setupTest() {
 
   return {
     home: temporaryDirectory.path,
+    paths: resolvePaths({
+      HOME: temporaryDirectory.path,
+      XDG_RUNTIME_DIR: temporaryDirectory.path,
+    }),
     atc,
     configPath: join(configDir, 'config.json'),
     claude: createStubClaude(temporaryDirectory.path, { atc, composer }),
@@ -398,10 +403,10 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
 
   writeFileSync(ctx.configPath, JSON.stringify({ agents: { claude: { bin: ctx.claude } } }));
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
-  mkdirSync(join(ctx.home, '.local', 'state', 'atc'), { recursive: true });
+  mkdirSync(ctx.paths.stateDir, { recursive: true });
 
   // The fleet a daemon that already ran here left behind.
-  const seed = await createStateStore(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
+  const seed = await createStateStore(ctx.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -450,10 +455,10 @@ test('it starts with an empty fleet beside a fleet.json and no state database', 
   const ctx = setupTest();
 
   writeFileSync(ctx.configPath, JSON.stringify({ agents: { claude: { bin: ctx.claude } } }));
-  mkdirSync(join(ctx.home, '.local', 'state', 'atc'), { recursive: true });
+  mkdirSync(ctx.paths.stateDir, { recursive: true });
 
   writeFileSync(
-    join(ctx.home, '.local', 'state', 'atc', 'fleet.json'),
+    join(ctx.paths.stateDir, 'fleet.json'),
     JSON.stringify([
       { name: 'one', cwd: ctx.home, agentSessionID: 'fake-a' },
       { name: 'two', cwd: ctx.home, agentSessionID: 'fake-b' },
@@ -467,7 +472,7 @@ test('it starts with an empty fleet beside a fleet.json and no state database', 
   // The daemon opens its store before it answers the hello.
   await client.sendHello('atc/test');
 
-  const store = await createStateStore(join(ctx.home, '.local', 'state', 'atc', 'atc.db'));
+  const store = await createStateStore(ctx.paths.dbFile);
 
   registerTestCleanup(() => store.stop());
 

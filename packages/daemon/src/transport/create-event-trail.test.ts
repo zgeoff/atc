@@ -244,7 +244,7 @@ test('it logs a restart whose trail write fails under its run id and records not
 
   await ctx.trail.recordRestart(buildMockRestartResult({ runID: 'run-sumac' }));
 
-  const rows = db.query('SELECT kind FROM events').all();
+  const rows = await ctx.store.readTrailRows();
 
   expect(log).toHaveBeenCalledExactlyOnceWith(
     expect.stringMatching(

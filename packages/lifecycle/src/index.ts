@@ -6,6 +6,7 @@ export * from './probe-process-alive';
 export type * from './lifecycle-host';
 export * from './log-client-event';
 export * from './make-daemon-ready-signal';
+export * from './read-restart-result';
 export * from './read-managed-daemon-unit';
 export * from './restart-daemon-at-socket';
 export * from './run-command';

@@ -1,7 +1,7 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { createStateStore } from '@atc/store';
 import {
   registerTestCleanup,
   resolveATCCommand,
@@ -31,18 +31,18 @@ test('it restores the fleet from disk after a crash', async () => {
     ctx.home,
   );
 
-  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+  const store = await createStateStore(resolvePaths({ HOME: ctx.home }).dbFile);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
   // The row lands at spawn, before the agent reports its session id, so
   // the wait runs until the row holds that id.
-  await waitFor(() => {
-    expect(
-      db.query('SELECT name, cwd, agent_session_id AS agentSessionID FROM fleet').all(),
-    ).toStrictEqual([{ name: 'fleettest', cwd: ctx.home, agentSessionID: 'fake-1' }]);
+  await waitFor(async () => {
+    const fleet = await store.loadFleet();
+
+    expect(fleet).toStrictEqual([
+      expect.objectContaining({ name: 'fleettest', cwd: ctx.home, agentSessionID: 'fake-1' }),
+    ]);
   });
 
   // A crash: the daemon dies, and the fleet row survives on disk.
@@ -80,19 +80,22 @@ test('it restores a grok session with grok --resume after a crash', async () => 
     rows: 24,
   });
 
-  const db = new Database(join(ctx.home, '.local', 'state', 'atc', 'atc.db'), { readonly: true });
+  const store = await createStateStore(resolvePaths({ HOME: ctx.home }).dbFile);
 
-  registerTestCleanup(() => {
-    db.close();
-  });
+  registerTestCleanup(() => store.stop());
 
   // The row lands at spawn, before the agent reports its session id, so
   // the wait runs until the row holds that id.
-  await waitFor(() => {
-    expect(
-      db.query('SELECT name, cwd, agent_session_id AS agentSessionID, agent FROM fleet').all(),
-    ).toStrictEqual([
-      { name: 'grokfleet', cwd: ctx.home, agentSessionID: 'fake-grok-1', agent: 'grok' },
+  await waitFor(async () => {
+    const fleet = await store.loadFleet();
+
+    expect(fleet).toStrictEqual([
+      expect.objectContaining({
+        name: 'grokfleet',
+        cwd: ctx.home,
+        agentSessionID: 'fake-grok-1',
+        agent: 'grok',
+      }),
     ]);
   });
 

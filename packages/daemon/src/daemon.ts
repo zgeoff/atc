@@ -1,9 +1,10 @@
 import { unlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import {
   DEFAULT_GIT_TRANSPORTS,
   LOCAL_TARGET,
   NODE_TOKEN_FILE_ACCESS,
+  buildDaemonStatePaths,
   loadListenerTokens,
 } from '@atc/config';
 import { systemClock } from '@atc/core';
@@ -112,9 +113,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   // One daemon per state directory: the lock comes before the store, the
   // sockets, or the fleet, so a second daemon touches none of them.
   const stateDir = dirname(opts.dbPath);
-  const recordPath = join(stateDir, 'daemon.json');
+  const statePaths = buildDaemonStatePaths(stateDir);
+  const recordPath = statePaths.recordFile;
 
-  const lock = await claimDaemonLock(join(stateDir, 'daemon.lock'), LOCK_WAIT_MS, clock);
+  const lock = await claimDaemonLock(statePaths.lockFile, LOCK_WAIT_MS, clock);
 
   if (lock === null) {
     const holder = readDaemonRecord(recordPath);

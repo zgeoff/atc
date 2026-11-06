@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import {
   buildMockAgentAdapter,
   buildMockAgentProfile,
@@ -18,6 +19,10 @@ function setupTest() {
 
   return {
     home: temporaryDirectory.path,
+    paths: resolvePaths({
+      HOME: temporaryDirectory.path,
+      XDG_RUNTIME_DIR: temporaryDirectory.path,
+    }),
     configPath: join(temporaryDirectory.path, '.config', 'atc', 'config.json'),
     tokenFile: join(temporaryDirectory.path, 'box.token'),
   };
@@ -94,7 +99,7 @@ test('it lists and spawns sessions on the daemon the flag names and starts no lo
     });
   });
 
-  expect(existsSync(join(ctx.home, 'atc-daemon.pid'))).toBe(false);
+  expect(existsSync(ctx.paths.daemonPidFile)).toBe(false);
 });
 
 test('it exits naming the daemon when the flag names one the config lacks', async () => {
@@ -123,5 +128,5 @@ test('it exits naming the daemon when the flag names one the config lacks', asyn
     `atc mcp: the daemons map of ${ctx.configPath} holds no daemon 'lab'; it holds box. atc did not fall back to the local daemon.`,
   );
 
-  expect(existsSync(join(ctx.home, 'atc-daemon.pid'))).toBe(false);
+  expect(existsSync(ctx.paths.daemonPidFile)).toBe(false);
 });

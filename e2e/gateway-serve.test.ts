@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
-import { readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { registerTestCleanup, resolveGatewayCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { buildGatewayStatePaths } from '../packages/app/src/build-gateway-state-paths';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-bin-');
@@ -85,7 +86,8 @@ test('it serves from the state directory given before its subcommand over the en
   const ready = await fetch(`http://127.0.0.1:${port}/readyz`);
 
   const entries = readdirSync(ctx.directory).toSorted();
-  const flagged = readdirSync(join(ctx.directory, 'flagged'));
+  const statePaths = buildGatewayStatePaths(join(ctx.directory, 'flagged'));
+  const stored = [existsSync(statePaths.bindingsDBFile), existsSync(statePaths.mcpAuthDBFile)];
 
   gateway.kill('SIGTERM');
 
@@ -98,6 +100,6 @@ test('it serves from the state directory given before its subcommand over the en
   expect(Number(port)).toBeGreaterThan(0);
   expect(ready.status).toBe(200);
   expect(entries).toStrictEqual(['flagged', 'registry.json']);
-  expect(flagged).toIncludeAllMembers(['gateway.db', 'mcp-auth.db']);
+  expect(stored).toStrictEqual([true, true]);
   expect(exitCode).toBe(0);
 });

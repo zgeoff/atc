@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
@@ -16,10 +17,18 @@ import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-tar
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-tap-');
 
+  const env = {
+    ...process.env,
+    XDG_RUNTIME_DIR: temporaryDirectory.path,
+    HOME: temporaryDirectory.path,
+  };
+
+  const paths = resolvePaths(env);
+
   // The tap dials this path, so the daemon listens exactly there; the
   // adapter takes messages, so a session has an inbox to tap.
   const daemon = await startDaemon({
-    socketPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
+    socketPath: paths.daemonSocketPath,
     reporterSocketPath: join(temporaryDirectory.path, 'reporter.sock'),
     build: 'atc/test-build',
     adapter: buildMockAgentAdapter({ takesMessages: true }),
@@ -32,7 +41,7 @@ async function setupTest() {
 
   const events: DaemonEvent[] = [];
 
-  const actor = await openDaemonClient(join(temporaryDirectory.path, 'atc-daemon.sock'));
+  const actor = await openDaemonClient(paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     actor.stop();
@@ -46,11 +55,7 @@ async function setupTest() {
 
   return {
     directory: temporaryDirectory.path,
-    env: {
-      ...process.env,
-      XDG_RUNTIME_DIR: temporaryDirectory.path,
-      HOME: temporaryDirectory.path,
-    },
+    env,
     actor,
     events,
   };

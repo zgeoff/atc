@@ -17,8 +17,8 @@ import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-tar
 // what its reconnect meets.
 async function setupTest() {
   const harness = startTUIHarness();
-  const stateDir = join(harness.home, '.local', 'state', 'atc');
-  const socketPath = join(harness.home, 'atc-daemon.sock');
+  const stateDir = harness.paths.stateDir;
+  const socketPath = harness.paths.daemonSocketPath;
   const unitDir = join(harness.home, '.config', 'systemd', 'user');
 
   mkdirSync(stateDir, { recursive: true });
@@ -27,9 +27,9 @@ async function setupTest() {
 
   const first = await startDaemon({
     socketPath,
-    reporterSocketPath: join(harness.home, 'atc.sock'),
-    dbPath: join(stateDir, 'atc.db'),
-    statusPath: join(stateDir, 'status.json'),
+    reporterSocketPath: harness.paths.socketPath,
+    dbPath: harness.paths.dbFile,
+    statusPath: harness.paths.statusFile,
     build: createHostServices().build,
     targets: [buildLocalTarget()],
     adapter: buildMockAgentAdapter(),

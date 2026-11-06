@@ -38,10 +38,7 @@ test('it closes a TCP connection whose token a SIGHUP reload removed', async () 
 
   await local.sendHello('atc/test');
 
-  const port = z
-    .number()
-    .int()
-    .parse(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.listenPort);
+  const port = z.number().int().parse(readDaemonRecord(daemon.paths.daemonRecordFile)?.listenPort);
 
   const tcp = await openDaemonClient({ hostname: '127.0.0.1', port });
 
@@ -87,10 +84,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
 
   await local.sendHello('atc/test');
 
-  const port = z
-    .number()
-    .int()
-    .parse(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.listenPort);
+  const port = z.number().int().parse(readDaemonRecord(daemon.paths.daemonRecordFile)?.listenPort);
 
   const removed = await openDaemonClient({ hostname: '127.0.0.1', port });
 

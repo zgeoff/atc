@@ -1,20 +1,19 @@
 import { expect, test } from 'bun:test';
 import { unlinkSync } from 'node:fs';
-import { join } from 'node:path';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startStubLegacyDaemonProcess, startTUIHarness } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
 test('it tells the user to reopen a client that a reconnect finds older than the daemon, and never offers a restart', async () => {
   const harness = startTUIHarness();
-  const stateDir = join(harness.home, '.local', 'state', 'atc');
-  const socketPath = join(harness.home, 'atc-daemon.sock');
+  const stateDir = harness.paths.stateDir;
+  const socketPath = harness.paths.daemonSocketPath;
 
   harness.boot();
 
   await harness.waitFor('idle');
 
-  const first = readDaemonRecord(join(stateDir, 'daemon.json'));
+  const first = readDaemonRecord(harness.paths.daemonRecordFile);
 
   invariant(first !== null, 'the first daemon wrote no record');
 

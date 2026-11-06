@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord, toAgentID } from '@atc/core';
-import { readDaemonRecord } from '@atc/lifecycle';
+import { toAgentID } from '@atc/core';
+import { readDaemonRecord, readRestartResult } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
@@ -71,7 +71,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
 
   const oldPID = daemon.subprocess.pid;
 
-  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(daemon.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -114,7 +114,7 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
   );
 
   const build = getString(hello, 'daemon');
-  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(daemon.paths.daemonRecordFile);
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -183,7 +183,7 @@ test('it puts one DaemonRestarted event with the restart result on the replaceme
     { timeoutMs: 10_000 },
   );
 
-  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(daemon.paths.daemonRecordFile);
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -242,7 +242,7 @@ test('it returns the restart result from events.read to a reader that connects a
 
   const page = await after.sendRequest('events.read', { cursor: saved, waitMs: 10_000 });
 
-  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(daemon.paths.daemonRecordFile);
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -372,7 +372,7 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
 
   await client.sendHello('atc/test');
 
-  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(daemon.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -455,7 +455,7 @@ test('it leaves the daemon running when the token file for the replacement canno
 
   expect(restart.exitCode).toBe(1);
   expect(restart.stdout).toInclude('the daemon was left running');
-  expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
+  expect(readDaemonRecord(daemon.paths.daemonRecordFile)?.pid).toBe(oldPID);
   expect(() => process.kill(oldPID, 0)).not.toThrow();
 });
 
@@ -486,7 +486,7 @@ test('it joins a restart already in flight and reports its result without a seco
 
   await client.sendHello('atc/test');
 
-  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(daemon.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -521,7 +521,7 @@ test('it joins a restart already in flight and reports its result without a seco
     }),
   ]);
 
-  const finalPID = readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid;
+  const finalPID = readDaemonRecord(daemon.paths.daemonRecordFile)?.pid;
 
   const replacement = await daemon.openClient();
 
@@ -581,7 +581,7 @@ test('it completes a restart run from inside a hosted session after the session 
 
   const oldPID = daemon.subprocess.pid;
 
-  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(daemon.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -595,13 +595,11 @@ test('it completes a restart run from inside a hosted session after the session 
 
   const last = await waitFor(
     () => {
-      const parsed: unknown = JSON.parse(
-        readFileSync(join(daemon.stateDir, 'restarts', 'last.json'), 'utf8'),
-      );
+      const result = readRestartResult(daemon.paths.restartsDir);
 
-      invariant(isRecord(parsed), 'last.json holds no record');
+      invariant(result !== null, 'the state directory holds no restart result');
 
-      return parsed;
+      return result;
     },
     { timeoutMs: 10_000, intervalMs: 100 },
   );
@@ -621,11 +619,11 @@ test('it completes a restart run from inside a hosted session after the session 
     { timeoutMs: 10_000 },
   );
 
-  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(daemon.paths.daemonRecordFile);
 
   invariant(record !== null, 'the state directory records no daemon');
 
-  expect(last['code']).toBe(0);
+  expect(last.code).toBe(0);
   expect(record.pid).not.toBe(oldPID);
   expect(listed).toMatchObject({ sessions: [{ id: 's-host' }] });
   expect(existsSync(join(ctx.home, 'fake-claude-restart'))).toBeFalse();
@@ -663,7 +661,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
   ctx.fake.writeMainPID(oldPID);
   ctx.fake.writeUnitCgroup(oldPID, 'atc-daemon.service');
 
-  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(daemon.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 
@@ -706,7 +704,7 @@ test('it restarts through the unit when the daemon is the unit main process, han
   );
 
   const runs = ctx.fake.readSystemdRunCalls();
-  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(daemon.paths.daemonRecordFile);
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -777,7 +775,7 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
   });
 
   await waitFor(() => {
-    expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(legacy.pid);
+    expect(readDaemonRecord(daemon.paths.daemonRecordFile)?.pid).toBe(legacy.pid);
   });
 
   const restart = await runATC({
@@ -790,7 +788,7 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
   const replacement = await daemon.openClient();
   const hello = await replacement.sendHello('atc/test');
 
-  const record = readDaemonRecord(join(daemon.stateDir, 'daemon.json'));
+  const record = readDaemonRecord(daemon.paths.daemonRecordFile);
 
   invariant(record !== null, 'the state directory records no daemon');
 
@@ -840,7 +838,7 @@ test('it prints the preflight and stops the daemon nowhere on a dry run', async 
   expect(restart.exitCode).toBe(0);
   expect(restart.stdout).toInclude(`daemon: pid ${oldPID}`);
   expect(restart.stdout).toInclude('the interrupted turn does not continue');
-  expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
+  expect(readDaemonRecord(daemon.paths.daemonRecordFile)?.pid).toBe(oldPID);
   expect(Bun.peek.status(daemon.subprocess.exited)).toBe('pending');
 });
 
@@ -885,6 +883,6 @@ test('it refuses a --listen without a token file before it stops the daemon', as
     '--listen and --token-file go together; the daemon was left running',
   );
 
-  expect(readDaemonRecord(join(daemon.stateDir, 'daemon.json'))?.pid).toBe(oldPID);
+  expect(readDaemonRecord(daemon.paths.daemonRecordFile)?.pid).toBe(oldPID);
   expect(Bun.peek.status(daemon.subprocess.exited)).toBe('pending');
 });

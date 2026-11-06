@@ -1,7 +1,7 @@
-import { join } from 'node:path';
 import { GATEWAY_VERSION } from '@atc/gateway/version';
 import { define, lazy } from 'gunshi';
 import { integer } from 'gunshi/combinators';
+import { buildGatewayStatePaths } from './build-gateway-state-paths';
 import type { runClients } from './clients';
 import { createClientsCommand } from './create-clients-command';
 import { createPasskeysCommand } from './create-passkeys-command';
@@ -128,7 +128,7 @@ export async function runGatewayCLI(
     runClients: (action, values) =>
       withStateDir(values, (stateDir) =>
         io.runClients(action, {
-          dbPath: join(stateDir, 'mcp-auth.db'),
+          dbPath: buildGatewayStatePaths(stateDir).mcpAuthDBFile,
           command: 'atc-gateway clients',
         }),
       ),
@@ -140,7 +140,7 @@ export async function runGatewayCLI(
     runPasskeys: (action, values) =>
       withStateDir(values, (stateDir) =>
         io.runPasskeys(action, {
-          dbPath: join(stateDir, 'mcp-auth.db'),
+          dbPath: buildGatewayStatePaths(stateDir).mcpAuthDBFile,
           command: 'atc-gateway passkeys',
         }),
       ),

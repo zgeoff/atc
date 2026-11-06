@@ -9,6 +9,7 @@ import {
   setupTempDir,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { createSubscriptionStore } from '../events/create-subscription-store';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
@@ -149,10 +150,7 @@ test("it ends the client's event subscriptions along with its last read grant", 
 
   await revokeGrant(ctx.store.db, grant.grantID, Date.now());
 
-  const subscriptions = await ctx.store.db
-    .selectFrom('atc_event_subscription')
-    .select('id')
-    .execute();
+  const subscriptions = await createSubscriptionStore(ctx.store.db).readIDs();
 
   expect(subscriptions).toStrictEqual([]);
 });
@@ -223,12 +221,9 @@ test("it keeps the client's event subscriptions while another read grant lives",
 
   await revokeGrant(ctx.store.db, grant.grantID, Date.now());
 
-  const subscriptions = await ctx.store.db
-    .selectFrom('atc_event_subscription')
-    .select('id')
-    .execute();
+  const subscriptions = await createSubscriptionStore(ctx.store.db).readIDs();
 
-  expect(subscriptions).toStrictEqual([{ id: 'sub-one' }]);
+  expect(subscriptions).toStrictEqual(['sub-one']);
 });
 
 test('it reports an unknown grant id as not revoked', async () => {

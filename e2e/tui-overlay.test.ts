@@ -168,7 +168,7 @@ test('it lists a sub-session indented under its parent', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
+  const daemon = await openDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();
@@ -205,7 +205,7 @@ test('it lists a detached sub-session as top-level', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  const daemon = await openDaemonClient(join(ctx.home, 'atc-daemon.sock'));
+  const daemon = await openDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();

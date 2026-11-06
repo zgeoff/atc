@@ -310,7 +310,7 @@ test('it bumps the attach recency of a session it attaches', async () => {
 
   await client.sendHello('atc/test');
 
-  const seed = await createStateStore(join(daemon.stateDir, 'atc.db'));
+  const seed = await createStateStore(daemon.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
 

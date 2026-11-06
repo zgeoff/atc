@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import {
@@ -41,8 +42,15 @@ interface DaemonBoot {
 }
 
 export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
-  const socketPath = join(config.home, 'atc-daemon.sock');
-  const stateDir = join(config.home, '.local', 'state', 'atc');
+  const daemonEnv = {
+    ...process.env,
+    HOME: config.home,
+    XDG_RUNTIME_DIR: config.home,
+    PATH: '/usr/sbin:/usr/bin:/bin',
+    ...config.env,
+  };
+
+  const paths = resolvePaths(daemonEnv);
 
   // A directory of this helper's own under the home, so two daemons started
   // on one home never write into one stderr file.
@@ -66,22 +74,17 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
     boots++;
 
     const stderrPath = join(stderrDir, `boot-${boots}.stderr`);
-    const bootStateDir = join(config.env?.['HOME'] ?? config.home, '.local', 'state', 'atc');
 
-    if (config.freshState !== true && !existsSync(join(bootStateDir, 'atc.db'))) {
-      mkdirSync(bootStateDir, { recursive: true, mode: 0o700 });
-      createMigratedStateDB(join(bootStateDir, 'atc.db'));
+    if (config.freshState !== true && !existsSync(paths.dbFile)) {
+      mkdirSync(paths.stateDir, { recursive: true, mode: 0o700 });
+      createMigratedStateDB(paths.dbFile);
     }
 
     const subprocess = Bun.spawn([...config.command, 'daemon', ...(config.args ?? [])], {
       env: Object.fromEntries(
-        Object.entries({
-          ...process.env,
-          HOME: config.home,
-          XDG_RUNTIME_DIR: config.home,
-          PATH: '/usr/sbin:/usr/bin:/bin',
-          ...config.env,
-        }).filter((entry): entry is [string, string] => entry[1] !== undefined),
+        Object.entries(daemonEnv).filter(
+          (entry): entry is [string, string] => entry[1] !== undefined,
+        ),
       ),
       stdout: 'ignore',
       stderr: Bun.file(stderrPath),
@@ -111,7 +114,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
     await current.subprocess.exited;
 
-    const recorded = readDaemonRecord(join(stateDir, 'daemon.json'));
+    const recorded = readDaemonRecord(paths.daemonRecordFile);
 
     if (recorded !== null && recorded.pid !== current.subprocess.pid) {
       try {
@@ -131,7 +134,7 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   // A client that opens after the wait for it ended, or after the stop,
   // closes at once, so nothing outlives the daemon it reached.
   const openTrackedClient = async (isAbandoned: () => boolean) => {
-    const client = await openDaemonClient(socketPath);
+    const client = await openDaemonClient(paths.daemonSocketPath);
 
     if (stopped || isAbandoned()) {
       client.stop();
@@ -224,9 +227,10 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
 
   return {
     home: config.home,
-    socketPath,
-    reporterSocketPath: join(config.home, 'atc.sock'),
-    stateDir,
+    paths,
+    socketPath: paths.daemonSocketPath,
+    reporterSocketPath: paths.socketPath,
+    stateDir: paths.stateDir,
     stderrDir,
     get subprocess(): Subprocess {
       return current.subprocess;

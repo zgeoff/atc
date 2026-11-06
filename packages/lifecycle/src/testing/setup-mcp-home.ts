@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { systemClock } from '@atc/core';
 import {
   buildStubMCPClaude,
@@ -26,8 +27,11 @@ export function setupMCPHome() {
 
   const home = temporaryDirectory.path;
 
+  // The server and the daemon it starts run with the home as their HOME and XDG_RUNTIME_DIR.
+  const paths = resolvePaths({ HOME: home, XDG_RUNTIME_DIR: home });
+
   stack.defer(async () => {
-    const pid = readPidFilePID(join(home, 'atc-daemon.pid'));
+    const pid = readPidFilePID(paths.daemonPidFile);
 
     if (pid !== null) {
       await stopDaemonProcess(pid, systemClock);
@@ -37,7 +41,7 @@ export function setupMCPHome() {
   });
 
   mkdirSync(join(home, '.config', 'atc'), { recursive: true });
-  mkdirSync(join(home, '.local', 'state', 'atc'), { recursive: true });
+  mkdirSync(paths.stateDir, { recursive: true });
 
   const claudeBin = createStubBin(home, 'fake-claude', buildStubMCPClaude(readSourceEntry('atc')));
   const grokBin = createStubBin(home, 'fake-grok', buildStubMCPGrok(readSourceEntry('atc')));
@@ -55,6 +59,7 @@ export function setupMCPHome() {
 
   return {
     home,
+    paths,
     claudeBin,
     grokBin,
     teardown,

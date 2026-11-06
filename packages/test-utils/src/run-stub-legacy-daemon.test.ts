@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildDaemonStatePaths } from '@atc/config';
 import { openDaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { registerTestCleanup } from './register-test-cleanup';
@@ -56,7 +57,9 @@ test('it records its pid and sockets in the state directory the way a daemon rec
 
   await ctx.subprocess.stdout.getReader().read();
 
-  const record: unknown = JSON.parse(readFileSync(join(ctx.directory, 'daemon.json'), 'utf8'));
+  const record: unknown = JSON.parse(
+    readFileSync(buildDaemonStatePaths(ctx.directory).recordFile, 'utf8'),
+  );
 
   expect(record).toStrictEqual({
     pid: ctx.subprocess.pid,

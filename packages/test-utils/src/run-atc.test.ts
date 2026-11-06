@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { resolveATCCommand } from './resolve-atc-command';
 import { runATC } from './run-atc';
 import { setupTempDir } from './setup-temp-dir';
@@ -22,9 +23,9 @@ test('it resolves with the exit code and output of a subcommand', async () => {
   expect(result.exitCode).toBe(1);
   expect(result.stdout).toBe('');
 
-  expect(result.stderr).toInclude(
-    `atc daemon id: no daemon at ${join(ctx.directory, 'atc-daemon.sock')}`,
-  );
+  const paths = resolvePaths({ HOME: ctx.directory, XDG_RUNTIME_DIR: ctx.directory });
+
+  expect(result.stderr).toInclude(`atc daemon id: no daemon at ${paths.daemonSocketPath}`);
 });
 
 test('it lays the run variables over the home', async () => {
@@ -37,7 +38,12 @@ test('it lays the run variables over the home', async () => {
     env: { XDG_RUNTIME_DIR: join(ctx.directory, 'runtime') },
   });
 
-  expect(result.stderr).toInclude(join(ctx.directory, 'runtime', 'atc-daemon.sock'));
+  const paths = resolvePaths({
+    HOME: ctx.directory,
+    XDG_RUNTIME_DIR: join(ctx.directory, 'runtime'),
+  });
+
+  expect(result.stderr).toInclude(paths.daemonSocketPath);
 });
 
 test('it removes a variable the run sets to undefined', async () => {
