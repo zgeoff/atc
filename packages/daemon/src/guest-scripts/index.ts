@@ -8,6 +8,8 @@ import {
 } from '../sessions/create-host-dir-claims';
 import { PLACE_COPY_SCRIPT, REFRESH_COPY_SCRIPT } from '../sessions/create-published-records';
 import { READ_TRANSCRIPT_WINDOW_SCRIPT } from '../sessions/guest-transcript-window';
+import { DIR_BYTES_SCRIPT } from '../sessions/read-host-dir-bytes';
+import { LIST_SUBDIRS_SCRIPT } from '../sessions/read-host-subdirs';
 import { WORKSPACE_CHECK_SCRIPT } from '../sessions/run-workspace-check';
 import { CLAIM_DIR_SCRIPT } from '../workspace/claim-landing';
 import { ASKPASS_SCRIPT } from '../workspace/create-git-askpass';
@@ -17,7 +19,9 @@ import { VERIFY_SCRIPT } from '../workspace/verify-target-head';
 export const DAEMON_GUEST_SCRIPTS = {
   ASKPASS_SCRIPT,
   CLAIM_DIR_SCRIPT,
+  DIR_BYTES_SCRIPT,
   GUEST_CLONE_SCRIPT,
+  LIST_SUBDIRS_SCRIPT,
   PLACE_COPY_SCRIPT,
   READ_PROJECT_SETTINGS_SCRIPT,
   READ_TRANSCRIPT_WINDOW_SCRIPT,

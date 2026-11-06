@@ -9,6 +9,7 @@ import type { SessionManager } from './create-session-manager';
 import { isPathWithin } from './is-path-within';
 import { pickWorkspaceCleanup } from './pick-workspace-cleanup';
 import { UNENDED_REASON, pickWorkspaceEligibility } from './pick-workspace-eligibility';
+import { removeCheckedWorkspace } from './remove-checked-workspace';
 import { runWorkspaceCheck } from './run-workspace-check';
 import type { Session } from './session';
 
@@ -160,25 +161,17 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
       .with({ action: 'keep' }, (kept) =>
         Promise.resolve({ outcome: 'kept', path: kept.path, reasons: kept.reasons }),
       )
-      .with({ action: 'remove' }, async (removal) => {
-        const refusal = await manager
-          .removeClaimedDir({
-            provider,
-            id: session.id,
-            hostKey: session.hostKey,
-            target: session.target,
-            directory: removal.path,
-          })
-          .then(
-            (removed) =>
-              removed ? null : "in use: a listed session's directory lies inside it, or it moved",
-            (error: unknown) => `removing it failed: ${formatError(error)}`,
-          );
-
-        return refusal === null
-          ? { outcome: 'removed', path: removal.path, found: removal.found }
-          : { outcome: 'kept', path: removal.path, reasons: [refusal] };
-      })
+      .with({ action: 'remove' }, (removal) =>
+        removeCheckedWorkspace({
+          manager,
+          provider,
+          id: session.id,
+          hostKey: session.hostKey,
+          target: session.target,
+          path: removal.path,
+          found: removal.found,
+        }),
+      )
       .exhaustive();
   };
 

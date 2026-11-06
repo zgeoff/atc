@@ -63,6 +63,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
   revoke and rebind
 - [Workspaces](architecture/execution/workspaces.md) — sources, the materialization phases, claims
   and rollback, and the spawn picker's sources
+- [Workspace cleanup](architecture/execution/workspace-cleanup.md) — the checks and removal of a
+  forget, and `atc workspaces prune`
 - [Session record](architecture/execution/session-record.md) — the record's format, declaring record
   scope, delivery and who may change it
 

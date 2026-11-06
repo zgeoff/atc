@@ -32,6 +32,11 @@ function createDaemonRouter() {
         bytes: await call.context.ctx.writeStateBackup(call.input.path),
       })),
     },
+    workspaces: {
+      prune: os.workspaces.prune.handler((call) =>
+        call.context.ctx.pruneWorkspaces(call.input.remove ?? false),
+      ),
+    },
     dirs: {
       list: os.dirs.list.handler(async (call) => ({
         dirs: await call.context.ctx.readSpawnDirs(null),

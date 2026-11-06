@@ -79,9 +79,10 @@ Events, messages and notes belong to the atc session they were recorded under. A
 reach that resumes the same agent session as one out of reach never shows the other's events,
 messages or activity.
 
-Four requests act on the whole daemon or on a host's credentials rather than on one session: quit,
-fleet restore, and the two runtime auth requests. A principal gets `unauthorized` for each. The
-events socket has no handshake and streams every event, so it is a local socket for the owner alone.
+Seven requests act on the whole daemon or on a host's credentials: quit, the restart report, backup,
+fleet restore, workspaces prune, and the two runtime auth requests. A principal gets `unauthorized`
+for each. The events socket has no handshake and streams every event, so it is a local socket for
+the owner alone.
 
 ## A session's atc access
 

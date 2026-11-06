@@ -39,6 +39,7 @@ export const CONTEXT_MEMBER_SCOPES = {
   announceRestart: 'owner-only',
   restoreFleet: 'owner-only',
   writeStateBackup: 'owner-only',
+  pruneWorkspaces: 'owner-only',
 
   requireGrantedSpawn: 'narrowed',
   isSessionVisible: 'narrowed',

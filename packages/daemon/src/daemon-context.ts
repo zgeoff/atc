@@ -21,6 +21,7 @@ import type {
   SessionID,
   SpawnWorkspaceSource,
   WorkspaceCleanup,
+  WorkspacePrune,
 } from '@atcx/contract';
 import type { TargetAccess, TargetGrant } from './auth/build-target-access-from-grants';
 import type { AuthRebound } from './auth/create-auth-setup';
@@ -371,6 +372,9 @@ export interface DaemonContext {
   // daemon's host, replacing any file there, and resolves to its size in
   // bytes.
   readonly writeStateBackup: (path: string) => Promise<number>;
+
+  // Without remove, a dry run that reports what a prune with remove would take away.
+  readonly pruneWorkspaces: (remove: boolean) => Promise<WorkspacePrune>;
   readonly attachSession: (
     client: OutputClient,
     sessionID: SessionID,

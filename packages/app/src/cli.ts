@@ -126,6 +126,11 @@ const ATC_CLI_IO: ATCCLIIO = {
 
     process.exit(code);
   },
+  runWorkspacesPrune: async (remove) => {
+    const code = await runWorkspacesPruneCommand(remove);
+
+    process.exit(code);
+  },
   runGrants: async (revoke) => {
     const grants = await import('./grants');
 
@@ -302,6 +307,25 @@ function parseRestartFlags(args: RestartArgs): RestartFlags {
   const tokenFile = args.tokenFile === null ? null : resolve(args.tokenFile);
 
   return { listen, tokenFile, timeoutSeconds: timeout };
+}
+
+// Runs `atc workspaces prune` on the daemon, booting it when none answers, and resolves to the
+// exit code.
+async function runWorkspacesPruneCommand(remove: boolean): Promise<number> {
+  const boot = await import('@atc/lifecycle');
+  const lifecycle = await import('./build-lifecycle-host');
+  const prune = await import('./run-workspaces-prune');
+  const hostServices = await resolveHostServices();
+
+  const booted = await boot.bootDaemonClient(
+    lifecycle.buildLifecycleHost(process.env, hostServices),
+  );
+
+  const code = await prune.runWorkspacesPrune(booted.client, { remove });
+
+  booted.client.stop();
+
+  return code;
 }
 
 // Runs one `atc session` action on the daemon, booting it when none

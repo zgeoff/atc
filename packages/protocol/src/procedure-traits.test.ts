@@ -17,6 +17,7 @@ test('it keeps the daemon-wide and credential methods, and only those, owner-onl
   expect(owned).toIncludeSameMembers([
     'daemon.quit',
     'daemon.backup',
+    'workspaces.prune',
     'daemon.restarted',
     'fleet.restore',
     'session.auth.revoke',
