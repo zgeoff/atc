@@ -51,6 +51,24 @@ interface GitHubListRequest {
 // How long a gh command may take before the listing is refused.
 const GH_TIMEOUT_MS = 20_000;
 
+// How many repositories one listing holds at most.
+const REPO_LIMIT = 500;
+
+// The fields of each repository gh repo list prints that a listing keeps.
+const REPO_LIST_SCHEMA = z.array(
+  z.object({
+    nameWithOwner: z.string().regex(/^[^/\s]+\/[^/\s]+$/u),
+    description: z
+      .string()
+      .nullable()
+      .optional()
+      .transform((description) => description ?? ''),
+    isPrivate: z.boolean(),
+    url: z.string(),
+    sshUrl: z.string(),
+  }),
+);
+
 export async function readGitHubRepos(
   request: GitHubListRequest,
 ): Promise<GitHubRepoListing | GitHubUnavailable> {
@@ -60,7 +78,19 @@ export async function readGitHubRepos(
   const listed =
     request.owner === null
       ? await readAccessibleRepos(gh)
-      : await readOwnerRepos(gh, request.owner);
+      : await readGHJSON(
+          gh,
+          [
+            'repo',
+            'list',
+            request.owner,
+            '--limit',
+            String(REPO_LIMIT),
+            '--json',
+            'nameWithOwner,description,isPrivate,url,sshUrl',
+          ],
+          REPO_LIST_SCHEMA,
+        );
 
   if (!listed.ok) {
     return listed;
@@ -69,9 +99,14 @@ export async function readGitHubRepos(
   return {
     ok: true,
     owner: request.owner,
-    repos: listed.repos,
+    repos: listed.value,
     gitProtocol: await readGitProtocol(request.run, request.bin, timeoutMs),
   };
+}
+
+interface ReadJSON<T> {
+  readonly ok: true;
+  readonly value: T;
 }
 
 interface GHCommand {
@@ -79,14 +114,6 @@ interface GHCommand {
   readonly bin: string;
   readonly timeoutMs: number;
 }
-
-interface ReadRepos {
-  readonly ok: true;
-  readonly repos: readonly GitHubRepo[];
-}
-
-// How many repositories one listing holds at most.
-const REPO_LIMIT = 500;
 
 // The repositories one page of the REST API holds at most.
 const PAGE_SIZE = 100;
@@ -113,7 +140,9 @@ const USER_REPOS_PAGE_SCHEMA = z.array(
 
 // `gh api --paginate` reads every page before it prints any, with no limit,
 // so the pages are read one at a time up to the listing's limit.
-async function readAccessibleRepos(gh: GHCommand): Promise<ReadRepos | GitHubUnavailable> {
+async function readAccessibleRepos(
+  gh: GHCommand,
+): Promise<ReadJSON<readonly GitHubRepo[]> | GitHubUnavailable> {
   const repos: GitHubRepo[] = [];
 
   for (let page = 1; page <= REPO_LIMIT / PAGE_SIZE; page += 1) {
@@ -137,12 +166,7 @@ async function readAccessibleRepos(gh: GHCommand): Promise<ReadRepos | GitHubUna
     }
   }
 
-  return { ok: true, repos };
-}
-
-interface ReadJSON<T> {
-  readonly ok: true;
-  readonly value: T;
+  return { ok: true, value: repos };
 }
 
 async function readGHJSON<T>(
@@ -224,40 +248,4 @@ function parseJSON(text: string): unknown {
 // The gh command and its subcommand or API path, without the query.
 function formatCommandName(args: readonly string[]): string {
   return args.slice(0, 2).join(' ').split('?')[0] ?? '';
-}
-
-// The fields of each repository gh repo list prints that a listing keeps.
-const REPO_LIST_SCHEMA = z.array(
-  z.object({
-    nameWithOwner: z.string().regex(/^[^/\s]+\/[^/\s]+$/u),
-    description: z
-      .string()
-      .nullable()
-      .optional()
-      .transform((description) => description ?? ''),
-    isPrivate: z.boolean(),
-    url: z.string(),
-    sshUrl: z.string(),
-  }),
-);
-
-async function readOwnerRepos(
-  gh: GHCommand,
-  owner: string,
-): Promise<ReadRepos | GitHubUnavailable> {
-  const read = await readGHJSON(
-    gh,
-    [
-      'repo',
-      'list',
-      owner,
-      '--limit',
-      String(REPO_LIMIT),
-      '--json',
-      'nameWithOwner,description,isPrivate,url,sshUrl',
-    ],
-    REPO_LIST_SCHEMA,
-  );
-
-  return read.ok ? { ok: true, repos: read.value } : read;
 }
