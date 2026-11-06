@@ -2,18 +2,26 @@
 
 ## [7.10.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.9.0...@zgeoff/atc@7.10.0) (2026-11-06)
 
-
 ### Features
 
-* list each repository the gh account can access in the picker ([#1128](https://github.com/zgeoff/atc/issues/1128)) ([52f25aa](https://github.com/zgeoff/atc/commit/52f25aa429a69e42b17e913198bcb3b6c60f63d4))
-* register workspace sources in an opt-in sources config map ([#1129](https://github.com/zgeoff/atc/issues/1129)) ([4650f2f](https://github.com/zgeoff/atc/commit/4650f2f6f5a3c8baea9062996345812d3788f5bd))
-* show every workspace source in one list in the spawn picker ([#1131](https://github.com/zgeoff/atc/issues/1131)) ([6853e13](https://github.com/zgeoff/atc/commit/6853e138d5da61d490349e099240245f413ec052))
-* tag each agent's telemetry with its atc session id ([#1127](https://github.com/zgeoff/atc/issues/1127)) ([b1fd465](https://github.com/zgeoff/atc/commit/b1fd465404d44e8be57a8eb0336d3e76e9cfc88a))
-
+- list each repository the gh account can access in the picker
+  ([#1128](https://github.com/zgeoff/atc/issues/1128))
+  ([52f25aa](https://github.com/zgeoff/atc/commit/52f25aa429a69e42b17e913198bcb3b6c60f63d4))
+- register workspace sources in an opt-in sources config map
+  ([#1129](https://github.com/zgeoff/atc/issues/1129))
+  ([4650f2f](https://github.com/zgeoff/atc/commit/4650f2f6f5a3c8baea9062996345812d3788f5bd))
+- show every workspace source in one list in the spawn picker
+  ([#1131](https://github.com/zgeoff/atc/issues/1131))
+  ([6853e13](https://github.com/zgeoff/atc/commit/6853e138d5da61d490349e099240245f413ec052))
+- tag each agent's telemetry with its atc session id
+  ([#1127](https://github.com/zgeoff/atc/issues/1127))
+  ([b1fd465](https://github.com/zgeoff/atc/commit/b1fd465404d44e8be57a8eb0336d3e76e9cfc88a))
 
 ### Bug Fixes
 
-* **ci:** skip the contract's npm dry run for a version npm holds ([#1117](https://github.com/zgeoff/atc/issues/1117)) ([a9bf300](https://github.com/zgeoff/atc/commit/a9bf30036bb282b51dca5e658721560c716e0661))
+- **ci:** skip the contract's npm dry run for a version npm holds
+  ([#1117](https://github.com/zgeoff/atc/issues/1117))
+  ([a9bf300](https://github.com/zgeoff/atc/commit/a9bf30036bb282b51dca5e658721560c716e0661))
 
 ## [7.9.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.8.1...@zgeoff/atc@7.9.0) (2026-11-05)
 
