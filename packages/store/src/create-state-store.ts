@@ -384,10 +384,10 @@ export async function createStateStore(
     updateMessageOwner: (atcID, previous, next) =>
       messages.updateMessageOwner(atcID, previous, next),
     updateTrailOwner: (atcID, next) => trail.updateTrailOwner(atcID, next),
-    readTrailRows: () => trail.readTrailRows(),
+    readTrailRows: trail.readTrailRows,
     claimIdempotencyKey: (claim) => idempotency.claimIdempotencyKey(claim),
     readIdempotencyKey: (id) => idempotency.readIdempotencyKey(id),
-    readIdempotencyKeys: () => idempotency.readIdempotencyKeys(),
+    readIdempotencyKeys: idempotency.readIdempotencyKeys,
     updateIdempotencyCompleted: (record, result, at, effectTarget = null) =>
       idempotency.updateIdempotencyCompleted(record, result, at, effectTarget),
     updateIdempotencyOutcomeUnknown: (record, at) =>
@@ -399,7 +399,7 @@ export async function createStateStore(
     updateMaterialization: (sessionID, fields, at) =>
       materializations.updateMaterialization(sessionID, fields, at),
     readMaterialization: (sessionID) => materializations.readMaterialization(sessionID),
-    readMaterializations: () => materializations.readMaterializations(),
+    readMaterializations: materializations.readMaterializations,
     reconcileMaterializations: (at) => materializations.reconcileMaterializations(at),
     readPublishedRecord: (sessionID) => publishedRecords.readPublishedRecord(sessionID),
     writePublishedRecord: (record) => publishedRecords.writePublishedRecord(record),
