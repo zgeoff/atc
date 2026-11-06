@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -349,7 +349,13 @@ test('it keeps a state folder whose removal fails, with the reason', async () =>
   const ctx = await setupTest();
 
   const orphan = join(ctx.stateDir, 'sessions', 'forgotten-long-ago');
-  const pruner = ctx.createPruner(() => Promise.reject(new Error('EBUSY: resource busy')));
+
+  // the tests run as root on a tmpfs, where no real folder refuses a recursive removal
+  const removeDir = mock<(directory: string) => Promise<void>>(() =>
+    Promise.reject(new Error('EBUSY: resource busy')),
+  );
+
+  const pruner = ctx.createPruner(removeDir);
 
   mkdirSync(orphan, { recursive: true });
 
@@ -364,6 +370,8 @@ test('it keeps a state folder whose removal fails, with the reason', async () =>
       reasons: ['removing it failed: EBUSY: resource busy'],
     },
   ]);
+
+  expect(removeDir.mock.calls).toStrictEqual([[orphan]]);
 });
 
 test('it lists no root relative to the home of another machine', async () => {
