@@ -3,7 +3,6 @@ import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
 import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { readHostSubdirs } from './read-host-subdirs';
 
 function setupTest() {
@@ -28,18 +27,27 @@ test('it lists each folder under a folder, and no file or symlink', async () => 
   ]);
 });
 
-test('it rejects with the host error when the host cannot list the folder', () => {
-  const provider = buildStubMemoryProvider({
-    runCommand: () =>
-      Promise.resolve({
-        exitCode: 1,
-        stdout: '',
-        stderr: "find: '/w/pantry': Permission denied\n",
-      }),
-  });
+// root searches a folder whatever its mode, so a path under a file stands for a folder sh cannot
+// search, whoever runs the test
+test('it rejects a folder whose nearest existing path is no folder it can search', () => {
+  const ctx = setupTest();
+  const blocker = join(ctx.directory, 'notes.txt');
 
-  expect(readHostSubdirs(provider, '/w/pantry')).rejects.toThrow(
-    "atc could not list the folders under /w/pantry: find: '/w/pantry': Permission denied",
+  writeFileSync(blocker, 'rye\n');
+
+  expect(readHostSubdirs(ctx.provider, join(blocker, 'workspaces'))).rejects.toThrow(
+    `atc could not list the folders under ${join(blocker, 'workspaces')}: atc cannot reach ${join(blocker, 'workspaces')}: ${blocker} is not a folder it can search`,
+  );
+});
+
+test('it rejects with the host error when the folder is a file', () => {
+  const ctx = setupTest();
+  const notes = join(ctx.directory, 'notes.txt');
+
+  writeFileSync(notes, 'rye\n');
+
+  expect(readHostSubdirs(ctx.provider, notes)).rejects.toThrow(
+    `atc could not list the folders under ${notes}: find: `,
   );
 });
 

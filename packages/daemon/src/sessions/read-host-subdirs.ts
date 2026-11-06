@@ -1,9 +1,18 @@
 import { posix } from 'node:path';
 import type { ExecutionProvider } from '@atc/plugin-api';
 
-// prints the path of each folder directly under a folder, and of no symlink, each followed by a
-// NUL, so a name holding a newline stays whole; a folder that is not there has none
-export const LIST_SUBDIRS_SCRIPT = String.raw`[ -d "$1" ] || exit 0; find "$1" -mindepth 1 -maxdepth 1 -type d -exec printf '%s\0' {} +`;
+// prints each folder directly under a folder, and no symlink, NUL-ended; `test -e` is false for a
+// missing path and for one under a folder sh cannot search, so the folder counts as missing only
+// when the nearest path that exists is a folder sh can search
+export const LIST_SUBDIRS_SCRIPT = String.raw`
+d=$1
+while [ ! -e "$d" ] && [ ! -L "$d" ]; do d=$(dirname "$d"); done
+if [ "$d" != "$1" ]; then
+  if [ -d "$d" ] && [ -x "$d" ]; then exit 0; fi
+  printf 'atc cannot reach %s: %s is not a folder it can search\n' "$1" "$d" >&2
+  exit 1
+fi
+find "$1/" -mindepth 1 -maxdepth 1 -type d -exec printf '%s\0' {} +`;
 
 // The folders directly under an absolute folder on a host; rejects with the host's error when it
 // could not list them, so a failed listing never reads as an empty folder.
