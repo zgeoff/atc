@@ -277,6 +277,7 @@ test('it stays where the user moved when a directory listing answers late', asyn
     expect(existsSync(join(ctx.home, 'zoxide-held'))).toBe(true);
   });
 
+  ctx.reset();
   ctx.write(KEYS.esc);
 
   await ctx.waitFor('spawn: agent');
