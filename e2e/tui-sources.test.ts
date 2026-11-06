@@ -343,7 +343,9 @@ test('it probes a repository typed in the list at the URL its source reads it as
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('source  https://github.com/acme/app.git');
+  await ctx.waitFor('spawn: confirm');
+
+  expect(ctx.read()).toInclude('source  https://github.com/acme/app.git');
 });
 
 test('it offers only the sources the config gives, and returns esc from the ref step to the list', async () => {
