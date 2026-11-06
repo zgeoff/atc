@@ -21,6 +21,7 @@ import { SOURCE_INTERPRETATION_SCHEMA } from './source-interpretation';
 import { SPAWN_ANSWER_SCHEMA } from './spawn-answer';
 import { TRANSCRIPT_ROW_SCHEMA } from './transcript-row';
 import { WORKSPACE_CLEANUP_SCHEMA } from './workspace-cleanup';
+import { WORKSPACE_PRUNE_SCHEMA } from './workspace-prune';
 
 const EMPTY = z.object({});
 const STRINGS = z.array(z.string()).readonly();
@@ -58,6 +59,11 @@ export const DAEMON_CONTRACT = {
       .meta(OWNER)
       .input(PARAMS['daemon.backup'])
       .output(z.object({ path: z.string(), bytes: z.number() })),
+  },
+  workspaces: {
+    // Removes the workspaces atc created and the state folders that no listed session or spawn
+    // owns, as the forget's checks allow; without remove, reports what it would remove.
+    prune: base.meta(OWNER).input(PARAMS['workspaces.prune']).output(WORKSPACE_PRUNE_SCHEMA),
   },
   dirs: {
     list: base

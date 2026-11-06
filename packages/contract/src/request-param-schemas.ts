@@ -134,6 +134,11 @@ export const REQUEST_PARAM_SCHEMAS = {
       .refine((path) => path.startsWith('/'), 'daemon.backup path must be an absolute path'),
   }),
   'daemon.restarted': z.object({ result: RESTART_RESULT_SCHEMA }),
+
+  // Without remove, a dry run that removes nothing.
+  'workspaces.prune': z.object({
+    remove: z.boolean({ error: 'workspaces.prune remove must be a boolean' }).optional(),
+  }),
   'session.list': z.object({}),
   'dirs.list': z.object({}),
   'agents.list': z.object({}),

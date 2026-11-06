@@ -49,3 +49,4 @@ export * from './to-message-id';
 export * from './to-session-id';
 export * from './transcript-row';
 export * from './workspace-cleanup';
+export * from './workspace-prune';
