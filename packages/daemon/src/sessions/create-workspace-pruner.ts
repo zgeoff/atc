@@ -269,32 +269,20 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
     return match(cleanup)
       .returnType<WorkspacePruneFolder | null>()
       .with({ outcome: 'none' }, () => null)
-      .with({ outcome: 'removed' }, (removed) => {
-        manager.log(
-          `atc: prune removed the workspace ${removed.path} of session ${row.sessionID}${removed.found.length === 0 ? '' : `, which held ${removed.found.join('; ')}`}`,
-        );
-
-        return {
-          verdict: 'remove',
-          kind: 'workspace',
-          path: removed.path,
-          bytes,
-          found: removed.found,
-        };
-      })
-      .with({ outcome: 'kept' }, (kept) => {
-        manager.log(
-          `atc: prune kept the workspace ${kept.path} of session ${row.sessionID}: ${kept.reasons.join('; ')}`,
-        );
-
-        return {
-          verdict: 'keep',
-          kind: 'workspace',
-          path: kept.path,
-          bytes,
-          reasons: kept.reasons,
-        };
-      })
+      .with({ outcome: 'removed' }, (removed) => ({
+        verdict: 'remove',
+        kind: 'workspace',
+        path: removed.path,
+        bytes,
+        found: removed.found,
+      }))
+      .with({ outcome: 'kept' }, (kept) => ({
+        verdict: 'keep',
+        kind: 'workspace',
+        path: kept.path,
+        bytes,
+        reasons: kept.reasons,
+      }))
       .exhaustive();
   };
 
@@ -319,12 +307,8 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
     } catch (error) {
       const reason = `removing it failed: ${formatError(error)}`;
 
-      manager.log(`atc: prune kept the state folder ${path}: ${reason}`);
-
       return { verdict: 'keep', kind: 'state', path, bytes, reasons: [reason] };
     }
-
-    manager.log(`atc: prune removed the state folder ${path}`);
 
     return { verdict: 'remove', kind: 'state', path, bytes, found: [] };
   };
@@ -373,7 +357,29 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
         folders.push(folder);
       }
 
+      if (remove) {
+        for (const folder of folders) {
+          logPrunedFolder(manager.log, folder);
+        }
+      }
+
       return { dryRun: !remove, folders };
     },
   };
+}
+
+function logPrunedFolder(log: (line: string) => void, folder: WorkspacePruneFolder): void {
+  const name = folder.kind === 'state' ? 'state folder' : 'workspace';
+
+  match(folder)
+    .with({ verdict: 'skip' }, () => {})
+    .with({ verdict: 'remove' }, (removed) => {
+      log(
+        `atc: prune removed the ${name} ${removed.path}${removed.found.length === 0 ? '' : `, which held ${removed.found.join('; ')}`}`,
+      );
+    })
+    .with({ verdict: 'keep' }, (kept) => {
+      log(`atc: prune kept the ${name} ${kept.path}: ${kept.reasons.join('; ')}`);
+    })
+    .exhaustive();
 }

@@ -186,21 +186,37 @@ test('it takes away the remove workspaces and orphaned state folders with remove
 test('it logs each folder a prune with remove takes away or keeps', async () => {
   const ctx = await setupTest();
   const clean = await createGitFixture({ prefix: 'atc-pruner-clean-' });
+  const dirty = await createGitFixture({ prefix: 'atc-pruner-dirty-' });
 
   const orphan = join(ctx.stateDir, 'sessions', 'forgotten-long-ago');
 
   mkdirSync(orphan, { recursive: true });
+  writeFileSync(join(dirty.work, 'draft.md'), '# order list\n');
 
   await ctx.seed.workspace(toSessionID('forgotten-clean'), clean.work, clean.sha);
+  await ctx.seed.workspace(toSessionID('forgotten-dirty'), dirty.work, dirty.sha);
 
   const cleanPath = realpathSync(clean.work);
 
   await ctx.pruner.prune(true);
 
   expect(ctx.log.lines).toStrictEqual([
-    `atc: prune removed the workspace ${cleanPath} of session forgotten-clean`,
+    `atc: prune removed the workspace ${cleanPath}`,
+    `atc: prune kept the workspace ${realpathSync(dirty.work)}: 1 uncommitted or untracked path`,
     `atc: prune removed the state folder ${orphan}`,
   ]);
+});
+
+test('it logs nothing on a dry run', async () => {
+  const ctx = await setupTest();
+  const dirty = await createGitFixture({ prefix: 'atc-pruner-dirty-' });
+
+  writeFileSync(join(dirty.work, 'draft.md'), '# order list\n');
+
+  await ctx.seed.workspace(toSessionID('forgotten-dirty'), dirty.work, dirty.sha);
+  await ctx.pruner.prune(false);
+
+  expect(ctx.log.lines).toStrictEqual([]);
 });
 
 test('it never lists a folder a listed session uses, even when an older row names it', async () => {
