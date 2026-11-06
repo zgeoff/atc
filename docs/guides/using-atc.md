@@ -17,12 +17,17 @@ installed. A typed path such as `~/pro` completes like a shell. A daemon that of
 a refusal in place of a list, as the [directories guide](./configuration/workspaces.md#directories)
 describes.
 
-`Tab` in the picker moves to the next source the daemon offers, such as your GitHub repositories.
-The GitHub list opens at once from the copy atc kept the last time it listed them, marked with its
-age, and atc lists them again in the background and swaps the fresh list in when it arrives. atc
-keeps that copy for a day, across client restarts; an older copy is dropped, and the picker waits
-for a fresh list. Press `Ctrl-R` to list the repositories again, for example after you create one.
-Typing `owner/repo` or `github:owner/repo` picks a repository the list leaves out.
+`Tab` in the picker moves to the next source the daemon offers, such as GitHub. The GitHub list
+holds up to 500 repositories that your `gh` account can access, the most recently pushed first. It
+holds your own repositories, and the ones you reach as a collaborator or an organization member. The
+GitHub list opens at once from the copy atc kept the last time it listed them, marked with its age,
+and atc lists them again in the background and swaps the fresh list in when it arrives. atc keeps
+that copy for a day, across client restarts; an older copy is dropped, and the picker waits for a
+fresh list. Press `Ctrl-R` to list the repositories again, for example after you create one.
+
+Two typed forms reach past the GitHub list. Typing an account or organization name and a slash, such
+as `acme/`, lists that account's repositories in its place. Typing `owner/repo` or
+`github:owner/repo` picks a repository the list leaves out.
 
 ## The session list
 

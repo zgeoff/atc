@@ -28,20 +28,20 @@ test('it prints https for the git protocol', async () => {
   expect(result.stdout).toBe('https\n');
 });
 
-test('it lists one repository at once when no hold file exists', async () => {
+test("it answers the API's repository list with one repository at once when no hold file exists", async () => {
   const ctx = setupTest();
 
-  const result = await runCommand([ctx.gh, 'repo', 'list', '--limit', '100'], {
+  const result = await runCommand([ctx.gh, 'api', 'user/repos?per_page=100&page=1'], {
     env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 
   expect(JSON.parse(result.stdout)).toStrictEqual([
     {
-      nameWithOwner: 'me/dots',
+      full_name: 'me/dots',
       description: 'dotfiles',
-      isPrivate: false,
-      url: 'https://github.com/me/dots',
-      sshUrl: 'git@github.com:me/dots.git',
+      private: false,
+      html_url: 'https://github.com/me/dots',
+      ssh_url: 'git@github.com:me/dots.git',
     },
   ]);
 });
@@ -51,7 +51,7 @@ test('it holds the listing until the hold file goes', async () => {
 
   writeFileSync(join(ctx.directory, 'gh-hold'), '');
 
-  const subprocess = Bun.spawn([ctx.gh, 'repo', 'list'], {
+  const subprocess = Bun.spawn([ctx.gh, 'api', 'user/repos?per_page=100&page=1'], {
     env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
     stdout: 'pipe',
   });

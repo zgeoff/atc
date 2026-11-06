@@ -566,7 +566,7 @@ function isTestFile(file: string): boolean {
   return (
     file.endsWith('.test.ts') ||
     file.split('/').includes('testing') ||
-    file.startsWith('packages/app/src/test-utils/')
+    file.includes('/src/test-utils/')
   );
 }
 

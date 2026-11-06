@@ -52,3 +52,21 @@ test('it ends a hanging run at once when its signal aborted before the call', as
 
   expect(ran).toStrictEqual({ code: -1, stdout: '', stderr: '', aborted: true });
 });
+
+test('it answers the runs of a command with a list of replies one per run, then with no output', async () => {
+  const gh = buildStubGHCommand({
+    replies: { api: [{ stdout: 'page 1\n' }, { stderr: 'page 2\n', exitCode: 1 }] },
+  });
+
+  const ran = [
+    await gh.runCommand(['gh', 'api', 'user/repos?page=1']),
+    await gh.runCommand(['gh', 'api', 'user/repos?page=2']),
+    await gh.runCommand(['gh', 'api', 'user/repos?page=3']),
+  ];
+
+  expect(ran).toStrictEqual([
+    { code: 0, stdout: 'page 1', stderr: '', aborted: false },
+    { code: 1, stdout: '', stderr: 'page 2', aborted: false },
+    { code: 0, stdout: '', stderr: '', aborted: false },
+  ]);
+});

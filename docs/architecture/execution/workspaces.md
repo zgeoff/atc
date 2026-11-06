@@ -212,8 +212,14 @@ a list.
   on the TUI's machine, else from that home. The TUI reads every path through them, so it reads no
   path on its own host, and it asks for a completion only once typing pauses. An adopt opens only on
   them.
-- **GitHub** lists one owner's repositories through `gh`, as the account `gh` is signed in to sees
-  them, at the clone URL form `gh` prefers.
+- **GitHub** lists repositories through `gh`, as the account `gh` is signed in to sees them, at the
+  clone URL form `gh` prefers. A typed `acme/`, or the config's `githubOwner`, names one account or
+  organization, and the source lists that account's repositories through `gh repo list`. Without
+  one, the source lists every repository the signed-in account can access, its own and those it
+  reaches as a collaborator or an organization member, through the REST API's `user/repos`, the most
+  recently pushed first. Either listing holds at most 500 repositories. The source reads
+  `user/repos` one page of 100 at a time, up to five pages, and never through `gh api --paginate`,
+  which reads every page, with no limit, before it prints any.
 - **A git URL** lists nothing and reads what the owner types.
 
 Every source reaches a repository with the daemon host's own git authentication, so every repository

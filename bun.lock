@@ -362,6 +362,7 @@
       },
       "devDependencies": {
         "@atc/test-utils": "workspace:*",
+        "@faker-js/faker": "catalog:",
       },
     },
     "packages/store": {

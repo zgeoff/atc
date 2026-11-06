@@ -417,6 +417,60 @@ test('it fails on a production file importing a dev dependency', async () => {
   });
 });
 
+test("it lets a package's src/test-utils folder import a dev dependency, unlike the test-utils package's own source", async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/store/package.json'),
+    JSON.stringify({
+      name: '@atc/store',
+      exports: { '.': './src/index.ts' },
+      devDependencies: { 'tiny-invariant': 'catalog:' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/store/src/test-utils/build-mock-row.ts'),
+    "import invariant from 'tiny-invariant';\n\nexport const ROW = invariant;\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/test-utils/package.json'),
+    JSON.stringify({
+      name: '@atc/test-utils',
+      exports: { '.': './src/index.ts' },
+      devDependencies: { 'tiny-invariant': 'catalog:' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/test-utils/src/index.ts'),
+    "import invariant from 'tiny-invariant';\n\nexport const HELPER = invariant;\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 3 packages, 2 files, 1 findings\n',
+    stderr:
+      'dev dependency: packages/test-utils/src/index.ts imports tiny-invariant, which packages/test-utils/package.json declares only for tests\n',
+  });
+});
+
 test('it fails on manifest entries that are not workspace or catalog references', async () => {
   const ctx = setupTest();
 
