@@ -12,6 +12,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@atc/test-utils": "workspace:*"
+    "@atc/test-utils": "workspace:*",
+    "@faker-js/faker": "catalog:"
   }
 }

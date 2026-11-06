@@ -7,10 +7,10 @@ interface StubGHReply {
 }
 
 interface StubGHCommandOptions {
-  // What each gh command prints and exits with, keyed by its first
-  // argument, such as `repo` or `config`; `hang` runs until the run's
-  // signal aborts. A command without a reply prints nothing and exits 0.
-  readonly replies: Readonly<Record<string, StubGHReply | 'hang'>>;
+  // Each gh command's reply, keyed by its first argument, such as `repo`:
+  // `hang` runs until the run's signal aborts, a list answers one run per
+  // reply in order, and a command without a reply prints nothing.
+  readonly replies: Readonly<Record<string, StubGHReply | 'hang' | readonly StubGHReply[]>>;
 }
 
 interface StubGHCommand {
@@ -24,12 +24,19 @@ interface StubGHCommand {
 export function buildStubGHCommand(options: StubGHCommandOptions): StubGHCommand {
   const calls: (readonly string[])[] = [];
 
+  const runCounts = new Map<string, number>();
+
   return {
     calls,
     runCommand: (argv, runOptions) => {
       calls.push([...argv]);
 
-      const reply = options.replies[argv[1] ?? ''] ?? {};
+      const command = argv[1] ?? '';
+      const runCount = runCounts.get(command) ?? 0;
+
+      runCounts.set(command, runCount + 1);
+
+      const reply = pickReply(options.replies[command], runCount);
 
       if (reply === 'hang') {
         return waitForAbort(runOptions?.signal);
@@ -43,6 +50,22 @@ export function buildStubGHCommand(options: StubGHCommandOptions): StubGHCommand
       });
     },
   };
+}
+
+// The reply for a command's run, counting its runs from 0.
+function pickReply(
+  reply: StubGHReply | 'hang' | readonly StubGHReply[] | undefined,
+  runCount: number,
+): StubGHReply | 'hang' {
+  if (reply === undefined || reply === 'hang') {
+    return reply ?? {};
+  }
+
+  return isReplyList(reply) ? (reply[runCount] ?? {}) : reply;
+}
+
+function isReplyList(reply: StubGHReply | readonly StubGHReply[]): reply is readonly StubGHReply[] {
+  return Array.isArray(reply);
 }
 
 // A run that hangs until its signal aborts; without a signal, forever.

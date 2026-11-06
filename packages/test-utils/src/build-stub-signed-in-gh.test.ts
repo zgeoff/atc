@@ -23,29 +23,21 @@ test('it prints https for the git protocol', async () => {
   expect(result.stdout).toBe('https\n');
 });
 
-test("it lists the signed-in account's one public repository", async () => {
+test("it answers the API's list of the signed-in account's repositories with one public repository", async () => {
   const ctx = setupTest();
 
   const result = await runCommand(
-    [
-      ctx.gh,
-      'repo',
-      'list',
-      '--limit',
-      '100',
-      '--json',
-      'nameWithOwner,description,isPrivate,url,sshUrl',
-    ],
+    [ctx.gh, 'api', 'user/repos?affiliation=owner&per_page=100&page=1'],
     { env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' } },
   );
 
   expect(JSON.parse(result.stdout)).toStrictEqual([
     {
-      nameWithOwner: 'me/dots',
+      full_name: 'me/dots',
       description: 'dotfiles',
-      isPrivate: false,
-      url: 'https://github.com/me/dots',
-      sshUrl: 'git@github.com:me/dots.git',
+      private: false,
+      html_url: 'https://github.com/me/dots',
+      ssh_url: 'git@github.com:me/dots.git',
     },
   ]);
 });

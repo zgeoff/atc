@@ -192,7 +192,7 @@ test("it lists the gh account's repositories and an owner's on request, and leav
   expect(ctx.read()).toInclude('spawn: GitHub repository · acme');
 
   expect(readFileSync(join(ctx.home, 'gh-argv'), 'utf8')).toMatch(
-    /^repo list --limit .*\nconfig get git_protocol\nrepo list acme --limit .*\nconfig get git_protocol\n$/u,
+    /^api user\/repos\?affiliation=owner,collaborator,organization_member&.*&page=1\nconfig get git_protocol\nrepo list acme --limit .*\nconfig get git_protocol\n$/u,
   );
 
   ctx.reset();

@@ -82,7 +82,7 @@ test('it refuses a scope that is not a GitHub login', () => {
 });
 
 test('it refuses a listing gh cannot give as unavailable with the problem', () => {
-  const gh = buildStubGHCommand({ replies: { repo: { stderr: 'sign in first', exitCode: 4 } } });
+  const gh = buildStubGHCommand({ replies: { api: { stderr: 'sign in first', exitCode: 4 } } });
   const source = buildGitHubSource({ run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(
