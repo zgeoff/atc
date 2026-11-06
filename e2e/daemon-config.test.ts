@@ -203,13 +203,13 @@ test('it lists exactly the agents of an agents map and prints no old-key line', 
   expect(daemon.readStderr()).not.toInclude('old agent keys');
 });
 
-test('it lists exactly the sources of a sources map, in its order', async () => {
+test.each([
+  [['dirs', 'git'], { dirs: { roots: ['~/code'] }, git: {} }],
+  [['git', 'dirs'], { git: {}, dirs: { roots: ['~/code'] } }],
+])('it lists exactly the sources of a sources map, in its order %p', async (order, sources) => {
   const ctx = setupTest();
 
-  writeFileSync(
-    ctx.configPath,
-    JSON.stringify({ sources: { dirs: { roots: ['~/code'] }, git: {} } }),
-  );
+  writeFileSync(ctx.configPath, JSON.stringify({ sources }));
 
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
@@ -219,10 +219,7 @@ test('it lists exactly the sources of a sources map, in its order', async () => 
 
   const listed = await client.sendRequest('agents.list');
 
-  expect(getRecords(listed, 'sources').map((source) => source['id'])).toStrictEqual([
-    'dirs',
-    'git',
-  ]);
+  expect(getRecords(listed, 'sources').map((source) => source['id'])).toStrictEqual(order);
 });
 
 test('it leaves out a github source whose gh does not exist, prints its line, and offers the others', async () => {
