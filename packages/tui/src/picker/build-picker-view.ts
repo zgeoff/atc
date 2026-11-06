@@ -1,8 +1,9 @@
 import { LOCAL_TARGET } from '@atc/config';
+import { formatHomePath } from '@atc/core';
 import type { GitRef } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import type { TargetPick } from '../collect-target-picks';
-import { formatDir, formatDirName } from '../dirs';
+import { formatDirName } from '../dirs';
 import { splitToWidth } from '../split-to-width';
 import { getPickerWidth } from '../ui';
 import type { PickerView } from '../ui';
@@ -23,7 +24,7 @@ export function buildPickerView(ctx: PickerContext, deps: PickerDeps): PickerVie
     .with('agent', () => buildAgentView(ctx, verb))
     .with('list', () => buildListView(ctx, deps, verb))
     .with('ref', () => buildRefView(ctx))
-    .with('target', () => buildTargetView(ctx, verb))
+    .with('target', () => buildTargetView(ctx, deps.home, verb))
     .with('confirm', () => buildConfirmView(ctx))
     .with('spawned', () => ({
       title: `${verb}: started`,
@@ -33,7 +34,9 @@ export function buildPickerView(ctx: PickerContext, deps: PickerDeps): PickerVie
       hint: '⏎ attach · esc back',
     }))
     .with('name', () => {
-      const where = isGitFlow(ctx) ? formatDestination(ctx) : formatDir(ctx.directory);
+      const where = isGitFlow(ctx)
+        ? formatDestination(ctx)
+        : formatHomePath(ctx.directory, deps.home);
 
       return {
         title: `${verb}: name`,
@@ -162,9 +165,9 @@ function formatRef(ref: GitRef, head: string | null): string {
   return `${ref.name}  ${notes.join(' · ')}`;
 }
 
-function buildTargetView(ctx: PickerContext, verb: string): PickerView {
+function buildTargetView(ctx: PickerContext, home: string, verb: string): PickerView {
   const git = isGitFlow(ctx);
-  const what = git ? 'the repository' : formatDir(ctx.directory);
+  const what = git ? 'the repository' : formatHomePath(ctx.directory, home);
   let hint = `where ${what} runs · ↑↓ move · ⏎ select · esc back`;
 
   if (collectEligibleTargets(ctx, git).length === 0) {

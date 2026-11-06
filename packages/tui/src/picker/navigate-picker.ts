@@ -1,8 +1,7 @@
 import { LOCAL_TARGET } from '@atc/config';
-import { buildWorkspaceDestination } from '@atc/core';
+import { buildWorkspaceDestination, formatHomePath } from '@atc/core';
 import type { SourceEntry, SourceInterpretation } from '@atcx/contract';
 import { match } from 'ts-pattern';
-import { formatDir } from '../dirs';
 import { resolveWorkspaceRoot } from '../resolve-workspace-root';
 import { canPickOnTarget } from './can-pick-on-target';
 import { parseCandidates } from './parse-picker-answers';
@@ -270,7 +269,7 @@ export function buildOwnRows(flow: PickerFlow, sourceID: string): ListedCandidat
   return [
     {
       sourceID,
-      label: formatDir(deps.cwd),
+      label: formatHomePath(deps.cwd, deps.home),
       detail: null,
       pick: { kind: 'path', directory: deps.cwd },
     },

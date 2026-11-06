@@ -1916,6 +1916,126 @@ test('it opens the name step after the directory when one agent and one target l
   expect(shown).not.toInclude('spawn: target');
 });
 
+test("it shows the client's directory under the home the client passes, not the process home", async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    home: '/srv/atc-spawn-picker',
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('\u001B[7m~/client');
+});
+
+test('it names the chosen directory under the home the client passes on the name step', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    home: '/srv/atc-spawn-picker',
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('session name for ~/client');
+});
+
+test('it names the chosen directory under the home the client passes on the target step', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    home: '/srv/atc-spawn-picker',
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+      {
+        id: 'box',
+        provider: 'local-pty',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('where ~/client runs');
+});
+
 test('it returns esc from the name step to the list when one target left no choice', async () => {
   const ctx = setupTest();
 
