@@ -32,6 +32,7 @@ export interface ATCCLIIO extends CommandLineIO, DaemonCommandIO {
   readonly runGrants: (revoke: string | null) => Promise<void>;
   readonly runConfigMigrate: (file: string | null, write: boolean) => Promise<void>;
   readonly runBackup: (path: string) => Promise<void>;
+  readonly runWorkspacesPrune: (remove: boolean) => Promise<void>;
   readonly runEvents: () => Promise<void>;
   readonly printCodexHooks: () => Promise<void>;
   readonly printGrokHooks: () => Promise<void>;
@@ -231,6 +232,31 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
     },
   );
 
+  const workspaces = define({
+    name: 'workspaces',
+    description: 'Work on the workspaces and state folders atc created',
+    subCommands: {
+      prune: lazy(
+        () => async (ctx) => {
+          await io.runWorkspacesPrune(ctx.values.yes);
+        },
+        {
+          name: 'prune',
+          description:
+            'List the workspaces and state folders no listed session owns, with the size and verdict of each; remove the safe ones with --yes',
+          args: {
+            yes: {
+              type: 'boolean',
+              default: false,
+              description: 'Remove each folder the list marks remove',
+            },
+          },
+        },
+      ),
+    },
+    run: makeMissingCommandRun(io),
+  });
+
   const events = lazy(
     () => async () => {
       await io.runEvents();
@@ -373,6 +399,7 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
         config,
         daemon,
         backup,
+        workspaces,
         events,
         'codex-hooks': codexHooks,
         'grok-hooks': grokHooks,

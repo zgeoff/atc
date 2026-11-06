@@ -191,4 +191,42 @@ A `cleanup` that is not an object, or an `enabled` other than `true` or `false`,
 the daemon prints it at startup and removes nothing on a forget until you fix it. Any other `check`
 value is a config error too, and the daemon uses `"unpushed"` until you fix it.
 
-[Workspaces](../../architecture/execution/workspaces.md#cleanup-on-forget) gives the checks in full.
+[Workspace cleanup](../../architecture/execution/workspace-cleanup.md#cleanup-on-forget) gives the
+checks in full.
+
+## Removing leftover folders
+
+`atc workspaces prune` finds the workspaces and state folders that no listed session owns: the ones
+a forget kept because they held work, and the ones left from a daemon that did not clean up on
+forget. The prune runs on targets whose hosts stay up, such as `local`.
+
+1. List the folders, with the size and verdict of each. The list removes nothing.
+
+   ```bash
+   atc workspaces prune
+   ```
+
+   Expect a line per folder, and a total:
+
+   ```text
+   remove  shop-main-12  412 MB  clean
+   keep    till-main-3    43 MB  1 uncommitted or untracked path
+   skip    notes                 no atc record
+   state   38 folders    1.9 GB  no listed session
+   run again with --yes to remove 1 workspace and 38 state folders (2.3 GB)
+   ```
+
+2. Push or delete the work in each `keep` workspace that you want gone, then list the folders again.
+3. Remove each folder that the list marks `remove`.
+
+   ```bash
+   atc workspaces prune --yes
+   ```
+
+   Expect `removed`, in place of `remove`, on each folder it took away.
+
+A workspace is `remove` when the forget's checks pass, and `keep` with the reasons when one fails.
+`check: "none"` removes every workspace atc cloned. The prune never touches a folder that a listed
+session or a spawn still starting uses, even when an older session's workspace was the same folder.
+A folder under the workspaces root that atc did not clone is `skip`. The prune follows `check`, and
+it runs when `enabled` is `false`, since you ask for it by name. The daemon never prunes by itself.

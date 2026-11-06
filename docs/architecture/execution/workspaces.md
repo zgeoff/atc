@@ -8,7 +8,8 @@ it, and only then starts the session there. No client ever lists a session over 
 and the checkout never holds a credential.
 
 [Targets](./targets.md) covers where the workspace lands, and [sources](#sources) covers how the
-spawn picker finds what to check out.
+spawn picker finds what to check out. [Workspace cleanup](./workspace-cleanup.md) covers how a
+forget or a prune removes a workspace.
 
 ## Sources of a workspace
 
@@ -113,88 +114,6 @@ the host cannot resolve its home.
 
 A daemon that stops partway leaves a row short of ready. The next daemon fails every such row as
 `workspace_interrupted` before it serves a request, and the directory stays on the target.
-
-## Cleanup on forget
-
-A forget removes the workspace atc built for the session, and so does a kill of a session that has
-already exited, which forgets it. atc removes only the directory that the session's ready
-materialization row names on the session's own target, so a session in a directory atc did not build
-never loses it. The forget answers with `workspace`: `removed` with the path and what the checks
-found, `kept` with the path and one reason per check that failed, or `none`. The daemon logs every
-`removed` and `kept`. The same step runs for each sub-session that the forget takes off the list,
-and only the daemon log carries those outcomes.
-
-The step runs inside the forget, once the session is off the list, on the session's host through the
-provider's `runCommand`, so a sub-session in its parent's imp is checked and removed inside the imp.
-It starts only once atc has seen the session's process exit. The killer and a failed spawn's
-rollback each keep the handle of every harness they end, a revive between two kills included, and
-the step waits for each exit, then ends a harness with a forced kill and waits once more. The step
-also waits for the stop of the session's message bridge, which writes in the state folder. When a
-launch still starts the bridge, the stop waits for that start, and then stops the bridge. These keep
-both folders, the workspace as unchecked:
-
-- a harness that still shows no exit;
-- a harness that the host ended without an exit, such as a connection it gave up on or a host that
-  went to sleep, until a new harness attaches to the session;
-- a bridge stop that fails, this one or an earlier one that no later stop of the session has retried
-  with success;
-- a headless turn the session ever started, since the turn's runner reports no exit to wait on, and
-  its result or its stop comes before its process ends.
-
-A session id that names a folder other than its own under `sessions/`, such as one with a `..`
-segment, keeps the state folder too.
-
-One script answers seven checks. It refuses the directory when the row's path is now a symlink,
-since atc never builds a workspace as one, and enters it through any symlink in a parent:
-
-1. `git status --porcelain --untracked-files=all --ignore-submodules=none` prints nothing. An
-   ignored file never counts.
-2. `git ls-files -v` marks no path assume-unchanged or skip-worktree, since `git status` skips the
-   edits to such a path.
-3. `git stash list` prints nothing.
-4. Every commit reachable from HEAD, a local branch, a tag or a notes ref is on a remote-tracking
-   ref, so a commit made on a detached HEAD counts as unpushed. A tag or a notes ref that points at
-   no commit, such as a tag on a tree, fails the check, since the count sees no commit behind it.
-5. `git worktree list` names no linked worktree whose folder still exists. A linked worktree keeps
-   its git data inside the workspace, and the other checks never look inside it.
-6. The index holds no submodule, since the other checks never look inside one either.
-7. The host answers. A host that fails the command keeps the directory as unchecked.
-
-The script reads no system or global git config and turns off an fsmonitor that the repository's own
-config names, since `git status` would start it. It refuses a directory that is not the top of a git
-checkout holding the row's commit, and the forget then keeps it. A directory already gone gives
-`none`. One table of fields in `run-workspace-check.ts`, the per-ref and detached-HEAD counts
-included, writes every line the script prints and the schema that reads them. An answer that lacks
-one of the five count lines, or holds a label the table does not name, keeps the directory as
-unchecked. The schema takes any number of branch, tag and notes lines and at most one detached-HEAD
-line, so it never notices one of those missing.
-
-| Case                                                    | Workspace                        |
-| ------------------------------------------------------- | -------------------------------- |
-| `workspaces.cleanup.enabled` is `false`                 | `none`, and nothing is removed   |
-| The forget destroyed the session's host                 | `none`, and no check runs        |
-| No ready materialization row for the session            | `none`                           |
-| atc saw no exit of the session's process                | `kept`, and both folders stay    |
-| The session's target changed since it started           | `kept`, and no check runs        |
-| Another listed session's directory lies inside it       | `kept`, `in use by session <id>` |
-| A forgotten session not yet seen to end runs inside it  | `kept`, `in use by session <id>` |
-| A check fails, under `check: "unpushed"`                | `kept`, one reason per check     |
-| A check fails, under `check: "none"`                    | `removed`, with `found`          |
-| The host does not answer, or the directory is not atc's | `kept`, under either check       |
-| Every check passes                                      | `removed`                        |
-
-The removal is the rollback's: it removes the contents from inside the directory while the directory
-still resolves to itself, and it refuses while the directory of a listed session, of a forgotten
-session not yet seen to end, or of a claim lies inside, as the host resolves each one. Each kill or
-forget holds the sessions it may take off the list and releases only its own hold, so a session
-stays counted while any kill or forget still waits on it. A refused or failed removal keeps the
-directory with its reason. Every spawn that builds a workspace claims its directory before the clone
-creates it: on a shared host as before, and on the daemon's own machine from its landing. From
-before the check until the removal ends, a claim on that shared host, or one on the daemon's machine
-that overlaps the directory, is refused as `workspace_overlap`. So no session starts inside a
-directory after the check has found it clean. The session's state folder on the daemon's host goes
-after the workspace step, whatever that step decided, unless cleanup is off or atc saw no exit of
-the session's process.
 
 ## Sources
 
