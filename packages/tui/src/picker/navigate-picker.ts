@@ -140,37 +140,47 @@ function listSource(flow: PickerFlow, index: number, scope: string | null) {
     return;
   }
 
-  if (source.kind === 'path') {
-    replaceListing(ctx, source.id, {
-      status: 'listing',
-      rows: scope === null ? buildOwnRows(flow, source.id) : [],
-      requestedScope: scope,
-      scope,
-      notice: null,
-      listedFrom: null,
-    });
+  match(source.kind)
+    .with('path', () => {
+      listPathSource(flow, index, source.id, scope);
+    })
+    .with('git', () => {
+      listGitSource(flow, source.id, scope);
+    })
+    .exhaustive();
+}
 
-    flow.effects.push({
-      kind: 'list',
-      request: {
-        kind: 'path',
-        sourceID: source.id,
-        index,
-        params: {
-          source: source.id,
-          ...(scope === null ? {} : { scope }),
-          ...buildPathTargetParam(ctx, flow.deps),
-        },
+function listPathSource(flow: PickerFlow, index: number, sourceID: string, scope: string | null) {
+  replaceListing(flow.ctx, sourceID, {
+    status: 'listing',
+    rows: scope === null ? buildOwnRows(flow, sourceID) : [],
+    requestedScope: scope,
+    scope,
+    notice: null,
+    listedFrom: null,
+  });
+
+  flow.effects.push({
+    kind: 'list',
+    request: {
+      kind: 'path',
+      sourceID,
+      index,
+      params: {
+        source: sourceID,
+        ...(scope === null ? {} : { scope }),
+        ...buildPathTargetParam(flow.ctx, flow.deps),
       },
-    });
+    },
+  });
+}
 
-    return;
-  }
-
+function listGitSource(flow: PickerFlow, sourceID: string, scope: string | null) {
+  const ctx = flow.ctx;
   const target = ctx.listingTarget;
 
   if (target === null) {
-    replaceListing(ctx, source.id, {
+    replaceListing(ctx, sourceID, {
       status: 'skipped',
       rows: [],
       requestedScope: scope,
@@ -182,13 +192,13 @@ function listSource(flow: PickerFlow, index: number, scope: string | null) {
     return;
   }
 
-  const key = buildListingKey(flow.deps, source.id, target.id, scope);
+  const key = buildListingKey(flow.deps, sourceID, target.id, scope);
   const cached = flow.deps.listingCache?.readListing(key, flow.deps.clock.now()) ?? null;
   const kept = cached !== null && (cached.candidates.length > 0 || cached.scope !== null);
-  const rows = kept ? parseCandidates(cached.candidates, source.id) : [];
+  const rows = kept ? parseCandidates(cached.candidates, sourceID) : [];
   const keptScope = kept ? cached.scope : null;
 
-  replaceListing(ctx, source.id, {
+  replaceListing(ctx, sourceID, {
     status: 'listing',
     rows,
     requestedScope: scope,
@@ -197,7 +207,7 @@ function listSource(flow: PickerFlow, index: number, scope: string | null) {
     listedFrom: kept ? cached.listedAt : null,
   });
 
-  sendGitListing(flow, source.id, target.id, scope);
+  sendGitListing(flow, sourceID, target.id, scope);
 }
 
 export function refreshListings(flow: PickerFlow) {

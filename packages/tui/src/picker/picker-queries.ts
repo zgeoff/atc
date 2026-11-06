@@ -122,7 +122,10 @@ function buildRowItem(source: SourceEntry, candidate: ListedCandidate): ListItem
 }
 
 function formatRowLabel(source: SourceEntry, candidate: ListedCandidate): string {
-  return source.kind === 'git' ? `${source.id}:${candidate.label}` : candidate.label;
+  return match(source.kind)
+    .with('git', () => `${source.id}:${candidate.label}`)
+    .with('path', () => candidate.label)
+    .exhaustive();
 }
 
 export function buildItemMark(item: ListItem | undefined): ItemMark {

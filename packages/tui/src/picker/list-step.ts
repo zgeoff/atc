@@ -1,4 +1,5 @@
 import { isPathInput } from '@atc/core';
+import { match } from 'ts-pattern';
 import type { CompletionOutcome, ListingOutcome, RequestOutcome } from './create-picker-actors';
 import { findAlternateURL, formatListFailure, formatPickerError } from './format-picker-error';
 import {
@@ -78,15 +79,15 @@ function applyCandidate(flow: PickerFlow, candidate: ListedCandidate | null) {
   }
 
   const index = ctx.sources.findIndex((source) => source.id === candidate.sourceID);
-  const pick = candidate.pick;
 
-  if (pick.kind === 'path') {
-    applyDir(flow, index, pick.directory);
-
-    return;
-  }
-
-  startGitPick(flow, index, { label: candidate.label, url: pick.url });
+  match(candidate.pick)
+    .with({ kind: 'path' }, (pick) => {
+      applyDir(flow, index, pick.directory);
+    })
+    .with({ kind: 'git' }, (pick) => {
+      startGitPick(flow, index, { label: candidate.label, url: pick.url });
+    })
+    .exhaustive();
 }
 
 function applyListFallback(flow: PickerFlow, typed: string, candidate: ListedCandidate | null) {
@@ -238,10 +239,12 @@ function buildAnsweredListing(
   const scope = typeof answered === 'string' ? answered : listing.requestedScope;
   const listed = parseCandidates(outcome.answer['candidates'], request.sourceID);
 
-  const own =
-    request.kind === 'path' && listing.requestedScope === null
-      ? buildOwnRows(flow, request.sourceID)
-      : [];
+  const own = match(request)
+    .with({ kind: 'path' }, (path) =>
+      listing.requestedScope === null ? buildOwnRows(flow, path.sourceID) : [],
+    )
+    .with({ kind: 'git' }, () => [])
+    .exhaustive();
 
   const rows = mergeOwnRows(own, listed);
 
@@ -256,7 +259,10 @@ function buildAnsweredListing(
 }
 
 function describeListingFailure(request: ListingRequest, error: unknown): string {
-  return request.kind === 'path' ? formatPickerError(error) : formatListFailure(error);
+  return match(request)
+    .with({ kind: 'path' }, () => formatPickerError(error))
+    .with({ kind: 'git' }, () => formatListFailure(error))
+    .exhaustive();
 }
 
 function mergeOwnRows(
@@ -266,7 +272,10 @@ function mergeOwnRows(
   const byPick = new Map<string, ListedCandidate>();
 
   for (const row of [...own, ...listed]) {
-    const key = row.pick.kind === 'path' ? row.pick.directory : row.pick.url;
+    const key = match(row.pick)
+      .with({ kind: 'path' }, (pick) => pick.directory)
+      .with({ kind: 'git' }, (pick) => pick.url)
+      .exhaustive();
 
     if (!byPick.has(key)) {
       byPick.set(key, row);
@@ -316,18 +325,19 @@ export function applyReadOutcome(
     return;
   }
 
-  if (outcome.request.followUp.kind === 'list-fallback') {
-    applyListFallback(flow, typed, outcome.request.followUp.candidate);
+  match(outcome.request.followUp)
+    .with({ kind: 'list-fallback' }, (followUp) => {
+      applyListFallback(flow, typed, followUp.candidate);
+    })
+    .with({ kind: 'refuse' }, () => {
+      flow.ctx.refusal =
+        outcome.failures.length === 0
+          ? `no source reads ${typed} · esc back`
+          : `cannot read ${typed}: ${outcome.failures.join(' · ')} · esc back`;
 
-    return;
-  }
-
-  flow.ctx.refusal =
-    outcome.failures.length === 0
-      ? `no source reads ${typed} · esc back`
-      : `cannot read ${typed}: ${outcome.failures.join(' · ')} · esc back`;
-
-  renderFlow(flow, true);
+      renderFlow(flow, true);
+    })
+    .exhaustive();
 }
 
 export function applyAccessProbe(
