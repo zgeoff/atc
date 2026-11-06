@@ -5,10 +5,8 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 ```json
 {
   "agents": { "claude": {} },
-  "dirs": { "roots": [] },
+  "sources": { "dirs": { "roots": [] }, "github": {}, "git": {} },
   "workspaces": {
-    "githubOwner": null,
-    "sources": null,
     "gitTransports": ["https", "ssh"],
     "root": null,
     "targets": {}
@@ -22,7 +20,7 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 | Field                   | Default          | Meaning                                                                                                                                         |
 | ----------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agents`                | `{ claude: {} }` | The agents atc offers, keyed by agent id. The [agents guide](./configuration/agents.md) covers the fields of an entry.                          |
-| `dirs`                  | `{ roots: [] }`  | Where the directory picker looks beyond its own history. The [directories guide](./configuration/workspaces.md#directories) covers it.          |
+| `sources`               | see above        | The workspace sources the spawn picker offers, keyed by source id. The [sources guide](./configuration/workspaces.md#sources) covers it.        |
 | `authProfiles`          | unset            | Credential references an agent's `auth` selects from. The [brokered credentials guide](./configuration/brokered-credentials.md) covers them.    |
 | `hooks`                 | `{}`             | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                             |
 | `leader`                | `"ctrl-space"`   | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                           |
@@ -36,8 +34,8 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 
 This guide covers the keys that stand alone. One guide covers each other task:
 
-- [Directories and workspaces](./configuration/workspaces.md): the directory picker's roots, the git
-  transports a spawn may fetch over, and where a cloned workspace lands.
+- [Sources and workspaces](./configuration/workspaces.md): the `sources` map, the migration from the
+  old source keys, the git transports a spawn may fetch over, and where a cloned workspace lands.
 - [Targets](./configuration/targets.md): where sessions run, clone trust, and the options of an imp
   target.
 - [Principals](./configuration/principals.md): which targets each remote client may use.

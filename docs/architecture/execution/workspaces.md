@@ -199,11 +199,11 @@ the session's process.
 ## Sources
 
 A source is where the spawn picker finds what a session runs in: directories on the daemon's host, a
-GitHub account's repositories, or a typed git URL. The daemon lists the sources it can offer in the
-config's order and leaves out one its host cannot run, such as GitHub without the `gh` CLI. Every
-source request runs on the daemon's host and checks the target the spawn will use, as a spawn does.
-The picker needs a source to list anything, so a daemon that offers none gets a refusal in place of
-a list.
+GitHub account's repositories, or a typed git URL. The daemon offers one source per entry of the
+config's `sources` map, in the map's order and under the entry's id, and leaves out one its host
+cannot run, such as GitHub without the `gh` CLI, with a line at startup. Every source request runs
+on the daemon's host and checks the target the spawn will use, as a spawn does. The picker needs a
+source to list anything, so a daemon that offers none gets a refusal in place of a list.
 
 - **Directories** list the spawn history on the targets the caller may use, then the directories
   under the configured roots, then zoxide's list, and drop any that no longer exist. They complete a
@@ -213,7 +213,7 @@ a list.
   path on its own host, and it asks for a completion only once typing pauses. An adopt opens only on
   them.
 - **GitHub** lists repositories through `gh`, as the account `gh` is signed in to sees them, at the
-  clone URL form `gh` prefers. A typed `acme/`, or the config's `githubOwner`, names one account or
+  clone URL form `gh` prefers. A typed `acme/`, or the entry's `owner`, names one account or
   organization, and the source lists that account's repositories through `gh repo list`. Without
   one, the source lists every repository the signed-in account can access, its own and those it
   reaches as a collaborator or an organization member, through the REST API's `user/repos`, the most

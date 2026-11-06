@@ -14,7 +14,7 @@ and opens only when it lists more than one. The directory picker lists the direc
 from, then what the daemon's directory source finds: atc's spawn history, every project under the
 roots in `config.json`, and your [zoxide](https://github.com/ajeetdsouza/zoxide) list when zoxide is
 installed. A typed path such as `~/pro` completes like a shell. A daemon that offers no source gets
-a refusal in place of a list, as the [directories guide](./configuration/workspaces.md#directories)
+a refusal in place of a list, as the [sources guide](./configuration/workspaces.md#sources)
 describes.
 
 `Tab` in the picker moves to the next source the daemon offers, such as GitHub. The GitHub list
