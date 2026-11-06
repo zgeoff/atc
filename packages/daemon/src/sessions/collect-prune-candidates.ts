@@ -15,6 +15,9 @@ interface MaterializationRow {
 interface ListedSession {
   readonly id: SessionID;
   readonly cwd: string;
+
+  // Whether its target runs on the daemon's machine, where the folder is the one a row names.
+  readonly onMachine: boolean;
 }
 
 interface PruneSnapshot<Row extends MaterializationRow> {
@@ -66,7 +69,7 @@ export function collectPruneCandidates<Row extends MaterializationRow>(
 
     const owned =
       rows.some((row) => owners.has(row.sessionID)) ||
-      snapshot.listed.some((session) => isPathWithin(session.cwd, directory));
+      snapshot.listed.some((session) => session.onMachine && isPathWithin(session.cwd, directory));
 
     return ready === undefined || owned ? [] : [ready];
   });

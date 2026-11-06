@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createStateStore } from '@atc/store';
@@ -231,6 +231,56 @@ test('it never lists a folder a session that only the stored fleet lists runs in
 
   expect(prune).toStrictEqual({ dryRun: false, folders: [] });
   expect(existsSync(restorable.work)).toBeTrue();
+});
+
+test('it keeps a workspace that a session only the stored fleet lists reaches through a symlink', async () => {
+  const ctx = await setupTest();
+  const restorable = await createGitFixture({ prefix: 'atc-pruner-linked-' });
+
+  const alias = join(restorable.directory, 'alias');
+
+  symlinkSync(restorable.work, alias);
+
+  await ctx.seed.workspace(toSessionID('forgotten-first'), restorable.work, restorable.sha);
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({ sessionID: toSessionID('not-yet-restored'), cwd: join(alias, 'src') }),
+  ]);
+
+  const prune = await ctx.pruner.prune(true);
+
+  expect(prune.folders).toPartiallyContain({
+    verdict: 'keep',
+    kind: 'workspace',
+    reasons: ['in use by session not-yet-restored'],
+  });
+
+  expect(existsSync(restorable.work)).toBeTrue();
+});
+
+test('it prunes a local workspace whose path a session on a host with a lifecycle also uses', async () => {
+  const ctx = await setupTest();
+  const leftover = await createGitFixture({ prefix: 'atc-pruner-same-path-' });
+
+  await ctx.seed.workspace(toSessionID('forgotten-local'), leftover.work, leftover.sha);
+
+  ctx.manager.sessions.push(
+    buildMockSession({ id: toSessionID('cloud-live'), cwd: leftover.work, target: 'box' }),
+  );
+
+  const leftoverPath = realpathSync(leftover.work);
+
+  const prune = await ctx.pruner.prune(true);
+
+  expect(prune.folders).toStrictEqual([
+    {
+      verdict: 'remove',
+      kind: 'workspace',
+      path: leftoverPath,
+      bytes: expect.any(Number),
+      found: [],
+    },
+  ]);
 });
 
 test('it never lists the state folder of a session the stored fleet lists', async () => {

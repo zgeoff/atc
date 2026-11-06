@@ -97,7 +97,12 @@ candidates against the listed sessions, the sessions a kill or forget still hold
 flight. A spawn counts as in flight from its first step until it lists or its unwind ends.
 
 A session counts as listed when the registry holds it or the stored fleet held it at the read, so a
-session that no fleet restore has registered yet keeps its folders.
+session that no fleet restore has registered yet keeps its folders. Only a listed session on a
+target without a host lifecycle can use a workspace, since another target's directory lies on
+another machine. The removal resolves the directory of each registered and held session itself, so
+the prune resolves, once per run, the directory of each session that only the stored fleet lists. A
+workspace that such a directory resolves into is `keep`, `in use by session <id>`, and so is every
+workspace when one of those directories does not resolve.
 
 - **Workspace.** A candidate is a folder that a ready row on a covered target names. It stops being
   a candidate when a listed session or a spawn in flight owns any row that names it, or when a

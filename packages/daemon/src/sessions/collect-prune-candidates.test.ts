@@ -76,7 +76,11 @@ test.each([
       },
     ],
     permanentTargets: new Set(['local']),
-    listed: row.listed.map((session) => ({ id: toSessionID(session.id), cwd: session.cwd })),
+    listed: row.listed.map((session) => ({
+      id: toSessionID(session.id),
+      cwd: session.cwd,
+      onMachine: true,
+    })),
     spawning: new Set(row.spawning.map((id) => toSessionID(id))),
     rootFolders: [],
     stateFolders: [],
@@ -137,11 +141,40 @@ test.each([
   expect(candidates.skipped).toStrictEqual(row.skipped);
 });
 
+test('it checks a folder that only a session on another machine runs inside', () => {
+  const candidates = collectPruneCandidates({
+    rows: [
+      {
+        sessionID: toSessionID('first'),
+        target: 'local',
+        directory: '/w/bakery',
+        phase: 'ready',
+        sha: 'aaa',
+      },
+    ],
+    permanentTargets: new Set(['local']),
+    listed: [{ id: toSessionID('guest'), cwd: '/w/bakery', onMachine: false }],
+    spawning: new Set(),
+    rootFolders: [],
+    stateFolders: [],
+  });
+
+  expect(candidates.workspaces).toStrictEqual([
+    {
+      sessionID: toSessionID('first'),
+      target: 'local',
+      directory: '/w/bakery',
+      phase: 'ready',
+      sha: 'aaa',
+    },
+  ]);
+});
+
 test('it takes the state folders of the sessions no one lists or spawns', () => {
   const candidates = collectPruneCandidates({
     rows: [],
     permanentTargets: new Set(['local']),
-    listed: [{ id: toSessionID('listed'), cwd: '/w/bakery' }],
+    listed: [{ id: toSessionID('listed'), cwd: '/w/bakery', onMachine: true }],
     spawning: new Set([toSessionID('spawning')]),
     rootFolders: [],
     stateFolders: ['listed', 'spawning', 'forgotten'],

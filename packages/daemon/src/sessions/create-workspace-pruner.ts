@@ -27,6 +27,7 @@ interface WorkspacePrunerDeps {
     | 'findExecutionRefusal'
     | 'requireExecution'
     | 'removeClaimedDir'
+    | 'resolveHostDir'
     | 'withRemovalHold'
     | 'log'
   >;
@@ -61,10 +62,24 @@ export interface WorkspacePruner {
   readonly prune: (remove: boolean) => Promise<WorkspacePrune>;
 }
 
-// One prune's mode, and the stored fleet as it read it.
+// The directory of a session on the daemon's machine that only the stored fleet lists, as the
+// machine resolves it, or null when it did not resolve.
+interface StoredDir {
+  readonly id: SessionID;
+  readonly physical: string | null;
+}
+
+// One prune's mode, the stored fleet as it read it, and the stored sessions' directories.
 interface PruneRun {
   readonly remove: boolean;
   readonly fleet: readonly FleetEntry[];
+  readonly storedDirs: readonly StoredDir[];
+}
+
+interface ListedSession {
+  readonly id: SessionID;
+  readonly cwd: string;
+  readonly onMachine: boolean;
 }
 
 export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePruner {
@@ -73,11 +88,49 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
 
   // The sessions the fleet lists now, the ones a kill or forget still holds, and the ones the
   // fleet listed when the prune read it, which a forget since then may have taken off the list.
-  const collectListed = (fleet: readonly FleetEntry[]): { id: SessionID; cwd: string }[] => [
-    ...manager.sessions,
-    ...manager.collectHeldSessions(),
-    ...fleet.map((entry) => ({ id: entry.sessionID, cwd: entry.cwd })),
-  ];
+  const collectListed = (fleet: readonly FleetEntry[]): ListedSession[] =>
+    [
+      ...[...manager.sessions, ...manager.collectHeldSessions()].map((session) => ({
+        id: session.id,
+        cwd: session.cwd,
+        target: session.target,
+      })),
+      ...fleet.map((entry) => ({
+        id: entry.sessionID,
+        cwd: entry.cwd,
+        target: entry.target ?? 'local',
+      })),
+    ].map((session) => ({
+      id: session.id,
+      cwd: session.cwd,
+      onMachine: !manager.hasHostLifecycle(session.target),
+    }));
+
+  // the removal resolves the directory of each listed and held session itself, but not of one
+  // only the stored fleet lists, which may reach a workspace through a symlink
+  const resolveStoredDirs = (
+    fleet: readonly FleetEntry[],
+    provider: ExecutionProvider | null,
+  ): Promise<StoredDir[]> => {
+    const live = new Set(
+      [...manager.sessions, ...manager.collectHeldSessions()].map((session) => session.id),
+    );
+
+    const stored = collectListed(fleet).filter(
+      (session) => session.onMachine && !live.has(session.id),
+    );
+
+    return Promise.all(
+      stored.map(async (session) => {
+        const physical =
+          provider === null
+            ? null
+            : await manager.resolveHostDir(provider, null, session.cwd).catch(() => null);
+
+        return { id: session.id, physical };
+      }),
+    );
+  };
 
   const isOwned = (id: SessionID, fleet: readonly FleetEntry[]): boolean =>
     manager.spawning.has(id) || collectListed(fleet).some((session) => session.id === id);
@@ -168,15 +221,22 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
 
     const forms = [directory, ...(result.kind === 'checked' ? [result.path] : [])];
 
-    const user = collectListed(run.fleet).find((session) =>
-      forms.some((form) => isPathWithin(session.cwd, form)),
+    const listedUser = collectListed(run.fleet).find(
+      (session) => session.onMachine && forms.some((form) => isPathWithin(session.cwd, form)),
     );
+
+    // a stored directory that did not resolve may lead anywhere, so it keeps the folder
+    const storedUser = run.storedDirs.find((stored) => {
+      const physical = stored.physical;
+
+      return physical === null || forms.some((form) => isPathWithin(physical, form));
+    });
 
     const plan = pickWorkspaceCleanup({
       check: deps.settings.check,
       directory,
       result,
-      user: user?.id ?? null,
+      user: listedUser?.id ?? storedUser?.id ?? null,
     });
 
     if (plan.action === 'skip') {
@@ -283,7 +343,11 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
         stateFolders,
       });
 
-      const run = { remove, fleet };
+      const machineProvider = permanent.map((target) => findProvider(target)).find(Boolean) ?? null;
+
+      const storedDirs = await resolveStoredDirs(fleet, machineProvider);
+
+      const run = { remove, fleet, storedDirs };
       const folders: WorkspacePruneFolder[] = [];
 
       for (const row of candidates.workspaces) {
