@@ -18,6 +18,7 @@ import { buildMockExecutionTarget } from '../testing/build-mock-execution-target
 import { buildMockSession } from '../testing/build-mock-session';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
 import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
+import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
 import { createSessionManager } from './create-session-manager';
 import { createWorkspacePruner } from './create-workspace-pruner';
 import { readDirBytes } from './read-dir-bytes';
@@ -36,6 +37,9 @@ async function setupTest() {
 
   const provider = buildStubLocalProvider();
 
+  // a target on another machine whose hosts stay up, and one the config names with no provider
+  const far = buildStubMemoryProvider({ remote: true });
+
   const manager = createSessionManager({
     fallback: null,
     store,
@@ -48,6 +52,8 @@ async function setupTest() {
         identity: 'box:test',
         provider: buildStubLocalProvider({ capabilities: { suspend: true, destroy: true } }),
       }),
+      buildMockExecutionTarget({ id: 'far', identity: 'far:test', provider: far }),
+      buildMockExecutionTarget({ id: 'stale', identity: 'stale:test', provider: null }),
     ],
   });
 
@@ -58,36 +64,58 @@ async function setupTest() {
   const stateDir = join(temporaryDirectory.path, 'state');
   const root = join(temporaryDirectory.path, 'workspaces');
 
-  const pruner = createWorkspacePruner({
+  const deps = {
     manager,
     store,
-    targets: ['local', 'box'],
-    workspaceRoots: { root, targetRoots: new Map() },
+    targets: ['local', 'box', 'far', 'stale'],
+    workspaceRoots: { root, targetRoots: new Map([['far', '~/work']]) },
     homeDir: temporaryDirectory.path,
     stateDir,
     readSubdirNames,
     readDirBytes,
-    removeDir: (directory) => rm(directory, { recursive: true, force: true }),
-    settings: { enabled: true, check: 'unpushed' },
-  });
-
-  const seed = {
-    // a workspace atc built for a session the fleet no longer lists
-    workspace: async (sessionID: SessionID, directory: string, sha: string) => {
-      await store.createMaterialization(
-        { sessionID, target: 'local', directory, sourceKind: 'git', withheldEnv: [] },
-        1000,
-      );
-
-      await store.updateMaterialization(
-        sessionID,
-        { phase: 'ready', repoURL: 'https://example.com/bakery.git', sha, materializedAt: 2000 },
-        2000,
-      );
-    },
+    removeDir: (directory: string) => rm(directory, { recursive: true, force: true }),
+    settings: { enabled: true, check: 'unpushed' } as const,
   };
 
-  return { store, manager, provider, log, stateDir, root, pruner, seed };
+  // a workspace atc built for a session the fleet no longer lists
+  const seedWorkspace = async (
+    sessionID: SessionID,
+    target: string,
+    directory: string,
+    sha: string,
+  ) => {
+    await store.createMaterialization(
+      { sessionID, target, directory, sourceKind: 'git', withheldEnv: [] },
+      1000,
+    );
+
+    await store.updateMaterialization(
+      sessionID,
+      { phase: 'ready', repoURL: 'https://example.com/bakery.git', sha, materializedAt: 2000 },
+      2000,
+    );
+  };
+
+  const seed = {
+    workspace: (sessionID: SessionID, directory: string, sha: string) =>
+      seedWorkspace(sessionID, 'local', directory, sha),
+    workspaceOnStaleTarget: (sessionID: SessionID, directory: string, sha: string) =>
+      seedWorkspace(sessionID, 'stale', directory, sha),
+  };
+
+  return {
+    store,
+    manager,
+    provider,
+    far,
+    log,
+    stateDir,
+    root,
+    pruner: createWorkspacePruner(deps),
+    createPruner: (removeDir: (directory: string) => Promise<void>) =>
+      createWorkspacePruner({ ...deps, removeDir }),
+    seed,
+  };
 }
 
 test('it lists a clean workspace as remove, a dirty one as keep, and a folder with no row as skip on a dry run, and removes nothing', async () => {
@@ -296,6 +324,54 @@ test('it keeps a state folder whose session starts to spawn while the prune chec
   });
 
   expect(existsSync(folder)).toBeTrue();
+});
+
+test('it keeps a workspace unchecked when its target refuses to run it', async () => {
+  const ctx = await setupTest();
+  const stale = await createGitFixture({ prefix: 'atc-pruner-stale-' });
+
+  await ctx.seed.workspaceOnStaleTarget(toSessionID('forgotten-stale'), stale.work, stale.sha);
+
+  const prune = await ctx.pruner.prune(true);
+
+  expect(prune.folders).toStrictEqual([
+    {
+      verdict: 'keep',
+      kind: 'workspace',
+      path: stale.work,
+      bytes: null,
+      reasons: [expect.stringMatching(/^unchecked: /u)],
+    },
+  ]);
+});
+
+test('it keeps a state folder whose removal fails, with the reason', async () => {
+  const ctx = await setupTest();
+
+  const orphan = join(ctx.stateDir, 'sessions', 'forgotten-long-ago');
+  const pruner = ctx.createPruner(() => Promise.reject(new Error('EBUSY: resource busy')));
+
+  mkdirSync(orphan, { recursive: true });
+
+  const prune = await pruner.prune(true);
+
+  expect(prune.folders).toStrictEqual([
+    {
+      verdict: 'keep',
+      kind: 'state',
+      path: orphan,
+      bytes: expect.any(Number),
+      reasons: ['removing it failed: EBUSY: resource busy'],
+    },
+  ]);
+});
+
+test('it lists no root relative to the home of another machine', async () => {
+  const ctx = await setupTest();
+
+  await ctx.pruner.prune(false);
+
+  expect(ctx.far.commands).toStrictEqual([]);
 });
 
 test('it logs nothing on a dry run', async () => {
