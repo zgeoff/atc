@@ -4759,3 +4759,42 @@ test('it reads a typed path through the directory source before the git sources'
   expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: name');
   expect(ctx.daemon.collectSent('git.probe')).toStrictEqual([]);
 });
+
+test('it fits every key of a list with a git source in the hint row, esc back included', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
+    'type to filter · ⏎ select · ^r refresh · tab next source · esc back',
+  );
+});

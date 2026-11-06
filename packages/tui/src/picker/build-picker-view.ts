@@ -83,10 +83,12 @@ function buildListView(ctx: PickerContext, deps: PickerDeps, verb: string): Pick
     ([, listing]) => listing.status === 'failed' && listing.listedFrom !== null,
   );
 
+  // An 80-column terminal leaves the hint row 72 characters, so the keys of
+  // a git source take the place of the path aside and the arrow keys.
   const keys = [
-    '↑↓ move',
-    '⏎ select',
-    ...(git.length > 0 ? ['^r refresh'] : []),
+    ...(git.length > 0
+      ? ['type to filter', '⏎ select', '^r refresh']
+      : ['type to filter, or a path (/ ~ .)', '↑↓ move', '⏎ select']),
     ...(!ctx.resume && ctx.listings.size > 1 ? ['tab next source'] : []),
     'esc back',
   ];
@@ -100,7 +102,7 @@ function buildListView(ctx: PickerContext, deps: PickerDeps, verb: string): Pick
       ctx.pending?.label ??
       ctx.refusal ??
       (failed === undefined
-        ? `type to filter, or a path (/ ~ .) · ${keys.join(' · ')}`
+        ? keys.join(' · ')
         : `${failed[0]}: refresh failed: ${failed[1].notice ?? ''} · ^r retry · esc back`),
     dimmed: new Set(items.flatMap((item, index) => (item.kind === 'notice' ? [index] : []))),
   };
