@@ -216,7 +216,10 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
 
       return {
         request: args.input,
-        candidates: sent.answer === null ? [] : parseCandidates(sent.answer['completions']),
+        candidates:
+          sent.answer === null
+            ? []
+            : parseCandidates(sent.answer['completions'], args.input.sourceID),
         failure: sent.answer === null ? formatPickerError(sent.error) : null,
       };
     }),

@@ -3,7 +3,7 @@ import { pickRefusalStep } from '../pick-refusal-step';
 import { cols } from '../ui';
 import type { RequestOutcome } from './create-picker-actors';
 import { formatPickerError } from './format-picker-error';
-import { quitFlow, refreshRefs, renderFlow, sendPending } from './navigate-picker';
+import { openListAgain, quitFlow, refreshRefs, renderFlow, sendPending } from './navigate-picker';
 import type { PickerFlow } from './picker-flow';
 import { buildSourceParams } from './picker-params';
 import { buildDestination, isGitFlow } from './picker-queries';
@@ -96,11 +96,13 @@ function applySpawnRefusal(flow: PickerFlow, error: unknown, prompt: string) {
     ctx.step = 'confirm';
     ctx.input = buildDestination(ctx);
     ctx.refusal = `${reason} · ⏎ use ${buildDestination(ctx)} · esc back`;
-  } else if (step === 'source') {
-    ctx.input = ctx.repo?.label ?? '';
+  } else if (step === 'list') {
     ctx.repo = null;
-    ctx.step = 'source';
     ctx.refusal = `${reason} · esc back`;
+
+    openListAgain(flow);
+
+    return;
   } else if (step === 'confirm') {
     const phase =
       error instanceof DaemonError && typeof error.data?.['phase'] === 'string'

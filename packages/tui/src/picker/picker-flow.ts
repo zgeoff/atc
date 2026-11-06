@@ -4,16 +4,7 @@ import type { AgentEntry, GitRef, SourceEntry, SourcePick } from '@atcx/contract
 import type { TargetPick } from '../collect-target-picks';
 import type { ListingCache } from '../listing-cache';
 
-type PickerStep =
-  | 'agent'
-  | 'dir'
-  | 'source'
-  | 'ref'
-  | 'target'
-  | 'confirm'
-  | 'name'
-  | 'prompt'
-  | 'spawned';
+type PickerStep = 'agent' | 'list' | 'ref' | 'target' | 'confirm' | 'name' | 'prompt' | 'spawned';
 
 export type DroppedAnswer =
   | 'listing'
@@ -68,6 +59,7 @@ export interface AgentPick {
 }
 
 export interface ListedCandidate {
+  readonly sourceID: string;
   readonly label: string;
   readonly detail: string | null;
   readonly pick: SourcePick;
@@ -86,18 +78,32 @@ export interface ChosenRef {
   readonly sha: string;
 }
 
-export type SourceStepAction =
-  | { readonly kind: 'none' }
-  | { readonly kind: 'probe'; readonly url: string }
-  | { readonly kind: 'browse'; readonly scope: string };
+export interface SourceListing {
+  readonly status: 'listing' | 'listed' | 'failed' | 'skipped';
+  readonly rows: readonly ListedCandidate[];
+  readonly requestedScope: string | null;
+  readonly scope: string | null;
+  readonly notice: string | null;
+  readonly listedFrom: number | null;
+}
+
+export interface ItemMark {
+  readonly sourceID: string | null;
+  readonly label: string | null;
+}
+
+interface ListMark extends ItemMark {
+  readonly input: string;
+}
+
+export interface GitPick {
+  readonly label: string;
+  readonly url: string;
+}
 
 interface PendingRequest {
   readonly label: string;
   readonly kind: 'interpret' | 'probe' | 'spawn';
-}
-
-interface RunningListing {
-  readonly sourceID: string;
 }
 
 export interface PickerContext {
@@ -116,11 +122,13 @@ export interface PickerContext {
 
   readonly agentStepWait: string | null;
 
-  readonly dirs: readonly string[];
-  readonly dirLabels: ReadonlyMap<string, string>;
+  readonly listings: ReadonlyMap<string, SourceListing>;
+  readonly listingTarget: TargetPick | null;
+  readonly listMark: ListMark | null;
 
   readonly completed: {
     readonly input: string;
+    readonly sourceID: string;
     readonly labels: ReadonlyMap<string, string>;
   } | null;
   readonly completion: CompletionRequest | null;
@@ -133,21 +141,7 @@ export interface PickerContext {
 
   readonly targetGap: string | null;
 
-  readonly candidates: readonly ListedCandidate[];
-  readonly listedScope: string | null;
-  readonly listNotice: string | null;
-  readonly listedKey: string | null;
-  readonly listing: RunningListing | null;
-
-  readonly listedFrom: number | null;
-  readonly refreshFailure: string | null;
-
-  readonly requestedScope: string | null;
-
-  readonly pathListing: string | null;
-
-  readonly sourceDraft: string;
-  readonly sourceAction: SourceStepAction;
+  readonly gitPick: GitPick | null;
 
   readonly alternateURL: string | null;
   readonly repo: ProbedRepo | null;
@@ -223,7 +217,7 @@ export interface ReadAttempt {
 
 export type ReadFollowUp =
   | { readonly kind: 'refuse' }
-  | { readonly kind: 'source-fallback'; readonly candidate: ListedCandidate | null };
+  | { readonly kind: 'list-fallback'; readonly candidate: ListedCandidate | null };
 
 type ProbeFollowUp =
   | { readonly kind: 'access'; readonly label: string }
@@ -248,5 +242,6 @@ export type ListingRequest =
 
 export interface CompletionRequest {
   readonly input: string;
+  readonly sourceID: string;
   readonly params: Readonly<Record<string, unknown>>;
 }

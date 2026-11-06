@@ -372,6 +372,9 @@ test('it drops a probe answer that arrives after esc cancels it and the leader l
 
   picker.applyKey(Buffer.from('https://example.com/app.git'));
   picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('sources.interpret', { kind: 'git', url: 'https://example.com/app.git' });
+
   picker.applyKey(Buffer.from(KEYS.esc));
   picker.applyKey(Buffer.from(KEYS.ctrlRightBracket));
 
@@ -421,6 +424,8 @@ test('it refuses a typed ref whose probe answer the probe schema rejects', async
   await ctx.daemon.answer('sources.list', { source: 'fake', scope: null, candidates: [] });
 
   picker.applyKey(Buffer.from(`https://example.com/app.git${KEYS.enter}`));
+
+  await ctx.daemon.answer('sources.interpret', { kind: 'git', url: 'https://example.com/app.git' });
 
   await ctx.daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
@@ -473,6 +478,8 @@ test('it keeps a git listing running while the step waits on a probe', async () 
   picker.applyKey(Buffer.from('https://example.com/app.git'));
   picker.applyKey(Buffer.from(KEYS.enter));
 
+  await ctx.daemon.answer('sources.interpret', { kind: 'git', url: 'https://example.com/app.git' });
+
   const mark = ctx.terminal.countChunks();
 
   await ctx.daemon.answer('sources.list', {
@@ -487,7 +494,7 @@ test('it keeps a git listing running while the step waits on a probe', async () 
   });
 
   expect(ctx.dropped).toStrictEqual([]);
-  expect(ctx.terminal.getTextSince(mark)).toInclude('octo/app');
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: workspace · fake: octo');
 });
 
 test('it neither attaches nor draws a spawn that answers after esc stops waiting on it', async () => {
@@ -619,6 +626,8 @@ test("it shows the daemon's pick for the destination of a repository on a remote
   picker.applyKey(Buffer.from('https://example.com/app.git'));
   picker.applyKey(Buffer.from(KEYS.enter));
 
+  await ctx.daemon.answer('sources.interpret', { kind: 'git', url: 'https://example.com/app.git' });
+
   await ctx.daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
     head: 'main',
@@ -668,6 +677,8 @@ test('it spawns a repository on a remote target with no destination typed and le
 
   picker.applyKey(Buffer.from('https://example.com/app.git'));
   picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('sources.interpret', { kind: 'git', url: 'https://example.com/app.git' });
 
   await ctx.daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
@@ -732,6 +743,8 @@ test('it sends the directory of a directory spawn after a flow left a repository
 
   picker.applyKey(Buffer.from('https://example.com/app.git'));
   picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('sources.interpret', { kind: 'git', url: 'https://example.com/app.git' });
 
   await ctx.daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
@@ -1375,7 +1388,7 @@ test('it offers every target to an agent that takes the broker credential withou
   ]);
 });
 
-test('it lists a scope read from typed text once, on the target chosen after it', async () => {
+test('it lists a scope read from typed text once, on the listing target', async () => {
   const ctx = setupTest();
 
   const picker = createSpawnPicker({
@@ -1414,20 +1427,15 @@ test('it lists a scope read from typed text once, on the target chosen after it'
     ],
   });
 
-  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
-
   picker.applyKey(Buffer.from('acme/'));
   picker.applyKey(Buffer.from(KEYS.enter));
 
-  await ctx.daemon.answer('sources.interpret', { kind: 'none' });
   await ctx.daemon.answer('sources.interpret', { kind: 'browse', scope: 'acme' });
-
-  picker.applyKey(Buffer.from(KEYS.down));
-  picker.applyKey(Buffer.from(KEYS.enter));
 
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([
     { source: 'dirs' },
-    { source: 'fake', scope: 'acme', target: 'box' },
+    { source: 'fake', target: 'local' },
+    { source: 'fake', scope: 'acme', target: 'local' },
   ]);
 });
 
@@ -1534,7 +1542,7 @@ test('it starts a new flow on the default target, not the one the last flow chos
   ]);
 });
 
-test('it lists a git source again when the flow left it before its listing answered', async () => {
+test('it stops every listing on esc to the agent step and lists every source again on the next pick', async () => {
   const ctx = setupTest();
 
   const picker = createSpawnPicker({
@@ -1548,7 +1556,7 @@ test('it lists a git source again when the flow left it before its listing answe
   await ctx.daemon.answer('agents.list', {
     agents: [
       buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
-      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'grok', installed: true, capabilities: { spawn: true } }),
       buildMockListedAgent({ id: 'codex' }),
     ],
     targets: [
@@ -1566,16 +1574,20 @@ test('it lists a git source again when the flow left it before its listing answe
     ],
   });
 
-  picker.applyKey(Buffer.from(KEYS.tab));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.enter));
 
-  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+  await ctx.daemon.answerOldest('sources.list', { scope: null, candidates: [] });
+  await ctx.daemon.answerOldest('sources.list', { scope: null, candidates: [] });
 
-  picker.applyKey(Buffer.from(KEYS.tab));
+  expect(ctx.dropped).toStrictEqual(['listing', 'directory listing']);
 
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([
     { source: 'fake', target: 'local' },
     { source: 'dirs' },
     { source: 'fake', target: 'local' },
+    { source: 'dirs' },
   ]);
 });
 
@@ -1786,7 +1798,7 @@ test('it lists the first source once when enter repeats on the agent step', asyn
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([{ source: 'dirs' }]);
 });
 
-test('it returns esc from the directory step to the agent step when more than one agent is installed', async () => {
+test('it returns esc from the list to the agent step when more than one agent is installed', async () => {
   const ctx = setupTest();
 
   const picker = createSpawnPicker({
@@ -1827,7 +1839,7 @@ test('it returns esc from the directory step to the agent step when more than on
   expect(ctx.counts.exits).toBe(0);
 });
 
-test('it leaves the flow on esc from the directory step when one agent is installed', async () => {
+test('it leaves the flow on esc from the list when one agent is installed', async () => {
   const ctx = setupTest();
 
   const picker = createSpawnPicker({
@@ -1904,7 +1916,127 @@ test('it opens the name step after the directory when one agent and one target l
   expect(shown).not.toInclude('spawn: target');
 });
 
-test('it returns esc from the name step to the directory step when one target left no choice', async () => {
+test("it shows the client's directory under the home the client passes, not the process home", async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    home: '/srv/atc-spawn-picker',
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('\u001B[7m~/client');
+});
+
+test('it names the chosen directory under the home the client passes on the name step', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    home: '/srv/atc-spawn-picker',
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('session name for ~/client');
+});
+
+test('it names the chosen directory under the home the client passes on the target step', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    home: '/srv/atc-spawn-picker',
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+      {
+        id: 'box',
+        provider: 'local-pty',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('where ~/client runs');
+});
+
+test('it returns esc from the name step to the list when one target left no choice', async () => {
   const ctx = setupTest();
 
   const picker = createSpawnPicker({
@@ -1941,7 +2073,7 @@ test('it returns esc from the name step to the directory step when one target le
 
   picker.applyKey(Buffer.from(KEYS.esc));
 
-  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: directory on the daemon host');
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: workspace');
   expect(ctx.counts.exits).toBe(0);
 });
 
@@ -2183,7 +2315,7 @@ test('it shows why no target can run a directory when the one target is unavaila
   expect(shown).toInclude('none of these targets can run');
 });
 
-test('it shows why no target can run a repository when none takes a workspace', async () => {
+test('it shows a git source as skipped and lists only the directories when no target takes a workspace', async () => {
   const ctx = setupTest();
 
   const picker = createSpawnPicker({
@@ -2203,11 +2335,14 @@ test('it shows why no target can run a repository when none takes a workspace', 
     targets: [
       { id: 'local', provider: 'local-pty', available: true, default: true, capabilities: {} },
     ],
-    sources: [{ id: 'fake', label: 'fake repository', kind: 'git' }],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
   });
 
-  expect(ctx.terminal.getText()).toInclude('none of these targets can run the repository');
-  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([]);
+  expect(ctx.terminal.getText()).toInclude('github: no target takes a workspace');
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([{ source: 'dirs' }]);
 });
 
 test('it shows why no target can run an agent whose broker no target reaches', async () => {
@@ -2295,7 +2430,7 @@ test('it shows why no target can adopt when none runs on the daemon host', async
   expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([]);
 });
 
-test('it returns esc from a target step with no usable target to the directory step', async () => {
+test('it returns esc from a target step with no usable target to the list', async () => {
   const ctx = setupTest();
 
   const picker = createSpawnPicker({
@@ -2332,7 +2467,7 @@ test('it returns esc from a target step with no usable target to the directory s
 
   picker.applyKey(Buffer.from(KEYS.esc));
 
-  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: directory on the daemon host');
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: workspace');
   expect(ctx.counts.exits).toBe(0);
 });
 
@@ -2489,7 +2624,7 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
 
   const shown = ctx.terminal.getTextSince(mark);
 
-  expect(shown).toInclude('spawn: GitHub repository · acme · 5m old, refreshing…');
+  expect(shown).toInclude('spawn: workspace · github: acme · 5m old, refreshing…');
   expect(shown).toInclude('acme/app');
 
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([
@@ -2718,6 +2853,8 @@ test('it spawns a repository at a ref listed past the tenth row', async () => {
   picker.applyKey(Buffer.from('https://example.com/app.git'));
   picker.applyKey(Buffer.from(KEYS.enter));
 
+  await ctx.daemon.answer('sources.interpret', { kind: 'git', url: 'https://example.com/app.git' });
+
   await ctx.daemon.answer('git.probe', {
     url: 'https://example.com/app.git',
     head: 'release-1',
@@ -2874,7 +3011,7 @@ test('it waits on the listing when the kept one is older than a day', async () =
 
   const shown = ctx.terminal.getTextSince(mark);
 
-  expect(shown).toInclude('listing… · esc stops');
+  expect(shown).toInclude('github: listing…');
   expect(shown).not.toInclude('acme/app');
 });
 
@@ -2948,7 +3085,7 @@ test('it keeps the cached listing with the failure in its hint when listing agai
   expect(shown).toInclude('acme/app');
 });
 
-test('it leaves the source step on esc while it refreshes a cached listing', async () => {
+test('it leaves the list on esc while it refreshes a cached listing', async () => {
   const ctx = setupTest();
 
   const picker = createSpawnPicker({
@@ -3157,7 +3294,7 @@ test('it shows the listing asked for last on the next open when an earlier one a
   expect(shown).not.toInclude('acme/app');
 });
 
-test('it shows the cached listing of an owner typed on the source step at once, while it lists that owner again', async () => {
+test('it shows the cached listing of an owner typed on the list at once, while it lists that owner again', async () => {
   const ctx = setupTest();
 
   const picker = createSpawnPicker({
@@ -3240,8 +3377,8 @@ test('it shows the cached listing of an owner typed on the source step at once, 
 
   const shown = ctx.terminal.getTextSince(mark);
 
-  expect(shown).toInclude('spawn: GitHub repository · zeta-org · under 1m old, refreshing…');
-  expect(shown).toInclude('zeta-org/tool');
+  expect(shown).toInclude('spawn: workspace · github: zeta-org · under 1m old, refreshing…');
+  expect(shown).toInclude('github:zeta-org/tool');
 });
 
 test('it reads typed github:owner/repo text the cached listing leaves out through the source', async () => {
@@ -3917,11 +4054,11 @@ test("it shows why a remote daemon's directory listing failed", async () => {
   );
 
   expect(ctx.terminal.getTextSince(mark)).toInclude(
-    'cannot list directories: target_forbidden: target local is not yours',
+    'dirs: target_forbidden: target local is not yours',
   );
 });
 
-test('it drops a path completion that arrives after esc leaves the directory step', async () => {
+test('it drops a path completion that arrives after esc leaves the list', async () => {
   const ctx = setupTest();
 
   const picker = createSpawnPicker({
@@ -3968,4 +4105,877 @@ test('it drops a path completion that arrives after esc leaves the directory ste
   expect(ctx.dropped).toStrictEqual(['path completion']);
   expect(ctx.counts.renders).toBe(renders);
   expect(ctx.terminal.getTextSince(mark)).toBe('');
+});
+
+test('it moves tab to the first github row of the list without opening the target step', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+      {
+        id: 'box',
+        provider: 'imp',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  await ctx.daemon.answerOldest('sources.list', {
+    candidates: [
+      { label: '~/code/widgets', pick: { kind: 'path', directory: '/home/ada/code/widgets' } },
+    ],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'acme-tools/widgets',
+        detail: 'private · the widget service',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/widgets.git' },
+      },
+    ],
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.tab));
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).not.toInclude('spawn: target');
+  expect(shown).toInclude('\u001B[7mgithub:acme-tools/widgets  private · the widget service');
+});
+
+test('it wraps tab from the last source back to the first', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  await ctx.daemon.answerOldest('sources.list', { candidates: [] });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'acme-tools/widgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/widgets.git' },
+      },
+    ],
+  });
+
+  picker.applyKey(Buffer.from(KEYS.tab));
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.tab));
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude(`\u001B[7m${ctx.cwd}`);
+});
+
+test('it moves tab to the best match of the next source that matches the typed filter', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'gitlab', label: 'GitLab repository', kind: 'git' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  await ctx.daemon.answerOldest('sources.list', {
+    candidates: [
+      { label: '~/code/widgets', pick: { kind: 'path', directory: '/home/ada/code/widgets' } },
+    ],
+  });
+
+  await ctx.daemon.answerOldest('sources.list', {
+    candidates: [
+      {
+        label: 'harbor-labs/lamp',
+        pick: { kind: 'git', url: 'git@gitlab.com:harbor-labs/lamp.git' },
+      },
+    ],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'acme-tools/windowing',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/windowing.git' },
+      },
+      {
+        label: 'acme-tools/widgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/widgets.git' },
+      },
+    ],
+  });
+
+  picker.applyKey(Buffer.from('widg'));
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.tab));
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('\u001B[7mgithub:acme-tools/widgets');
+});
+
+test('it moves tab onto the listing row of a source still listing', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  await ctx.daemon.answerOldest('sources.list', { candidates: [] });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.tab));
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('\u001B[7mgithub: listing…');
+});
+
+test('it keeps tab from moving off the directories of an adopt', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open(true);
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  await ctx.daemon.answer('sources.list', { candidates: [] });
+
+  const renders = ctx.counts.renders;
+
+  picker.applyKey(Buffer.from(KEYS.tab));
+
+  expect(ctx.counts.renders).toBe(renders);
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([{ source: 'dirs' }]);
+});
+
+test('it shows the directory rows and the github rows together and filters both by typed text', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  await ctx.daemon.answerOldest('sources.list', {
+    candidates: [
+      { label: '~/code/widgets', pick: { kind: 'path', directory: '/home/ada/code/widgets' } },
+      { label: '~/code/lamp', pick: { kind: 'path', directory: '/home/ada/code/lamp' } },
+    ],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'acme-tools/widgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/widgets.git' },
+      },
+      {
+        label: 'acme-tools/gadgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/gadgets.git' },
+      },
+    ],
+  });
+
+  const listed = ctx.terminal.getText();
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from('widg'));
+
+  const filtered = ctx.terminal.getTextSince(mark);
+
+  expect(listed).toIncludeMultiple([
+    '~/code/widgets',
+    '~/code/lamp',
+    'github:acme-tools/widgets',
+    'github:acme-tools/gadgets',
+  ]);
+
+  expect(filtered).toIncludeMultiple(['~/code/widgets', 'github:acme-tools/widgets']);
+  expect(filtered).not.toInclude('~/code/lamp');
+  expect(filtered).not.toInclude('github:acme-tools/gadgets');
+});
+
+test('it opens the target step on the listing target after enter on a github row, and probes on the target chosen there', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'box',
+        provider: 'imp',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+      },
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'acme-tools/widgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/widgets.git' },
+      },
+    ],
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  picker.applyKey(Buffer.from(KEYS.up));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(shown).toInclude('\u001B[7mlocal  local-pty · default');
+
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([
+    { source: 'github', target: 'local' },
+  ]);
+
+  expect(ctx.daemon.collectSent('git.probe')).toStrictEqual([
+    { url: 'git@github.com:acme-tools/widgets.git', target: 'box' },
+  ]);
+});
+
+test('it returns esc from the target step of a github row to the list with that row selected', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+      {
+        id: 'box',
+        provider: 'imp',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'acme-tools/gadgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/gadgets.git' },
+      },
+      {
+        label: 'acme-tools/widgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/widgets.git' },
+      },
+    ],
+  });
+
+  picker.applyKey(Buffer.from(KEYS.down));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.esc));
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('spawn: workspace');
+  expect(shown).toInclude('\u001B[7mgithub:acme-tools/widgets');
+  expect(ctx.daemon.collectSent('git.probe')).toStrictEqual([]);
+});
+
+test('it reads typed github:owner/repo text that no listing holds through the source and probes it', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  await ctx.daemon.answerOldest('sources.list', { candidates: [] });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'acme-tools/widgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/widgets.git' },
+      },
+    ],
+  });
+
+  picker.applyKey(Buffer.from(`github:acme-tools/unlisted${KEYS.enter}`));
+
+  await ctx.daemon.answer('sources.interpret', {
+    kind: 'git',
+    url: 'git@github.com:acme-tools/unlisted.git',
+  });
+
+  expect(ctx.daemon.collectSent('sources.interpret')).toStrictEqual([
+    { source: 'github', input: 'github:acme-tools/unlisted', target: 'local' },
+  ]);
+
+  expect(ctx.daemon.collectSent('git.probe')).toStrictEqual([
+    { url: 'git@github.com:acme-tools/unlisted.git', target: 'local' },
+  ]);
+});
+
+test('it probes the typed repository, not a listed one whose name it starts', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'github', label: 'GitHub repository', kind: 'git' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'harbor-labs/widget-tools',
+        pick: { kind: 'git', url: 'git@github.com:harbor-labs/widget-tools.git' },
+      },
+    ],
+  });
+
+  picker.applyKey(Buffer.from(`github:harbor-labs/widget${KEYS.enter}`));
+
+  await ctx.daemon.answer('sources.interpret', {
+    kind: 'git',
+    url: 'git@github.com:harbor-labs/widget.git',
+  });
+
+  expect(ctx.daemon.collectSent('git.probe')).toStrictEqual([
+    { url: 'git@github.com:harbor-labs/widget.git', target: 'local' },
+  ]);
+});
+
+test('it refuses a typed git URL that no source reads when the daemon offers only directories', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { candidates: [] });
+
+  picker.applyKey(Buffer.from(`https://example.com/acme/tool.git${KEYS.enter}`));
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('sources.interpret', { kind: 'none' });
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
+    'no source reads https://example.com/acme/tool.git · esc back',
+  );
+
+  expect(ctx.daemon.collectSent('git.probe')).toStrictEqual([]);
+});
+
+test('it shows the rows of two git sources that list at once when both answer', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'gitlab', label: 'GitLab repository', kind: 'git' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  await ctx.daemon.answerOldest('sources.list', {
+    candidates: [
+      {
+        label: 'harbor-labs/beacon',
+        pick: { kind: 'git', url: 'git@gitlab.com:harbor-labs/beacon.git' },
+      },
+    ],
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'acme-tools/gadgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/gadgets.git' },
+      },
+    ],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(ctx.dropped).toStrictEqual([]);
+  expect(shown).toInclude('gitlab:harbor-labs/beacon');
+  expect(shown).toInclude('github:acme-tools/gadgets');
+});
+
+test('it keeps the selected row selected when another source listing lands', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'acme-tools/gadgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/gadgets.git' },
+      },
+      {
+        label: 'acme-tools/widgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/widgets.git' },
+      },
+    ],
+  });
+
+  picker.applyKey(Buffer.from(KEYS.tab));
+  picker.applyKey(Buffer.from(KEYS.down));
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answerOldest('sources.list', {
+    candidates: [
+      { label: '~/code/lamp', pick: { kind: 'path', directory: '/srv/code/lamp' } },
+      { label: '~/code/kettle', pick: { kind: 'path', directory: '/srv/code/kettle' } },
+    ],
+  });
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('\u001B[7mgithub:acme-tools/widgets');
+});
+
+test('it lists every git source again on ctrl-r and leaves the directories alone', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'gitlab', label: 'GitLab repository', kind: 'git' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  picker.applyKey(Buffer.from(KEYS.ctrlR));
+
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([
+    { source: 'dirs' },
+    { source: 'gitlab', target: 'local' },
+    { source: 'github', target: 'local' },
+    { source: 'gitlab', target: 'local' },
+    { source: 'github', target: 'local' },
+  ]);
+});
+
+test('it reads a typed path through the directory source before the git sources', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'git', label: 'git URL', kind: 'git' },
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+    ],
+  });
+
+  picker.applyKey(Buffer.from(`/srv/orchard/ledger.git${KEYS.enter}`));
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('sources.interpret', {
+    kind: 'path',
+    directory: '/srv/orchard/ledger.git',
+  });
+
+  expect(ctx.daemon.collectSent('sources.interpret')).toStrictEqual([
+    { source: 'dirs', input: '/srv/orchard/ledger.git', clientCwd: ctx.cwd },
+  ]);
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: name');
+  expect(ctx.daemon.collectSent('git.probe')).toStrictEqual([]);
+});
+
+test('it fits every key of a list with a git source in the hint row, esc back included', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude(
+    'type to filter · ⏎ select · ^r refresh · tab next source · esc back',
+  );
 });

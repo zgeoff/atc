@@ -1,5 +1,5 @@
 import type { AgentList } from './create-picker-actors';
-import { openFirstSource, renderFlow } from './navigate-picker';
+import { openList, renderFlow } from './navigate-picker';
 import type { AgentPick, PickerFlow } from './picker-flow';
 
 export function openAgentMenu(flow: PickerFlow) {
@@ -32,7 +32,7 @@ export function applyAgentList(flow: PickerFlow, list: AgentList | null, failure
 
     ctx.refusal = `cannot read the agents: ${failure} · esc cancel`;
   } else if (ctx.picks.length === 1) {
-    openFirstSource(flow);
+    openList(flow);
 
     return;
   }
@@ -49,7 +49,7 @@ export function applyAgentSubmit(flow: PickerFlow) {
 
   flow.ctx.agent = pick.agent;
 
-  openFirstSource(flow);
+  openList(flow);
 }
 
 function collectAgentPicks(agents: AgentList['agents']): AgentPick[] {

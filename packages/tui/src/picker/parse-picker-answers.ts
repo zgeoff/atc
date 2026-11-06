@@ -8,13 +8,18 @@ import {
 } from '@atcx/contract';
 import type { ListedCandidate } from './picker-flow';
 
-export function parseCandidates(raw: unknown): ListedCandidate[] {
+export function parseCandidates(raw: unknown, sourceID: string): ListedCandidate[] {
   return collectParsed(raw, (entry) => {
     const candidate = SOURCE_CANDIDATE_SCHEMA.safeParse(entry).data;
 
     return candidate === undefined
       ? undefined
-      : { label: candidate.label, detail: candidate.detail ?? null, pick: candidate.pick };
+      : {
+          sourceID,
+          label: candidate.label,
+          detail: candidate.detail ?? null,
+          pick: candidate.pick,
+        };
   });
 }
 

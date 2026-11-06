@@ -82,11 +82,11 @@ and writes nothing, so you move the deprecated keys into `sources` by hand.
 
 ## Directories
 
-When you press `n` in the `atc` client, the spawn picker opens on its first source. With a `dirs`
-source first, that is the directory list. It lists the directory you ran `atc` from, then what the
-`dirs` source finds, in this order: atc's own spawn history (most recent first), every project under
-the source's `roots`, and zoxide's list when zoxide is installed. The source drops a path that no
-longer exists, and lists a path that appears twice only at its first position.
+When you press `n` in the `atc` client, the spawn picker shows every source's rows in one list. Its
+directory rows are the directory you ran `atc` from, then what the `dirs` source finds, in this
+order: atc's own spawn history (most recent first), every project under the source's `roots`, and
+zoxide's list when zoxide is installed. The source drops a path that no longer exists, and lists a
+path that appears twice only at its first position.
 
 Each root contributes its immediate child directories and each child's `.worktrees/*` entries, so
 `~/projects/atc` and `~/projects/atc/.worktrees/fix-picker` both list for a root of `~/projects`.

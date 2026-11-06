@@ -3,18 +3,12 @@ import { KEY, planTextEdit } from '../keys';
 import type { TextEdit } from '../keys';
 import { applyAgentSubmit } from './agent-step';
 import { applyConfirmCancel, applyConfirmSubmit } from './confirm-step';
-import { applyDirInput, applyDirSubmit } from './dir-step';
+import { applyListCancel, applyListInput, applyListSubmit, applyListTab } from './list-step';
 import { applyNameCancel, applyNameSubmit } from './name-step';
-import { openAgentStep, openSource, quitFlow, renderFlow } from './navigate-picker';
+import { quitFlow, refreshListings, renderFlow } from './navigate-picker';
 import type { PickerFlow } from './picker-flow';
 import { applyPromptCancel, applyPromptSubmit } from './prompt-step';
 import { applyRefCancel, applyRefSubmit } from './ref-step';
-import {
-  applySourceCancel,
-  applySourceInput,
-  applySourceSubmit,
-  refreshCandidates,
-} from './source-step';
 import { applySpawnedKey } from './spawned-step';
 import { applyTargetCancel, applyTargetSubmit } from './target-step';
 
@@ -33,11 +27,7 @@ export function applyPickerKey(flow: PickerFlow, buf: Buffer) {
   const edit = planTextEdit(buf, ctx.input, {
     isLeaderKey: deps.isLeaderKey,
     moves:
-      ctx.step === 'agent' ||
-      ctx.step === 'dir' ||
-      ctx.step === 'source' ||
-      ctx.step === 'ref' ||
-      ctx.step === 'target',
+      ctx.step === 'agent' || ctx.step === 'list' || ctx.step === 'ref' || ctx.step === 'target',
   });
 
   if (ctx.pending !== null) {
@@ -59,22 +49,16 @@ export function applyPickerKey(flow: PickerFlow, buf: Buffer) {
     return;
   }
 
-  const tab = buf.length === 1 && buf[0] === KEY.tab;
-
-  if (!tab && (ctx.step === 'dir' || ctx.step === 'source')) {
-    cancelPathListing(flow);
-  }
-
-  if (tab) {
-    if (!ctx.resume && (ctx.step === 'dir' || ctx.step === 'source')) {
-      openNextSource(flow);
+  if (buf.length === 1 && buf[0] === KEY.tab) {
+    if (!ctx.resume && ctx.step === 'list') {
+      applyListTab(flow);
     }
 
     return;
   }
 
-  if (ctx.step === 'source' && edit.kind !== 'leader' && buf.length === 1 && buf[0] === KEY.ctrlR) {
-    refreshCandidates(flow);
+  if (ctx.step === 'list' && edit.kind !== 'leader' && buf.length === 1 && buf[0] === KEY.ctrlR) {
+    refreshListings(flow);
 
     return;
   }
@@ -100,26 +84,6 @@ function applyPendingCancel(flow: PickerFlow) {
   flow.ctx.refusal = 'cancelled · esc back';
 
   renderFlow(flow, true);
-}
-
-function cancelPathListing(flow: PickerFlow) {
-  if (flow.ctx.pathListing !== null) {
-    flow.effects.push({ kind: 'cancel-listing', sourceID: flow.ctx.pathListing });
-
-    flow.ctx.pathListing = null;
-  }
-}
-
-function openNextSource(flow: PickerFlow) {
-  const ctx = flow.ctx;
-
-  if (ctx.sources.length < 2) {
-    flow.effects.push({ kind: 'log', line: 'ignored tab with one source' });
-
-    return;
-  }
-
-  openSource(flow, (ctx.sourceIndex + 1) % ctx.sources.length);
 }
 
 function applyEdit(flow: PickerFlow, edit: TextEdit) {
@@ -152,22 +116,15 @@ function applyEdit(flow: PickerFlow, edit: TextEdit) {
 function applyCancel(flow: PickerFlow) {
   const ctx = flow.ctx;
 
-  cancelPathListing(flow);
-
   match(ctx.step)
     .with('agent', () => {
       quitFlow(flow);
     })
-    .with('source', () => {
-      applySourceCancel(flow);
+    .with('list', () => {
+      applyListCancel(flow);
     })
     .with('ref', () => {
       applyRefCancel(flow);
-    })
-    .with('dir', () => {
-      ctx.input = '';
-
-      openAgentStep(flow);
     })
     .with('target', () => {
       ctx.input = '';
@@ -195,11 +152,8 @@ function applySubmit(flow: PickerFlow) {
     .with('agent', () => {
       applyAgentSubmit(flow);
     })
-    .with('dir', () => {
-      applyDirSubmit(flow);
-    })
-    .with('source', () => {
-      applySourceSubmit(flow);
+    .with('list', () => {
+      applyListSubmit(flow);
     })
     .with('ref', () => {
       applyRefSubmit(flow);
@@ -230,10 +184,8 @@ function applyInput(flow: PickerFlow, value: string) {
 
   ctx.input = value;
 
-  if (ctx.step === 'dir') {
-    applyDirInput(flow, value);
-  } else if (ctx.step === 'source') {
-    applySourceInput(flow);
+  if (ctx.step === 'list') {
+    applyListInput(flow, value);
   } else {
     renderFlow(flow);
   }

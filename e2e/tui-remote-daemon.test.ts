@@ -136,7 +136,7 @@ test("it lists only the remote daemon's directories and spawns in the first of t
 
   ctx.tui.write('n');
 
-  await ctx.tui.waitFor('spawn: directory on the daemon host');
+  await ctx.tui.waitFor('spawn: workspace');
   await ctx.tui.waitFor('~/alpha-box');
 
   expect(ctx.tui.read()).not.toInclude('client-proj');
@@ -209,7 +209,7 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
 
   ctx.tui.write('n');
 
-  await ctx.tui.waitFor('spawn: directory on the daemon host');
+  await ctx.tui.waitFor('spawn: workspace');
 
   ctx.tui.reset();
   ctx.tui.write('~/bet');

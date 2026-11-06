@@ -6,16 +6,16 @@ import {
   buildStubSignedOutGH,
   createGitFixture,
   createStubBin,
-  openRepoStep,
   startTUIHarness,
+  tabToRepoRows,
 } from '@atc/test-utils';
 import { $ } from 'bun';
 
 async function setupTest() {
   const tui = startTUIHarness();
 
-  // The repository step lists the account's repositories through gh; a
-  // signed-out one keeps the step from reaching the host's own gh.
+  // The list shows the account's repositories through gh; a signed-out one
+  // keeps the list from reaching the host's own gh.
   createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   const fixture = await createGitFixture();
@@ -58,9 +58,9 @@ test('it returns a spawn into an existing destination to the confirm screen with
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
-  ctx.write(`${ctx.fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${ctx.fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 
@@ -101,16 +101,16 @@ test('it returns a spawn into an existing destination to the confirm screen with
   expect(readFileSync(join(`${destination}-2`, 'notes.md'), 'utf8')).toBe('from the upstream\n');
 });
 
-test('it returns a spawn whose clone fails to the repository step', async () => {
+test('it returns a spawn whose clone fails to the list', async () => {
   const ctx = await setupTest();
 
   ctx.boot();
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
-  ctx.write(`${ctx.fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${ctx.fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 
@@ -133,7 +133,7 @@ test('it returns a spawn whose clone fails to the repository step', async () => 
 
   await ctx.waitFor('clone_failed', 10_000);
 
-  expect(ctx.read()).toInclude('spawn: GitHub repository');
+  expect(ctx.read()).toInclude('spawn: workspace');
 });
 
 test('it returns a spawn whose commit left the upstream to the ref step with the refs re-read', async () => {
@@ -143,9 +143,9 @@ test('it returns a spawn whose commit left the upstream to the ref step with the
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
-  ctx.write(`${ctx.fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${ctx.fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 

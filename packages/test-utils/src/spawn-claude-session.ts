@@ -7,7 +7,7 @@ export async function spawnClaudeSession(tui: TUIHarness, name: string): Promise
 
   tui.write(KEYS.enter);
 
-  await tui.waitFor('spawn: directory');
+  await tui.waitFor('spawn: workspace');
 
   tui.write(KEYS.enter);
 

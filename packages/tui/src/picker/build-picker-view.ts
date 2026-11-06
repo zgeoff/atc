@@ -1,20 +1,19 @@
 import { LOCAL_TARGET } from '@atc/config';
+import { formatHomePath } from '@atc/core';
 import type { GitRef } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import type { TargetPick } from '../collect-target-picks';
-import { formatDir, formatDirName } from '../dirs';
+import { formatDirName } from '../dirs';
 import { splitToWidth } from '../split-to-width';
 import { getPickerWidth } from '../ui';
 import type { PickerView } from '../ui';
-import type { PickerContext, PickerDeps } from './picker-flow';
+import type { PickerContext, PickerDeps, SourceListing } from './picker-flow';
 import {
   buildDestination,
-  collectCandidateItems,
-  collectDirItems,
   collectEligibleTargets,
+  collectListItems,
   collectRefItems,
   findEffectiveTarget,
-  findSource,
   isGitFlow,
 } from './picker-queries';
 
@@ -23,10 +22,9 @@ export function buildPickerView(ctx: PickerContext, deps: PickerDeps): PickerVie
 
   return match(ctx.step)
     .with('agent', () => buildAgentView(ctx, verb))
-    .with('dir', () => buildDirView(ctx, deps, verb))
-    .with('source', () => buildSourceView(ctx, deps))
+    .with('list', () => buildListView(ctx, deps, verb))
     .with('ref', () => buildRefView(ctx))
-    .with('target', () => buildTargetView(ctx, verb))
+    .with('target', () => buildTargetView(ctx, deps.home, verb))
     .with('confirm', () => buildConfirmView(ctx))
     .with('spawned', () => ({
       title: `${verb}: started`,
@@ -36,7 +34,9 @@ export function buildPickerView(ctx: PickerContext, deps: PickerDeps): PickerVie
       hint: '⏎ attach · esc back',
     }))
     .with('name', () => {
-      const where = isGitFlow(ctx) ? formatDestination(ctx) : formatDir(ctx.directory);
+      const where = isGitFlow(ctx)
+        ? formatDestination(ctx)
+        : formatHomePath(ctx.directory, deps.home);
 
       return {
         title: `${verb}: name`,
@@ -77,67 +77,53 @@ function buildAgentView(ctx: PickerContext, verb: string): PickerView {
   };
 }
 
-function buildDirView(ctx: PickerContext, deps: PickerDeps, verb: string): PickerView {
-  // This host's home stands for nothing on a remote daemon's host.
-  const items = collectDirItems(ctx).map(
-    (directory) =>
-      ctx.completed?.labels.get(directory) ??
-      ctx.dirLabels.get(directory) ??
-      (deps.remoteDaemon === true ? directory : formatDir(directory)),
+function buildListView(ctx: PickerContext, deps: PickerDeps, verb: string): PickerView {
+  const items = collectListItems(ctx);
+  const git = [...ctx.listings].filter(([sourceID]) => isGitSource(ctx, sourceID));
+  const marks = git.flatMap(([sourceID, listing]) => formatListingMark(sourceID, listing, deps));
+
+  const failed = git.find(
+    ([, listing]) => listing.status === 'failed' && listing.listedFrom !== null,
   );
 
+  // An 80-column terminal leaves the hint row 72 characters, so the keys of
+  // a git source take the place of the path aside and the arrow keys.
+  const keys = [
+    ...(git.length > 0
+      ? ['type to filter', '⏎ select', '^r refresh']
+      : ['type to filter, or a path (/ ~ .)', '↑↓ move', '⏎ select']),
+    ...(!ctx.resume && ctx.listings.size > 1 ? ['tab next source'] : []),
+    'esc back',
+  ];
+
   return {
-    title: `${verb}: ${findSource(ctx)?.label ?? 'directory'}`,
-    items,
-    selected: ctx.selected,
+    title: [`${verb}: workspace`, ...marks].join(' · '),
+    items: items.map((item) => item.shown),
+    selected: items.length === 0 ? -1 : ctx.selected,
     input: ctx.input,
     hint:
       ctx.pending?.label ??
       ctx.refusal ??
-      `type to filter, or a path (/ ~ .) · ↑↓ move · ⏎ select${formatTabHint(ctx)} · esc cancel`,
+      (failed === undefined
+        ? keys.join(' · ')
+        : `${failed[0]}: refresh failed: ${failed[1].notice ?? ''} · ^r retry · esc back`),
+    dimmed: new Set(items.flatMap((item, index) => (item.kind === 'notice' ? [index] : []))),
   };
 }
 
-function formatTabHint(ctx: PickerContext): string {
-  if (ctx.resume || ctx.sources.length < 2) {
-    return '';
-  }
-
-  const next = ctx.sources[(ctx.sourceIndex + 1) % ctx.sources.length];
-
-  return next === undefined ? '' : ` · tab ${next.label}`;
+function isGitSource(ctx: PickerContext, sourceID: string): boolean {
+  return ctx.sources.some((source) => source.id === sourceID && source.kind === 'git');
 }
 
-function buildSourceView(ctx: PickerContext, deps: PickerDeps): PickerView {
-  const items = collectCandidateItems(ctx);
-  const scope = ctx.listedScope === null ? '' : ` · ${ctx.listedScope}`;
-  let listing: string | null = null;
-  let age = '';
+function formatListingMark(sourceID: string, listing: SourceListing, deps: PickerDeps): string[] {
+  const age =
+    listing.listedFrom === null
+      ? null
+      : `${formatAge(deps.clock.now() - listing.listedFrom)} old${listing.status === 'listing' ? ', refreshing…' : ''}`;
 
-  if (ctx.listedFrom !== null) {
-    const refreshing = ctx.listing === null ? '' : ', refreshing…';
+  const parts = [listing.scope, age].filter((part) => part !== null);
 
-    age = ` · ${formatAge(deps.clock.now() - ctx.listedFrom)} old${refreshing}`;
-
-    if (ctx.refreshFailure !== null && ctx.listing === null) {
-      listing = `refresh failed: ${ctx.refreshFailure} · ^r retry · esc back`;
-    }
-  } else if (ctx.listing !== null) {
-    listing = 'listing… · esc stops';
-  }
-
-  return {
-    title: `spawn: ${findSource(ctx)?.label ?? ''}${scope}${age}`,
-    items: items.map((item) => item.label),
-    selected: items.length === 0 || items[0]?.notice === true ? -1 : ctx.selected,
-    input: ctx.input,
-    hint:
-      ctx.pending?.label ??
-      ctx.refusal ??
-      listing ??
-      `type to filter, or a git URL · ↑↓ move · ⏎ select · ^r refresh${formatTabHint(ctx)} · esc back`,
-    dimmed: new Set(items.flatMap((item, index) => (item.notice === true ? [index] : []))),
-  };
+  return parts.length === 0 ? [] : [`${sourceID}: ${parts.join(' · ')}`];
 }
 
 function formatAge(ageMs: number): string {
@@ -179,12 +165,12 @@ function formatRef(ref: GitRef, head: string | null): string {
   return `${ref.name}  ${notes.join(' · ')}`;
 }
 
-function buildTargetView(ctx: PickerContext, verb: string): PickerView {
+function buildTargetView(ctx: PickerContext, home: string, verb: string): PickerView {
   const git = isGitFlow(ctx);
-  const what = git ? 'the repository' : formatDir(ctx.directory);
+  const what = git ? 'the repository' : formatHomePath(ctx.directory, home);
   let hint = `where ${what} runs · ↑↓ move · ⏎ select · esc back`;
 
-  if (collectEligibleTargets(ctx).length === 0) {
+  if (collectEligibleTargets(ctx, git).length === 0) {
     const gap = ctx.targetGap ?? `none of these targets can run ${what}`;
 
     hint = `${gap} · set targets in config.json · esc back`;

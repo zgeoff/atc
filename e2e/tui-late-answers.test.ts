@@ -10,10 +10,10 @@ import {
   createGitFixture,
   createStubBin,
   openAgentStep,
-  openRepoStep,
   registerTestCleanup,
   startGitHTTPServer,
   startTUIHarness,
+  tabToRepoRows,
   waitFor,
 } from '@atc/test-utils';
 import { $ } from 'bun';
@@ -22,7 +22,7 @@ function setupTest() {
   return startTUIHarness();
 }
 
-test('it stops a repository listing on esc and keeps taking typed input', async () => {
+test('it stops a repository listing on esc to the agent step and lists again on the next pick', async () => {
   const ctx = setupTest();
 
   const fixture = await createGitFixture();
@@ -36,7 +36,7 @@ test('it stops a repository listing on esc and keeps taking typed input', async 
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
   await waitFor(() => {
     expect(existsSync(join(ctx.home, 'gh-held'))).toBe(true);
@@ -45,7 +45,7 @@ test('it stops a repository listing on esc and keeps taking typed input', async 
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor('listing stopped');
+  await ctx.waitFor('spawn: agent');
 
   const mark = ctx.countClientLogLines();
 
@@ -53,14 +53,18 @@ test('it stops a repository listing on esc and keeps taking typed input', async 
 
   await ctx.waitForClientLog('dropped listing answer', mark);
 
-  expect(ctx.read()).toInclude('spawn: GitHub repository');
   expect(ctx.read()).not.toInclude('me/dots');
 
   ctx.reset();
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(KEYS.enter);
+
+  await ctx.waitFor('spawn: workspace');
+
+  ctx.reset();
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
-}, 15_000);
+});
 
 test('it cancels a probe in flight on esc and drops its answer', async () => {
   const ctx = setupTest();
@@ -88,7 +92,7 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
   ctx.write(`${server.url}silent.git${KEYS.enter}`);
 
@@ -107,7 +111,7 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   await ctx.waitForClientLog('dropped probe answer', mark);
 
-  expect(ctx.read()).toInclude('spawn: GitHub repository');
+  expect(ctx.read()).toInclude('spawn: workspace');
   expect(ctx.read()).not.toInclude('clone_failed');
 
   ctx.reset();
@@ -116,10 +120,10 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
   await ctx.waitFor('> \u001B[93m█');
 
   ctx.reset();
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
-}, 15_000);
+});
 
 test('it keeps the ref the user moved to when a repository listing answers late', async () => {
   const ctx = setupTest();
@@ -137,10 +141,10 @@ test('it keeps the ref the user moved to when a repository listing answers late'
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
   ctx.reset();
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
   await ctx.waitFor('feat');
@@ -162,7 +166,7 @@ test('it keeps the ref the user moved to when a repository listing answers late'
   await ctx.waitFor('spawn: confirm');
 
   expect(ctx.read()).toInclude(`feat → ${fixture.sha.slice(0, 12)}`);
-}, 15_000);
+});
 
 test('it leaves the picker when esc stops waiting on a spawn, and the spawn lists one session', async () => {
   const ctx = setupTest();
@@ -187,7 +191,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
   ctx.reset();
   ctx.write(`${server.url}upstream.git${KEYS.enter}`);
@@ -257,6 +261,7 @@ test('it stays where the user moved when a directory listing answers late', asyn
   // hold file exists, zoxide marks that it started and waits, so the
   // directory listing answers only once the test removes the file.
   createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
+  writeFileSync(join(ctx.home, 'zoxide-hold'), '');
 
   ctx.boot();
 
@@ -266,27 +271,13 @@ test('it stays where the user moved when a directory listing answers late', asyn
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory on the daemon host');
+  await ctx.waitFor('spawn: workspace');
 
-  ctx.write(KEYS.tab);
-
-  await ctx.waitFor('spawn: GitHub repository');
-
-  ctx.write(KEYS.tab);
-
-  await ctx.waitFor('spawn: git URL');
-
-  writeFileSync(join(ctx.home, 'zoxide-hold'), '');
-
-  ctx.reset();
-  ctx.write(KEYS.tab);
-
-  // The tab draws nothing until the listing answers; zoxide starting shows
-  // the daemon took the listing request.
   await waitFor(() => {
     expect(existsSync(join(ctx.home, 'zoxide-held'))).toBe(true);
   });
 
+  ctx.reset();
   ctx.write(KEYS.esc);
 
   await ctx.waitFor('spawn: agent');
@@ -299,10 +290,10 @@ test('it stays where the user moved when a directory listing answers late', asyn
 
   await ctx.waitForClientLog('dropped directory listing answer', mark);
 
-  expect(ctx.read()).not.toInclude('directory on the daemon host');
-}, 15_000);
+  expect(ctx.read()).not.toInclude('spawn: workspace');
+});
 
-test('it keeps a probe started on a git source after a tab in that flow, spawning one git workspace', async () => {
+test('it keeps a probe of a typed URL while the directory listing answers, spawning one git workspace', async () => {
   const ctx = setupTest();
 
   const fixture = await createGitFixture();
@@ -310,8 +301,9 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   // While the hold file exists, zoxide marks that it started and waits, so
-  // the tab's directory listing answers only once the test removes it.
+  // the directory listing answers only once the test removes it.
   createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
+  writeFileSync(join(ctx.home, 'zoxide-hold'), '');
 
   // Authenticated requests pass until the test points the hold at the
   // gate, and then wait until it releases the gate.
@@ -335,46 +327,32 @@ test('it keeps a probe started on a git source after a tab in that flow, spawnin
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory on the daemon host');
+  await ctx.waitFor('spawn: workspace');
 
-  ctx.write(KEYS.tab);
-
-  await ctx.waitFor('spawn: GitHub repository');
-
-  ctx.write(KEYS.tab);
-
-  await ctx.waitFor('spawn: git URL');
+  await waitFor(() => {
+    expect(existsSync(join(ctx.home, 'zoxide-held'))).toBe(true);
+  });
 
   ctx.reset();
   ctx.write(url);
 
   await ctx.waitFor(ctx.formatInput(url));
 
-  writeFileSync(join(ctx.home, 'zoxide-hold'), '');
-
   hold = gate.promise;
-
-  ctx.write(KEYS.tab);
-
-  // The tab draws nothing until its listing answers; zoxide starting shows
-  // the daemon took the listing request.
-  await waitFor(() => {
-    expect(existsSync(join(ctx.home, 'zoxide-held'))).toBe(true);
-  });
 
   ctx.write(KEYS.enter);
 
-  // The probe's request reaches the server and is held there, so the tab's
-  // listing answers first.
+  // The probe's request reaches the server and is held there, so the
+  // directory listing answers first.
   await waitFor(() => {
     expect(server.authorizations).not.toBeEmpty();
   });
 
-  const mark = ctx.countClientLogLines();
+  ctx.reset();
 
   rmSync(join(ctx.home, 'zoxide-hold'));
 
-  await ctx.waitForClientLog('dropped directory listing answer', mark);
+  await ctx.waitFor('checking access to');
 
   gate.resolve();
 
