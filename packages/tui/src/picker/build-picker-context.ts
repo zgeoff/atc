@@ -43,7 +43,7 @@ export function buildPickerContext(
     listedFrom: null,
     refreshFailure: null,
     requestedScope: null,
-    pathListing: false,
+    pathListing: null,
     sourceDraft: '',
     sourceAction: { kind: 'none' },
     alternateURL: null,

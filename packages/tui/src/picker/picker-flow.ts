@@ -144,7 +144,7 @@ export interface PickerContext {
 
   readonly requestedScope: string | null;
 
-  readonly pathListing: boolean;
+  readonly pathListing: string | null;
 
   readonly sourceDraft: string;
   readonly sourceAction: SourceStepAction;
@@ -175,10 +175,8 @@ type PickerDraft = { -readonly [Key in keyof PickerContext]: PickerContext[Key] 
 type PickerEffect =
   | { readonly kind: 'request'; readonly request: PickerRequest }
   | { readonly kind: 'cancel-request' }
-  | { readonly kind: 'list-path'; readonly request: PathListingRequest }
-  | { readonly kind: 'cancel-path-listing' }
-  | { readonly kind: 'list-git'; readonly request: GitListingRequest }
-  | { readonly kind: 'cancel-git-listing' }
+  | { readonly kind: 'list'; readonly request: ListingRequest }
+  | { readonly kind: 'cancel-listing'; readonly sourceID: string }
   | { readonly kind: 'complete' }
   | { readonly kind: 'cancel-completion' }
   | { readonly kind: 'render'; readonly clear: boolean; readonly ctx: PickerContext }
@@ -232,18 +230,21 @@ type ProbeFollowUp =
   | { readonly kind: 'refresh'; readonly reason: string; readonly repo: ProbedRepo }
   | { readonly kind: 'resolve'; readonly typed: string };
 
-export interface PathListingRequest {
-  readonly index: number;
-  readonly params: Readonly<Record<string, unknown>>;
-}
-
-export interface GitListingRequest {
-  readonly sourceID: string;
-  readonly scope: string | null;
-  readonly key: string;
-  readonly requestedAt: number;
-  readonly params: Readonly<Record<string, unknown>>;
-}
+export type ListingRequest =
+  | {
+      readonly kind: 'path';
+      readonly sourceID: string;
+      readonly index: number;
+      readonly params: Readonly<Record<string, unknown>>;
+    }
+  | {
+      readonly kind: 'git';
+      readonly sourceID: string;
+      readonly scope: string | null;
+      readonly key: string;
+      readonly requestedAt: number;
+      readonly params: Readonly<Record<string, unknown>>;
+    };
 
 export interface CompletionRequest {
   readonly input: string;

@@ -1,5 +1,6 @@
 import { isGitURL, isPathInput } from '@atc/core';
-import type { CompletionOutcome, PathListingOutcome } from './create-picker-actors';
+import type { CompletionOutcome, ListingOutcome } from './create-picker-actors';
+import { formatPickerError } from './format-picker-error';
 import {
   applyDir,
   collectReadOrder,
@@ -7,7 +8,8 @@ import {
   readTypedInput,
   renderFlow,
 } from './navigate-picker';
-import type { PickerFlow } from './picker-flow';
+import { parseCandidates } from './parse-picker-answers';
+import type { ListingRequest, PickerFlow } from './picker-flow';
 import { buildClientCwdParam, buildPathTargetParam } from './picker-params';
 import { collectDirItems, findSource } from './picker-queries';
 
@@ -46,17 +48,21 @@ export function applyDirInput(flow: PickerFlow, value: string) {
   renderFlow(flow);
 }
 
-export function applyPathListing(flow: PickerFlow, outcome: PathListingOutcome) {
+export function applyPathListing(
+  flow: PickerFlow,
+  outcome: ListingOutcome<Extract<ListingRequest, { readonly kind: 'path' }>>,
+) {
   const ctx = flow.ctx;
   const deps = flow.deps;
+  const candidates = outcome.answer === null ? [] : parseCandidates(outcome.answer['candidates']);
 
-  const listed = outcome.candidates.flatMap((candidate) =>
+  const listed = candidates.flatMap((candidate) =>
     candidate.pick.kind === 'path' ? [[candidate.pick.directory, candidate.label] as const] : [],
   );
 
   const own = deps.remoteDaemon === true ? [] : [deps.cwd];
 
-  ctx.pathListing = false;
+  ctx.pathListing = null;
   ctx.sourceIndex = outcome.request.index;
 
   ctx.dirLabels = new Map(listed);
@@ -66,10 +72,12 @@ export function applyPathListing(flow: PickerFlow, outcome: PathListingOutcome) 
   ctx.selected = 0;
   ctx.step = 'dir';
 
-  if (outcome.failure !== null) {
-    flow.effects.push({ kind: 'log', line: `directory listing failed: ${outcome.failure}` });
+  if (outcome.answer === null) {
+    const failure = formatPickerError(outcome.error);
 
-    ctx.refusal = `cannot list directories: ${outcome.failure}`;
+    flow.effects.push({ kind: 'log', line: `directory listing failed: ${failure}` });
+
+    ctx.refusal = `cannot list directories: ${failure}`;
   }
 
   renderFlow(flow, true);
