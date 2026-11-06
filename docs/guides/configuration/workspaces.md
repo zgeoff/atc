@@ -27,12 +27,12 @@ second GitHub source that lists one organization's repositories:
 }
 ```
 
-| Field   | Kinds    | Default                                | Meaning                                                                                                                                                                         |
-| ------- | -------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kind`  | all      | the id, for `dirs`, `github` and `git` | The source: `dirs`, `github` or `git`. An entry with any other id needs it.                                                                                                     |
-| `roots` | `dirs`   | `[]`                                   | Directories whose child directories the picker lists. The [directories](#directories) section covers them.                                                                      |
-| `owner` | `github` | `null`                                 | The account or organization whose repositories the source lists. Typing `owner/` in the picker lists another owner. `null` lists every repository your `gh` account can access. |
-| `bin`   | `github` | `"gh"`                                 | The `gh` executable: a name looked up on `PATH`, or a path.                                                                                                                     |
+| Field   | Kinds    | Default                                | Meaning                                                                                                                                                                                                  |
+| ------- | -------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`  | all      | the id, for `dirs`, `github` and `git` | The source: `dirs`, `github` or `git`. An entry with any other id needs it.                                                                                                                              |
+| `roots` | `dirs`   | `[]`                                   | Directories whose child directories the picker lists. The [directories](#directories) section covers them.                                                                                               |
+| `owner` | `github` | `null`                                 | The account or organization whose repositories the source lists. Typing `owner/` in the picker lists another owner. `null` lists the 500 most recently pushed repositories your `gh` account can access. |
+| `bin`   | `github` | `"gh"`                                 | The `gh` executable: a name looked up on `PATH`, or a path.                                                                                                                                              |
 
 atc shows the entry's id as the source's name, such as in the picker. An id is 1 to 64 characters.
 atc refuses an id of digits alone, because JavaScript moves an integer key to the front of an
