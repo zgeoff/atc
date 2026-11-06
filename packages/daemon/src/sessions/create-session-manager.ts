@@ -34,7 +34,7 @@ import { createSessionKiller } from './create-session-killer';
 import { createSessionRegistry } from './create-session-registry';
 import type { SessionRegistry, TargetBinding } from './create-session-registry';
 import { createSessionSpawner } from './create-session-spawner';
-import type { SpawnSessionOptions } from './create-session-spawner';
+import type { SessionSpawner, SpawnSessionOptions } from './create-session-spawner';
 import { createSpawnRollback } from './create-spawn-rollback';
 import { planResumeCommand } from './plan-resume-command';
 import type { ResumeCommand } from './plan-resume-command';
@@ -161,6 +161,7 @@ export interface SessionManager {
   ) => Promise<Session | null>;
 
   readonly spawn: (options: SpawnSessionOptions) => Promise<Session>;
+  readonly spawning: SessionSpawner['spawning'];
 
   readonly kill: (
     id: SessionID,
@@ -484,6 +485,8 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
       adopter.adoptTerminal(id, cols, rows, canProceed),
 
     spawn: spawner.spawn,
+
+    spawning: spawner.spawning,
 
     kill: (id, stopOnly = false) => killer.kill(id, stopOnly),
 

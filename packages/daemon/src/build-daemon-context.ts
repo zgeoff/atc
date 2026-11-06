@@ -161,6 +161,7 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     getEffectiveDims: (sessionID) => output.getEffectiveDims(sessionID),
     restoreFleet: (cols, rows) => restorer.runFleetRestore(cols, rows),
     writeStateBackup: (path) => store.writeBackup(path),
+    pruneWorkspaces: (remove) => deps.services.pruner.prune(remove),
     readSessionRecord: (id, access) => reads.readSessionRecord(id, access),
     loadSessionTranscript: (id, from, limit) => reads.loadSessionTranscript(id, from, limit),
     readEvents: trail.readEvents,

@@ -113,6 +113,9 @@ export interface SessionSpawner {
   // the session keeps overrides for every revive; a materialize failure takes
   // back the host the spawn readied, unless it is a parent's
   readonly spawn: (options: SpawnSessionOptions) => Promise<Session>;
+
+  // The ids of the spawns that started their steps and have not yet listed or ended their unwind.
+  readonly spawning: ReadonlySet<SessionID>;
 }
 
 export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
@@ -124,6 +127,8 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
   const authSetup = deps.auth;
   const callbacks = deps.callbacks;
   const runSteps = deps.runSteps ?? runSpawnSteps;
+
+  const spawning = new Set<SessionID>();
 
   const runSpawn = async (steps: SpawnSteps, spawn: Readonly<SpawnRequest>): Promise<Session> => {
     const adapter = spawn.adapter;
@@ -461,6 +466,8 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       // A spawn whose steps fail takes back what the steps before the failure
       // did, last step first; the session counts as rolling back until the
       // unwind ends, so no revive starts it in between.
+      spawning.add(id);
+
       try {
         return await runSteps(id, (steps) =>
           runSpawn(steps, {
@@ -495,7 +502,10 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
         );
       } finally {
         rollback.rollingBack.delete(id);
+        spawning.delete(id);
       }
     },
+
+    spawning,
   };
 }

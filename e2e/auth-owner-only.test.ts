@@ -16,6 +16,7 @@ function setupTest() {
 test.each([
   ['daemon.quit'],
   ['daemon.backup'],
+  ['workspaces.prune'],
   ['daemon.restarted'],
   ['fleet.restore'],
   ['session.auth.revoke'],
@@ -38,6 +39,7 @@ test.each([
 test.each([
   ['daemon.quit'],
   ['daemon.backup'],
+  ['workspaces.prune'],
   ['daemon.restarted'],
   ['fleet.restore'],
   ['session.auth.revoke'],
@@ -58,6 +60,7 @@ test.each([
 test.each([
   ['daemon.quit'],
   ['daemon.backup'],
+  ['workspaces.prune'],
   ['daemon.restarted'],
   ['fleet.restore'],
   ['session.auth.revoke'],

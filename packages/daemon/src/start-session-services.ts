@@ -1,11 +1,12 @@
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { InvalidGitTransports, TargetConfigError } from '@atc/config';
+import type { InvalidGitTransports, TargetConfigError, WorkspaceCleanupConfig } from '@atc/config';
 import { parseRestoreBootTimeoutMs } from '@atc/config';
 import type { Clock } from '@atc/core';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { resolveHomeDir } from '@atcx/contract/light';
 import { createRuntimeAuthBinder } from './auth/create-runtime-auth-binder';
 import type { RuntimeAuthBinder } from './auth/create-runtime-auth-binder';
 import { tryReconcileAuthBindings } from './auth/try-reconcile-auth-bindings';
@@ -41,9 +42,13 @@ import type { SessionRuntime } from './sessions/create-session-runtime';
 import { createSpawnService } from './sessions/create-spawn-service';
 import type { SpawnService } from './sessions/create-spawn-service';
 import type { TapRegistry } from './sessions/create-tap-registry';
+import { createWorkspacePruner } from './sessions/create-workspace-pruner';
+import type { WorkspacePruner } from './sessions/create-workspace-pruner';
 import { startHookServer } from './sessions/hooks';
 import type { HookScope } from './sessions/make-hook-runner';
 import { MENU_TIMING } from './sessions/menu-terminal';
+import { readDirBytes } from './sessions/read-dir-bytes';
+import { readSubdirNames } from './sessions/read-subdir-names';
 import { startBridgeRevival } from './sessions/start-bridge-revival';
 import type { BridgeRevival } from './sessions/start-bridge-revival';
 import { startHeadlessTurn } from './sessions/start-headless-turn';
@@ -94,6 +99,7 @@ export interface SessionServices {
   readonly revival: BridgeRevival;
   readonly spawns: SpawnService;
   readonly forgetter: SessionForgetter;
+  readonly pruner: WorkspacePruner;
   readonly catalog: SpawnCatalog;
   readonly restorer: FleetRestorer;
 }
@@ -286,6 +292,11 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     ...(opts.homeDir === undefined ? {} : { homeDir: opts.homeDir }),
   });
 
+  const cleanupSettings: WorkspaceCleanupConfig = opts.workspaceCleanup ?? {
+    enabled: true,
+    check: 'unpushed',
+  };
+
   const forgetter = createSessionForgetter({
     manager,
     findRuntime,
@@ -297,9 +308,22 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
       manager,
       store,
       stateDir,
-      removeDir: (directory) => rm(directory, { recursive: true, force: true }),
-      settings: opts.workspaceCleanup ?? { enabled: true, check: 'unpushed' },
+      removeDir,
+      settings: cleanupSettings,
     }),
+  });
+
+  const pruner = createWorkspacePruner({
+    manager,
+    store,
+    targets: targets.map((target) => target.id),
+    workspaceRoots: opts.workspaceRoots ?? { root: null, targetRoots: new Map() },
+    homeDir: opts.homeDir ?? resolveHomeDir(),
+    stateDir,
+    readSubdirNames,
+    readDirBytes,
+    removeDir,
+    settings: cleanupSettings,
   });
 
   const catalog = createSpawnCatalog({
@@ -343,7 +367,12 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     revival,
     spawns,
     forgetter,
+    pruner,
     catalog,
     restorer,
   };
+}
+
+function removeDir(directory: string): Promise<void> {
+  return rm(directory, { recursive: true, force: true });
 }
