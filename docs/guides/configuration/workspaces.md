@@ -27,42 +27,42 @@ second GitHub source that lists one organization's repositories:
 }
 ```
 
-| Field   | Kinds    | Default                                | Meaning                                                                                                                                                   |
-| ------- | -------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kind`  | all      | the id, for `dirs`, `github` and `git` | The source: `dirs`, `github` or `git`. An entry with any other id needs it.                                                                               |
-| `roots` | `dirs`   | `[]`                                   | Directories whose child directories the picker lists. The [directories](#directories) section covers them.                                                |
-| `owner` | `github` | `null`                                 | The account or organization whose repositories the source lists until you type another owner. `null` lists every repository your `gh` account can access. |
-| `bin`   | `github` | `"gh"`                                 | The `gh` executable: a name looked up on `PATH`, or a path.                                                                                               |
+| Field   | Kinds    | Default                                | Meaning                                                                                                                                                                         |
+| ------- | -------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`  | all      | the id, for `dirs`, `github` and `git` | The source: `dirs`, `github` or `git`. An entry with any other id needs it.                                                                                                     |
+| `roots` | `dirs`   | `[]`                                   | Directories whose child directories the picker lists. The [directories](#directories) section covers them.                                                                      |
+| `owner` | `github` | `null`                                 | The account or organization whose repositories the source lists. Typing `owner/` in the picker lists another owner. `null` lists every repository your `gh` account can access. |
+| `bin`   | `github` | `"gh"`                                 | The `gh` executable: a name looked up on `PATH`, or a path.                                                                                                                     |
 
-The entry's id names the source everywhere atc shows it, such as in the picker. An id is 1 to 64
-characters. atc refuses `__proto__` and an id of digits alone, because JavaScript moves an integer
-key to the front of an object, which would change the order.
+atc shows the entry's id as the source's name, such as in the picker. An id is 1 to 64 characters.
+atc refuses an id of digits alone, because JavaScript moves an integer key to the front of an
+object, which would change the order. atc also refuses `__proto__`, which JavaScript reserves.
 
 atc leaves out an entry it cannot use, and loads the others. The daemon prints one line for each
 problem when it starts. atc leaves out an entry with any of these:
 
 - an id it refuses;
-- an unknown field, a field of another kind, or a value of the wrong type, such as
+- an unknown field, a field of another kind, or a value that field does not take, such as
   `sources.acme: owner is not a GitHub account or organization`;
 - a `kind` that contradicts a built-in id, such as `"github": { "kind": "git" }`;
-- a second `dirs` entry, because the picker adopts a running session only into the one directory
-  source.
+- a second `dirs` entry, because adopting an existing agent conversation opens the picker on the one
+  directory list.
 
-A `sources` value that is not an object gives no source, and the daemon prints
+When `sources` is not an object, the daemon offers no source and prints
 `sources must be an object of source entries`. The daemon also leaves out a `github` entry when it
 cannot find the entry's `gh`, and prints `sources.github: gh is not on the daemon's PATH; left out`.
 
-`"sources": {}` gives no source, and the picker refuses a spawn with
-`the daemon offers no sources · set sources · esc cancel`. To adopt a session, the picker needs a
-`dirs` source, and refuses the same way without one.
+With `"sources": {}`, the daemon offers no source, and the picker refuses a spawn with
+`the daemon offers no sources · set sources · esc cancel`. An adopt needs a `dirs` source, and the
+picker refuses one without it the same way.
 
 ### Deprecated source keys
 
-Three deprecated keys set the sources of a config file without `sources`: `dirs.roots`,
-`workspaces.githubOwner` and `workspaces.sources`. atc reads them this way:
+When a config file has no `sources` key, atc builds the sources from three deprecated keys:
+`dirs.roots`, `workspaces.githubOwner` and `workspaces.sources`.
 
-- `workspaces.sources` lists the source ids in picker order. When it is `null` or absent, the daemon
-  offers `dirs`, `github` and `git`.
+- `workspaces.sources` lists built-in source ids in picker order. When it is `null` or absent, the
+  daemon offers `dirs`, `github` and `git`. atc leaves out any other id, with a line.
 - `dirs.roots` becomes the `dirs` entry's `roots`.
 - `workspaces.githubOwner` becomes the `github` entry's `owner`.
 
@@ -81,11 +81,11 @@ and writes nothing, so you move the deprecated keys into `sources` by hand.
 
 ## Directories
 
-When you press `n` in the `atc` client, the spawn picker opens on the directory list. It lists the
-directory you ran `atc` from, then what the `dirs` source finds, in this order: atc's own spawn
-history (most recent first), every project under the source's `roots`, and zoxide's list when zoxide
-is installed. The source drops a path that no longer exists, and keeps a duplicate at its first
-position.
+When you press `n` in the `atc` client, the spawn picker opens on its first source. With a `dirs`
+source first, that is the directory list. It lists the directory you ran `atc` from, then what the
+`dirs` source finds, in this order: atc's own spawn history (most recent first), every project under
+the source's `roots`, and zoxide's list when zoxide is installed. The source drops a path that no
+longer exists, and lists a path that appears twice only at its first position.
 
 Each root contributes its immediate child directories and each child's `.worktrees/*` entries, so
 `~/projects/atc` and `~/projects/atc/.worktrees/fix-picker` both list for a root of `~/projects`.
