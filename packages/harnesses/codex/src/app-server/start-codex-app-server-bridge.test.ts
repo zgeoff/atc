@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildSessionEnv } from '@atc/protocol/session';
 import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
@@ -134,7 +135,7 @@ test('it starts the thread and a message sent right after the spawn on the model
   });
 });
 
-test("it starts the App Server with the session's resource attributes over the daemon's", async () => {
+test("it starts the App Server tagged with its session ID after the daemon's resource attributes", async () => {
   updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
 
   const ctx = setupTest();
@@ -150,7 +151,7 @@ test("it starts the App Server with the session's resource attributes over the d
     {
       session: toSessionID('s-1'),
       cwd: ctx.directory,
-      env: { OTEL_RESOURCE_ATTRIBUTES: 'service.namespace=lab,atc.session.id=s-1' },
+      env: buildSessionEnv({ sessionID: 's-1', inheritedEnv: process.env }),
       withheldEnv: [],
       options: { prompt: '', resume: false },
       directory: ctx.bridgeDir,
