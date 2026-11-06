@@ -11,7 +11,7 @@ test.each([
     directory: '/w/bakery',
     result: { kind: 'checked', path: '/srv/w/bakery', findings: [] },
     listed: [],
-    storedDirs: [],
+    resolvedDirs: [],
     remove: row.remove,
   });
 
@@ -22,26 +22,26 @@ test.each([
   {
     user: 'a session on the machine that runs inside it',
     listed: [{ id: 'plain', cwd: '/w/bakery/src', onMachine: true }],
-    storedDirs: [],
+    resolvedDirs: [],
     reason: 'in use by session plain',
   },
   {
     user: 'a session on the machine that runs inside its resolved path',
     listed: [{ id: 'plain', cwd: '/srv/w/bakery', onMachine: true }],
-    storedDirs: [],
+    resolvedDirs: [],
     reason: 'in use by session plain',
   },
   {
-    user: 'a stored session whose directory resolves inside it',
+    user: 'a session whose directory resolves inside it',
     listed: [],
-    storedDirs: [{ id: 'stored', physical: '/srv/w/bakery/src' }],
-    reason: 'in use by session stored',
+    resolvedDirs: [{ id: 'linked', physical: '/srv/w/bakery/src' }],
+    reason: 'in use by session linked',
   },
   {
-    user: 'a stored session whose directory did not resolve',
+    user: 'a session whose directory did not resolve',
     listed: [],
-    storedDirs: [{ id: 'stored', physical: null }],
-    reason: 'in use by session stored',
+    resolvedDirs: [{ id: 'linked', physical: null }],
+    reason: 'in use by session linked',
   },
 ])('it keeps a clean workspace that $user uses', (row) => {
   const plan = pickPruneWorkspacePlan({
@@ -49,7 +49,10 @@ test.each([
     directory: '/w/bakery',
     result: { kind: 'checked', path: '/srv/w/bakery', findings: [] },
     listed: row.listed.map((session) => ({ ...session, id: toSessionID(session.id) })),
-    storedDirs: row.storedDirs.map((stored) => ({ ...stored, id: toSessionID(stored.id) })),
+    resolvedDirs: row.resolvedDirs.map((resolved) => ({
+      ...resolved,
+      id: toSessionID(resolved.id),
+    })),
     remove: true,
   });
 
@@ -62,7 +65,7 @@ test('it removes a workspace whose path only a session on another machine runs i
     directory: '/w/bakery',
     result: { kind: 'checked', path: '/w/bakery', findings: [] },
     listed: [{ id: toSessionID('guest'), cwd: '/w/bakery', onMachine: false }],
-    storedDirs: [{ id: toSessionID('elsewhere'), physical: '/w/pantry' }],
+    resolvedDirs: [{ id: toSessionID('elsewhere'), physical: '/w/pantry' }],
     remove: true,
   });
 
@@ -75,7 +78,7 @@ test('it keeps a workspace with unpushed work, with what the check found', () =>
     directory: '/w/bakery',
     result: { kind: 'checked', path: '/w/bakery', findings: ['1 stash'] },
     listed: [],
-    storedDirs: [],
+    resolvedDirs: [],
     remove: false,
   });
 
@@ -88,7 +91,7 @@ test('it skips a workspace that is already gone', () => {
     directory: '/w/bakery',
     result: { kind: 'missing' },
     listed: [],
-    storedDirs: [{ id: toSessionID('stored'), physical: null }],
+    resolvedDirs: [{ id: toSessionID('stored'), physical: null }],
     remove: true,
   });
 

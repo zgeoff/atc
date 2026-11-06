@@ -6,9 +6,9 @@ import { isPathWithin } from './is-path-within';
 import { pickWorkspaceCleanup } from './pick-workspace-cleanup';
 import type { WorkspaceCheck } from './run-workspace-check';
 
-// The directory of a session on the daemon's machine that only the stored fleet lists, as the
-// machine resolves it, or null when it did not resolve.
-export interface StoredDir {
+// The directory of a listed session on the daemon's machine, as the machine resolves it, or null
+// when it did not resolve.
+export interface ResolvedDir {
   readonly id: SessionID;
   readonly physical: string | null;
 }
@@ -21,7 +21,7 @@ interface PruneWorkspaceInput {
   readonly result: WorkspaceCheck;
 
   readonly listed: readonly ListedSession[];
-  readonly storedDirs: readonly StoredDir[];
+  readonly resolvedDirs: readonly ResolvedDir[];
 
   // Without remove, a dry run that only reports the folder.
   readonly remove: boolean;
@@ -41,9 +41,9 @@ export function pickPruneWorkspacePlan(input: PruneWorkspaceInput): PruneWorkspa
     (session) => session.onMachine && forms.some((form) => isPathWithin(session.cwd, form)),
   );
 
-  // a stored directory that did not resolve may lead anywhere, so it keeps the folder
-  const storedUser = input.storedDirs.find((stored) => {
-    const physical = stored.physical;
+  // a directory that did not resolve may lead anywhere, so it keeps the folder
+  const resolvedUser = input.resolvedDirs.find((resolved) => {
+    const physical = resolved.physical;
 
     return physical === null || forms.some((form) => isPathWithin(physical, form));
   });
@@ -52,7 +52,7 @@ export function pickPruneWorkspacePlan(input: PruneWorkspaceInput): PruneWorkspa
     check: input.check,
     directory: input.directory,
     result: input.result,
-    user: listedUser?.id ?? storedUser?.id ?? null,
+    user: listedUser?.id ?? resolvedUser?.id ?? null,
   });
 
   return match(cleanup)

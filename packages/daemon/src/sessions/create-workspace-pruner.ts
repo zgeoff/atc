@@ -11,7 +11,7 @@ import type { ListedSession } from './collect-prune-candidates';
 import type { SessionManager } from './create-session-manager';
 import { pickPruneStatePlan } from './pick-prune-state-plan';
 import { pickPruneWorkspacePlan } from './pick-prune-workspace-plan';
-import type { PruneWorkspacePlan, StoredDir } from './pick-prune-workspace-plan';
+import type { PruneWorkspacePlan, ResolvedDir } from './pick-prune-workspace-plan';
 import { pickWorkspaceEligibility } from './pick-workspace-eligibility';
 import type { WorkspaceEligibility } from './pick-workspace-eligibility';
 import { readHostDirBytes } from './read-host-dir-bytes';
@@ -64,11 +64,11 @@ export interface WorkspacePruner {
   readonly prune: (remove: boolean) => Promise<WorkspacePrune>;
 }
 
-// One prune's mode, the stored fleet as it read it, and the stored sessions' directories.
+// One prune's mode, the stored fleet as it read it, and the listed sessions' resolved directories.
 interface PruneRun {
   readonly remove: boolean;
   readonly fleet: readonly FleetEntry[];
-  readonly storedDirs: readonly StoredDir[];
+  readonly resolvedDirs: readonly ResolvedDir[];
 }
 
 export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePruner {
@@ -95,22 +95,15 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
       onMachine: !manager.hasHostLifecycle(session.target),
     }));
 
-  // the removal resolves the directory of each listed and held session itself, but not of one
-  // only the stored fleet lists, which may reach a workspace through a symlink
-  const resolveStoredDirs = (
+  // a session may reach a workspace through a symlink, which only its resolved directory shows
+  const resolveListedDirs = (
     fleet: readonly FleetEntry[],
     provider: ExecutionProvider | null,
-  ): Promise<StoredDir[]> => {
-    const live = new Set(
-      [...manager.sessions, ...manager.collectHeldSessions()].map((session) => session.id),
-    );
-
-    const stored = collectListed(fleet).filter(
-      (session) => session.onMachine && !live.has(session.id),
-    );
+  ): Promise<ResolvedDir[]> => {
+    const onMachine = collectListed(fleet).filter((session) => session.onMachine);
 
     return Promise.all(
-      stored.map(async (session) => {
+      onMachine.map(async (session) => {
         const physical =
           provider === null
             ? null
@@ -216,7 +209,7 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
       directory: checked.directory,
       result,
       listed: collectListed(run.fleet),
-      storedDirs: run.storedDirs,
+      resolvedDirs: run.resolvedDirs,
       remove: run.remove,
     });
 
@@ -334,9 +327,9 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
 
       const machineProvider = permanent.map((target) => findProvider(target)).find(Boolean) ?? null;
 
-      const storedDirs = await resolveStoredDirs(fleet, machineProvider);
+      const resolvedDirs = await resolveListedDirs(fleet, machineProvider);
 
-      const run = { remove, fleet, storedDirs };
+      const run = { remove, fleet, resolvedDirs };
       const folders: WorkspacePruneFolder[] = [];
 
       for (const row of candidates.workspaces) {

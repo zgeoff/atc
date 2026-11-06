@@ -441,6 +441,29 @@ test('it keeps a workspace that a session only the stored fleet lists reaches th
   expect(existsSync(restorable.work)).toBeTrue();
 });
 
+test('it keeps a workspace on a dry run that a listed session reaches through a symlink', async () => {
+  const ctx = await setupTest();
+  const linked = await createGitFixture({ prefix: 'atc-pruner-live-link-' });
+
+  const alias = join(linked.directory, 'alias');
+
+  symlinkSync(linked.work, alias);
+
+  await ctx.seed.workspace(toSessionID('forgotten-first'), linked.work, linked.sha);
+
+  ctx.manager.sessions.push(
+    buildMockSession({ id: toSessionID('plain-linked'), cwd: join(alias, 'src') }),
+  );
+
+  const prune = await ctx.pruner.prune(false);
+
+  expect(prune.folders).toPartiallyContain({
+    verdict: 'keep',
+    kind: 'workspace',
+    reasons: ['in use by session plain-linked'],
+  });
+});
+
 test('it prunes a local workspace whose path a session on a host with a lifecycle also uses', async () => {
   const ctx = await setupTest();
   const leftover = await createGitFixture({ prefix: 'atc-pruner-same-path-' });
