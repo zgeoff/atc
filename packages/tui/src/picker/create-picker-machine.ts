@@ -280,13 +280,14 @@ function stopFlow(flow: PickerFlow) {
 }
 
 function applyListing(flow: PickerFlow, outcome: ListingOutcome) {
-  const request = outcome.request;
-
-  if (request.kind === 'path') {
-    applyPathListing(flow, { ...outcome, request });
-  } else {
-    applyGitListing(flow, { ...outcome, request });
-  }
+  match(outcome.request)
+    .with({ kind: 'path' }, (request) => {
+      applyPathListing(flow, { ...outcome, request });
+    })
+    .with({ kind: 'git' }, (request) => {
+      applyGitListing(flow, { ...outcome, request });
+    })
+    .exhaustive();
 }
 
 function settleFlow(flow: PickerFlow) {

@@ -1,4 +1,5 @@
 import type { AgentEntry, GitProbeResult, SourceEntry, SourceInterpretation } from '@atcx/contract';
+import { match } from 'ts-pattern';
 import { fromPromise } from 'xstate';
 import { collectTargetPicks } from '../collect-target-picks';
 import type { TargetPick } from '../collect-target-picks';
@@ -188,19 +189,21 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
 
       const sent = await sendAnswered('sources.list', request.params);
 
-      if (
-        request.kind === 'git' &&
-        sent.answer !== null &&
-        Array.isArray(sent.answer['candidates'])
-      ) {
-        void deps.listingCache?.writeListing(request.key, {
-          candidates: sent.answer['candidates'],
-          scope: typeof sent.answer['scope'] === 'string' ? sent.answer['scope'] : request.scope,
-          listedAt: request.requestedAt,
-        });
-      }
+      const dropped = match(request)
+        .returnType<DroppedAnswer>()
+        .with({ kind: 'path' }, () => 'directory listing')
+        .with({ kind: 'git' }, (git) => {
+          if (sent.answer !== null && Array.isArray(sent.answer['candidates'])) {
+            void deps.listingCache?.writeListing(git.key, {
+              candidates: sent.answer['candidates'],
+              scope: typeof sent.answer['scope'] === 'string' ? sent.answer['scope'] : git.scope,
+              listedAt: git.requestedAt,
+            });
+          }
 
-      const dropped = request.kind === 'path' ? 'directory listing' : 'listing';
+          return 'listing';
+        })
+        .exhaustive();
 
       reportDrop(args.signal, dropped);
 
