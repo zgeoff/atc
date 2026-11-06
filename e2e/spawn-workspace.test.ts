@@ -2827,7 +2827,9 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
   // two sessions share a directory.
   expect({
     distinctIDs: new Set(sessions.map((session) => session['id'])).size,
-    landed: sessions.map((session) => [session['cwd'], session['name']]).toSorted(),
+    landed: sessions
+      .map((session) => [String(session['cwd']), String(session['name'])])
+      .toSorted((left, right) => left.join('\0').localeCompare(right.join('\0'))),
     listed: await daemon.client.sendRequest('session.list'),
     workspaces: readdirSync(join(home, '.local/share/atc/workspaces')).toSorted(),
     logs: daemon.logs,
