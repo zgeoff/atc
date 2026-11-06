@@ -47,8 +47,14 @@ export function buildMigratedConfig(file: unknown): MigratedConfig {
     return { kind: 'unusable', detail: formatMixedSourceKeys(firstSourceKey) };
   }
 
-  if (hasAgents && firstSourceKey === undefined && removed.length === 0) {
-    return { kind: 'current', registries: hasSources ? ['agents', 'sources'] : ['agents'] };
+  const registries = ['agents', 'sources'].filter((key) => Object.hasOwn(raw, key));
+
+  // a file that uses either registry and sets no old agent key already reads
+  // its agents as atc does, so only a file that uses neither gets agents
+  const movesAgents = present.length > 0 || registries.length === 0;
+
+  if (!movesAgents && firstSourceKey === undefined && removed.length === 0) {
+    return { kind: 'current', registries };
   }
 
   // a note names a key and a reason only, never a value
@@ -57,7 +63,7 @@ export function buildMigratedConfig(file: unknown): MigratedConfig {
   );
 
   const kept = Object.fromEntries(Object.entries(raw).filter(([key]) => !removed.includes(key)));
-  const agents = hasAgents ? { config: kept, notes: [] } : moveAgentKeys(kept, raw, present);
+  const agents = movesAgents ? moveAgentKeys(kept, raw, present) : { config: kept, notes: [] };
 
   const migrated =
     firstSourceKey === undefined

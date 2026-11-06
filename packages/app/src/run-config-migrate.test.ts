@@ -154,6 +154,40 @@ test('it names both registries when a file that uses agents and sources has noth
   expect(readdirSync(ctx.directory)).toStrictEqual(['config.json']);
 });
 
+test('it says nothing to migrate and leaves a file that uses only sources unchanged with --write', () => {
+  const ctx = setupTest();
+  const file = join(ctx.directory, 'config.json');
+  const original = JSON.stringify({ sources: { git: {} } });
+
+  writeFileSync(file, original);
+
+  let stdout = '';
+  let stderr = '';
+
+  const code = runConfigMigrate(file, true, {
+    printText: (text) => {
+      stdout += text;
+    },
+    print: (line) => {
+      stdout += `${line}\n`;
+    },
+    printError: (line) => {
+      stderr += `${line}\n`;
+    },
+  });
+
+  expect({ stdout, stderr, code }).toStrictEqual({
+    stdout: 'config.json already uses sources; nothing to migrate\n',
+    stderr: '',
+    code: 0,
+  });
+
+  expect({ text: readFileSync(file, 'utf8'), files: readdirSync(ctx.directory) }).toStrictEqual({
+    text: original,
+    files: ['config.json'],
+  });
+});
+
 test('it exits 1 and writes nothing for a file that sets agents beside an old key', () => {
   const ctx = setupTest();
   const file = join(ctx.directory, 'config.json');

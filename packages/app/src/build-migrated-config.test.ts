@@ -418,3 +418,34 @@ test('it reports a file that already uses agents and sources as current', () => 
     registries: ['agents', 'sources'],
   });
 });
+
+test('it reports a file that uses sources and sets no old key as current, without adding agents', () => {
+  expect(buildMigratedConfig({ sources: { git: {} } })).toStrictEqual({
+    kind: 'current',
+    registries: ['sources'],
+  });
+});
+
+test('it drops only the removed key from a file that uses sources and sets no old agent key', () => {
+  const result = buildMigratedConfig({ sources: { git: {} }, resumeInterruptedTurns: true });
+
+  expect(result).toStrictEqual({
+    kind: 'migrated',
+    text: `${JSON.stringify({ sources: { git: {} } }, null, 2)}\n`,
+    notes: ['atc config migrate: resumeInterruptedTurns is dropped: atc no longer reads it'],
+  });
+});
+
+test('it moves the old agent keys of a file that uses sources into agents', () => {
+  const result = buildMigratedConfig({ sources: { git: {} }, codexBin: '/opt/codex' });
+
+  expect(result).toStrictEqual({
+    kind: 'migrated',
+    text: `${JSON.stringify(
+      { sources: { git: {} }, agents: { claude: {}, grok: {}, codex: { bin: '/opt/codex' } } },
+      null,
+      2,
+    )}\n`,
+    notes: [],
+  });
+});
