@@ -113,7 +113,8 @@ workspace when one of those directories does not resolve.
   nor a spawn in flight. The prune checks the name again just before the removal.
 - **Skip.** A folder directly under a covered target's workspaces root is `skip`: `no atc record`
   when no row on a covered target names it, and `atc never finished building it` when no ready row
-  does. The prune never touches a `skip` folder.
+  does. The prune never touches a `skip` folder. A root that the host cannot list fails the prune
+  with the host's error.
 
 Each folder carries its size: `du -sk` through the provider for a workspace, and a walk that follows
 no symlink for a state folder. The size is null when the host does not answer. A prune with `remove`
