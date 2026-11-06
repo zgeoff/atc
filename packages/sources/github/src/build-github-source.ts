@@ -5,6 +5,9 @@ import { readGitProtocol } from './read-git-protocol';
 import { readGitHubRepos } from './read-github-repos';
 
 interface GitHubSourceOptions {
+  // The id of the config entry the source comes from.
+  readonly id: string;
+
   // The host's command runner, which runs gh.
   readonly run: HostServices['runCommand'];
 
@@ -36,7 +39,7 @@ export function buildGitHubSource(options: GitHubSourceOptions): SourceProvider 
   const timeoutMs = options.timeoutMs ?? GH_TIMEOUT_MS;
 
   return {
-    id: 'github',
+    id: options.id,
     label: 'GitHub repository',
     kind: 'git',
     async list(query) {

@@ -26,12 +26,18 @@ test('it lists the sources it offers in order in agents.list', async () => {
       principals: null,
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
         }),
-        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
-        buildGitSource(),
+        buildGitHubSource({
+          id: 'github',
+          run: runCommand,
+          bin: join(paths.directory, 'gh'),
+          owner: null,
+        }),
+        buildGitSource('git'),
       ],
     }),
   });
@@ -55,6 +61,7 @@ test('it lists the spawn history, then the roots, then zoxide, as directories on
       principals: null,
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [join(paths.directory, 'roots')],
           readZoxideDirs: () =>
             Promise.resolve([join(paths.directory, 'zoxide-dir'), join(paths.directory, 'gone')]),
@@ -119,6 +126,7 @@ test('it lists the owner the directories spawned on every target', async () => {
       principals: new Map([['alice', ['box']]]),
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
@@ -178,6 +186,7 @@ test('it lists a principal only the directories spawned on targets it may use', 
       principals: new Map([['alice', ['box']]]),
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
@@ -220,7 +229,12 @@ test('it lists the configured GitHub owner through gh at the clone URL gh prefer
       adapter: buildMockAgentAdapter(),
       principals: null,
       sources: [
-        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: 'acme' }),
+        buildGitHubSource({
+          id: 'github',
+          run: runCommand,
+          bin: join(paths.directory, 'gh'),
+          owner: 'acme',
+        }),
       ],
     }),
   });
@@ -268,7 +282,12 @@ test('it lists the scope a request holds over the configured owner, at https URL
       adapter: buildMockAgentAdapter(),
       principals: null,
       sources: [
-        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: 'acme' }),
+        buildGitHubSource({
+          id: 'github',
+          run: runCommand,
+          bin: join(paths.directory, 'gh'),
+          owner: 'acme',
+        }),
       ],
     }),
   });
@@ -318,7 +337,12 @@ test('it refuses a GitHub scope gh could read as an option, running no gh', asyn
       adapter: buildMockAgentAdapter(),
       principals: null,
       sources: [
-        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
+        buildGitHubSource({
+          id: 'github',
+          run: runCommand,
+          bin: join(paths.directory, 'gh'),
+          owner: null,
+        }),
       ],
     }),
   });
@@ -354,7 +378,12 @@ test('it refuses a GitHub listing on a host without gh as github_unavailable', a
       adapter: buildMockAgentAdapter(),
       principals: null,
       sources: [
-        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
+        buildGitHubSource({
+          id: 'github',
+          run: runCommand,
+          bin: join(paths.directory, 'gh'),
+          owner: null,
+        }),
       ],
     }),
   });
@@ -393,7 +422,7 @@ test('it refuses a git source listing for a target that cannot take a workspace'
         },
       ],
       principals: null,
-      sources: [buildGitSource()],
+      sources: [buildGitSource('git')],
     }),
   });
 
@@ -430,6 +459,7 @@ test('it lists directories for a target that cannot take a workspace', async () 
       principals: null,
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [join(paths.directory, 'roots')],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
@@ -483,6 +513,7 @@ test('it refuses a principal a source listing for the default target it may not 
       principals: new Map([['alice', ['box']]]),
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
@@ -506,7 +537,7 @@ test('it refuses a source the daemon does not offer as unsupported', async () =>
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitSource()],
+      sources: [buildGitSource('git')],
     }),
   });
 
@@ -535,12 +566,18 @@ test.each([
       principals: null,
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
         }),
-        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
-        buildGitSource(),
+        buildGitHubSource({
+          id: 'github',
+          run: runCommand,
+          bin: join(paths.directory, 'gh'),
+          owner: null,
+        }),
+        buildGitSource('git'),
       ],
     }),
   });
@@ -562,6 +599,7 @@ test('it reads a leading ~ in directory input as the daemon home', async () => {
       principals: null,
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
@@ -586,6 +624,7 @@ test('it completes a typed ~ path against the daemon home', async () => {
       principals: null,
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
@@ -620,6 +659,7 @@ test('it completes a typed relative path under the directory the client sends', 
       principals: null,
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
@@ -655,6 +695,7 @@ test('it reads a typed relative path under the directory the client sends', asyn
       principals: null,
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
@@ -681,7 +722,7 @@ test('it completes nothing through a source that does not complete', async () =>
     options: () => ({
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitSource()],
+      sources: [buildGitSource('git')],
     }),
   });
 
@@ -717,6 +758,7 @@ test('it refuses a principal a completion for the default target it may not use'
       principals: new Map([['alice', ['box']]]),
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
@@ -756,6 +798,7 @@ test('it completes a principal a path for a target it may use', async () => {
       principals: new Map([['alice', ['box']]]),
       sources: [
         buildDirsSource({
+          id: 'dirs',
           roots: [],
           readZoxideDirs: () => Promise.resolve([]),
           homeDir: paths.directory,
@@ -810,7 +853,7 @@ test('it probes a git source for the target a principal may use', async () => {
         },
       ],
       principals: new Map([['alice', ['box']]]),
-      sources: [buildGitSource()],
+      sources: [buildGitSource('git')],
     }),
   });
 
@@ -856,7 +899,7 @@ test('it refuses a principal a probe for a target it may not use', async () => {
         },
       ],
       principals: new Map([['alice', ['box']]]),
-      sources: [buildGitSource()],
+      sources: [buildGitSource('git')],
     }),
   });
 
@@ -877,7 +920,7 @@ test('it refuses a probe for a ref the upstream does not have as ref_not_found',
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitSource()],
+      sources: [buildGitSource('git')],
     }),
   });
 
@@ -896,7 +939,7 @@ test('it refuses a probe of an upstream git cannot read as clone_failed', async 
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitSource()],
+      sources: [buildGitSource('git')],
     }),
   });
 
@@ -914,8 +957,13 @@ test("it refuses a GitHub probe git cannot read with the repository's other URL 
       adapter: buildMockAgentAdapter(),
       principals: null,
       sources: [
-        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
-        buildGitSource(),
+        buildGitHubSource({
+          id: 'github',
+          run: runCommand,
+          bin: join(paths.directory, 'gh'),
+          owner: null,
+        }),
+        buildGitSource('git'),
       ],
     }),
   });
@@ -946,8 +994,13 @@ test('it refuses a probe of the owner/repo shorthand, which only a spawn expands
       adapter: buildMockAgentAdapter(),
       principals: null,
       sources: [
-        buildGitHubSource({ run: runCommand, bin: join(paths.directory, 'gh'), owner: null }),
-        buildGitSource(),
+        buildGitHubSource({
+          id: 'github',
+          run: runCommand,
+          bin: join(paths.directory, 'gh'),
+          owner: null,
+        }),
+        buildGitSource('git'),
       ],
     }),
   });
@@ -974,7 +1027,7 @@ test('it refuses a GitHub probe with no alternates when the daemon offers no Git
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
-      sources: [buildGitSource()],
+      sources: [buildGitSource('git')],
     }),
   });
 

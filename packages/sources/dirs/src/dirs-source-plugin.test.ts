@@ -21,13 +21,27 @@ test('it refuses a slice without a home directory', () => {
   expect(schema.safeParse({ roots: [] }).error?.issues).toPartiallyContain({ path: ['homeDir'] });
 });
 
+test('it reads a slice under the id of its config entry', () => {
+  const schema = DIRS_SOURCE_PLUGIN.configSchema({
+    authProfiles: new Map(),
+    entryID: 'local',
+    foreignFields: new Set(),
+  });
+
+  expect(schema.parse({ roots: ['/srv/work'], homeDir: '/home/someone' })).toStrictEqual({
+    roots: ['/srv/work'],
+    homeDir: '/home/someone',
+    id: 'local',
+  });
+});
+
 test('it lists the directories zoxide returns through the host command runner', async () => {
   const ctx = setupTest();
 
   mkdirSync(join(ctx.home, 'notes'));
 
   const source = DIRS_SOURCE_PLUGIN.create(
-    { roots: [], homeDir: ctx.home },
+    { id: 'dirs', roots: [], homeDir: ctx.home },
     buildMockHostServices({
       runCommand: (argv) =>
         Promise.resolve({

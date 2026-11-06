@@ -6,7 +6,15 @@ export const GITHUB_SOURCE_PLUGIN = definePlugin({
   kind: 'source',
   id: 'github',
   configFields: ['owner', 'bin'],
-  configSchema: () => z.object({ owner: z.string().nullable(), bin: z.string() }),
+  configSchema: (context) =>
+    z
+      .object({ owner: z.string().nullable(), bin: z.string() })
+      .transform((fields) => ({ ...fields, id: context.entryID })),
   create: (config, host) =>
-    buildGitHubSource({ run: host.runCommand, bin: config.bin, owner: config.owner }),
+    buildGitHubSource({
+      id: config.id,
+      run: host.runCommand,
+      bin: config.bin,
+      owner: config.owner,
+    }),
 });

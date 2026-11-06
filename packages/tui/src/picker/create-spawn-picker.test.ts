@@ -124,7 +124,7 @@ test('it refuses a spawn on a daemon that offers no sources', async () => {
 
   const shown = ctx.terminal.getTextSince(mark);
 
-  expect(shown).toInclude('the daemon offers no sources · set workspaces.sources · esc cancel');
+  expect(shown).toInclude('the daemon offers no sources · set sources · esc cancel');
   expect(shown).not.toInclude(ctx.cwd);
   expect(ctx.daemon.collectSent('dirs.list')).toStrictEqual([]);
   expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([]);
@@ -162,7 +162,7 @@ test('it refuses an adopt on a daemon that offers no source of directories', asy
   });
 
   expect(ctx.terminal.getTextSince(mark)).toInclude(
-    'no directory source to adopt in · set workspaces.sources · esc cancel',
+    'no directory source to adopt in · set sources · esc cancel',
   );
 
   expect(ctx.daemon.collectSent('dirs.list')).toStrictEqual([]);

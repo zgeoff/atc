@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig, parseConfig } from '@atc/config';
 import { buildStubTargets } from '@atc/daemon/testing';
@@ -564,6 +564,36 @@ test('it spawns a session without a target on the local target when no config ex
 
   expect(getRecord(getRecord(spawned, 'session'), 'locator')['targetID']).toBe('local');
   expect(ctx.harnesses).toStrictEqual(['local']);
+});
+
+test('it writes a first-run config with the three built-in sources and no old source key', async () => {
+  const ctx = setupTest();
+
+  await startTestDaemon({
+    options: () => {
+      const loaded = loadConfig(SHIPPED_HARNESS_PLUGINS, ctx.configPath);
+
+      return {
+        adapter: ctx.claude,
+        targets: buildStubTargets(loaded.targets, { spawned: ctx.harnesses }),
+        defaultTarget: loaded.defaultTarget,
+      };
+    },
+  });
+
+  expect(JSON.parse(readFileSync(ctx.configPath, 'utf8'))).toStrictEqual({
+    agents: { claude: {} },
+    sources: { dirs: { roots: [] }, github: {}, git: {} },
+    hooks: {},
+    leader: { code: 0, label: '^Space' },
+    restoreFleetOnRestart: true,
+    workspaces: {
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targets: {},
+      cleanup: { enabled: true, check: 'unpushed' },
+    },
+  });
 });
 
 test('it refuses a spawn of an agent missing from this host with the config problem when the config holds invalid JSON', async () => {

@@ -255,6 +255,7 @@ export declare const COMMIT_ID_PATTERN: RegExp;
 import { z } from 'zod';
 export declare const CONFIG_FILE_SCHEMA: z.ZodObject<{
     agents: z.ZodOptional<z.ZodUnknown>;
+    sources: z.ZodOptional<z.ZodUnknown>;
     dirs: z.ZodOptional<z.ZodUnknown>;
     workspaces: z.ZodOptional<z.ZodUnknown>;
     authProfiles: z.ZodOptional<z.ZodUnknown>;

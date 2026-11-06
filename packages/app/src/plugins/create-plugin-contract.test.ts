@@ -19,7 +19,7 @@ test('it passes the parsed slice, the host, and the context to the factory', () 
       create: (config, created, given) => {
         seen.push(config, created, given);
 
-        return buildGitSource();
+        return buildGitSource('git');
       },
     }),
     raw: { count: '3' },
@@ -39,7 +39,7 @@ test('it throws for a slice the plugin schema refuses', () => {
         id: 'probe',
         configFields: [],
         configSchema: () => z.object({ count: z.number() }),
-        create: () => buildGitSource(),
+        create: () => buildGitSource('git'),
       }),
       raw: {},
       entryID: 'probe',

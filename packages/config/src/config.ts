@@ -7,14 +7,16 @@ import { CONFIG_FILE_SCHEMA } from '@atcx/contract';
 import { resolveHomeDir } from '@atcx/contract/light';
 import type { AgentConfigPlugin, AgentEntry } from './agent-entry';
 import { buildCurrentPlaceholderConfig } from './build-current-placeholder-config';
+import { buildLegacySources } from './build-legacy-sources';
 import { collectAgents } from './collect-agents';
 import { collectAuthProfiles } from './collect-auth-profiles';
-import { collectDirRoots } from './collect-dir-roots';
 import { collectHooks } from './collect-hooks';
 import type { HooksConfig } from './collect-hooks';
 import { collectPrincipals } from './collect-principals';
 import { collectRemoteDaemons } from './collect-remote-daemons';
 import type { RemoteDaemon } from './collect-remote-daemons';
+import { collectSources } from './collect-sources';
+import type { SourceEntry } from './collect-sources';
 import { collectTargets } from './collect-targets';
 import type { TargetConfig, TargetConfigError } from './collect-targets';
 import { collectWorkspacesConfig } from './collect-workspaces-config';
@@ -22,7 +24,9 @@ import type { WorkspacesConfig } from './collect-workspaces-config';
 import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
 import { formatJSONKind } from './format-json-kind';
 import { formatLegacyAgentKeys } from './format-legacy-agent-keys';
+import { formatLegacySourceKeys } from './format-legacy-source-keys';
 import { formatMixedAgentKeys } from './format-mixed-agent-keys';
+import { formatMixedSourceKeys } from './format-mixed-source-keys';
 import { configFile, stateDir } from './host/process-paths';
 import { LEGACY_AGENT_KEYS } from './legacy-agent-keys';
 import { LOCAL_TARGET } from './local-target';
@@ -35,12 +39,13 @@ export interface Config {
   agents: readonly AgentEntry[];
   agentErrors: readonly string[];
 
-  // The old agent keys a file without `agents` sets, in file order. Empty
-  // for a file that uses `agents` or sets none of them.
-
   // The agent a spawn without one runs.
   defaultAgent: AgentID;
-  dirs: DirsConfig;
+
+  // The workspace sources the daemon offers, in picker order, and the
+  // problems that left an entry out.
+  sources: readonly SourceEntry[];
+  sourceErrors: readonly string[];
   workspaces: WorkspacesConfig;
 
   // The credential references an agent's auth selects from, by profile
@@ -84,22 +89,18 @@ export interface Config {
   deprecations: readonly string[];
 }
 
-interface DirsConfig {
-  readonly roots: readonly string[];
-}
-
 interface LeaderKey {
   readonly code: number;
   readonly label: string;
 }
 
-// Every default but the agents, which the harness plugins read from the
-// first-run agents map.
-const DEFAULTS: Omit<Config, 'agents' | 'agentErrors' | 'defaultAgent'> = {
-  dirs: { roots: [] },
+// Every default but the agents and the sources, which come from the
+// first-run agents and sources maps.
+const DEFAULTS: Omit<
+  Config,
+  'agents' | 'agentErrors' | 'defaultAgent' | 'sources' | 'sourceErrors'
+> = {
   workspaces: {
-    githubOwner: null,
-    sources: null,
     gitTransports: DEFAULT_GIT_TRANSPORTS,
     root: null,
     targetRoots: new Map(),
@@ -167,18 +168,22 @@ export function loadConfig(
   return parseConfig(plugins, raw, file, home);
 }
 
-// The agents map a first run writes.
+// The agents and sources maps a first run writes.
 const FIRST_RUN_AGENTS = { claude: {} };
+const FIRST_RUN_SOURCES = { dirs: { roots: [] }, github: {}, git: {} };
 
 // Every default, with the agents the plugins read from the first-run
-// agents map.
+// agents map and the sources of the first-run sources map.
 function buildDefaultConfig(plugins: readonly AgentConfigPlugin[]): Config {
   const registry = collectAgents(FIRST_RUN_AGENTS, new Map(), plugins);
+  const sources = collectSources(FIRST_RUN_SOURCES);
 
   return {
     agents: registry.agents,
     agentErrors: registry.errors,
     defaultAgent: pickDefaultAgent(registry.agents),
+    sources: sources.sources,
+    sourceErrors: sources.errors,
     ...DEFAULTS,
   };
 }
@@ -241,6 +246,7 @@ export function renderDefaultConfig(): string {
   return `${JSON.stringify(
     {
       agents: FIRST_RUN_AGENTS,
+      sources: FIRST_RUN_SOURCES,
       ...written,
       workspaces: { ...rest, targets: Object.fromEntries(targetRoots) },
     },
@@ -288,7 +294,22 @@ export function parseConfig(
     return buildUnusableConfig(plugins, 'config_malformed', file, formatLegacyAgentKeys(present));
   }
 
-  const dirs = { roots: collectDirRoots(parsed.data.dirs, home) };
+  const legacy = buildLegacySources(raw);
+  const [firstLegacyKey] = legacy.keys;
+  const hasSources = Object.hasOwn(raw, 'sources');
+
+  // no rule picks between a value in sources and one in an old key
+  if (hasSources && firstLegacyKey !== undefined) {
+    return buildUnusableConfig(
+      plugins,
+      'config_malformed',
+      file,
+      formatMixedSourceKeys(firstLegacyKey),
+    );
+  }
+
+  const sourceMap = hasSources ? parsed.data.sources : legacy.sources;
+  const sources = collectSources(sourceMap, home);
   const workspaces = collectWorkspacesConfig(parsed.data.workspaces);
   const authProfiles = collectAuthProfiles(parsed.data.authProfiles);
 
@@ -309,7 +330,8 @@ export function parseConfig(
     agents: registry.agents,
     agentErrors: registry.errors,
     defaultAgent: pickDefaultAgent(registry.agents),
-    dirs,
+    sources: sources.sources,
+    sourceErrors: [...legacy.problems, ...sources.errors],
     workspaces: workspaces.workspaces,
     authProfiles: authProfiles.profiles,
     authProfileErrors: authProfiles.errors,
@@ -325,7 +347,10 @@ export function parseConfig(
     daemonErrors: daemons.errors,
     restoreFleetOnRestart: parsed.data.restoreFleetOnRestart ?? DEFAULTS.restoreFleetOnRestart,
     removedKeys: REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key)),
-    deprecations: replacement.warning === null ? [] : [replacement.warning],
+    deprecations: [
+      ...(replacement.warning === null ? [] : [replacement.warning]),
+      ...(legacy.keys.length === 0 ? [] : [formatLegacySourceKeys(legacy.keys)]),
+    ],
   };
 }
 

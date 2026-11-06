@@ -7,6 +7,7 @@ import { buildOptionalString } from './schema/build-optional-string';
 // falls back to a default instead of refusing to start atc.
 export const CONFIG_FILE_SCHEMA = z.object({
   agents: z.unknown().optional(),
+  sources: z.unknown().optional(),
   dirs: z.unknown().optional(),
   workspaces: z.unknown().optional(),
   authProfiles: z.unknown().optional(),

@@ -19,6 +19,7 @@ test('it lists the spawn history, then the roots, then zoxide, leaving out a gon
   mkdirSync(join(ctx.home, 'zoxide-dir'));
 
   const source = buildDirsSource({
+    id: 'dirs',
     roots: [join(ctx.home, 'projects')],
     readZoxideDirs: () =>
       Promise.resolve([
@@ -56,6 +57,7 @@ test.each([
   ['app', { kind: 'none' }],
 ] as const)('it reads typed %p as %p', async (input, expected) => {
   const source = buildDirsSource({
+    id: 'dirs',
     roots: [],
     readZoxideDirs: () => Promise.resolve([]),
     homeDir: '/home/tester',
@@ -71,6 +73,7 @@ test.each([
 
 test("it reads a typed relative path under the client's directory", async () => {
   const source = buildDirsSource({
+    id: 'dirs',
     roots: [],
     readZoxideDirs: () => Promise.resolve([]),
     homeDir: '/home/tester',
@@ -92,6 +95,7 @@ test("it completes a relative path under the client's directory", async () => {
   mkdirSync(join(ctx.home, 'work', 'beta'));
 
   const source = buildDirsSource({
+    id: 'dirs',
     roots: [],
     readZoxideDirs: () => Promise.resolve([]),
     homeDir: ctx.home,
@@ -114,6 +118,7 @@ test('it completes a relative path under the home when the request holds no clie
   mkdirSync(join(ctx.home, 'alpha'));
 
   const source = buildDirsSource({
+    id: 'dirs',
     roots: [],
     readZoxideDirs: () => Promise.resolve([]),
     homeDir: ctx.home,
@@ -133,6 +138,7 @@ test('it completes input that is not a path to nothing', async () => {
   const ctx = setupTest();
 
   const source = buildDirsSource({
+    id: 'dirs',
     roots: [],
     readZoxideDirs: () => Promise.resolve([]),
     homeDir: ctx.home,

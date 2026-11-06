@@ -7,6 +7,9 @@ import { readRootDirs } from './read-root-dirs';
 
 // What the source reads besides the spawn history a request brings.
 interface DirsSourceServices {
+  // The id of the config entry the source comes from.
+  readonly id: string;
+
   // The configured roots, each listing its child directories and their
   // worktrees.
   readonly roots: readonly string[];
@@ -20,7 +23,7 @@ interface DirsSourceServices {
 
 export function buildDirsSource(services: DirsSourceServices): SourceProvider {
   return {
-    id: 'dirs',
+    id: services.id,
     label: 'directory on the daemon host',
     kind: 'path',
     async list(_query, request) {

@@ -9,8 +9,6 @@ test.each([
   ['a home-relative root for the target over an absolute one', '/srv/ws', [['box', '~/box-ws']]],
 ] as const)('it lets the daemon pick the destination with %s', (_label, root, targetRoots) => {
   const workspaces = {
-    githubOwner: null,
-    sources: null,
     gitTransports: DEFAULT_GIT_TRANSPORTS,
     root,
     targetRoots: new Map(targetRoots),
@@ -30,8 +28,6 @@ test.each([
   'it refuses to let the daemon pick the destination with %s',
   (_label, root, targetRoots) => {
     const workspaces = {
-      githubOwner: null,
-      sources: null,
       gitTransports: DEFAULT_GIT_TRANSPORTS,
       root,
       targetRoots: new Map(targetRoots),

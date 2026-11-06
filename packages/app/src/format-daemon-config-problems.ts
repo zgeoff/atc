@@ -3,7 +3,7 @@ import type { Config, TargetConfigError } from '@atc/config';
 export function formatDaemonConfigProblems(
   config: Config,
   targetErrors: readonly TargetConfigError[],
-  missingSources: readonly string[],
+  sourceProblems: readonly string[],
 ): string[] {
   const lines = targetErrors.map((error) =>
     error.scope === 'config'
@@ -16,6 +16,7 @@ export function formatDaemonConfigProblems(
     ...config.workspaceErrors,
     ...config.authProfileErrors,
     ...config.agentErrors,
+    ...config.sourceErrors,
     ...config.deprecations,
   );
 
@@ -25,12 +26,7 @@ export function formatDaemonConfigProblems(
     );
   }
 
-  lines.push(
-    ...missingSources.map(
-      (id) =>
-        `workspaces.sources holds '${id}', which this daemon cannot offer; the picker leaves it out`,
-    ),
-  );
+  lines.push(...sourceProblems);
 
   return lines.map((line) => `atc daemon: config: ${line}`);
 }

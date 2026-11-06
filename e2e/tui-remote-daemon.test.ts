@@ -92,6 +92,7 @@ test("it lists only the remote daemon's directories and spawns in the first of t
         listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         sources: [
           buildDirsSource({
+            id: 'dirs',
             roots: [],
             readZoxideDirs: () => Promise.resolve([]),
             homeDir: paths.directory,
@@ -173,6 +174,7 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
         listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
         sources: [
           buildDirsSource({
+            id: 'dirs',
             roots: [],
             readZoxideDirs: () => Promise.resolve([]),
             homeDir: paths.directory,

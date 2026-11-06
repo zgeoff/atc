@@ -1,19 +1,15 @@
 import { expect, test } from 'bun:test';
 import { collectWorkspacesConfig } from './collect-workspaces-config';
 
-test('it reads the GitHub owner, the source order, the git transports, the global root, and each target root', () => {
+test('it reads the git transports, the global root, and each target root', () => {
   expect(
     collectWorkspacesConfig({
-      githubOwner: 'zgeoff',
-      sources: ['git', 'dirs'],
       gitTransports: ['https', 'ssh', 'http', 'file'],
       root: '~/ws',
       targets: { box: '/home/dev/ws', bad: 7, empty: '' },
     }),
   ).toStrictEqual({
     workspaces: {
-      githubOwner: 'zgeoff',
-      sources: ['git', 'dirs'],
       gitTransports: ['https', 'ssh', 'http', 'file'],
       root: '~/ws',
       targetRoots: new Map([['box', '/home/dev/ws']]),
@@ -23,35 +19,11 @@ test('it reads the GitHub owner, the source order, the git transports, the globa
   });
 });
 
-test.each([
-  [undefined],
-  [null],
-  ['zgeoff'],
-  [{}],
-  [{ githubOwner: 7, root: 7, targets: 'box' }],
-  [{ githubOwner: '--x', root: '' }],
-  [{ githubOwner: 'a/b' }],
-])('it reads no owner, no roots, and the default transports from %p', (raw) => {
-  expect(collectWorkspacesConfig(raw)).toStrictEqual({
-    workspaces: {
-      githubOwner: null,
-      sources: null,
-      gitTransports: ['https', 'ssh'],
-      root: null,
-      targetRoots: new Map(),
-      cleanup: { enabled: true, check: 'unpushed' },
-    },
-    errors: [],
-  });
-});
-
-test.each([[{ sources: 'dirs' }], [{ sources: ['dirs', 7] }], [{ sources: ['dirs', ''] }]])(
-  'it reads the default source order from %p',
+test.each([[undefined], [null], ['zgeoff'], [{}], [{ root: 7, targets: 'box' }], [{ root: '' }]])(
+  'it reads no roots and the default transports from %p',
   (raw) => {
     expect(collectWorkspacesConfig(raw)).toStrictEqual({
       workspaces: {
-        githubOwner: null,
-        sources: null,
         gitTransports: ['https', 'ssh'],
         root: null,
         targetRoots: new Map(),
@@ -70,8 +42,6 @@ test.each([
 
   expect(collectWorkspacesConfig({ gitTransports: ['https', name] })).toStrictEqual({
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: { invalid: error },
       root: null,
       targetRoots: new Map(),
@@ -98,8 +68,6 @@ test.each([
 
   expect(collectWorkspacesConfig({ gitTransports })).toStrictEqual({
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: { invalid: error },
       root: null,
       targetRoots: new Map(),
@@ -122,8 +90,6 @@ test.each([[{ cleanup: {} }], [{ cleanup: { enabled: true, check: 'unpushed' } }
 test('it reads the none check', () => {
   expect(collectWorkspacesConfig({ cleanup: { check: 'none' } })).toStrictEqual({
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -138,8 +104,6 @@ test.each([['nnone'], [false]])(
   (check) => {
     expect(collectWorkspacesConfig({ cleanup: { check } })).toStrictEqual({
       workspaces: {
-        githubOwner: null,
-        sources: null,
         gitTransports: ['https', 'ssh'],
         root: null,
         targetRoots: new Map(),
@@ -155,8 +119,6 @@ test.each([['nnone'], [false]])(
 test('it reads cleanup as off when the config turns it off', () => {
   expect(collectWorkspacesConfig({ cleanup: { enabled: false } })).toStrictEqual({
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -175,8 +137,6 @@ test.each([
 
   expect(collectWorkspacesConfig(raw)).toStrictEqual({
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -189,8 +149,6 @@ test.each([
 test('it reads an empty transport list as one that allows no transport', () => {
   expect(collectWorkspacesConfig({ gitTransports: [] })).toStrictEqual({
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: [],
       root: null,
       targetRoots: new Map(),

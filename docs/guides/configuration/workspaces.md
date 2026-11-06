@@ -1,26 +1,92 @@
-# Directories and workspaces
+# Sources and workspaces
 
-Every session runs in a working directory. The directory picker offers the directories you work in,
-and a spawn from a git repository fetches it over an allowed git transport and clones it into a new
-directory on its target. The [targets guide](./targets.md) covers the targets themselves.
+Every session runs in a working directory. When you start a session, the spawn picker in the `atc`
+terminal client lists what the daemon's sources offer: directories on the daemon's host, GitHub
+repositories, and a git URL you type. A spawn from a git repository fetches it over an allowed git
+transport and clones it into a new directory on its target. The [targets guide](./targets.md) covers
+the targets themselves.
 
-## Directories
+## Sources
 
-The directory picker behind `n` lists the directory you ran `atc` from, then what the daemon's
-`dirs` source lists in a fixed order: atc's own spawn history (most recent first), then every
-project under `dirs.roots`, then zoxide's list when zoxide is installed. A path that no longer
-exists is dropped, and a duplicate keeps its first position.
+The `sources` key of `~/.config/atc/config.json` lists the sources the daemon offers, keyed by
+source id. The picker shows them in the order the keys appear. The daemon offers only the sources
+you list, so you add a source by listing it and remove one by deleting its entry.
 
-`workspaces.sources` holds the ids of the sources the daemon offers, in picker order, and `null`
-offers every source the daemon can run. When the daemon offers no source, the picker refuses the
-spawn and names `workspaces.sources`. An adopt needs the `dirs` source, and the picker refuses one
-without it the same way.
+When no config file exists, atc writes one with the three built-in sources:
+`{ "dirs": { "roots": [] }, "github": {}, "git": {} }`. In this example, the `acme` entry is a
+second GitHub source that lists one organization's repositories:
 
 ```json
 {
-  "dirs": { "roots": ["~/projects", "~/work"] }
+  "sources": {
+    "dirs": { "roots": ["~/projects", "~/work"] },
+    "github": {},
+    "acme": { "kind": "github", "owner": "acme-tools" },
+    "git": {}
+  }
 }
 ```
+
+| Field   | Kinds    | Default                                | Meaning                                                                                                                                                                                                  |
+| ------- | -------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`  | all      | the id, for `dirs`, `github` and `git` | The source: `dirs`, `github` or `git`. An entry with any other id needs it.                                                                                                                              |
+| `roots` | `dirs`   | `[]`                                   | Directories whose child directories the picker lists. The [directories](#directories) section covers them.                                                                                               |
+| `owner` | `github` | `null`                                 | The account or organization whose repositories the source lists. Typing `owner/` in the picker lists another owner. `null` lists the 500 most recently pushed repositories your `gh` account can access. |
+| `bin`   | `github` | `"gh"`                                 | The `gh` executable: a name looked up on `PATH`, or a path.                                                                                                                                              |
+
+The entry's id identifies the source in the config and in the daemon's requests. The picker shows
+each source's label, such as `GitHub repository`, in place of its id. An id is 1 to 64 characters.
+atc refuses an id of digits alone, because JavaScript moves an integer key to the front of an
+object, which would change the order. atc also refuses `__proto__`, which JavaScript reserves.
+
+atc leaves out an entry it cannot use, and loads the others. The daemon prints one line for each
+problem when it starts. atc leaves out an entry with any of these:
+
+- an id it refuses;
+- an unknown field, a field of another kind, or a value that field does not take, such as
+  `sources.acme: owner is not a GitHub account or organization`;
+- a `kind` that contradicts a built-in id, such as `"github": { "kind": "git" }`;
+- a second `dirs` entry, because adopting an existing agent conversation opens the picker on the one
+  directory list.
+
+When `sources` is not an object, the daemon offers no source and prints
+`sources must be an object of source entries`. The daemon also leaves out a `github` entry when it
+cannot find the entry's `gh`, and prints `sources.github: gh is not on the daemon's PATH; left out`.
+
+With `"sources": {}`, the daemon offers no source, and the picker refuses a spawn with
+`the daemon offers no sources · set sources · esc cancel`. An adopt needs a `dirs` source, and the
+picker refuses one without it the same way.
+
+### Deprecated source keys
+
+When a config file has no `sources` key, atc builds the sources from three deprecated keys:
+`dirs.roots`, `workspaces.githubOwner` and `workspaces.sources`.
+
+- `workspaces.sources` lists built-in source ids in picker order. When it is `null` or absent, the
+  daemon offers `dirs`, `github` and `git`. atc leaves out any other id, with a line.
+- `dirs.roots` becomes the `dirs` entry's `roots`.
+- `workspaces.githubOwner` becomes the `github` entry's `owner`.
+
+The daemon then prints a warning that names the deprecated keys the file sets, such as
+`config.json uses dirs and workspaces.sources; run 'atc config migrate' to move them into sources`.
+
+`atc config migrate` writes `sources` where the first deprecated key was, removes the deprecated
+keys, and keeps in each entry only the fields that differ from a default. The
+[agents guide](./agents.md#migrating-from-the-old-keys) covers the command's flags and its backup.
+
+A file that sets `sources` and a deprecated key holds two values for one setting, and atc picks
+neither. The daemon still starts, but every spawn fails with a problem such as
+`dirs cannot be set together with sources; move it into sources and remove it`. `"sources": {}`
+counts as setting `sources`. `atc config migrate` refuses that file with the same message, exits 1,
+and writes nothing, so you move the deprecated keys into `sources` by hand.
+
+## Directories
+
+When you press `n` in the `atc` client, the spawn picker opens on its first source. With a `dirs`
+source first, that is the directory list. It lists the directory you ran `atc` from, then what the
+`dirs` source finds, in this order: atc's own spawn history (most recent first), every project under
+the source's `roots`, and zoxide's list when zoxide is installed. The source drops a path that no
+longer exists, and lists a path that appears twice only at its first position.
 
 Each root contributes its immediate child directories and each child's `.worktrees/*` entries, so
 `~/projects/atc` and `~/projects/atc/.worktrees/fix-picker` both list for a root of `~/projects`.

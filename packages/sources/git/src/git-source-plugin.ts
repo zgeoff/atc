@@ -6,6 +6,6 @@ export const GIT_SOURCE_PLUGIN = definePlugin({
   kind: 'source',
   id: 'git',
   configFields: [],
-  configSchema: () => z.object({}),
-  create: () => buildGitSource(),
+  configSchema: (context) => z.object({}).transform(() => ({ id: context.entryID })),
+  create: (config) => buildGitSource(config.id),
 });

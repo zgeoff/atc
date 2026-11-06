@@ -246,8 +246,9 @@ atc config migrate --write
 A gateway the old parser left out, because it had no `baseURL`, took an id that is built in or
 empty, or failed its auth checks, stays out. The command prints one line on stderr for each, such as
 `atc config migrate: gateways.broken is left out: it has no baseURL`, and never prints a value. A
-file that already uses `agents` and sets no removed key prints
-`config.json already uses agents; nothing to migrate` and changes nothing. The command also drops a
+file that uses `agents`, `sources` or both, and sets no removed, old agent or
+[deprecated source](./workspaces.md#deprecated-source-keys) key, prints a line such as
+`config.json already uses agents; nothing to migrate`, and changes nothing. The command also drops a
 key atc no longer reads, such as `resumeInterruptedTurns`, and prints a line on stderr naming it.
 
 A file that sets `agents` and any old key is unusable. Every spawn fails, as for invalid JSON, and

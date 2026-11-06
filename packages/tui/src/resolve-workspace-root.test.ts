@@ -4,8 +4,6 @@ import { resolveWorkspaceRoot } from './resolve-workspace-root';
 test('it lands checkouts on the daemon machine under the default root in the home directory', () => {
   const root = resolveWorkspaceRoot(
     {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -21,8 +19,6 @@ test('it lands checkouts on the daemon machine under the default root in the hom
 test("it takes a target's own root over the global root", () => {
   const root = resolveWorkspaceRoot(
     {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: '/srv/ws',
       targetRoots: new Map([['box', '/home/dev/ws']]),
@@ -37,8 +33,6 @@ test("it takes a target's own root over the global root", () => {
 test('it takes the global root on a remote target without its own', () => {
   const root = resolveWorkspaceRoot(
     {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: '/srv/ws',
       targetRoots: new Map(),
@@ -55,8 +49,6 @@ test.each([[null], ['~/ws'], ['ws']])(
   (configured) => {
     const root = resolveWorkspaceRoot(
       {
-        githubOwner: null,
-        sources: null,
         gitTransports: ['https', 'ssh'],
         root: configured,
         targetRoots: new Map(),
@@ -75,8 +67,6 @@ test.each([[null], ['~/ws'], ['ws']])(
 test('it refuses a relative root on the daemon machine', () => {
   const root = resolveWorkspaceRoot(
     {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: 'ws',
       targetRoots: new Map(),

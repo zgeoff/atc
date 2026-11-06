@@ -27,10 +27,13 @@ test('#parseConfig leaves every target unusable, local included, and grants no p
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -95,10 +98,13 @@ test('#parseConfig falls back field by field when a field is wrong-typed instead
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -118,7 +124,7 @@ test('#parseConfig falls back field by field when a field is wrong-typed instead
     daemonErrors: [],
     restoreFleetOnRestart: true,
     removedKeys: [],
-    deprecations: [],
+    deprecations: ["config.json uses dirs; run 'atc config migrate' to move it into sources"],
   });
 });
 
@@ -161,10 +167,13 @@ test('#parseConfig leaves every target unusable and names the migrate command fo
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -228,16 +237,127 @@ test('#parseConfig collects the configured hooks map', () => {
   });
 });
 
-test('#parseConfig collects the configured directory roots, expanding a leading tilde to the home', () => {
+test('#parseConfig loads exactly the sources a sources map holds, in its order, expanding a leading tilde to the home', () => {
   const config = parseConfig(
     buildStubHarnessPlugins(),
-    { dirs: { roots: ['~/projects/', '/srv/work', 7, ''] } },
+    { sources: { dirs: { roots: ['~/code'] }, git: {} } },
     '/c.json',
     '/home/someone',
   );
 
-  expect(config.dirs).toStrictEqual({ roots: ['/home/someone/projects', '/srv/work'] });
+  expect({
+    sources: config.sources,
+    sourceErrors: config.sourceErrors,
+    deprecations: config.deprecations,
+  }).toStrictEqual({
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: ['/home/someone/code'] },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
+    deprecations: [],
+  });
 });
+
+test('#parseConfig offers no source for an empty sources map', () => {
+  const config = parseConfig(buildStubHarnessPlugins(), { sources: {} });
+
+  expect({ sources: config.sources, sourceErrors: config.sourceErrors }).toStrictEqual({
+    sources: [],
+    sourceErrors: [],
+  });
+});
+
+test('#parseConfig builds the sources from the old keys as before, with a deprecation that names only the keys the file sets', () => {
+  const config = parseConfig(
+    buildStubHarnessPlugins(),
+    {
+      dirs: { roots: ['~/projects/', '/srv/work', 7, ''] },
+      workspaces: { sources: ['git', 'dirs'] },
+    },
+    '/c.json',
+    '/home/someone',
+  );
+
+  expect({
+    sources: config.sources,
+    sourceErrors: config.sourceErrors,
+    deprecations: config.deprecations,
+  }).toStrictEqual({
+    sources: [
+      { id: 'git', kind: 'git' },
+      { id: 'dirs', kind: 'dirs', roots: ['/home/someone/projects', '/srv/work'] },
+    ],
+    sourceErrors: [],
+    deprecations: [
+      "config.json uses dirs and workspaces.sources; run 'atc config migrate' to move them into sources",
+    ],
+  });
+});
+
+test('#parseConfig gives a null source list from the old keys all three built-in sources, with the owner on the github entry', () => {
+  const config = parseConfig(buildStubHarnessPlugins(), {
+    workspaces: { githubOwner: 'acme-tools', sources: null },
+  });
+
+  expect({ sources: config.sources, deprecations: config.deprecations }).toStrictEqual({
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: 'acme-tools', bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    deprecations: [
+      "config.json uses workspaces.githubOwner and workspaces.sources; run 'atc config migrate' to move them into sources",
+    ],
+  });
+});
+
+test('#parseConfig names one old key alone in the deprecation', () => {
+  const config = parseConfig(buildStubHarnessPlugins(), { dirs: { roots: [] } });
+
+  expect(config.deprecations).toStrictEqual([
+    "config.json uses dirs; run 'atc config migrate' to move it into sources",
+  ]);
+});
+
+test('#parseConfig leaves out an id the old source list holds that atc has no source for', () => {
+  const config = parseConfig(buildStubHarnessPlugins(), {
+    workspaces: { sources: ['forge', 'git'] },
+  });
+
+  expect({ sources: config.sources, sourceErrors: config.sourceErrors }).toStrictEqual({
+    sources: [{ id: 'git', kind: 'git' }],
+    sourceErrors: [
+      "workspaces.sources holds 'forge', which is not a source atc offers; it is left out",
+    ],
+  });
+});
+
+test.each([
+  ['dirs', { sources: {}, dirs: { roots: [] } }],
+  [
+    'workspaces.githubOwner',
+    { workspaces: { githubOwner: 'south-labs' }, sources: { github: { owner: 'north-labs' } } },
+  ],
+  ['workspaces.sources', { sources: { git: {} }, workspaces: { sources: null }, dirs: {} }],
+])(
+  '#parseConfig leaves every target unusable for a file that sets sources, naming its first old key %s',
+  (key, raw) => {
+    const config = parseConfig(buildStubHarnessPlugins(), raw, '/c.json');
+
+    expect({ targets: config.targets, targetErrors: config.targetErrors }).toStrictEqual({
+      targets: [],
+      targetErrors: [
+        {
+          scope: 'config',
+          problem: 'config_malformed',
+          path: '/c.json',
+          detail: `${key} cannot be set together with sources; move it into sources and remove it`,
+        },
+      ],
+    });
+  },
+);
 
 test('#parseConfig expands a leading tilde in a hook dir to the home', () => {
   const config = parseConfig(
@@ -274,10 +394,13 @@ test('#parseConfig reads the targets and default target a config sets', () => {
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -325,10 +448,13 @@ test('#parseConfig reads the principals a config sets', () => {
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -408,10 +534,13 @@ test('#parseConfig holds no targets and an error instead of throwing for a malfo
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -454,10 +583,13 @@ test('#parseConfig reads the config a first run writes back as the defaults, wit
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -500,10 +632,13 @@ test('#parseConfig gives a file with no agent keys at all the three built-in age
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -547,10 +682,13 @@ test('#parseConfig loads exactly the agents an agents map holds and records no o
     ],
     agentErrors: [],
     defaultAgent: 'codex',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -587,10 +725,13 @@ test('#parseConfig keeps reporting claude as the default agent for an empty regi
     agents: [],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -621,10 +762,13 @@ test('#parseConfig leaves the registry empty with one error when agents is not a
     agents: [],
     agentErrors: ['agents must be an object of agent entries'],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -665,10 +809,13 @@ test('#parseConfig refuses a config that sets agents beside an old agent key', (
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -737,10 +884,13 @@ test('#parseConfig restores the fleet on restart by default', () => {
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -853,10 +1003,13 @@ test('#parseConfig loads a config that still sets resumeInterruptedTurns and rep
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -880,16 +1033,14 @@ test('#parseConfig loads a config that still sets resumeInterruptedTurns and rep
   });
 });
 
-test('#renderDefaultConfig writes an agents map with the claude entry and no old agent key', () => {
+test('#renderDefaultConfig writes an agents map with the claude entry, a sources map with the three built-in sources, and no old agent or source key', () => {
   expect(JSON.parse(renderDefaultConfig())).toStrictEqual({
     agents: { claude: {} },
-    dirs: { roots: [] },
+    sources: { dirs: { roots: [] }, github: {}, git: {} },
     hooks: {},
     leader: { code: 0, label: '^Space' },
     restoreFleetOnRestart: true,
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targets: {},
@@ -911,13 +1062,11 @@ test('#loadConfig writes the default config when the file is missing', () => {
 
   expect(JSON.parse(readFileSync(file, 'utf8'))).toStrictEqual({
     agents: { claude: {} },
-    dirs: { roots: [] },
+    sources: { dirs: { roots: [] }, github: {}, git: {} },
     hooks: {},
     leader: { code: 0, label: '^Space' },
     restoreFleetOnRestart: true,
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targets: {},
@@ -963,10 +1112,13 @@ test('#loadConfig returns the defaults when the file is missing', () => {
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -996,7 +1148,10 @@ test('#loadConfig reads an existing file against the home it is given', () => {
 
   writeFileSync(
     file,
-    JSON.stringify({ agents: { claude: { bin: '/opt/claude' } }, dirs: { roots: ['~/projects'] } }),
+    JSON.stringify({
+      agents: { claude: { bin: '/opt/claude' } },
+      sources: { dirs: { roots: ['~/projects'] } },
+    }),
   );
 
   expect(
@@ -1020,10 +1175,9 @@ test('#loadConfig reads an existing file against the home it is given', () => {
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [join(ctx.directory, 'home', 'projects')] },
+    sources: [{ id: 'dirs', kind: 'dirs', roots: [join(ctx.directory, 'home', 'projects')] }],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -1104,10 +1258,13 @@ test('#loadConfig leaves every target unusable when the file cannot be read', ()
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
@@ -1158,10 +1315,13 @@ test('#loadConfig leaves every target unusable when the file is not valid JSON',
     ],
     agentErrors: [],
     defaultAgent: 'claude',
-    dirs: { roots: [] },
+    sources: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: 'gh' },
+      { id: 'git', kind: 'git' },
+    ],
+    sourceErrors: [],
     workspaces: {
-      githubOwner: null,
-      sources: null,
       gitTransports: ['https', 'ssh'],
       root: null,
       targetRoots: new Map(),
