@@ -241,6 +241,63 @@ test('it refuses a spawn into a workspace while the check that decides its remov
   expect(spawned).toMatchObject([{ status: 'rejected', reason: { code: 'workspace_overlap' } }]);
 });
 
+test('it keeps a state folder whose session starts to spawn while the prune checks a workspace', async () => {
+  const ctx = await setupTest();
+  const clean = await createGitFixture({ prefix: 'atc-pruner-late-' });
+
+  const late = toSessionID('late-spawn');
+  const folder = join(ctx.stateDir, 'sessions', late);
+  const gate = Promise.withResolvers<null>();
+
+  mkdirSync(folder, { recursive: true });
+
+  await ctx.seed.workspace(toSessionID('forgotten-clean'), clean.work, clean.sha);
+
+  ctx.provider.holdCommands();
+
+  const pruning = ctx.pruner.prune(true);
+
+  await waitFor(() => {
+    expect(ctx.provider.hasHeldCommands()).toBeTrue();
+  });
+
+  ctx.provider.finishCommands();
+  ctx.provider.holdCommands();
+
+  await waitFor(() => {
+    expect(ctx.provider.commands.at(-1)?.argv).toContain(WORKSPACE_CHECK_SCRIPT);
+  });
+
+  const spawn = ctx.manager.spawn({
+    id: late,
+    cwd: ctx.root,
+    name: 'late-baker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    materialize: () => gate.promise,
+  });
+
+  registerTestCleanup(async () => {
+    gate.resolve(null);
+
+    await Promise.allSettled([spawn]);
+  });
+
+  ctx.provider.finishCommands();
+
+  const prune = await pruning;
+
+  expect(prune.folders).toPartiallyContain({
+    verdict: 'keep',
+    kind: 'state',
+    path: folder,
+    reasons: ['in use by session late-spawn'],
+  });
+
+  expect(existsSync(folder)).toBeTrue();
+});
+
 test('it logs nothing on a dry run', async () => {
   const ctx = await setupTest();
   const dirty = await createGitFixture({ prefix: 'atc-pruner-dirty-' });
