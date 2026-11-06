@@ -7,9 +7,11 @@ import { match } from 'ts-pattern';
 import { formatError } from '../auth/format-error';
 import { buildWorkspaceRootDir } from '../workspace/build-workspace-root-dir';
 import { collectPruneCandidates } from './collect-prune-candidates';
+import type { ListedSession } from './collect-prune-candidates';
 import type { SessionManager } from './create-session-manager';
-import { isPathWithin } from './is-path-within';
-import { pickWorkspaceCleanup } from './pick-workspace-cleanup';
+import { pickPruneStatePlan } from './pick-prune-state-plan';
+import { pickPruneWorkspacePlan } from './pick-prune-workspace-plan';
+import type { PruneWorkspacePlan, StoredDir } from './pick-prune-workspace-plan';
 import { pickWorkspaceEligibility } from './pick-workspace-eligibility';
 import type { WorkspaceEligibility } from './pick-workspace-eligibility';
 import { readHostDirBytes } from './read-host-dir-bytes';
@@ -62,24 +64,11 @@ export interface WorkspacePruner {
   readonly prune: (remove: boolean) => Promise<WorkspacePrune>;
 }
 
-// The directory of a session on the daemon's machine that only the stored fleet lists, as the
-// machine resolves it, or null when it did not resolve.
-interface StoredDir {
-  readonly id: SessionID;
-  readonly physical: string | null;
-}
-
 // One prune's mode, the stored fleet as it read it, and the stored sessions' directories.
 interface PruneRun {
   readonly remove: boolean;
   readonly fleet: readonly FleetEntry[];
   readonly storedDirs: readonly StoredDir[];
-}
-
-interface ListedSession {
-  readonly id: SessionID;
-  readonly cwd: string;
-  readonly onMachine: boolean;
 }
 
 export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePruner {
@@ -215,28 +204,20 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
       'run',
     ).provider;
 
-    const directory = checked.directory;
-
-    const result = await runWorkspaceCheck({ provider, host: null, directory, sha: checked.sha });
-
-    const forms = [directory, ...(result.kind === 'checked' ? [result.path] : [])];
-
-    const listedUser = collectListed(run.fleet).find(
-      (session) => session.onMachine && forms.some((form) => isPathWithin(session.cwd, form)),
-    );
-
-    // a stored directory that did not resolve may lead anywhere, so it keeps the folder
-    const storedUser = run.storedDirs.find((stored) => {
-      const physical = stored.physical;
-
-      return physical === null || forms.some((form) => isPathWithin(physical, form));
+    const result = await runWorkspaceCheck({
+      provider,
+      host: null,
+      directory: checked.directory,
+      sha: checked.sha,
     });
 
-    const plan = pickWorkspaceCleanup({
+    const plan = pickPruneWorkspacePlan({
       check: deps.settings.check,
-      directory,
+      directory: checked.directory,
       result,
-      user: listedUser?.id ?? storedUser?.id ?? null,
+      listed: collectListed(run.fleet),
+      storedDirs: run.storedDirs,
+      remove: run.remove,
     });
 
     if (plan.action === 'skip') {
@@ -245,22 +226,44 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
 
     const bytes = await readHostDirBytes(provider, null, plan.path);
 
-    if (plan.action === 'keep') {
-      return { verdict: 'keep', kind: 'workspace', path: plan.path, bytes, reasons: plan.reasons };
-    }
+    return match(plan)
+      .returnType<Promise<WorkspacePruneFolder | null>>()
+      .with({ action: 'keep' }, (kept) =>
+        Promise.resolve({
+          verdict: 'keep',
+          kind: 'workspace',
+          path: kept.path,
+          bytes,
+          reasons: kept.reasons,
+        }),
+      )
+      .with({ action: 'report' }, (report) =>
+        Promise.resolve({
+          verdict: 'remove',
+          kind: 'workspace',
+          path: report.path,
+          bytes,
+          found: report.found,
+        }),
+      )
+      .with({ action: 'remove' }, (removal) => removeWorkspace(row, provider, removal, bytes))
+      .exhaustive();
+  };
 
-    if (!run.remove) {
-      return { verdict: 'remove', kind: 'workspace', path: plan.path, bytes, found: plan.found };
-    }
-
+  const removeWorkspace = async (
+    row: WorkspaceMaterialization,
+    provider: ExecutionProvider,
+    removal: Extract<PruneWorkspacePlan, { action: 'remove' }>,
+    bytes: number | null,
+  ): Promise<WorkspacePruneFolder | null> => {
     const cleanup = await removeCheckedWorkspace({
       manager,
       provider,
       id: row.sessionID,
       hostKey: row.sessionID,
       target: row.target,
-      path: plan.path,
-      found: plan.found,
+      path: removal.path,
+      found: removal.found,
     });
 
     return match(cleanup)
@@ -300,12 +303,14 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
 
     const bytes = await deps.readDirBytes(path);
 
-    if (!run.remove) {
+    // a session with the id may have listed or started while the prune checked other folders
+    const plan = pickPruneStatePlan({ remove: run.remove, owned: isOwned(id, run.fleet) });
+
+    if (plan === 'report') {
       return { verdict: 'remove', kind: 'state', path, bytes, found: [] };
     }
 
-    // a session with the id may have listed or started while the prune checked other folders
-    if (isOwned(id, run.fleet)) {
+    if (plan === 'keep') {
       return { verdict: 'keep', kind: 'state', path, bytes, reasons: [`in use by session ${id}`] };
     }
 

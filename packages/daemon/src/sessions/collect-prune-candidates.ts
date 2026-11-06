@@ -12,7 +12,7 @@ interface MaterializationRow {
 }
 
 // A session the fleet lists, or one a kill or forget still holds, and the folder it runs in.
-interface ListedSession {
+export interface ListedSession {
   readonly id: SessionID;
   readonly cwd: string;
 
