@@ -298,6 +298,12 @@ test('it lists an owner typed in the list through the source that reads it', asy
 
   await ctx.waitFor('spawn: workspace · github: acme');
   await ctx.waitFor('github:acme/app  private');
+
+  const lists = readFileSync(join(ctx.home, 'gh-argv'), 'utf8')
+    .split('\n')
+    .filter((line) => line.startsWith('repo list acme '));
+
+  expect(lists).toHaveLength(1);
 });
 
 test('it probes a repository typed in the list at the URL its source reads it as', async () => {
