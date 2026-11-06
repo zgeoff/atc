@@ -1,6 +1,6 @@
 import { ansi } from '@atc/core';
 import { machineTypes } from '@zgeoff/std';
-import { match } from 'ts-pattern';
+import { P, match } from 'ts-pattern';
 import { assertEvent, enqueueActions, raise, setup } from 'xstate';
 import { drawPicker } from '../ui';
 import { openAgentMenu } from './agent-step';
@@ -23,7 +23,6 @@ import { findSource, getSelectedIndex } from './picker-queries';
 import { applyGitListing } from './source-step';
 
 const COMPLETION_DELAY_MS = 120;
-const LISTINGS_ID = 'listings';
 
 type PickerEvent =
   | { readonly type: 'OPEN'; readonly resume: boolean }
@@ -34,7 +33,7 @@ type PickerEvent =
   | { readonly type: 'REQUEST'; readonly request: PickerRequest }
   | { readonly type: 'REQUEST_DONE'; readonly outcome: RequestOutcome }
   | { readonly type: 'CANCEL_REQUEST' }
-  | { readonly type: 'LISTED'; readonly outcome: ListingOutcome }
+  | { readonly type: `xstate.done.actor.listing.${string}`; readonly output: ListingOutcome }
   | { readonly type: 'COMPLETE' }
   | { readonly type: 'COMPLETED'; readonly outcome: CompletionOutcome }
   | { readonly type: 'CANCEL_COMPLETION' };
@@ -76,10 +75,13 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
               enqueue.raise({ type: 'CANCEL_REQUEST' });
             })
             .with({ kind: 'list' }, (listing) => {
-              enqueue.sendTo(LISTINGS_ID, { type: 'LIST', request: listing.request });
+              const id = toListingChildID(listing.request.sourceID);
+
+              enqueue.stopChild(id);
+              enqueue.spawnChild('listing', { id, input: listing.request });
             })
             .with({ kind: 'cancel-listing' }, (cancel) => {
-              enqueue.sendTo(LISTINGS_ID, { type: 'CANCEL_LISTING', sourceID: cancel.sourceID });
+              enqueue.stopChild(toListingChildID(cancel.sourceID));
             })
             .with({ kind: 'complete' }, () => {
               enqueue.raise({ type: 'COMPLETE' });
@@ -129,6 +131,11 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
             .exhaustive();
         }
       }),
+      stopListings: enqueueActions((args) => {
+        for (const source of args.context.sources) {
+          args.enqueue.stopChild(toListingChildID(source.id));
+        }
+      }),
     },
   }).createMachine({
     id: 'spawn-picker',
@@ -142,14 +149,13 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
       closed: {},
       open: {
         type: 'parallel',
-        // oxlint-disable-next-line zgeoff/no-abbreviated-names -- xstate's invoke config names its actor src
-        invoke: { id: LISTINGS_ID, src: 'listings' },
+        exit: 'stopListings',
         on: {
           CLOSE: '#spawn-picker.closed',
           KEY: { actions: 'step' },
           STOP: { actions: 'step' },
           REQUEST_DONE: { actions: 'step' },
-          LISTED: { actions: 'step' },
+          'xstate.done.actor.listing.*': { actions: 'step' },
           COMPLETED: { actions: 'step' },
         },
         states: {
@@ -239,8 +245,8 @@ function applyEvent(flow: PickerFlow, event: PickerEvent) {
     .with({ type: 'REQUEST_DONE' }, (done) => {
       applyRequestOutcome(flow, done.outcome);
     })
-    .with({ type: 'LISTED' }, (listed) => {
-      applyListing(flow, listed.outcome);
+    .with({ type: P.string.startsWith('xstate.done.actor.listing.') }, (done) => {
+      applyListing(flow, done.output);
     })
     .with({ type: 'COMPLETED' }, (completed) => {
       applyCompletion(flow, completed.outcome);
@@ -300,6 +306,12 @@ function settleFlow(flow: PickerFlow) {
   }
 
   ctx.selected = getSelectedIndex(ctx);
+}
+
+// Each source lists in a child of its own, so a listing of one source never
+// stops another's, and a second listing of a source replaces its first.
+function toListingChildID(sourceID: string) {
+  return `listing.${sourceID}`;
 }
 
 function getCompletion(context: PickerContext): CompletionRequest {

@@ -1,5 +1,5 @@
 import type { AgentEntry, GitProbeResult, SourceEntry, SourceInterpretation } from '@atcx/contract';
-import { fromCallback, fromPromise } from 'xstate';
+import { fromPromise } from 'xstate';
 import { collectTargetPicks } from '../collect-target-picks';
 import type { TargetPick } from '../collect-target-picks';
 import { canTakeReading } from './can-take-reading';
@@ -56,10 +56,6 @@ export interface ListingOutcome<TRequest extends ListingRequest = ListingRequest
   readonly answer: Answer | null;
   readonly error: unknown;
 }
-
-export type ListingCommand =
-  | { readonly type: 'LIST'; readonly request: ListingRequest }
-  | { readonly type: 'CANCEL_LISTING'; readonly sourceID: string };
 
 export interface CompletionOutcome {
   readonly request: CompletionRequest;
@@ -187,61 +183,28 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
       };
     }),
 
-    // One listing runs per source, so a listing of one source never stops
-    // another's; a second listing of a source replaces its first.
-    listings: fromCallback<ListingCommand>((args) => {
-      const running = new Map<string, AbortController>();
+    listing: fromPromise<ListingOutcome, ListingRequest>(async (args) => {
+      const request = args.input;
 
-      const runListing = async (request: ListingRequest, signal: AbortSignal) => {
-        const sent = await sendAnswered('sources.list', request.params);
+      const sent = await sendAnswered('sources.list', request.params);
 
-        if (
-          request.kind === 'git' &&
-          sent.answer !== null &&
-          Array.isArray(sent.answer['candidates'])
-        ) {
-          void deps.listingCache?.writeListing(request.key, {
-            candidates: sent.answer['candidates'],
-            scope: typeof sent.answer['scope'] === 'string' ? sent.answer['scope'] : request.scope,
-            listedAt: request.requestedAt,
-          });
-        }
-
-        const dropped = request.kind === 'path' ? 'directory listing' : 'listing';
-
-        reportDrop(signal, dropped);
-
-        if (signal.aborted) {
-          return;
-        }
-
-        running.delete(request.sourceID);
-
-        args.sendBack({
-          type: 'LISTED',
-          outcome: { request, answer: sent.answer, error: sent.error },
+      if (
+        request.kind === 'git' &&
+        sent.answer !== null &&
+        Array.isArray(sent.answer['candidates'])
+      ) {
+        void deps.listingCache?.writeListing(request.key, {
+          candidates: sent.answer['candidates'],
+          scope: typeof sent.answer['scope'] === 'string' ? sent.answer['scope'] : request.scope,
+          listedAt: request.requestedAt,
         });
-      };
+      }
 
-      args.receive((command) => {
-        const sourceID = command.type === 'LIST' ? command.request.sourceID : command.sourceID;
+      const dropped = request.kind === 'path' ? 'directory listing' : 'listing';
 
-        running.get(sourceID)?.abort();
-        running.delete(sourceID);
+      reportDrop(args.signal, dropped);
 
-        if (command.type === 'LIST') {
-          const controller = new AbortController();
-
-          running.set(sourceID, controller);
-          void runListing(command.request, controller.signal);
-        }
-      });
-
-      return () => {
-        for (const controller of running.values()) {
-          controller.abort();
-        }
-      };
+      return { request, answer: sent.answer, error: sent.error };
     }),
     completion: fromPromise<CompletionOutcome, CompletionRequest>(async (args) => {
       const sent = await sendAnswered('sources.complete', args.input.params);
