@@ -1,18 +1,17 @@
 import { posix } from 'node:path';
 import type { ExecutionProvider } from '@atc/plugin-api';
 
-// prints each folder directly under a folder, and no symlink, NUL-ended; `test -e` is false for a
-// missing path and for one under a folder sh cannot search, so the folder counts as missing only
-// when the nearest path that exists is a folder sh can search
+// prints each folder directly under a folder, and no symlink, NUL-ended. A failed `test` cannot
+// tell a missing path from an error such as a name too long, so the script reads find's errors,
+// in the C locale, and counts the folder as missing only when every one is ENOENT
 export const LIST_SUBDIRS_SCRIPT = String.raw`
-d=$1
-while [ ! -e "$d" ] && [ ! -L "$d" ]; do d=$(dirname "$d"); done
-if [ "$d" != "$1" ]; then
-  if [ -d "$d" ] && [ -x "$d" ]; then exit 0; fi
-  printf 'atc cannot reach %s: %s is not a folder it can search\n' "$1" "$d" >&2
-  exit 1
-fi
-find "$1/" -mindepth 1 -maxdepth 1 -type d -exec printf '%s\0' {} +`;
+LC_ALL=C
+export LC_ALL
+{ errors=$(find "$1/" -mindepth 1 -maxdepth 1 -type d -exec printf '%s\0' {} + 2>&1 >&3 3>&-); status=$?; } 3>&1
+[ "$status" -eq 0 ] && exit 0
+printf '%s\n' "$errors" | grep -qv ': No such file or directory$' || exit 0
+printf '%s\n' "$errors" >&2
+exit 1`;
 
 // The folders directly under an absolute folder on a host; rejects with the host's error when it
 // could not list them, so a failed listing never reads as an empty folder.

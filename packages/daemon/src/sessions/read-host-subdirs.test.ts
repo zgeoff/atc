@@ -27,17 +27,22 @@ test('it lists each folder under a folder, and no file or symlink', async () => 
   ]);
 });
 
-// root searches a folder whatever its mode, so a path under a file stands for a folder sh cannot
-// search, whoever runs the test
-test('it rejects a folder whose nearest existing path is no folder it can search', () => {
+test('it rejects with the host error a folder under a file', () => {
   const ctx = setupTest();
   const blocker = join(ctx.directory, 'notes.txt');
 
   writeFileSync(blocker, 'rye\n');
 
   expect(readHostSubdirs(ctx.provider, join(blocker, 'workspaces'))).rejects.toThrow(
-    `atc could not list the folders under ${join(blocker, 'workspaces')}: atc cannot reach ${join(blocker, 'workspaces')}: ${blocker} is not a folder it can search`,
+    `atc could not list the folders under ${join(blocker, 'workspaces')}: find: `,
   );
+});
+
+test('it rejects with the host error a folder whose name is too long', () => {
+  const ctx = setupTest();
+  const overlong = join(ctx.directory, 'a'.repeat(300));
+
+  expect(readHostSubdirs(ctx.provider, overlong)).rejects.toThrow('File name too long');
 });
 
 test('it rejects with the host error when the folder is a file', () => {
