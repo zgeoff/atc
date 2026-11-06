@@ -2822,10 +2822,27 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
 
   const sessions = spawned.map((answer) => getRecord(answer, 'session'));
 
-  expect(sessions.map((session) => [session['cwd'], session['name']])).toIncludeSameMembers([
-    [`${base}-2`, 'upstream-main-2'],
-    [`${base}-3`, 'upstream-main-3'],
-  ]);
+  // A failure prints the whole received value, so the listing, the folder
+  // and the daemon's log show whether the two answers share a session or
+  // two sessions share a directory.
+  expect({
+    distinctIDs: new Set(sessions.map((session) => session['id'])).size,
+    landed: sessions
+      .map((session) => [String(session['cwd']), String(session['name'])])
+      .toSorted((left, right) => left.join('\0').localeCompare(right.join('\0'))),
+    listed: await daemon.client.sendRequest('session.list'),
+    workspaces: readdirSync(join(home, '.local/share/atc/workspaces')).toSorted(),
+    logs: daemon.logs,
+  }).toStrictEqual({
+    distinctIDs: 2,
+    landed: [
+      [`${base}-2`, 'upstream-main-2'],
+      [`${base}-3`, 'upstream-main-3'],
+    ],
+    listed: expect.anything(),
+    workspaces: ['upstream-main', 'upstream-main-2', 'upstream-main-3'],
+    logs: expect.any(Array),
+  });
 
   expect(readdirSync(base)).toStrictEqual(['mine.txt']);
   expect(readFileSync(join(base, 'mine.txt'), 'utf8')).toBe('keep\n');
