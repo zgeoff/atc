@@ -3,9 +3,11 @@ import {
   LEGACY_AGENT_KEYS,
   REMOVED_CONFIG_KEYS,
   buildCurrentPlaceholderConfig,
+  buildLegacySources,
   collectAuthProfiles,
   formatJSONKind,
   formatMixedAgentKeys,
+  formatMixedSourceKeys,
 } from '@atc/config';
 import { isRecord } from '@atc/core';
 import { buildOptionalString, buildOptionalStringArray } from '@atcx/contract/schema';
@@ -14,8 +16,64 @@ import { collectLegacyAgents } from './shared/collect-legacy-agents';
 
 type MigratedConfig =
   | { readonly kind: 'migrated'; readonly text: string; readonly notes: readonly string[] }
-  | { readonly kind: 'current' }
+  | { readonly kind: 'current'; readonly registries: readonly string[] }
   | { readonly kind: 'unusable'; readonly detail: string };
+
+export function buildMigratedConfig(file: unknown): MigratedConfig {
+  if (!isRecord(file) || Array.isArray(file)) {
+    return {
+      kind: 'unusable',
+      detail: `the root is ${formatJSONKind(file)}, not an object`,
+    };
+  }
+
+  // the migrated file holds atc's own placeholder, so the parse below keeps
+  // each entry that holds the deprecated one
+  const raw = buildCurrentPlaceholderConfig(file).config;
+  const present = Object.keys(raw).filter((key) => LEGACY_AGENT_KEYS.includes(key));
+  const removed = REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key));
+  const legacySources = buildLegacySources(raw);
+  const [firstSourceKey] = legacySources.keys;
+  const hasAgents = Object.hasOwn(raw, 'agents');
+  const hasSources = Object.hasOwn(raw, 'sources');
+
+  if (hasAgents && present.length > 0) {
+    return { kind: 'unusable', detail: formatMixedAgentKeys(present) };
+  }
+
+  // no rule picks between a value in sources and one in an old key, so the
+  // user moves them by hand
+  if (hasSources && firstSourceKey !== undefined) {
+    return { kind: 'unusable', detail: formatMixedSourceKeys(firstSourceKey) };
+  }
+
+  if (hasAgents && firstSourceKey === undefined && removed.length === 0) {
+    return { kind: 'current', registries: hasSources ? ['agents', 'sources'] : ['agents'] };
+  }
+
+  // a note names a key and a reason only, never a value
+  const removedNotes = removed.map(
+    (key) => `atc config migrate: ${key} is dropped: atc no longer reads it`,
+  );
+
+  const kept = Object.fromEntries(Object.entries(raw).filter(([key]) => !removed.includes(key)));
+  const agents = hasAgents ? { config: kept, notes: [] } : moveAgentKeys(kept, raw, present);
+
+  const migrated =
+    firstSourceKey === undefined
+      ? agents.config
+      : moveSourceKeys(agents.config, legacySources.sources);
+
+  return {
+    kind: 'migrated',
+    text: `${JSON.stringify(migrated, null, 2)}\n`,
+    notes: [
+      ...agents.notes,
+      ...legacySources.problems.map((problem) => `atc config migrate: ${problem}`),
+      ...removedNotes,
+    ],
+  };
+}
 
 // The old agent keys and the auth profiles they may name. An absent or
 // wrong-typed key parses to undefined and takes its default.
@@ -31,41 +89,13 @@ const LEGACY_KEYS_SCHEMA = z.object({
   authProfiles: z.unknown().optional(),
 });
 
-export function buildMigratedConfig(file: unknown): MigratedConfig {
-  if (!isRecord(file) || Array.isArray(file)) {
-    return {
-      kind: 'unusable',
-      detail: `the root is ${formatJSONKind(file)}, not an object`,
-    };
-  }
-
-  // the migrated file holds atc's own placeholder, so the parse below keeps
-  // each entry that holds the deprecated one
-  const raw = buildCurrentPlaceholderConfig(file).config;
-  const present = Object.keys(raw).filter((key) => LEGACY_AGENT_KEYS.includes(key));
-  const removed = REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key));
-
-  // a note names a key and a reason only, never a value
-  const removedNotes = removed.map(
-    (key) => `atc config migrate: ${key} is dropped: atc no longer reads it`,
-  );
-
-  if (Object.hasOwn(raw, 'agents')) {
-    if (present.length > 0) {
-      return { kind: 'unusable', detail: formatMixedAgentKeys(present) };
-    }
-
-    if (removed.length === 0) {
-      return { kind: 'current' };
-    }
-
-    return {
-      kind: 'migrated',
-      text: `${JSON.stringify(Object.fromEntries(Object.entries(raw).filter(([key]) => !removed.includes(key))), null, 2)}\n`,
-      notes: removedNotes,
-    };
-  }
-
+// The file with the old agent keys replaced by an agents map at the
+// position of the first one, or at the end when it sets none.
+function moveAgentKeys(
+  config: Readonly<Record<string, unknown>>,
+  raw: Readonly<Record<string, unknown>>,
+  present: readonly string[],
+): { readonly config: Record<string, unknown>; readonly notes: readonly string[] } {
   const keys = LEGACY_KEYS_SCHEMA.parse(raw);
   const authProfiles = collectAuthProfiles(keys.authProfiles).profiles;
 
@@ -89,33 +119,25 @@ export function buildMigratedConfig(file: unknown): MigratedConfig {
     agents[entry.id] = renderAgentEntry(entry);
   }
 
-  const migrated: Record<string, unknown> = {};
+  const moved: Record<string, unknown> = {};
   let placed = false;
 
-  for (const [key, value] of Object.entries(raw)) {
-    if (removed.includes(key)) {
-      continue;
-    }
-
-    if (!LEGACY_AGENT_KEYS.includes(key)) {
-      migrated[key] = value;
+  for (const [key, value] of Object.entries(config)) {
+    if (!present.includes(key)) {
+      moved[key] = value;
     } else if (!placed) {
-      migrated['agents'] = agents;
+      moved['agents'] = agents;
       placed = true;
     }
   }
 
   if (!placed) {
-    migrated['agents'] = agents;
+    moved['agents'] = agents;
   }
 
   return {
-    kind: 'migrated',
-    text: `${JSON.stringify(migrated, null, 2)}\n`,
-    notes: [
-      ...collectDroppedGateways(raw['gateways'], legacy.agents, legacy.errors),
-      ...removedNotes,
-    ],
+    config: moved,
+    notes: collectDroppedGateways(raw['gateways'], legacy.agents, legacy.errors),
   };
 }
 
@@ -245,4 +267,50 @@ function pickDropReason(id: string, entry: unknown, errors: readonly string[]): 
   return problems.length > 0
     ? problems.map((problem) => problem.slice(prefix.length)).join('; ')
     : 'its entry could not be read';
+}
+
+// The old source keys this moves into sources.
+const OLD_WORKSPACE_SOURCE_KEYS: readonly string[] = ['githubOwner', 'sources'];
+
+// The file with `sources` at the position of the first top-level key that
+// holds an old source key, and those keys removed. A `workspaces` section
+// left empty goes too.
+function moveSourceKeys(
+  config: Readonly<Record<string, unknown>>,
+  sources: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const moved: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(config)) {
+    const workspaces =
+      key === 'workspaces' && isRecord(value) && !Array.isArray(value) ? value : null;
+
+    const holdsOldKey =
+      key === 'dirs' ||
+      (workspaces !== null &&
+        OLD_WORKSPACE_SOURCE_KEYS.some((name) => Object.hasOwn(workspaces, name)));
+
+    if (holdsOldKey && !Object.hasOwn(moved, 'sources')) {
+      moved['sources'] = sources;
+    }
+
+    if (key === 'dirs') {
+      continue;
+    }
+
+    if (workspaces === null) {
+      moved[key] = value;
+      continue;
+    }
+
+    const rest = Object.fromEntries(
+      Object.entries(workspaces).filter(([name]) => !OLD_WORKSPACE_SOURCE_KEYS.includes(name)),
+    );
+
+    if (Object.keys(rest).length > 0) {
+      moved[key] = rest;
+    }
+  }
+
+  return moved;
 }

@@ -2,16 +2,17 @@ import { expect, test } from 'bun:test';
 import { buildMockHostServices, buildStubGHCommand } from '@atc/test-utils';
 import { GITHUB_SOURCE_PLUGIN } from './github-source-plugin';
 
-test('it reads a slice with no owner as the gh account', () => {
+test('it reads a slice with no owner as the gh account, under the id of its config entry', () => {
   const schema = GITHUB_SOURCE_PLUGIN.configSchema({
     authProfiles: new Map(),
-    entryID: 'github',
+    entryID: 'acme',
     foreignFields: new Set(),
   });
 
   expect(schema.safeParse({ owner: null, bin: 'gh' }).data).toStrictEqual({
     owner: null,
     bin: 'gh',
+    id: 'acme',
   });
 });
 
@@ -26,7 +27,7 @@ test("it lists the configured owner's repositories through gh run by the host co
   });
 
   const source = GITHUB_SOURCE_PLUGIN.create(
-    { owner: 'acme', bin: 'gh' },
+    { id: 'github', owner: 'acme', bin: 'gh' },
     buildMockHostServices({ runCommand: gh.runCommand }),
     { authProfiles: new Map() },
   );

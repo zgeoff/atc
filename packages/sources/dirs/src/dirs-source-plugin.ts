@@ -7,9 +7,13 @@ export const DIRS_SOURCE_PLUGIN = definePlugin({
   kind: 'source',
   id: 'dirs',
   configFields: ['roots', 'homeDir'],
-  configSchema: () => z.object({ roots: z.array(z.string()), homeDir: z.string() }),
+  configSchema: (context) =>
+    z
+      .object({ roots: z.array(z.string()), homeDir: z.string() })
+      .transform((fields) => ({ ...fields, id: context.entryID })),
   create: (config, host) =>
     buildDirsSource({
+      id: config.id,
       roots: config.roots,
       homeDir: config.homeDir,
       readZoxideDirs: () => readZoxideDirs(host.runCommand),

@@ -1,9 +1,9 @@
 import { isGitURL } from '@atc/core';
 import type { SourceInterpretation, SourceProvider } from '@atc/plugin-api';
 
-export function buildGitSource(): SourceProvider {
+export function buildGitSource(id: string): SourceProvider {
   return {
-    id: 'git',
+    id,
     label: 'git URL',
     kind: 'git',
     list: () => Promise.resolve({ candidates: [], scope: null }),

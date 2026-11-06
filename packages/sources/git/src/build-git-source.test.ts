@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { buildGitSource } from './build-git-source';
 
 test('it lists nothing', async () => {
-  const source = buildGitSource();
+  const source = buildGitSource('git');
 
   const listed = await source.list(
     {},
@@ -17,7 +17,7 @@ test.each([
   [' git@example.com:acme/app.git ', { kind: 'git', url: 'git@example.com:acme/app.git' }],
   ['acme/app', { kind: 'none' }],
 ] as const)('it reads typed %p as %p', async (input, expected) => {
-  const source = buildGitSource();
+  const source = buildGitSource('git');
 
   const interpretation = await source.interpret(input, {
     target: 'local',

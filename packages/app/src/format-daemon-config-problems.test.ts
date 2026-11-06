@@ -30,7 +30,7 @@ test('it formats a config file atc cannot read as a refusal of every spawn', () 
   ]);
 });
 
-test('it formats each config problem in order, removed keys and missing sources last', () => {
+test('it formats each config problem in order, removed keys and the sources this host leaves out last', () => {
   const config = parseConfig(buildStubHarnessPlugins(), {}, '/c.json');
 
   expect(
@@ -41,11 +41,12 @@ test('it formats each config problem in order, removed keys and missing sources 
         workspaceErrors: ['workspaces.root is not a path'],
         authProfileErrors: ['authProfiles.work has no helper'],
         agentErrors: ['agents.kiwi names no harness'],
+        sourceErrors: ['sources.forge: kind must be dirs, git, or github'],
         deprecations: ['dirs.roots moves to workspaces'],
         removedKeys: ['resumeInterruptedTurns'],
       },
       [{ scope: 'target', target: 'lab', problem: "target 'lab' names no provider" }],
-      ['forge'],
+      ["sources.github: gh is not on the daemon's PATH; left out"],
     ),
   ).toStrictEqual([
     "atc daemon: config: target 'lab' names no provider",
@@ -53,8 +54,9 @@ test('it formats each config problem in order, removed keys and missing sources 
     'atc daemon: config: workspaces.root is not a path',
     'atc daemon: config: authProfiles.work has no helper',
     'atc daemon: config: agents.kiwi names no harness',
+    'atc daemon: config: sources.forge: kind must be dirs, git, or github',
     'atc daemon: config: dirs.roots moves to workspaces',
     "atc daemon: config: config.json sets resumeInterruptedTurns, which atc no longer reads; run 'atc config migrate' to drop it",
-    "atc daemon: config: workspaces.sources holds 'forge', which this daemon cannot offer; the picker leaves it out",
+    "atc daemon: config: sources.github: gh is not on the daemon's PATH; left out",
   ]);
 });

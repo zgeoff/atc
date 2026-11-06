@@ -98,8 +98,8 @@ export function openFirstSource(flow: PickerFlow) {
 
   ctx.refusal =
     ctx.sources.length === 0
-      ? 'the daemon offers no sources · set workspaces.sources · esc cancel'
-      : 'no directory source to adopt in · set workspaces.sources · esc cancel';
+      ? 'the daemon offers no sources · set sources · esc cancel'
+      : 'no directory source to adopt in · set sources · esc cancel';
 
   renderFlow(flow);
 }

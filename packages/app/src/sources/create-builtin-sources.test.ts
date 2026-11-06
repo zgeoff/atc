@@ -11,32 +11,52 @@ function setupTest() {
   return { homeDir: temp.path, gh: join(temp.path, 'gh') };
 }
 
-test('it leaves GitHub out when gh is not on the host', () => {
-  const ctx = setupTest();
-
-  const sources = createBuiltinSources({
-    roots: [],
-    githubOwner: null,
-    ghBin: ctx.gh,
-    homeDir: ctx.homeDir,
-    host: buildMockHostServices(),
-  });
-
-  expect(sources.map((source) => source.id)).toStrictEqual(['dirs', 'git']);
-});
-
-test('it offers GitHub when gh is on the host', () => {
+test('it builds one source per entry, in entry order, each under its entry id', () => {
   const ctx = setupTest();
 
   writeFileSync(ctx.gh, '#!/bin/sh\n', { mode: 0o755 });
 
-  const sources = createBuiltinSources({
-    roots: [],
-    githubOwner: null,
-    ghBin: ctx.gh,
+  const built = createBuiltinSources({
+    entries: [
+      { id: 'git', kind: 'git' },
+      { id: 'acme', kind: 'github', owner: 'acme-tools', bin: ctx.gh },
+      { id: 'local', kind: 'dirs', roots: [] },
+    ],
     homeDir: ctx.homeDir,
     host: buildMockHostServices(),
   });
 
-  expect(sources.map((source) => source.id)).toStrictEqual(['dirs', 'github', 'git']);
+  expect({
+    sources: built.sources.map((source) => [source.id, source.kind]),
+    problems: built.problems,
+  }).toStrictEqual({
+    sources: [
+      ['git', 'git'],
+      ['acme', 'git'],
+      ['local', 'path'],
+    ],
+    problems: [],
+  });
+});
+
+test('it leaves out a GitHub entry whose gh does not exist, with one line, and offers the others', () => {
+  const ctx = setupTest();
+
+  const built = createBuiltinSources({
+    entries: [
+      { id: 'dirs', kind: 'dirs', roots: [] },
+      { id: 'github', kind: 'github', owner: null, bin: ctx.gh },
+      { id: 'git', kind: 'git' },
+    ],
+    homeDir: ctx.homeDir,
+    host: buildMockHostServices(),
+  });
+
+  expect({
+    sources: built.sources.map((source) => source.id),
+    problems: built.problems,
+  }).toStrictEqual({
+    sources: ['dirs', 'git'],
+    problems: ["sources.github: gh is not on the daemon's PATH; left out"],
+  });
 });

@@ -4,8 +4,6 @@ import type { AgentID } from '@atc/core';
 import type { PickerContext } from './picker-flow';
 
 const NO_WORKSPACES: WorkspacesConfig = {
-  githubOwner: null,
-  sources: null,
   gitTransports: DEFAULT_GIT_TRANSPORTS,
   root: null,
   targetRoots: new Map(),

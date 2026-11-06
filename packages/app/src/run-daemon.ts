@@ -9,7 +9,7 @@ import {
   socketPath,
 } from '@atc/config';
 import { parseListenAddress } from '@atc/config/host';
-import { buildExecutionTargets, buildSources, startDaemon, startStderrLog } from '@atc/daemon';
+import { buildExecutionTargets, startDaemon, startStderrLog } from '@atc/daemon';
 import { startClaudeHeadlessRun } from '@atc/harness-claude';
 import { makeDaemonReadySignal } from '@atc/lifecycle';
 import type { HostServices } from '@atc/plugin-api';
@@ -67,18 +67,13 @@ export async function runDaemon(invocation: DaemonInvocation): Promise<void> {
 
   const targetErrors = [...config.targetErrors, ...built.errors];
 
-  const sources = buildSources(
-    createBuiltinSources({
-      roots: config.dirs.roots,
-      githubOwner: config.workspaces.githubOwner,
-      ghBin: 'gh',
-      homeDir: resolveHomeDir(),
-      host: hostServices,
-    }),
-    config.workspaces.sources,
-  );
+  const sources = createBuiltinSources({
+    entries: config.sources,
+    homeDir: resolveHomeDir(),
+    host: hostServices,
+  });
 
-  for (const line of formatDaemonConfigProblems(config, targetErrors, sources.missing)) {
+  for (const line of formatDaemonConfigProblems(config, targetErrors, sources.problems)) {
     console.error(line);
   }
 

@@ -203,6 +203,57 @@ test('it lists exactly the agents of an agents map and prints no old-key line', 
   expect(daemon.readStderr()).not.toInclude('old agent keys');
 });
 
+test('it lists exactly the sources of a sources map, in its order', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({ sources: { dirs: { roots: ['~/code'] }, git: {} } }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const listed = await client.sendRequest('agents.list');
+
+  expect(getRecords(listed, 'sources').map((source) => source['id'])).toStrictEqual([
+    'dirs',
+    'git',
+  ]);
+});
+
+test('it leaves out a github source whose gh does not exist, prints its line, and offers the others', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      sources: { dirs: {}, github: { bin: join(ctx.home, 'missing', 'gh') }, git: {} },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const listed = await client.sendRequest('agents.list');
+
+  expect({
+    sources: getRecords(listed, 'sources').map((source) => source['id']),
+    stderr: daemon.readStderr(),
+  }).toStrictEqual({
+    sources: ['dirs', 'git'],
+    stderr: expect.stringContaining(
+      "atc daemon: config: sources.github: gh is not on the daemon's PATH; left out\n",
+    ),
+  });
+});
+
 test.each([
   [
     'JSON with a syntax error at the value',

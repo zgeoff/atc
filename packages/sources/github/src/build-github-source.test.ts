@@ -13,7 +13,7 @@ test("it lists a scope's repositories as clone URLs of the gh protocol, with pri
     },
   });
 
-  const source = buildGitHubSource({ run: gh.runCommand, bin: 'gh', owner: null });
+  const source = buildGitHubSource({ id: 'github', run: gh.runCommand, bin: 'gh', owner: null });
 
   const listed = await source.list(
     { scope: 'acme' },
@@ -43,7 +43,7 @@ test('it lists the configured owner as https clone URLs when the request holds n
     },
   });
 
-  const source = buildGitHubSource({ run: gh.runCommand, bin: 'gh', owner: 'acme' });
+  const source = buildGitHubSource({ id: 'github', run: gh.runCommand, bin: 'gh', owner: 'acme' });
 
   const listed = await source.list(
     {},
@@ -71,7 +71,7 @@ test('it lists the configured owner as https clone URLs when the request holds n
 
 test('it refuses a scope that is not a GitHub login', () => {
   const gh = buildStubGHCommand({ replies: {} });
-  const source = buildGitHubSource({ run: gh.runCommand, bin: 'gh', owner: null });
+  const source = buildGitHubSource({ id: 'github', run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(
     source.list(
@@ -83,7 +83,7 @@ test('it refuses a scope that is not a GitHub login', () => {
 
 test('it refuses a listing gh cannot give as unavailable with the problem', () => {
   const gh = buildStubGHCommand({ replies: { api: { stderr: 'sign in first', exitCode: 4 } } });
-  const source = buildGitHubSource({ run: gh.runCommand, bin: 'gh', owner: null });
+  const source = buildGitHubSource({ id: 'github', run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(
     source.list({}, { target: 'local', readSpawnDirs: () => Promise.resolve([]) }),
@@ -103,7 +103,7 @@ test.each([
   'it reads typed %p with a gh that prefers %s as %p',
   async (input, protocol, expected) => {
     const gh = buildStubGHCommand({ replies: { config: { stdout: protocol } } });
-    const source = buildGitHubSource({ run: gh.runCommand, bin: 'gh', owner: null });
+    const source = buildGitHubSource({ id: 'github', run: gh.runCommand, bin: 'gh', owner: null });
 
     const interpretation = await source.interpret(input, {
       target: 'local',
@@ -116,7 +116,7 @@ test.each([
 
 test('it finds the other URL form of a GitHub URL as its alternate', () => {
   const gh = buildStubGHCommand({ replies: {} });
-  const source = buildGitHubSource({ run: gh.runCommand, bin: 'gh', owner: null });
+  const source = buildGitHubSource({ id: 'github', run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(source.findAlternateURLs?.('https://github.com/acme/app.git')).toStrictEqual([
     'git@github.com:acme/app.git',
@@ -125,7 +125,7 @@ test('it finds the other URL form of a GitHub URL as its alternate', () => {
 
 test('it finds no alternate for a URL off GitHub', () => {
   const gh = buildStubGHCommand({ replies: {} });
-  const source = buildGitHubSource({ run: gh.runCommand, bin: 'gh', owner: null });
+  const source = buildGitHubSource({ id: 'github', run: gh.runCommand, bin: 'gh', owner: null });
 
   expect(source.findAlternateURLs?.('https://example.com/acme/app.git')).toStrictEqual([]);
 });

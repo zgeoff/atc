@@ -6,7 +6,7 @@ import { buildMigratedConfig } from './build-migrated-config';
 import { SHIPPED_HARNESS_PLUGINS } from './plugins/shipped-harness-plugins';
 import { collectLegacyAgents } from './shared/collect-legacy-agents';
 
-test('it replaces the old keys with agents at the position of the first one', () => {
+test('it replaces the old agent keys with agents and the old source keys with sources, each at the position of the first one', () => {
   const result = buildMigratedConfig({
     leader: 'ctrl-a',
     claudeBin: '/opt/claude',
@@ -24,7 +24,7 @@ test('it replaces the old keys with agents at the position of the first one', ()
           grok: { args: ['--yolo'] },
           codex: {},
         },
-        dirs: { roots: ['/w'] },
+        sources: { dirs: { roots: ['/w'] }, github: {}, git: {} },
       },
       null,
       2,
@@ -293,7 +293,10 @@ test('it takes the default for an old key of the wrong type', () => {
 });
 
 test('it reports a file that already uses agents as current', () => {
-  expect(buildMigratedConfig({ agents: { claude: {} } })).toStrictEqual({ kind: 'current' });
+  expect(buildMigratedConfig({ agents: { claude: {} } })).toStrictEqual({
+    kind: 'current',
+    registries: ['agents'],
+  });
 });
 
 test('it refuses a mixed file with the keys it found', () => {
@@ -332,5 +335,86 @@ test('it drops a removed key while it moves the old agent keys into agents', () 
     kind: 'migrated',
     text: `${JSON.stringify({ agents: { claude: { bin: '/opt/claude' }, grok: {}, codex: {} } }, null, 2)}\n`,
     notes: ['atc config migrate: resumeInterruptedTurns is dropped: atc no longer reads it'],
+  });
+});
+
+test('it moves the old source keys into sources and drops a workspaces section they leave empty', () => {
+  const result = buildMigratedConfig({
+    agents: { claude: {} },
+    dirs: { roots: ['~/code'] },
+    workspaces: { githubOwner: 'acme-tools', sources: null },
+  });
+
+  expect(result).toStrictEqual({
+    kind: 'migrated',
+    text: `${JSON.stringify(
+      {
+        agents: { claude: {} },
+        sources: { dirs: { roots: ['~/code'] }, github: { owner: 'acme-tools' }, git: {} },
+      },
+      null,
+      2,
+    )}\n`,
+    notes: [],
+  });
+});
+
+test('it writes sources in the place of workspaces when that section holds the first old key, and keeps its other keys', () => {
+  const result = buildMigratedConfig({
+    agents: { claude: {} },
+    workspaces: { root: '~/ws', sources: ['git'] },
+    leader: 'ctrl-a',
+    dirs: { roots: [] },
+  });
+
+  expect(result).toStrictEqual({
+    kind: 'migrated',
+    text: `${JSON.stringify(
+      {
+        agents: { claude: {} },
+        sources: { git: {} },
+        workspaces: { root: '~/ws' },
+        leader: 'ctrl-a',
+      },
+      null,
+      2,
+    )}\n`,
+    notes: [],
+  });
+});
+
+test('it notes each old source value it leaves out', () => {
+  const result = buildMigratedConfig({
+    agents: { claude: {} },
+    workspaces: { githubOwner: 'acme/tools', sources: ['forge', 'github'] },
+  });
+
+  expect(result).toStrictEqual({
+    kind: 'migrated',
+    text: `${JSON.stringify({ agents: { claude: {} }, sources: { github: {} } }, null, 2)}\n`,
+    notes: [
+      'atc config migrate: workspaces.githubOwner is not a GitHub account or organization; it is left out',
+      "atc config migrate: workspaces.sources holds 'forge', which is not a source atc offers; it is left out",
+    ],
+  });
+});
+
+test.each([
+  [
+    'workspaces.githubOwner',
+    { sources: { github: { owner: 'north-labs' } }, workspaces: { githubOwner: 'south-labs' } },
+  ],
+  ['dirs', { sources: {}, dirs: { roots: ['~/code'] } }],
+])('it refuses a file that sets sources beside the old key %s', (key, file) => {
+  expect(buildMigratedConfig({ agents: { claude: {} }, ...file })).toStrictEqual({
+    kind: 'unusable',
+    detail: `${key} cannot be set together with sources; move it into sources and remove it`,
+  });
+});
+
+test('it reports a file that already uses agents and sources as current', () => {
+  expect(buildMigratedConfig({ agents: { claude: {} }, sources: { git: {} } })).toStrictEqual({
+    kind: 'current',
+    registries: ['agents', 'sources'],
   });
 });

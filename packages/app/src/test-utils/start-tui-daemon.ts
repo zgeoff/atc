@@ -1,6 +1,6 @@
 import { loadConfig } from '@atc/config';
 import { resolvePaths } from '@atc/config/host';
-import { buildExecutionTargets, buildSources, startDaemon } from '@atc/daemon';
+import { buildExecutionTargets, startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
 import { registerTestCleanup, updateEnv, waitFor } from '@atc/test-utils';
 import type { TUIHarness } from '@atc/test-utils';
@@ -39,16 +39,7 @@ export async function startTUIDaemon(
     }),
   );
 
-  const sources = buildSources(
-    createBuiltinSources({
-      roots: config.dirs.roots,
-      githubOwner: config.workspaces.githubOwner,
-      ghBin: 'gh',
-      homeDir: tui.home,
-      host,
-    }),
-    config.workspaces.sources,
-  );
+  const sources = createBuiltinSources({ entries: config.sources, homeDir: tui.home, host });
 
   // No pid file, since the harness stops the daemon that file names, and
   // this daemon is the test's own process.

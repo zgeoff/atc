@@ -49,7 +49,7 @@ export function runConfigMigrate(
   }
 
   if (result.kind === 'current') {
-    io.print('config.json already uses agents; nothing to migrate');
+    io.print(`config.json already uses ${result.registries.join(' and ')}; nothing to migrate`);
 
     return 0;
   }
