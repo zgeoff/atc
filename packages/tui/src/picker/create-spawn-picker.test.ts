@@ -4609,6 +4609,65 @@ test('it refuses a typed git URL that no source reads when the daemon offers onl
   expect(ctx.daemon.collectSent('git.probe')).toStrictEqual([]);
 });
 
+test('it shows the rows of two git sources that list at once when both answer', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok' }),
+      buildMockListedAgent({ id: 'codex' }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [
+      { id: 'gitlab', label: 'GitLab repository', kind: 'git' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
+    ],
+  });
+
+  await ctx.daemon.answerOldest('sources.list', {
+    candidates: [
+      {
+        label: 'harbor-labs/beacon',
+        pick: { kind: 'git', url: 'git@gitlab.com:harbor-labs/beacon.git' },
+      },
+    ],
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('sources.list', {
+    candidates: [
+      {
+        label: 'acme-tools/gadgets',
+        pick: { kind: 'git', url: 'git@github.com:acme-tools/gadgets.git' },
+      },
+    ],
+  });
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(ctx.dropped).toStrictEqual([]);
+  expect(shown).toInclude('gitlab:harbor-labs/beacon');
+  expect(shown).toInclude('github:acme-tools/gadgets');
+});
+
 test('it keeps the selected row selected when another source listing lands', async () => {
   const ctx = setupTest();
 
