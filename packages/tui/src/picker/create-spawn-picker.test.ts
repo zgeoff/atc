@@ -4695,12 +4695,12 @@ test('it keeps the selected row selected when another source listing lands', asy
       },
     ],
     sources: [
-      { id: 'github', label: 'GitHub repository', kind: 'git' },
       { id: 'dirs', label: 'directory on the daemon host', kind: 'path' },
+      { id: 'github', label: 'GitHub repository', kind: 'git' },
     ],
   });
 
-  await ctx.daemon.answerOldest('sources.list', {
+  await ctx.daemon.answer('sources.list', {
     candidates: [
       {
         label: 'acme-tools/gadgets',
@@ -4713,13 +4713,15 @@ test('it keeps the selected row selected when another source listing lands', asy
     ],
   });
 
+  picker.applyKey(Buffer.from(KEYS.tab));
   picker.applyKey(Buffer.from(KEYS.down));
 
   const mark = ctx.terminal.countChunks();
 
-  await ctx.daemon.answer('sources.list', {
+  await ctx.daemon.answerOldest('sources.list', {
     candidates: [
-      { label: '~/code/lamp', pick: { kind: 'path', directory: '/home/ada/code/lamp' } },
+      { label: '~/code/lamp', pick: { kind: 'path', directory: '/srv/code/lamp' } },
+      { label: '~/code/kettle', pick: { kind: 'path', directory: '/srv/code/kettle' } },
     ],
   });
 
