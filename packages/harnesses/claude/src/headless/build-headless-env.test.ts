@@ -43,3 +43,31 @@ test('it leaves the variables a run withholds out of its environment', () => {
   expect(env).not.toContainKey('ATC_TEST_WORKSPACE_CRED');
   expect(env['ATC_SESSION_ID']).toBe('s-1');
 });
+
+test('it tags a session run with its session ID after the resource attributes it inherits', () => {
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
+
+  const env = buildHeadlessEnv({ sessionID: toSessionID('s-1'), socketPath: '/state/r.sock' });
+
+  expect(env['OTEL_RESOURCE_ATTRIBUTES']).toBe('service.namespace=lab,atc.session.id=s-1');
+});
+
+test('it keeps the resource attributes it inherits on a run with no session', () => {
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
+
+  const env = buildHeadlessEnv({ socketPath: '/state/r.sock' });
+
+  expect(env['OTEL_RESOURCE_ATTRIBUTES']).toBe('service.namespace=lab');
+});
+
+test('it tags a session run that withholds the inherited resource attributes with its session alone', () => {
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
+
+  const env = buildHeadlessEnv({
+    sessionID: toSessionID('s-1'),
+    socketPath: '/state/r.sock',
+    withheldEnv: ['OTEL_RESOURCE_ATTRIBUTES'],
+  });
+
+  expect(env['OTEL_RESOURCE_ATTRIBUTES']).toBe('atc.session.id=s-1');
+});

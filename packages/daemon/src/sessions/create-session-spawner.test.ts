@@ -11,6 +11,7 @@ import {
   registerTestCleanup,
   runLocalCommand,
   setupTempDir,
+  updateEnv,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { createAuthSetup } from '../auth/create-auth-setup';
@@ -64,6 +65,12 @@ async function setupTest(config: SetupTestConfig) {
 
   const authBinder = createRuntimeAuthBinder(store);
   const stopMessageBridge = mock(() => Promise.resolve());
+
+  // No agent here takes its messages through a bridge in the daemon.
+  const startMessageBridge = mock<SessionCallbacks['startMessageBridge']>(() =>
+    Promise.resolve(null),
+  );
+
   const onBoot = mock<() => void>();
 
   const callbacks: SessionCallbacks = {
@@ -73,9 +80,7 @@ async function setupTest(config: SetupTestConfig) {
     onRelay: mock<() => void>(),
     onEvent: mock<() => void>(),
     onProcessEnded: mock<() => void>(),
-
-    // No agent here takes its messages through a bridge in the daemon.
-    startMessageBridge: () => Promise.resolve(null),
+    startMessageBridge,
     stopMessageBridge,
     log: mock<() => void>(),
     now: () => 0,
@@ -131,6 +136,7 @@ async function setupTest(config: SetupTestConfig) {
     recordsDir: join(temporaryDirectory.path, 'records'),
     store,
     callbacks,
+    startMessageBridge,
     stopMessageBridge,
     onBoot,
     registry,
@@ -182,6 +188,84 @@ test('it points the hooks of a session it starts at the reporter socket the daem
   await ctx.spawner.spawn({ cwd: ctx.directory, name: 'work', prompt: '', cols: 120, rows: 40 });
 
   expect(provider.harnesses[0]?.spec.env['ATC_SOCKET']).toBe(join(ctx.directory, 'reporter.sock'));
+});
+
+test("it tags a local session's telemetry with its ID after the daemon's resource attributes", async () => {
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
+
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = await ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 120,
+    rows: 40,
+  });
+
+  expect(provider.harnesses[0]?.spec.env['OTEL_RESOURCE_ATTRIBUTES']).toBe(
+    `service.namespace=lab,atc.session.id=${session.id}`,
+  );
+});
+
+test("it tags the environment of a local session's message bridge with the session ID", async () => {
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
+
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = await ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 120,
+    rows: 40,
+  });
+
+  expect(ctx.startMessageBridge.mock.calls[0]?.[0].env['OTEL_RESOURCE_ATTRIBUTES']).toBe(
+    `service.namespace=lab,atc.session.id=${session.id}`,
+  );
+});
+
+test("it tags a remote session's telemetry with its ID alone, without the daemon's resource attributes", async () => {
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
+
+  const directory = setupTempDir('atc-session-spawner-guest-').path;
+
+  const provider = buildStubMemoryProvider({
+    kind: 'cloud',
+    remote: true,
+    guest: { directory, atc: null },
+  });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [
+      buildMockExecutionTarget({ id: 'far', kind: 'cloud', identity: 'cloud:test', provider }),
+    ],
+  });
+
+  const session = await ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    target: 'far',
+  });
+
+  expect(provider.harnesses[0]?.spec.env['OTEL_RESOURCE_ATTRIBUTES']).toBe(
+    `atc.session.id=${session.id}`,
+  );
 });
 
 test('it boots a session before output its harness writes at once can reach it', async () => {

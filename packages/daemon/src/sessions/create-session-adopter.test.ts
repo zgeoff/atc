@@ -4,7 +4,13 @@ import { join } from 'node:path';
 import { systemClock } from '@atc/core';
 import type { AgentAdapter, SpawnPlan } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import {
+  createMigratedStateDB,
+  registerTestCleanup,
+  setupTempDir,
+  updateEnv,
+  waitFor,
+} from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import { createAuthSetup } from '../auth/create-auth-setup';
@@ -137,6 +143,70 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
   expect(adopted).toBeNull();
 });
 
+test("it tags the harness of a resumed local session with its ID after the daemon's resource attributes", async () => {
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
+
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-2'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'running',
+    lastMsg: 'waiting to restore',
+    agentSessionID: toAgentSessionID('c-2'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.unrestored.add(session.id);
+
+  await ctx.adopter.adoptTerminal(session.id, 100, 30);
+
+  expect(provider.harnesses[0]?.spec.env?.['OTEL_RESOURCE_ATTRIBUTES']).toBe(
+    'service.namespace=lab,atc.session.id=s-c-2',
+  );
+});
+
+test("it tags the message bridge of a resumed local session with its ID after the daemon's resource attributes", async () => {
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
+
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-2'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'running',
+    lastMsg: 'waiting to restore',
+    agentSessionID: toAgentSessionID('c-2'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.unrestored.add(session.id);
+
+  await ctx.adopter.adoptTerminal(session.id, 100, 30);
+
+  expect(ctx.startMessageBridge.mock.calls[0]?.[0].env?.['OTEL_RESOURCE_ATTRIBUTES']).toBe(
+    'service.namespace=lab,atc.session.id=s-c-2',
+  );
+});
+
 test('it starts a harness that resumes the agent session of a session without a terminal', async () => {
   const adapter = buildStubHarnessAdapter();
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
@@ -181,7 +251,12 @@ test('it starts a harness that resumes the agent session of a session without a 
     rows: 30,
   });
 
-  expect(provider.harnesses[0]?.spec.env).toContainAllKeys(['ATC_SESSION_ID', 'ATC_SOCKET']);
+  expect(provider.harnesses[0]?.spec.env).toContainAllKeys([
+    'ATC_SESSION_ID',
+    'ATC_SOCKET',
+    'OTEL_RESOURCE_ATTRIBUTES',
+  ]);
+
   expect(provider.harnesses[0]?.spec.env['ATC_SOCKET']).toBe(join(ctx.directory, 'reporter.sock'));
   expect(provider.harnesses[0]?.spec.onRelay).toBeFunction();
   expect(adopted).toMatchObject({ kind: 'pty', state: 'running', lastMsg: 'revived' });

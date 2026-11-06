@@ -15,16 +15,17 @@ interface HeadlessEnvParams {
 }
 
 export function buildHeadlessEnv(params: HeadlessEnvParams): Record<string, string> {
-  return readCleanEnv(
-    {
-      ...(params.pluginDir === undefined ? {} : { CLAUDE_CODE_PLUGIN_DIRS: params.pluginDir }),
-      ...buildSessionEnv({
-        ...(params.sessionID === undefined
-          ? {}
-          : { sessionID: params.sessionID, socket: params.socketPath }),
-        ...(params.recordPath === undefined ? {} : { sessionRecord: params.recordPath }),
-      }),
-    },
-    params.withheldEnv,
-  );
+  const inherited = readCleanEnv({}, params.withheldEnv);
+
+  return {
+    ...inherited,
+    ...(params.pluginDir === undefined ? {} : { CLAUDE_CODE_PLUGIN_DIRS: params.pluginDir }),
+    ...buildSessionEnv({
+      ...(params.sessionID === undefined
+        ? {}
+        : { sessionID: params.sessionID, socket: params.socketPath }),
+      ...(params.recordPath === undefined ? {} : { sessionRecord: params.recordPath }),
+      inheritedEnv: inherited,
+    }),
+  };
 }

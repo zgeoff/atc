@@ -7,6 +7,7 @@ import {
   createStubBin,
   registerTestCleanup,
   setupTempDir,
+  updateEnv,
   waitFor,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
@@ -131,6 +132,38 @@ test('it starts the thread and a message sent right after the spawn on the model
     clientUserMessageId: 'm-1',
     model: 'gpt-test-large',
   });
+});
+
+test("it starts the App Server with the session's resource attributes over the daemon's", async () => {
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
+
+  const ctx = setupTest();
+  const codex = createStubAppServerCodex(ctx.directory);
+
+  const bin = createStubBin(
+    ctx.directory,
+    'env-codex',
+    `#!/usr/bin/env bash\nprintf '%s' "$OTEL_RESOURCE_ATTRIBUTES" > '${join(ctx.directory, 'attributes')}'\nexec '${codex}' "$@"\n`,
+  );
+
+  const bridge = await startCodexAppServerBridge(
+    {
+      session: toSessionID('s-1'),
+      cwd: ctx.directory,
+      env: { OTEL_RESOURCE_ATTRIBUTES: 'service.namespace=lab,atc.session.id=s-1' },
+      withheldEnv: [],
+      options: { prompt: '', resume: false },
+      directory: ctx.bridgeDir,
+      host: buildStubMessageBridgeHost().host,
+    },
+    { bin, planTerminal: (remote, thread) => ({ bin, args: [remote, thread] }) },
+  );
+
+  registerTestCleanup(() => bridge.stop());
+
+  expect(readFileSync(join(ctx.directory, 'attributes'), 'utf8')).toBe(
+    'service.namespace=lab,atc.session.id=s-1',
+  );
 });
 
 test('it rejects and leaves no socket when no App Server comes to listen', async () => {
