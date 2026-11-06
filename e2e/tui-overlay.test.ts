@@ -78,8 +78,9 @@ test('it opens the overlay with a configured leader key', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlRightBracket);
 
-  await ctx.waitFor('┌ sessions ');
   await ctx.waitFor('leadertest');
+
+  expect(ctx.read().split('┌ sessions ').at(-1)).toInclude('leadertest');
 });
 
 test('it pins a session from the overlay and marks its row', async () => {
@@ -101,6 +102,8 @@ test('it pins a session from the overlay and marks its row', async () => {
   ctx.write('p');
 
   await ctx.waitFor('⋆');
+
+  expect(ctx.read()).toInclude('⋆\u001B[0m \u001B[7mpinme');
 });
 
 test('it clusters overlay rows under repository headers when grouping is toggled on', async () => {
@@ -291,4 +294,7 @@ test('it opens the key reference from the overlay and returns on esc', async () 
   ctx.write(KEYS.esc);
 
   await ctx.waitFor('helptest');
+
+  expect(ctx.read()).toInclude('┌ sessions ');
+  expect(ctx.read()).not.toInclude('┌ keys ');
 });
