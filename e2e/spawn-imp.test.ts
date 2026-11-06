@@ -290,6 +290,7 @@ test('it starts a remote harness with only the variables atc sets, never the dae
 
   updateEnv('ATC_TEST_DAEMON_CANARY', 'daemon-only');
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'fixture-not-a-secret');
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.directory,
@@ -313,6 +314,7 @@ test('it starts a remote harness with only the variables atc sets, never the dae
     ATC_SOCKET: expect.stringMatching(
       new RegExp(`^${ctx.directory}/g/run/[0-9a-f]{16}\\.sock$`, 'u'),
     ),
+    OTEL_RESOURCE_ATTRIBUTES: `atc.session.id=${spawnedID}`,
     LANG: 'C.UTF-8',
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     TERM: 'xterm-256color',
@@ -382,6 +384,7 @@ test('it revives a remote harness with only the variables atc sets, never the da
 
   updateEnv('ATC_TEST_DAEMON_CANARY', 'daemon-only');
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'fixture-not-a-secret');
+  updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
 
   await ctx.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
@@ -410,6 +413,7 @@ test('it revives a remote harness with only the variables atc sets, never the da
       '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0.scope.json',
     ),
     ATC_SOCKET: join(ctx.directory, 'g', 'run', '0f1e2d3c4b5a6978.sock'),
+    OTEL_RESOURCE_ATTRIBUTES: 'atc.session.id=0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0',
     LANG: 'C.UTF-8',
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     TERM: 'xterm-256color',

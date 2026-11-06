@@ -7,4 +7,8 @@ export interface SessionEnv {
   readonly bridge?: boolean;
   readonly outbox?: string;
   readonly sessionRecord?: string;
+
+  // the environment the session's variables go over, whose OpenTelemetry
+  // resource attributes the session's own attribute joins
+  readonly inheritedEnv?: Readonly<Record<string, string | undefined>>;
 }

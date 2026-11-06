@@ -1,10 +1,10 @@
 import { createStepTimer } from '@atc/core';
 import type { ExecutionProvider, HarnessHandle, HarnessStart } from '@atc/plugin-api';
-import { buildSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import type { AuthSetup, HarnessAuthSetup, HarnessPlan } from '../auth/create-auth-setup';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
+import { buildHarnessEnv } from './build-harness-env';
 import { buildRecordSubject } from './build-record-subject';
 import type { SessionHarnesses } from './create-session-harnesses';
 import type { SessionRegistry } from './create-session-registry';
@@ -116,14 +116,15 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       bin: plan.bin,
       args: plan.args,
       cwd: session.cwd,
-      env: {
-        ...plan.env,
-        ...buildSessionEnv({
+      env: buildHarnessEnv(
+        plan.env,
+        {
           sessionID: session.id,
           socket: callbacks.getReporterSocketPath(),
           ...(launch.recordPath === null ? {} : { sessionRecord: launch.recordPath }),
-        }),
-      },
+        },
+        { daemonEnv: provider.remote ? {} : process.env, withheldEnv: session.withheldEnv },
+      ),
       withheldEnv: session.withheldEnv,
       cols: launch.cols,
       rows: launch.rows,
@@ -408,14 +409,15 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
           adapter,
           session: session.id,
           cwd: session.cwd,
-          env: {
-            ...plan.env,
-            ...buildSessionEnv({
+          env: buildHarnessEnv(
+            plan.env,
+            {
               sessionID: session.id,
               socket: callbacks.getReporterSocketPath(),
               ...(recordPath === null ? {} : { sessionRecord: recordPath }),
-            }),
-          },
+            },
+            { daemonEnv: process.env, withheldEnv: session.withheldEnv },
+          ),
           withheldEnv: session.withheldEnv,
           options: {
             prompt: '',

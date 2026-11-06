@@ -32,6 +32,27 @@ session's own thread as a heartbeat ([Codex on an App Server](#codex-on-an-app-s
 The agent's start report carries its agent session id, which is what makes a session restorable
 before the owner has typed anything ([fleet and restore](../daemon/fleet-and-restore.md)).
 
+## Session telemetry
+
+atc adds the resource attribute `atc.session.id`, set to the atc session id, to
+`OTEL_RESOURCE_ATTRIBUTES` in the environment of every agent it starts: a local or guest launch, a
+resume, a headless Claude Code run and a Codex App Server. Claude Code and Codex copy that variable
+onto the resource of every log and metric record they export, a Codex side conversation's records
+included. A telemetry consumer joins all of a session's records on the id the spawn returns. The
+agents' own ids don't join them: Claude Code's `session.id` changes on `/clear`, and a Codex side
+conversation, such as `codex-auto-review`, exports under a `conversation.id` of its own.
+
+atc appends the attribute to the value the agent inherits, and never replaces that value. The
+inherited value is the one the launch plan sets, else, for a local launch, the daemon's own. A guest
+takes nothing from the daemon's environment, so a guest agent's value holds only the session
+attribute. An inherited `atc.session.id`, such as a daemon started inside another session carries,
+gives way to the session's own.
+
+atc writes a Claude Code entry's `env` and its settings `env` block into the generated settings
+file. A settings `env` value probably outranks the process environment, so an entry that sets
+`OTEL_RESOURCE_ATTRIBUTES` there drops the session attribute, and an entry holds no per-session id
+to add by hand. Set the variable in the daemon's environment, where atc appends to it.
+
 ## Claude Code
 
 Every Claude Code session starts with files atc wrote for it:

@@ -3,11 +3,11 @@ import { createStepTimer } from '@atc/core';
 import type { SpawnOverrides } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { DeclaredScope } from '@atc/protocol';
-import { buildSessionEnv } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID, GrantScope, SessionID } from '@atcx/contract';
 import type { AuthSetup } from '../auth/create-auth-setup';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
+import { buildHarnessEnv } from './build-harness-env';
 import type { HostDirClaims } from './create-host-dir-claims';
 import type { SessionHarnesses, SpawnReadied } from './create-session-harnesses';
 import type { SessionRegistry } from './create-session-registry';
@@ -188,14 +188,15 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
     const plan = prepared.setup.plan;
     const withheldEnv = materialized?.withheldEnv ?? [];
 
-    const env = {
-      ...plan.env,
-      ...buildSessionEnv({
+    const env = buildHarnessEnv(
+      plan.env,
+      {
         sessionID: id,
         socket: callbacks.getReporterSocketPath(),
         ...(prepared.recordPath === null ? {} : { sessionRecord: prepared.recordPath }),
-      }),
-    };
+      },
+      { daemonEnv: provider.remote ? {} : process.env, withheldEnv },
+    );
 
     // the caller's check runs again once the host is ready, before the
     // harness starts
