@@ -173,7 +173,14 @@ test('it opens a client on the socket a replacement holds when the daemon exits 
     replacement.stop(true);
   });
 
-  const atc = createStubBin(join(ctx.directory, 'bin'), 'atc', buildStubHandoffDaemon(nextPath));
+  const paths = resolvePaths({ HOME: ctx.directory, XDG_RUNTIME_DIR: ctx.directory });
+
+  const atc = createStubBin(
+    join(ctx.directory, 'bin'),
+    'atc',
+    buildStubHandoffDaemon(nextPath, paths.daemonSocketPath),
+  );
+
   const daemon = startDaemonProcess({ command: [atc], home: ctx.directory });
 
   await daemon.openClient();
@@ -213,6 +220,20 @@ test('it lays the config variables over the environment of the daemon', async ()
     listenPort: null,
     protocol: 13,
   });
+});
+
+test('it opens a client on the socket under the state directory when the config unsets XDG_RUNTIME_DIR', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    env: { XDG_RUNTIME_DIR: undefined },
+  });
+
+  const client = await daemon.openClient();
+
+  expect(client.sendHello('atc/test')).resolves.toContainKey('daemonID');
 });
 
 test('it removes a variable the config sets to undefined from the environment of the daemon', async () => {
