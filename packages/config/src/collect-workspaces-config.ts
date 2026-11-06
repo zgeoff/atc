@@ -16,8 +16,6 @@ export interface WorkspaceCleanupConfig {
 // a root is kept as written; whether it fits its target, such as `~` on a
 // remote target, is checked where the target is known.
 export interface WorkspacesConfig {
-  readonly githubOwner: string | null;
-  readonly sources: readonly string[] | null;
   readonly gitTransports: readonly string[] | InvalidGitTransports;
   readonly root: string | null;
   readonly targetRoots: ReadonlyMap<string, string>;
@@ -31,13 +29,8 @@ interface CollectedWorkspacesConfig {
   readonly errors: readonly string[];
 }
 
-// A GitHub account or organization login.
-const GITHUB_OWNER_PATTERN = /^[A-Za-z\d][A-Za-z\d-]{0,38}$/u;
-
 export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig {
   const section = isRecord(raw) ? raw : {};
-  const owner = section['githubOwner'];
-  const sources = section['sources'];
   const root = section['root'];
   const targets = isRecord(section['targets']) ? section['targets'] : {};
   const transports = collectGitTransports(section['gitTransports']);
@@ -45,12 +38,6 @@ export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig
 
   return {
     workspaces: {
-      githubOwner: typeof owner === 'string' && GITHUB_OWNER_PATTERN.test(owner) ? owner : null,
-      sources:
-        Array.isArray(sources) &&
-        sources.every((id): id is string => typeof id === 'string' && id !== '')
-          ? sources
-          : null,
       gitTransports: transports.transports,
       root: typeof root === 'string' && root !== '' ? root : null,
       targetRoots: new Map(
