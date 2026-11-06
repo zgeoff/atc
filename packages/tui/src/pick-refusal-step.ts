@@ -1,16 +1,16 @@
 import type { ErrorCode } from '@atcx/contract/light';
 
 // The steps of the git spawn flow a refused spawn can return to.
-type RefusalStep = 'confirm' | 'destination' | 'ref' | 'source';
+type RefusalStep = 'confirm' | 'destination' | 'ref' | 'list';
 
 const REFUSAL_STEPS: ReadonlyMap<ErrorCode, RefusalStep> = new Map<ErrorCode, RefusalStep>([
   ['workspace_exists', 'destination'],
   ['workspace_overlap', 'destination'],
   ['ref_not_found', 'ref'],
-  ['invalid_git_url', 'source'],
-  ['credential_in_url', 'source'],
-  ['credential_missing', 'source'],
-  ['clone_failed', 'source'],
+  ['invalid_git_url', 'list'],
+  ['credential_in_url', 'list'],
+  ['credential_missing', 'list'],
+  ['clone_failed', 'list'],
   ['has_submodules', 'confirm'],
   ['lfs_unsupported', 'confirm'],
   ['unreadable_tree', 'confirm'],

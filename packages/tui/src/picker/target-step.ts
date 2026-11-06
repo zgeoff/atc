@@ -1,4 +1,4 @@
-import { openAgentStep, openPathSource, openSourceStep, renderFlow } from './navigate-picker';
+import { checkRepoAccess, openListAgain, renderFlow } from './navigate-picker';
 import type { PickerFlow } from './picker-flow';
 import { findTargetRefusal, isGitFlow } from './picker-queries';
 
@@ -27,8 +27,11 @@ export function applyTargetSubmit(flow: PickerFlow) {
   ctx.target = pick;
   ctx.input = '';
 
-  if (isGitFlow(ctx)) {
-    openSourceStep(flow);
+  const gitPick = ctx.gitPick;
+
+  if (isGitFlow(ctx) && gitPick !== null) {
+    openListAgain(flow);
+    checkRepoAccess(flow, gitPick.label, gitPick.url);
 
     return;
   }
@@ -39,25 +42,7 @@ export function applyTargetSubmit(flow: PickerFlow) {
 }
 
 export function applyTargetCancel(flow: PickerFlow) {
-  const ctx = flow.ctx;
+  flow.ctx.gitPick = null;
 
-  ctx.sourceAction = { kind: 'none' };
-
-  if (!isGitFlow(ctx)) {
-    ctx.step = 'dir';
-
-    renderFlow(flow, true);
-
-    return;
-  }
-
-  const index = ctx.sources.findIndex((source) => source.kind === 'path');
-
-  if (index === -1) {
-    openAgentStep(flow);
-
-    return;
-  }
-
-  openPathSource(flow, index, null);
+  openListAgain(flow);
 }

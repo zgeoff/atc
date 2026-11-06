@@ -1,4 +1,4 @@
-import { openTargetStep, renderFlow } from './navigate-picker';
+import { openListAgain, openTargetStep, renderFlow } from './navigate-picker';
 import type { PickerFlow } from './picker-flow';
 import { buildDestination, isGitFlow } from './picker-queries';
 import { sendSpawn } from './prompt-step';
@@ -29,7 +29,9 @@ export function applyNameCancel(flow: PickerFlow) {
     ctx.input = buildDestination(ctx);
     ctx.step = 'confirm';
   } else if (!openTargetStep(flow)) {
-    ctx.step = 'dir';
+    openListAgain(flow);
+
+    return;
   }
 
   renderFlow(flow, true);

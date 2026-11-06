@@ -1,7 +1,7 @@
 import { COMMIT_ID_PATTERN } from '@atcx/contract';
 import type { RequestOutcome } from './create-picker-actors';
 import { formatPickerError } from './format-picker-error';
-import { openConfirmStep, renderFlow, sendPending } from './navigate-picker';
+import { openConfirmStep, openListAgain, renderFlow, sendPending } from './navigate-picker';
 import type { ChosenRef, PickerFlow, ProbedRepo } from './picker-flow';
 import { buildTargetParam } from './picker-params';
 import { collectRefItems } from './picker-queries';
@@ -57,11 +57,9 @@ export function applyRefSubmit(flow: PickerFlow) {
 export function applyRefCancel(flow: PickerFlow) {
   const ctx = flow.ctx;
 
-  ctx.input = ctx.repo?.label ?? '';
   ctx.repo = null;
-  ctx.step = 'source';
 
-  renderFlow(flow, true);
+  openListAgain(flow);
 }
 
 export function applyResolveProbe(

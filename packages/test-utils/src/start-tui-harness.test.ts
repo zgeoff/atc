@@ -183,7 +183,7 @@ test('it formats a text too long for the input row as the tail the picker draws'
 
   ctx.tui.write(KEYS.enter);
 
-  await ctx.tui.waitFor('spawn: directory');
+  await ctx.tui.waitFor('spawn: workspace');
 
   ctx.tui.write(typed);
 

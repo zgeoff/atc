@@ -59,7 +59,7 @@ test('it shows a refused spawn in the picker and keeps the entered prompt', asyn
   // directory step instead.
   ctx.write('n');
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.write(KEYS.enter);
 
@@ -106,7 +106,7 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -189,7 +189,7 @@ test('it keeps the target step open on a target whose provider the daemon lacks'
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.write(KEYS.enter);
 
@@ -215,7 +215,7 @@ test('it keeps the target step open on a target whose provider the daemon lacks'
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 }, 15_000);
 
 test('it sends a dirty local directory to a target off the daemon machine as a path workspace past its uncommitted file', async () => {
@@ -246,7 +246,7 @@ test('it sends a dirty local directory to a target off the daemon machine as a p
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.write(fixture.work);
 

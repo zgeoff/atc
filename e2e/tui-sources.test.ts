@@ -18,7 +18,7 @@ function setupTest() {
   return startTUIHarness();
 }
 
-test('it keeps paths and slash filters in the local directory step', async () => {
+test('it keeps paths and slash filters in the one list', async () => {
   const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
@@ -31,7 +31,7 @@ test('it keeps paths and slash filters in the local directory step', async () =>
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
   ctx.write('~/');
@@ -43,14 +43,15 @@ test('it keeps paths and slash filters in the local directory step', async () =>
 
   await ctx.waitFor('> \u001B[93m█');
 
+  ctx.reset();
   ctx.write('atc/src');
 
   await ctx.waitFor('> atc/src');
 
-  expect(ctx.read()).not.toInclude('spawn: GitHub repository');
+  expect(ctx.read()).toInclude('spawn: workspace');
 });
 
-test('it offers the next source on the directory step and cycles the sources on tab', async () => {
+test('it moves tab to the next source with rows and wraps to the directories', async () => {
   const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
@@ -64,27 +65,22 @@ test('it offers the next source on the directory step and cycles the sources on 
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory on the daemon host');
+  await ctx.waitFor('spawn: workspace');
 
-  expect(ctx.read()).toInclude(' · tab GitHub repository');
-
-  ctx.reset();
-  ctx.write(KEYS.tab);
-
-  await ctx.waitFor('spawn: GitHub repository');
+  expect(ctx.read()).toInclude(' · tab next source');
 
   ctx.reset();
   ctx.write(KEYS.tab);
 
-  await ctx.waitFor('spawn: git URL');
+  await ctx.waitFor('\u001B[7mgithub:');
 
   ctx.reset();
   ctx.write(KEYS.tab);
 
-  await ctx.waitFor('spawn: directory on the daemon host');
+  await ctx.waitFor('\u001B[7m~  ');
 });
 
-test('it switches the directory step to the GitHub source on a pasted URL', async () => {
+test('it keeps a pasted git URL in the one list as typed text', async () => {
   const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
@@ -97,14 +93,14 @@ test('it switches the directory step to the GitHub source on a pasted URL', asyn
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
   ctx.write('https://github.com/acme/app.git');
 
-  await ctx.waitFor('spawn: GitHub repository');
+  await ctx.waitFor('> https://github.com/acme/app.git');
 
-  expect(ctx.read()).toInclude('> https://github.com/acme/app.git');
+  expect(ctx.read()).toInclude('spawn: workspace');
 });
 
 test('it drives a source from its candidates to the confirm screen', async () => {
@@ -134,17 +130,17 @@ test('it drives a source from its candidates to the confirm screen', async () =>
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory on the daemon host');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
   ctx.write(KEYS.tab);
 
-  await ctx.waitFor('me/dots  dotfiles');
+  await ctx.waitFor('\u001B[7mgithub:me/dots  dotfiles');
 
   ctx.reset();
   ctx.write(`acme/${KEYS.enter}`);
 
-  await ctx.waitFor('acme/app  private');
+  await ctx.waitFor('\u001B[7mgithub:acme/app  private');
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -174,20 +170,10 @@ test('it spawns the repository a source reads typed text as, through to its work
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory on the daemon host');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
-  ctx.write(KEYS.tab);
-
-  await ctx.waitFor('spawn: GitHub repository');
-
-  ctx.reset();
-  ctx.write(KEYS.tab);
-
-  await ctx.waitFor('spawn: git URL');
-
-  ctx.reset();
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`, 10_000);
 
@@ -228,12 +214,12 @@ test('it spawns the repository a source reads typed text as, through to its work
         'workspaces',
         `upstream-main-${fixture.sha.slice(0, 7)}`,
       ),
-      workspace: { repoURL: fixture.upstream, sha: fixture.sha, ref: 'main' },
+      workspace: { repoURL: `file://${fixture.upstream}`, sha: fixture.sha, ref: 'main' },
     },
   ]);
 });
 
-test('it lists the scope a source reads from a directory step once, after the target step', async () => {
+test('it lists the scope a source reads from typed text once, with no target step before it', async () => {
   const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
@@ -251,7 +237,7 @@ test('it lists the scope a source reads from a directory step once, after the ta
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory on the daemon host');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
   ctx.write('acme/');
@@ -260,19 +246,10 @@ test('it lists the scope a source reads from a directory step once, after the ta
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: target');
+  await ctx.waitFor('github:acme/app  private');
 
-  ctx.reset();
-  ctx.write(KEYS.down);
-
-  await ctx.waitFor('\u001B[7malt  local-pty');
-
-  ctx.reset();
-  ctx.write(KEYS.enter);
-
-  await ctx.waitFor('acme/app  private');
-
-  expect(ctx.read()).toInclude('spawn: GitHub repository · acme');
+  expect(ctx.read()).toInclude('spawn: workspace · github: acme');
+  expect(ctx.read()).not.toInclude('spawn: target');
 
   const lists = readFileSync(join(ctx.home, 'gh-argv'), 'utf8')
     .split('\n')
@@ -298,10 +275,10 @@ test('it refuses a spawn when the config offers no sources', async () => {
 
   await ctx.waitFor('the daemon offers no sources');
 
-  expect(ctx.read()).not.toInclude('spawn: directory');
+  expect(ctx.read()).not.toInclude('spawn: workspace');
 });
 
-test('it lists an owner typed in the directory step through the source that reads it', async () => {
+test('it lists an owner typed in the list through the source that reads it', async () => {
   const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
@@ -314,16 +291,16 @@ test('it lists an owner typed in the directory step through the source that read
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
   ctx.write(`acme/${KEYS.enter}`);
 
-  await ctx.waitFor('spawn: GitHub repository · acme');
-  await ctx.waitFor('acme/app  private');
+  await ctx.waitFor('spawn: workspace · github: acme');
+  await ctx.waitFor('github:acme/app  private');
 });
 
-test('it probes a repository typed in the directory step at the URL its source reads it as', async () => {
+test('it probes a repository typed in the list at the URL its source reads it as', async () => {
   const ctx = setupTest();
 
   const fixture = await createGitFixture();
@@ -350,7 +327,7 @@ test('it probes a repository typed in the directory step at the URL its source r
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
   ctx.write(`acme/app${KEYS.enter}`);
@@ -363,7 +340,7 @@ test('it probes a repository typed in the directory step at the URL its source r
   await ctx.waitFor('source  https://github.com/acme/app.git');
 });
 
-test('it opens the sources in the order the config gives', async () => {
+test('it offers only the sources the config gives, and returns esc from the ref step to the list', async () => {
   const ctx = setupTest();
 
   const fixture = await createGitFixture();
@@ -380,22 +357,18 @@ test('it opens the sources in the order the config gives', async () => {
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: git URL');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
 
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor('spawn: git URL');
+  await ctx.waitFor(ctx.formatInput(`file://${fixture.upstream}`));
 
-  ctx.reset();
-  ctx.write(KEYS.tab);
-
-  await ctx.waitFor('spawn: directory on the daemon host');
-
-  expect(ctx.read()).not.toInclude('GitHub');
+  expect(ctx.read()).toInclude('spawn: workspace');
+  expect(ctx.read()).not.toInclude('github');
 });

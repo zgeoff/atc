@@ -10,8 +10,8 @@ import { buildPickerContext } from './build-picker-context';
 import { buildPickerView } from './build-picker-view';
 import type { CompletionOutcome, ListingOutcome, RequestOutcome } from './create-picker-actors';
 import { createPickerActors } from './create-picker-actors';
-import { applyCompletion, applyPathListing } from './dir-step';
-import { renderFlow } from './navigate-picker';
+import { applyCompletion, applyListing } from './list-step';
+import { renderFlow, stopListings } from './navigate-picker';
 import type {
   CompletionRequest,
   PickerContext,
@@ -19,8 +19,7 @@ import type {
   PickerRequest,
   SpawnPickerDeps,
 } from './picker-flow';
-import { findSource, getSelectedIndex } from './picker-queries';
-import { applyGitListing } from './source-step';
+import { getSelectedIndex } from './picker-queries';
 
 const COMPLETION_DELAY_MS = 120;
 
@@ -265,42 +264,18 @@ function applyEvent(flow: PickerFlow, event: PickerEvent) {
 function stopFlow(flow: PickerFlow) {
   const ctx = flow.ctx;
 
-  for (const sourceID of [ctx.listing?.sourceID, ctx.pathListing]) {
-    if (sourceID !== undefined && sourceID !== null) {
-      flow.effects.push({ kind: 'cancel-listing', sourceID });
-    }
-  }
+  stopListings(flow);
 
   ctx.pending = null;
-  ctx.listing = null;
-  ctx.pathListing = null;
   ctx.completion = null;
 
   flow.effects.push({ kind: 'cancel-request' }, { kind: 'cancel-completion' });
 }
 
-function applyListing(flow: PickerFlow, outcome: ListingOutcome) {
-  match(outcome.request)
-    .with({ kind: 'path' }, (request) => {
-      applyPathListing(flow, { ...outcome, request });
-    })
-    .with({ kind: 'git' }, (request) => {
-      applyGitListing(flow, { ...outcome, request });
-    })
-    .exhaustive();
-}
-
 function settleFlow(flow: PickerFlow) {
   const ctx = flow.ctx;
 
-  if (ctx.listing !== null && findSource(ctx)?.id !== ctx.listing.sourceID) {
-    flow.effects.push({ kind: 'cancel-listing', sourceID: ctx.listing.sourceID });
-
-    ctx.listing = null;
-    ctx.listedKey = null;
-  }
-
-  if (ctx.completion !== null && (ctx.step !== 'dir' || ctx.input !== ctx.completion.input)) {
+  if (ctx.completion !== null && (ctx.step !== 'list' || ctx.input !== ctx.completion.input)) {
     ctx.completion = null;
 
     flow.effects.push({ kind: 'cancel-completion' });

@@ -9,9 +9,9 @@ import {
   createGitFixture,
   createStubBin,
   openAgentStep,
-  openRepoStep,
   registerTestCleanup,
   startTUIHarness,
+  tabToRepoRows,
 } from '@atc/test-utils';
 import { $ } from 'bun';
 
@@ -39,12 +39,12 @@ test('it spawns a session from a git repository at the commit the confirm screen
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
   await ctx.waitFor('gh is not signed in on the daemon host');
 
   ctx.reset();
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
 
@@ -64,7 +64,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(ctx.formatInput(fixture.upstream));
+  await ctx.waitFor(ctx.formatInput(`file://${fixture.upstream}`));
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -112,7 +112,10 @@ test('it spawns a session from a git repository at the commit the confirm screen
   const listed = await daemon.sendRequest('session.list');
 
   expect(listed['sessions']).toMatchObject([
-    { cwd: destination, workspace: { repoURL: fixture.upstream, sha: fixture.sha, ref: 'main' } },
+    {
+      cwd: destination,
+      workspace: { repoURL: `file://${fixture.upstream}`, sha: fixture.sha, ref: 'main' },
+    },
   ]);
 
   expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe('hello\n');
@@ -131,9 +134,9 @@ test('it filters refs by name on the ref step', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 
@@ -157,9 +160,9 @@ test('it refuses an abbreviated commit id on the ref step', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 
@@ -180,7 +183,7 @@ test("it lists the gh account's repositories and an owner's on request, and leav
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
   await ctx.waitFor('me/dots  dotfiles');
 
@@ -189,7 +192,7 @@ test("it lists the gh account's repositories and an owner's on request, and leav
 
   await ctx.waitFor('acme/app  private');
 
-  expect(ctx.read()).toInclude('spawn: GitHub repository · acme');
+  expect(ctx.read()).toInclude('spawn: workspace · github: acme');
 
   expect(readFileSync(join(ctx.home, 'gh-argv'), 'utf8')).toMatch(
     /^api user\/repos\?affiliation=owner,collaborator,organization_member&.*&page=1\nconfig get git_protocol\nrepo list acme --limit .*\nconfig get git_protocol\n$/u,
@@ -201,7 +204,7 @@ test("it lists the gh account's repositories and an owner's on request, and leav
   await ctx.waitFor('spawn: agent');
 });
 
-test('it shows a repository the daemon cannot read on the repository step', async () => {
+test('it shows a repository the daemon cannot read on the list', async () => {
   const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
@@ -210,18 +213,18 @@ test('it shows a repository the daemon cannot read on the repository step', asyn
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
   ctx.reset();
-  ctx.write(`${join(ctx.home, 'missing.git')}${KEYS.enter}`);
+  ctx.write(`file://${join(ctx.home, 'missing.git')}${KEYS.enter}`);
 
   await ctx.waitFor('clone_failed');
 
-  expect(ctx.read()).toInclude('spawn: GitHub repository');
+  expect(ctx.read()).toInclude('spawn: workspace');
   expect(ctx.read()).not.toInclude('spawn: ref');
 });
 
-test('it opens github mode on a target that takes a workspace when the default cannot, and esc at the target step returns to the directory', async () => {
+test('it opens the target step after a typed repository on a target that takes a workspace when the default cannot, and esc returns to the list', async () => {
   const ctx = setupTest();
 
   const fixture = await createGitFixture();
@@ -245,10 +248,10 @@ test('it opens github mode on a target that takes a workspace when the default c
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
-  ctx.write(KEYS.tab);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: target');
 
@@ -258,20 +261,15 @@ test('it opens github mode on a target that takes a workspace when the default c
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor(ctx.formatInput(`file://${fixture.upstream}`));
 
   ctx.reset();
-  ctx.write(KEYS.tab);
+  ctx.write(KEYS.enter);
 
   await ctx.waitFor('spawn: target');
 
   ctx.reset();
   ctx.write(KEYS.enter);
-
-  await ctx.waitFor('spawn: GitHub repository');
-
-  ctx.reset();
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor(`main  default · ${fixture.sha.slice(0, 7)}`);
 
@@ -296,7 +294,7 @@ test('it opens github mode on a target that takes a workspace when the default c
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
 });
 
-test('it opens github mode on the one target that takes a workspace without a target step, and esc returns to the agent', async () => {
+test('it lists github on the one target that takes a workspace without a target step, and esc returns to the agent', async () => {
   const ctx = setupTest();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
@@ -310,7 +308,7 @@ test('it opens github mode on the one target that takes a workspace without a ta
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
   await ctx.waitFor('gh is not signed in on the daemon host');
 
@@ -320,7 +318,7 @@ test('it opens github mode on the one target that takes a workspace without a ta
   ctx.write(KEYS.esc);
 
   await ctx.waitFor('spawn: agent');
-}, 15_000);
+});
 
 test("it builds each target's own default destination when the target changes", async () => {
   const ctx = setupTest();
@@ -345,20 +343,15 @@ test("it builds each target's own default destination when the target changes", 
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
-  ctx.write(KEYS.tab);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: target');
 
   ctx.reset();
   ctx.write(KEYS.enter);
-
-  await ctx.waitFor('spawn: GitHub repository');
-
-  ctx.reset();
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 
@@ -375,10 +368,10 @@ test("it builds each target's own default destination when the target changes", 
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(ctx.formatInput(fixture.upstream));
+  await ctx.waitFor(ctx.formatInput(`file://${fixture.upstream}`));
 
   ctx.reset();
-  ctx.write(KEYS.esc);
+  ctx.write(KEYS.enter);
 
   await ctx.waitFor('spawn: target');
 
@@ -386,11 +379,6 @@ test("it builds each target's own default destination when the target changes", 
   ctx.write(KEYS.down);
 
   await ctx.waitFor('\u001B[7malt  local-pty');
-
-  ctx.reset();
-  ctx.write(KEYS.enter);
-
-  await ctx.waitFor(ctx.formatInput(fixture.upstream));
 
   ctx.reset();
   ctx.write(KEYS.enter);
@@ -431,10 +419,10 @@ test('it leaves a destination under a ~ root to a remote target and refuses a ty
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.reset();
-  ctx.write(KEYS.tab);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: target');
 
@@ -443,12 +431,8 @@ test('it leaves a destination under a ~ root to a remote target and refuses a ty
 
   await ctx.waitFor('\u001B[7mbox  imp');
 
-  ctx.write(KEYS.enter);
-
-  await ctx.waitFor('spawn: GitHub repository');
-
   ctx.reset();
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(KEYS.enter);
 
   await ctx.waitFor('spawn: ref');
 
@@ -491,7 +475,7 @@ test('it offers the other URL form after a failed probe and checks that form on 
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
   ctx.reset();
   ctx.write(`acme/app${KEYS.enter}`);
@@ -530,10 +514,10 @@ test('it drops a typed destination when the repository changes', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  await openRepoStep(ctx);
+  await tabToRepoRows(ctx);
 
   ctx.reset();
-  ctx.write(`${fixture.upstream}${KEYS.enter}`);
+  ctx.write(`file://${fixture.upstream}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 
@@ -564,7 +548,7 @@ test('it drops a typed destination when the repository changes', async () => {
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor(ctx.formatInput(fixture.upstream));
+  await ctx.waitFor(ctx.formatInput(`file://${fixture.upstream}`));
 
   ctx.reset();
   ctx.write(KEYS.ctrlU);
@@ -572,7 +556,7 @@ test('it drops a typed destination when the repository changes', async () => {
   await ctx.waitFor('> \u001B[93m█');
 
   ctx.reset();
-  ctx.write(`${other}${KEYS.enter}`);
+  ctx.write(`file://${other}${KEYS.enter}`);
 
   await ctx.waitFor('spawn: ref');
 

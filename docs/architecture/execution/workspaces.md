@@ -205,6 +205,25 @@ cannot run, such as GitHub without the `gh` CLI, with a line at startup. Every s
 on the daemon's host and checks the target the spawn will use, as a spawn does. The picker needs a
 source to list anything, so a daemon that offers none gets a refusal in place of a list.
 
+The picker shows every source in one list. It sends `sources.list` for every source at once and
+keeps each source's listing on its own, so a slow or failed source never holds up another.
+
+The daemon refuses a git listing that names no target that takes a workspace, and a git source lists
+before the user picks a target. So the picker names one listing target and lists every git source
+under it: the default target when that target takes a workspace, else the first target that takes
+one. The listing cache keys each listing by that target. When no target takes a workspace, the
+picker lists no git source. The target step opens after the pick in two cases:
+
+- for a repository, when more than one target takes a workspace;
+- for a directory, when more than one target can run it.
+
+The picker branches on a source's kind, `path` or `git`, and never on its id.
+
+On Enter, the picker asks the sources to read typed text, and the first reading other than `none`
+wins. A path, such as `~/code` or `/srv/app.git`, goes to the path source first and then to the git
+sources, since the git URL source reads any absolute path as a repository. Other text goes to the
+git sources in the `sources` map's order, then to the selected row, then to the path source.
+
 - **Directories** list the spawn history on the targets the caller may use, then the directories
   under the configured roots, then zoxide's list, and drop any that no longer exist. They complete a
   typed path on the daemon's host and resolve it the same way: `~` reads as the home of the user the

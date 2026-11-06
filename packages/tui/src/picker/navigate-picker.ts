@@ -1,29 +1,37 @@
 import { LOCAL_TARGET } from '@atc/config';
 import { buildWorkspaceDestination } from '@atc/core';
-import type { SourceInterpretation } from '@atcx/contract';
+import type { SourceEntry, SourceInterpretation } from '@atcx/contract';
+import { match } from 'ts-pattern';
+import { formatDir } from '../dirs';
 import { resolveWorkspaceRoot } from '../resolve-workspace-root';
 import { canPickOnTarget } from './can-pick-on-target';
 import { parseCandidates } from './parse-picker-answers';
 import type {
+  GitPick,
+  ListedCandidate,
+  PickerContext,
   PickerFlow,
   PickerRequest,
   ProbedRepo,
   ReadAttempt,
   ReadFollowUp,
-  SourceStepAction,
+  SourceListing,
 } from './picker-flow';
 import {
   buildClientCwdParam,
   buildListingKey,
+  buildListingTargetParam,
   buildPathTargetParam,
   buildTargetParam,
 } from './picker-params';
 import {
   buildDestination,
   collectEligibleTargets,
+  collectListItems,
   findEffectiveTarget,
-  findSource,
+  getListItemIndex,
   isGitFlow,
+  pickListingTarget,
 } from './picker-queries';
 
 const AUTO_ROOT = '~/.local/share/atc/workspaces';
@@ -70,7 +78,7 @@ export function openAgentStep(flow: PickerFlow) {
   renderFlow(flow, true);
 }
 
-export function openFirstSource(flow: PickerFlow) {
+export function openList(flow: PickerFlow) {
   const ctx = flow.ctx;
   const brokered = ctx.listedAgents.some((entry) => entry.id === ctx.agent && entry.brokerRequired);
   const picks = ctx.listedTargets.filter((target) => !brokered || target.brokerAuth);
@@ -86,81 +94,200 @@ export function openFirstSource(flow: PickerFlow) {
     ctx.targetGap = 'no target on this host can adopt a session';
   }
 
-  const index = ctx.resume ? ctx.sources.findIndex((source) => source.kind === 'path') : 0;
+  const listed = collectListedIndexes(ctx);
 
-  if (ctx.sources.length > 0 && index !== -1) {
-    ctx.agentStepWait = 'reading sources…';
+  if (listed.length === 0) {
+    ctx.refusal =
+      ctx.sources.length === 0
+        ? 'the daemon offers no sources · set sources · esc cancel'
+        : 'no directory source to adopt in · set sources · esc cancel';
 
-    openSource(flow, index);
+    renderFlow(flow);
 
     return;
   }
 
-  ctx.refusal =
-    ctx.sources.length === 0
-      ? 'the daemon offers no sources · set sources · esc cancel'
-      : 'no directory source to adopt in · set sources · esc cancel';
+  ctx.listingTarget = pickListingTarget(ctx.targets);
 
-  renderFlow(flow);
-}
+  ctx.listings = new Map();
 
-export function openSource(flow: PickerFlow, index: number) {
-  const source = flow.ctx.sources[index];
+  ctx.listMark = null;
+  ctx.sourceIndex = -1;
+  ctx.alternateURL = null;
+  ctx.input = '';
+  ctx.selected = 0;
+  ctx.step = 'list';
 
-  if (source?.kind === 'path') {
-    openPathSource(flow, index, null);
-  } else if (source?.kind === 'git') {
-    openGitSource(flow, index, '', { kind: 'none' });
+  for (const index of listed) {
+    listSource(flow, index, null);
   }
+
+  renderFlow(flow, true);
 }
 
-export function openPathSource(flow: PickerFlow, index: number, scope: string | null) {
-  const source = flow.ctx.sources[index];
+// An adopt runs in a directory on this host, so it lists no git source.
+function collectListedIndexes(ctx: PickerContext): number[] {
+  return ctx.sources.flatMap((source, index) =>
+    ctx.resume && source.kind !== 'path' ? [] : [index],
+  );
+}
+
+function listSource(flow: PickerFlow, index: number, scope: string | null) {
+  const ctx = flow.ctx;
+  const source = ctx.sources[index];
 
   if (source === undefined) {
     return;
   }
 
-  flow.ctx.pathListing = source.id;
+  if (source.kind === 'path') {
+    replaceListing(ctx, source.id, {
+      status: 'listing',
+      rows: scope === null ? buildOwnRows(flow, source.id) : [],
+      requestedScope: scope,
+      scope,
+      notice: null,
+      listedFrom: null,
+    });
 
+    flow.effects.push({
+      kind: 'list',
+      request: {
+        kind: 'path',
+        sourceID: source.id,
+        index,
+        params: {
+          source: source.id,
+          ...(scope === null ? {} : { scope }),
+          ...buildPathTargetParam(ctx, flow.deps),
+        },
+      },
+    });
+
+    return;
+  }
+
+  const target = ctx.listingTarget;
+
+  if (target === null) {
+    replaceListing(ctx, source.id, {
+      status: 'skipped',
+      rows: [],
+      requestedScope: scope,
+      scope,
+      notice: 'no target takes a workspace',
+      listedFrom: null,
+    });
+
+    return;
+  }
+
+  const key = buildListingKey(flow.deps, source.id, target.id, scope);
+  const cached = flow.deps.listingCache?.readListing(key, flow.deps.clock.now()) ?? null;
+  const kept = cached !== null && (cached.candidates.length > 0 || cached.scope !== null);
+  const rows = kept ? parseCandidates(cached.candidates, source.id) : [];
+  const keptScope = kept ? cached.scope : null;
+
+  replaceListing(ctx, source.id, {
+    status: 'listing',
+    rows,
+    requestedScope: scope,
+    scope: kept ? keptScope : scope,
+    notice: rows.length === 0 && keptScope !== null ? `nothing listed for ${keptScope}` : null,
+    listedFrom: kept ? cached.listedAt : null,
+  });
+
+  sendGitListing(flow, source.id, target.id, scope);
+}
+
+export function refreshListings(flow: PickerFlow) {
+  const ctx = flow.ctx;
+  const target = ctx.listingTarget;
+
+  if (target === null) {
+    return;
+  }
+
+  for (const source of ctx.sources) {
+    const listing = ctx.listings.get(source.id);
+
+    if (source.kind === 'git' && listing !== undefined) {
+      replaceListing(ctx, source.id, { ...listing, status: 'listing' });
+      sendGitListing(flow, source.id, target.id, listing.requestedScope);
+    }
+  }
+
+  renderFlow(flow);
+}
+
+function sendGitListing(
+  flow: PickerFlow,
+  sourceID: string,
+  targetID: string,
+  scope: string | null,
+) {
   flow.effects.push({
     kind: 'list',
     request: {
-      kind: 'path',
-      sourceID: source.id,
-      index,
-      params: {
-        source: source.id,
-        ...(scope === null ? {} : { scope }),
-        ...buildPathTargetParam(flow.ctx, flow.deps),
-      },
+      kind: 'git',
+      sourceID,
+      scope,
+      key: buildListingKey(flow.deps, sourceID, targetID, scope),
+      requestedAt: flow.deps.clock.now(),
+      params: { source: sourceID, ...(scope === null ? {} : { scope }), target: targetID },
     },
   });
 }
 
-export function openGitSource(
-  flow: PickerFlow,
-  index: number,
-  draft: string,
-  action: SourceStepAction,
-) {
+export function stopListings(flow: PickerFlow) {
+  for (const [sourceID, listing] of flow.ctx.listings) {
+    if (listing.status === 'listing') {
+      flow.effects.push({ kind: 'cancel-listing', sourceID });
+    }
+  }
+
+  flow.ctx.listings = new Map();
+}
+
+// This host's directory stands for nothing on a remote daemon's host.
+export function buildOwnRows(flow: PickerFlow, sourceID: string): ListedCandidate[] {
+  const deps = flow.deps;
+
+  if (deps.remoteDaemon === true) {
+    return [];
+  }
+
+  return [
+    {
+      sourceID,
+      label: formatDir(deps.cwd),
+      detail: null,
+      pick: { kind: 'path', directory: deps.cwd },
+    },
+  ];
+}
+
+export function replaceListing(ctx: PickerFlow['ctx'], sourceID: string, listing: SourceListing) {
+  ctx.listings = new Map([...ctx.listings, [sourceID, listing]]);
+}
+
+export function openListAgain(flow: PickerFlow) {
   const ctx = flow.ctx;
-  const fromGit = isGitFlow(ctx);
+  const mark = ctx.listMark;
 
-  if (ctx.pathListing !== null) {
-    flow.effects.push({ kind: 'cancel-listing', sourceID: ctx.pathListing });
-  }
+  ctx.step = 'list';
+  ctx.input = mark?.input ?? '';
+  ctx.alternateURL = null;
+  ctx.selected = getListItemIndex(collectListItems(ctx), mark ?? { sourceID: null, label: null });
 
-  ctx.pathListing = null;
+  renderFlow(flow, true);
+}
+
+export function startGitPick(flow: PickerFlow, index: number, pick: GitPick) {
+  const ctx = flow.ctx;
+
   ctx.sourceIndex = index;
-  ctx.sourceDraft = draft;
-  ctx.sourceAction = action;
-
-  if (fromGit) {
-    openSourceStep(flow);
-
-    return;
-  }
+  ctx.gitPick = pick;
 
   if (openTargetStep(flow)) {
     renderFlow(flow, true);
@@ -168,117 +295,13 @@ export function openGitSource(
     return;
   }
 
-  openSourceStep(flow);
-}
-
-export function openSourceStep(flow: PickerFlow) {
-  const ctx = flow.ctx;
-
-  ctx.step = 'source';
-  ctx.input = ctx.sourceDraft;
-  ctx.selected = 0;
-  ctx.alternateURL = null;
-
-  const action = ctx.sourceAction;
-
-  ctx.sourceAction = { kind: 'none' };
-
-  const key = `${findSource(ctx)?.id ?? ''}\n${ctx.target?.id ?? ''}`;
-  const stale = ctx.listedKey !== key;
-
-  if (stale) {
-    ctx.listedKey = key;
-    ctx.candidates = [];
-    ctx.listedScope = null;
-    ctx.listNotice = null;
-    ctx.listedFrom = null;
-    ctx.refreshFailure = null;
-  }
-
-  const scope = action.kind === 'browse' ? action.scope : null;
-
-  if (action.kind === 'browse' || stale) {
-    restoreCachedCandidates(flow, scope);
-  }
-
-  renderFlow(flow, true);
-
-  if (action.kind === 'browse' || stale) {
-    loadCandidates(flow, scope);
-  }
-
-  if (action.kind === 'probe') {
-    checkRepoAccess(flow, ctx.sourceDraft, action.url);
-  }
-}
-
-function restoreCachedCandidates(flow: PickerFlow, scope: string | null) {
-  const ctx = flow.ctx;
-  const deps = flow.deps;
-  const source = findSource(ctx);
-  const cache = deps.listingCache;
-
-  ctx.listedFrom = null;
-  ctx.refreshFailure = null;
-
-  if (source === null || cache === undefined) {
-    return;
-  }
-
-  const cached = cache.readListing(buildListingKey(ctx, deps, source.id, scope), deps.clock.now());
-
-  if (cached === null || (cached.candidates.length === 0 && cached.scope === null)) {
-    return;
-  }
-
-  ctx.candidates = parseCandidates(cached.candidates);
-  ctx.listedScope = cached.scope;
-  ctx.listedFrom = cached.listedAt;
-
-  ctx.listNotice =
-    ctx.candidates.length === 0 && ctx.listedScope !== null
-      ? `nothing listed for ${ctx.listedScope}`
-      : null;
-}
-
-export function loadCandidates(flow: PickerFlow, scope: string | null) {
-  const ctx = flow.ctx;
-  const deps = flow.deps;
-  const source = findSource(ctx);
-
-  if (source === null) {
-    return;
-  }
-
-  if (ctx.listing !== null && ctx.listing.sourceID !== source.id) {
-    flow.effects.push({ kind: 'cancel-listing', sourceID: ctx.listing.sourceID });
-  }
-
-  ctx.listing = { sourceID: source.id };
-  ctx.requestedScope = scope;
-
-  flow.effects.push({
-    kind: 'list',
-    request: {
-      kind: 'git',
-      sourceID: source.id,
-      scope,
-      key: buildListingKey(ctx, deps, source.id, scope),
-      requestedAt: deps.clock.now(),
-      params: {
-        source: source.id,
-        ...(scope === null ? {} : { scope }),
-        ...buildTargetParam(ctx),
-      },
-    },
-  });
-
-  renderFlow(flow);
+  checkRepoAccess(flow, pick.label, pick.url);
 }
 
 export function openTargetStep(flow: PickerFlow): boolean {
   const ctx = flow.ctx;
-  const eligible = collectEligibleTargets(ctx);
+  const git = isGitFlow(ctx);
+  const eligible = collectEligibleTargets(ctx, git);
 
   if (eligible.length === 1 || (ctx.targets.length === 0 && ctx.targetGap === null)) {
     // The spawn names the one usable target, default or not, so its provider decides whether
@@ -288,13 +311,9 @@ export function openTargetStep(flow: PickerFlow): boolean {
     return false;
   }
 
-  const preferred =
-    ctx.target ??
-    (isGitFlow(ctx)
-      ? (ctx.targets.find((target) => target.isDefault && target.takesWorkspace) ??
-        ctx.targets.find((target) => target.takesWorkspace))
-      : undefined) ??
-    ctx.targets.find((target) => target.isDefault);
+  const preferred = git
+    ? ctx.listingTarget
+    : (ctx.target ?? ctx.targets.find((target) => target.isDefault));
 
   ctx.selected = Math.max(
     0,
@@ -354,9 +373,10 @@ export function openConfirmStep(flow: PickerFlow) {
   ctx.input = buildDestination(ctx);
 }
 
-export function applyDir(flow: PickerFlow, directory: string) {
+export function applyDir(flow: PickerFlow, index: number, directory: string) {
   const ctx = flow.ctx;
 
+  ctx.sourceIndex = index;
   ctx.directory = directory;
   ctx.input = '';
 
@@ -375,50 +395,25 @@ export function applyReading(
 ) {
   const ctx = flow.ctx;
 
-  if (reading.kind === 'none') {
-    return;
-  }
+  match(reading)
+    .with({ kind: 'none' }, () => {})
+    .with({ kind: 'path' }, (path) => {
+      applyDir(flow, index, path.directory);
+    })
+    .with({ kind: 'git' }, (git) => {
+      startGitPick(flow, index, { label: typed, url: git.url });
+    })
+    .with({ kind: 'browse' }, (browse) => {
+      const sourceID = ctx.sources[index]?.id ?? null;
 
-  if (reading.kind === 'path') {
-    ctx.sourceIndex = index;
+      listSource(flow, index, browse.scope);
 
-    applyDir(flow, reading.directory);
+      ctx.input = '';
+      ctx.selected = getListItemIndex(collectListItems(ctx), { sourceID, label: null });
 
-    return;
-  }
-
-  const scope = reading.kind === 'browse' ? reading.scope : null;
-
-  if (ctx.sources[index]?.kind === 'path') {
-    openPathSource(flow, index, scope);
-
-    return;
-  }
-
-  if (index !== ctx.sourceIndex || ctx.step !== 'source') {
-    const action: SourceStepAction =
-      reading.kind === 'git'
-        ? { kind: 'probe', url: reading.url }
-        : { kind: 'browse', scope: reading.scope };
-
-    const draft = reading.kind === 'git' ? typed : '';
-
-    openGitSource(flow, index, draft, action);
-
-    return;
-  }
-
-  if (reading.kind === 'browse') {
-    ctx.input = '';
-    ctx.selected = 0;
-
-    restoreCachedCandidates(flow, reading.scope);
-    loadCandidates(flow, reading.scope);
-
-    return;
-  }
-
-  checkRepoAccess(flow, typed, reading.url);
+      renderFlow(flow, true);
+    })
+    .exhaustive();
 }
 
 export function readTypedInput(
@@ -442,7 +437,7 @@ export function readTypedInput(
           source: source.id,
           input: typed,
           ...(source.kind === 'git'
-            ? buildTargetParam(flow.ctx)
+            ? buildListingTargetParam(flow.ctx)
             : {
                 ...buildPathTargetParam(flow.ctx, flow.deps),
                 ...buildClientCwdParam(flow.deps),
@@ -456,12 +451,8 @@ export function readTypedInput(
   sendPending(flow, { kind: 'read', typed, label: `reading ${typed}…`, attempts, followUp });
 }
 
-export function collectReadOrder(flow: PickerFlow, withOwn: boolean): number[] {
-  const others = flow.ctx.sources.flatMap((_, index) =>
-    index === flow.ctx.sourceIndex ? [] : [index],
-  );
-
-  return withOwn ? [flow.ctx.sourceIndex, ...others] : others;
+export function collectSourceIndexes(ctx: PickerContext, kind: SourceEntry['kind']): number[] {
+  return ctx.sources.flatMap((source, index) => (source.kind === kind ? [index] : []));
 }
 
 export function checkRepoAccess(flow: PickerFlow, label: string, url: string) {

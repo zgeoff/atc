@@ -12,7 +12,7 @@ export function buildPathTargetParam(
   ctx: PickerContext,
   deps: PickerDeps,
 ): Readonly<Record<string, string>> {
-  const eligible = collectEligibleTargets(ctx);
+  const eligible = collectEligibleTargets(ctx, false);
   const fallback = eligible.find((candidate) => candidate.isDefault);
 
   if (deps.remoteDaemon !== true && fallback !== undefined) {
@@ -28,15 +28,20 @@ export function buildClientCwdParam(deps: PickerDeps): Readonly<Record<string, s
   return deps.remoteDaemon === true ? {} : { clientCwd: deps.cwd };
 }
 
+// A git source lists under one target for the whole list, chosen before the
+// user picks one, since the daemon refuses a git listing without a target
+// that takes a workspace.
+export function buildListingTargetParam(ctx: PickerContext): Readonly<Record<string, string>> {
+  return ctx.listingTarget === null ? {} : { target: ctx.listingTarget.id };
+}
+
 export function buildListingKey(
-  ctx: PickerContext,
   deps: PickerDeps,
   sourceID: string,
+  targetID: string,
   scope: string | null,
 ): string {
-  return [deps.getDaemonSocketPath?.() ?? '', sourceID, ctx.target?.id ?? '', scope ?? ''].join(
-    '\n',
-  );
+  return [deps.getDaemonSocketPath?.() ?? '', sourceID, targetID, scope ?? ''].join('\n');
 }
 
 export function buildSourceParams(ctx: PickerContext): Readonly<Record<string, unknown>> {

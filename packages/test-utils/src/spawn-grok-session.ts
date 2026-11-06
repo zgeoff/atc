@@ -12,7 +12,7 @@ export async function spawnGrokSession(tui: TUIHarness, name: string): Promise<v
 
   tui.write(KEYS.enter);
 
-  await tui.waitFor('spawn: directory');
+  await tui.waitFor('spawn: workspace');
 
   tui.write(KEYS.enter);
 

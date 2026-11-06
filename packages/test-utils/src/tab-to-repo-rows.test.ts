@@ -2,11 +2,11 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildStubSignedOutGH } from './build-stub-signed-out-gh';
 import { createStubBin } from './create-stub-bin';
-import { openRepoStep } from './open-repo-step';
 import { startTUIHarness } from './start-tui-harness';
+import { tabToRepoRows } from './tab-to-repo-rows';
 
 // The client booted to its home screen with a signed-out `gh` on its PATH,
-// so the GitHub repository step opens without reaching GitHub.
+// so the GitHub rows settle without reaching GitHub.
 async function setupTest() {
   const tui = startTUIHarness();
 
@@ -19,10 +19,10 @@ async function setupTest() {
   return { tui };
 }
 
-test('it leaves a capture that starts at the tab to the GitHub repository step', async () => {
+test('it leaves a capture that starts at the tab to the GitHub rows of the list', async () => {
   const ctx = await setupTest();
 
-  await openRepoStep(ctx.tui);
+  await tabToRepoRows(ctx.tui);
 
-  expect(ctx.tui.read()).not.toInclude('spawn: directory');
+  expect(ctx.tui.read()).not.toInclude('spawn: agent');
 });

@@ -23,7 +23,7 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('adopt: directory');
+  await ctx.waitFor('adopt: workspace');
 
   ctx.write(KEYS.enter);
 
@@ -73,7 +73,7 @@ test('it adopts grok with --no-leader and without --resume', async () => {
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('adopt: directory');
+  await ctx.waitFor('adopt: workspace');
 
   ctx.write(KEYS.enter);
 
@@ -118,7 +118,7 @@ test('it offers an adopt only the targets that run on this host', async () => {
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('adopt: directory');
+  await ctx.waitFor('adopt: workspace');
 
   ctx.reset();
   ctx.write(KEYS.enter);

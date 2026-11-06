@@ -126,7 +126,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('spawn: directory');
+  await ctx.waitFor('spawn: workspace');
 
   ctx.write(otherProject);
 

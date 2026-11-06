@@ -5,29 +5,48 @@ quitting atc leaves your sessions running.
 
 ## Spawning a session
 
-Press `n` to spawn a session: pick an agent, pick a directory, give it a name, and type a first
-prompt if you have one. The session takes the whole screen, and you work in it as you would in a
-plain terminal.
+Press `n` to spawn a session: pick an agent, pick a directory or a repository, give it a name, and
+type a first prompt if you have one. The session takes the whole screen, and you work in it as you
+would in a plain terminal.
 
 The agent picker lists only the agents whose binary the daemon finds and that some target can start,
-and opens only when it lists more than one. The directory picker lists the directory you ran `atc`
-from, then what the daemon's directory source finds: atc's spawn history, every project under the
-roots in `config.json`, and your [zoxide](https://github.com/ajeetdsouza/zoxide) list when zoxide is
-installed. A typed path such as `~/pro` completes like a shell. A daemon that offers no source gets
-a refusal in place of a list, as the [sources guide](./configuration/workspaces.md#sources)
-describes.
+and opens only when it lists more than one. After the agent, the picker shows one list that holds
+every directory and repository the daemon's sources offer, grouped by source in the order of the
+`sources` map in `config.json`. The directories come first in their group: the directory you ran
+`atc` from, then atc's spawn history, every project under the roots in `config.json`, and your
+[zoxide](https://github.com/ajeetdsouza/zoxide) list when zoxide is installed. A repository row
+starts with its source id, such as `github:acme/app`. While a source lists, the list shows the grey
+row `<source id>: listing…` in place of its rows, where `<source id>` is the source's key in
+`sources`, and a failed listing shows its error in that row. A daemon that offers no source gets a
+refusal in place of a list, as the [sources guide](./configuration/workspaces.md#sources) describes.
 
-`Tab` in the picker moves to the next source the daemon offers, such as GitHub. The GitHub list
-holds up to 500 repositories that your `gh` account can access, the most recently pushed first. It
-holds your own repositories, and the ones you reach as a collaborator or an organization member. The
-GitHub list opens at once from the copy atc kept the last time it listed them, marked with its age,
-and atc lists them again in the background and swaps the fresh list in when it arrives. atc keeps
-that copy for a day, across client restarts; an older copy is dropped, and the picker waits for a
-fresh list. Press `Ctrl-R` to list the repositories again, for example after you create one.
+Typed text filters every row of the list. `Tab` moves the selection to the next source's first row,
+or, while you type, to that source's best match, and wraps from the last source to the first. A
+typed path, one that starts with `/`, `~` or `.`, lists only the directories it completes to, as a
+shell does. Enter on a directory opens the name step. Enter on a repository opens the target step
+when more than one target takes a workspace, and then the ref step. Esc on the target step returns
+to the list with the repository still selected.
 
-Two typed forms reach past the GitHub list. Typing an account or organization name and a slash, such
-as `acme/`, lists that account's repositories in its place. Typing `owner/repo` or
-`github:owner/repo` picks a repository the list leaves out.
+The GitHub rows hold up to 500 repositories that your `gh` account can access, the most recently
+pushed first: your own repositories, and the ones you reach as a collaborator or an organization
+member. They show at once from the copy atc kept the last time it listed them, with its age in the
+list's title, and atc lists them again in the background and swaps the fresh rows in when they
+arrive. atc keeps that copy for a day, across client restarts; an older copy is dropped, and the
+list shows the `github: listing…` row until a fresh list arrives. Press `Ctrl-R` to list every
+repository source again, for example after you create a repository.
+
+Three typed forms reach past the listed rows when you press Enter:
+
+- An account or organization name and a slash, such as `acme/`, lists that account's repositories in
+  place of the GitHub rows.
+- `owner/repo` or `github:owner/repo` picks that repository, even when the list holds only a
+  repository whose name starts with the same text.
+- A git URL, such as `https://example.com/acme/tool.git`, picks the repository at that URL.
+
+A typed path always opens a directory. To spawn a repository on the daemon's host from its path,
+type it as a `file://` URL, which works when `workspaces.gitTransports` holds `file`. The
+[sources section](../architecture/execution/workspaces.md#sources) gives the order in which the
+sources read typed text.
 
 ## The session list
 
