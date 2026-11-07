@@ -18,6 +18,7 @@ export function createMigratedStateDB(dbPath: string): void {
   const db = new Database(dbPath);
 
   try {
+    // oxlint-disable-next-line zgeoff/seed-only -- the test database helper stands in for the migration's own draw
     db.run("UPDATE prefs SET value = ? WHERE key = 'daemon_id'", [randomUUID()]);
   } finally {
     db.close();

@@ -4,6 +4,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
 import { createEnrollmentToken } from '../../mcp/src/auth/create-enrollment-token';
 import { openMCPAuth } from '../../mcp/src/auth/open-mcp-auth';
+import { resetPasskeys } from '../../mcp/src/auth/reset-passkeys';
 import { startMCPHTTPServer } from '../../mcp/src/http/start-mcp-http-server';
 import { createTransportCaller } from '../../mcp/src/tools/create-transport-caller';
 import { buildStubAuthenticator } from './build-stub-authenticator';
@@ -113,7 +114,7 @@ test('it throws when the authorization stops short of the login page', async () 
 test('it throws when the login page holds no passkey ceremony', async () => {
   const ctx = await setupTest();
 
-  await ctx.store.db.deleteFrom('atc_passkey').execute();
+  await resetPasskeys(ctx.store.db);
 
   const created = await ctx.store.auth.api.createFixedClient({
     body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },

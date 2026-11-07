@@ -1,4 +1,3 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -439,19 +438,24 @@ test('it revives the fleet most recently active first', async () => {
     }),
   ]);
 
-  const db = new Database(daemon.paths.dbFile);
-
-  registerTestCleanup(() => {
-    db.close();
-  });
-
   // The event trail dates 'three' most recent and 'one' oldest, inverting
   // the stored fleet order.
-  db.run(
-    'INSERT INTO events (ts, atc_id, event, message, session_id) VALUES ' +
-      "('2026-08-14T00:00:01.000Z', 's1', 'Stop', NULL, 'fake-a')," +
-      "('2026-08-14T00:00:03.000Z', 's2', 'Stop', NULL, 'fake-c')," +
-      "('2026-08-14T00:00:02.000Z', 's3', 'Stop', NULL, 'fake-b')",
+  await seed.recordEvent(
+    { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'fake-a' } },
+    null,
+    Date.parse('2026-08-14T00:00:01.000Z'),
+  );
+
+  await seed.recordEvent(
+    { atcId: toSessionID('s2'), event: 'Stop', payload: { session_id: 'fake-c' } },
+    null,
+    Date.parse('2026-08-14T00:00:03.000Z'),
+  );
+
+  await seed.recordEvent(
+    { atcId: toSessionID('s3'), event: 'Stop', payload: { session_id: 'fake-b' } },
+    null,
+    Date.parse('2026-08-14T00:00:02.000Z'),
   );
 
   const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });

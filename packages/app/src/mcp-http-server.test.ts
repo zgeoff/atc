@@ -2,10 +2,12 @@ import { expect, test } from 'bun:test';
 import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
+import { systemClock } from '@atc/core';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
 import { createEnrollmentToken, openMCPAuth } from '@atc/mcp';
+import { seedPasskey } from '@atc/mcp/test-utils';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -360,17 +362,7 @@ test('it prints no hint to enroll a passkey once one is enrolled', async () => {
 
   registerTestCleanup(() => store.close());
 
-  await store.db
-    .insertInto('atc_passkey')
-    .values({
-      id: 'cred-phone',
-      public_key: 'AQID',
-      counter: 0,
-      transports: '[]',
-      created_at: '2026-10-14T12:00:00.000Z',
-      last_used_at: null,
-    })
-    .execute();
+  await seedPasskey({ db: store.db, clock: systemClock }, { id: 'cred-phone' });
 
   const printed: string[] = [];
 

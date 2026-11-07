@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildPayloadHash } from '@atc/daemon';
+import { removeCompletedIdempotencyKeys } from '@atc/daemon/testing';
 import { createStubSoftKillProvider } from '@atc/execution-local/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
@@ -1650,15 +1651,7 @@ test('it refuses a replay-only spawn whose completed key was swept and spawns no
 
   await daemon.client.sendRequest('session.spawn', params);
 
-  const db = new Database(daemon.dbPath);
-
-  const closeDB = registerTestCleanup(() => {
-    db.close();
-  });
-
-  db.run("DELETE FROM idempotency WHERE state = 'completed'");
-
-  closeDB();
+  await removeCompletedIdempotencyKeys(daemon.dbPath);
 
   const refused = daemon.client.sendRequest('session.spawn', { ...params, replayOnly: true });
 

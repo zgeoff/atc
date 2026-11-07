@@ -1,3 +1,4 @@
+// oxlint-disable zgeoff/seed-only -- the reader's SQL reads the files of other builds, so each test writes the schema of one
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';

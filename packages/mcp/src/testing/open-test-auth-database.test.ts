@@ -1,3 +1,4 @@
+// oxlint-disable zgeoff/seed-only -- the database opener's product is storage, so its tests write a table of their own
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';

@@ -1607,6 +1607,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
     ledger.close();
   });
 
+  // oxlint-disable-next-line zgeoff/seed-only -- a migration test marks the migration ledger
   ledger.run("UPDATE kysely_migration SET timestamp = 'sentinel'");
 
   const second = await createStateStore(dbPath);
@@ -2365,7 +2366,7 @@ test('it finds the newest row of each id from an index when it removes expired e
 
   const query = ctx.queries.find((candidate) => candidate.sql.startsWith('delete from "events"'));
 
-  invariant(query !== undefined, 'the store ran no delete from the events table');
+  invariant(query !== undefined, 'the store ran no delete on the events table');
 
   const plan = readQueryPlan(ctx.dbPath, query);
 
@@ -3852,6 +3853,7 @@ test('it adds an empty answer text to the answered rows of a database from befor
     "INSERT INTO events (ts, atc_id, event, message, kind, detail) VALUES ('1970-01-01T00:00:02.000Z', 's1', 'SessionMessage', 'm-1', 'message-answered', 'the old preview')",
   );
 
+  // oxlint-disable-next-line zgeoff/seed-only -- a migration test rewinds the migration ledger
   older.run("DELETE FROM kysely_migration WHERE name = '034_add_events_answer_text'");
   older.close();
 
@@ -5511,6 +5513,7 @@ test('it upgrades a database from before runtime auth and keeps every existing r
 
   older.run('DROP TABLE runtime_auth_grant');
   older.run('DROP TABLE runtime_auth_binding');
+  // oxlint-disable-next-line zgeoff/seed-only -- a migration test rewinds the migration ledger
   older.run("DELETE FROM kysely_migration WHERE name = '025_create_runtime_auth'");
   older.close();
 
@@ -5578,6 +5581,7 @@ test('it carries every fleet row and column across the rebuild that lets two row
   });
 
   older.run(
+    // oxlint-disable-next-line zgeoff/seed-only -- a migration test rewinds the migration ledger
     "DELETE FROM kysely_migration WHERE name = '031_rebuild_fleet_without_unique_agent_session_id'",
   );
 
@@ -6135,6 +6139,7 @@ test('it renames reports to notes and accepted to queued in a database from befo
   );
 
   older.run(
+    // oxlint-disable-next-line zgeoff/seed-only -- a migration test rewinds the migration ledger
     "DELETE FROM kysely_migration WHERE name = '028_rename_reports_to_notes_and_accepted_to_queued'",
   );
 
@@ -6311,6 +6316,7 @@ test('it writes a consistent backup while another connection commits writes', as
 
   seed.run('CREATE TABLE probe (generation INTEGER NOT NULL, slot INTEGER NOT NULL)');
   seed.run('CREATE TABLE probe_head (generation INTEGER NOT NULL)');
+  // oxlint-disable-next-line zgeoff/seed-only -- the backup's test writes tables of its own for the copy to read
   seed.run('INSERT INTO probe_head VALUES (0)');
 
   // About 8 MB of pages, so the copy runs long enough for the writer's
@@ -6318,6 +6324,7 @@ test('it writes a consistent backup while another connection commits writes', as
   seed.run('CREATE TABLE bulk (data BLOB NOT NULL)');
 
   seed.run(
+    // oxlint-disable-next-line zgeoff/seed-only -- the backup's test writes tables of its own for the copy to read
     'WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1024) INSERT INTO bulk SELECT randomblob(8192) FROM n',
   );
 
@@ -6330,6 +6337,7 @@ test('it writes a consistent backup while another connection commits writes', as
     [
       process.execPath,
       '-e',
+      // oxlint-disable-next-line zgeoff/seed-only -- the backup's test writes tables of its own for the copy to read
       `
         import { Database } from 'bun:sqlite';
         import { appendFileSync } from 'node:fs';

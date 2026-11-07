@@ -1,10 +1,9 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { collectPrincipals, collectTargets } from '@atc/config';
-import { buildStubTargets } from '@atc/daemon/testing';
+import { buildStubTargets, removeIdempotencyKeyTargets } from '@atc/daemon/testing';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { encodeCursor } from '@atc/protocol';
@@ -4748,17 +4747,9 @@ test('it refuses a principal the replay of a held spawn key that records no targ
     idempotencyKey: 'k-owner',
   });
 
+  await removeIdempotencyKeyTargets(daemon.dbPath);
+
   await daemon.restart(() => {
-    const db = new Database(daemon.dbPath);
-
-    const closeDB = registerTestCleanup(() => {
-      db.close();
-    });
-
-    db.run('UPDATE idempotency SET effect_target = NULL, effect_target_identity = NULL');
-
-    closeDB();
-
     const targets = collectTargets(
       { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
       undefined,
@@ -4826,17 +4817,9 @@ test('it answers the owner the replay of a held spawn key that records no target
     idempotencyKey: 'k-owner',
   });
 
+  await removeIdempotencyKeyTargets(daemon.dbPath);
+
   await daemon.restart(() => {
-    const db = new Database(daemon.dbPath);
-
-    const closeDB = registerTestCleanup(() => {
-      db.close();
-    });
-
-    db.run('UPDATE idempotency SET effect_target = NULL, effect_target_identity = NULL');
-
-    closeDB();
-
     const targets = collectTargets(
       { local: { provider: 'local-pty' }, box: { provider: 'local-pty', size: 2 } },
       undefined,

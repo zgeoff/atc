@@ -45,7 +45,7 @@ async function setupTest() {
   };
 
   // a session whose workspace and state folder a forget left behind
-  const seedForgotten = async (name: string) => {
+  const createForgottenSession = async (name: string) => {
     const spawned = await daemon.client.sendRequest('session.spawn', {
       cwd: join(root, name),
       workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
@@ -68,13 +68,13 @@ async function setupTest() {
     };
   };
 
-  return { root, daemon, lines, errors, io, seedForgotten };
+  return { root, daemon, lines, errors, io, createForgottenSession };
 }
 
 test('it prints each folder with its verdict on a dry run, and removes nothing', async () => {
   const ctx = await setupTest();
-  const clean = await ctx.seedForgotten('shop-main');
-  const dirty = await ctx.seedForgotten('till-main');
+  const clean = await ctx.createForgottenSession('shop-main');
+  const dirty = await ctx.createForgottenSession('till-main');
 
   writeFileSync(join(dirty.cwd, 'receipt.md'), '# Tuesday\n');
   mkdirSync(join(ctx.root, 'by-hand'));
@@ -104,8 +104,8 @@ test('it prints each folder with its verdict on a dry run, and removes nothing',
 
 test('it takes away the clean workspace and the state folders with remove, and keeps the rest', async () => {
   const ctx = await setupTest();
-  const clean = await ctx.seedForgotten('shop-main');
-  const dirty = await ctx.seedForgotten('till-main');
+  const clean = await ctx.createForgottenSession('shop-main');
+  const dirty = await ctx.createForgottenSession('till-main');
 
   writeFileSync(join(dirty.cwd, 'receipt.md'), '# Tuesday\n');
   mkdirSync(join(ctx.root, 'by-hand'));

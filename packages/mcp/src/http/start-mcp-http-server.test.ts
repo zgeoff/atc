@@ -27,6 +27,7 @@ import { removeClient } from '../auth/remove-client';
 import { resetPasskeys } from '../auth/reset-passkeys';
 import { revokeGrant } from '../auth/revoke-grant';
 import { createSubscriptionStore } from '../events/create-subscription-store';
+import { buildSeeder } from '../test-utils/build-seeder';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
@@ -108,6 +109,7 @@ async function setupTest() {
     clock,
     caller,
     store,
+    seed: buildSeeder({ db: store.db, clock }),
 
     // Stops the server and starts a fresh process's worth of it on the same
     // port and database, as an operator's restart does, trusting the
@@ -1030,20 +1032,12 @@ test('it removes the subscription of a client that revoked its refresh token, an
   const tokens = await readJSONRecord(exchanged);
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.store.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: created.clientID,
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: String(head['cursor']),
-      refresh_before: new Date(ctx.clock.now() + 60 * 60 * 1000).toISOString(),
-      created_at: new Date(ctx.clock.now()).toISOString(),
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: created.clientID,
+    url: 'https://hooks.example.com/hook',
+    position: String(head['cursor']),
+  });
 
   await fetch(`${ctx.url}/oauth2/revoke`, {
     method: 'POST',

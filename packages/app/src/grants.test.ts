@@ -1,12 +1,14 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { systemClock } from '@atc/core';
 import { readJSONRecord, runMCPAuthorization } from '@atc/test-utils';
 import { runGrants } from './grants';
+import { buildSeeder } from './test-utils/build-seeder';
 import { setupMCPHTTP } from './test-utils/setup-mcp-http';
 
 async function setupTest() {
   const server = await setupMCPHTTP();
 
-  return { server };
+  return { server, seed: buildSeeder({ db: server.store.db, clock: systemClock }) };
 }
 
 // A grant id is random base64url, so one in 64 starts with a dash; this one
@@ -37,17 +39,7 @@ test('it lists a grant whose id starts with a dash', async () => {
     }),
   });
 
-  await ctx.server.store.db
-    .updateTable('oauthAccessToken')
-    .set({ authorizationCodeId: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' })
-    .where('clientId', '=', clientID)
-    .execute();
-
-  await ctx.server.store.db
-    .updateTable('oauthRefreshToken')
-    .set({ authorizationCodeId: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' })
-    .where('clientId', '=', clientID)
-    .execute();
+  await ctx.seed.grantID({ clientID, grantID: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' });
 
   const printed: string[] = [];
 
@@ -91,17 +83,7 @@ test('it revokes a grant so its access token stops working and it lists no grant
 
   const tokens = await readJSONRecord(exchanged);
 
-  await ctx.server.store.db
-    .updateTable('oauthAccessToken')
-    .set({ authorizationCodeId: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' })
-    .where('clientId', '=', clientID)
-    .execute();
-
-  await ctx.server.store.db
-    .updateTable('oauthRefreshToken')
-    .set({ authorizationCodeId: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' })
-    .where('clientId', '=', clientID)
-    .execute();
+  await ctx.seed.grantID({ clientID, grantID: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' });
 
   const printed: string[] = [];
   const errors: string[] = [];
