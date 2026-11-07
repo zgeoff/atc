@@ -2,7 +2,7 @@ import type { IdempotencyRecord } from '@atc/store';
 
 type CompletedIdempotencyRecord = IdempotencyRecord & { readonly result: string };
 
-export function collectCompletedIdempotencyKeys(
+export function collectCompletedIdempotencyRecords(
   records: readonly IdempotencyRecord[],
 ): CompletedIdempotencyRecord[] {
   return records.filter(

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildMockIdempotencyRecord } from '@atc/store/testing';
-import { collectCompletedIdempotencyKeys } from './collect-completed-idempotency-keys';
+import { collectCompletedIdempotencyRecords } from './collect-completed-idempotency-records';
 
 test.each([
   ['a completed key with a result', 'completed', '{"session":"s-1"}', ['k-1']],
@@ -10,7 +10,7 @@ test.each([
 ] as const)('it collects %s as %p', (_label, state, result, expected) => {
   const records = [buildMockIdempotencyRecord({ key: 'k-1', state, result })];
 
-  expect(collectCompletedIdempotencyKeys(records).map((record) => record.key)).toStrictEqual([
+  expect(collectCompletedIdempotencyRecords(records).map((record) => record.key)).toStrictEqual([
     ...expected,
   ]);
 });
