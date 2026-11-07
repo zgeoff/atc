@@ -2,14 +2,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { availableParallelism, totalmem } from 'node:os';
 import { basename, join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { buildRelatedTestCommand } from './build-related-test-command.ts';
 import { parseLaneLimits } from './parse-lane-limits.ts';
 import { readOptionalText } from './read-optional-text.ts';
 import { readWorkerCount } from './read-worker-count.ts';
 import type { WorkerCountSources } from './read-worker-count.ts';
 
-// A host with one worker runs each file slower than CI, and a test that passes there must not fail
-// the push.
-const slowHostTestTimeoutMs = 15_000;
 const maxTestFiles = 50;
 
 export type ReadConfigText = (path: string) => string | null;
@@ -45,25 +43,20 @@ export async function runRelatedTests(
 
   const workers = await readWorkerCount(workerSources);
 
-  if (workers.kind === 'invalid') {
-    process.stderr.write(`run-related-tests: ${workers.message}\n`);
+  const testRun = buildRelatedTestCommand(plan.tests, workers);
+
+  if (testRun.kind === 'invalid') {
+    process.stderr.write(`run-related-tests: ${testRun.message}\n`);
 
     return 2;
   }
 
-  // Without `--no-isolate`, `bun test --parallel` gives each file a fresh global, while a test
-  // script with neither flag runs every file in one global.
-  const flags = [
-    `--parallel=${workers.count}`,
-    '--no-isolate',
-    ...(workers.count === 1 ? [`--timeout=${slowHostTestTimeoutMs}`] : []),
-  ];
-
-  // bun test reads a bare argument as a name filter; the ./ makes it a path.
-  const run = Bun.spawn(
-    ['bun', 'run', 'test', ...flags, ...plan.tests.map((path) => `./${path}`)],
-    { cwd: sources.cwd, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' },
-  );
+  const run = Bun.spawn([...testRun.command], {
+    cwd: sources.cwd,
+    stdin: 'inherit',
+    stdout: 'inherit',
+    stderr: 'inherit',
+  });
 
   return run.exited;
 }
