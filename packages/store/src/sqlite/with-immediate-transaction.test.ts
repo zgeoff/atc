@@ -1,4 +1,4 @@
-// oxlint-disable zgeoff/seed-only -- the transaction helper's product is storage, so its tests write a table of their own
+// oxlint-disable zgeoff/seed-only -- a test of code whose product is SQL or storage: the transaction's tests write a table of their own
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';

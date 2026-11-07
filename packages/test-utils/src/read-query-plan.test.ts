@@ -68,7 +68,7 @@ test('it never runs the query whose plan it reads', () => {
   db.run('CREATE TABLE notes (id INTEGER PRIMARY KEY, owner TEXT NOT NULL, body TEXT)');
 
   closeDB();
-  // oxlint-disable-next-line zgeoff/seed-only -- the plan reader's product is SQL, and the test checks it never runs this write
+  // oxlint-disable-next-line zgeoff/seed-only -- a test of code whose product is SQL or storage: the plan reader must never run this write
   readQueryPlan(ctx.dbPath, CompiledQuery.raw("INSERT INTO notes (owner) VALUES ('alice')", []));
 
   const reader = new Database(ctx.dbPath, { readonly: true });

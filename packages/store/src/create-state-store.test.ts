@@ -6316,7 +6316,7 @@ test('it writes a consistent backup while another connection commits writes', as
 
   seed.run('CREATE TABLE probe (generation INTEGER NOT NULL, slot INTEGER NOT NULL)');
   seed.run('CREATE TABLE probe_head (generation INTEGER NOT NULL)');
-  // oxlint-disable-next-line zgeoff/seed-only -- the backup's test writes tables of its own for the copy to read
+  // oxlint-disable-next-line zgeoff/seed-only -- a test of code whose product is SQL or storage: the backup copies tables the test writes
   seed.run('INSERT INTO probe_head VALUES (0)');
 
   // About 8 MB of pages, so the copy runs long enough for the writer's
@@ -6324,7 +6324,7 @@ test('it writes a consistent backup while another connection commits writes', as
   seed.run('CREATE TABLE bulk (data BLOB NOT NULL)');
 
   seed.run(
-    // oxlint-disable-next-line zgeoff/seed-only -- the backup's test writes tables of its own for the copy to read
+    // oxlint-disable-next-line zgeoff/seed-only -- a test of code whose product is SQL or storage: the backup copies tables the test writes
     'WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1024) INSERT INTO bulk SELECT randomblob(8192) FROM n',
   );
 
@@ -6337,7 +6337,7 @@ test('it writes a consistent backup while another connection commits writes', as
     [
       process.execPath,
       '-e',
-      // oxlint-disable-next-line zgeoff/seed-only -- the backup's test writes tables of its own for the copy to read
+      // oxlint-disable-next-line zgeoff/seed-only -- a test of code whose product is SQL or storage: the backup copies tables the test writes
       `
         import { Database } from 'bun:sqlite';
         import { appendFileSync } from 'node:fs';
