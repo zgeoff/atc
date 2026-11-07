@@ -113,7 +113,7 @@
     "prepare": "command -v git > /dev/null 2>&1 && lefthook install --force || true",
     "check:agent-hooks": "agent-hooks init && git diff --exit-code -- .claude/settings.json .codex/hooks.json",
     "check:atc-bridge-drift": "bun run build:atc-bridge && git diff --exit-code packages/harnesses/claude/src/bridge/atc-bridge-files.ts",
-    "check:docs": "chex prose length links skill"
+    "check:docs": "chex prose length links readmes skill"
   },
   "devDependencies": {
     "@atc/config": "workspace:*",
