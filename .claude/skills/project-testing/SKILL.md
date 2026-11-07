@@ -25,11 +25,16 @@ None.
 
 - Put a unit test beside its module in the package's `src/`.
 - Put a flow across several packages in `integration/` at the repo root when it runs in the test's
-  own process, with stand-ins such as `startTestDaemon` or `createStubExecutionProvider`. The unit
-  run, `bun run test`, runs it, and fails any test that runs past 5 s.
+  own process, with stand-ins such as
+  [`startTestDaemon`](../../../packages/daemon/src/testing/start-test-daemon.ts) or
+  [`createStubExecutionProvider`](../../../packages/execution/local/src/testing/create-stub-execution-provider.ts).
+  The unit run, `bun run test`, runs it, and fails any test that runs past 5 s.
 - Put a suite in `e2e/` at the repo root when it starts the `atc` CLI, the daemon or `atc-gateway`
-  as a process, through `runATC`, `startDaemonProcess`, `startMCPStdio` or `startTUIHarness`, or by
-  running `atc-gateway`. Only the `e2e` lane runs it.
+  as a process, through [`runATC`](../../../packages/test-utils/src/run-atc.ts),
+  [`startDaemonProcess`](../../../packages/lifecycle/src/testing/start-daemon-process.ts),
+  [`startMCPStdio`](../../../packages/test-utils/src/start-mcp-stdio.ts) or
+  [`startTUIHarness`](../../../packages/test-utils/src/start-tui-harness.ts), or by running
+  `atc-gateway`. Only the `e2e` lane runs it.
 - Start an e2e file name with `daemon-` or `gateway-` when the suite checks the compiled binary. CI
   runs those suites only in the smoke job of
   [`binaries.yml`](../../../.github/workflows/binaries.yml), with `ATC_BIN` and `ATC_GATEWAY_BIN`
@@ -70,8 +75,8 @@ None.
 ## Lanes
 
 Put a suite in a lane when it needs something outside the test process, such as a CLI on the machine
-or a real `bun install`, as the Needs column below lists. Each lane has a test script of its own.
-The unit run, `bun run test`, leaves out every lane's files.
+or a real `bun install`. The Needs column below gives what each lane needs. Each lane has a test
+script of its own. The unit run, `bun run test`, leaves out every lane's files.
 
 The unit run and the Codex and toolchain lanes run through
 [`@zgeoff/rig`](https://github.com/zgeoff/tools/tree/main/packages/rig), the shared test runner,
@@ -92,8 +97,7 @@ with `--timeout`.
 - Never give a lane test a timeout of its own. Each lane's runner sets the limit in the table.
 - Run one e2e suite with `bun run test:e2e e2e/<file>.test.ts`. Pass only e2e files and the options
   that [`with-e2e-paths.sh`](../../../scripts/with-e2e-paths.sh) lists. The script refuses any other
-  file, because a unit test run there would get the e2e lane's 15 s limit in place of the unit run's
-  5 s.
+  file. A unit test run there would get the e2e lane's 15 s limit in place of the unit run's 5 s.
 - Write each `e2e/` suite to pass in any order. CI's test job runs every suite that has no `daemon-`
   or `gateway-` prefix from source, in random order.
 
