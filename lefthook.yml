@@ -1,14 +1,22 @@
-# Git hooks. The pre-push baseline from zgeoff/tools checks what the branch
+# Git hooks. The pre-push baseline from @zgeoff/chex checks what the branch
 # changes, plus format:check and typecheck over the whole tree, each under
 # the memory cap; it also runs typecheck after the pre-commit jobs below. The
 # jobs here run before the baseline's. CI runs every whole-tree check:
 # type-aware lint, dead code, the full test suite, and the e2e lane.
 extends:
-  - .lefthook/pre-push-baseline.yml
+  - node_modules/@zgeoff/chex/lefthook.yml
 
 pre-commit:
   piped: true
   jobs:
+    - name: chex-baseline
+      files: echo package.json
+      run: |
+        if [ ! -f node_modules/@zgeoff/chex/lefthook.yml ]; then
+          echo "chex-baseline: node_modules/@zgeoff/chex/lefthook.yml is missing, so lefthook runs none of the chex baseline's jobs; run bun install, then try again"
+          exit 1
+        fi
+        # {files}
     - name: oxlint --fix
       glob: '*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'
       run: node_modules/.bin/oxlint --fix --no-error-on-unmatched-pattern {staged_files}
@@ -44,7 +52,17 @@ pre-push:
   # Sequential, to bound memory on a small host, and so each check's skip
   # condition reads the mark the first job writes.
   piped: true
+  exclude_tags:
+    - chex-test
   jobs:
+    - name: chex-baseline
+      files: echo package.json
+      run: |
+        if [ ! -f node_modules/@zgeoff/chex/lefthook.yml ]; then
+          echo "chex-baseline: node_modules/@zgeoff/chex/lefthook.yml is missing, so lefthook runs none of the chex baseline's jobs; run bun install, then try again"
+          exit 1
+        fi
+        # {files}
     # A push that only deletes branches carries no content, so every atc check
     # after this job skips on the mark it writes. lefthook runs a job and a
     # skip condition each through sh -c, so $PPID in both is lefthook's own
@@ -79,13 +97,19 @@ pre-push:
     - name: lint:mods
       skip: *delete-only-push
       run: bun x --no-install diet -- bun run lint:mods
-    # lefthook merges these fields into the baseline's test job, which then
-    # runs here. bun test ignores mods/, whose tests run through
+    # The baseline's chex-test job runs rig related outside the test home, so
+    # exclude_tags drops it and this job runs test:related, which sets the
+    # home up first. bun test ignores mods/, whose tests run through
     # test:atc-bridge, and fails a run whose every path it ignores.
     - name: test
       skip: *delete-only-push
+      files:
+        unset $(git rev-parse --local-env-vars); bun
+        node_modules/@zgeoff/chex/src/read-branch-files.ts
+      glob: '*.{ts,tsx,toml}'
       exclude:
         - 'mods/**'
+      run: bun x --no-install diet -- bun run test:related {files}
     # A later hook run by hand skips the mark job, so a mark left under a pid
     # that it reuses would skip its checks.
     - name: remove push mark

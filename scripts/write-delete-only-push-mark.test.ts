@@ -15,9 +15,9 @@ import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { writeDeleteOnlyPushMark } from './write-delete-only-push-mark';
 
-// The clone's pre-push hook runs the repo's lefthook.yml with each check
-// between the mark job and the mark removal swapped for an echo of its name,
-// because the real checks need the whole repo and take minutes.
+// The clone's hook keeps the jobs from the mark job to the mark removal, each
+// check an echo of its name, because the real checks need the whole repo and
+// take minutes; the chex guard needs node_modules, so it stays out.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'delete-only-push-' });
 
@@ -33,11 +33,14 @@ async function setupTest() {
 
   const configText = readFileSync(join(root, 'lefthook.yml'), 'utf8');
   const config = configSchema.parse(Bun.YAML.parse(configText));
-  const [markJob, ...laterJobs] = config['pre-push'].jobs;
-  const removeJob = laterJobs.at(-1);
-  const checks = laterJobs.slice(0, -1);
+  const allJobs = config['pre-push'].jobs;
+  const markIndex = allJobs.findIndex((job) => job.name === 'read push refs');
+  const removeIndex = allJobs.findIndex((job) => job.name === 'remove push mark');
+  const markJob = allJobs[markIndex];
+  const removeJob = allJobs[removeIndex];
+  const checks = allJobs.slice(markIndex + 1, removeIndex);
 
-  invariant(markJob && removeJob);
+  invariant(markJob && removeJob && markIndex < removeIndex);
 
   // A push with PUSH_GATE set waits here until that file exists, so two pushes can overlap.
   const gateJob = {

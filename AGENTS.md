@@ -140,8 +140,6 @@ prints its own reason, and the rules live where each bullet points.
     `bun -e` script.
   - The `openssl` binary: the test certificate helper runs it to make a self-signed certificate, and
     no package provides it.
-  - `scripts/run-related-tests.ts` as an entry: repo-sync delivers it with the pre-push baseline,
-    and no script runs it, because `test:related` runs rig.
   - `rig.config.ts` as an entry: rig loads it by name, and it holds the one import of `@zgeoff/rig`
     that knip can see.
 
@@ -198,7 +196,8 @@ covers its stores.
 
 ## Banned words
 
-`check-prose.sh` greps for most of these, and skips this file because it holds the list.
+`chex prose`, which `bun run check:docs` runs, greps for most of these, and skips this file because
+it holds the list.
 
 - `anchor` and `anchors on`, in the data-modelling sense. A link anchor such as `#section-heading`
   is a different word and stays.

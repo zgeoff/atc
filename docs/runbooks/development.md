@@ -27,14 +27,16 @@ lefthook runs oxlint, oxfmt, format-codemod and gitleaks on the staged files bef
 commitlint on the message. Before a push it runs atc's own checks, such as the guest script check
 and the import check, and then the
 [pre-push baseline](https://github.com/zgeoff/tools/blob/main/docs/architecture/pre-push-baseline.md)
-that zgeoff/tools delivers: the format check, the type check, and the lint, shell lint and unit
-tests for what the branch changes. The hook runs one job at a time, each under a memory cap set to
-the host's memory, and prints each job's peak memory. A push that only deletes remote branches, such
-as `git push origin --delete <branch>`, carries no content, so the hook skips atc's own checks and
-the tests. CI runs the shell lint (`bun run lint:shell`) over every tracked shell script, with
-shfmt's settings in `.editorconfig`, and leaves out the skill scripts that are synced from another
-repo. The guest script check (`bun run check:guest-scripts`) runs shellcheck over the shell scripts
-that atc holds as strings, which the shell lint cannot see.
+that `@zgeoff/chex` ships, which `lefthook.yml` extends from `node_modules`: the format check, the
+type check, the docs checks that `check:docs` names, and the lint and shell lint for what the branch
+changes. atc runs the unit tests for what the branch changes itself, through `test:related`, in the
+test home, in place of the baseline's test job. The hook runs one job at a time, each under a memory
+cap set to the host's memory, and prints each job's peak memory. A push that only deletes remote
+branches, such as `git push origin --delete <branch>`, carries no content, so the hook skips atc's
+own checks and the tests. CI runs the shell lint (`bun run lint:shell`) over every tracked shell
+script, with shfmt's settings in `.editorconfig`, and leaves out the skill scripts that are synced
+from another repo. The guest script check (`bun run check:guest-scripts`) runs shellcheck over the
+shell scripts that atc holds as strings, which the shell lint cannot see.
 
 A squash merge makes the PR title the commit subject, so the `PR Title` workflow runs commitlint on
 the title each time a PR opens, changes its title, or takes a push.
