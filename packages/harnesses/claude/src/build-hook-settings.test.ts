@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
@@ -358,6 +359,39 @@ test('it exits 0 when Claude Code gives the start hook no env file', async () =>
   });
 
   expect({ exitCode: ran.exitCode, stderr: ran.stderr }).toStrictEqual({ exitCode: 0, stderr: '' });
+});
+
+test('it leaves the env file as it was when the session has no atc session id', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(ctx.env.CLAUDE_ENV_FILE, 'export LANG=C.UTF-8\n');
+
+  const ran = await runCommand(['sh', '-c', ctx.telemetryHook], {
+    env: { PATH: ctx.env.PATH, CLAUDE_ENV_FILE: ctx.env.CLAUDE_ENV_FILE },
+  });
+
+  expect({
+    exitCode: ran.exitCode,
+    envFile: readFileSync(ctx.env.CLAUDE_ENV_FILE, 'utf8'),
+  }).toStrictEqual({ exitCode: 0, envFile: 'export LANG=C.UTF-8\n' });
+});
+
+test('it writes the first export line with no error output', async () => {
+  const ctx = setupTest();
+
+  const ran = await runCommand(['sh', '-c', ctx.telemetryHook], { env: ctx.env });
+
+  expect({ exitCode: ran.exitCode, stderr: ran.stderr }).toStrictEqual({ exitCode: 0, stderr: '' });
+});
+
+test('it exits 0 when it cannot write the env file', async () => {
+  const ctx = setupTest();
+
+  const ran = await runCommand(['sh', '-c', ctx.telemetryHook], {
+    env: { ...ctx.env, CLAUDE_ENV_FILE: join(ctx.env.CLAUDE_ENV_FILE, 'missing', 'hook.sh') },
+  });
+
+  expect(ran.exitCode).toBe(0);
 });
 
 function setupTest() {
