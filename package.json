@@ -119,6 +119,7 @@
     "check:workflows": "bun scripts/run-workflows-check.ts",
     "check:uncommitted": "bun scripts/run-uncommitted-check.ts",
     "memory-capped": "diet --",
+    "check:agent-hooks": "agent-hooks init && git diff --exit-code -- .claude/settings.json .codex/hooks.json",
     "check:atc-bridge-drift": "bun run build:atc-bridge && git diff --exit-code packages/harnesses/claude/src/bridge/atc-bridge-files.ts"
   },
   "devDependencies": {

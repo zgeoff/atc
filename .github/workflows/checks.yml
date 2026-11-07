@@ -60,6 +60,9 @@ jobs:
       - name: Package Manifests
         run: bun run check:manifests
 
+      - name: Agent Hook Entries
+        run: bun run check:agent-hooks
+
       - name: Gateway Reach
         run: bun run check:reach
 
