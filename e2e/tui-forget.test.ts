@@ -64,7 +64,9 @@ test('it shows why a forget kept the workspace until the next keypress', async (
   ctx.reset();
   ctx.write('y');
 
-  await ctx.waitFor('kept orchard-main: 1 uncommitted or untracked path');
+  // the forget waits up to 2 seconds for the killed harness to exit, then ends it by force and
+  // waits again, which on a loaded runner outlasts the default wait
+  await ctx.waitFor('kept orchard-main: 1 uncommitted or untracked path', 10_000);
 
   ctx.reset();
   ctx.write('j');
