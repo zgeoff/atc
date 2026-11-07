@@ -15,7 +15,6 @@ import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { openMCPAuth } from '../auth/open-mcp-auth';
 import { buildSeeder } from '../test-utils/build-seeder';
-import { seedEventSubscription } from '../test-utils/seed-event-subscription';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { buildStubRacingSubscriptionStore } from '../testing/build-stub-racing-subscription-store';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
@@ -574,20 +573,16 @@ test('it removes a subscription past its refreshBefore and delivers nothing to i
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await seedEventSubscription(
-    { db: ctx.db, clock: buildStubClock(Date.parse('2026-10-22T12:00:00.000Z')) },
-    {
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-23T11:59:59.000Z',
-      created_at: '2026-10-22T12:00:00.000Z',
-    },
-  );
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-23T12:59:59.000Z',
+  });
+
+  ctx.clock.advance(60 * 60 * 1000);
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -617,24 +612,19 @@ test('it keeps a subscription that a subscribe renewed between the read that fou
 
   const receiver = buildStubWebhookReceiver();
   const subscriptions = createSubscriptionStore(ctx.db);
-  const clock = buildStubClock(Date.parse('2026-10-23T12:00:00.000Z'));
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await seedEventSubscription(
-    { db: ctx.db, clock: buildStubClock(Date.parse('2026-10-22T12:00:00.000Z')) },
-    {
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-23T11:59:59.000Z',
-      created_at: '2026-10-22T12:00:00.000Z',
-    },
-  );
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-23T12:59:59.000Z',
+  });
+
+  ctx.clock.advance(60 * 60 * 1000);
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -651,12 +641,12 @@ test('it keeps a subscription that a subscribe renewed between the read that fou
           refresh_before: '2026-10-24T12:00:00.000Z',
           created_at: '2026-10-23T12:00:00.000Z',
         },
-        clock.now(),
+        ctx.clock.now(),
       );
     }),
     caller: ctx.caller,
     send: receiver.send,
-    clock,
+    clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
