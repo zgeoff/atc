@@ -1,5 +1,7 @@
-import { basename, dirname, posix } from 'node:path';
+import { basename, dirname, join, posix } from 'node:path';
+import { findMember } from './find-member.ts';
 import { parseLaneLimits } from './parse-lane-limits.ts';
+import { parseRigLaneLimits } from './parse-rig-lane-limits.ts';
 import type { ShellWord } from './parse-shell-words.ts';
 import { parseShellWords } from './parse-shell-words.ts';
 import type { RunProgram } from './run-program.ts';
@@ -9,6 +11,7 @@ export interface TestTimeoutsCheckOptions {
   readonly cwd: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly runProgram: RunProgram;
+  readonly importModule: (absolutePath: string) => Promise<unknown>;
 }
 
 export interface TestTimeoutFinding {
@@ -19,16 +22,12 @@ export interface TestTimeoutFinding {
 }
 
 // The check reads the files as HEAD holds them, so a push checks what it sends.
-export function runTestTimeoutsCheck(
+export async function runTestTimeoutsCheck(
   options: Readonly<TestTimeoutsCheckOptions>,
-): TestTimeoutFinding[] {
+): Promise<TestTimeoutFinding[]> {
   const paths = runGit(options, ['ls-tree', '-r', '-z', '--name-only', 'HEAD']).split('\0');
 
-  const configText = paths.includes(oxlintConfigPath)
-    ? runGit(options, ['show', `HEAD:${oxlintConfigPath}`])
-    : null;
-
-  const limits = parseLaneLimits(configText);
+  const limits = await readLaneLimits(options, paths);
 
   const appRoots = new Set(
     paths.filter((path) => basename(path) === 'package.json').map((path) => dirname(path)),
@@ -54,7 +53,6 @@ export function runTestTimeoutsCheck(
 }
 
 const configPattern = /^\.?oxlintrc(?:\.[\w-]+)?\.jsonc?$/u;
-const oxlintConfigPath = '.oxlintrc.json';
 
 const checkedFiles = new Set(['package.json', 'bunfig.toml']);
 
@@ -66,6 +64,51 @@ function runGit(options: Readonly<TestTimeoutsCheckOptions>, args: readonly stri
   }
 
   return result.stdout;
+}
+
+const rigConfigPath = 'rig.config.ts';
+const oxlintConfigPath = '.oxlintrc.json';
+
+// oxlint-config refuses the lanes option of its timeout rule in a repo with a rig.config.ts, so
+// that file alone sets the lanes there.
+async function readLaneLimits(
+  options: Readonly<TestTimeoutsCheckOptions>,
+  paths: readonly string[],
+): Promise<ReadonlyMap<string, number>> {
+  if (!paths.includes(rigConfigPath)) {
+    const configText = paths.includes(oxlintConfigPath)
+      ? runGit(options, ['show', `HEAD:${oxlintConfigPath}`])
+      : null;
+
+    return parseLaneLimits(configText);
+  }
+
+  // Only an import resolves the rig config's lanes, and an import reads the working tree, so the
+  // check runs only while the working tree holds HEAD's copy.
+  const diff = options.runProgram(['git', 'diff', '--quiet', 'HEAD', '--', rigConfigPath], {
+    cwd: options.cwd,
+    env: options.env,
+  });
+
+  if (diff.exitCode === 1) {
+    throw new Error(
+      `${rigConfigPath} in the working tree differs from HEAD; commit or stash the change, because the check reads the lane limits from HEAD`,
+    );
+  }
+
+  if (diff.exitCode !== 0) {
+    throw new Error(`git diff --quiet HEAD -- ${rigConfigPath} failed: ${diff.stderr.trim()}`);
+  }
+
+  const loaded = await options.importModule(join(options.cwd, rigConfigPath));
+
+  const parsed = parseRigLaneLimits(findMember(loaded, 'default'));
+
+  if (parsed.kind === 'refused') {
+    throw new Error(`cannot read the lanes of ${rigConfigPath}: ${parsed.reason}`);
+  }
+
+  return parsed.limits;
 }
 
 // A setting that turns a timeout rule off or down to a warning escapes the limits as a disable
@@ -288,12 +331,6 @@ function collectScriptFindings(
   });
 }
 
-function findMember(value: unknown, key: string): unknown {
-  return typeof value === 'object' && value !== null && Object.hasOwn(value, key)
-    ? Reflect.get(value, key)
-    : undefined;
-}
-
 interface LaneLimit {
   readonly lane: string;
   readonly limitMs: number;
@@ -475,9 +512,14 @@ const ticketPattern = /\b[A-Z][A-Z0-9]*-\d+\b/u;
 const floorPattern = /\bfloor:[\s*]*[^\s*]/u;
 
 // Returns the exit code: 0 when clean, 1 with a finding, and 2 when the check cannot run.
-export function runTestTimeoutsCommand(): number {
+export async function runTestTimeoutsCommand(): Promise<number> {
   try {
-    const findings = runTestTimeoutsCheck({ cwd: process.cwd(), env: process.env, runProgram });
+    const findings = await runTestTimeoutsCheck({
+      cwd: process.cwd(),
+      env: process.env,
+      runProgram,
+      importModule: (path) => import(path),
+    });
 
     for (const finding of findings) {
       process.stdout.write(`${finding.path}: ${finding.message}\n`);
@@ -494,5 +536,5 @@ export function runTestTimeoutsCommand(): number {
 }
 
 if (import.meta.main) {
-  process.exitCode = runTestTimeoutsCommand();
+  process.exitCode = await runTestTimeoutsCommand();
 }

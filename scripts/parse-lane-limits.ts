@@ -1,5 +1,5 @@
-// The limits match the max-test-timeout rule in @zgeoff/oxlint-config, which CI cannot import: the
-// workflow downloads this file and the modules it imports one by one.
+// The limits match the max-test-timeout rule in @zgeoff/oxlint-config, which neither chex nor the
+// copy that repo-sync puts in each repo can import.
 const standardLaneLimits: readonly (readonly [string, number])[] = [
   ['browser', 10_000],
   ['e2e', 15_000],
