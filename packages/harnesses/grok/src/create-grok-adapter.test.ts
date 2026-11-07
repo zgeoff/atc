@@ -222,11 +222,11 @@ test("it builds a grok resume command that runs grok with the entry's env", asyn
     cwd: ctx.directory,
   });
 
-  expect({ exitCode: result.exitCode, stdout: result.stdout, command }).toStrictEqual({
-    exitCode: 0,
-    stdout: "desk/it's-key --resume g-1",
-    command: expect.not.stringContaining('desk/'),
-  });
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+    commandHoldsValue: command.includes('desk/'),
+  }).toStrictEqual({ exitCode: 0, stdout: "desk/it's-key --resume g-1", commandHoldsValue: false });
 });
 
 test("it keeps a grok entry's env file readable by its owner alone", () => {

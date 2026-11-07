@@ -359,11 +359,11 @@ test("it builds a codex resume command that runs codex with the entry's env", as
     cwd: ctx.directory,
   });
 
-  expect({ exitCode: result.exitCode, stdout: result.stdout, command }).toStrictEqual({
-    exitCode: 0,
-    stdout: "desk/it's-key resume c-1",
-    command: expect.not.stringContaining('desk/'),
-  });
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+    commandHoldsValue: command.includes('desk/'),
+  }).toStrictEqual({ exitCode: 0, stdout: "desk/it's-key resume c-1", commandHoldsValue: false });
 });
 
 test("it keeps a codex entry's env file readable by its owner alone", () => {
