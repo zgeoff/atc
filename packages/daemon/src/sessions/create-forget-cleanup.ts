@@ -1,9 +1,9 @@
 import { join } from 'node:path';
 import type { WorkspaceCleanupConfig } from '@atc/config';
+import { formatError } from '@atc/core';
 import type { StateStore } from '@atc/store';
 import type { SessionID, WorkspaceCleanup } from '@atcx/contract';
 import { match } from 'ts-pattern';
-import { formatError } from '../auth/format-error';
 import type { SessionHold } from './create-host-dir-claims';
 import type { SessionManager } from './create-session-manager';
 import { isPathWithin } from './is-path-within';

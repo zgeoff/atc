@@ -1,3 +1,4 @@
+import { formatError } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
@@ -186,10 +187,6 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
       }
     },
   };
-}
-
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 // Best-effort clipboard: OSC 52 (works through zellij/tmux/ssh) plus any

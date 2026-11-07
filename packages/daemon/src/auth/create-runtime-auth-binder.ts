@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getSettledValue, makeKeyedLock, systemClock } from '@atc/core';
+import { formatError, getSettledValue, makeKeyedLock, systemClock } from '@atc/core';
 import type { CredentialBroker, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { RuntimeAuthBinding } from '@atc/store';
@@ -12,7 +12,6 @@ import { buildRevocationPending } from './build-revocation-pending';
 import { buildStoredBindingHash } from './build-stored-binding-hash';
 import { createHostAndGrants } from './create-host-and-grants';
 import { createLaunchAdmissions } from './create-launch-admissions';
-import { formatError } from './format-error';
 import { parseBoundSecrets } from './parse-bound-secrets';
 import { planBindingReconcile } from './plan-binding-reconcile';
 import { planBindingVerify } from './plan-binding-verify';

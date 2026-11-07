@@ -1,6 +1,6 @@
+import { formatError } from '@atc/core';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import type { SessionID, WorkspaceCleanup } from '@atcx/contract';
-import { formatError } from '../auth/format-error';
 import type { SessionManager } from './create-session-manager';
 
 interface CheckedWorkspaceRemoval {
