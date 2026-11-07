@@ -13,6 +13,6 @@
     ".claude/skills/code-style/**",
     ".claude/skills/docs-writing/**",
     ".claude/skills/skill-writing/**",
-    ".claude/hooks/skill-gate/**"
+    ".claude/hooks/start.ts"
   ]
 }

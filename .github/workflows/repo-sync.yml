@@ -47,7 +47,7 @@ jobs:
     with:
       ref: ${{ github.event.client_payload.sha }}
       include:
-        skill-testing, skill-docs-writing, hook-skill-gate, skill-code-style, skill-skill-writing,
+        skill-testing, skill-docs-writing, hook-start, skill-code-style, skill-skill-writing,
         workflow-audit-fix, skill-ci-design, pre-push-baseline
       skip: agents, memory-cap
     secrets:

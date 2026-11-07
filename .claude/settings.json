@@ -6,7 +6,29 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun --no-install \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-gate/skill-gate.ts\""
+            "command": "bun --no-install \"$CLAUDE_PROJECT_DIR/.claude/hooks/start.ts\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun --no-install \"$CLAUDE_PROJECT_DIR/.claude/hooks/start.ts\""
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun --no-install \"$CLAUDE_PROJECT_DIR/.claude/hooks/start.ts\""
           }
         ]
       }
