@@ -590,9 +590,15 @@ function planHarnessOnGuest(
   auth: HarnessAuthSetup | null,
 ): GuestSpawnPlan | null {
   try {
-    return adapter.planGuestSpawn === undefined
-      ? { ...adapter.planSpawn(options), files: {} }
-      : adapter.planGuestSpawn(options, paths);
+    if (adapter.planGuestSpawn !== undefined) {
+      return adapter.planGuestSpawn(options, paths);
+    }
+
+    // a local plan's env is the agent's own, which the target's session env
+    // outranks on the guest
+    const local = adapter.planSpawn(options);
+
+    return { ...local, env: { ...local.env, ...paths.sessionEnv }, files: {} };
   } catch (error) {
     throw auth === null ? error : toSignInRefusal(error, auth.host, auth.binding.secrets);
   }

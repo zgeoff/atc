@@ -1,7 +1,6 @@
 import type { AgentEntry } from '@atc/config';
-import { resolveAgentHome } from '@atc/config/host';
+import { resolveAgentHome, stateDir } from '@atc/config/host';
 import type { AgentID } from '@atc/core';
-import { toShellArg } from '@atc/core';
 import type {
   AgentAdapter,
   AgentHomeLocation,
@@ -9,7 +8,7 @@ import type {
   LineInputStep,
   TerminalInputModes,
 } from '@atc/plugin-api';
-import { planPastedLineInput } from '@atc/plugin-api';
+import { formatResumeCommand, makeAgentEnvFileSyncer, planPastedLineInput } from '@atc/plugin-api';
 import type { AgentSessionID, SpawnOptionSpec } from '@atcx/contract';
 import { loadGrokName } from './load-grok-name';
 import { planGrokHookEvents } from './plan-grok-hook-events';
@@ -45,7 +44,13 @@ const GROK_HOME_LOCATION: AgentHomeLocation = { env: 'GROK_HOME', folder: '.grok
 
 // the state the hook mapping reads travels with each session's hook lines, so the adapter holds
 // none
-export function createGrokAdapter(entry: AgentEntry, home: string | null = null): GrokAdapter {
+export function createGrokAdapter(
+  entry: AgentEntry,
+  home: string | null = null,
+  stateDirectory: string = stateDir,
+): GrokAdapter {
+  const syncEnvFile = makeAgentEnvFileSyncer(entry, stateDirectory);
+
   const resolveHome = (): string =>
     home ?? resolveAgentHome(GROK_HOME_LOCATION.env, GROK_HOME_LOCATION.folder);
 
@@ -78,6 +83,7 @@ export function createGrokAdapter(entry: AgentEntry, home: string | null = null)
         ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
         ...(opts.prompt === '' ? [] : [opts.prompt]),
       ],
+      ...(Object.keys(entry.env).length === 0 ? {} : { env: entry.env }),
     }),
 
     agentHomeLocation: GROK_HOME_LOCATION,
@@ -93,7 +99,7 @@ export function createGrokAdapter(entry: AgentEntry, home: string | null = null)
     planResumeCommand: (cwd, agentSessionID) => {
       const resume = agentSessionID === undefined ? 'grok' : `grok --resume ${agentSessionID}`;
 
-      return `cd ${toShellArg(cwd)} && ${resume}`;
+      return formatResumeCommand(cwd, resume, syncEnvFile());
     },
   };
 }

@@ -11,6 +11,7 @@ export * from './collect-mcp-http-config';
 export * from './collect-principals';
 export * from './collect-profile-env-problems';
 export * from './collect-remote-daemons';
+export * from './collect-sign-in-override-problems';
 export * from './collect-sources';
 export * from './collect-targets';
 export * from './collect-workspaces-config';

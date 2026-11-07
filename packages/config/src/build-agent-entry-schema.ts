@@ -61,7 +61,7 @@ function parseAgentEntryFields(
 }
 
 // The fields every kind takes.
-const COMMON_FIELDS: ReadonlySet<string> = new Set(['kind', 'label', 'mark', 'bin', 'args']);
+const COMMON_FIELDS: ReadonlySet<string> = new Set(['kind', 'label', 'mark', 'bin', 'args', 'env']);
 
 function collectFieldProblems(
   raw: Readonly<Record<string, unknown>>,
@@ -84,6 +84,11 @@ function collectFieldProblems(
 
     if (problem !== null) {
       problems.push(problem);
+      continue;
+    }
+
+    if (name === 'env' && isStringRecord(value)) {
+      problems.push(...collectEnvNameProblems(value));
     }
   }
 
@@ -140,6 +145,33 @@ function findFieldProblem(name: string, value: unknown): string | null {
   return check.problem;
 }
 
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    isRecord(value) &&
+    !Array.isArray(value) &&
+    Object.values(value).every((fieldValue) => typeof fieldValue === 'string')
+  );
+}
+
+// A shell variable name, since a resume command sources the entry's env
+// from a shell file.
+const SHELL_VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+
+// An entry's value for an `ATC_` name would replace the one atc sets.
+function collectEnvNameProblems(env: Readonly<Record<string, string>>): string[] {
+  return Object.keys(env).flatMap((key) => {
+    if (!SHELL_VARIABLE_NAME.test(key)) {
+      return [
+        `env key ${JSON.stringify(key)} is not a variable name: use letters, digits and underscores, and start with a letter or underscore`,
+      ];
+    }
+
+    return key.startsWith('ATC_')
+      ? [`env must not set ${key}, which atc keeps for the variables it sets itself`]
+      : [];
+  });
+}
+
 // An entry with every default applied, from fields already checked. The id
 // that is the kind's own shows the kind's label; any other id shows itself.
 function buildEntry(
@@ -176,12 +208,4 @@ function buildEntry(
       ? { pluginDirs: pluginDirs.map(String) }
       : {}),
   };
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return (
-    isRecord(value) &&
-    !Array.isArray(value) &&
-    Object.values(value).every((fieldValue) => typeof fieldValue === 'string')
-  );
 }

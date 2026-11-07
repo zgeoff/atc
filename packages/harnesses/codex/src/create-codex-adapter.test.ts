@@ -1,11 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { buildHostFiles } from '@atc/plugin-api';
+import { buildAgentEnvFilePath, buildHostFiles } from '@atc/plugin-api';
 import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
+  createStubBin,
   getAgentEntry,
   runLocalCommand,
   setupTempDir,
@@ -30,6 +31,105 @@ test('it spawns a fresh codex command with the prompt', () => {
   expect(adapter.planSpawn({ prompt: 'fix the bug', resume: false })).toStrictEqual({
     bin: 'codex',
     args: ['--no-daemon', 'fix the bug'],
+  });
+});
+
+test("it spawns codex with the entry's env", () => {
+  const config = parseConfig([CODEX_PLUGIN], {
+    agents: { codex: { env: { NOTES_VAULT: 'desk/notes-key' } } },
+  });
+
+  const adapter = createCodexAdapter(getAgentEntry(config, 'codex'));
+
+  expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
+    bin: 'codex',
+    args: ['--no-daemon'],
+    env: { NOTES_VAULT: 'desk/notes-key' },
+  });
+});
+
+test("it plans a remote spawn without the broker with the target's session env over the entry's env", () => {
+  const config = parseConfig([CODEX_PLUGIN], {
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: {
+      codex: {
+        auth: { profiles: ['codex'] },
+        env: { NOTES_VAULT: 'desk/notes-key', NOTES_REGION: 'eu' },
+      },
+    },
+  });
+
+  const adapter = createCodexAdapter(getAgentEntry(config, 'codex'), config);
+
+  const plan = adapter.planGuestSpawn?.(
+    { prompt: '', resume: false },
+    {
+      atc: null,
+      directory: '/tmp/atc/sessions/s1',
+      sessionEnv: { NOTES_VAULT: 'box/notes-key' },
+    },
+  );
+
+  expect(plan?.env).toStrictEqual({ NOTES_VAULT: 'box/notes-key', NOTES_REGION: 'eu' });
+});
+
+test("it plans a spawn behind the broker with the entry's env and the target's session env over it", () => {
+  const config = parseConfig([CODEX_PLUGIN], {
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: {
+      codex: {
+        auth: { profiles: ['codex'] },
+        env: { NOTES_VAULT: 'desk/notes-key', NOTES_REGION: 'eu' },
+      },
+    },
+  });
+
+  const adapter = createCodexAdapter(getAgentEntry(config, 'codex'), config);
+
+  const plan = adapter.planGuestSpawn?.(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc',
+      directory: '/tmp/atc/sessions/s1',
+      sessionEnv: { NOTES_VAULT: 'box/notes-key' },
+      auth: {
+        revision: 1,
+        env: {},
+        profileEnv: {},
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  expect(plan?.env).toStrictEqual({
+    NOTES_VAULT: 'box/notes-key',
+    NOTES_REGION: 'eu',
+    CODEX_HOME: '/tmp/atc/sessions/s1/codex-home',
   });
 });
 
@@ -231,6 +331,60 @@ test('it builds a codex resume command with the picker when no id was captured',
   const adapter = createCodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.planResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
+});
+
+test("it builds a codex resume command that runs codex with the entry's env", async () => {
+  const ctx = setupTest();
+  const binDir = join(ctx.directory, 'bin');
+
+  createStubBin(binDir, 'codex', '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n');
+
+  const config = parseConfig([CODEX_PLUGIN], {
+    agents: { codex: { env: { NOTES_VAULT: "desk/it's-key" } } },
+  });
+
+  const adapter = createCodexAdapter(
+    getAgentEntry(config, 'codex'),
+    config,
+    undefined,
+    join(ctx.directory, 'state'),
+  );
+
+  const command = adapter.planResumeCommand(ctx.directory, toAgentSessionID('c-1'));
+
+  invariant(command !== null, 'the adapter builds no resume command');
+
+  const result = await runLocalCommand({
+    argv: ['env', `PATH=${binDir}:${process.env['PATH'] ?? ''}`, 'sh', '-c', command],
+    cwd: ctx.directory,
+  });
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+    commandHoldsValue: command.includes('desk/'),
+  }).toStrictEqual({ exitCode: 0, stdout: "desk/it's-key resume c-1", commandHoldsValue: false });
+});
+
+test("it keeps a codex entry's env file readable by its owner alone", () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CODEX_PLUGIN], {
+    agents: { codex: { env: { NOTES_VAULT: 'desk/notes-key' } } },
+  });
+
+  const adapter = createCodexAdapter(
+    getAgentEntry(config, 'codex'),
+    config,
+    undefined,
+    join(ctx.directory, 'state'),
+  );
+
+  adapter.planResumeCommand(ctx.directory, undefined);
+
+  const file = buildAgentEnvFilePath(join(ctx.directory, 'state'), 'codex');
+
+  expect(statSync(file).mode & 0o777).toBe(0o600);
 });
 
 test('it refuses inbox messages without an App Server', () => {

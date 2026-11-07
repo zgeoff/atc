@@ -4,17 +4,49 @@ import { buildAgentEntrySchema } from './build-agent-entry-schema';
 test('it reports one issue per problem, in the order the entry holds its fields', () => {
   const schema = buildAgentEntrySchema(
     { kind: 'grok', fields: [], defaultLabel: 'Grok' },
-    { authProfiles: new Map(), entryID: 'grok', foreignFields: new Set(['env']) },
+    { authProfiles: new Map(), entryID: 'grok', foreignFields: new Set(['settings']) },
   );
 
-  const result = schema.safeParse({ colour: 'red', bin: '', env: {} });
+  const result = schema.safeParse({ colour: 'red', bin: '', settings: {} });
 
   expect(result.error?.issues.map((issue) => issue.message)).toStrictEqual([
     'unknown field colour',
     'bin must be a non-empty string',
-    'env is not valid for kind grok',
+    'settings is not valid for kind grok',
   ]);
 });
+
+test.each(['claude', 'codex', 'grok'] as const)(
+  'it refuses a %s entry whose env sets a variable in the names atc keeps',
+  (kind) => {
+    const schema = buildAgentEntrySchema(
+      { kind, fields: [], defaultLabel: 'Agent' },
+      { authProfiles: new Map(), entryID: kind, foreignFields: new Set() },
+    );
+
+    const result = schema.safeParse({ env: { ATC_NOTES_DIR: '/srv/notes', NOTES_REGION: 'eu' } });
+
+    expect(result.error?.issues.map((issue) => issue.message)).toStrictEqual([
+      'env must not set ATC_NOTES_DIR, which atc keeps for the variables it sets itself',
+    ]);
+  },
+);
+
+test.each(['notes vault', '1NOTES', 'NOTES=VAULT', ''])(
+  'it refuses an entry whose env key %p is not a variable name',
+  (key) => {
+    const schema = buildAgentEntrySchema(
+      { kind: 'codex', fields: [], defaultLabel: 'Codex' },
+      { authProfiles: new Map(), entryID: 'codex', foreignFields: new Set() },
+    );
+
+    const result = schema.safeParse({ env: { [key]: 'desk/notes-key' } });
+
+    expect(result.error?.issues.map((issue) => issue.message)).toStrictEqual([
+      `env key ${JSON.stringify(key)} is not a variable name: use letters, digits and underscores, and start with a letter or underscore`,
+    ]);
+  },
+);
 
 test("it runs the kind's own read once every field has the right type", () => {
   const schema = buildAgentEntrySchema(

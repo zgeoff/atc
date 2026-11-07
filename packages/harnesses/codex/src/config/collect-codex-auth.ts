@@ -2,10 +2,13 @@ import { resolveAuthProfiles } from '@atc/config';
 import { isRecord } from '@atc/core';
 import type { AuthProfile } from '@atc/plugin-api';
 
-interface CollectedCodexAuth {
-  readonly profiles: readonly string[] | null;
-  readonly errors: readonly string[];
-}
+type CollectedCodexAuth =
+  | {
+      readonly profiles: readonly string[];
+      readonly envOwners: Readonly<Record<string, string>>;
+      readonly errors: readonly [];
+    }
+  | { readonly profiles: null; readonly errors: readonly string[] };
 
 // The one host Codex sends its ChatGPT sign-in to.
 const CHATGPT_HOST = 'chatgpt.com';
@@ -60,5 +63,5 @@ export function collectCodexAuth(
     };
   }
 
-  return { profiles: selected, errors: [] };
+  return { profiles: selected, envOwners: resolution.resolved.envOwners, errors: [] };
 }
