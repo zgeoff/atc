@@ -2,9 +2,10 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { removeCompletedIdempotencyKeys, startTestDaemon } from '@atc/daemon/testing';
+import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { seedSweptIdempotencyKeys } from '@atc/store/test-utils';
 import {
   buildMockAgentAdapter,
   buildStubChannelOpener,
@@ -445,7 +446,7 @@ test('it resends a keyed spawn replay-only, so a resend after the daemon swept t
 
   await opener.waitForHeld();
 
-  await removeCompletedIdempotencyKeys(ctx.daemon.dbPath);
+  await seedSweptIdempotencyKeys({ dbPath: ctx.daemon.dbPath });
 
   opener.releaseHeld();
 

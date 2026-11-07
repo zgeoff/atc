@@ -2,10 +2,10 @@ import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildPayloadHash } from '@atc/daemon';
-import { removeCompletedIdempotencyKeys } from '@atc/daemon/testing';
 import { createStubSoftKillProvider } from '@atc/execution-local/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
+import { seedSweptIdempotencyKeys } from '@atc/store/test-utils';
 import { buildMockFleetEntry, buildMockMessageRecord } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
@@ -1651,7 +1651,7 @@ test('it refuses a replay-only spawn whose completed key was swept and spawns no
 
   await daemon.client.sendRequest('session.spawn', params);
 
-  await removeCompletedIdempotencyKeys(daemon.dbPath);
+  await seedSweptIdempotencyKeys({ dbPath: daemon.dbPath });
 
   const refused = daemon.client.sendRequest('session.spawn', { ...params, replayOnly: true });
 

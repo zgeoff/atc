@@ -2,8 +2,9 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { removeCompletedIdempotencyKeys, startTestDaemon } from '@atc/daemon/testing';
+import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
+import { seedSweptIdempotencyKeys } from '@atc/store/test-utils';
 import {
   buildMockAgentAdapter,
   buildStubChannelOpener,
@@ -394,7 +395,7 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
     router.sendRequest('session.spawn', params, { id: 'gw', name: 'Lantern Notes' }),
   ]);
 
-  await removeCompletedIdempotencyKeys(ctx.cloud.dbPath);
+  await seedSweptIdempotencyKeys({ dbPath: ctx.cloud.dbPath });
 
   const retried = router.sendRequest('session.spawn', params, { id: 'gw', name: 'Lantern Notes' });
 
@@ -466,7 +467,7 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
 
   await opener.waitForHeld();
 
-  await removeCompletedIdempotencyKeys(ctx.cloud.dbPath);
+  await seedSweptIdempotencyKeys({ dbPath: ctx.cloud.dbPath });
 
   opener.releaseHeld();
 
@@ -854,7 +855,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
     before.sendRequest('session.spawn', params, { id: 'gw', name: 'Lantern Notes' }),
   ]);
 
-  await removeCompletedIdempotencyKeys(ctx.cloud.dbPath);
+  await seedSweptIdempotencyKeys({ dbPath: ctx.cloud.dbPath });
 
   const retried = ctx.router.sendRequest('session.spawn', params, {
     id: 'gw',

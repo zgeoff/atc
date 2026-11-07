@@ -1,4 +1,4 @@
-import type { IdempotencyRecord } from '@atc/store';
+import type { IdempotencyRecord } from '../idempotency-record';
 
 type CompletedIdempotencyRecord = IdempotencyRecord & { readonly result: string };
 

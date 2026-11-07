@@ -6,6 +6,4 @@ export * from './build-stub-menu-claude';
 export * from './build-stub-targets';
 export * from './build-target-options-from-config';
 export * from './create-stub-agent-clis';
-export * from './remove-completed-idempotency-keys';
-export * from './remove-idempotency-key-targets';
 export * from './start-test-daemon';

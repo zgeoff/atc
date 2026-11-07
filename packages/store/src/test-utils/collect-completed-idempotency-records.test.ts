@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockIdempotencyRecord } from '@atc/store/testing';
+import { buildMockIdempotencyRecord } from '../testing/build-mock-idempotency-record';
 import { collectCompletedIdempotencyRecords } from './collect-completed-idempotency-records';
 
 test.each([

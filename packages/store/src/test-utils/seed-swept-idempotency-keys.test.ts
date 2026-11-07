@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { removeCompletedIdempotencyKeys } from './remove-completed-idempotency-keys';
+import { createStateStore } from '../create-state-store';
+import { createMigratedStateDB } from './create-migrated-state-db';
+import { seedSweptIdempotencyKeys } from './seed-swept-idempotency-keys';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-remove-completed-keys-');
@@ -29,7 +29,7 @@ test('it drops a key completed moments ago and keeps one whose outcome is unknow
   await ctx.store.claimIdempotencyKey({ ...unknown, payloadHash: 'h', effectRef: 's-2', at: 1 });
   await ctx.store.updateIdempotencyOutcomeUnknown(unknown, Date.now());
 
-  await removeCompletedIdempotencyKeys(ctx.dbPath);
+  await seedSweptIdempotencyKeys({ dbPath: ctx.dbPath });
 
   const keys = await ctx.store.readIdempotencyKeys();
 

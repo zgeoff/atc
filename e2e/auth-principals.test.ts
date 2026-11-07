@@ -3,12 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { collectPrincipals, collectTargets } from '@atc/config';
-import { buildStubTargets, removeIdempotencyKeyTargets } from '@atc/daemon/testing';
+import { buildStubTargets } from '@atc/daemon/testing';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
 import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { encodeCursor } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
+import { seedTargetlessCompletedIdempotencyKeys } from '@atc/store/test-utils';
 import {
   buildMockAgentAdapter,
   buildStubAttentionAdapter,
@@ -4749,7 +4750,7 @@ test('it refuses a principal the replay of a held spawn key that records no targ
 
   await daemon.stop();
 
-  await removeIdempotencyKeyTargets(daemon.dbPath);
+  await seedTargetlessCompletedIdempotencyKeys({ dbPath: daemon.dbPath });
 
   await daemon.restart(() => {
     const targets = collectTargets(
@@ -4821,7 +4822,7 @@ test('it answers the owner the replay of a held spawn key that records no target
 
   await daemon.stop();
 
-  await removeIdempotencyKeyTargets(daemon.dbPath);
+  await seedTargetlessCompletedIdempotencyKeys({ dbPath: daemon.dbPath });
 
   await daemon.restart(() => {
     const targets = collectTargets(

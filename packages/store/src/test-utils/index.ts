@@ -9,5 +9,7 @@ export * from './seed-failed-materialization';
 export * from './seed-later-epoch-session-owner';
 export * from './seed-materialization';
 export * from './seed-ready-materialization';
+export * from './seed-swept-idempotency-keys';
+export * from './seed-targetless-completed-idempotency-keys';
 export * from './seed-transferring-materialization';
 export * from './seed-verifying-materialization';

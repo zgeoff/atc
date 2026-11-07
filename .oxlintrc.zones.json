@@ -17,6 +17,9 @@
           "plugin-api": ["packages/plugin-api{,/**}"],
           "config": ["packages/config{,/**}"],
           "store": ["packages/store{,/**}"],
+          // the store's seeds, which a front end's tests may use to set up a
+          // daemon's state database
+          "store-test-utils": ["packages/store/src/test-utils/**", "packages/store/test-utils"],
           "lifecycle": ["packages/lifecycle{,/**}"],
           "daemon": ["packages/daemon{,/**}"],
           "plugins": ["packages/{harnesses,execution,sources}/*{,/**}"],
@@ -194,7 +197,15 @@
           {
             "name": "package-deps",
             "from": ["front-ends"],
-            "allow": ["contract", "core", "protocol", "config", "test-utils", "daemon-testing"],
+            "allow": [
+              "contract",
+              "core",
+              "protocol",
+              "config",
+              "test-utils",
+              "daemon-testing",
+              "store-test-utils"
+            ],
             "allowWithin": "packages/*"
           },
           // check-manifests limits the test helpers that reach into the app by path

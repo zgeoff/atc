@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { removeIdempotencyKeyTargets } from './remove-idempotency-key-targets';
+import { createStateStore } from '../create-state-store';
+import { createMigratedStateDB } from './create-migrated-state-db';
+import { seedTargetlessCompletedIdempotencyKeys } from './seed-targetless-completed-idempotency-keys';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-remove-key-targets-');
@@ -30,7 +30,7 @@ test('it drops the target of a completed key and keeps its result', async () => 
     targetIdentity: 'local-pty:box',
   });
 
-  await removeIdempotencyKeyTargets(ctx.dbPath);
+  await seedTargetlessCompletedIdempotencyKeys({ dbPath: ctx.dbPath });
 
   expect(ctx.store.readIdempotencyKey(id)).resolves.toStrictEqual({
     ...id,
@@ -51,7 +51,7 @@ test('it leaves a key in progress as it was', async () => {
 
   await ctx.store.claimIdempotencyKey({ ...id, payloadHash: 'h', effectRef: 's-1', at: 1 });
 
-  await removeIdempotencyKeyTargets(ctx.dbPath);
+  await seedTargetlessCompletedIdempotencyKeys({ dbPath: ctx.dbPath });
 
   expect(ctx.store.readIdempotencyKey(id)).resolves.toStrictEqual({
     ...id,

@@ -191,6 +191,7 @@
       },
       "devDependencies": {
         "@atc/daemon": "workspace:*",
+        "@atc/store": "workspace:*",
         "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
       },
