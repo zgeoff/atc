@@ -26,7 +26,6 @@ import {
   findCodexSignIn,
   findFlagValue,
   formatResumeCommand,
-  formatShellWord,
   makeAgentEnvFileWriter,
   probeTranscriptResumable,
 } from '@atc/plugin-api';
@@ -346,10 +345,8 @@ export function createCodexAdapter(
     // the entry's env file sits on the daemon's machine, beside the generated settings file a
     // claude entry resumes with
     planResumeCommand: (cwd, agentSessionID) => {
-      const bin = formatShellWord(entry.bin);
-
       const resume =
-        agentSessionID === undefined ? `${bin} resume` : `${bin} resume ${agentSessionID}`;
+        agentSessionID === undefined ? 'codex resume' : `codex resume ${agentSessionID}`;
 
       return formatResumeCommand(cwd, resume, writeEnvFile());
     },

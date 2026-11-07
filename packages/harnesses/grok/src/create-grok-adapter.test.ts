@@ -199,15 +199,12 @@ test('it does not resume a session with no captured id', () => {
 
 test("it builds a grok resume command that runs grok with the entry's env", async () => {
   const ctx = setupTest();
+  const binDir = join(ctx.directory, 'bin');
 
-  const bin = createStubBin(
-    join(ctx.directory, 'bin'),
-    'grok',
-    '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n',
-  );
+  createStubBin(binDir, 'grok', '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n');
 
   const config = parseConfig([GROK_PLUGIN], {
-    agents: { grok: { bin, env: { NOTES_VAULT: "desk/it's-key" } } },
+    agents: { grok: { env: { NOTES_VAULT: "desk/it's-key" } } },
   });
 
   const adapter = createGrokAdapter(
@@ -220,7 +217,10 @@ test("it builds a grok resume command that runs grok with the entry's env", asyn
 
   invariant(command !== null, 'the adapter builds no resume command');
 
-  const result = await runLocalCommand({ argv: ['sh', '-c', command], cwd: ctx.directory });
+  const result = await runLocalCommand({
+    argv: ['env', `PATH=${binDir}:${process.env['PATH'] ?? ''}`, 'sh', '-c', command],
+    cwd: ctx.directory,
+  });
 
   expect({ exitCode: result.exitCode, stdout: result.stdout, command }).toStrictEqual({
     exitCode: 0,

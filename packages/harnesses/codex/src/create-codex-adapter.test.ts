@@ -335,15 +335,12 @@ test('it builds a codex resume command with the picker when no id was captured',
 
 test("it builds a codex resume command that runs codex with the entry's env", async () => {
   const ctx = setupTest();
+  const binDir = join(ctx.directory, 'bin');
 
-  const bin = createStubBin(
-    join(ctx.directory, 'bin'),
-    'codex',
-    '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n',
-  );
+  createStubBin(binDir, 'codex', '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n');
 
   const config = parseConfig([CODEX_PLUGIN], {
-    agents: { codex: { bin, env: { NOTES_VAULT: "desk/it's-key" } } },
+    agents: { codex: { env: { NOTES_VAULT: "desk/it's-key" } } },
   });
 
   const adapter = createCodexAdapter(
@@ -357,7 +354,10 @@ test("it builds a codex resume command that runs codex with the entry's env", as
 
   invariant(command !== null, 'the adapter builds no resume command');
 
-  const result = await runLocalCommand({ argv: ['sh', '-c', command], cwd: ctx.directory });
+  const result = await runLocalCommand({
+    argv: ['env', `PATH=${binDir}:${process.env['PATH'] ?? ''}`, 'sh', '-c', command],
+    cwd: ctx.directory,
+  });
 
   expect({ exitCode: result.exitCode, stdout: result.stdout, command }).toStrictEqual({
     exitCode: 0,

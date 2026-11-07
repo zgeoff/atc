@@ -26,7 +26,6 @@ export * from './harness/find-codex-sign-in';
 export * from './harness/find-flag-value';
 export * from './harness/find-slash-command';
 export * from './harness/format-resume-command';
-export * from './harness/format-shell-word';
 export * from './harness/paste-markers';
 export * from './harness/plan-pasted-line-input';
 export * from './harness/parse-matching-lines';

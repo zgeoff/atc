@@ -8,12 +8,7 @@ import type {
   LineInputStep,
   TerminalInputModes,
 } from '@atc/plugin-api';
-import {
-  formatResumeCommand,
-  formatShellWord,
-  makeAgentEnvFileWriter,
-  planPastedLineInput,
-} from '@atc/plugin-api';
+import { formatResumeCommand, makeAgentEnvFileWriter, planPastedLineInput } from '@atc/plugin-api';
 import type { AgentSessionID, SpawnOptionSpec } from '@atcx/contract';
 import { loadGrokName } from './load-grok-name';
 import { planGrokHookEvents } from './plan-grok-hook-events';
@@ -104,8 +99,7 @@ export function createGrokAdapter(
     // the entry's env file sits on the daemon's machine, beside the generated settings file a
     // claude entry resumes with
     planResumeCommand: (cwd, agentSessionID) => {
-      const bin = formatShellWord(entry.bin);
-      const resume = agentSessionID === undefined ? bin : `${bin} --resume ${agentSessionID}`;
+      const resume = agentSessionID === undefined ? 'grok' : `grok --resume ${agentSessionID}`;
 
       return formatResumeCommand(cwd, resume, writeEnvFile());
     },
