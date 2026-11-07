@@ -29,7 +29,7 @@ Codex adds an entry for each:
 | `bin`          | the kind's binary name               | The binary spawned for the entry's sessions.                                                                                                                                                                                                    |
 | `args`         | `[]`                                 | Prepended to every spawn. A spawn's own model or effort replaces the matching flag.                                                                                                                                                             |
 | `settings`     | none                                 | Claude only. More Claude Code settings for the entry's sessions; [extra session settings](#extra-session-settings) covers them.                                                                                                                 |
-| `env`          | `{}`                                 | Claude only. Extra environment for the session, such as the model each Claude tier maps to. An imp target's [`sessionEnv`](./targets.md#session-variables) outranks it.                                                                         |
+| `env`          | `{}`                                 | Extra environment for each session of the entry, such as the model each Claude tier maps to; [session environment](#session-environment) covers it.                                                                                             |
 | `baseURL`      | none                                 | Claude only. The backend's Anthropic-format endpoint; an entry that sets it is a [gateway](#gateways).                                                                                                                                          |
 | `apiKeyHelper` | none                                 | Claude only, with `baseURL`. Command the CLI runs on the daemon's machine to read the credential.                                                                                                                                               |
 | `auth`         | none                                 | Claude or Codex. The credential profiles impd's broker applies; [brokered credentials](./brokered-credentials.md), [Claude subscription on imps](./claude-subscription.md), and [Codex subscription on imps](./codex-subscription.md) cover it. |
@@ -57,6 +57,25 @@ events, replies, and renames as the session that started the server. A Codex ent
 already hold `--no-daemon` gets no second copy, since Codex refuses a repeated flag. One whose
 `args` hold `--remote` gets no `--no-daemon`, since Codex refuses the pair; its sessions report as
 whatever environment the remote server runs in.
+
+## Session environment
+
+An entry's `env` sets variables in every session of the entry, such as
+`"codex": { "env": { "NOTES_VAULT": "desk/notes-key" } }`. One rule holds for every kind:
+
+- A session on the daemon's machine gets the daemon's environment, with the entry's `env` over it.
+- A session on an imp gets the entry's `env`. For a key that both set, the imp target's
+  [`sessionEnv`](./targets.md#session-variables) wins.
+- An entry with `auth` is left out when its `env` sets a variable that would override the sign-in or
+  route around impd's broker: a proxy or CA variable, a credential variable of its CLI, or a
+  variable that a selected profile sets. [Claude subscription on imps](./claude-subscription.md) and
+  [Codex subscription on imps](./codex-subscription.md) list the variables for each kind, and
+  [brokered gateways](./brokered-gateways.md) lists them for a gateway. A Grok entry takes no
+  `auth`, so atc refuses none of its variables.
+
+A stock Claude entry also takes an `env` block in its [`settings`](#extra-session-settings). atc
+merges the two blocks, and `env` wins for a key that both set. atc writes the merged variables into
+the settings file it passes to Claude Code as `--settings`.
 
 ## Codex sessions that take messages
 

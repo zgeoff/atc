@@ -37,8 +37,16 @@ no token enters the imp. On the local target, Codex keeps the sign-in of your ow
    ```
 
 A Codex entry's `auth` holds `profiles` alone. atc leaves the entry out and prints the reason when
-the daemon starts if a selected profile does not resolve, or if no `oauth` profile sets a bearer
-`authorization` header for `chatgpt.com`.
+the daemon starts in each of these cases:
+
+- A selected profile does not resolve.
+- No `oauth` profile sets a bearer `authorization` header for `chatgpt.com`.
+- The entry's `env` sets `OPENAI_API_KEY`, `CODEX_API_KEY` or `CODEX_ACCESS_TOKEN`, each of which
+  would sign Codex in another way.
+- The entry's `env` sets a proxy or CA variable that the
+  [brokered gateways guide](./brokered-gateways.md) lists, which would route Codex around impd's
+  broker.
+- The entry's `env` sets a variable that a selected profile sets.
 
 On an imp target, each session gets a Codex home of its own, `codex-home` in its guest folder,
 passed as `CODEX_HOME`. Before each launch, atc copies three files into it:
