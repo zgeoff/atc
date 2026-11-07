@@ -1,7 +1,8 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { openMCPAuth } from '../auth/open-mcp-auth';
+import { buildSeeder } from '../test-utils/build-seeder';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { answerUnsubscribeRequest } from './answer-unsubscribe-request';
 import { buildSubscriptionID } from './build-subscription-id';
@@ -24,31 +25,30 @@ async function setupTest() {
     stop: () => {},
   };
 
-  return { db: store.db, deliverer };
+  const deps = { db: store.db, clock: buildStubClock(Date.parse('2026-10-23T12:00:00.000Z')) };
+
+  return { ...deps, deliverer, seed: buildSeeder(deps) };
 }
 
 test('it ends the subscription its key names and answers the same when repeated', async () => {
   const ctx = await setupTest();
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: buildSubscriptionID({
-        clientID: 'client-one',
-        url: 'https://hooks.example.com/hook',
-        name: 'session.turn_done',
-        arguments: '{}',
-      }),
-      client_id: 'client-one',
+  await ctx.seed.eventSubscription({
+    id: buildSubscriptionID({
+      clientID: 'client-one',
       url: 'https://hooks.example.com/hook',
       name: 'session.turn_done',
       arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
-      position: 'cursor-1',
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+    }),
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
+    position: 'cursor-1',
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const params = {
     name: 'session.turn_done',
@@ -104,20 +104,17 @@ test("it never ends another client's subscription to the same callback", async (
     arguments: '{}',
   });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id,
-      client_id: 'client-two',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
-      position: 'cursor-1',
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id,
+    client_id: 'client-two',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
+    position: 'cursor-1',
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   await answerUnsubscribeRequest(
     { db: ctx.db, clientID: 'client-one', deliverer: ctx.deliverer },
@@ -142,20 +139,17 @@ test('it ends no subscription for a key with arguments, which no subscription ho
     arguments: '{}',
   });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id,
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
-      position: 'cursor-1',
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id,
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
+    position: 'cursor-1',
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const answer = await answerUnsubscribeRequest(
     { db: ctx.db, clientID: 'client-one', deliverer: ctx.deliverer },
