@@ -9,6 +9,8 @@ export function collectStaleAgeGateExcludes(
 ): DependencyGateFinding[] {
   const removalDates = collectRemovalDates(bunfig);
 
+  // Renovate bumps a first-party package as soon as it publishes, so its exclude stays for good and
+  // carries no removal date.
   return parseAgeGate(bunfig)
     .excludes.filter((name) => !firstPartyScopes.some((scope) => name.startsWith(scope)))
     .flatMap((name) => {
