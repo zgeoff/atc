@@ -5,6 +5,7 @@ import invariant from 'tiny-invariant';
 import { buildSeeder } from '../test-utils/build-seeder';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { openMCPAuth } from './open-mcp-auth';
+import { removeOwnerSession } from './remove-owner-session';
 import { resetPasskeys } from './reset-passkeys';
 import { verifySessionPasskey } from './verify-session-passkey';
 
@@ -83,7 +84,7 @@ test('it refuses a session deleted before the check while its passkey stays enro
 
   invariant(session !== undefined, 'the arrangement left no owner session');
 
-  await ctx.db.deleteFrom('session').execute();
+  await removeOwnerSession(ctx.db, session.id);
 
   const kept = await verifySessionPasskey(ctx.db, {
     sessionID: session.id,

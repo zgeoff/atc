@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, setSystemTime, test } from 'bun:test';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
@@ -216,6 +216,15 @@ test('it lists the grants oldest first', async () => {
     },
   });
 
+  onTestFinished(() => {
+    setSystemTime();
+  });
+
+  // The grant made last is the older one, so insertion order cannot pass
+  // for creation order. better-auth stamps a grant's creation time from the
+  // system clock.
+  setSystemTime(new Date('2026-01-02T00:00:00.000Z'));
+
   const claudeAuthorized = await runMCPAuthorization(ctx, {
     clientID: claude.clientID,
     redirectURI: 'https://claude.ai/api/mcp/auth_callback',
@@ -234,6 +243,8 @@ test('it lists the grants oldest first', async () => {
     }),
   });
 
+  setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+
   const chatGPTAuthorized = await runMCPAuthorization(ctx, {
     clientID: chatGPT.clientID,
     redirectURI: 'https://chatgpt.com/connector_platform_oauth_redirect',
@@ -251,20 +262,6 @@ test('it lists the grants oldest first', async () => {
       code_verifier: chatGPTAuthorized.verifier,
     }),
   });
-
-  // The grant made last is the older one, so insertion order cannot pass
-  // for creation order.
-  await ctx.store.db
-    .updateTable('oauthRefreshToken')
-    .set({ createdAt: '2026-01-02T00:00:00.000Z' })
-    .where('clientId', '=', claude.clientID)
-    .execute();
-
-  await ctx.store.db
-    .updateTable('oauthRefreshToken')
-    .set({ createdAt: '2026-01-01T00:00:00.000Z' })
-    .where('clientId', '=', chatGPT.clientID)
-    .execute();
 
   const grants = await readGrantViews(ctx.store.db);
 

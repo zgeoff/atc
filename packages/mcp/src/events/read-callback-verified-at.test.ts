@@ -4,6 +4,7 @@ import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { openMCPAuth } from '../auth/open-mcp-auth';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { readCallbackVerifiedAt } from './read-callback-verified-at';
+import { writeCallbackVerifiedAt } from './write-callback-verified-at';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-read-callback-verified-at-');
@@ -22,21 +23,17 @@ async function setupTest() {
 test("it reads when a client's callback URL was last verified", async () => {
   const ctx = await setupTest();
 
-  await ctx.db
-    .insertInto('atc_event_callback')
-    .values([
-      {
-        client_id: 'client-one',
-        url: 'https://hooks.example.com/hook',
-        verified_at: '2026-10-23T12:00:00.000Z',
-      },
-      {
-        client_id: 'client-two',
-        url: 'https://hooks.example.com/hook',
-        verified_at: '2026-10-24T12:00:00.000Z',
-      },
-    ])
-    .execute();
+  await writeCallbackVerifiedAt(ctx.db, {
+    clientID: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    now: Date.UTC(2026, 9, 23, 12, 0, 0),
+  });
+
+  await writeCallbackVerifiedAt(ctx.db, {
+    clientID: 'client-two',
+    url: 'https://hooks.example.com/hook',
+    now: Date.UTC(2026, 9, 24, 12, 0, 0),
+  });
 
   const verifiedAt = await readCallbackVerifiedAt(
     ctx.db,
@@ -50,14 +47,11 @@ test("it reads when a client's callback URL was last verified", async () => {
 test('it reads null for a callback URL the client never verified', async () => {
   const ctx = await setupTest();
 
-  await ctx.db
-    .insertInto('atc_event_callback')
-    .values({
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      verified_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await writeCallbackVerifiedAt(ctx.db, {
+    clientID: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    now: Date.UTC(2026, 9, 23, 12, 0, 0),
+  });
 
   const verifiedAt = await readCallbackVerifiedAt(
     ctx.db,

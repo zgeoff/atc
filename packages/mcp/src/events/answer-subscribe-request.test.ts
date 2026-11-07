@@ -7,6 +7,7 @@ import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { answerSubscribeRequest } from './answer-subscribe-request';
+import { createSubscriptionStore } from './create-subscription-store';
 
 // The authorization database the subscriptions live in, a clock at a fixed
 // instant, and a deliverer that records which subscriptions it was told to watch.
@@ -203,11 +204,7 @@ test('it refreshes a subscription with its new secret and keeps the position its
     },
   });
 
-  await ctx.db
-    .updateTable('atc_event_subscription')
-    .set({ position: 'cursor-9' })
-    .where('id', '=', first.id)
-    .execute();
+  await createSubscriptionStore(ctx.db).advance(first.id, 'cursor-9', ctx.clock.now());
 
   ctx.clock.advance(60 * 60 * 1000);
   ctx.deliverer.retire.mockClear();
@@ -264,11 +261,7 @@ test("it restarts a subscription past its refreshBefore from the client's cursor
     },
   });
 
-  await ctx.db
-    .updateTable('atc_event_subscription')
-    .set({ position: 'cursor-9' })
-    .where('id', '=', first.id)
-    .execute();
+  await createSubscriptionStore(ctx.db).advance(first.id, 'cursor-9', ctx.clock.now());
 
   ctx.clock.advance(25 * 60 * 60 * 1000);
   ctx.deliverer.retire.mockClear();
