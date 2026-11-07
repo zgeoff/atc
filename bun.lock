@@ -32,12 +32,12 @@
         "@stylistic/eslint-plugin": "catalog:",
         "@tsconfig/strictest": "catalog:",
         "@types/bun": "catalog:",
+        "@zgeoff/agent-hooks": "catalog:",
         "@zgeoff/bun-test-extended": "catalog:",
         "@zgeoff/diet": "catalog:",
         "@zgeoff/format-codemod": "catalog:",
         "@zgeoff/oxlint-config": "catalog:",
         "@zgeoff/rig": "catalog:",
-        "@zgeoff/skill-gate": "catalog:",
         "bun-pty": "catalog:",
         "knip": "catalog:",
         "lefthook": "catalog:",
@@ -457,13 +457,13 @@
     "@types/proper-lockfile": "4.1.4",
     "@xterm/addon-serialize": "0.14.0",
     "@xterm/headless": "6.0.0",
+    "@zgeoff/agent-hooks": "0.2.7",
     "@zgeoff/bun-test-extended": "0.2.3",
     "@zgeoff/diet": "0.2.1",
     "@zgeoff/format-codemod": "0.3.5",
     "@zgeoff/kysely-bun-sqlite": "0.3.0",
     "@zgeoff/oxlint-config": "0.8.6",
     "@zgeoff/rig": "0.1.6",
-    "@zgeoff/skill-gate": "0.2.23",
     "@zgeoff/std": "0.4.2",
     "better-auth": "1.7.13",
     "bun-pty": "0.6.0",
@@ -1012,8 +1012,6 @@
     "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.8.6", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-gBnGBTPgUNK3j4S6CDMwMlGMxPrjmcdDSLAiXs0bAl252PMBILMujeqGnmBZ6NVo+WwCAHvWQFrsjixHozl1DA=="],
 
     "@zgeoff/rig": ["@zgeoff/rig@0.1.6", "", { "dependencies": { "@zgeoff/diet": "0.2.1", "@zgeoff/std": "0.4.2", "gunshi": "1.0.0-rc.1", "ts-pattern": "5.9.2", "zod": "4.6.7" }, "bin": { "rig": "src/cli.ts" } }, "sha512-UhCmelHLd+qi4smYTIbqwG/msJYUltIEqXrhbgbvwTK4151TXUTqIIfiYfLn+Fs48UKFm/+y1zAhKY+iDf0RYg=="],
-
-    "@zgeoff/skill-gate": ["@zgeoff/skill-gate@0.2.23", "", { "dependencies": { "@zgeoff/agent-hooks": "0.2.7" } }, "sha512-ytwHizyjWYwr0VqD/MeDpISkD3glpW8YEqATRMkQv/pCWVCbv9DHlN0cAQwrLFBN/RmICo6pTmeXq/grRurLgw=="],
 
     "@zgeoff/std": ["@zgeoff/std@0.4.2", "", {}, "sha512-GZnnOkrYHe6p071BWYe7XIq5klqhvVb4j/JWOrrUTSj76uLA/ZnzlqDKIq16LblMcuRF9tjfvKvGK8sLRN8fMg=="],
 
