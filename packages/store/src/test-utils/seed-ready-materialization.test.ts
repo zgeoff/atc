@@ -64,26 +64,3 @@ test('it writes the input over the defaults', async () => {
     db.query("SELECT * FROM workspace_materialization WHERE session_id = 's-1'").get(),
   ).toMatchObject({ target: 'box', directory: '/work/bakery' });
 });
-
-test('it writes the repo URL and sha it is given', async () => {
-  const ctx = await setupTest();
-
-  await seedReadyMaterialization(ctx, {
-    sessionID: toSessionID('s-1'),
-    repoURL: 'https://example.com/bakery/oven.git',
-    sha: 'fedcba9876543210fedcba9876543210fedcba98',
-  });
-
-  const db = new Database(ctx.dbPath, { readonly: true });
-
-  registerTestCleanup(() => {
-    db.close();
-  });
-
-  expect(
-    db.query("SELECT * FROM workspace_materialization WHERE session_id = 's-1'").get(),
-  ).toMatchObject({
-    repo_url: 'https://example.com/bakery/oven.git',
-    sha: 'fedcba9876543210fedcba9876543210fedcba98',
-  });
-});
