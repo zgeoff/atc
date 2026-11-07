@@ -40,7 +40,11 @@ import { runMigrations } from './sqlite/run-migrations';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
 import type { EventScope, StoredAnswer, StoredEvent, StoredNote, TrailRow } from './stored-event';
 import type { TrailEntry } from './trail-entry';
-import type { MaterializationUpdate, WorkspaceMaterialization } from './workspace-materialization';
+import type {
+  MaterializationUpdate,
+  NewMaterialization,
+  WorkspaceMaterialization,
+} from './workspace-materialization';
 import { writeBackup } from './write-backup';
 
 // The target a spawn ran on: its name and the identity the spawned session
@@ -166,13 +170,7 @@ export interface StateStore {
   ) => Promise<void>;
   readonly reconcileIdempotencyKeys: (at: number) => Promise<void>;
   readonly removeExpiredIdempotencyKeys: (before: number) => Promise<void>;
-  readonly createMaterialization: (
-    row: Pick<
-      WorkspaceMaterialization,
-      'sessionID' | 'target' | 'directory' | 'sourceKind' | 'withheldEnv'
-    >,
-    at: number,
-  ) => Promise<void>;
+  readonly createMaterialization: (row: NewMaterialization, at: number) => Promise<void>;
   readonly updateMaterialization: (
     sessionID: SessionID,
     fields: MaterializationUpdate,
