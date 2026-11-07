@@ -43,10 +43,13 @@ if (import.meta.main) {
 async function runHook(args: readonly string[]): Promise<void> {
   const harness = parseHarness(args.filter((arg) => arg !== AFTER_INSTALL));
 
-  const agentHooks = await import('@zgeoff/agent-hooks').catch(() => null);
+  const agentHooksImport = await import('@zgeoff/agent-hooks').then(
+    (agentHooks) => ({ agentHooks, error: null }),
+    (error: unknown) => ({ agentHooks: null, error }),
+  );
 
-  if (agentHooks !== null) {
-    await agentHooks.runAgentHook({ harness });
+  if (agentHooksImport.agentHooks !== null) {
+    await agentHooksImport.agentHooks.runAgentHook({ harness });
   }
 
   if (!args.includes(AFTER_INSTALL)) {
@@ -68,6 +71,10 @@ async function runHook(args: readonly string[]): Promise<void> {
 
     process.exit(retry.status ?? 2);
   }
+
+  console.error(
+    `The agent hook could not load @zgeoff/agent-hooks: ${String(agentHooksImport.error)}`,
+  );
 
   refuseUnlessReadOnly(readPayloadText());
 }
