@@ -3,7 +3,6 @@ import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
 import type { SubscriptionRow } from '../events/create-subscription-store';
 
-// A default subscription stays live for an hour after it was created.
 export function buildMockSubscriptionRow(
   overrides: MockOverrides<SubscriptionRow, keyof SubscriptionRow> = {},
 ): SubscriptionRow {
