@@ -36,17 +36,20 @@ no token enters the imp. On the local target, Codex keeps the sign-in of your ow
    }
    ```
 
-A Codex entry's `auth` holds `profiles` alone. atc leaves the entry out and prints the reason when
-the daemon starts in each of these cases:
+The daemon starts without a Codex entry that has one of these faults, and prints one line for each
+fault, such as
+`agents.codex: env must not set HTTPS_PROXY, which would override or route around the subscription sign-in`:
 
+- The entry's `auth` sets a key other than `profiles`.
 - A selected profile does not resolve.
-- No `oauth` profile sets a bearer `authorization` header for `chatgpt.com`.
-- The entry's `env` sets `OPENAI_API_KEY`, `CODEX_API_KEY` or `CODEX_ACCESS_TOKEN`, each of which
-  would sign Codex in another way.
+- The selected profiles hold no `oauth` profile with a bearer `authorization` header for
+  `chatgpt.com`.
+- The entry's `env` sets `OPENAI_API_KEY`, `CODEX_API_KEY` or `CODEX_ACCESS_TOKEN`.
 - The entry's `env` sets a proxy or CA variable that the
   [brokered gateways guide](./brokered-gateways.md) lists, which would route Codex around impd's
   broker.
-- The entry's `env` sets a variable that a selected profile sets.
+- The entry's `env` sets a variable that a selected profile's `env` sets, as
+  [profile variables](./brokered-credentials.md#profile-variables) describes.
 
 On an imp target, each session gets a Codex home of its own, `codex-home` in its guest folder,
 passed as `CODEX_HOME`. Before each launch, atc copies three files into it:

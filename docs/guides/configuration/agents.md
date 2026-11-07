@@ -46,9 +46,8 @@ line for each problem when it starts, such as `agents.codex: baseURL is not vali
 The other entries load. An `agents` value that is not an object leaves the registry empty and prints
 `agents must be an object of agent entries`.
 
-Codex and Grok take `args` as well as `bin`. A `--leader` or `--no-leader` in a Grok entry's `args`
-is dropped, since atc always appends `--no-leader`. A spawn's model replaces a `-m` or `--model` in
-a Codex entry's `args`.
+atc drops a `--leader` or `--no-leader` from a Grok entry's `args`, since it always appends
+`--no-leader`. A spawn's model replaces a `-m` or `--model` in a Codex entry's `args`.
 
 atc starts every Codex session with `--no-daemon`, which needs Codex CLI 0.156 or later. Codex's
 shared background server keeps the environment of the terminal that started it and runs the hooks
@@ -61,17 +60,20 @@ whatever environment the remote server runs in.
 ## Session environment
 
 An entry's `env` sets variables in every session of the entry, such as
-`"codex": { "env": { "NOTES_VAULT": "desk/notes-key" } }`. One rule holds for every kind:
+`"codex": { "env": { "NOTES_VAULT": "desk/notes-key" } }`. Claude, Codex and Grok entries follow one
+rule, which depends on where the session runs:
 
-- A session on the daemon's machine gets the daemon's environment, with the entry's `env` over it.
-- A session on an imp gets the entry's `env`. For a key that both set, the imp target's
+- On the daemon's machine, the session gets the daemon's environment, with the entry's `env` over
+  it.
+- On an imp, the session gets the entry's `env`. For a key that both set, the imp target's
   [`sessionEnv`](./targets.md#session-variables) wins.
-- An entry with `auth` is left out when its `env` sets a variable that would override the sign-in or
-  route around impd's broker: a proxy or CA variable, a credential variable of its CLI, or a
-  variable that a selected profile sets. [Claude subscription on imps](./claude-subscription.md) and
-  [Codex subscription on imps](./codex-subscription.md) list the variables for each kind, and
-  [brokered gateways](./brokered-gateways.md) lists them for a gateway. A Grok entry takes no
-  `auth`, so atc refuses none of its variables.
+
+atc leaves out an entry with `auth` when its `env` sets a variable that would override the sign-in
+or route the CLI around impd's broker: a proxy or CA variable, a credential variable of the CLI, or
+a variable that a selected profile sets. [Claude subscription on imps](./claude-subscription.md) and
+[Codex subscription on imps](./codex-subscription.md) list these variables for each kind, and
+[brokered gateways](./brokered-gateways.md) lists them for a gateway. A Grok entry takes no `auth`,
+so atc never leaves one out for its `env`.
 
 A stock Claude entry also takes an `env` block in its [`settings`](#extra-session-settings). atc
 merges the two blocks, and `env` wins for a key that both set. atc writes the merged variables into
