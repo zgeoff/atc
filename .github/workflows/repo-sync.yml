@@ -49,7 +49,7 @@ jobs:
       include:
         skill-testing, skill-docs-writing, hook-skill-gate, skill-code-style, skill-skill-writing,
         workflow-audit-fix, skill-ci-design, pre-push-baseline
-      skip: agents
+      skip: agents, memory-cap
     secrets:
       REPO_SYNC_APP_CLIENT_ID: ${{ secrets.REPO_SYNC_APP_CLIENT_ID }}
       REPO_SYNC_APP_PRIVATE_KEY: ${{ secrets.REPO_SYNC_APP_PRIVATE_KEY }}
