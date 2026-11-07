@@ -367,6 +367,7 @@ export function createGatewayAdapter(
           id: gateway.id,
           env: {
             ...gateway.env,
+            ...guest.sessionEnv,
             ANTHROPIC_BASE_URL: gateway.baseURL,
             ...guest.auth.profileEnv,
             ...guest.auth.env,

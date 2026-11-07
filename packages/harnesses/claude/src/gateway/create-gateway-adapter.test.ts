@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
+import { isRecord } from '@atc/core';
 import {
   KEYS,
   buildMockHostServices,
@@ -1147,6 +1148,57 @@ test('it gives a brokered guest spawn with atc access two minutes to connect its
   );
 
   expect(plan?.env?.['MCP_TIMEOUT']).toBe('120000');
+});
+
+test("it plans a brokered guest spawn whose settings env takes the target's sessionEnv over the gateway's env, under its endpoint and placeholder", () => {
+  const adapter = createGatewayAdapter(
+    buildMockGatewayConfig({
+      id: 'glm',
+      bin: 'claude',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      env: { NOTES_VAULT: 'desk/notes-key', NOTES_REGION: 'north' },
+      auth: {
+        profiles: ['glm'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+      },
+    }),
+    parseConfig([CLAUDE_PLUGIN], {
+      authProfiles: {
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+      },
+    }),
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/tmp/atc/sessions/s1',
+      sessionEnv: { NOTES_VAULT: 'box/notes-key' },
+      auth: {
+        revision: 4,
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+      },
+    },
+  );
+
+  const settingsFile = plan?.files['auth-r4/settings.json'];
+
+  invariant(typeof settingsFile === 'string', 'expected the revision settings file');
+
+  const settings: unknown = JSON.parse(settingsFile);
+
+  invariant(isRecord(settings), 'expected a settings object');
+
+  expect(settings['env']).toStrictEqual({
+    NOTES_VAULT: 'box/notes-key',
+    NOTES_REGION: 'north',
+    ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
+    ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  });
 });
 
 test('it plans a brokered guest spawn with its own settings file, Claude config folder and placeholder credential', () => {

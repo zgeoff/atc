@@ -6,6 +6,7 @@ export * from './config/collect-claude-auth';
 export * from './config/collect-gateways';
 export * from './create-claude-adapter';
 export * from './gateway/create-gateway-adapter';
+export * from './guest/build-guest-settings-path';
 export * from './headless/make-claude-headless-runner';
 export * from './headless/start-claude-headless-run';
 export * from './parse-claude-transcript-line';

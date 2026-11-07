@@ -27,6 +27,10 @@ export interface ExecutionProvider {
   // the current selection instead of refusing. Absent refuses.
   readonly rebindChangedAuth?: boolean;
 
+  // The variables every session on a remote host gets, each of which outranks
+  // the same key in its agent's own env. Absent sets none.
+  readonly sessionEnv?: Readonly<Record<string, string>>;
+
   // Whether the host fetches a workspace's repository over its own network,
   // so the workspace never crosses the daemon's link. Absent clones on the
   // daemon's side and transfers the result.

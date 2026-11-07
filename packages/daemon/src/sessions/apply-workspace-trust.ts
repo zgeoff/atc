@@ -1,5 +1,6 @@
 import { buildTarArchive } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
+import { buildGuestSessionDirectory } from './build-guest-session-directory';
 import type { SpawnRequest } from './spawn-request';
 
 // Trusts a cloned workspace: in the user's own agent config on the local
@@ -32,7 +33,7 @@ export async function applyWorkspaceTrust(
 
   const guest = await provider.readGuest(spawn.hostKey);
 
-  const directory = `${guest.directory}/sessions/${spawn.id}`;
+  const directory = buildGuestSessionDirectory(guest.directory, spawn.id);
 
   await spawn.timer.withStep('trust-transfer', () =>
     provider.transferArchive(buildTarArchive(files), directory, spawn.hostKey),

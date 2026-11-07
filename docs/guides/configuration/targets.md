@@ -31,13 +31,13 @@ atc never runs a session on a target other than the one it was sent to. A spawn 
 unavailable target fails, and a restore lists a session whose target is gone as exited, with
 `no target '<target_id>'` as its last message. Revive it after you add the target back.
 
-A session stays bound to its target's provider and connection options. On an imp target, you can
-change `image`, `memoryMib`, `guestATC`, or `rebindChangedAuth` without refusing existing sessions;
-new imps use the configured image and memory. Changes to the impd URL, token source, imp prefix,
-guest directory, or other options refuse input, resume, and revive with `target_changed` for a
-versioned binding. Restore the target's earlier config to use those sessions again. Never put a
-credential value in a target's options; name an environment variable or a file that holds it
-instead.
+A session stays bound to its target's provider and connection options. On an imp target, atc keeps
+existing sessions working after a change to `image`, `memoryMib`, `guestATC`, `rebindChangedAuth`,
+or `sessionEnv`; new imps use the configured image and memory. Changes to the impd URL, token
+source, imp prefix, guest directory, or other options refuse input, resume, and revive with
+`target_changed` for a versioned binding. Restore the target's earlier config to use those sessions
+again. Never put a credential value in a target's options; name an environment variable or a file
+that holds it instead.
 
 During fleet restore, atc checks a session with an unversioned imp identity against impd with the
 current credentials. It accepts the connection identity only when the existing imp is present and
@@ -86,8 +86,8 @@ same check.
 Set `targets.<target_id>.trustClonedWorkspace` to a boolean to give that target a default. An
 explicit `trustClonedWorkspace: true` or `false` on the launch overrides it; omitting both keeps
 trust off. An inherited `true` has the same restrictions as an explicit `true`, so an ordinary
-folder launch on that target must pass `false`. Changing this target option changes its identity, as
-other target options do; existing sessions remain bound to the previous target configuration.
+folder launch on that target must pass `false`. A change to this option changes the target's
+identity, so existing sessions remain bound to the previous target configuration.
 
 ## imp targets
 
@@ -119,6 +119,7 @@ The target's options:
 | `rebindChangedAuth`    | `false`  | Whether a revive or restore rebinds a host whose agent's auth profiles changed, instead of refusing.  |
 | `dropSysAdmin`         | `false`  | Whether each harness starts without `CAP_SYS_ADMIN`, so root in it cannot remount the session record. |
 | `trustClonedWorkspace` | `false`  | Default for clone trust; an explicit launch value takes precedence. See [clone trust](#clone-trust).  |
+| `sessionEnv`           | unset    | Variables every session on the target gets. See [session variables](#session-variables).              |
 
 A workspace on an imp gets the daemon host's git `user.name` and `user.email` in its own
 `.git/config`, since the image holds no git identity. A host that has no value for both sets none.
@@ -192,3 +193,46 @@ The daemon prints each problem to stderr when it starts, and `agents.list` retur
 problem or detail holds no value from the file beyond a target's name, so a mistyped field reports
 its kind, never its content. To find the line that breaks invalid JSON, run the file through a
 validator such as `jq . ~/.config/atc/config.json`.
+
+## Session variables
+
+An imp target's `sessionEnv` option sets environment variables for every session on that target. Use
+it for a value that differs between the daemon's machine and the imp, such as a path that only the
+imp can read. Only an imp target takes `sessionEnv`.
+
+A key can be set both in `sessionEnv` and in an agent entry's `env`, which the
+[agents guide](./agents.md) covers. The target's value then wins on that target, and the agent's
+value applies everywhere else. In this config, a Claude session on `box` gets
+`NOTES_VAULT=box/notes-key`, and a Claude session on the daemon's machine gets `desk/notes-key`:
+
+```json
+{
+  "agents": { "claude": { "env": { "NOTES_VAULT": "desk/notes-key" } } },
+  "targets": {
+    "box": {
+      "provider": "imp",
+      "url": "http://impd.tail:7070",
+      "sessionEnv": { "NOTES_VAULT": "box/notes-key" }
+    }
+  }
+}
+```
+
+atc puts the variables in the environment of every agent's session. For a Claude session, atc also
+writes them into the settings file it generates for the session, over the entry's `env` and the
+`env` block of the entry's `settings`.
+
+Each key must be a variable name in capital letters, digits and underscores. atc refuses a key that
+atc, impd's broker or an agent's sign-in sets:
+
+- `PATH`, `HOME`, `TMPDIR` and `AUTO_MODE_SCOPE_FILE`;
+- any key that starts with `ANTHROPIC_`, `CLAUDE_`, `ATC_`, `CODEX_` or `OPENAI_`;
+- the proxy and CA variables that the [brokered gateways guide](./brokered-gateways.md) lists.
+
+A refused key, or a value that is not a string, makes the target unusable. The daemon prints the key
+at startup, never its value, lists the error in `targetErrors`, and refuses each spawn on the target
+until you fix the config and restart the daemon.
+
+The daemon reads `sessionEnv` when it starts. A session gets the values at each launch, resume or
+revive, and keeps them until its agent starts again. A daemon restart leaves a running session's
+values as they were.

@@ -1,3 +1,6 @@
+import { isEnvName, isReservedEnvName } from '@atc/config';
+import { isRecord } from '@atc/core';
+import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 import { createImpClientPort } from './create-imp-client-port';
 import { createImpProvider } from './create-imp-provider';
 import type { ImpProvider } from './create-imp-provider';
@@ -55,10 +58,17 @@ export function createConfiguredImpProvider(
     };
   }
 
+  const sessionEnv = parseSessionEnv(id, options['sessionEnv']);
+
+  if (typeof sessionEnv === 'string') {
+    return { provider: null, problem: sessionEnv };
+  }
+
   const provider = createImpProvider(
     createImpClientPort({ url, readToken: source.readToken }),
     {
       ...(impPrefix === undefined ? {} : { impPrefix }),
+      ...(sessionEnv === null ? {} : { sessionEnv }),
       ...(rebindChangedAuth === undefined ? {} : { rebindChangedAuth }),
       ...(dropSysAdmin === undefined ? {} : { dropSysAdmin }),
       ...pickString(options, 'image'),
@@ -133,6 +143,44 @@ const IMP_PREFIX = /^[a-z][a-z0-9-]{0,10}$/u;
 
 function isImpPrefix(value: unknown): value is string {
   return typeof value === 'string' && IMP_PREFIX.test(value);
+}
+
+// atc points each session's TMPDIR at its scratch folder and sets its scope
+// file, so a target's value would move them for the agent.
+const SESSION_SET_NAMES: ReadonlySet<string> = new Set(['TMPDIR', SESSION_ENV_NAMES.scopeFile]);
+
+// The variables every session on the target gets, or the problem that keeps
+// the target from them. A problem names a key, never a value.
+function parseSessionEnv(id: string, raw: unknown): Record<string, string> | null | string {
+  if (raw === undefined) {
+    return null;
+  }
+
+  const target = JSON.stringify(id);
+
+  if (!isRecord(raw) || Array.isArray(raw)) {
+    return `target ${target} must give sessionEnv as an object of variable names`;
+  }
+
+  const env: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(raw)) {
+    if (!isEnvName(key)) {
+      return `target ${target} sessionEnv.${key} is not a variable name: use capital letters, digits and underscores`;
+    }
+
+    if (isReservedEnvName(key) || SESSION_SET_NAMES.has(key)) {
+      return `target ${target} sessionEnv.${key} cannot be set: atc or the broker sets or reserves it`;
+    }
+
+    if (typeof value !== 'string') {
+      return `target ${target} must give sessionEnv.${key} as a string`;
+    }
+
+    env[key] = value;
+  }
+
+  return env;
 }
 
 function pickString(

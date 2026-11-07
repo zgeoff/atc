@@ -57,6 +57,7 @@ import { buildClaudeCredentialsFile } from './guest/build-claude-credentials-fil
 import { buildClaudeGuestLaunch } from './guest/build-claude-guest-launch';
 import { buildClaudeMCPConfig } from './guest/build-claude-mcp-config';
 import { buildClaudeProjectSettingsCheck } from './guest/build-claude-project-settings-check';
+import { buildGuestSettingsPath } from './guest/build-guest-settings-path';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './guest/claude-config-bundle-folder';
 import { loadClaudeConfigBundle } from './guest/load-claude-config-bundle';
 import { planCodexHome } from './guest/plan-codex-home';
@@ -124,10 +125,11 @@ export function createClaudeAdapter(
   const authProfiles = config.authProfiles;
   const pluginDirs = resolveConfiguredPluginDirs(entry.pluginDirs, options.homeDir);
 
-  // What the generated settings file holds for this entry: its hooks and
-  // statusline, its settings, and its environment, with `extraEnv` on top.
-  // The entry's environment outranks the settings' own env block.
+  // The generated settings file's hooks, statusline, settings and env. Each
+  // later env layer outranks the ones before it: settings env, entry env,
+  // the target's session env, then `extraEnv`.
   const buildSettingsProfile = (
+    sessionEnv: Readonly<Record<string, string>>,
     extraEnv: Readonly<Record<string, string>>,
   ): HookSettingsProfile => {
     const settingsEnv = entry.settings?.['env'];
@@ -135,6 +137,7 @@ export function createClaudeAdapter(
     const env = {
       ...(isRecord(settingsEnv) ? toStringEntries(settingsEnv) : {}),
       ...entry.env,
+      ...sessionEnv,
       ...extraEnv,
     };
 
@@ -145,7 +148,7 @@ export function createClaudeAdapter(
     };
   };
 
-  const files = createClaudeLaunchFiles(buildSettingsProfile({}), host.atcArgv, options);
+  const files = createClaudeLaunchFiles(buildSettingsProfile({}, {}), host.atcArgv, options);
 
   // A resumed session restores the permission mode the configured
   // arguments or settings set.
@@ -179,10 +182,12 @@ export function createClaudeAdapter(
 
   const planSubscriptionGuestSpawn = (
     opts: SpawnOptions,
-    directory: string,
+    guest: GuestPaths,
     auth: NonNullable<GuestPaths['auth']>,
     argv: readonly string[],
   ): GuestSpawnPlan => {
+    const directory = guest.directory;
+
     // a credential, endpoint or provider variable in the configured settings or the host's
     // environment would keep the CLI from sending the placeholder
     const refusal = findCredentialOverride();
@@ -249,7 +254,7 @@ export function createClaudeAdapter(
       typeof userSettings === 'string' ? (parseClaudeStatusLine(userSettings).padding ?? 0) : 0;
 
     const settings = buildHookSettings(
-      buildSettingsProfile({
+      buildSettingsProfile(guest.sessionEnv ?? {}, {
         ...auth.profileEnv,
         ...auth.env,
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
@@ -369,7 +374,7 @@ export function createClaudeAdapter(
       const argv = [guest.atc];
 
       if (guest.auth !== undefined) {
-        return planSubscriptionGuestSpawn(opts, guest.directory, guest.auth, argv);
+        return planSubscriptionGuestSpawn(opts, guest, guest.auth, argv);
       }
 
       const scratch = `${guest.directory}/${SESSION_SCRATCH_FOLDER}`;
@@ -381,13 +386,13 @@ export function createClaudeAdapter(
         ...buildClaudeArgs(entry.args, opts, {
           leadArgs: [...mcpArgs, ...buildModeArgs(opts)],
           scratch,
-          settings: `${guest.directory}/settings.json`,
+          settings: buildGuestSettingsPath(guest.directory),
           pluginDir: `${guest.directory}/atc-bridge`,
           pluginDirs: [],
         }),
       ]);
 
-      const settings = buildHookSettings(buildSettingsProfile({}), 0, argv);
+      const settings = buildHookSettings(buildSettingsProfile(guest.sessionEnv ?? {}, {}), 0, argv);
 
       return {
         ...launch,
