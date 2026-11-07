@@ -60,25 +60,25 @@ pre-push:
     - name: check:guest-scripts
       skip: &delete-only-push
         - run: test -f "$(git rev-parse --git-path atc-delete-only-push)/$PPID"
-      run: bun run --silent memory-capped bun run check:guest-scripts
+      run: bun x --no-install diet -- bun run check:guest-scripts
     - name: check:imports
       skip: *delete-only-push
-      run: bun run --silent memory-capped bun run check:imports
+      run: bun x --no-install diet -- bun run check:imports
     - name: check:manifests
       skip: *delete-only-push
-      run: bun run --silent memory-capped bun run check:manifests
+      run: bun x --no-install diet -- bun run check:manifests
     - name: check:disable-baseline
       skip: *delete-only-push
-      run: bun run --silent memory-capped bun run check:disable-baseline
+      run: bun x --no-install diet -- bun run check:disable-baseline
     - name: check:raw-escapes
       skip: *delete-only-push
-      run: bun run --silent memory-capped bun run check:raw-escapes
+      run: bun x --no-install diet -- bun run check:raw-escapes
     - name: check:source-entries
       skip: *delete-only-push
-      run: bun run --silent memory-capped bun run check:source-entries
+      run: bun x --no-install diet -- bun run check:source-entries
     - name: lint:mods
       skip: *delete-only-push
-      run: bun run --silent memory-capped bun run lint:mods
+      run: bun x --no-install diet -- bun run lint:mods
     # lefthook merges these fields into the baseline's test job, which then
     # runs here. bun test ignores mods/, whose tests run through
     # test:atc-bridge, and fails a run whose every path it ignores.

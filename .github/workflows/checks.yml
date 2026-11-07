@@ -161,7 +161,7 @@ jobs:
         env:
           TMPDIR: /dev/shm
         run:
-          bash scripts/run-memory-capped.sh 8192 bun run test:isolation bun run test --randomize
+          bun x --no-install diet --budget 8G -- bun run test:isolation bun run test --randomize
           --reporter=junit --reporter-outfile="$RUNNER_TEMP/test-times.xml"
 
       # the e2e lane, on the suites the binaries workflow does not run against
@@ -171,7 +171,7 @@ jobs:
         env:
           TMPDIR: /dev/shm
         run:
-          bash scripts/run-memory-capped.sh 8192 bun run test:isolation bun run test:e2e
+          bun x --no-install diet --budget 8G -- bun run test:isolation bun run test:e2e
           --source-suites --randomize --reporter=junit
           --reporter-outfile="$RUNNER_TEMP/test-times-e2e.xml"
 
@@ -183,7 +183,7 @@ jobs:
         env:
           TMPDIR: /dev/shm
         run:
-          bash scripts/run-memory-capped.sh 8192 bun run test:isolation bun run test:toolchain
+          bun x --no-install diet --budget 8G -- bun run test:isolation bun run test:toolchain
           --randomize
 
       # the per-test times of each run on main, which the weekly audit reads

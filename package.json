@@ -42,6 +42,7 @@
       "@xterm/addon-serialize": "0.14.0",
       "@xterm/headless": "6.0.0",
       "@zgeoff/bun-test-extended": "0.2.3",
+      "@zgeoff/diet": "0.2.1",
       "@zgeoff/format-codemod": "0.3.5",
       "@zgeoff/kysely-bun-sqlite": "0.3.0",
       "@zgeoff/oxlint-config": "0.8.5",
@@ -116,7 +117,7 @@
     "check:dependency-gates": "bun scripts/dependency-gates/run-dependency-gates-check.ts",
     "check:workflows": "bun scripts/run-workflows-check.ts",
     "check:uncommitted": "bun scripts/run-uncommitted-check.ts",
-    "memory-capped": "bash scripts/run-memory-capped.sh \"$(bun scripts/read-memory-budget.ts)\"",
+    "memory-capped": "diet --",
     "check:atc-bridge-drift": "bun run build:atc-bridge && git diff --exit-code packages/harnesses/claude/src/bridge/atc-bridge-files.ts"
   },
   "devDependencies": {
@@ -148,6 +149,7 @@
     "@tsconfig/strictest": "catalog:",
     "@types/bun": "catalog:",
     "@zgeoff/bun-test-extended": "catalog:",
+    "@zgeoff/diet": "catalog:",
     "@zgeoff/format-codemod": "catalog:",
     "@zgeoff/oxlint-config": "catalog:",
     "@zgeoff/skill-gate": "catalog:",
