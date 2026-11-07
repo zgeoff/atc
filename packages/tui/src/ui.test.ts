@@ -129,6 +129,7 @@ test('#buildSessionRow labels a gateway row with its readable harness name', () 
     confirmKill: false,
     confirmDestroy: false,
     filter: null,
+    notice: null,
     stale: false,
     grouped: true,
   };
@@ -178,6 +179,7 @@ test('#buildSessionRow resolves a model alias through the daemon answer map', ()
     confirmKill: false,
     confirmDestroy: false,
     filter: null,
+    notice: null,
     stale: false,
     grouped: true,
   };
@@ -227,6 +229,7 @@ test('#buildSessionRow falls back to the raw model string when the alias map has
     confirmKill: false,
     confirmDestroy: false,
     filter: null,
+    notice: null,
     stale: false,
     grouped: true,
   };
@@ -276,6 +279,7 @@ test('#buildSessionRow shows the target column when several targets are availabl
     confirmKill: false,
     confirmDestroy: false,
     filter: null,
+    notice: null,
     stale: false,
     grouped: true,
   };
@@ -325,6 +329,7 @@ test('#buildSessionRow hides the target column when a single target is available
     confirmKill: false,
     confirmDestroy: false,
     filter: null,
+    notice: null,
     stale: false,
     grouped: true,
   };
@@ -374,6 +379,7 @@ test('#buildSessionRow keeps the harness lifecycle distinct from the attention s
     confirmKill: false,
     confirmDestroy: false,
     filter: null,
+    notice: null,
     stale: false,
     grouped: true,
   };
@@ -423,6 +429,7 @@ test('#buildSessionRow highlights the selected row with inverse video', () => {
     confirmKill: false,
     confirmDestroy: false,
     filter: null,
+    notice: null,
     stale: false,
     grouped: true,
   };
@@ -471,6 +478,7 @@ test('#buildSessionRow draws the harness and no model in a narrow grouped overla
     confirmKill: false,
     confirmDestroy: false,
     filter: null,
+    notice: null,
     stale: false,
     grouped: true,
   };
@@ -517,6 +525,7 @@ test('#drawOverlay draws session rows inside the overlay box borders', () => {
       confirmKill: false,
       confirmDestroy: false,
       filter: null,
+      notice: null,
       stale: false,
       grouped: true,
     },
@@ -530,6 +539,36 @@ test('#drawOverlay draws session rows inside the overlay box borders', () => {
     .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim());
 
   expect(drawnRows).toSatisfyAny((row: string) => /^│.*auth.*│$/u.test(row));
+});
+
+test('#drawOverlay draws a notice on the hint line in place of the hints', () => {
+  const terminal = buildStubTerminal();
+
+  drawOverlay(
+    {
+      sessions: [buildMockMirrorSession({ name: 'auth' })],
+      agentLabels: { claude: 'Claude' },
+      agentModels: {},
+      showTarget: false,
+      selected: 0,
+      confirmKill: false,
+      confirmDestroy: false,
+      filter: null,
+      notice: 'kept orchard-main-7: 1 stash',
+      stale: false,
+      grouped: true,
+    },
+    terminal.write,
+  );
+
+  const drawnRows = terminal
+    .getText()
+    .replaceAll(KEYS.esc, '')
+    .split(/\[[0-9;]+H/u)
+    .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim());
+
+  expect(drawnRows).toSatisfyAny((row: string) => /^│ kept orchard-main-7: 1 stash *│$/u.test(row));
+  expect(drawnRows).not.toSatisfyAny((row: string) => row.includes('? keys'));
 });
 
 test('#drawPicker scrolls to a selection past the tenth item and counts the items above it', () => {
@@ -666,6 +705,7 @@ test('#buildSessionRow falls back to the raw id when the harness name would hit 
     confirmKill: false,
     confirmDestroy: false,
     filter: null,
+    notice: null,
     stale: false,
     grouped: true,
   };
@@ -715,6 +755,7 @@ test('#buildSessionRow falls back to the raw model when the alias would hit an i
     confirmKill: false,
     confirmDestroy: false,
     filter: null,
+    notice: null,
     stale: false,
     grouped: true,
   };

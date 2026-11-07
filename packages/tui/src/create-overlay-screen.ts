@@ -43,6 +43,10 @@ export interface OverlayScreen {
   // Flat list by default; g toggles clustering under repository headers.
   grouped: boolean;
 
+  // What the hint line shows in place of the hints until the next keypress,
+  // such as why a forget kept a workspace.
+  notice: string | null;
+
   agentLabels: Readonly<Record<AgentID, string>>;
 
   agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>>;
@@ -71,6 +75,7 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
     selected: 0,
     filter: null,
     grouped: false,
+    notice: null,
     agentLabels: deps.bootMetadata.labels,
     agentModels: deps.bootMetadata.models,
     availableTargets: 0,
@@ -116,6 +121,7 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
         confirmKill: confirm === 'kill',
         confirmDestroy: confirm === 'destroy',
         filter: self.filter,
+        notice: self.notice,
         stale: deps.getBoot().stale && !deps.isDaemonRestarting(),
         grouped: self.grouped,
       });

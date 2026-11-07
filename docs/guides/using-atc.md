@@ -76,6 +76,22 @@ to sleep instead, with the agent inside, and a revive wakes it where it left off
 it. On a target where forgetting destroys the session's host, such as an imp, atc asks once more
 before it forgets.
 
+When you forget a session, atc takes it off the list and removes the workspace folder that atc
+cloned for it. atc keeps a workspace folder that holds work found nowhere else, such as an unpushed
+commit.
+[Cleanup when you forget a session](./configuration/workspaces.md#cleanup-when-you-forget-a-session)
+lists every reason atc keeps one.
+
+When atc keeps the folder, atc writes its name and the reasons on the hint line at the foot of the
+list, in place of the key hints:
+
+```text
+kept shop-main-4: 2 unpushed commits on fix-cart
+```
+
+When the daemon refuses the forget, atc writes the daemon's error on the hint line instead. Either
+message stays until you press the next key.
+
 `y` copies a shell command that resumes the selected session outside atc, and `Y` copies it and then
 kills the session here. Only a session on the daemon's own machine has that command, because the
 session's folder and settings file exist only where its agent runs. For a session on an imp or

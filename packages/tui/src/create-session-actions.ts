@@ -1,8 +1,10 @@
 import type { DaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
+import { match } from 'ts-pattern';
 import type { ClientActor, ClientMode } from './build-client-machine';
 import type { FleetMirror } from './create-fleet-mirror';
 import type { OverlayScreen } from './create-overlay-screen';
+import { pickForgetStep } from './pick-forget-step';
 import { cols } from './ui';
 
 // What the actions borrow from the client that owns the screen, the fleet
@@ -10,8 +12,8 @@ import { cols } from './ui';
 export interface SessionActionsDeps {
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
-  readonly overlay: OverlayScreen;
-  readonly getClient: () => DaemonClient;
+  readonly overlay: Pick<OverlayScreen, 'notice' | 'render'>;
+  readonly getClient: () => Pick<DaemonClient, 'sendRequest'>;
   readonly getMode: () => ClientMode;
   readonly attach: (sessionID: string) => Promise<void>;
   readonly sendQuiet: (method: string, params?: Readonly<Record<string, unknown>>) => Promise<void>;
@@ -24,9 +26,14 @@ export interface SessionActions {
   // host asks once more before the forget.
   readonly sendKill: (sessionID: string) => Promise<void>;
 
+  // Forgets a session that has exited. A forget that destroys the session's
+  // host asks once more instead. The hint line shows why the forget kept the
+  // session's workspace, or why the daemon refused it.
+  readonly sendForget: (sessionID: string) => Promise<void>;
+
   // Takes the confirm token the daemon offers and hands it straight back:
   // the operator already confirmed in the overlay.
-  readonly sendForget: (sessionID: string) => Promise<void>;
+  readonly sendDestroy: (sessionID: string) => Promise<void>;
 
   readonly adoptSession: (id: string) => Promise<void>;
 
@@ -42,8 +49,36 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
     const session = deps.mirror.sessions.find((x) => x.id === id);
 
     if (session !== undefined) {
-      session.lastMsg = error instanceof Error ? error.message : String(error);
+      session.lastMsg = formatError(error);
     }
+  };
+
+  const renderOverlay = () => {
+    if (deps.getMode() === 'overlay') {
+      deps.overlay.render();
+    }
+  };
+
+  // The forgotten row leaves the list at once, so the notice goes on the
+  // hint line instead of the row's message column.
+  const showNotice = (notice: string) => {
+    deps.overlay.notice = notice;
+
+    renderOverlay();
+  };
+
+  const applyForgetAnswer = (sessionID: string, answer: Readonly<Record<string, unknown>>) => {
+    match(pickForgetStep(answer))
+      .with({ step: 'confirm' }, () => {
+        deps.service.send({ type: 'CONFIRM_DESTROY', sessionID });
+
+        renderOverlay();
+      })
+      .with({ step: 'notice' }, (step) => {
+        showNotice(step.notice);
+      })
+      .with({ step: 'none' }, () => {})
+      .exhaustive();
   };
 
   return {
@@ -63,18 +98,37 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
 
     sendForget: async (sessionID) => {
       try {
+        const answer = await deps
+          .getClient()
+          .sendRequest('session.forget', { session: sessionID, refuseLive: true });
+
+        applyForgetAnswer(sessionID, answer);
+      } catch (error) {
+        showNotice(formatError(error));
+      }
+    },
+
+    sendDestroy: async (sessionID) => {
+      try {
         const offered = await deps
           .getClient()
-          .sendRequest('session.forget', { session: sessionID });
+          .sendRequest('session.forget', { session: sessionID, refuseLive: true });
 
         const confirmToken = offered['confirmToken'];
 
-        if (typeof confirmToken === 'string') {
-          await deps
-            .getClient()
-            .sendRequest('session.forget', { session: sessionID, confirmToken });
-        }
-      } catch {}
+        const answer =
+          typeof confirmToken === 'string'
+            ? await deps.getClient().sendRequest('session.forget', {
+                session: sessionID,
+                confirmToken,
+                refuseLive: true,
+              })
+            : offered;
+
+        applyForgetAnswer(sessionID, answer);
+      } catch (error) {
+        showNotice(formatError(error));
+      }
     },
 
     adoptSession: async (id) => {
@@ -132,6 +186,10 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
       }
     },
   };
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 // Best-effort clipboard: OSC 52 (works through zellij/tmux/ssh) plus any
