@@ -10,12 +10,11 @@ import invariant from 'tiny-invariant';
 import { buildSeeder } from '../test-utils/build-seeder';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { openMCPAuth } from './open-mcp-auth';
-import { updatePasskeyUse } from './update-passkey-use';
 import { verifyPasskeyAssertion } from './verify-passkey-assertion';
 import { verifyPasskeyRegistration } from './verify-passkey-registration';
 
-// An authorization database, opened the way the server opens it, with the
-// passkey of `authenticator` enrolled for the RP ID `atc.example`.
+// An authorization database, opened the way the server opens it, and the
+// credential that `authenticator` registered for the RP ID `atc.example`.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-verify-passkey-assertion-');
 
@@ -43,19 +42,24 @@ async function setupTest() {
 
   invariant(registered !== null, 'the passkey did not register');
 
-  const seed = buildSeeder({ db: store.db, clock: buildStubClock(Date.UTC(2026, 9, 14, 12)) });
+  const deps = { db: store.db, clock: buildStubClock(Date.UTC(2026, 9, 14, 12)) };
 
-  const passkey = await seed.passkey({
-    id: registered.id,
-    publicKey: Buffer.from(registered.publicKey).toString('base64url'),
-    counter: registered.counter,
-  });
-
-  return { db: store.db, authenticator, passkey };
+  return {
+    ...deps,
+    authenticator,
+    credential: {
+      id: registered.id,
+      publicKey: Buffer.from(registered.publicKey).toString('base64url'),
+      counter: registered.counter,
+    },
+    seed: buildSeeder(deps),
+  };
 }
 
 test('it returns the id of the enrolled passkey an assertion verifies against and stores its counter and use', async () => {
   const ctx = await setupTest();
+
+  await ctx.seed.passkey(ctx.credential);
 
   const assertion = await ctx.authenticator.signAssertion(
     { challenge: 'c2lnbi1pbg', rpId: 'atc.example' },
@@ -88,6 +92,8 @@ test.each([
 ])('it refuses an assertion made for %s', async (_label, expected, ceremony) => {
   const ctx = await setupTest();
 
+  await ctx.seed.passkey(ctx.credential);
+
   const assertion = await ctx.authenticator.signAssertion(
     { challenge: 'c2lnbi1pbg', rpId: 'atc.example' },
     { origin: 'https://atc.example', ...ceremony },
@@ -107,6 +113,8 @@ test.each([
 
 test('it refuses an assertion from a passkey that is not enrolled', async () => {
   const ctx = await setupTest();
+
+  await ctx.seed.passkey(ctx.credential);
 
   const stranger = buildStubAuthenticator();
 
@@ -133,6 +141,8 @@ test('it refuses an assertion from a passkey that is not enrolled', async () => 
 
 test("it refuses an assertion signed by another key under the enrolled passkey's id", async () => {
   const ctx = await setupTest();
+
+  await ctx.seed.passkey(ctx.credential);
 
   const forger = buildStubAuthenticator();
 
@@ -164,17 +174,12 @@ test("it refuses an assertion signed by another key under the enrolled passkey's
 test('it refuses an assertion whose counter does not pass the stored one', async () => {
   const ctx = await setupTest();
 
+  await ctx.seed.passkey({ ...ctx.credential, counter: 5 });
+
   const assertion = await ctx.authenticator.signAssertion(
     { challenge: 'c2lnbi1pbg', rpId: 'atc.example' },
     { origin: 'https://atc.example' },
   );
-
-  await updatePasskeyUse(ctx.db, {
-    id: ctx.passkey.id,
-    counter: ctx.passkey.counter,
-    newCounter: 5,
-    now: Date.UTC(2026, 9, 14, 12, 30, 0),
-  });
 
   const verified = await verifyPasskeyAssertion(ctx.db, {
     credential: JSON.stringify(assertion),
@@ -192,6 +197,8 @@ test.each([['not json'], ['{}'], ['{"id":"x","rawId":"x","type":"public-key","re
   async (credential) => {
     const ctx = await setupTest();
 
+    await ctx.seed.passkey(ctx.credential);
+
     const verified = await verifyPasskeyAssertion(ctx.db, {
       credential,
       challenge: 'c2lnbi1pbg',
@@ -206,6 +213,8 @@ test.each([['not json'], ['{}'], ['{"id":"x","rawId":"x","type":"public-key","re
 
 test('it passes only one of two assertions checked at once against the same stored counter', async () => {
   const ctx = await setupTest();
+
+  await ctx.seed.passkey(ctx.credential);
 
   const first = await ctx.authenticator.signAssertion(
     { challenge: 'Zmlyc3Q', rpId: 'atc.example' },
