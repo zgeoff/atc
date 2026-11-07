@@ -80,7 +80,7 @@ export async function createSpawnWorkspace(
 
               // held before the clone creates it, so a removal running now refuses it and one
               // that starts later keeps a directory that holds it
-              deps.claims.claimMachineDir(id, target, candidate);
+              deps.claims.claimMachineDir(id, target, candidate, spawn.autoDir);
 
               return deps.claims.resolveHostDir(provider, null, candidate);
             });

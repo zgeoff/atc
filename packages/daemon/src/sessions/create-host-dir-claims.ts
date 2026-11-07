@@ -91,7 +91,12 @@ export interface HostDirClaims {
 
   // the check and the hold run in one turn: a running removal resolves each held directory and
   // keeps a directory that holds one
-  readonly claimMachineDir: (id: SessionID, target: string, directory: string) => void;
+  readonly claimMachineDir: (
+    id: SessionID,
+    target: string,
+    directory: string,
+    picked: boolean,
+  ) => void;
 
   // every later step creates, fills, and removes the physical path this resolves to, never the
   // requested one
@@ -563,7 +568,22 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       reservations.set(id, { hostKey, target, directory, resolved: null, kind: 'plain' });
     },
 
-    claimMachineDir: (id, target, directory) => {
+    claimMachineDir: (id, target, directory, picked) => {
+      const holder = picked
+        ? [...reservations].find(
+            ([other, reservation]) =>
+              other !== id && reservation.target === target && reservation.directory === directory,
+          )
+        : undefined;
+
+      if (holder !== undefined) {
+        throw new DaemonError(
+          'workspace_overlap',
+          `${directory} is held by session ${holder[0]}, which is still starting on the daemon host`,
+          { phase: 'resolving', directory, session: holder[0] },
+        );
+      }
+
       if (machineRemovals.length > 0) {
         // symlinks are resolved only while a removal runs, since resolving blocks the daemon; a
         // relative directory is refused while any removal runs
