@@ -1,0 +1,12 @@
+import type { IdempotencyRecord } from '@atc/store';
+
+type CompletedIdempotencyRecord = IdempotencyRecord & { readonly result: string };
+
+export function collectCompletedIdempotencyKeys(
+  records: readonly IdempotencyRecord[],
+): CompletedIdempotencyRecord[] {
+  return records.filter(
+    (record): record is CompletedIdempotencyRecord =>
+      record.state === 'completed' && record.result !== null,
+  );
+}

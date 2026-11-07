@@ -1,4 +1,5 @@
 import { createStateStore } from '@atc/store';
+import { collectCompletedIdempotencyKeys } from './collect-completed-idempotency-keys';
 
 // Completes each completed key in a daemon's state database again with no
 // target, as a key completed before the ledger recorded targets reads.
@@ -6,10 +7,10 @@ export async function removeIdempotencyKeyTargets(dbPath: string): Promise<void>
   const store = await createStateStore(dbPath);
 
   try {
-    for (const record of await store.readIdempotencyKeys()) {
-      if (record.state === 'completed' && record.result !== null) {
-        await store.updateIdempotencyCompleted(record, record.result, record.updatedAt, null);
-      }
+    const records = await store.readIdempotencyKeys();
+
+    for (const key of collectCompletedIdempotencyKeys(records)) {
+      await store.updateIdempotencyCompleted(key, key.result, key.updatedAt, null);
     }
   } finally {
     await store.stop();
