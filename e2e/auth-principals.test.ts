@@ -4747,6 +4747,8 @@ test('it refuses a principal the replay of a held spawn key that records no targ
     idempotencyKey: 'k-owner',
   });
 
+  await daemon.stop();
+
   await removeIdempotencyKeyTargets(daemon.dbPath);
 
   await daemon.restart(() => {
@@ -4816,6 +4818,8 @@ test('it answers the owner the replay of a held spawn key that records no target
     target: 'box',
     idempotencyKey: 'k-owner',
   });
+
+  await daemon.stop();
 
   await removeIdempotencyKeyTargets(daemon.dbPath);
 

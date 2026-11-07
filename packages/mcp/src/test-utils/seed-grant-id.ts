@@ -1,3 +1,4 @@
+import invariant from 'tiny-invariant';
 import type { MCPAuthSeedDeps } from './types';
 
 export interface GrantIDInput {
@@ -11,17 +12,19 @@ export async function seedGrantID(
 ): Promise<GrantIDInput> {
   // A grant with a chosen id: the OAuth provider draws each grant's id at
   // random, so no code here picks one, such as an id that starts with a dash.
-  await deps.db
+  const accessTokens = await deps.db
     .updateTable('oauthAccessToken')
     .set({ authorizationCodeId: input.grantID })
     .where('clientId', '=', input.clientID)
-    .execute();
+    .executeTakeFirst();
 
-  await deps.db
+  const refreshTokens = await deps.db
     .updateTable('oauthRefreshToken')
     .set({ authorizationCodeId: input.grantID })
     .where('clientId', '=', input.clientID)
-    .execute();
+    .executeTakeFirst();
+
+  invariant(accessTokens.numUpdatedRows > 0n && refreshTokens.numUpdatedRows > 0n);
 
   return input;
 }

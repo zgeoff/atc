@@ -1,9 +1,16 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { buildStubAuthenticator, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import {
+  buildStubAuthenticator,
+  buildStubClock,
+  registerTestCleanup,
+  setupTempDir,
+} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { buildSeeder } from '../test-utils/build-seeder';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { openMCPAuth } from './open-mcp-auth';
+import { updatePasskeyUse } from './update-passkey-use';
 import { verifyPasskeyAssertion } from './verify-passkey-assertion';
 import { verifyPasskeyRegistration } from './verify-passkey-registration';
 
@@ -36,19 +43,15 @@ async function setupTest() {
 
   invariant(registered !== null, 'the passkey did not register');
 
-  await store.db
-    .insertInto('atc_passkey')
-    .values({
-      id: registered.id,
-      public_key: Buffer.from(registered.publicKey).toString('base64url'),
-      counter: registered.counter,
-      transports: '["internal"]',
-      created_at: '2026-10-14T12:00:00.000Z',
-      last_used_at: null,
-    })
-    .execute();
+  const seed = buildSeeder({ db: store.db, clock: buildStubClock(Date.UTC(2026, 9, 14, 12)) });
 
-  return { db: store.db, authenticator };
+  const passkey = await seed.passkey({
+    id: registered.id,
+    publicKey: Buffer.from(registered.publicKey).toString('base64url'),
+    counter: registered.counter,
+  });
+
+  return { db: store.db, authenticator, passkey };
 }
 
 test('it returns the id of the enrolled passkey an assertion verifies against and stores its counter and use', async () => {
@@ -166,7 +169,12 @@ test('it refuses an assertion whose counter does not pass the stored one', async
     { origin: 'https://atc.example' },
   );
 
-  await ctx.db.updateTable('atc_passkey').set({ counter: 5 }).execute();
+  await updatePasskeyUse(ctx.db, {
+    id: ctx.passkey.id,
+    counter: ctx.passkey.counter,
+    newCounter: 5,
+    now: Date.UTC(2026, 9, 14, 12, 30, 0),
+  });
 
   const verified = await verifyPasskeyAssertion(ctx.db, {
     credential: JSON.stringify(assertion),

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildSeeder } from '../test-utils/build-seeder';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { openMCPAuth } from './open-mcp-auth';
 import { updatePasskeyUse } from './update-passkey-use';
@@ -18,23 +19,15 @@ async function setupTest() {
 
   registerTestCleanup(() => store.close());
 
-  return { db: store.db };
+  const deps = { db: store.db, clock: buildStubClock(Date.UTC(2026, 9, 14, 12, 0, 0)) };
+
+  return { ...deps, seed: buildSeeder(deps) };
 }
 
 test('it stores the new counter and the time of the use', async () => {
   const ctx = await setupTest();
 
-  await ctx.db
-    .insertInto('atc_passkey')
-    .values({
-      id: 'cred-phone',
-      public_key: 'AQID',
-      counter: 4,
-      transports: '[]',
-      created_at: '2026-10-14T12:00:00.000Z',
-      last_used_at: null,
-    })
-    .execute();
+  await ctx.seed.passkey({ id: 'cred-phone', counter: 4 });
 
   const stored = await updatePasskeyUse(ctx.db, {
     id: 'cred-phone',
@@ -53,17 +46,7 @@ test('it stores the new counter and the time of the use', async () => {
 test('it stores nothing when the passkey holds another counter than the verification read', async () => {
   const ctx = await setupTest();
 
-  await ctx.db
-    .insertInto('atc_passkey')
-    .values({
-      id: 'cred-phone',
-      public_key: 'AQID',
-      counter: 6,
-      transports: '[]',
-      created_at: '2026-10-14T12:00:00.000Z',
-      last_used_at: null,
-    })
-    .execute();
+  await ctx.seed.passkey({ id: 'cred-phone', counter: 6 });
 
   const stored = await updatePasskeyUse(ctx.db, {
     id: 'cred-phone',

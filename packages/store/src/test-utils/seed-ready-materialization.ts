@@ -1,27 +1,20 @@
-import { faker } from '@faker-js/faker';
 import invariant from 'tiny-invariant';
 import type { NewMaterialization, WorkspaceMaterialization } from '../workspace-materialization';
 import { seedMaterialization } from './seed-materialization';
 import type { MaterializationSeedDeps } from './seed-materialization';
 
-export type ReadyMaterializationInput = Partial<
-  NewMaterialization & { readonly repoURL: string; readonly sha: string }
->;
-
 export async function seedReadyMaterialization(
   deps: MaterializationSeedDeps,
-  input: ReadyMaterializationInput = {},
+  input: Partial<NewMaterialization> = {},
 ): Promise<WorkspaceMaterialization> {
-  const { repoURL, sha, ...created } = input;
-
-  const materialization = await seedMaterialization(deps, created);
+  const materialization = await seedMaterialization(deps, input);
 
   await deps.store.updateMaterialization(
     materialization.sessionID,
     {
       phase: 'ready',
-      repoURL: repoURL ?? faker.internet.url(),
-      sha: sha ?? faker.git.commitSha(),
+      repoURL: 'https://example.com/acme/app.git',
+      sha: '0123456789abcdef0123456789abcdef01234567',
       materializedAt: deps.clock.now(),
     },
     deps.clock.now(),

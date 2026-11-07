@@ -39,8 +39,8 @@ test('it writes a materialization row in the ready phase, materialized at the cl
     db.query("SELECT * FROM workspace_materialization WHERE session_id = 's-1'").get(),
   ).toMatchObject({
     phase: 'ready',
-    repo_url: expect.toBeString(),
-    sha: expect.toBeString(),
+    repo_url: 'https://example.com/acme/app.git',
+    sha: '0123456789abcdef0123456789abcdef01234567',
     materialized_at: 2000,
   });
 });
@@ -52,8 +52,6 @@ test('it writes the input over the defaults', async () => {
     sessionID: toSessionID('s-1'),
     target: 'box',
     directory: '/work/bakery',
-    repoURL: 'https://example.com/bakery.git',
-    sha: 'abc123',
   });
 
   const db = new Database(ctx.dbPath, { readonly: true });
@@ -64,10 +62,5 @@ test('it writes the input over the defaults', async () => {
 
   expect(
     db.query("SELECT * FROM workspace_materialization WHERE session_id = 's-1'").get(),
-  ).toMatchObject({
-    target: 'box',
-    directory: '/work/bakery',
-    repo_url: 'https://example.com/bakery.git',
-    sha: 'abc123',
-  });
+  ).toMatchObject({ target: 'box', directory: '/work/bakery' });
 });
