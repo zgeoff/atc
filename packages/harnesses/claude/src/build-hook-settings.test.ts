@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
-import { runCommand } from '@atc/test-utils';
+import { join } from 'node:path';
+import { runCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { z } from 'zod';
 import { buildHookSettings } from './build-hook-settings';
 
 test('it points the settings at the credential helper command', () => {
@@ -24,6 +26,11 @@ test('it points the settings at the credential helper command', () => {
               command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
               timeout: 30,
             },
+          ],
+        },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
           ],
         },
       ],
@@ -247,6 +254,11 @@ test('it gives every command it registers the agent id of its session', () => {
             },
           ],
         },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
+          ],
+        },
       ],
       Notification: [
         {
@@ -300,3 +312,75 @@ test('it gives every command it registers the agent id of its session', () => {
     },
   });
 });
+
+test('it gives a process the tool shell starts the session attribute', async () => {
+  const ctx = setupTest();
+
+  await runCommand(['sh', '-c', ctx.telemetryHook], { env: ctx.env });
+
+  const ran = await runCommand(['sh', '-c', `. "$CLAUDE_ENV_FILE"; ${ctx.printAttributes}`], {
+    env: ctx.env,
+  });
+
+  expect(ran.stdout).toBe('atc.session.id=s-1');
+});
+
+test('it appends the session attribute to a value the tool shell already holds', async () => {
+  const ctx = setupTest();
+
+  await runCommand(['sh', '-c', ctx.telemetryHook], { env: ctx.env });
+
+  const ran = await runCommand(['sh', '-c', `. "$CLAUDE_ENV_FILE"; ${ctx.printAttributes}`], {
+    env: { ...ctx.env, OTEL_RESOURCE_ATTRIBUTES: 'service.namespace=lab' },
+  });
+
+  expect(ran.stdout).toBe('service.namespace=lab,atc.session.id=s-1');
+});
+
+test('it writes the export line once when the session starts again', async () => {
+  const ctx = setupTest();
+
+  await runCommand(['sh', '-c', ctx.telemetryHook], { env: ctx.env });
+  await runCommand(['sh', '-c', ctx.telemetryHook], { env: ctx.env });
+
+  const ran = await runCommand(['sh', '-c', `. "$CLAUDE_ENV_FILE"; ${ctx.printAttributes}`], {
+    env: ctx.env,
+  });
+
+  expect(ran.stdout).toBe('atc.session.id=s-1');
+});
+
+test('it exits 0 when Claude Code gives the start hook no env file', async () => {
+  const ctx = setupTest();
+
+  const ran = await runCommand(['sh', '-c', ctx.telemetryHook], {
+    env: { PATH: ctx.env.PATH, ATC_SESSION_ID: 's-1' },
+  });
+
+  expect({ exitCode: ran.exitCode, stderr: ran.stderr }).toStrictEqual({ exitCode: 0, stderr: '' });
+});
+
+function setupTest() {
+  const settings = buildHookSettings({ id: 'claude' }, 0, ['/usr/local/bin/atc']);
+  const hook = z.object({ command: z.string() });
+  const entry = z.object({ hooks: z.array(hook) });
+  const hooks = z.object({ SessionStart: z.array(entry) }).parse(settings['hooks']);
+  const telemetryHook = hooks.SessionStart[1]?.hooks[0]?.command;
+
+  invariant(telemetryHook !== undefined);
+
+  return {
+    telemetryHook,
+
+    // Claude Code starts a start hook and each Bash command with no OTEL_* variable,
+    // and runs the env file in the command's own shell first.
+    env: {
+      PATH: process.env['PATH'],
+      ATC_SESSION_ID: 's-1',
+      CLAUDE_ENV_FILE: join(setupTempDir('atc-tool-shell-env-').path, 'sessionstart-hook-1.sh'),
+    },
+
+    // a child of the tool shell, such as `codex exec`, reads what it inherits
+    printAttributes: `sh -c 'printf %s "$OTEL_RESOURCE_ATTRIBUTES"'`,
+  };
+}

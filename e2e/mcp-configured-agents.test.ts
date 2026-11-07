@@ -166,6 +166,11 @@ test('it writes a backend settings file that carries the base URL and no credent
             },
           ],
         },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
+          ],
+        },
       ],
       Notification: [
         {

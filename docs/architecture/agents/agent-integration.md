@@ -48,6 +48,11 @@ takes nothing from the daemon's environment, so a guest agent's value holds only
 attribute. An inherited `atc.session.id`, such as a daemon started inside another session carries,
 gives way to the session's own.
 
+Claude Code passes no `OTEL_*` variable to the processes its tools start. A second SessionStart hook
+in the generated settings file writes a line to the file that `CLAUDE_ENV_FILE` names, which Claude
+Code runs before each Bash command. The line appends `atc.session.id=$ATC_SESSION_ID` to the shell's
+own value, so a tool such as `codex exec` exports the attribute.
+
 atc writes a Claude Code entry's `env` and its settings `env` block into the generated settings
 file. A settings `env` value probably outranks the process environment, so an entry that sets
 `OTEL_RESOURCE_ATTRIBUTES` there drops the session attribute, and an entry holds no per-session id
@@ -70,8 +75,7 @@ that has not started yet for a dialog that waits on the owner
 ([waits before the agent starts](../daemon/sessions.md#waits-before-the-agent-starts)).
 
 The chained statusline runs the owner's own configured statusline first, then appends a fleet
-segment read from `status.json`, so fleet state shows inside Claude Code's own status line while the
-owner is attached. Each statusline render also sends its input to the daemon as a heartbeat, a
+segment read from `status.json`. Each render also sends its input to the daemon as a heartbeat, a
 second path for capturing the agent session id.
 
 Session names come from Claude Code's transcript: a title the owner set with `/rename`, else the

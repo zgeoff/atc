@@ -17,6 +17,15 @@ const HOOK_TIMEOUT_SECONDS = 5;
 // remote session's start report until its bridge tap attaches or its mod is written again.
 const SESSION_START_TIMEOUT_SECONDS = 30;
 
+// Claude Code drops every OTEL_* variable from the processes its tools start, so a
+// SessionStart hook's export line in CLAUDE_ENV_FILE, which Claude Code runs before
+// each Bash command, puts the session attribute back; a second start writes no copy.
+export const TOOL_SHELL_TELEMETRY_SCRIPT = `[ -n "$CLAUDE_ENV_FILE" ] && [ -n "$ATC_SESSION_ID" ] || exit 0
+# shellcheck disable=SC2016
+line='export OTEL_RESOURCE_ATTRIBUTES="\${OTEL_RESOURCE_ATTRIBUTES:+$OTEL_RESOURCE_ATTRIBUTES,}atc.session.id=$ATC_SESSION_ID"'
+grep -qxF "$line" "$CLAUDE_ENV_FILE" 2>/dev/null || printf '%s\\n' "$line" >> "$CLAUDE_ENV_FILE"
+exit 0`;
+
 export function buildHookSettings(
   profile: HookSettingsProfile,
   statuslinePadding: number,
@@ -30,10 +39,17 @@ export function buildHookSettings(
     hooks: mergeSessionHooks(
       Object.fromEntries(
         Object.keys(CLAUDE_HOOKS).map((event) => {
-          const timeout =
-            event === 'SessionStart' ? SESSION_START_TIMEOUT_SECONDS : HOOK_TIMEOUT_SECONDS;
+          if (event === 'SessionStart') {
+            return [
+              event,
+              [
+                buildHookEntry(command, SESSION_START_TIMEOUT_SECONDS),
+                buildHookEntry(TOOL_SHELL_TELEMETRY_SCRIPT, HOOK_TIMEOUT_SECONDS),
+              ],
+            ];
+          }
 
-          return [event, [buildHookEntry(command, timeout)]];
+          return [event, [buildHookEntry(command, HOOK_TIMEOUT_SECONDS)]];
         }),
       ),
       profile.settings?.['hooks'],

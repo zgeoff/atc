@@ -541,6 +541,11 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
             },
           ],
         },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
+          ],
+        },
       ],
       Notification: [
         {
@@ -656,6 +661,11 @@ test('it plans a remote spawn in the permission mode its configured arguments se
             },
           ],
         },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
+          ],
+        },
       ],
       Notification: [
         {
@@ -761,6 +771,11 @@ test('it carries the settings file in the resume command of an entry with its ow
               command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 30,
             },
+          ],
+        },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
           ],
         },
       ],
@@ -1084,6 +1099,11 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
             },
           ],
         },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
+          ],
+        },
       ],
       Notification: [
         {
@@ -1242,6 +1262,11 @@ test("it ships the host's Claude config as the session's user settings and keeps
               command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 30,
             },
+          ],
+        },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
           ],
         },
       ],
@@ -1674,6 +1699,11 @@ test('it plans a guest spawn without a broker binding in the config of the host 
               command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
               timeout: 30,
             },
+          ],
+        },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
           ],
         },
       ],
@@ -2132,6 +2162,11 @@ test("it sets a profile's variables in a subscription guest's settings env and s
             },
           ],
         },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
+          ],
+        },
       ],
       Notification: [
         {
@@ -2254,6 +2289,11 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
               command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
               timeout: 30,
             },
+          ],
+        },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
           ],
         },
       ],
