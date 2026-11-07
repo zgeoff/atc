@@ -45,7 +45,8 @@ async function setupTest() {
 
     const commands = bashEntries.flatMap((entry) => entry.hooks).map((hook) => hook.command);
 
-    bashCommands.set(event, commands.join(' && '));
+    // `true` ends the chain, so an event with no entry exits 0, and a hook that exits 2 still ends it.
+    bashCommands.set(event, [...commands, 'true'].join(' && '));
   }
 
   return {
@@ -78,7 +79,7 @@ test('it blocks with the code-style skills after a Bash command that changes a g
 
   writeFileSync(changedPath, 'export const sample = 1;\n');
 
-  const result = await runCommand(['sh', '-c', ctx.bashCommands.get('PostToolUse') || 'true'], {
+  const result = await runCommand(['sh', '-c', ctx.bashCommands.get('PostToolUse') ?? 'true'], {
     env: ctx.env,
     stdin: afterPayload,
   });
@@ -121,14 +122,14 @@ test('it asks for the code-style skills after a failed Bash command that changes
   writeFileSync(changedPath, 'export const sample = 1;\n');
 
   const result = await runCommand(
-    ['sh', '-c', ctx.bashCommands.get('PostToolUseFailure') || 'true'],
+    ['sh', '-c', ctx.bashCommands.get('PostToolUseFailure') ?? 'true'],
     {
       env: ctx.env,
       stdin: afterPayload,
     },
   );
 
-  const output: unknown = JSON.parse(result.stdout || '{}');
+  const output: unknown = JSON.parse(result.stdout);
 
   expect({ exitCode: result.exitCode, output }).toStrictEqual({
     exitCode: 0,
