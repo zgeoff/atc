@@ -81,12 +81,6 @@
       }
     },
     {
-      // repo-sync delivers this runner of the pre-push checks from
-      // zgeoff/tools, which owns its synchronous spawn
-      "files": ["scripts/run-program.ts"],
-      "rules": { "no-restricted-properties": "off" }
-    },
-    {
       // the generic packages name no execution provider in their text
       "files": ["packages/**"],
       "rules": {
