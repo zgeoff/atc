@@ -4,6 +4,7 @@ import { seedFailedMaterialization } from './seed-failed-materialization';
 import { seedMaterialization } from './seed-materialization';
 import type { MaterializationSeedDeps } from './seed-materialization';
 import { seedReadyMaterialization } from './seed-ready-materialization';
+import type { ReadyMaterializationInput } from './seed-ready-materialization';
 import { seedTransferringMaterialization } from './seed-transferring-materialization';
 import { seedVerifyingMaterialization } from './seed-verifying-materialization';
 
@@ -16,7 +17,7 @@ export function buildMaterializationSeeder(deps: MaterializationSeedDeps) {
       seedTransferringMaterialization(deps, input),
     verifyingMaterialization: (input?: Partial<NewMaterialization>) =>
       seedVerifyingMaterialization(deps, input),
-    readyMaterialization: (input?: Partial<NewMaterialization>) =>
+    readyMaterialization: (input?: ReadyMaterializationInput) =>
       seedReadyMaterialization(deps, input),
     failedMaterialization: (input?: Partial<NewMaterialization>) =>
       seedFailedMaterialization(deps, input),

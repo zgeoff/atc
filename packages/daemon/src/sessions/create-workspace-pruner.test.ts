@@ -91,7 +91,6 @@ async function setupTest() {
     pruner: createWorkspacePruner(deps),
     createPruner: (removeDir: (directory: string) => Promise<void>) =>
       createWorkspacePruner({ ...deps, removeDir }),
-    clock: seedDeps.clock,
     seed: buildSeeder(seedDeps),
   };
 }
@@ -106,27 +105,17 @@ test('it lists a clean workspace as remove, a dirty one as keep, and a folder wi
   mkdirSync(handMade, { recursive: true });
   writeFileSync(join(dirty.work, 'draft.md'), '# order list\n');
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-clean'),
     directory: clean.work,
+    sha: clean.sha,
   });
 
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-clean'),
-    { phase: 'ready', sha: clean.sha },
-    ctx.clock.now(),
-  );
-
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-dirty'),
     directory: dirty.work,
+    sha: dirty.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-dirty'),
-    { phase: 'ready', sha: dirty.sha },
-    ctx.clock.now(),
-  );
 
   const prune = await ctx.pruner.prune(false);
 
@@ -167,27 +156,17 @@ test('it takes away the remove workspaces and orphaned state folders with remove
   writeFileSync(join(orphan, 'notes.txt'), 'flour, sugar\n');
   writeFileSync(join(dirty.work, 'draft.md'), '# order list\n');
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-clean'),
     directory: clean.work,
+    sha: clean.sha,
   });
 
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-clean'),
-    { phase: 'ready', sha: clean.sha },
-    ctx.clock.now(),
-  );
-
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-dirty'),
     directory: dirty.work,
+    sha: dirty.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-dirty'),
-    { phase: 'ready', sha: dirty.sha },
-    ctx.clock.now(),
-  );
 
   const cleanPath = realpathSync(clean.work);
 
@@ -239,27 +218,17 @@ test('it logs each folder a prune with remove takes away or keeps', async () => 
   mkdirSync(orphan, { recursive: true });
   writeFileSync(join(dirty.work, 'draft.md'), '# order list\n');
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-clean'),
     directory: clean.work,
+    sha: clean.sha,
   });
 
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-clean'),
-    { phase: 'ready', sha: clean.sha },
-    ctx.clock.now(),
-  );
-
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-dirty'),
     directory: dirty.work,
+    sha: dirty.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-dirty'),
-    { phase: 'ready', sha: dirty.sha },
-    ctx.clock.now(),
-  );
 
   const cleanPath = realpathSync(clean.work);
 
@@ -276,16 +245,11 @@ test('it refuses a spawn into a workspace while the check that decides its remov
   const ctx = await setupTest();
   const clean = await createGitFixture({ prefix: 'atc-pruner-held-' });
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-clean'),
     directory: clean.work,
+    sha: clean.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-clean'),
-    { phase: 'ready', sha: clean.sha },
-    ctx.clock.now(),
-  );
 
   ctx.provider.holdCommands();
 
@@ -323,16 +287,11 @@ test('it keeps a state folder whose session starts to spawn while the prune chec
 
   mkdirSync(folder, { recursive: true });
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-clean'),
     directory: clean.work,
+    sha: clean.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-clean'),
-    { phase: 'ready', sha: clean.sha },
-    ctx.clock.now(),
-  );
 
   ctx.provider.holdCommands();
 
@@ -383,17 +342,12 @@ test('it keeps a workspace unchecked when its target refuses to run it', async (
   const ctx = await setupTest();
   const stale = await createGitFixture({ prefix: 'atc-pruner-stale-' });
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-stale'),
     target: 'stale',
     directory: stale.work,
+    sha: stale.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-stale'),
-    { phase: 'ready', sha: stale.sha },
-    ctx.clock.now(),
-  );
 
   const prune = await ctx.pruner.prune(true);
 
@@ -446,16 +400,11 @@ test('it logs nothing on a dry run', async () => {
 
   writeFileSync(join(dirty.work, 'draft.md'), '# order list\n');
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-dirty'),
     directory: dirty.work,
+    sha: dirty.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-dirty'),
-    { phase: 'ready', sha: dirty.sha },
-    ctx.clock.now(),
-  );
 
   await ctx.pruner.prune(false);
 
@@ -466,16 +415,11 @@ test('it never lists a folder a listed session uses, even when an older row name
   const ctx = await setupTest();
   const reused = await createGitFixture({ prefix: 'atc-pruner-reused-' });
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-first'),
     directory: reused.work,
+    sha: reused.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-first'),
-    { phase: 'ready', sha: reused.sha },
-    ctx.clock.now(),
-  );
 
   ctx.manager.sessions.push(buildMockSession({ id: toSessionID('plain-later'), cwd: reused.work }));
 
@@ -489,16 +433,11 @@ test('it never lists a folder a session that only the stored fleet lists runs in
   const ctx = await setupTest();
   const restorable = await createGitFixture({ prefix: 'atc-pruner-restorable-' });
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-first'),
     directory: restorable.work,
+    sha: restorable.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-first'),
-    { phase: 'ready', sha: restorable.sha },
-    ctx.clock.now(),
-  );
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('not-yet-restored'), cwd: restorable.work }),
@@ -518,16 +457,11 @@ test('it keeps a workspace that a session only the stored fleet lists reaches th
 
   symlinkSync(restorable.work, alias);
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-first'),
     directory: restorable.work,
+    sha: restorable.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-first'),
-    { phase: 'ready', sha: restorable.sha },
-    ctx.clock.now(),
-  );
 
   await ctx.store.writeFleet([
     buildMockFleetEntry({ sessionID: toSessionID('not-yet-restored'), cwd: join(alias, 'src') }),
@@ -552,16 +486,11 @@ test('it keeps a workspace on a dry run that a listed session reaches through a 
 
   symlinkSync(linked.work, alias);
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-first'),
     directory: linked.work,
+    sha: linked.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-first'),
-    { phase: 'ready', sha: linked.sha },
-    ctx.clock.now(),
-  );
 
   ctx.manager.sessions.push(
     buildMockSession({ id: toSessionID('plain-linked'), cwd: join(alias, 'src') }),
@@ -580,16 +509,11 @@ test('it prunes a local workspace whose path a session on a host with a lifecycl
   const ctx = await setupTest();
   const leftover = await createGitFixture({ prefix: 'atc-pruner-same-path-' });
 
-  await ctx.seed.materialization({
+  await ctx.seed.readyMaterialization({
     sessionID: toSessionID('forgotten-local'),
     directory: leftover.work,
+    sha: leftover.sha,
   });
-
-  await ctx.store.updateMaterialization(
-    toSessionID('forgotten-local'),
-    { phase: 'ready', sha: leftover.sha },
-    ctx.clock.now(),
-  );
 
   ctx.manager.sessions.push(
     buildMockSession({ id: toSessionID('cloud-live'), cwd: leftover.work, target: 'box' }),
@@ -660,27 +584,13 @@ test('it ignores a row on a target whose hosts have a lifecycle', async () => {
   const ctx = await setupTest();
   const guest = await createGitFixture({ prefix: 'atc-pruner-guest-' });
 
-  await ctx.store.createMaterialization(
-    {
-      sessionID: toSessionID('cloud-forgotten'),
-      target: 'box',
-      directory: guest.work,
-      sourceKind: 'git',
-      withheldEnv: [],
-    },
-    1000,
-  );
-
-  await ctx.store.updateMaterialization(
-    toSessionID('cloud-forgotten'),
-    {
-      phase: 'ready',
-      repoURL: 'https://example.com/bakery.git',
-      sha: guest.sha,
-      materializedAt: 2000,
-    },
-    2000,
-  );
+  await ctx.seed.readyMaterialization({
+    sessionID: toSessionID('cloud-forgotten'),
+    target: 'box',
+    directory: guest.work,
+    repoURL: 'https://example.com/bakery.git',
+    sha: guest.sha,
+  });
 
   const prune = await ctx.pruner.prune(true);
 

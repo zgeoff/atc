@@ -3,18 +3,29 @@ import type { NewMaterialization, WorkspaceMaterialization } from '../workspace-
 import { seedMaterialization } from './seed-materialization';
 import type { MaterializationSeedDeps } from './seed-materialization';
 
+export type ReadyMaterializationInput = Partial<NewMaterialization> & {
+  repoURL?: string;
+  sha?: string;
+};
+
 export async function seedReadyMaterialization(
   deps: MaterializationSeedDeps,
-  input: Partial<NewMaterialization> = {},
+  input: ReadyMaterializationInput = {},
 ): Promise<WorkspaceMaterialization> {
-  const materialization = await seedMaterialization(deps, input);
+  const {
+    repoURL = 'https://example.com/acme/app.git',
+    sha = '0123456789abcdef0123456789abcdef01234567',
+    ...newMaterialization
+  } = input;
+
+  const materialization = await seedMaterialization(deps, newMaterialization);
 
   await deps.store.updateMaterialization(
     materialization.sessionID,
     {
       phase: 'ready',
-      repoURL: 'https://example.com/acme/app.git',
-      sha: '0123456789abcdef0123456789abcdef01234567',
+      repoURL,
+      sha,
       materializedAt: deps.clock.now(),
     },
     deps.clock.now(),
