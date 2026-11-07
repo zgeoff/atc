@@ -462,7 +462,7 @@
     "@zgeoff/bun-test-extended": "0.2.3",
     "@zgeoff/diet": "0.2.2",
     "@zgeoff/format-codemod": "0.3.5",
-    "@zgeoff/kysely-bun-sqlite": "0.3.0",
+    "@zgeoff/kysely-bun-sqlite": "0.3.1",
     "@zgeoff/oxlint-config": "0.8.6",
     "@zgeoff/rig": "0.1.6",
     "@zgeoff/std": "0.4.3",
@@ -1008,7 +1008,7 @@
 
     "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.3.5", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.155.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-aVHu3c5pYTISM68OL5fPjo2Go5DwemqB70chqFLsOnjlDJsEYBB2jdzyufv8QxrOwtTishnMV/v7EexmLZhIyQ=="],
 
-    "@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.0", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-LJ8sc8xpEDa0aYBNA4raORnSit3SUXpVLK+F5qImnw4TDKBjgK2b5l3qNja99K2ITXF6Bpr6dAoMB6UDmdJ6EQ=="],
+    "@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.1", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-Dz1Q+f7FvrjL9++65x+W2vz6vU/NAXB3nCg3aTZKLq0keCb7wkJaXE1M4XUT7QVzvj+Yg5vpmtLvzScN7K3Yxg=="],
 
     "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.8.6", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-gBnGBTPgUNK3j4S6CDMwMlGMxPrjmcdDSLAiXs0bAl252PMBILMujeqGnmBZ6NVo+WwCAHvWQFrsjixHozl1DA=="],
 
