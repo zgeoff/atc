@@ -46,13 +46,18 @@
           "mcp-tools": ["packages/mcp/src/tools/**"],
           "mcp-auth": ["packages/mcp/src/auth/**"],
 
-          // every test helper, a package's testing folder among them
-          "testing": ["packages/**/testing{,/**}"],
+          // every test helper, a package's testing and test-utils folders among them
+          "testing": [
+            "packages/**/testing{,/**}",
+            "packages/**/src/test-utils/**",
+            "packages/*/test-utils",
+            "packages/*/*/test-utils"
+          ],
           "tests": [
             "**/*.test.{ts,tsx,js,mjs}",
             "packages/**/testing/**",
             "packages/test-utils/**",
-            "packages/app/src/test-utils/**",
+            "packages/**/src/test-utils/**",
             "e2e/**",
             "integration/**",
             "scripts/**"
@@ -218,7 +223,7 @@
               "**/*.test.{ts,tsx,js,mjs}",
               "packages/**/testing/**",
               "packages/test-utils/**",
-              "packages/app/src/test-utils/**"
+              "packages/**/src/test-utils/**"
             ],
             "reason": "production code never imports the shared test helpers"
           },
@@ -230,7 +235,7 @@
               "**/*.test.{ts,tsx,js,mjs}",
               "packages/**/testing/**",
               "packages/test-utils/**",
-              "packages/app/src/test-utils/**"
+              "packages/**/src/test-utils/**"
             ],
             "reason": "production code never imports a testing entry or a testing/ folder"
           },
