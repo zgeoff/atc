@@ -82,7 +82,8 @@ The unit run and the Codex and toolchain lanes run through
 [`@zgeoff/rig`](https://github.com/zgeoff/tools/tree/main/packages/rig), the shared test runner,
 inside the test home. [`rig.config.ts`](../../../rig.config.ts) declares those two lanes and their
 limits. The e2e lane runs through `bun test` in its own `test:e2e` script, which sets its 15 s limit
-with `--timeout`.
+with `--timeout`. rig runs only the files git tracks, so `git add` a new test file before you pass
+its path to `bun run test` or a lane's script. Otherwise rig finds no match and exits 1.
 
 | Lane      | Suite                                       | Script                   | Needs                                                                         | Limit per test |
 | --------- | ------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------- | -------------- |
