@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
+import type { DaemonClient } from '@atc/protocol/client';
 import { buildMockAgentAdapter, createGitFixture, getRecord } from '@atc/test-utils';
 import { createSessionActionsHarness } from '@atc/tui/testing';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -10,14 +11,12 @@ import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemo
 // The overlay's session actions run against a daemon in the test's process, on a target the
 // test gives; each session runs `sleep` in a real terminal, or in the stand-in provider's host.
 
-type TestDaemon = Awaited<ReturnType<typeof startTestDaemon>>;
-
-function setupTest(daemon: TestDaemon) {
-  const harness = createSessionActionsHarness(daemon.client);
+function setupTest(client: DaemonClient) {
+  const harness = createSessionActionsHarness(client);
 
   onTestFinished(harness.stop);
 
-  return { ...harness, client: daemon.client };
+  return { ...harness, client };
 }
 
 test('#sendForget shows the kept folder and its reasons when the forget keeps the workspace', async () => {
@@ -40,7 +39,7 @@ test('#sendForget shows the kept folder and its reasons when the forget keeps th
     }),
   });
 
-  const ctx = setupTest(daemon);
+  const ctx = setupTest(daemon.client);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: join(git.directory, 'orchard-main'),
@@ -79,7 +78,7 @@ test('#sendForget shows no notice when the forget removes the workspace', async 
     }),
   });
 
-  const ctx = setupTest(daemon);
+  const ctx = setupTest(daemon.client);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: join(git.directory, 'orchard-main'),
@@ -112,7 +111,7 @@ test("#sendForget shows the daemon's refusal of a forget of a session that came 
     }),
   });
 
-  const ctx = setupTest(daemon);
+  const ctx = setupTest(daemon.client);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: daemon.directory,
@@ -142,7 +141,7 @@ test('#sendForget asks once more when the forget destroys the host, and destroys
     }),
   });
 
-  const ctx = setupTest(daemon);
+  const ctx = setupTest(daemon.client);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: daemon.directory,
@@ -176,7 +175,7 @@ test('#sendDestroy hands the offered token back and forgets the session with its
     }),
   });
 
-  const ctx = setupTest(daemon);
+  const ctx = setupTest(daemon.client);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: daemon.directory,
@@ -212,7 +211,7 @@ test("#sendDestroy shows the daemon's refusal when the host destroy fails", asyn
     }),
   });
 
-  const ctx = setupTest(daemon);
+  const ctx = setupTest(daemon.client);
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: daemon.directory,
