@@ -4,13 +4,8 @@ import { ansi } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import {
-  buildStubClock,
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils';
+import { buildStubClock, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';

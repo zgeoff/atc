@@ -1,7 +1,8 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
-import { createMigratedStateDB, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils';
+import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';

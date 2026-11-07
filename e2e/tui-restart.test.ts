@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   KEYS,
@@ -17,7 +18,7 @@ import { createHostServices } from '../packages/app/src/create-host-services';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it restarts a daemon on another protocol after the user confirms and restores the fleet', async () => {

@@ -4,11 +4,11 @@ import { linkSync, readdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   buildMockAgentAdapter,
   buildStubClock,
   buildStubLog,
-  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';

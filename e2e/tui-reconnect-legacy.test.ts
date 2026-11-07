@@ -2,13 +2,14 @@ import { expect, test } from 'bun:test';
 import { unlinkSync } from 'node:fs';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { startStubLegacyDaemonProcess, startTUIHarness } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
 // A client on an idle daemon whose socket a daemon on another protocol has
 // taken, so the client's reconnect after the first daemon dies meets it.
 async function setupTest() {
-  const harness = startTUIHarness();
+  const harness = startTUIHarness({ createStateDB: createMigratedStateDB });
   const stateDir = harness.paths.stateDir;
   const socketPath = harness.paths.daemonSocketPath;
   const pty = harness.boot();

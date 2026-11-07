@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   buildMockAgentAdapter,
   registerTestCleanup,
@@ -13,7 +14,7 @@ import { createHostServices } from '../packages/app/src/create-host-services';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it waits for a managed daemon instead of starting one while the unit is down', async () => {

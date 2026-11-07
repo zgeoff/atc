@@ -3,14 +3,9 @@ import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
 import type { HookEvent } from '@atc/protocol/session';
 import { createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildMockMessageRecord } from '@atc/store/testing';
-import {
-  buildStubClock,
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { buildStubClock, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { toMessageID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';

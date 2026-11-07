@@ -2,11 +2,11 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
   buildStubLog,
-  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
   waitFor,

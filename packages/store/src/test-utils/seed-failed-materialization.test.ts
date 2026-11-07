@@ -1,14 +1,10 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import {
-  buildStubClock,
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-} from '@atc/test-utils';
+import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { createStateStore } from '../create-state-store';
+import { createMigratedStateDB } from './create-migrated-state-db';
 import { seedFailedMaterialization } from './seed-failed-materialization';
 
 async function setupTest() {

@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildHookSettingsPath } from '@atc/harness-claude';
 import { openDaemonClient } from '@atc/protocol/client';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
   createGitFixture,
@@ -14,7 +15,7 @@ import {
 import { $ } from 'bun';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it leaves an agent with no installed binary out of the picker', async () => {

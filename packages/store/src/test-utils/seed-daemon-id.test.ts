@@ -1,10 +1,9 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { createMigratedStateDB } from './create-migrated-state-db';
-import { registerTestCleanup } from './register-test-cleanup';
 import { seedDaemonID } from './seed-daemon-id';
-import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-seed-daemon-id-');

@@ -12,7 +12,6 @@ import { join } from 'node:path';
 import {
   buildMockPublishedRecord,
   buildMockRestartResult,
-  createMigratedStateDB,
   readQueryPlan,
   registerTestCleanup,
   setupTempDir,
@@ -30,6 +29,7 @@ import { createStateStore } from './create-state-store';
 import { MIGRATIONS } from './sqlite/migrations';
 import { PreLadderDatabaseError } from './sqlite/pre-ladder-database-error';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
+import { createMigratedStateDB } from './test-utils/create-migrated-state-db';
 import { buildMockFleetEntry } from './testing/build-mock-fleet-entry';
 import { buildMockMessageRecord } from './testing/build-mock-message-record';
 

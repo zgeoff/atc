@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { removeIdempotencyKeyTargets } from './remove-idempotency-key-targets';
 
 async function setupTest() {

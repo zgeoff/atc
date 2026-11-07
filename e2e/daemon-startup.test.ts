@@ -7,9 +7,9 @@ import { buildStubTargets } from '@atc/daemon/testing';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { openDaemonClient } from '@atc/protocol/client';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   buildStubClock,
-  createMigratedStateDB,
   getString,
   registerTestCleanup,
   resolveATCCommand,

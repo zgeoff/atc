@@ -1,11 +1,12 @@
 import { expect, test } from 'bun:test';
 import { unlinkSync } from 'node:fs';
 import { readDaemonRecord } from '@atc/lifecycle';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { startStubLegacyDaemonProcess, startTUIHarness } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 
 test('it tells the user to reopen a client that a reconnect finds older than the daemon, and never offers a restart', async () => {
-  const harness = startTUIHarness();
+  const harness = startTUIHarness({ createStateDB: createMigratedStateDB });
   const stateDir = harness.paths.stateDir;
   const socketPath = harness.paths.daemonSocketPath;
 

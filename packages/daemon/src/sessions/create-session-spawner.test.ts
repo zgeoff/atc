@@ -5,9 +5,9 @@ import { systemClock } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   buildStubBrokeredGatewayAdapter,
-  createMigratedStateDB,
   registerTestCleanup,
   runLocalCommand,
   setupTempDir,

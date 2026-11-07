@@ -1,10 +1,11 @@
 import { test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { KEYS, spawnClaudeSession, startTUIHarness } from '@atc/test-utils';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it renames a session from the claude transcript custom-title', async () => {

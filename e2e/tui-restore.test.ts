@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { resolvePaths } from '@atc/config';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
 import { createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   registerTestCleanup,
   resolveATCCommand,
@@ -11,7 +12,7 @@ import {
 } from '@atc/test-utils';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it restores the fleet from disk after a crash', async () => {

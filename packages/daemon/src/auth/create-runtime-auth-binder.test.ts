@@ -5,12 +5,8 @@ import { EffectRemainsError } from '@atc/plugin-api';
 import type { AuthProfile, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import {
-  buildMockAuthProfile,
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils';
+import { buildMockAuthProfile, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { buildMockAuthBinding } from '../testing/build-mock-auth-binding';

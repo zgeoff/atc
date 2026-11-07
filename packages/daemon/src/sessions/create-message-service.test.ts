@@ -4,13 +4,9 @@ import { join } from 'node:path';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  buildStubClock,
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-} from '@atc/test-utils';
+import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';

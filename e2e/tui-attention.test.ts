@@ -1,10 +1,11 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { KEYS, spawnClaudeSession, startTUIHarness, waitFor } from '@atc/test-utils';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it clears the need state when attaching a needy session', async () => {

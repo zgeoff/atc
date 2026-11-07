@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
   buildStubSignedOutGH,
@@ -12,7 +13,7 @@ import {
 import { $ } from 'bun';
 
 async function setupTest() {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: createMigratedStateDB });
 
   // The list shows the account's repositories through gh; a signed-out one
   // keeps the list from reaching the host's own gh.
