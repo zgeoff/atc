@@ -31,10 +31,15 @@ test('it drops the target of a completed key and keeps its result', async () => 
 
   await removeIdempotencyKeyTargets(ctx.dbPath);
 
-  expect(ctx.store.readIdempotencyKey(id)).resolves.toMatchObject({
+  expect(ctx.store.readIdempotencyKey(id)).resolves.toStrictEqual({
+    ...id,
+    payloadHash: 'h',
     state: 'completed',
+    effectRef: 's-1',
     result: '{"session":"s-1"}',
     effectTarget: null,
+    createdAt: 1,
+    updatedAt: 2,
   });
 });
 
@@ -47,8 +52,14 @@ test('it leaves a key in progress as it was', async () => {
 
   await removeIdempotencyKeyTargets(ctx.dbPath);
 
-  expect(ctx.store.readIdempotencyKey(id)).resolves.toMatchObject({
+  expect(ctx.store.readIdempotencyKey(id)).resolves.toStrictEqual({
+    ...id,
+    payloadHash: 'h',
     state: 'in_progress',
+    effectRef: 's-1',
     result: null,
+    effectTarget: null,
+    createdAt: 1,
+    updatedAt: 1,
   });
 });
