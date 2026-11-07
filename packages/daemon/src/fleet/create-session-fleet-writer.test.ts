@@ -4,15 +4,17 @@ import { linkSync, readdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   buildMockAgentAdapter,
+  buildStubClock,
   buildStubLog,
-  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { createSessionRegistry } from '../sessions/create-session-registry';
+import { buildSeeder } from '../test-utils/build-seeder';
 import { buildMockSession } from '../testing/build-mock-session';
 import { createSessionFleetWriter } from './create-session-fleet-writer';
 
@@ -47,14 +49,16 @@ async function setupTest() {
     callbacks: { onChange: mock<() => void>(), log: recorder.log, findRecords: () => null },
   });
 
+  const deps = { store, dbPath, clock: buildStubClock(1000) };
+
   return {
+    ...deps,
     directory: temporaryDirectory.path,
-    dbPath,
     statusPath,
-    store,
     registry,
     writer,
     lines: recorder.lines,
+    seed: buildSeeder(deps),
   };
 }
 
@@ -378,21 +382,7 @@ test('it logs nothing for a background fleet write refused as stale_epoch', asyn
   const ctx = await setupTest();
 
   ctx.registry.sessions.push(buildMockSession({ id: toSessionID('s-1'), name: 'renamed' }));
-
-  // An owner row from a later ownership epoch, which this daemon's writes
-  // may no longer replace.
-  const db = new Database(ctx.dbPath);
-
-  const closeDB = registerTestCleanup(() => {
-    db.close();
-  });
-
-  db.run(
-    'INSERT INTO session_owner (session_id, daemon_id, owner_epoch, updated_at) VALUES (?, ?, 2, 0)',
-    ['s-1', ctx.store.daemonID],
-  );
-
-  closeDB();
+  ctx.seed.laterEpochSessionOwner({ session_id: 's-1', daemon_id: ctx.store.daemonID });
 
   const written = await ctx.writer.tryWriteFleet(toSessionID('s-1'));
 

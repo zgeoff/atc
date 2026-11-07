@@ -5,7 +5,7 @@ import { startTUIHarness } from './start-tui-harness';
 
 // The client booted to its home screen.
 async function setupTest() {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   tui.boot();
 

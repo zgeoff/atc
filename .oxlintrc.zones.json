@@ -17,6 +17,9 @@
           "plugin-api": ["packages/plugin-api{,/**}"],
           "config": ["packages/config{,/**}"],
           "store": ["packages/store{,/**}"],
+          // the store's seeds, which a front end's tests may use to set up a
+          // daemon's state database
+          "store-test-utils": ["packages/store/src/test-utils/**", "packages/store/test-utils"],
           "lifecycle": ["packages/lifecycle{,/**}"],
           "daemon": ["packages/daemon{,/**}"],
           "plugins": ["packages/{harnesses,execution,sources}/*{,/**}"],
@@ -46,13 +49,18 @@
           "mcp-tools": ["packages/mcp/src/tools/**"],
           "mcp-auth": ["packages/mcp/src/auth/**"],
 
-          // every test helper, a package's testing folder among them
-          "testing": ["packages/**/testing{,/**}"],
+          // every test helper, a package's testing and test-utils folders among them
+          "testing": [
+            "packages/**/testing{,/**}",
+            "packages/**/src/test-utils/**",
+            "packages/*/test-utils",
+            "packages/*/*/test-utils"
+          ],
           "tests": [
             "**/*.test.{ts,tsx,js,mjs}",
             "packages/**/testing/**",
             "packages/test-utils/**",
-            "packages/app/src/test-utils/**",
+            "packages/**/src/test-utils/**",
             "e2e/**",
             "integration/**",
             "scripts/**"
@@ -189,7 +197,15 @@
           {
             "name": "package-deps",
             "from": ["front-ends"],
-            "allow": ["contract", "core", "protocol", "config", "test-utils", "daemon-testing"],
+            "allow": [
+              "contract",
+              "core",
+              "protocol",
+              "config",
+              "test-utils",
+              "daemon-testing",
+              "store-test-utils"
+            ],
             "allowWithin": "packages/*"
           },
           // check-manifests limits the test helpers that reach into the app by path
@@ -218,7 +234,7 @@
               "**/*.test.{ts,tsx,js,mjs}",
               "packages/**/testing/**",
               "packages/test-utils/**",
-              "packages/app/src/test-utils/**"
+              "packages/**/src/test-utils/**"
             ],
             "reason": "production code never imports the shared test helpers"
           },
@@ -230,7 +246,7 @@
               "**/*.test.{ts,tsx,js,mjs}",
               "packages/**/testing/**",
               "packages/test-utils/**",
-              "packages/app/src/test-utils/**"
+              "packages/**/src/test-utils/**"
             ],
             "reason": "production code never imports a testing entry or a testing/ folder"
           },

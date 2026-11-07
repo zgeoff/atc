@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { systemClock } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildStubAuthenticator,
@@ -11,7 +12,9 @@ import {
 import invariant from 'tiny-invariant';
 import { createSubscriptionStore } from '../events/create-subscription-store';
 import { readCallbackVerifiedAt } from '../events/read-callback-verified-at';
+import { writeCallbackVerifiedAt } from '../events/write-callback-verified-at';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
+import { buildSeeder } from '../test-utils/build-seeder';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { createEnrollmentToken } from './create-enrollment-token';
@@ -19,6 +22,7 @@ import { openMCPAuth } from './open-mcp-auth';
 import { readClientViews } from './read-client-views';
 import { readGrantViews } from './read-grant-views';
 import { removeClient } from './remove-client';
+import { writeGrantUse } from './write-grant-use';
 
 // `atc mcp --http` on a free port with the owner's passkey enrolled, and its authorization server's database opened a second time
 // the way `atc clients` opens it. No test reaches the daemon, so the caller
@@ -61,7 +65,13 @@ async function setupTest() {
 
   await runPasskeyEnrollment(server, enrollment.token, authenticator);
 
-  return { url: server.url, origin: server.origin, authenticator, store };
+  return {
+    url: server.url,
+    origin: server.origin,
+    authenticator,
+    store,
+    seed: buildSeeder({ db: store.db, clock: systemClock }),
+  };
 }
 
 test('it removes a client and reports it removed', async () => {
@@ -84,20 +94,7 @@ test("it ends a removed client's event subscriptions", async () => {
     body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
   });
 
-  await ctx.store.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub-one',
-      client_id: created.clientID,
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
-      position: 'cursor-1',
-      refresh_before: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      created_at: new Date().toISOString(),
-    })
-    .execute();
+  await ctx.seed.eventSubscription({ id: 'sub-one', client_id: created.clientID });
 
   await removeClient(ctx.store.db, created.clientID);
 
@@ -120,21 +117,17 @@ test("it removes a removed client's verified callbacks and keeps another client'
     },
   });
 
-  await ctx.store.db
-    .insertInto('atc_event_callback')
-    .values([
-      {
-        client_id: removed.clientID,
-        url: 'https://hooks.example.com/hook',
-        verified_at: '2026-10-23T12:00:00.000Z',
-      },
-      {
-        client_id: kept.clientID,
-        url: 'https://hooks.example.com/hook',
-        verified_at: '2026-10-23T12:00:00.000Z',
-      },
-    ])
-    .execute();
+  await writeCallbackVerifiedAt(ctx.store.db, {
+    clientID: removed.clientID,
+    url: 'https://hooks.example.com/hook',
+    now: Date.UTC(2026, 9, 23, 12, 0, 0),
+  });
+
+  await writeCallbackVerifiedAt(ctx.store.db, {
+    clientID: kept.clientID,
+    url: 'https://hooks.example.com/hook',
+    now: Date.UTC(2026, 9, 23, 12, 0, 0),
+  });
 
   await removeClient(ctx.store.db, removed.clientID);
 
@@ -197,15 +190,9 @@ test("it never removes another client's tokens, consent or grant use", async () 
 
   const grants = await readGrantViews(ctx.store.db);
 
-  await ctx.store.db
-    .insertInto('atc_grant_use')
-    .values(
-      grants.map((grant) => ({
-        grant_id: grant.grantID,
-        last_used_at: '2026-10-08T00:00:00.000Z',
-      })),
-    )
-    .execute();
+  for (const grant of grants) {
+    await writeGrantUse(ctx.store.db, grant.grantID, Date.UTC(2026, 9, 8, 0, 0, 0));
+  }
 
   const keptGrant = grants.find((grant) => grant.clientID === kept.clientID);
 

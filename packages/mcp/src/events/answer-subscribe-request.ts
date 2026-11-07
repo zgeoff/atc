@@ -15,6 +15,7 @@ import type { SUBSCRIBE_PARAMS, SubscribeRequest } from './parse-subscribe-reque
 import { readCallbackVerifiedAt } from './read-callback-verified-at';
 import type { WebhookSender } from './types';
 import { verifyCallback } from './verify-callback';
+import { writeCallbackVerifiedAt } from './write-callback-verified-at';
 
 export interface EventMethodDeps {
   readonly db: Kysely<MCPAuthSchema>;
@@ -141,15 +142,7 @@ async function requireVerifiedCallback(
     );
   }
 
-  const verifiedAt = new Date(now).toISOString();
-
-  await deps.db
-    .insertInto('atc_event_callback')
-    .values({ client_id: deps.clientID, url: request.url, verified_at: verifiedAt })
-    .onConflict((conflict) =>
-      conflict.columns(['client_id', 'url']).doUpdateSet({ verified_at: verifiedAt }),
-    )
-    .execute();
+  await writeCallbackVerifiedAt(deps.db, { clientID: deps.clientID, url: request.url, now });
 }
 
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;

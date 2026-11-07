@@ -1,10 +1,9 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup, setupTempDir, updateEnv } from '@atc/test-utils';
 import { createMigratedStateDB } from './create-migrated-state-db';
-import { registerTestCleanup } from './register-test-cleanup';
-import { setupTempDir } from './setup-temp-dir';
-import { updateEnv } from './update-env';
+import { seedDaemonID } from './seed-daemon-id';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-migrated-state-');
@@ -76,14 +75,7 @@ test('it creates a separate file for each call', () => {
 
   createMigratedStateDB(firstPath);
   createMigratedStateDB(secondPath);
-
-  const first = new Database(firstPath);
-
-  registerTestCleanup(() => {
-    first.close();
-  });
-
-  first.run("INSERT INTO prefs (key, value) VALUES ('last_used_agent', 'grok')");
+  seedDaemonID({ dbPath: firstPath }, { daemonID: 'd-first' });
 
   const second = new Database(secondPath, { readonly: true });
 
@@ -91,9 +83,9 @@ test('it creates a separate file for each call', () => {
     second.close();
   });
 
-  expect(second.query("SELECT value FROM prefs WHERE key = 'last_used_agent'").all()).toStrictEqual(
-    [],
-  );
+  expect(second.query("SELECT value FROM prefs WHERE key = 'daemon_id'").all()).not.toContainEqual({
+    value: 'd-first',
+  });
 });
 
 test('it throws when the run template is unset', () => {

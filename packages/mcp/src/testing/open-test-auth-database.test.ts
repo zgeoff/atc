@@ -1,3 +1,4 @@
+// oxlint-disable zgeoff/seed-only -- a test of code whose product is SQL or storage: the opener's tests write a table of their own
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';

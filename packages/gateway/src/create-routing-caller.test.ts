@@ -1,10 +1,10 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
+import { seedSweptIdempotencyKeys } from '@atc/store/test-utils';
 import {
   buildMockAgentAdapter,
   buildStubChannelOpener,
@@ -395,14 +395,7 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
     router.sendRequest('session.spawn', params, { id: 'gw', name: 'Lantern Notes' }),
   ]);
 
-  const ledger = new Database(ctx.cloud.dbPath);
-
-  registerTestCleanup(() => {
-    ledger.close();
-  });
-
-  // The daemon's sweep drops every completed key once its retention passes.
-  ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
+  await seedSweptIdempotencyKeys({ dbPath: ctx.cloud.dbPath });
 
   const retried = router.sendRequest('session.spawn', params, { id: 'gw', name: 'Lantern Notes' });
 
@@ -474,14 +467,8 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
 
   await opener.waitForHeld();
 
-  const ledger = new Database(ctx.cloud.dbPath);
+  await seedSweptIdempotencyKeys({ dbPath: ctx.cloud.dbPath });
 
-  registerTestCleanup(() => {
-    ledger.close();
-  });
-
-  // The daemon's sweep drops every completed key once its retention passes.
-  ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
   opener.releaseHeld();
 
   expect(retried).rejects.toMatchObject({ code: 'outcome_unknown' });
@@ -868,14 +855,7 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
     before.sendRequest('session.spawn', params, { id: 'gw', name: 'Lantern Notes' }),
   ]);
 
-  const ledger = new Database(ctx.cloud.dbPath);
-
-  registerTestCleanup(() => {
-    ledger.close();
-  });
-
-  // The daemon's sweep drops every completed key once its retention passes.
-  ledger.run("DELETE FROM idempotency WHERE state = 'completed'");
+  await seedSweptIdempotencyKeys({ dbPath: ctx.cloud.dbPath });
 
   const retried = ctx.router.sendRequest('session.spawn', params, {
     id: 'gw',

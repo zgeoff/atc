@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { systemClock } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildStubAuthenticator,
@@ -11,6 +12,7 @@ import {
 import invariant from 'tiny-invariant';
 import { createSubscriptionStore } from '../events/create-subscription-store';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
+import { buildSeeder } from '../test-utils/build-seeder';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { createEnrollmentToken } from './create-enrollment-token';
@@ -59,7 +61,13 @@ async function setupTest() {
 
   await runPasskeyEnrollment(server, enrollment.token, authenticator);
 
-  return { url: server.url, origin: server.origin, authenticator, store };
+  return {
+    url: server.url,
+    origin: server.origin,
+    authenticator,
+    store,
+    seed: buildSeeder({ db: store.db, clock: systemClock }),
+  };
 }
 
 test("it forgets the consent its client held along with the grant's tokens", async () => {
@@ -129,20 +137,7 @@ test("it ends the client's event subscriptions along with its last read grant", 
     }),
   });
 
-  await ctx.store.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub-one',
-      client_id: clientID,
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
-      position: 'cursor-1',
-      refresh_before: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      created_at: new Date().toISOString(),
-    })
-    .execute();
+  await ctx.seed.eventSubscription({ id: 'sub-one', client_id: clientID });
 
   const [grant] = await readGrantViews(ctx.store.db);
 
@@ -200,20 +195,7 @@ test("it keeps the client's event subscriptions while another read grant lives",
     }),
   });
 
-  await ctx.store.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub-one',
-      client_id: clientID,
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 5).toString('base64')}`,
-      position: 'cursor-1',
-      refresh_before: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      created_at: new Date().toISOString(),
-    })
-    .execute();
+  await ctx.seed.eventSubscription({ id: 'sub-one', client_id: clientID });
 
   const [grant] = await readGrantViews(ctx.store.db);
 

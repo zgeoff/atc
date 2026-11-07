@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { systemClock } from '@atc/core';
 import {
   readJSONRecord,
   resolveATCCommand,
@@ -6,6 +7,7 @@ import {
   runMCPAuthorization,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { buildSeeder } from '../packages/app/src/test-utils/build-seeder';
 import { setupMCPHTTP } from '../packages/app/src/test-utils/setup-mcp-http';
 
 async function setupTest() {
@@ -15,6 +17,7 @@ async function setupTest() {
     server,
     atc: resolveATCCommand(),
     env: { PATH: process.env['PATH'] ?? '', HOME: server.home },
+    seed: buildSeeder({ db: server.store.db, clock: systemClock }),
   };
 }
 
@@ -59,17 +62,7 @@ test('it revokes a grant whose id starts with a dash with --revoke=<id> so its a
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  await ctx.server.store.db
-    .updateTable('oauthAccessToken')
-    .set({ authorizationCodeId: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' })
-    .where('clientId', '=', clientID)
-    .execute();
-
-  await ctx.server.store.db
-    .updateTable('oauthRefreshToken')
-    .set({ authorizationCodeId: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' })
-    .where('clientId', '=', clientID)
-    .execute();
+  await ctx.seed.grantID({ clientID, grantID: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' });
 
   const revoked = await runCommand(
     [...ctx.atc, 'grants', '--revoke=-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],

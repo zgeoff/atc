@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { KEYS, startTUIHarness } from '@atc/test-utils';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it quits the client on q from the overlay', async () => {

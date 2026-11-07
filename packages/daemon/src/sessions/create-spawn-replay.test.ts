@@ -1,13 +1,9 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildMockFleetEntry, buildMockIdempotencyRecord } from '@atc/store/testing';
-import {
-  buildMockSessionDescriptor,
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-} from '@atc/test-utils';
+import { buildMockSessionDescriptor, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';

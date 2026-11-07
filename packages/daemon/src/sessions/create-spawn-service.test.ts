@@ -4,13 +4,8 @@ import { join } from 'node:path';
 import { systemClock } from '@atc/core';
 import type { CommandSpec } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import {
-  createGitFixture,
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-  updateEnv,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils';
+import { createGitFixture, registerTestCleanup, setupTempDir, updateEnv } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import { $ } from 'bun';

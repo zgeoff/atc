@@ -48,7 +48,6 @@ export * from './build-stub-timeout-scheduler';
 export * from './read-process-tree';
 export * from './kill-process-group';
 export * from './create-git-fixture';
-export * from './create-migrated-state-db';
 export * from './create-stub-app-server-codex';
 export * from './build-stub-bridge-claude';
 export * from './create-stub-bin';

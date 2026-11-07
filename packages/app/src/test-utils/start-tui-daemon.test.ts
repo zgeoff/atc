@@ -1,12 +1,13 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { openDaemonClient } from '@atc/protocol/client';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { startTUIHarness, waitFor } from '@atc/test-utils';
 import { startTUIDaemon } from './start-tui-daemon';
 
 // A harness home with its config written and no client booted.
 function setupTest() {
-  return { tui: startTUIHarness() };
+  return { tui: startTUIHarness({ createStateDB: createMigratedStateDB }) };
 }
 
 test('it boots the client against the daemon in the test process and starts no daemon process', async () => {

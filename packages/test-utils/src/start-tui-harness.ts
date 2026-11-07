@@ -6,7 +6,6 @@ import { spawn } from 'bun-pty';
 import type { IDisposable, IPty } from 'bun-pty';
 import { buildStubTUIClaude } from './build-stub-tui-claude';
 import { buildStubTUIGrok } from './build-stub-tui-grok';
-import { createMigratedStateDB } from './create-migrated-state-db';
 import { createStubBin } from './create-stub-bin';
 import { readSourceEntry } from './read-source-entry';
 import { registerTestCleanup } from './register-test-cleanup';
@@ -16,6 +15,9 @@ import { waitFor } from './wait-for';
 export type TUIHarness = ReturnType<typeof startTUIHarness>;
 
 interface TUIHarnessOptions {
+  // Puts the state database in place at the path it is given before a boot.
+  readonly createStateDB: (dbPath: string) => void;
+
   // How long a wait gives the client to draw its first byte; 9 seconds
   // unless set.
   readonly bootMs?: number;
@@ -34,7 +36,7 @@ interface TUIHarnessOptions {
 const COLS = 110;
 const INPUT_MAX = Math.min(COLS - 4, 90) - 8;
 
-export function startTUIHarness(options: TUIHarnessOptions = {}) {
+export function startTUIHarness(options: TUIHarnessOptions) {
   const now = options.now ?? Date.now;
   const wait = options.wait ?? Bun.sleep;
   const cliPath = readSourceEntry('atc');
@@ -90,7 +92,8 @@ export function startTUIHarness(options: TUIHarnessOptions = {}) {
 
   writeConfig();
   mkdirSync(paths.stateDir, { recursive: true, mode: 0o700 });
-  createMigratedStateDB(paths.dbFile);
+
+  options.createStateDB(paths.dbFile);
 
   let pty: IPty | null = null;
   let capture: IDisposable | null = null;

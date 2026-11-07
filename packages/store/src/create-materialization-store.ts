@@ -4,18 +4,16 @@ import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import { parseWithheldEnv } from './parse-withheld-env';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
-import type { MaterializationUpdate, WorkspaceMaterialization } from './workspace-materialization';
+import type {
+  MaterializationUpdate,
+  NewMaterialization,
+  WorkspaceMaterialization,
+} from './workspace-materialization';
 
 // Each spawn's workspace on its way to the execution target.
 export interface MaterializationStore {
   // Records a materialization as it starts, in the resolving phase.
-  readonly createMaterialization: (
-    row: Pick<
-      WorkspaceMaterialization,
-      'sessionID' | 'target' | 'directory' | 'sourceKind' | 'withheldEnv'
-    >,
-    at: number,
-  ) => Promise<void>;
+  readonly createMaterialization: (row: NewMaterialization, at: number) => Promise<void>;
   readonly updateMaterialization: (
     sessionID: SessionID,
     fields: MaterializationUpdate,

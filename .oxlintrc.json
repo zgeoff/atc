@@ -50,7 +50,31 @@
       { "allow": ["jest-extended", "**/augment-bun-test.ts", "./point-bun-pty-at-copy"] }
     ],
     // GEO-1196 splits the 19 files over the shared 500-line limit
-    "max-lines": "off"
+    "max-lines": "off",
+    // GEO-2321 folds these packages' src/ roots into feature folders
+    "zgeoff/feature-folders": [
+      "error",
+      {
+        "pending": [
+          "packages/app",
+          "packages/config",
+          "packages/contract",
+          "packages/core",
+          "packages/daemon",
+          "packages/execution/imp",
+          "packages/execution/local",
+          "packages/gateway",
+          "packages/harnesses/claude",
+          "packages/harnesses/codex",
+          "packages/lifecycle",
+          "packages/plugin-api",
+          "packages/protocol",
+          "packages/store",
+          "packages/test-utils",
+          "packages/tui"
+        ]
+      }
+    ]
   },
   "overrides": [
     {
@@ -62,7 +86,7 @@
         "packages/core/src/system-clock.ts",
         "**/*.test.ts",
         "packages/test-utils/**",
-        "packages/app/src/test-utils/**",
+        "packages/**/src/test-utils/**",
         "packages/*/src/testing/**",
         "packages/*/*/src/testing/**",
         "e2e/**",

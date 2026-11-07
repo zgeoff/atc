@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { buildSeeder } from '../test-utils/build-seeder';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { openMCPAuth } from './open-mcp-auth';
+import { removeOwnerSession } from './remove-owner-session';
 import { resetPasskeys } from './reset-passkeys';
 import { verifySessionPasskey } from './verify-session-passkey';
 
@@ -20,24 +22,15 @@ async function setupTest() {
 
   registerTestCleanup(() => store.close());
 
-  return { db: store.db, auth: store.auth };
+  const deps = { db: store.db, clock: buildStubClock(Date.UTC(2026, 9, 14, 12, 0, 0)) };
+
+  return { ...deps, auth: store.auth, seed: buildSeeder(deps) };
 }
 
 test('it keeps a session whose signing passkey is still enrolled', async () => {
   const ctx = await setupTest();
 
-  await ctx.db
-    .insertInto('atc_passkey')
-    .values({
-      id: 'cred-phone',
-      public_key: 'AQID',
-      counter: 0,
-      transports: '[]',
-      created_at: '2026-10-14T12:00:00.000Z',
-      last_used_at: null,
-    })
-    .execute();
-
+  await ctx.seed.passkey({ id: 'cred-phone' });
   await ctx.auth.api.signInOwner({ body: {} });
 
   const [session] = await ctx.db.selectFrom('session').select('id').execute();
@@ -59,17 +52,7 @@ test('it keeps a session whose signing passkey is still enrolled', async () => {
 test('it removes a session created after a reset deleted its signing passkey', async () => {
   const ctx = await setupTest();
 
-  await ctx.db
-    .insertInto('atc_passkey')
-    .values({
-      id: 'cred-phone',
-      public_key: 'AQID',
-      counter: 0,
-      transports: '[]',
-      created_at: '2026-10-14T12:00:00.000Z',
-      last_used_at: null,
-    })
-    .execute();
+  await ctx.seed.passkey({ id: 'cred-phone' });
 
   await resetPasskeys(ctx.db);
 
@@ -94,25 +77,14 @@ test('it removes a session created after a reset deleted its signing passkey', a
 test('it refuses a session deleted before the check while its passkey stays enrolled', async () => {
   const ctx = await setupTest();
 
-  await ctx.db
-    .insertInto('atc_passkey')
-    .values({
-      id: 'cred-phone',
-      public_key: 'AQID',
-      counter: 0,
-      transports: '[]',
-      created_at: '2026-10-14T12:00:00.000Z',
-      last_used_at: null,
-    })
-    .execute();
-
+  await ctx.seed.passkey({ id: 'cred-phone' });
   await ctx.auth.api.signInOwner({ body: {} });
 
   const [session] = await ctx.db.selectFrom('session').select('id').execute();
 
   invariant(session !== undefined, 'the arrangement left no owner session');
 
-  await ctx.db.deleteFrom('session').execute();
+  await removeOwnerSession(ctx.db, session.id);
 
   const kept = await verifySessionPasskey(ctx.db, {
     sessionID: session.id,

@@ -6,6 +6,7 @@ import { buildConsentBinding } from './build-consent-binding';
 import { normalizeClientName } from './normalize-client-name';
 import { readClientName } from './read-client-name';
 import { readOwnerSessionID } from './read-owner-session-id';
+import { removeOwnerSession } from './remove-owner-session';
 import { renderConsentPage } from './render-consent-page';
 import type { HTTPServerContext, Requester, SecurityOutcome } from './types';
 import { verifyOAuthQuery } from './verify-oauth-query';
@@ -102,7 +103,7 @@ export async function answerConsentRequest(
         })
         .where('id', '=', sessionID)
         .execute()
-    : ctx.store.db.deleteFrom('session').where('id', '=', sessionID).execute());
+    : removeOwnerSession(ctx.store.db, sessionID));
 
   const params = new URLSearchParams(oauthQuery);
 

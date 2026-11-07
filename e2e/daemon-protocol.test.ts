@@ -7,6 +7,7 @@ import { createGrokAdapter } from '@atc/harness-grok';
 import { encodeCursor } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { createStateStore } from '@atc/store';
+import { seedLaterEpochSessionOwner } from '@atc/store/test-utils';
 import {
   buildMockAgentAdapter,
   buildMockRestartResult,
@@ -994,13 +995,10 @@ test('it answers a kill whose fleet write meets a moved ownership epoch with sta
     expect(fleet.map((entry) => String(entry.sessionID))).toContain(String(sessionID));
   });
 
-  const db = new Database(ctx.dbPath);
-
-  registerTestCleanup(() => {
-    db.close();
-  });
-
-  db.run('UPDATE session_owner SET owner_epoch = 2 WHERE session_id = ?1', [String(sessionID)]);
+  seedLaterEpochSessionOwner(
+    { dbPath: ctx.dbPath },
+    { session_id: String(sessionID), daemon_id: store.daemonID },
+  );
 
   expect(ctx.client.sendRequest('session.kill', { session: sessionID })).rejects.toMatchObject({
     code: 'stale_epoch',

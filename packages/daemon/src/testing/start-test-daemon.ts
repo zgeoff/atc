@@ -3,10 +3,10 @@ import { join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   assertContractAnswer,
   assertContractEvent,
-  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
 } from '@atc/test-utils';

@@ -1,11 +1,11 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildStubClock,
   buildStubLog,
-  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
   waitFor,

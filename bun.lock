@@ -191,6 +191,7 @@
       },
       "devDependencies": {
         "@atc/daemon": "workspace:*",
+        "@atc/store": "workspace:*",
         "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
       },
@@ -288,6 +289,7 @@
       "devDependencies": {
         "@atc/daemon": "workspace:*",
         "@atc/test-utils": "workspace:*",
+        "@faker-js/faker": "catalog:",
         "@zgeoff/kysely-bun-sqlite": "catalog:",
       },
     },
@@ -463,7 +465,7 @@
     "@zgeoff/diet": "0.2.2",
     "@zgeoff/format-codemod": "0.3.5",
     "@zgeoff/kysely-bun-sqlite": "0.3.1",
-    "@zgeoff/oxlint-config": "0.8.6",
+    "@zgeoff/oxlint-config": "0.10.1",
     "@zgeoff/rig": "0.1.6",
     "@zgeoff/std": "0.4.3",
     "better-auth": "1.7.13",
@@ -1010,7 +1012,7 @@
 
     "@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.1", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-Dz1Q+f7FvrjL9++65x+W2vz6vU/NAXB3nCg3aTZKLq0keCb7wkJaXE1M4XUT7QVzvj+Yg5vpmtLvzScN7K3Yxg=="],
 
-    "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.8.6", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-gBnGBTPgUNK3j4S6CDMwMlGMxPrjmcdDSLAiXs0bAl252PMBILMujeqGnmBZ6NVo+WwCAHvWQFrsjixHozl1DA=="],
+    "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.10.1", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-zecBuVH4bXRhD8S062ft94sHYBoHh12nwxkV3bWXVK7aw8WOnPLAGOPfaveT8NeCjUTsbqFeW3wlAzxUGtA60w=="],
 
     "@zgeoff/rig": ["@zgeoff/rig@0.1.6", "", { "dependencies": { "@zgeoff/diet": "0.2.1", "@zgeoff/std": "0.4.2", "gunshi": "1.0.0-rc.1", "ts-pattern": "5.9.2", "zod": "4.6.7" }, "bin": { "rig": "src/cli.ts" } }, "sha512-UhCmelHLd+qi4smYTIbqwG/msJYUltIEqXrhbgbvwTK4151TXUTqIIfiYfLn+Fs48UKFm/+y1zAhKY+iDf0RYg=="],
 

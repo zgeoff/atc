@@ -8,7 +8,7 @@ import { tabToRepoRows } from './tab-to-repo-rows';
 // The client booted to its home screen with a signed-out `gh` on its PATH,
 // so the GitHub rows settle without reaching GitHub.
 async function setupTest() {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
 

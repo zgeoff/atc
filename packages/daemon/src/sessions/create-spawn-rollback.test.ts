@@ -2,12 +2,8 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { EffectRemainsError } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import {
-  buildStubLog,
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils';
+import { buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';

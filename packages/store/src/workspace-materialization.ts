@@ -36,6 +36,12 @@ export interface WorkspaceMaterialization {
   readonly withheldEnv: readonly string[];
 }
 
+// The fields a materialization starts with.
+export type NewMaterialization = Pick<
+  WorkspaceMaterialization,
+  'sessionID' | 'target' | 'directory' | 'sourceKind' | 'withheldEnv'
+>;
+
 // The fields a materialization rewrites as it moves through its phases.
 export interface MaterializationUpdate {
   readonly phase: MaterializationPhase;

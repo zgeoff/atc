@@ -14,6 +14,7 @@ import {
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { openMCPAuth } from '../auth/open-mcp-auth';
+import { buildSeeder } from '../test-utils/build-seeder';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { buildStubRacingSubscriptionStore } from '../testing/build-stub-racing-subscription-store';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
@@ -52,12 +53,15 @@ async function setupTest(
 
   registerTestCleanup(() => store.close());
 
+  const clock = buildStubClock(Date.parse('2026-10-23T12:00:00.000Z'));
+
   return {
     daemon,
     caller,
     db: store.db,
-    clock: buildStubClock(Date.parse('2026-10-23T12:00:00.000Z')),
+    clock,
     directory: daemon.directory,
+    seed: buildSeeder({ db: store.db, clock }),
   };
 }
 
@@ -69,20 +73,17 @@ test('it posts a signed delivery of a matching event with its session and the cu
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${secret.toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${secret.toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -146,20 +147,17 @@ test('it delivers a cursor from which a read of the trail returns only later eve
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -210,20 +208,17 @@ test('it delivers nothing for an event of another type and moves its position pa
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.needs_input',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.needs_input',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -270,20 +265,17 @@ test('it resumes from the stored position, so an event that came while no server
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const spawned = await ctx.daemon.client.sendRequest('session.spawn', {
     cwd: ctx.directory,
@@ -338,33 +330,29 @@ test("it delivers nothing from a session outside the client's reach", async () =
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values([
-      {
-        id: 'sub_00000000000000000000000000000001',
-        client_id: 'client-blind',
-        url: 'https://hooks.example.com/hook',
-        name: 'session.turn_done',
-        arguments: '{}',
-        secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-        position: getString(head, 'cursor'),
-        refresh_before: '2026-10-24T12:00:00.000Z',
-        created_at: '2026-10-23T12:00:00.000Z',
-      },
-      {
-        id: 'sub_00000000000000000000000000000002',
-        client_id: 'client-local',
-        url: 'https://hooks.example.com/hook',
-        name: 'session.turn_done',
-        arguments: '{}',
-        secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-        position: getString(head, 'cursor'),
-        refresh_before: '2026-10-24T12:00:00.000Z',
-        created_at: '2026-10-23T12:00:00.000Z',
-      },
-    ])
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_00000000000000000000000000000001',
+    client_id: 'client-blind',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
+
+  await ctx.seed.eventSubscription({
+    id: 'sub_00000000000000000000000000000002',
+    client_id: 'client-local',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -411,20 +399,17 @@ test('it removes a subscription whose client no longer holds read and delivers n
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -464,20 +449,17 @@ test('it keeps a subscription whose client holds read again on the recheck, as a
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -536,20 +518,17 @@ test('it delivers nothing and keeps its position when the client loses read duri
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -594,20 +573,16 @@ test('it removes a subscription past its refreshBefore and delivers nothing to i
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-23T11:59:59.000Z',
-      created_at: '2026-10-22T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-23T12:59:59.000Z',
+  });
+
+  ctx.clock.advance(60 * 60 * 1000);
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -637,24 +612,19 @@ test('it keeps a subscription that a subscribe renewed between the read that fou
 
   const receiver = buildStubWebhookReceiver();
   const subscriptions = createSubscriptionStore(ctx.db);
-  const clock = buildStubClock(Date.parse('2026-10-23T12:00:00.000Z'));
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-23T11:59:59.000Z',
-      created_at: '2026-10-22T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-23T12:59:59.000Z',
+  });
+
+  ctx.clock.advance(60 * 60 * 1000);
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -671,12 +641,12 @@ test('it keeps a subscription that a subscribe renewed between the read that fou
           refresh_before: '2026-10-24T12:00:00.000Z',
           created_at: '2026-10-23T12:00:00.000Z',
         },
-        clock.now(),
+        ctx.clock.now(),
       );
     }),
     caller: ctx.caller,
     send: receiver.send,
-    clock,
+    clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
     log: () => {},
   });
@@ -717,20 +687,17 @@ test('it logs a delivery the endpoint refused', async () => {
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -832,7 +799,7 @@ test('it gives events at one cursor on two daemons, under one subscription key, 
       Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
   });
 
-  await ctx.db.insertInto('atc_event_subscription').values(subscription).execute();
+  await ctx.seed.eventSubscription(subscription);
 
   const first = createEventDeliverer({
     db: ctx.db,
@@ -854,8 +821,9 @@ test('it gives events at one cursor on two daemons, under one subscription key, 
 
   first.stop();
 
-  await ctx.db.deleteFrom('atc_event_subscription').execute();
-  await ctx.db.insertInto('atc_event_subscription').values(subscription).execute();
+  await createSubscriptionStore(ctx.db).end(subscription.id);
+
+  await ctx.seed.eventSubscription(subscription);
 
   const second = createEventDeliverer({
     db: ctx.db,
@@ -931,20 +899,17 @@ test('it gives an event a gateway replays under a new merged cursor the ids it h
       Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
   });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: 'cursor-one',
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: 'cursor-one',
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -983,20 +948,17 @@ test('it retries a refused delivery after a backoff with the same webhook-id and
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1059,20 +1021,17 @@ test('it gives up on an event after its last attempt and delivers the next one',
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1141,20 +1100,17 @@ test('it moves past an event its endpoint refuses as too large without a retry',
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1198,20 +1154,17 @@ test('it removes a subscription whose endpoint answers 410 and delivers nothing 
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1256,20 +1209,17 @@ test('it delivers an event again after a restart when a stop cut its retries sho
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1338,20 +1288,17 @@ test('it stops retrying an event once its client loses read, and rechecks access
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1405,20 +1352,17 @@ test('it keeps a retry and its webhook-id across the gap of a token rotation', a
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1482,20 +1426,17 @@ test('it signs a retry after a token rotation gap with the secret a refresh stor
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1535,10 +1476,14 @@ test('it signs a retry after a token rotation gap with the secret a refresh stor
     expect(ctx.clock.collectPending()).toStrictEqual([5000]);
   });
 
-  await ctx.db
-    .updateTable('atc_event_subscription')
-    .set({ secret: `whsec_${refreshedSecret.toString('base64')}` })
-    .execute();
+  await createSubscriptionStore(ctx.db).refresh(
+    'sub_0123456789abcdef0123456789abcdef',
+    {
+      secret: `whsec_${refreshedSecret.toString('base64')}`,
+      refresh_before: '2026-10-24T12:00:00.000Z',
+    },
+    ctx.clock.now(),
+  );
 
   access.granted = true;
 
@@ -1566,20 +1511,17 @@ test('it ends a retired watcher and starts afresh on the next watch', async () =
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1639,20 +1581,17 @@ test('it logs the first failed read of the trail with its cause, and the read th
       Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
   });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: 'cursor-one',
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: 'cursor-one',
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1700,20 +1639,17 @@ test('it removes a subscription whose stored position the daemon refuses, and lo
 
   const log = mock<(line: string) => void>();
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: 'a-cursor-from-another-daemon',
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: 'a-cursor-from-another-daemon',
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1764,20 +1700,17 @@ test('it logs a gateway page with no event and an unavailable daemon as a failed
       Promise.withResolvers<Readonly<Record<string, unknown>>>().promise,
   });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: 'cursor-one',
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: 'cursor-one',
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,
@@ -1814,20 +1747,17 @@ test('it waits before it starts a failed watcher again', async () => {
 
   const head = await ctx.daemon.client.sendRequest('events.read', { limit: 1 });
 
-  await ctx.db
-    .insertInto('atc_event_subscription')
-    .values({
-      id: 'sub_0123456789abcdef0123456789abcdef',
-      client_id: 'client-one',
-      url: 'https://hooks.example.com/hook',
-      name: 'session.turn_done',
-      arguments: '{}',
-      secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
-      position: getString(head, 'cursor'),
-      refresh_before: '2026-10-24T12:00:00.000Z',
-      created_at: '2026-10-23T12:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: getString(head, 'cursor'),
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
 
   const deliverer = createEventDeliverer({
     db: ctx.db,

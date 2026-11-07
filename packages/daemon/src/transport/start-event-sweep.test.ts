@@ -1,13 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { createStateStore } from '@atc/store';
-import {
-  buildStubClock,
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils';
+import { buildStubClock, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { startEventSweep } from './start-event-sweep';
 

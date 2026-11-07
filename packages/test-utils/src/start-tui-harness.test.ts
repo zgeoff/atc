@@ -1,18 +1,15 @@
-import { Database } from 'bun:sqlite';
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, mock, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import invariant from 'tiny-invariant';
 import { buildStubWaitClock } from './build-stub-wait-clock';
 import { KEYS } from './keys';
-import { registerTestCleanup } from './register-test-cleanup';
 import { startTUIHarness } from './start-tui-harness';
 import { waitFor } from './wait-for';
 
 // A harness whose client has booted and drawn its home screen.
 async function setupTest() {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   tui.boot();
 
@@ -22,7 +19,7 @@ async function setupTest() {
 }
 
 test('it boots the client in its home, where the client starts its daemon', async () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   tui.boot();
 
@@ -33,27 +30,15 @@ test('it boots the client in its home, where the client starts its daemon', asyn
   expect(readFileSync(paths.daemonPidFile, 'utf8')).toMatch(/^\d+$/u);
 });
 
-test("it puts a copy of the run's migrated database in its home before a boot", () => {
-  const tui = startTUIHarness();
-  const runTemplate = process.env['ATC_TEST_STATE_TEMPLATE'];
+test("it creates the state database at its home's database path before a boot", () => {
+  const createStateDB = mock<(dbPath: string) => void>();
+  const tui = startTUIHarness({ createStateDB });
 
-  invariant(runTemplate !== undefined, 'the test script exports no state template');
-
-  const copy = new Database(resolvePaths({ HOME: tui.home }).dbFile, { readonly: true });
-  const template = new Database(runTemplate, { readonly: true });
-
-  registerTestCleanup(() => {
-    copy.close();
-    template.close();
-  });
-
-  const ledger = 'SELECT name FROM kysely_migration ORDER BY name';
-
-  expect(copy.query(ledger).values()).toStrictEqual(template.query(ledger).values());
+  expect(createStateDB.mock.calls).toStrictEqual([[resolvePaths({ HOME: tui.home }).dbFile]]);
 });
 
 test('it captures a later client that a second boot starts on the same home', async () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   // A version run prints and exits without a daemon, so each boot costs one
   // client start.
@@ -73,7 +58,7 @@ test('it captures a later client that a second boot starts on the same home', as
 });
 
 test('it stops capturing a client that a second boot replaced', async () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
   const first = tui.boot();
   const firstOutput: string[] = [];
 
@@ -98,7 +83,7 @@ test('it stops capturing a client that a second boot replaced', async () => {
 });
 
 test('it kills a client a later boot replaced on stop', async () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
   const first = tui.boot();
 
   await tui.waitFor('atc — control tower');
@@ -115,7 +100,7 @@ test('it kills a client a later boot replaced on stop', async () => {
 
 test('it rejects a wait for text the client never draws with the tail of the capture', async () => {
   const clock = buildStubWaitClock();
-  const tui = startTUIHarness({ now: clock.now, wait: clock.wait });
+  const tui = startTUIHarness({ createStateDB: () => {}, now: clock.now, wait: clock.wait });
 
   tui.boot();
 
@@ -137,7 +122,13 @@ test('it rejects a wait for text the client never draws with the tail of the cap
 
 test('it rejects a wait made while the client has drawn nothing', () => {
   const clock = buildStubWaitClock();
-  const tui = startTUIHarness({ bootMs: 100, now: clock.now, wait: clock.wait });
+
+  const tui = startTUIHarness({
+    createStateDB: () => {},
+    bootMs: 100,
+    now: clock.now,
+    wait: clock.wait,
+  });
 
   expect(tui.waitFor('atc — control tower')).rejects.toThrow(
     'timed out waiting for "atc — control tower"; the client wrote nothing in 100ms of boot',
@@ -145,7 +136,7 @@ test('it rejects a wait made while the client has drawn nothing', () => {
 });
 
 test('it rejects a write before the client boots', () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   expect(() => {
     tui.write('n');
@@ -153,7 +144,7 @@ test('it rejects a write before the client boots', () => {
 });
 
 test('it rejects a wait for exit before the client boots', () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   expect(() => tui.waitForExit()).toThrow('wait for exit before boot');
 });
@@ -167,7 +158,7 @@ test('it forgets what the client drew on reset', async () => {
 });
 
 test('it formats a short text as the whole input row', () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   expect(tui.formatInput('/srv/ledger')).toBe('> /srv/ledger');
 });
@@ -193,7 +184,7 @@ test('it formats a text too long for the input row as the tail the picker draws'
 });
 
 test('it passes the arguments a boot gives to the client', async () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   tui.boot(['--version']);
 
@@ -204,7 +195,7 @@ test('it passes the arguments a boot gives to the client', async () => {
 });
 
 test('it writes the fake binaries and transports with the fields given laid over them', () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   tui.writeConfig({ leader: 'ctrl-]', workspaces: { sources: ['git'] } });
 
@@ -238,7 +229,7 @@ test('it moves the mark past a line the client logs after it', async () => {
 
 test('it rejects a wait for a log line written only before the mark', async () => {
   const clock = buildStubWaitClock();
-  const tui = startTUIHarness({ now: clock.now, wait: clock.wait });
+  const tui = startTUIHarness({ createStateDB: () => {}, now: clock.now, wait: clock.wait });
 
   tui.boot();
 
@@ -293,7 +284,7 @@ test('it stops the daemon the client started on stop', async () => {
 });
 
 test('it removes its home on stop', async () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   await tui.stop();
 
@@ -301,7 +292,7 @@ test('it removes its home on stop', async () => {
 });
 
 test('it stops the daemon its pid file holds and removes the home once the test finishes', () => {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: () => {} });
 
   // A stand-in for the daemon the client would start; the harness stops it
   // with SIGTERM, which a later kill of the stand-in never sends.

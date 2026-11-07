@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./sqlite": "./src/sqlite/index.ts",
-    "./testing": "./src/testing/index.ts"
+    "./testing": "./src/testing/index.ts",
+    "./test-utils": "./src/test-utils/index.ts"
   },
   "dependencies": {
     "@atc/config": "workspace:*",

@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
   buildStubSignedInGH,
@@ -16,7 +17,7 @@ import {
 import { $ } from 'bun';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it spawns a session from a git repository at the commit the confirm screen shows, keeping choices across esc', async () => {

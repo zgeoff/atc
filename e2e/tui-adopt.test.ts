@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { KEYS, startTUIHarness } from '@atc/test-utils';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it adopts a session with --resume and yanks its resume command', async () => {

@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
   buildStubHeldGH,
@@ -19,7 +20,7 @@ import {
 import { $ } from 'bun';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it stops a repository listing on esc to the agent step and lists again on the next pick', async () => {

@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { openDaemonClient } from '@atc/protocol/client';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
   registerTestCleanup,
@@ -12,7 +13,7 @@ import { startTUIDaemon } from '../packages/app/src/test-utils/start-tui-daemon'
 // The client attaches to a daemon in the test's process, so a boot loads
 // one process instead of two.
 async function setupTest() {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: createMigratedStateDB });
 
   await startTUIDaemon(tui);
 

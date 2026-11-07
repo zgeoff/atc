@@ -2,13 +2,8 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import type { AgentAdapter, HeadlessRunner } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import {
-  buildStubClock,
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils';
+import { buildStubClock, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';

@@ -2,6 +2,7 @@ import { deriveTokenHash } from '../auth/derive-token-hash';
 import { normalizeClientName } from '../auth/normalize-client-name';
 import { readClientName } from '../auth/read-client-name';
 import type { HTTPServerContext, VerifiedAccess } from '../auth/types';
+import { writeGrantUse } from '../auth/write-grant-use';
 import { readTokenAccess } from './read-token-access';
 
 // Verifying stamps when the token's grant was last used.
@@ -39,11 +40,5 @@ async function upsertGrantUse(ctx: HTTPServerContext, token: string): Promise<vo
     return;
   }
 
-  const now = new Date(ctx.clock.now()).toISOString();
-
-  await ctx.store.db
-    .insertInto('atc_grant_use')
-    .values({ grant_id: grantID, last_used_at: now })
-    .onConflict((conflict) => conflict.column('grant_id').doUpdateSet({ last_used_at: now }))
-    .execute();
+  await writeGrantUse(ctx.store.db, grantID, ctx.clock.now());
 }

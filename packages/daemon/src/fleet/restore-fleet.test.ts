@@ -3,13 +3,13 @@ import { join } from 'node:path';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
   buildMockAgentAdapter,
   buildStubClock,
   buildStubHeadlessRunner,
   buildStubLog,
-  createMigratedStateDB,
   registerTestCleanup,
   runLocalCommand,
   setupTempDir,

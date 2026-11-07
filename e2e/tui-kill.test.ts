@@ -1,10 +1,11 @@
 import { test } from 'bun:test';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { KEYS, spawnClaudeSession, startTUIHarness } from '@atc/test-utils';
 
 function setupTest() {
-  return startTUIHarness();
+  return startTUIHarness({ createStateDB: createMigratedStateDB });
 }
 
 test('it kills a needs-you session from the overlay on confirm', async () => {

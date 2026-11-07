@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
   buildMockAgentAdapter,
@@ -16,7 +17,7 @@ import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-tar
 // stopped, so a daemon on another protocol that takes the socket next is
 // what its reconnect meets.
 async function setupTest() {
-  const harness = startTUIHarness();
+  const harness = startTUIHarness({ createStateDB: createMigratedStateDB });
   const stateDir = harness.paths.stateDir;
   const socketPath = harness.paths.daemonSocketPath;
   const unitDir = join(harness.home, '.config', 'systemd', 'user');

@@ -1,17 +1,19 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { systemClock } from '@atc/core';
 import {
   createEnrollmentToken,
-  createPasskey,
   openMCPAuth,
   readEnrollmentToken,
   readOwnerSessionViews,
   readPasskeyViews,
+  updatePasskeyUse,
 } from '@atc/mcp';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { runPasskeys } from './passkeys';
+import { buildSeeder } from './test-utils/build-seeder';
 
 // A temp directory that holds the authorization database the command
 // opens, with the database opened a second time the way the server opens
@@ -30,7 +32,7 @@ async function setupTest() {
 
   registerTestCleanup(() => store.close());
 
-  return { dbPath, store };
+  return { dbPath, store, seed: buildSeeder({ db: store.db, clock: systemClock }) };
 }
 
 test('it prints an enrollment token the server accepts until it expires 15 minutes later', async () => {
@@ -70,23 +72,7 @@ test('it prints an enrollment token the server accepts until it expires 15 minut
 test('it keeps the enrolled passkeys when it enrolls without reset', async () => {
   const ctx = await setupTest();
 
-  await ctx.store.db
-    .insertInto('atc_enrollment_token')
-    .values({
-      token_hash: 'hash-1',
-      created_at: '2026-10-14T12:00:00.000Z',
-      expires_at: '2999-01-01T00:00:00.000Z',
-    })
-    .execute();
-
-  await createPasskey(ctx.store.db, {
-    tokenHash: 'hash-1',
-    id: 'cred-phone',
-    publicKey: 'AQID',
-    counter: 0,
-    transports: ['internal'],
-    now: Date.UTC(2026, 9, 14, 12, 0, 0),
-  });
+  await ctx.seed.passkey({ id: 'cred-phone', now: Date.UTC(2026, 9, 14, 12, 0, 0) });
 
   await runPasskeys(
     { kind: 'enroll', reset: false },
@@ -106,25 +92,9 @@ test('it removes every passkey, earlier token, and browser sign-in on reset', as
 
   const printed: string[] = [];
 
-  await ctx.store.db
-    .insertInto('atc_enrollment_token')
-    .values({
-      token_hash: 'hash-1',
-      created_at: '2026-10-14T12:00:00.000Z',
-      expires_at: '2999-01-01T00:00:00.000Z',
-    })
-    .execute();
+  await ctx.seed.passkey({ id: 'cred-lost' });
 
   const earlier = await createEnrollmentToken(ctx.store.db, Date.now());
-
-  await createPasskey(ctx.store.db, {
-    tokenHash: 'hash-1',
-    id: 'cred-lost',
-    publicKey: 'AQID',
-    counter: 0,
-    transports: ['internal'],
-    now: Date.UTC(2026, 9, 14, 12, 0, 0),
-  });
 
   await ctx.store.auth.api.signInOwner({ body: {} });
 
@@ -176,27 +146,15 @@ test('it lists each enrolled passkey with when it was enrolled and last used', a
 
   const printed: string[] = [];
 
-  await ctx.store.db
-    .insertInto('atc_passkey')
-    .values([
-      {
-        id: 'cred-phone',
-        public_key: 'AQID',
-        counter: 0,
-        transports: '[]',
-        created_at: '2026-10-14T12:00:00.000Z',
-        last_used_at: '2026-10-14T13:00:00.000Z',
-      },
-      {
-        id: 'cred-laptop',
-        public_key: 'AQID',
-        counter: 0,
-        transports: '[]',
-        created_at: '2026-10-14T12:30:00.000Z',
-        last_used_at: null,
-      },
-    ])
-    .execute();
+  await ctx.seed.passkey({ id: 'cred-phone', now: Date.UTC(2026, 9, 14, 12, 0, 0) });
+  await ctx.seed.passkey({ id: 'cred-laptop', now: Date.UTC(2026, 9, 14, 12, 30, 0) });
+
+  await updatePasskeyUse(ctx.store.db, {
+    id: 'cred-phone',
+    counter: 0,
+    newCounter: 1,
+    now: Date.UTC(2026, 9, 14, 13, 0, 0),
+  });
 
   await runPasskeys(
     { kind: 'list' },
@@ -243,27 +201,8 @@ test('it removes one passkey and keeps the others', async () => {
 
   const printed: string[] = [];
 
-  await ctx.store.db
-    .insertInto('atc_passkey')
-    .values([
-      {
-        id: 'cred-lost',
-        public_key: 'AQID',
-        counter: 0,
-        transports: '[]',
-        created_at: '2026-10-14T12:00:00.000Z',
-        last_used_at: null,
-      },
-      {
-        id: 'cred-kept',
-        public_key: 'AQID',
-        counter: 0,
-        transports: '[]',
-        created_at: '2026-10-14T12:30:00.000Z',
-        last_used_at: null,
-      },
-    ])
-    .execute();
+  await ctx.seed.passkey({ id: 'cred-lost', now: Date.UTC(2026, 9, 14, 12, 0, 0) });
+  await ctx.seed.passkey({ id: 'cred-kept', now: Date.UTC(2026, 9, 14, 12, 30, 0) });
 
   await runPasskeys(
     { kind: 'remove', id: 'cred-lost' },

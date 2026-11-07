@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildDirsSource } from '@atc/source-dirs';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
   buildMockAgentAdapter,
@@ -14,7 +15,7 @@ import {
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: createMigratedStateDB });
 
   return { tui, tokenFile: join(tui.home, 'box.token') };
 }

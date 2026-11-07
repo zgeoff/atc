@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
   createGitFixture,
@@ -12,7 +13,7 @@ import {
 
 // The client boots its own daemon, so the test's client connects once the tower draws.
 async function setupTest() {
-  const tui = startTUIHarness();
+  const tui = startTUIHarness({ createStateDB: createMigratedStateDB });
 
   tui.boot();
 

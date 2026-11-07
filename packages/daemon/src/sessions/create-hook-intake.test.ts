@@ -3,11 +3,11 @@ import { join } from 'node:path';
 import type { AdapterEvent } from '@atc/protocol';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildMockMessageRecord } from '@atc/store/testing';
 import {
   buildStubClock,
   buildStubLog,
-  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
   waitFor,

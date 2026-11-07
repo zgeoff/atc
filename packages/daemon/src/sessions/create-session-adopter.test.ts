@@ -4,13 +4,8 @@ import { join } from 'node:path';
 import { systemClock } from '@atc/core';
 import type { AgentAdapter, SpawnPlan } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import {
-  createMigratedStateDB,
-  registerTestCleanup,
-  setupTempDir,
-  updateEnv,
-  waitFor,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils';
+import { registerTestCleanup, setupTempDir, updateEnv, waitFor } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import { createAuthSetup } from '../auth/create-auth-setup';

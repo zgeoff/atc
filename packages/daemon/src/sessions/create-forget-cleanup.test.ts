@@ -3,10 +3,10 @@ import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from 
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createStateStore } from '@atc/store';
+import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   buildStubLog,
   createGitFixture,
-  createMigratedStateDB,
   registerTestCleanup,
   setupTempDir,
   waitFor,
