@@ -67,7 +67,7 @@
       "typescript": "7.0.2",
       "xstate": "5.33.3",
       "zod": "4.6.7",
-      "@zgeoff/rig": "0.1.5"
+      "@zgeoff/rig": "0.1.6"
     }
   },
   "type": "module",
@@ -99,9 +99,9 @@
     "lint:shell": "git ls-files -z '*.sh' ':!.claude/**' | xargs -0 sh -c 'shellcheck \"$@\" && shfmt -d \"$@\"' sh",
     "lint:full": "tsgolint=$(tsrslint-path) && OXLINT_TSGOLINT_PATH=$tsgolint oxlint --type-aware --type-check --report-unused-disable-directives-severity error",
     "lint:mods": "oxlint -c .oxlintrc.mods.json mods",
-    "test": "bash scripts/with-test-home.sh rig unit --path-ignore-patterns='mods/**' --path-ignore-patterns='e2e/**' --timings=bun-test-timings.json",
+    "test": "bash scripts/with-test-home.sh rig unit --timings=bun-test-timings.json",
     "test:related": "bash scripts/with-test-home.sh rig related",
-    "test:timings": "bash scripts/with-test-home.sh rig unit --path-ignore-patterns='mods/**' --path-ignore-patterns='e2e/**' --timings=bun-test-timings.json --update-timings",
+    "test:timings": "bash scripts/with-test-home.sh rig unit --timings=bun-test-timings.json --update-timings",
     "test:e2e": "workers=$(bun scripts/read-worker-count.ts) && bash scripts/with-test-home.sh bash scripts/with-e2e-paths.sh bun test --parallel=$workers --no-isolate --timeout 15000 --path-ignore-patterns='mods/**' --",
     "test:codex": "bash scripts/with-test-home.sh rig codex",
     "test:toolchain": "bash scripts/with-test-home.sh rig toolchain",

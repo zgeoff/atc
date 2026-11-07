@@ -30,7 +30,7 @@ minimumReleaseAgeExcludes = [
 # `bun run test:atc-bridge`, never under bun test, and an `e2e/` suite runs
 # only in `bun run test:e2e` under the e2e lane limit. rig leaves each lane's
 # files out of the unit run, and its ignores replace this list there, so the
-# test script names both folders again.
+# ignore list in rig.config.ts names both folders again.
 pathIgnorePatterns = ["mods/**", "e2e/**"]
 
 # isolates every test run from the real home and runtime directories, seeds
