@@ -69,6 +69,7 @@ interface ImpTargetOptions {
   readonly memoryMib?: number;
   readonly guestDir?: string;
   readonly guestATC?: string;
+  readonly sessionEnv?: Readonly<Record<string, string>>;
 }
 
 interface ImpProviderOptions {
@@ -375,6 +376,8 @@ export function createImpProvider(
     brokerAuth,
 
     rebindChangedAuth,
+
+    ...(target.sessionEnv === undefined ? {} : { sessionEnv: target.sessionEnv }),
 
     getImpName,
 

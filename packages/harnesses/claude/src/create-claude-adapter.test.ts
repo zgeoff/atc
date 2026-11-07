@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
+import { isRecord } from '@atc/core';
 import {
   KEYS,
   buildMockAgentEntry,
@@ -1003,6 +1004,63 @@ test("it selects the entry's own placeholders beside the subscription token's", 
     },
     profiles: config.authProfiles,
     brokerRequired: false,
+  });
+});
+
+test("it plans a subscription guest spawn whose settings env takes the target's sessionEnv over the agent's env, under the placeholder", () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: {
+      claude: {
+        env: { NOTES_VAULT: 'desk/notes-key', NOTES_REGION: 'north' },
+        auth: { profiles: ['claude'] },
+      },
+    },
+  });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.directory, 'home') },
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/tmp/atc/sessions/s1',
+      sessionEnv: { NOTES_VAULT: 'box/notes-key' },
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+      },
+    },
+  );
+
+  const settingsFile = plan?.files['auth-r2/settings.json'];
+
+  invariant(typeof settingsFile === 'string', 'expected the revision settings file');
+
+  const settings: unknown = JSON.parse(settingsFile);
+
+  invariant(isRecord(settings), 'expected a settings object');
+
+  expect(settings['env']).toStrictEqual({
+    NOTES_VAULT: 'box/notes-key',
+    NOTES_REGION: 'north',
+    CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
   });
 });
 

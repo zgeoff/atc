@@ -54,6 +54,10 @@ export interface GuestPaths {
   // the folder the session's own files unpack into.
   readonly directory: string;
 
+  // the variables the target sets for every session on it, each of which
+  // outranks the same key in the agent's own env.
+  readonly sessionEnv?: Readonly<Record<string, string>>;
+
   // given when the harness takes its credential from the target's broker.
   readonly auth?: {
     // the revision of the host's runtime auth binding the launch runs under,

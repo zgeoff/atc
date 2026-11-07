@@ -119,6 +119,7 @@ The target's options:
 | `rebindChangedAuth`    | `false`  | Whether a revive or restore rebinds a host whose agent's auth profiles changed, instead of refusing.  |
 | `dropSysAdmin`         | `false`  | Whether each harness starts without `CAP_SYS_ADMIN`, so root in it cannot remount the session record. |
 | `trustClonedWorkspace` | `false`  | Default for clone trust; an explicit launch value takes precedence. See [clone trust](#clone-trust).  |
+| `sessionEnv`           | unset    | Variables every session on the target gets. See [session variables](#session-variables).              |
 
 A workspace on an imp gets the daemon host's git `user.name` and `user.email` in its own
 `.git/config`, since the image holds no git identity. A host that has no value for both sets none.
@@ -192,3 +193,34 @@ The daemon prints each problem to stderr when it starts, and `agents.list` retur
 problem or detail holds no value from the file beyond a target's name, so a mistyped field reports
 its kind, never its content. To find the line that breaks invalid JSON, run the file through a
 validator such as `jq . ~/.config/atc/config.json`.
+
+## Session variables
+
+Set `sessionEnv` to give every session on an imp target a value that fits the imp, such as a path
+that only the imp can read. For a key that both set, the target's value outranks the agent's `env`,
+so one daemon can give its local sessions one value and its imp sessions another:
+
+```json
+{
+  "agents": { "claude": { "env": { "NOTES_VAULT": "desk/notes-key" } } },
+  "targets": {
+    "box": {
+      "provider": "imp",
+      "url": "http://impd.tail:7070",
+      "sessionEnv": { "NOTES_VAULT": "box/notes-key" }
+    }
+  }
+}
+```
+
+- A Claude session gets the variables in its generated settings, under the values atc sets for a
+  sign-in through the broker. A Codex or Grok session gets them in its environment.
+- A key must be a variable name in capital letters, digits and underscores. atc refuses `PATH`,
+  `HOME`, `TMPDIR`, `AUTO_MODE_SCOPE_FILE`, proxy and CA variables, and any key that starts with
+  `ANTHROPIC_`, `CLAUDE_`, `ATC_`, `CODEX_` or `OPENAI_`, because atc or the broker sets them.
+- A target with a refused key or a value that is not a string is a config error, which the daemon
+  handles like an unset `tokenEnv` variable. The problem names the key, never its value.
+- The daemon reads `sessionEnv` when it starts, so a change reaches each launch after a restart. A
+  change keeps the target's identity, so existing sessions keep working.
+- Never put a credential value in `sessionEnv`: name a path or a reference that a tool in the imp
+  reads.

@@ -20,6 +20,8 @@ export * from './format-json-kind';
 export * from './format-mixed-agent-keys';
 export * from './format-mixed-source-keys';
 export * from './host';
+export * from './is-env-name';
+export * from './is-reserved-env-name';
 export * from './legacy-agent-keys';
 export * from './load-listener-tokens';
 export * from './load-mcp-http-config';

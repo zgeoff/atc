@@ -272,3 +272,65 @@ test.each([
       'target "box" must give impPrefix as a lowercase letter followed by up to 10 lowercase letters, digits or hyphens, so every imp name it builds is one impd accepts',
   });
 });
+
+test("it builds an imp provider that gives sessions the target's sessionEnv", () => {
+  const built = createConfiguredImpProvider(
+    'box',
+    { url: 'http://127.0.0.1:9', sessionEnv: { NOTES_VAULT: 'box/notes-key' } },
+    '1.0.0',
+    {},
+  );
+
+  invariant(built.provider !== null, 'expected an imp provider');
+
+  expect(built.provider.sessionEnv).toStrictEqual({ NOTES_VAULT: 'box/notes-key' });
+});
+
+test('it builds an imp provider that sets no session variables when the target leaves sessionEnv unset', () => {
+  const built = createConfiguredImpProvider('box', { url: 'http://127.0.0.1:9' }, '1.0.0', {});
+
+  invariant(built.provider !== null, 'expected an imp provider');
+
+  expect(built.provider.sessionEnv).toBeUndefined();
+});
+
+test.each([
+  ['a list', ['NOTES_VAULT'], 'target "box" must give sessionEnv as an object of variable names'],
+  [
+    'a lowercase key',
+    { notes_vault: 'box/notes-key' },
+    'target "box" sessionEnv.notes_vault is not a variable name: use capital letters, digits and underscores',
+  ],
+  [
+    'a key atc sets',
+    { ATC_SOCKET: '/run/box.sock' },
+    'target "box" sessionEnv.ATC_SOCKET cannot be set: atc or the broker sets or reserves it',
+  ],
+  [
+    'a key that routes around the broker',
+    { HTTPS_PROXY: 'http://proxy.box:3128' },
+    'target "box" sessionEnv.HTTPS_PROXY cannot be set: atc or the broker sets or reserves it',
+  ],
+  [
+    'a credential key',
+    { ANTHROPIC_API_KEY: 'placeholder' },
+    'target "box" sessionEnv.ANTHROPIC_API_KEY cannot be set: atc or the broker sets or reserves it',
+  ],
+  [
+    "the session's temporary folder",
+    { TMPDIR: '/var/tmp' },
+    'target "box" sessionEnv.TMPDIR cannot be set: atc or the broker sets or reserves it',
+  ],
+  [
+    'a value that is not a string',
+    { NOTES_VAULT: 7 },
+    'target "box" must give sessionEnv.NOTES_VAULT as a string',
+  ],
+])(
+  'it reports a target whose sessionEnv holds %s, without a provider',
+  (_case, sessionEnv, problem) => {
+    expect(
+      createConfiguredImpProvider('box', { url: 'http://127.0.0.1:9', sessionEnv }, '1.0.0', {}),
+    ).toStrictEqual({ provider: null, problem });
+  },
+);

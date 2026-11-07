@@ -386,16 +386,20 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
             )
           : null;
 
-      const paths: GuestPaths =
-        auth === null
-          ? { atc: guest.atc, directory }
+      const sessionEnv = provider.sessionEnv ?? {};
+
+      const paths: GuestPaths = {
+        atc: guest.atc,
+        directory,
+        sessionEnv,
+        ...(auth === null
+          ? {}
           : {
-              atc: guest.atc,
-              directory,
               auth: await timer.withStep('auth-plan', () =>
                 planGuestAuth(auth, verified?.binding.revision ?? 1),
               ),
-            };
+            }),
+      };
 
       const plan = planHarnessOnGuest(adapter, options, paths, auth);
 
@@ -409,7 +413,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
             );
       }
 
-      const env = plan.env ?? {};
+      const env = { ...sessionEnv, ...plan.env };
 
       requireGuestEnv(adapter.id, target, env, auth !== null);
 

@@ -11,6 +11,7 @@ import {
   createStubGuestCLIs,
   getAgentEntry,
   getRecord,
+  readJSONRecord,
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
@@ -155,6 +156,63 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
         join(directory, 'atc-bridge'),
       ],
     }),
+  ]);
+});
+
+test("it gives a remote Claude session the target's sessionEnv value for a key the agent's env also sets", async () => {
+  const ctx = setupTest();
+
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    agents: { claude: { bin: ctx.clis.claude, env: { NOTES_VAULT: 'desk/notes-key' } } },
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-imp-guest-daemon-',
+    options: () => ({
+      adapter: createClaudeAdapter(
+        getAgentEntry(config, 'claude'),
+        config,
+        buildMockHostServices(),
+      ),
+      targets: [
+        {
+          id: 'box',
+          kind: 'imp',
+          options: {},
+          identity: 'imp:test',
+          provider: createImpProvider(
+            ctx.port,
+            {
+              guestDir: ctx.guestDir,
+              guestATC: ctx.clis.atc,
+              sessionEnv: { NOTES_VAULT: 'box/notes-key' },
+            },
+            {
+              reconnectDelaysMs: [0, 0, 0],
+              atcBinary: null,
+              version: createHostServices().version,
+            },
+          ),
+        },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: daemon.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  const directory = join(ctx.guestDir, 'sessions', String(getRecord(spawned, 'session')['id']));
+
+  const settings = await readJSONRecord(Bun.file(join(directory, 'settings.json')));
+
+  expect(getRecord(settings, 'env')['NOTES_VAULT']).toBe('box/notes-key');
+
+  expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
+    expect.objectContaining({ env: expect.objectContaining({ NOTES_VAULT: 'box/notes-key' }) }),
   ]);
 });
 

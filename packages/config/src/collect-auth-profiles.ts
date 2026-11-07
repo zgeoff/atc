@@ -1,10 +1,7 @@
-import {
-  BROKER_PLACEHOLDER,
-  isBrokerVariable,
-  isRecord,
-  isSubscriptionOverrideVariable,
-} from '@atc/core';
+import { BROKER_PLACEHOLDER, isRecord } from '@atc/core';
 import type { AuthProfile } from '@atc/plugin-api';
+import { isEnvName } from './is-env-name';
+import { isReservedEnvName } from './is-reserved-env-name';
 
 interface AuthProfiles {
   readonly profiles: ReadonlyMap<string, AuthProfile>;
@@ -119,8 +116,6 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
   };
 }
 
-const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/u;
-
 function parseProfileEnv(raw: unknown, host: string): Record<string, string> | string {
   if (raw === undefined) {
     return {};
@@ -133,7 +128,7 @@ function parseProfileEnv(raw: unknown, host: string): Record<string, string> | s
   const env: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(raw)) {
-    if (!ENV_NAME.test(key)) {
+    if (!isEnvName(key)) {
       return `env.${key} is not a variable name: use capital letters, digits and underscores`;
     }
 
@@ -152,17 +147,4 @@ function parseProfileEnv(raw: unknown, host: string): Record<string, string> | s
   }
 
   return env;
-}
-
-const RESERVED_ENV_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'ATC_', 'CODEX_', 'OPENAI_'];
-
-const RESERVED_ENV_NAMES: ReadonlySet<string> = new Set(['PATH', 'HOME']);
-
-function isReservedEnvName(key: string): boolean {
-  return (
-    isBrokerVariable(key) ||
-    isSubscriptionOverrideVariable(key) ||
-    RESERVED_ENV_NAMES.has(key) ||
-    RESERVED_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))
-  );
 }
