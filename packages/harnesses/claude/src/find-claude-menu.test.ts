@@ -274,6 +274,20 @@ test('it finds no menu above an empty prompt box', () => {
   expect(findClaudeMenu(screen)).toBeNull();
 });
 
+test('it finds no menu in a prompt of the conversation when no prompt box shows', () => {
+  const screen = [
+    '› Prompt from the atc-bridge plugin',
+    '❯ The atc-bridge plugin sent a message:',
+    '  <atc-message id="m-7" from="harbour">',
+    '  Rename the lantern module.',
+    '  </atc-message>',
+    '',
+    '✽ Computing… (12s)',
+  ].join('\n');
+
+  expect(findClaudeMenu(screen)).toBeNull();
+});
+
 test('it finds no menu with a single option', () => {
   const screen = [
     '──────────────────────────────────────────────────────────────────────────────',

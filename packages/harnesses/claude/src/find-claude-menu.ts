@@ -12,8 +12,9 @@ const DIALOG_CHROME_ROWS = 8;
 // a caller that does not give the terminal's height.
 const TALL_ROWS = DIALOG_CHROME_ROWS + LIST_WINDOW * 3;
 
-// a menu is the last `❯` line with options indented to its column; the prompt box, whose `❯`
-// line sits under a rule, is no menu, and neither is a single option
+// a menu is the last `❯` line with options indented to its column, and a single option is no
+// menu; Claude Code indents every dialog's options, and draws a prompt with its `❯` at the line's
+// start, both in the prompt box and in the conversation, so such a line is no menu
 export function findClaudeMenu(screen: string, height = TALL_ROWS): ScreenMenu | null {
   const lines = screen.split('\n');
   const at = lines.findLastIndex((line) => hasPointer(line));
@@ -25,6 +26,11 @@ export function findClaudeMenu(screen: string, height = TALL_ROWS): ScreenMenu |
   }
 
   const column = lines[at]?.indexOf(POINTER) ?? 0;
+
+  if (column === 0) {
+    return null;
+  }
+
   let first = at;
 
   while (first > 0 && isOptionLine(lines[first - 1], column)) {
@@ -35,10 +41,6 @@ export function findClaudeMenu(screen: string, height = TALL_ROWS): ScreenMenu |
 
   while (last < lines.length - 1 && isOptionLine(lines[last + 1], column)) {
     last++;
-  }
-
-  if ((isRule(lines[first - 1]) && isRule(lines[last + 1])) || isPromptBox(lines, at)) {
-    return null;
   }
 
   const rows = lines.slice(first, last + 1).map((line) => line.slice(column + POINTER.length));
@@ -91,36 +93,6 @@ function isOptionLine(line: string | undefined, column: number): boolean {
     (mark.trim() === '' || mark === MORE_ABOVE || mark === MORE_BELOW) &&
     line.slice(column + POINTER.length).trim() !== ''
   );
-}
-
-// A dialog's top border, or the rule above and below the prompt box.
-const RULE = /^\s*[─━═╌]{8,}\s*$/u;
-
-function isRule(line: string | undefined): boolean {
-  return line !== undefined && RULE.test(line);
-}
-
-// The prompt box: a cursor line straight under a rule, then indented or
-// blank lines down to the next rule, as a draft with blank lines in it
-// shows.
-function isPromptBox(lines: readonly string[], at: number): boolean {
-  if (!isRule(lines[at - 1])) {
-    return false;
-  }
-
-  for (let index = at + 1; index < lines.length; index++) {
-    const line = lines[index] ?? '';
-
-    if (isRule(line)) {
-      return true;
-    }
-
-    if (line !== '' && !line.startsWith(' ')) {
-      return false;
-    }
-  }
-
-  return false;
 }
 
 interface ParsedOptions {
@@ -221,6 +193,7 @@ function findHiddenScroll(parsed: ParsedOptions, height: number): ScreenMenuScro
 // The most lines above the options a menu's text takes, so a screen with no
 // border above the menu never makes the text the whole screen.
 const MAX_TEXT_LINES = 24;
+const RULE = /^\s*[─━═╌]{8,}\s*$/u;
 
 // The lines above the options up to the nearest rule, without the blank
 // lines at either end and without their common indent.
@@ -230,7 +203,7 @@ function collectText(lines: readonly string[], first: number): string {
   for (let index = first - 1; index >= 0 && above.length < MAX_TEXT_LINES; index--) {
     const line = lines[index] ?? '';
 
-    if (isRule(line)) {
+    if (RULE.test(line)) {
       break;
     }
 

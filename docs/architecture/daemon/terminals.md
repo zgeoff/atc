@@ -125,8 +125,9 @@ A client reads the menu an agent waits on from the screen model, and picks one o
 and its label. The agent's adapter reads the menu from the screen text, so only an agent whose
 adapter reads menus takes a choice, and only the adapters that run Claude Code do. It reads the menu
 as the last `❯` cursor on the screen and the option lines beside it, with the text above them up to
-the dialog's border. Claude Code's prompt box also starts with `❯`, so a cursor line between two
-rules is no menu.
+the dialog's border. Claude Code also draws each prompt with `❯`, in the prompt box and in the
+conversation, a prompt a plugin delivers included. It puts that `❯` at the start of the line, and
+every dialog indents its options, so a cursor at the start of its line is no menu.
 
 Claude Code draws a long list, such as the new MCP servers list, a few rows at a time, and marks the
 first and last rows with `↑` and `↓` in the cursor's column when options sit out of view. A taller
