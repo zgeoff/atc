@@ -26,8 +26,8 @@ type ClientMachineEvent =
   | { readonly type: 'RESTART_ENDED'; readonly connected: boolean };
 
 interface ClientMachineContext {
-  // The session whose kill the daemon refused until the operator confirms
-  // that forgetting it destroys its host.
+  // The session whose kill or forget the daemon holds until the operator
+  // confirms that forgetting it destroys its host.
   readonly destroyID: string | null;
 
   // The restart prompt that waits for its key.

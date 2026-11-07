@@ -1,10 +1,10 @@
 import { join } from 'node:path';
 import type { WorkspaceCleanupConfig } from '@atc/config';
+import { formatError } from '@atc/core';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import type { FleetEntry, StateStore, WorkspaceMaterialization } from '@atc/store';
 import type { SessionID, WorkspacePrune, WorkspacePruneFolder } from '@atcx/contract';
 import { match } from 'ts-pattern';
-import { formatError } from '../auth/format-error';
 import { buildWorkspaceRootDir } from '../workspace/build-workspace-root-dir';
 import { collectPruneCandidates } from './collect-prune-candidates';
 import type { ListedSession } from './collect-prune-candidates';

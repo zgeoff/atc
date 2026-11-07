@@ -154,7 +154,7 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
             claims.claimWorkspace(id, hostKey, target, cwd);
           }
         } else if (materialize === null && !registry.hasHostLifecycle(target)) {
-          claims.claimMachineDir(id, target, cwd);
+          claims.claimMachineDir(id, target, cwd, false);
         }
       },
       (_claimed, failure) => {

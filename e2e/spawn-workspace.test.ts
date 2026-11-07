@@ -913,7 +913,7 @@ test('it keeps a workspace credential out of every row, the session, the fleet, 
   expect(stored).toSatisfyAll((bytes: string) => !bytes.includes('tok-7d1e5a'));
   expect(JSON.stringify(spawned)).not.toInclude('tok-7d1e5a');
   expect(JSON.stringify(fleet)).not.toInclude('tok-7d1e5a');
-  expect(daemon.logs).toStrictEqual([]);
+  expect(daemon.logs).toSatisfyAll((line: string) => !line.includes('tok-7d1e5a'));
 });
 
 test("it keeps a workspace credential out of a refusal that carries git's error, its log line, and every row", async () => {

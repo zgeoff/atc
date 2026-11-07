@@ -27,13 +27,21 @@ export interface OverlayKeyDeps {
 }
 
 export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
+  if (deps.overlay.notice !== null) {
+    deps.overlay.notice = null;
+
+    deps.overlay.render();
+  }
+
   const filtered = deps.overlay.pickSessions();
   const sel = filtered[deps.overlay.selected];
   const confirm = deps.getConfirm();
 
   if (confirm === 'kill') {
+    // a kill of an exited session forgets it, and only the forget answers
+    // with what became of the session's workspace
     if (buf[0] === KEY.y && sel !== undefined) {
-      void deps.actions.sendKill(sel.id);
+      void (sel.alive ? deps.actions.sendKill(sel.id) : deps.actions.sendForget(sel.id));
     }
 
     deps.service.send({ type: 'CONFIRM_DONE' });
@@ -46,7 +54,7 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
 
   if (confirm === 'destroy' && destroyID !== null) {
     if (buf[0] === KEY.y) {
-      void deps.actions.sendForget(destroyID);
+      void deps.actions.sendDestroy(destroyID);
     }
 
     deps.service.send({ type: 'CONFIRM_DONE' });

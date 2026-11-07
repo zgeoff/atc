@@ -215,6 +215,9 @@ export interface OverlayView {
   // host waits on a second confirm.
   confirmDestroy: boolean;
   filter: string | null;
+
+  // Shown on the hint line in place of the hints, under any confirm prompt.
+  notice: string | null;
   stale: boolean;
   grouped: boolean;
 }
@@ -367,6 +370,10 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
 
   if (view.filter !== null) {
     hint = 'type to filter · ↑↓ move · ⏎ attach · esc clear';
+  }
+
+  if (view.notice !== null) {
+    hint = view.notice;
   }
 
   if (view.confirmKill) {

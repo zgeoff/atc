@@ -139,6 +139,7 @@
     "@atc/source-github": "workspace:*",
     "@atc/store": "workspace:*",
     "@atc/test-utils": "workspace:*",
+    "@atc/tui": "workspace:*",
     "@atcx/contract": "workspace:*",
     "@commitlint/cli": "catalog:",
     "@faker-js/faker": "catalog:",

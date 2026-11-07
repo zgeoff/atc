@@ -154,12 +154,48 @@ test('it refuses a workspace landing on the daemon host inside a directory a rem
   });
 
   expect(() => {
-    ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/a/nested');
+    ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/a/nested', false);
   }).toThrow(expect.objectContaining({ code: 'workspace_overlap' }));
 
   removing.resolve({ exitCode: 0, stdout: '', stderr: '' });
 
   await removal;
+});
+
+test('it refuses a directory the daemon picked on its host while another spawn holds it', () => {
+  const ctx = setupTest({
+    targets: [buildMockExecutionTarget({ id: 'local', provider: buildStubMemoryProvider() })],
+  });
+
+  ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/orchard-main-2', true);
+
+  expect(() => {
+    ctx.claims.claimMachineDir(toSessionID('spawn-2'), 'local', '/work/orchard-main-2', true);
+  }).toThrow(expect.objectContaining({ code: 'workspace_overlap' }));
+});
+
+test('it passes the next directory the daemon picks on its host while another spawn holds the last', () => {
+  const ctx = setupTest({
+    targets: [buildMockExecutionTarget({ id: 'local', provider: buildStubMemoryProvider() })],
+  });
+
+  ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/orchard-main-2', true);
+
+  expect(() => {
+    ctx.claims.claimMachineDir(toSessionID('spawn-2'), 'local', '/work/orchard-main-3', true);
+  }).not.toThrow();
+});
+
+test('it shares a directory the caller gave on the daemon host with another spawn that holds it', () => {
+  const ctx = setupTest({
+    targets: [buildMockExecutionTarget({ id: 'local', provider: buildStubMemoryProvider() })],
+  });
+
+  ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/orchard', false);
+
+  expect(() => {
+    ctx.claims.claimMachineDir(toSessionID('spawn-2'), 'local', '/work/orchard', false);
+  }).not.toThrow();
 });
 
 test('it refuses a plain claim on a shared host while a removal hold runs there', async () => {
@@ -201,7 +237,7 @@ test('it passes a claim on the daemon host inside a directory once its removal h
   );
 
   expect(() => {
-    ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/a/nested');
+    ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/a/nested', false);
   }).not.toThrow();
 });
 
@@ -213,7 +249,7 @@ test('it keeps a directory on the daemon host that a workspace spawn claimed ins
 
   const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'local', provider })] });
 
-  ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/a/nested');
+  ctx.claims.claimMachineDir(toSessionID('spawn-1'), 'local', '/work/a/nested', false);
 
   const removed = await ctx.claims.removeClaimedDir({
     provider,

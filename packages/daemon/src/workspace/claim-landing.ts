@@ -62,12 +62,19 @@ async function claimTargetDir(
 ): Promise<void> {
   // A directory the daemon picked is reported as it landed.
   const shown = request.autoDir === true ? landing.directory : request.directory;
+  const args = [dirname(landing.directory), landing.directory];
 
   const claim = await deps.requireProvider('run').runCommand({
-    argv: ['sh', '-c', CLAIM_DIR_SCRIPT, 'sh', dirname(landing.directory), landing.directory],
+    argv: ['sh', '-c', CLAIM_DIR_SCRIPT, 'sh', ...args],
     cwd: '/',
     host: landing.host,
   });
+
+  // a claim that passes for two spawns of one directory leaves no other trace, so each
+  // claim's arguments and exit code go to the log
+  deps.log(
+    `atc: debug: workspace for session ${request.sessionID} ran the directory claim with ${JSON.stringify(args)} on target '${request.target}': exit ${claim.exitCode}`,
+  );
 
   if (claim.exitCode === PARENT_FAILED_EXIT) {
     throw new DaemonError(
