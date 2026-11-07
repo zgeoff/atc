@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./stdio": "./src/stdio/index.ts",
-    "./testing": "./src/testing/index.ts"
+    "./testing": "./src/testing/index.ts",
+    "./test-utils": "./src/test-utils/index.ts"
   },
   "dependencies": {
     "@atc/core": "workspace:*",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@atc/daemon": "workspace:*",
     "@atc/test-utils": "workspace:*",
+    "@faker-js/faker": "catalog:",
     "@zgeoff/kysely-bun-sqlite": "catalog:"
   }
 }

@@ -7,6 +7,7 @@ import type { Kysely } from 'kysely';
 import { z } from 'zod';
 import { loadWebAuthn } from './load-web-authn';
 import type { MCPAuthSchema } from './mcp-auth-schema';
+import { updatePasskeyUse } from './update-passkey-use';
 
 interface AssertionCheck {
   // The credential JSON the sign-in page posted.
@@ -68,20 +69,14 @@ export async function verifyPasskeyAssertion(
     return null;
   }
 
-  // Only while the passkey is still enrolled with the counter read above,
-  // so a passkey removed during the verification, or a concurrent
-  // assertion that stored a newer counter, makes this one fail.
-  const stored = await db
-    .updateTable('atc_passkey')
-    .set({
-      counter: verified.authenticationInfo.newCounter,
-      last_used_at: new Date(check.now).toISOString(),
-    })
-    .where('id', '=', passkey.id)
-    .where('counter', '=', passkey.counter)
-    .executeTakeFirst();
+  const stored = await updatePasskeyUse(db, {
+    id: passkey.id,
+    counter: passkey.counter,
+    newCounter: verified.authenticationInfo.newCounter,
+    now: check.now,
+  });
 
-  return stored.numUpdatedRows > 0n ? passkey.id : null;
+  return stored ? passkey.id : null;
 }
 
 const ASSERTION_REPLY = z.object({

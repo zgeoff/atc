@@ -1,7 +1,7 @@
 import type { Kysely } from 'kysely';
 import type { MCPAuthSchema } from './mcp-auth-schema';
 
-interface NewPasskey {
+export interface NewPasskey {
   // The hash of the enrollment token the passkey was enrolled with.
   readonly tokenHash: string;
 
