@@ -1,10 +1,11 @@
 import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { buildHostFiles } from '@atc/plugin-api';
-import { getAgentEntry, runLocalCommand, setupTempDir } from '@atc/test-utils';
+import { createStubBin, getAgentEntry, runLocalCommand, setupTempDir } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import invariant from 'tiny-invariant';
 import { createGrokAdapter } from './create-grok-adapter';
 import { GROK_PLUGIN } from './grok-plugin';
 
@@ -194,6 +195,56 @@ test('it does not resume a session with no captured id', () => {
   const adapter = createGrokAdapter(getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok'));
 
   expect(adapter.canResume({})).toBeFalse();
+});
+
+test("it builds a grok resume command that runs grok with the entry's env", async () => {
+  const ctx = setupTest();
+
+  const bin = createStubBin(
+    join(ctx.directory, 'bin'),
+    'grok',
+    '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n',
+  );
+
+  const config = parseConfig([GROK_PLUGIN], {
+    agents: { grok: { bin, env: { NOTES_VAULT: "desk/it's-key" } } },
+  });
+
+  const adapter = createGrokAdapter(
+    getAgentEntry(config, 'grok'),
+    null,
+    join(ctx.directory, 'state'),
+  );
+
+  const command = adapter.planResumeCommand(ctx.directory, toAgentSessionID('g-1'));
+
+  invariant(command !== null, 'the adapter builds no resume command');
+
+  const result = await runLocalCommand({ argv: ['sh', '-c', command], cwd: ctx.directory });
+
+  expect({ exitCode: result.exitCode, stdout: result.stdout, command }).toStrictEqual({
+    exitCode: 0,
+    stdout: "desk/it's-key --resume g-1",
+    command: expect.not.stringContaining('desk/'),
+  });
+});
+
+test("it keeps a grok entry's env file readable by its owner alone", () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([GROK_PLUGIN], {
+    agents: { grok: { env: { NOTES_VAULT: 'desk/notes-key' } } },
+  });
+
+  const adapter = createGrokAdapter(
+    getAgentEntry(config, 'grok'),
+    null,
+    join(ctx.directory, 'state'),
+  );
+
+  adapter.planResumeCommand(ctx.directory, undefined);
+
+  expect(statSync(join(ctx.directory, 'state', 'agent-env-grok.sh')).mode & 0o777).toBe(0o600);
 });
 
 test('it refuses inbox messages', () => {

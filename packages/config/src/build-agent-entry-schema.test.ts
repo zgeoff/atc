@@ -32,6 +32,22 @@ test.each(['claude', 'codex', 'grok'] as const)(
   },
 );
 
+test.each(['notes vault', '1NOTES', 'NOTES=VAULT', ''])(
+  'it refuses an entry whose env key %p is not a variable name',
+  (key) => {
+    const schema = buildAgentEntrySchema(
+      { kind: 'codex', fields: [], defaultLabel: 'Codex' },
+      { authProfiles: new Map(), entryID: 'codex', foreignFields: new Set() },
+    );
+
+    const result = schema.safeParse({ env: { [key]: 'desk/notes-key' } });
+
+    expect(result.error?.issues.map((issue) => issue.message)).toStrictEqual([
+      `env key ${JSON.stringify(key)} is not a variable name: use letters, digits and underscores, and start with a letter or underscore`,
+    ]);
+  },
+);
+
 test("it runs the kind's own read once every field has the right type", () => {
   const schema = buildAgentEntrySchema(
     {

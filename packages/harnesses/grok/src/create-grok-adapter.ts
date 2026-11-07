@@ -1,7 +1,6 @@
 import type { AgentEntry } from '@atc/config';
-import { resolveAgentHome } from '@atc/config/host';
+import { resolveAgentHome, stateDir } from '@atc/config/host';
 import type { AgentID } from '@atc/core';
-import { toShellArg } from '@atc/core';
 import type {
   AgentAdapter,
   AgentHomeLocation,
@@ -9,7 +8,12 @@ import type {
   LineInputStep,
   TerminalInputModes,
 } from '@atc/plugin-api';
-import { planPastedLineInput } from '@atc/plugin-api';
+import {
+  formatResumeCommand,
+  formatShellWord,
+  makeAgentEnvFileWriter,
+  planPastedLineInput,
+} from '@atc/plugin-api';
 import type { AgentSessionID, SpawnOptionSpec } from '@atcx/contract';
 import { loadGrokName } from './load-grok-name';
 import { planGrokHookEvents } from './plan-grok-hook-events';
@@ -45,7 +49,13 @@ const GROK_HOME_LOCATION: AgentHomeLocation = { env: 'GROK_HOME', folder: '.grok
 
 // the state the hook mapping reads travels with each session's hook lines, so the adapter holds
 // none
-export function createGrokAdapter(entry: AgentEntry, home: string | null = null): GrokAdapter {
+export function createGrokAdapter(
+  entry: AgentEntry,
+  home: string | null = null,
+  stateDirectory: string = stateDir,
+): GrokAdapter {
+  const writeEnvFile = makeAgentEnvFileWriter(entry, stateDirectory);
+
   const resolveHome = (): string =>
     home ?? resolveAgentHome(GROK_HOME_LOCATION.env, GROK_HOME_LOCATION.folder);
 
@@ -91,10 +101,13 @@ export function createGrokAdapter(entry: AgentEntry, home: string | null = null)
 
     canResume: (session) => session.agentSessionID !== undefined,
 
+    // the entry's env file sits on the daemon's machine, beside the generated settings file a
+    // claude entry resumes with
     planResumeCommand: (cwd, agentSessionID) => {
-      const resume = agentSessionID === undefined ? 'grok' : `grok --resume ${agentSessionID}`;
+      const bin = formatShellWord(entry.bin);
+      const resume = agentSessionID === undefined ? bin : `${bin} --resume ${agentSessionID}`;
 
-      return `cd ${toShellArg(cwd)} && ${resume}`;
+      return formatResumeCommand(cwd, resume, writeEnvFile());
     },
   };
 }

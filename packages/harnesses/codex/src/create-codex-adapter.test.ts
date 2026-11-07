@@ -1,11 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { buildHostFiles } from '@atc/plugin-api';
 import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
+  createStubBin,
   getAgentEntry,
   runLocalCommand,
   setupTempDir,
@@ -330,6 +331,58 @@ test('it builds a codex resume command with the picker when no id was captured',
   const adapter = createCodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
   expect(adapter.planResumeCommand('/tmp', undefined)).toBe(`cd '/tmp' && codex resume`);
+});
+
+test("it builds a codex resume command that runs codex with the entry's env", async () => {
+  const ctx = setupTest();
+
+  const bin = createStubBin(
+    join(ctx.directory, 'bin'),
+    'codex',
+    '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n',
+  );
+
+  const config = parseConfig([CODEX_PLUGIN], {
+    agents: { codex: { bin, env: { NOTES_VAULT: "desk/it's-key" } } },
+  });
+
+  const adapter = createCodexAdapter(
+    getAgentEntry(config, 'codex'),
+    config,
+    undefined,
+    join(ctx.directory, 'state'),
+  );
+
+  const command = adapter.planResumeCommand(ctx.directory, toAgentSessionID('c-1'));
+
+  invariant(command !== null, 'the adapter builds no resume command');
+
+  const result = await runLocalCommand({ argv: ['sh', '-c', command], cwd: ctx.directory });
+
+  expect({ exitCode: result.exitCode, stdout: result.stdout, command }).toStrictEqual({
+    exitCode: 0,
+    stdout: "desk/it's-key resume c-1",
+    command: expect.not.stringContaining('desk/'),
+  });
+});
+
+test("it keeps a codex entry's env file readable by its owner alone", () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CODEX_PLUGIN], {
+    agents: { codex: { env: { NOTES_VAULT: 'desk/notes-key' } } },
+  });
+
+  const adapter = createCodexAdapter(
+    getAgentEntry(config, 'codex'),
+    config,
+    undefined,
+    join(ctx.directory, 'state'),
+  );
+
+  adapter.planResumeCommand(ctx.directory, undefined);
+
+  expect(statSync(join(ctx.directory, 'state', 'agent-env-codex.sh')).mode & 0o777).toBe(0o600);
 });
 
 test('it refuses inbox messages without an App Server', () => {

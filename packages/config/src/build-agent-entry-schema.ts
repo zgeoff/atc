@@ -88,7 +88,7 @@ function collectFieldProblems(
     }
 
     if (name === 'env' && isStringRecord(value)) {
-      problems.push(...collectOwnEnvProblems(value));
+      problems.push(...collectEnvNameProblems(value));
     }
   }
 
@@ -153,12 +153,25 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   );
 }
 
-// The variables an entry's env sets in the names atc gives each session's
-// own variables, where the entry's value would replace atc's.
-function collectOwnEnvProblems(env: Readonly<Record<string, string>>): string[] {
-  return Object.keys(env)
-    .filter((key) => key.startsWith('ATC_'))
-    .map((key) => `env must not set ${key}, which atc keeps for the variables it sets itself`);
+// A shell variable name, since a resume command sources the entry's env
+// from a shell file.
+const SHELL_VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
+
+// The keys of an entry's env that no shell can export, and those in the
+// names atc gives each session's own variables, where the entry's value
+// would replace atc's.
+function collectEnvNameProblems(env: Readonly<Record<string, string>>): string[] {
+  return Object.keys(env).flatMap((key) => {
+    if (!SHELL_VARIABLE_NAME.test(key)) {
+      return [
+        `env key ${JSON.stringify(key)} is not a variable name: use letters, digits and underscores, and start with a letter or underscore`,
+      ];
+    }
+
+    return key.startsWith('ATC_')
+      ? [`env must not set ${key}, which atc keeps for the variables it sets itself`]
+      : [];
+  });
 }
 
 // An entry with every default applied, from fields already checked. The id

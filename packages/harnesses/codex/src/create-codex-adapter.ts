@@ -1,8 +1,7 @@
 import type { AgentEntry, Config } from '@atc/config';
 import { resolveAuthProfiles } from '@atc/config';
-import { resolveAgentHome } from '@atc/config/host';
+import { resolveAgentHome, stateDir } from '@atc/config/host';
 import type { AgentID } from '@atc/core';
-import { toShellArg } from '@atc/core';
 import type {
   AgentAdapter,
   AgentHomeLocation,
@@ -26,6 +25,9 @@ import {
   buildCodexConfig,
   findCodexSignIn,
   findFlagValue,
+  formatResumeCommand,
+  formatShellWord,
+  makeAgentEnvFileWriter,
   probeTranscriptResumable,
 } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
@@ -100,8 +102,10 @@ export function createCodexAdapter(
   entry: AgentEntry,
   config?: Pick<Config, 'authProfiles'>,
   codexHome?: string,
+  stateDirectory: string = stateDir,
 ): CodexAdapter {
   const authProfiles: Config['authProfiles'] = config?.authProfiles ?? new Map();
+  const writeEnvFile = makeAgentEnvFileWriter(entry, stateDirectory);
 
   const resolveCodexHome = (): string =>
     codexHome ?? resolveAgentHome(CODEX_HOME_LOCATION.env, CODEX_HOME_LOCATION.folder);
@@ -339,11 +343,15 @@ export function createCodexAdapter(
         sessionHost.files,
       ),
 
+    // the entry's env file sits on the daemon's machine, beside the generated settings file a
+    // claude entry resumes with
     planResumeCommand: (cwd, agentSessionID) => {
-      const resume =
-        agentSessionID === undefined ? 'codex resume' : `codex resume ${agentSessionID}`;
+      const bin = formatShellWord(entry.bin);
 
-      return `cd ${toShellArg(cwd)} && ${resume}`;
+      const resume =
+        agentSessionID === undefined ? `${bin} resume` : `${bin} resume ${agentSessionID}`;
+
+      return formatResumeCommand(cwd, resume, writeEnvFile());
     },
   };
 }

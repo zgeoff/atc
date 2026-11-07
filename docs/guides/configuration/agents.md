@@ -67,9 +67,12 @@ rule, which depends on where the session runs:
   it.
 - On an imp, the session gets the entry's `env`, under the target's
   [session variables](./targets.md#session-variables).
+- A session that you resume outside atc gets the entry's `env` too. The resume command of a Codex or
+  Grok session sources `agent-env-<id>.sh` in atc's state folder, a file that only its owner can
+  read, and a Claude session resumes with the entry's generated settings file.
 
-atc leaves out an entry of any kind whose `env` sets a name that starts with `ATC_`, since atc keeps
-those names for the variables it sets in each session.
+atc leaves out an entry of any kind whose `env` sets a key that is not a shell variable name, or a
+name that starts with `ATC_`, since atc keeps those names for the variables it sets in each session.
 
 atc also leaves out an entry with `auth` when its `env` sets a variable that would override the
 sign-in or route the CLI around impd's broker: a proxy or CA variable, a credential variable of the

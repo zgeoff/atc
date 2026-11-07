@@ -30,6 +30,7 @@ import {
   buildArgsWithoutFlags,
   buildAuthRevisionFolder,
   findFlagValue,
+  formatShellWord,
   probeTranscriptResumable,
 } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
@@ -513,10 +514,4 @@ function buildClaudeSpawnOptions(claudeArgs: readonly string[]): SpawnOptionSpec
     },
     pluginDirs: buildPluginDirsOption(),
   };
-}
-
-// A binary name or path that needs no quoting stays bare, so the default
-// entry resumes with plain `claude`; anything else is quoted as one word.
-function formatShellWord(value: string): string {
-  return /^[\w./-]+$/u.test(value) ? value : toShellArg(value);
 }
