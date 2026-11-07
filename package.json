@@ -45,7 +45,7 @@
       "@zgeoff/diet": "0.2.1",
       "@zgeoff/format-codemod": "0.3.5",
       "@zgeoff/kysely-bun-sqlite": "0.3.0",
-      "@zgeoff/oxlint-config": "0.8.6",
+      "@zgeoff/oxlint-config": "0.10.0",
       "@zgeoff/rig": "0.1.6",
       "@zgeoff/std": "0.4.2",
       "better-auth": "1.7.13",
