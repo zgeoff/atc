@@ -23,9 +23,7 @@ async function setupTest() {
 
   const root = join(import.meta.dir, '..');
   const lefthook = join(root, 'node_modules', '.bin', 'lefthook');
-
-  // A job that only adds fields to a baseline job of the same name has no run.
-  const jobSchema = z.looseObject({ name: z.string(), run: z.string().optional() });
+  const jobSchema = z.looseObject({ name: z.string(), run: z.string() });
 
   const configSchema = z.looseObject({
     'pre-push': z.looseObject({ jobs: z.array(jobSchema) }),

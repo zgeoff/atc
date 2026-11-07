@@ -109,7 +109,7 @@ pre-push:
       glob: '*.{ts,tsx,toml}'
       exclude:
         - 'mods/**'
-      run: bun x --no-install diet -- bun run test:related {files}
+      run: '{clear-git-env} bun x --no-install diet -- bun run test:related {files}'
     # A later hook run by hand skips the mark job, so a mark left under a pid
     # that it reuses would skip its checks.
     - name: remove push mark
