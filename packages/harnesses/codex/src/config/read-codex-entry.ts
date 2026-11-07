@@ -1,9 +1,5 @@
 import type { AgentEntry, AgentEntryRead } from '@atc/config';
-import {
-  collectProfileEnvProblems,
-  collectSignInOverrideProblems,
-  resolveAuthProfiles,
-} from '@atc/config';
+import { collectProfileEnvProblems, collectSignInOverrideProblems } from '@atc/config';
 import { isBrokerVariable } from '@atc/core';
 import type { AuthProfile } from '@atc/plugin-api';
 import { CODEX_CREDENTIAL_VARIABLES } from './codex-credential-variables';
@@ -26,17 +22,14 @@ export function readCodexEntry(args: CodexEntryArgs): AgentEntryRead {
   }
 
   const collected = collectCodexAuth(raw, args.authProfiles);
-
-  const problems = collectSignInOverrideProblems(
-    [['env', Object.keys(entry.env)]],
-    isCodexSignInOverrideVariable,
-  );
+  const envKeys = Object.keys(entry.env);
+  const problems = collectSignInOverrideProblems([['env', envKeys]], isCodexSignInOverrideVariable);
 
   if (collected.profiles === null) {
     return { problems: [...collected.errors, ...problems] };
   }
 
-  problems.push(...collectEntryProfileEnvProblems(entry, collected.profiles, args.authProfiles));
+  problems.push(...collectProfileEnvProblems([['env', envKeys]], collected.envOwners));
 
   if (problems.length > 0) {
     return { problems };
@@ -49,25 +42,8 @@ export function readCodexEntry(args: CodexEntryArgs): AgentEntryRead {
 }
 
 // A credential Codex takes ahead of the sign-in file atc writes, or a proxy
-// or CA variable that routes it around the target's broker.
+// or CA variable that routes it around the target's broker. Codex reads its
+// endpoint from its config alone, so no variable moves it.
 function isCodexSignInOverrideVariable(key: string): boolean {
   return CODEX_CREDENTIAL_VARIABLES.includes(key) || isBrokerVariable(key);
-}
-
-// The variables the entry's env sets that its selected profiles also set.
-function collectEntryProfileEnvProblems(
-  entry: AgentEntry,
-  selected: readonly string[],
-  authProfiles: ReadonlyMap<string, AuthProfile>,
-): string[] {
-  const resolution = resolveAuthProfiles(authProfiles, selected);
-
-  if ('problem' in resolution) {
-    return [];
-  }
-
-  return collectProfileEnvProblems(
-    [['env', Object.keys(entry.env)]],
-    resolution.resolved.envOwners,
-  );
 }

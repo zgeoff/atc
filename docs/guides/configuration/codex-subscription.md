@@ -36,10 +36,11 @@ no token enters the imp. On the local target, Codex keeps the sign-in of your ow
    }
    ```
 
-The daemon starts without a Codex entry that has one of these faults, and prints one line for each
-fault, such as
+The daemon starts without a Codex entry that has one of these faults, and prints why at startup,
+such as
 `agents.codex: env must not set HTTPS_PROXY, which would override or route around the subscription sign-in`:
 
+- The entry's `auth` is not an object with a non-empty `profiles` array.
 - The entry's `auth` sets a key other than `profiles`.
 - A selected profile does not resolve.
 - The selected profiles hold no `oauth` profile with a bearer `authorization` header for

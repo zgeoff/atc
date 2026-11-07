@@ -65,19 +65,22 @@ rule, which depends on where the session runs:
 
 - On the daemon's machine, the session gets the daemon's environment, with the entry's `env` over
   it.
-- On an imp, the session gets the entry's `env`. For a key that both set, the imp target's
-  [`sessionEnv`](./targets.md#session-variables) wins.
+- On an imp, the session gets the entry's `env`, under the target's
+  [session variables](./targets.md#session-variables).
 
-atc leaves out an entry with `auth` when its `env` sets a variable that would override the sign-in
-or route the CLI around impd's broker: a proxy or CA variable, a credential variable of the CLI, or
-a variable that a selected profile sets. [Claude subscription on imps](./claude-subscription.md) and
+atc leaves out an entry of any kind whose `env` sets a name that starts with `ATC_`, since atc keeps
+those names for the variables it sets in each session.
+
+atc also leaves out an entry with `auth` when its `env` sets a variable that would override the
+sign-in or route the CLI around impd's broker: a proxy or CA variable, a credential variable of the
+CLI, or a variable that a selected profile sets.
+[Claude subscription on imps](./claude-subscription.md) and
 [Codex subscription on imps](./codex-subscription.md) list these variables for each kind, and
 [brokered gateways](./brokered-gateways.md) lists them for a gateway. A Grok entry takes no `auth`,
-so atc never leaves one out for its `env`.
+so this check never applies to it.
 
 A stock Claude entry also takes an `env` block in its [`settings`](#extra-session-settings). atc
-merges the two blocks, and `env` wins for a key that both set. atc writes the merged variables into
-the settings file it passes to Claude Code as `--settings`.
+merges the two blocks, and `env` wins for a key that both set.
 
 ## Codex sessions that take messages
 

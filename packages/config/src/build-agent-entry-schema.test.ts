@@ -16,6 +16,22 @@ test('it reports one issue per problem, in the order the entry holds its fields'
   ]);
 });
 
+test.each(['claude', 'codex', 'grok'] as const)(
+  'it refuses a %s entry whose env sets a variable in the names atc keeps',
+  (kind) => {
+    const schema = buildAgentEntrySchema(
+      { kind, fields: [], defaultLabel: 'Agent' },
+      { authProfiles: new Map(), entryID: kind, foreignFields: new Set() },
+    );
+
+    const result = schema.safeParse({ env: { ATC_NOTES_DIR: '/srv/notes', NOTES_REGION: 'eu' } });
+
+    expect(result.error?.issues.map((issue) => issue.message)).toStrictEqual([
+      'env must not set ATC_NOTES_DIR, which atc keeps for the variables it sets itself',
+    ]);
+  },
+);
+
 test("it runs the kind's own read once every field has the right type", () => {
   const schema = buildAgentEntrySchema(
     {

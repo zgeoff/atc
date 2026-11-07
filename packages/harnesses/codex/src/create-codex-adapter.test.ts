@@ -456,7 +456,7 @@ test('it plans a remote spawn with auth but without the broker as a local spawn 
     },
   );
 
-  expect(plan).toStrictEqual({ bin: 'codex', args: ['--no-daemon', 'go'], env: {}, files: {} });
+  expect(plan).toStrictEqual({ bin: 'codex', args: ['--no-daemon', 'go'], files: {} });
 });
 
 test('it plans a spawn behind the broker with a Codex home of its own and hooks it trusts at launch', () => {

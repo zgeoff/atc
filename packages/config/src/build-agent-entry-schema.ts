@@ -84,6 +84,11 @@ function collectFieldProblems(
 
     if (problem !== null) {
       problems.push(problem);
+      continue;
+    }
+
+    if (name === 'env' && isStringRecord(value)) {
+      problems.push(...collectOwnEnvProblems(value));
     }
   }
 
@@ -140,6 +145,22 @@ function findFieldProblem(name: string, value: unknown): string | null {
   return check.problem;
 }
 
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    isRecord(value) &&
+    !Array.isArray(value) &&
+    Object.values(value).every((fieldValue) => typeof fieldValue === 'string')
+  );
+}
+
+// The variables an entry's env sets in the names atc gives each session's
+// own variables, where the entry's value would replace atc's.
+function collectOwnEnvProblems(env: Readonly<Record<string, string>>): string[] {
+  return Object.keys(env)
+    .filter((key) => key.startsWith('ATC_'))
+    .map((key) => `env must not set ${key}, which atc keeps for the variables it sets itself`);
+}
+
 // An entry with every default applied, from fields already checked. The id
 // that is the kind's own shows the kind's label; any other id shows itself.
 function buildEntry(
@@ -176,12 +197,4 @@ function buildEntry(
       ? { pluginDirs: pluginDirs.map(String) }
       : {}),
   };
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return (
-    isRecord(value) &&
-    !Array.isArray(value) &&
-    Object.values(value).every((fieldValue) => typeof fieldValue === 'string')
-  );
 }

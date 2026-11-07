@@ -182,7 +182,7 @@ export function createCodexAdapter(
     const env = { ...entry.env, ...guest.sessionEnv };
 
     if (guest.auth === undefined) {
-      return { ...planSpawn(opts), env, files: {} };
+      return { ...planSpawn(opts), ...(Object.keys(env).length === 0 ? {} : { env }), files: {} };
     }
 
     if (guest.atc === null) {
