@@ -193,8 +193,6 @@ function findHiddenScroll(parsed: ParsedOptions, height: number): ScreenMenuScro
 // The most lines above the options a menu's text takes, so a screen with no
 // border above the menu never makes the text the whole screen.
 const MAX_TEXT_LINES = 24;
-
-// A dialog's top border.
 const RULE = /^\s*[─━═╌]{8,}\s*$/u;
 
 // The lines above the options up to the nearest rule, without the blank
