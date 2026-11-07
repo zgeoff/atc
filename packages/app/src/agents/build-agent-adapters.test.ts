@@ -112,6 +112,11 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
             },
           ],
         },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
+          ],
+        },
       ],
       Notification: [
         {

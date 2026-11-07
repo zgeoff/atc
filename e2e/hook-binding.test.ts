@@ -435,7 +435,10 @@ test('it binds a gateway session through the hook command atc wrote for it', asy
 
   const command = z.object({ command: z.string() });
   const matcher = z.object({ hooks: z.tuple([command]) });
-  const hooks = z.object({ hooks: z.object({ SessionStart: z.tuple([matcher]) }) }).parse(settings);
+
+  const hooks = z
+    .object({ hooks: z.object({ SessionStart: z.tuple([matcher], matcher) }) })
+    .parse(settings);
 
   // The shell execs the command, so a kill of this process reaches the
   // reporter, which dash would otherwise run as a child.

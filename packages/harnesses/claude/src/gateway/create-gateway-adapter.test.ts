@@ -535,6 +535,11 @@ test("it runs a headless turn with the gateway's settings file, its permission h
             },
           ],
         },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
+          ],
+        },
       ],
       Notification: [
         {
@@ -810,6 +815,11 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
               command: `"/opt/atc/bin/atc" hook-report --agent='glm-local'`,
               timeout: 30,
             },
+          ],
+        },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
           ],
         },
       ],
@@ -1230,6 +1240,11 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
             },
           ],
         },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
+          ],
+        },
       ],
       Notification: [
         {
@@ -1386,6 +1401,11 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
               command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 30,
             },
+          ],
+        },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
           ],
         },
       ],
@@ -1617,6 +1637,11 @@ test('it carries an extra placeholder variable and the gateway args into a broke
               command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 30,
             },
+          ],
+        },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
           ],
         },
       ],
@@ -2545,6 +2570,11 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
               command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
               timeout: 30,
             },
+          ],
+        },
+        {
+          hooks: [
+            { type: 'command', command: expect.stringContaining('CLAUDE_ENV_FILE'), timeout: 5 },
           ],
         },
       ],

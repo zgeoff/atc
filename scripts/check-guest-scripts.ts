@@ -6,7 +6,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { DAEMON_GUEST_SCRIPTS } from '@atc/daemon/guest-scripts';
 import { IMP_GUEST_SCRIPTS } from '@atc/execution-imp/guest-scripts';
-import { buildClaudeGuestLaunch, buildScratchLaunch } from '@atc/harness-claude/guest-scripts';
+import {
+  CLAUDE_GUEST_SCRIPTS,
+  buildClaudeGuestLaunch,
+  buildScratchLaunch,
+} from '@atc/harness-claude/guest-scripts';
 import { buildCodexGuestLaunch } from '@atc/harness-codex/guest-scripts';
 import invariant from 'tiny-invariant';
 import { readSourceFiles } from './read-source-files';
@@ -87,6 +91,7 @@ function collectGuestScripts(): Record<string, string> {
   return {
     ...DAEMON_GUEST_SCRIPTS,
     ...IMP_GUEST_SCRIPTS,
+    ...CLAUDE_GUEST_SCRIPTS,
     buildClaudeGuestLaunch: getLaunchScript(
       buildClaudeGuestLaunch('/home/u/.atc/guest', ['claude', '--resume'], {
         refusedEnv: ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'],

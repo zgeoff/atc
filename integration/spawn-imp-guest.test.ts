@@ -126,7 +126,10 @@ test('it gives a remote Claude session settings, a statusline, and a mod that re
 
   expect(settings).toMatchObject({
     hooks: {
-      SessionStart: [{ hooks: [{ command: `"${guestATC}" hook-report --agent='claude'` }] }],
+      SessionStart: [
+        { hooks: [{ command: `"${guestATC}" hook-report --agent='claude'` }] },
+        { hooks: [{ command: expect.stringContaining('CLAUDE_ENV_FILE') }] },
+      ],
     },
     statusLine: { command: `"${guestATC}" statusline --agent='claude'` },
   });
