@@ -7,6 +7,7 @@ import { createActor } from 'xstate';
 import type { Actor, SnapshotFrom } from 'xstate';
 import type { TapClient } from '../daemon-context';
 import { BRIDGE_REVIVAL_MACHINE } from './bridge-revival-machine';
+import { buildGuestSessionDirectory } from './build-guest-session-directory';
 import type { SessionManager } from './create-session-manager';
 import type { TapRegistry } from './create-tap-registry';
 import type { Session } from './session';
@@ -157,7 +158,7 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
 
     await write.provider.transferArchive(
       buildTarArchive(files),
-      `${guest.directory}/sessions/${session.id}`,
+      buildGuestSessionDirectory(guest.directory, session.id),
       session.hostKey,
     );
 

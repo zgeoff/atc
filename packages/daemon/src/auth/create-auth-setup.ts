@@ -13,6 +13,7 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { FleetStore, RuntimeAuthBinding } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
+import { buildGuestSessionDirectory } from '../sessions/build-guest-session-directory';
 import type { HostDirClaims } from '../sessions/create-host-dir-claims';
 import type { SessionHarnesses } from '../sessions/create-session-harnesses';
 import type { SessionRegistry } from '../sessions/create-session-registry';
@@ -374,7 +375,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 
       const guest = await readGuestLayout(provider, hostKey);
 
-      const directory = `${guest.directory}/sessions/${id}`;
+      const directory = buildGuestSessionDirectory(guest.directory, id);
 
       // A launch on a bound host verifies the binding before it plans, since
       // a target that rebinds a changed selection moves the binding to the

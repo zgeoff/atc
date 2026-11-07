@@ -57,6 +57,7 @@ import { buildClaudeCredentialsFile } from './guest/build-claude-credentials-fil
 import { buildClaudeGuestLaunch } from './guest/build-claude-guest-launch';
 import { buildClaudeMCPConfig } from './guest/build-claude-mcp-config';
 import { buildClaudeProjectSettingsCheck } from './guest/build-claude-project-settings-check';
+import { buildGuestSettingsPath } from './guest/build-guest-settings-path';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './guest/claude-config-bundle-folder';
 import { loadClaudeConfigBundle } from './guest/load-claude-config-bundle';
 import { planCodexHome } from './guest/plan-codex-home';
@@ -385,7 +386,7 @@ export function createClaudeAdapter(
         ...buildClaudeArgs(entry.args, opts, {
           leadArgs: [...mcpArgs, ...buildModeArgs(opts)],
           scratch,
-          settings: `${guest.directory}/settings.json`,
+          settings: buildGuestSettingsPath(guest.directory),
           pluginDir: `${guest.directory}/atc-bridge`,
           pluginDirs: [],
         }),

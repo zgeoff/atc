@@ -2,9 +2,10 @@ import { expect, test } from 'bun:test';
 import { readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
+import { buildGuestSessionDirectory } from '@atc/daemon';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/testing';
-import { createClaudeAdapter } from '@atc/harness-claude';
+import { buildGuestSettingsPath, createClaudeAdapter } from '@atc/harness-claude';
 import {
   buildMockAgentAdapter,
   buildMockHostServices,
@@ -15,6 +16,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import invariant from 'tiny-invariant';
 import { createHostServices } from '../packages/app/src/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -205,15 +207,19 @@ test("it gives a remote Claude session the target's sessionEnv value for a key t
     rows: 24,
   });
 
-  const directory = join(ctx.guestDir, 'sessions', String(getRecord(spawned, 'session')['id']));
+  const directory = buildGuestSessionDirectory(
+    ctx.guestDir,
+    String(getRecord(spawned, 'session')['id']),
+  );
 
-  const settings = await readJSONRecord(Bun.file(join(directory, 'settings.json')));
+  const settings = await readJSONRecord(Bun.file(buildGuestSettingsPath(directory)));
+
+  const [request] = ctx.port.sessionRequests;
+
+  invariant(request?.kind === 'start', 'expected the harness start request');
 
   expect(getRecord(settings, 'env')['NOTES_VAULT']).toBe('box/notes-key');
-
-  expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
-    expect.objectContaining({ env: expect.objectContaining({ NOTES_VAULT: 'box/notes-key' }) }),
-  ]);
+  expect(request.env['NOTES_VAULT']).toBe('box/notes-key');
 });
 
 test('it starts a remote Claude session only once its mod is in the host, so a slow write still gives the session its note tool', async () => {
