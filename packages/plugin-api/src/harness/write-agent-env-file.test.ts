@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { chmodSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { runLocalCommand, setupTempDir } from '@atc/test-utils';
 import { writeAgentEnvFile } from './write-agent-env-file';
 
 // A state folder of the test's own.
@@ -22,6 +22,23 @@ test('it writes an export line per variable, each value quoted for the shell', (
   expect(readFileSync(file, 'utf8')).toBe(
     `${String.raw`export NOTES_VAULT='desk/it'\''s-key'`}\nexport NOTES_REGION='eu west'\n`,
   );
+});
+
+test('it writes a value that a shell sources unchanged, running nothing in it', async () => {
+  const ctx = setupTest();
+  const value = "a$(touch x)`touch y`'b\nc";
+  const file = writeAgentEnvFile(ctx.directory, 'codex', { NOTES_VAULT: value });
+
+  const result = await runLocalCommand({
+    argv: ['sh', '-c', '. "$1" && printf %s "$NOTES_VAULT"', 'sh', file],
+    cwd: ctx.directory,
+  });
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+    ran: [existsSync(join(ctx.directory, 'x')), existsSync(join(ctx.directory, 'y'))],
+  }).toStrictEqual({ exitCode: 0, stdout: value, ran: [false, false] });
 });
 
 test('it narrows an env file an earlier run left to its owner alone', () => {
