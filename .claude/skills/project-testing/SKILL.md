@@ -12,10 +12,10 @@ metadata:
 
 ## Facts
 
-| Fact       | Where                                                                                                                                                               |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lanes      | the table under [Lanes](#lanes), and the `lanes` option of `zgeoff/test-beside-module` and `zgeoff/max-test-timeout` in [`.oxlintrc.json`](../../../.oxlintrc.json) |
-| Test utils | [`packages/test-utils/src/`](../../../packages/test-utils/src/)                                                                                                     |
+| Fact       | Where                                                                          |
+| ---------- | ------------------------------------------------------------------------------ |
+| Lanes      | [`rig.config.ts`](../../../rig.config.ts), and the table under [Lanes](#lanes) |
+| Test utils | [`packages/test-utils/src/`](../../../packages/test-utils/src/)                |
 
 ## Departures
 
@@ -25,13 +25,16 @@ None.
 
 - Put a unit test beside its module in the package's `src/`.
 - Put a flow across several packages in `integration/` at the repo root when it runs in the test's
-  own process, with stand-ins such as `startTestDaemon` or `createStubExecutionProvider`.
-  `bun run test` runs it, and fails any test that runs past 5 s.
+  own process, with stand-ins such as `startTestDaemon` or `createStubExecutionProvider`. The unit
+  run, `bun run test`, runs it, and fails any test that runs past 5 s.
 - Put a suite in `e2e/` at the repo root when it starts the `atc` CLI, the daemon or `atc-gateway`
   as a process, through `runATC`, `startDaemonProcess`, `startMCPStdio` or `startTUIHarness`, or by
-  running `atc-gateway`. Only the `e2e` lane runs it. Start the file name with `daemon-` or
-  `gateway-` only for a suite that runs against the compiled binary: CI runs those suites only in
-  the smoke job of `binaries.yml`.
+  running `atc-gateway`. Only the `e2e` lane runs it.
+- Start an e2e file name with `daemon-` or `gateway-` when the suite checks the compiled binary. CI
+  runs those suites only in the smoke job of
+  [`binaries.yml`](../../../.github/workflows/binaries.yml), with `ATC_BIN` and `ATC_GATEWAY_BIN`
+  set to the compiled binaries, and never from source. To do the same, run `test:e2e` with no file
+  and both variables set.
 
 ## The test home
 
@@ -47,8 +50,8 @@ None.
   [`updateEnv`](../../../packages/test-utils/src/update-env.ts). The isolate-home preload puts the
   old value back after the test.
 - After you add code or a test that writes to a home, run `bun run test:isolation`. It runs the
-  suite in a home of canary files, and fails when a test reads, changes or adds to one. It can catch
-  a read only on a filesystem that updates access times, so trust its Linux run in CI over a local
+  suite in a home of canary files, and fails when a test reads, changes or adds to one. It catches a
+  read only on a filesystem that updates access times, so trust its Linux run in CI over a local
   pass.
 
 ## Agent CLIs
@@ -59,52 +62,59 @@ None.
   test runs it.
 - Only `bun run test:atc-bridge` runs the real binary: it runs `claude plugin validate` and
   `claude plugin test` on the Claude Code mod in `mods/atc-bridge/`. Neither starts a session.
-- When you test the lock on Claude's config file, test it against `proper-lockfile`, the lock
-  library Claude Code bundles, as
+- When you test the lock that atc takes on Claude's config file for a clone-trust launch, test it
+  against `proper-lockfile`, the lock library Claude Code bundles, as
   [`with-claude-config-lock.test.ts`](../../../packages/harnesses/claude/src/local-trust/with-claude-config-lock.test.ts)
   does.
 
 ## Lanes
 
-Put a suite that needs a real system in a lane, a test script of its own. `bun run test` leaves each
-lane's files out, by the patterns in [`bunfig.toml`](../../../bunfig.toml).
+Put a suite in a lane when it needs something outside the test process, such as a CLI on the machine
+or a real `bun install`, as the Needs column below lists. Each lane has a test script of its own.
+The unit run, `bun run test`, leaves out every lane's files.
+
+The unit run and the Codex and toolchain lanes run through
+[`@zgeoff/rig`](https://github.com/zgeoff/tools/tree/main/packages/rig), the shared test runner,
+inside the test home. [`rig.config.ts`](../../../rig.config.ts) declares those two lanes and their
+limits. The e2e lane runs through `bun test` in its own `test:e2e` script, which sets its 15 s limit
+with `--timeout`.
 
 | Lane      | Suite                                       | Script                   | Needs                                                                         | Limit per test |
 | --------- | ------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------- | -------------- |
 | e2e       | a file in `e2e/`                            | `bun run test:e2e`       | the `atc` CLI, the daemon or `atc-gateway`, started as a process              | 15 s           |
-| Codex     | `<module>.codex.test.ts`, beside the module | `bun run test:codex`     | the Codex CLI on the machine                                                  | 5 s            |
+| codex     | `<module>.codex.test.ts`, beside the module | `bun run test:codex`     | the Codex CLI on the machine                                                  | 5 s            |
 | toolchain | `<module>.toolchain.test.ts`, beside it     | `bun run test:toolchain` | a real `bun install`, type check and test run of a workspace in a temp folder | 15 s           |
 
 - Never add a skip guard to a lane suite. It runs only in its lane, and fails when what the lane
   needs is missing.
 - CI installs the Codex CLI at the version that `CODEX_VERSION` in
   [`checks.yml`](../../../.github/workflows/checks.yml) pins.
-- Never give a lane test a timeout of its own. The lane's script sets the limit in the table.
-- Run one e2e suite with `bun run test:e2e e2e/<file>.test.ts`. You may add `-t` or another option
-  that [`with-e2e-paths.sh`](../../../scripts/with-e2e-paths.sh) lists. It refuses anything else, so
-  it never runs the whole repo.
-- To run the `e2e/daemon-*` and `e2e/gateway-*` suites against a compiled build, as the smoke job of
-  `binaries.yml` does, run `test:e2e` with no file, and set `ATC_BIN` and `ATC_GATEWAY_BIN` to the
-  built binaries. Write each `e2e/` suite to pass in any order: CI's test job runs the other suites
-  from source, in random order.
+- Never give a lane test a timeout of its own. Each lane's runner sets the limit in the table.
+- Run one e2e suite with `bun run test:e2e e2e/<file>.test.ts`. Pass only e2e files and the options
+  that [`with-e2e-paths.sh`](../../../scripts/with-e2e-paths.sh) lists. The script refuses any other
+  file, because a unit test run there would get the e2e lane's 15 s limit in place of the unit run's
+  5 s.
+- Write each `e2e/` suite to pass in any order. CI's test job runs every suite that has no `daemon-`
+  or `gateway-` prefix from source, in random order.
 
-To add a lane:
+To add a lane named `<lane>`, for files that end in `.<lane>.test.ts`:
 
-1. Add its suffix to the `lanes` option of the lint rules `zgeoff/test-beside-module` and
-   `zgeoff/max-test-timeout` in [`.oxlintrc.json`](../../../.oxlintrc.json). The pre-push hook reads
-   the lanes there, and leaves their files out of the tests it runs.
-2. Add `**/*.<suffix>.test.ts` to `pathIgnorePatterns` in `bunfig.toml`.
-3. Add a `test:<suffix>` script to [`package.json`](../../../package.json), modelled on
-   `test:codex`.
-4. Add a step that runs the script to the `test` job in `checks.yml`.
-5. Add the lane's row to the table in this section.
+1. Declare `<lane>` in `rig.config.ts` with its limit. The `zgeoff/max-test-timeout` and
+   `zgeoff/test-beside-module` lint rules read the lanes there, and the unit run and the pre-push
+   hook leave the lane's files out. Expect: `bun run test` runs none of them.
+2. Add a `test:<lane>` script to [`package.json`](../../../package.json), modelled on `test:codex`.
+3. Add a step that runs the script to the `test` job in `checks.yml`, after a step that installs and
+   pins what the lane needs, as the Codex lane does.
+4. Add the lane's row to the table in this section.
 
 ## Worker count
 
-- Set `TEST_WORKERS` to choose how many workers a test script uses. Without it,
-  [`read-worker-count.ts`](../../../scripts/read-worker-count.ts) picks up to 4, and 1 on a host
-  with less than 4 GiB of memory.
-- Change `read-worker-count.ts` in zgeoff/tools, never here: repo-sync copies it into atc.
+- Set `TEST_WORKERS` to choose how many workers the unit run and `test:e2e` use. Without it, each
+  picks up to 4, and 1 on a host with less than 4 GiB of memory. The Codex and toolchain lanes run
+  one file at a time.
+- To change how `test:e2e` picks its count, change
+  [`read-worker-count.ts`](../../../scripts/read-worker-count.ts) in the zgeoff/tools repo. A sync
+  job there copies the file into atc, and the next copy replaces a change made here.
 
 ## The PTY harness
 
