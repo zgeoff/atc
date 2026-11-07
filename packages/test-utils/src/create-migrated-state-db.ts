@@ -1,6 +1,5 @@
-import { Database } from 'bun:sqlite';
-import { randomUUID } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
+import { seedDaemonID } from './seed-daemon-id';
 
 // The test script migrates one state database per run, so a copy skips the
 // migration ladder, which takes half a second per open on a loaded host.
@@ -15,12 +14,5 @@ export function createMigratedStateDB(dbPath: string): void {
 
   // The migration draws the daemon id at random, so each copy draws its own,
   // as two real databases would.
-  const db = new Database(dbPath);
-
-  try {
-    // oxlint-disable-next-line zgeoff/seed-only -- code whose product is SQL or storage: the test database helper draws the id the migration would
-    db.run("UPDATE prefs SET value = ? WHERE key = 'daemon_id'", [randomUUID()]);
-  } finally {
-    db.close();
-  }
+  seedDaemonID({ dbPath });
 }
