@@ -2,18 +2,25 @@
 
 ## [7.11.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.10.0...@zgeoff/atc@7.11.0) (2026-11-07)
 
-
 ### Features
 
-* add atc workspaces prune ([#1137](https://github.com/zgeoff/atc/issues/1137)) ([c38da4e](https://github.com/zgeoff/atc/commit/c38da4e8ab5c592e1775015ec49dd884e9c051a6))
-* **imp:** let an imp target's session env outrank the agent's env ([#1148](https://github.com/zgeoff/atc/issues/1148)) ([fa55430](https://github.com/zgeoff/atc/commit/fa554301a72e057be057d5f6a06ae2cb4f7ac416))
-* show on the session list why a forget kept a workspace ([#1139](https://github.com/zgeoff/atc/issues/1139)) ([8aafd24](https://github.com/zgeoff/atc/commit/8aafd248c797616d1bbce66aabe2f70b9743dadb))
-* tag the telemetry of tools a claude agent runs from its shell ([#1142](https://github.com/zgeoff/atc/issues/1142)) ([c42f195](https://github.com/zgeoff/atc/commit/c42f195e3b5fbd1f676a666bdd0fc05820400949))
-
+- add atc workspaces prune ([#1137](https://github.com/zgeoff/atc/issues/1137))
+  ([c38da4e](https://github.com/zgeoff/atc/commit/c38da4e8ab5c592e1775015ec49dd884e9c051a6))
+- **imp:** let an imp target's session env outrank the agent's env
+  ([#1148](https://github.com/zgeoff/atc/issues/1148))
+  ([fa55430](https://github.com/zgeoff/atc/commit/fa554301a72e057be057d5f6a06ae2cb4f7ac416))
+- show on the session list why a forget kept a workspace
+  ([#1139](https://github.com/zgeoff/atc/issues/1139))
+  ([8aafd24](https://github.com/zgeoff/atc/commit/8aafd248c797616d1bbce66aabe2f70b9743dadb))
+- tag the telemetry of tools a claude agent runs from its shell
+  ([#1142](https://github.com/zgeoff/atc/issues/1142))
+  ([c42f195](https://github.com/zgeoff/atc/commit/c42f195e3b5fbd1f676a666bdd0fc05820400949))
 
 ### Bug Fixes
 
-* **claude:** read a prompt at the start of its line as no menu ([#1145](https://github.com/zgeoff/atc/issues/1145)) ([7ad277a](https://github.com/zgeoff/atc/commit/7ad277afe02683646c1a959a703b1264586eae7f))
+- **claude:** read a prompt at the start of its line as no menu
+  ([#1145](https://github.com/zgeoff/atc/issues/1145))
+  ([7ad277a](https://github.com/zgeoff/atc/commit/7ad277afe02683646c1a959a703b1264586eae7f))
 
 ## [7.10.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.9.0...@zgeoff/atc@7.10.0) (2026-11-06)
 
