@@ -21,7 +21,10 @@ function setupTest(answerRequest: AnswerRequest) {
     service.stop();
   });
 
-  const overlay: Pick<OverlayScreen, 'notice' | 'render'> = { notice: null, render: mock() };
+  const overlay: Pick<OverlayScreen, 'notice' | 'render'> = {
+    notice: null,
+    render: () => {},
+  };
 
   const daemon = {
     sendRequest: mock((_method: string, params?: DaemonAnswer) =>
