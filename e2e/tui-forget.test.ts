@@ -10,20 +10,15 @@ import {
   startTUIHarness,
 } from '@atc/test-utils';
 
-function setupTest() {
-  return startTUIHarness();
-}
+// The client boots its own daemon, so the test's client connects once the tower draws.
+async function setupTest() {
+  const tui = startTUIHarness();
 
-test('it shows why a forget kept the workspace until the next keypress', async () => {
-  const ctx = setupTest();
+  tui.boot();
 
-  const fixture = await createGitFixture();
+  await tui.waitFor('atc — control tower');
 
-  ctx.boot();
-
-  await ctx.waitFor('atc — control tower');
-
-  const daemon = await openDaemonClient(ctx.paths.daemonSocketPath);
+  const daemon = await openDaemonClient(tui.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();
@@ -31,7 +26,14 @@ test('it shows why a forget kept the workspace until the next keypress', async (
 
   await daemon.sendHello('atc/test');
 
-  const spawned = await daemon.sendRequest('session.spawn', {
+  return { tui, daemon };
+}
+
+test('it shows why a forget kept the workspace until the next keypress', async () => {
+  const ctx = await setupTest();
+  const fixture = await createGitFixture();
+
+  const spawned = await ctx.daemon.sendRequest('session.spawn', {
     cwd: join(fixture.directory, 'orchard-main'),
     name: 'orchard',
     workspace: { kind: 'git', url: `file://${fixture.upstream}`, ref: 'main' },
@@ -43,35 +45,35 @@ test('it shows why a forget kept the workspace until the next keypress', async (
 
   writeFileSync(join(cwd, 'harvest-plan.md'), '# pick the pears first\n');
 
-  ctx.write(KEYS.ctrlSpace);
+  ctx.tui.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('orchard');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.tui.waitFor('orchard');
+  await ctx.tui.waitFor('┌ sessions ');
 
-  ctx.write('K');
+  ctx.tui.write('K');
 
-  await ctx.waitFor('kill selected session?');
+  await ctx.tui.waitFor('kill selected session?');
 
-  ctx.reset();
-  ctx.write('y');
+  ctx.tui.reset();
+  ctx.tui.write('y');
 
-  await ctx.waitFor('killed');
+  await ctx.tui.waitFor('killed');
 
-  ctx.write('K');
+  ctx.tui.write('K');
 
-  await ctx.waitFor('kill selected session?');
+  await ctx.tui.waitFor('kill selected session?');
 
-  ctx.reset();
-  ctx.write('y');
+  ctx.tui.reset();
+  ctx.tui.write('y');
 
   // the forget waits up to 2 seconds for the killed harness to exit, then ends it by force and
   // waits again, which on a loaded runner outlasts the default wait
-  await ctx.waitFor('kept orchard-main: 1 uncommitted or untracked path', 10_000);
+  await ctx.tui.waitFor('kept orchard-main: 1 uncommitted or untracked path', 10_000);
 
-  ctx.reset();
-  ctx.write('j');
+  ctx.tui.reset();
+  ctx.tui.write('j');
 
-  await ctx.waitFor('┘');
+  await ctx.tui.waitFor('┘');
 
-  expect(ctx.read()).not.toInclude('kept orchard-main');
+  expect(ctx.tui.read()).not.toInclude('kept orchard-main');
 });
