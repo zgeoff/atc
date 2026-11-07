@@ -8,6 +8,7 @@ export type * from './execution-provider';
 export * from './find-plugin-dir-problem';
 export * from './execution-target-config';
 export type * from './gateway-auth';
+export * from './harness/build-agent-env-file-path';
 export * from './harness/build-args-without-flags';
 export * from './harness/build-auth-revision-folder';
 export * from './harness/build-claude-style-hook-event';

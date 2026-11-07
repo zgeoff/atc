@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runLocalCommand, setupTempDir } from '@atc/test-utils';
+import { buildAgentEnvFilePath } from './build-agent-env-file-path';
 import { writeAgentEnvFile } from './write-agent-env-file';
 
 function setupTest() {
@@ -42,7 +43,7 @@ test('it writes a value that a shell sources unchanged, running nothing in it', 
 
 test('it narrows an env file an earlier run left to its owner alone', () => {
   const ctx = setupTest();
-  const left = join(ctx.directory, 'agent-env-grok.sh');
+  const left = buildAgentEnvFilePath(ctx.directory, 'grok');
 
   writeFileSync(left, 'export NOTES_VAULT=old\n');
   chmodSync(left, 0o644);

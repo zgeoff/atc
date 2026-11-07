@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { buildHostFiles } from '@atc/plugin-api';
+import { buildAgentEnvFilePath, buildHostFiles } from '@atc/plugin-api';
 import { createStubBin, getAgentEntry, runLocalCommand, setupTempDir } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
@@ -244,7 +244,9 @@ test("it keeps a grok entry's env file readable by its owner alone", () => {
 
   adapter.planResumeCommand(ctx.directory, undefined);
 
-  expect(statSync(join(ctx.directory, 'state', 'agent-env-grok.sh')).mode & 0o777).toBe(0o600);
+  const file = buildAgentEnvFilePath(join(ctx.directory, 'state'), 'grok');
+
+  expect(statSync(file).mode & 0o777).toBe(0o600);
 });
 
 test('it refuses inbox messages', () => {

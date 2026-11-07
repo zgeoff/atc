@@ -2,7 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { buildHostFiles } from '@atc/plugin-api';
+import { buildAgentEnvFilePath, buildHostFiles } from '@atc/plugin-api';
 import {
   buildStubMessageBridgeHost,
   createStubAppServerCodex,
@@ -382,7 +382,9 @@ test("it keeps a codex entry's env file readable by its owner alone", () => {
 
   adapter.planResumeCommand(ctx.directory, undefined);
 
-  expect(statSync(join(ctx.directory, 'state', 'agent-env-codex.sh')).mode & 0o777).toBe(0o600);
+  const file = buildAgentEnvFilePath(join(ctx.directory, 'state'), 'codex');
+
+  expect(statSync(file).mode & 0o777).toBe(0o600);
 });
 
 test('it refuses inbox messages without an App Server', () => {
