@@ -34,6 +34,6 @@
       "ignoreDependencies": ["better-auth"]
     }
   },
-  "ignoreDependencies": ["@stylistic/eslint-plugin", "@zgeoff/agent-hooks"],
+  "ignoreDependencies": ["@stylistic/eslint-plugin"],
   "ignoreBinaries": ["openssl"]
 }
