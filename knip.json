@@ -10,6 +10,8 @@
         "scripts/create-state-template.ts",
         "scripts/pack-contract.ts",
         "scripts/probe-pty-env.ts",
+        "scripts/run-related-tests.ts",
+        "rig.config.ts",
         "scripts/stage-demo-sessions.ts"
       ],
       "project": ["e2e/**/*.ts", "integration/**/*.ts", "scripts/**/*.ts"]

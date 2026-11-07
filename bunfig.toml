@@ -20,19 +20,18 @@ minimumReleaseAgeExcludes = [
   "@zgeoff/format-codemod",
   "@zgeoff/kysely-bun-sqlite",
   "@zgeoff/oxlint-config",
+  "@zgeoff/rig",
   "@zgeoff/skill-gate",
   "@zgeoff/std",
 ]
 
 [test]
 # the atc-bridge mod's tests run on Claude Code's engine through
-# `bun run test:atc-bridge`, never under bun test, a `.codex.test.ts` suite
-# runs the installed Codex CLI only in `bun run test:codex`, a
-# `.toolchain.test.ts` suite runs a real install, type check and test run only
-# in `bun run test:toolchain`, and an `e2e/` suite runs only in
-# `bun run test:e2e` under the e2e lane limit; each lane script replaces this
-# list with one that keeps `mods/**`
-pathIgnorePatterns = ["mods/**", "**/*.codex.test.ts", "**/*.toolchain.test.ts", "e2e/**"]
+# `bun run test:atc-bridge`, never under bun test, and an `e2e/` suite runs
+# only in `bun run test:e2e` under the e2e lane limit. rig leaves each lane's
+# files out of the unit run, and its ignores replace this list there, so the
+# ignore list in rig.config.ts names both folders again.
+pathIgnorePatterns = ["mods/**", "e2e/**"]
 
 # isolates every test run from the real home and runtime directories, seeds
 # faker once, then registers jest-extended matchers for `bun test`

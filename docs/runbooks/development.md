@@ -75,11 +75,12 @@ state. The `testing` and `project-testing` skills hold the conventions. No test 
 | `bun run test:isolation`                 | the suite in a canary home, failing when a test touches a real home  |
 | `bun run test:timings`                   | the suite, rewriting the timings that start the slowest files first  |
 
-Each test script takes its worker count from the
+The unit run and the e2e run take their worker count from the
 [worker helper](https://github.com/zgeoff/tools/blob/main/docs/architecture/memory-caps.md#the-worker-count):
-a small host runs 1 worker, and a `TEST_WORKERS` that you set wins. The pre-push hook runs
-`bun run test:related` over the files the branch changes, and leaves `e2e/` and the codex lane to
-CI.
+a small host runs 1 worker, and a `TEST_WORKERS` that you set wins. The Codex and toolchain lanes
+always run one file at a time. rig runs only the files git tracks, so `git add` a new test file
+before you pass its path to `bun run test`. The pre-push hook runs `bun run test:related` over the
+files the branch changes, and leaves `e2e/` and the codex lane to CI.
 
 `bun run build:binaries` compiles the release binaries into `dist/`, and `bun run build:atc-bridge`
 regenerates the mod's embedded copy after a change to `mods/atc-bridge/`. `bun run demo:record`

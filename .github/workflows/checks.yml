@@ -161,7 +161,7 @@ jobs:
         env:
           TMPDIR: /dev/shm
         run:
-          bun x --no-install diet --budget 8G -- bun run test:isolation bun run test --randomize
+          bun x --no-install diet --budget 8G -- bun run test:isolation bun run test
           --reporter=junit --reporter-outfile="$RUNNER_TEMP/test-times.xml"
 
       # the e2e lane, on the suites the binaries workflow does not run against
@@ -182,9 +182,7 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           TMPDIR: /dev/shm
-        run:
-          bun x --no-install diet --budget 8G -- bun run test:isolation bun run test:toolchain
-          --randomize
+        run: bun x --no-install diet --budget 8G -- bun run test:isolation bun run test:toolchain
 
       # the per-test times of each run on main, which the weekly audit reads
       - name: Upload test times
