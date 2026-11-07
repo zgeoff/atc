@@ -1,4 +1,6 @@
+import { rmSync } from 'node:fs';
 import type { AgentID } from '@atc/core';
+import { buildAgentEnvFilePath } from './build-agent-env-file-path';
 import { writeAgentEnvFile } from './write-agent-env-file';
 
 interface AgentEnvEntry {
@@ -6,21 +8,29 @@ interface AgentEnvEntry {
   readonly env: Readonly<Record<string, string>>;
 }
 
-// Writes the entry's env file on its first call and returns its path
-// afterwards, so creating the writer touches no state; an entry without env
-// writes none and gets null.
+// Writes the entry's env file on its first call alone, so creating the
+// writer touches no state; for an entry without env it removes the file an
+// earlier run wrote, so a value taken out of the config leaves no copy.
 export function makeAgentEnvFileWriter(
   entry: AgentEnvEntry,
   directory: string,
 ): () => string | null {
-  let file: string | undefined;
+  let file: string | null | undefined;
 
   return () => {
-    if (Object.keys(entry.env).length === 0) {
-      return null;
+    if (file !== undefined) {
+      return file;
     }
 
-    file ??= writeAgentEnvFile(directory, entry.id, entry.env);
+    if (Object.keys(entry.env).length === 0) {
+      rmSync(buildAgentEnvFilePath(directory, entry.id), { force: true });
+
+      file = null;
+
+      return file;
+    }
+
+    file = writeAgentEnvFile(directory, entry.id, entry.env);
 
     return file;
   };

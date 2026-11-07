@@ -7,8 +7,8 @@ test('it runs the command in the folder when there is no env file', () => {
   );
 });
 
-test('it sources the env file in a subshell before the command', () => {
+test('it has sh source the env file before it runs the command', () => {
   expect(formatResumeCommand('/srv/cart', 'grok --resume g-1', '/state/agent-env-grok.sh')).toBe(
-    "cd '/srv/cart' && ( . '/state/agent-env-grok.sh' && exec grok --resume g-1 )",
+    `cd '/srv/cart' && sh -c '. "$1" && shift && exec "$@"' sh '/state/agent-env-grok.sh' grok --resume g-1`,
   );
 });
