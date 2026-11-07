@@ -8,10 +8,10 @@ interface AgentEnvEntry {
   readonly env: Readonly<Record<string, string>>;
 }
 
-// Writes the entry's env file on its first call alone, so creating the
-// writer touches no state; for an entry without env it removes the file an
-// earlier run wrote, so a value taken out of the config leaves no copy.
-export function makeAgentEnvFileWriter(
+// Syncs on the first call alone, so creating the syncer touches no state. An
+// entry without env removes the file an earlier run wrote, so a value taken
+// out of the config leaves no copy.
+export function makeAgentEnvFileSyncer(
   entry: AgentEnvEntry,
   directory: string,
 ): () => string | null {

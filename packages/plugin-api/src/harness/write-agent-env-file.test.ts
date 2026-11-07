@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { runLocalCommand, setupTempDir } from '@atc/test-utils';
 import { writeAgentEnvFile } from './write-agent-env-file';
 
-// A state folder of the test's own.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-agent-env-file-');
 

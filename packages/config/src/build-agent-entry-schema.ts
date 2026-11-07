@@ -157,9 +157,7 @@ function isStringRecord(value: unknown): value is Record<string, string> {
 // from a shell file.
 const SHELL_VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
-// The keys of an entry's env that no shell can export, and those in the
-// names atc gives each session's own variables, where the entry's value
-// would replace atc's.
+// An entry's value for an `ATC_` name would replace the one atc sets.
 function collectEnvNameProblems(env: Readonly<Record<string, string>>): string[] {
   return Object.keys(env).flatMap((key) => {
     if (!SHELL_VARIABLE_NAME.test(key)) {

@@ -6,7 +6,6 @@ import { formatAgentEnvFile } from './format-agent-env-file';
 
 const OWNER_ONLY_MODE = 0o600;
 
-// The entry's env file in the state folder, readable by its owner alone.
 // writeFileSync applies the mode only to a file it creates, so the values go
 // into a new file that then replaces any file an earlier run left.
 export function writeAgentEnvFile(

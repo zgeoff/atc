@@ -41,9 +41,8 @@ export function readCodexEntry(args: CodexEntryArgs): AgentEntryRead {
   };
 }
 
-// A credential Codex takes ahead of the sign-in file atc writes, or a proxy
-// or CA variable that routes it around the target's broker. Codex reads its
-// endpoint from its config alone, so no variable moves it.
+// Codex reads its endpoint from its config alone, so no endpoint variable is
+// refused here.
 function isCodexSignInOverrideVariable(key: string): boolean {
   return CODEX_CREDENTIAL_VARIABLES.includes(key) || isBrokerVariable(key);
 }

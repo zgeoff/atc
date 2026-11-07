@@ -20,9 +20,6 @@ import { createHostServices } from '../packages/app/src/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
-// The stand-in agent CLIs, a local target that records each harness it
-// starts, and an imp target on a stub port, which records each start
-// request; a test's agents map picks which agents the daemon offers.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-agent-env-');
   const clis = createStubGuestCLIs(join(temporaryDirectory.path, 'bin'));

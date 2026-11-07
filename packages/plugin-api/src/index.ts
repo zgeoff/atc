@@ -29,7 +29,7 @@ export * from './harness/format-resume-command';
 export * from './harness/paste-markers';
 export * from './harness/plan-pasted-line-input';
 export * from './harness/parse-matching-lines';
-export * from './harness/make-agent-env-file-writer';
+export * from './harness/make-agent-env-file-syncer';
 export * from './harness/plan-typed-line-input';
 export type * from './host-services';
 export * from './is-host-name-allowed';

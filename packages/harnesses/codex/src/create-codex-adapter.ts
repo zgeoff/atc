@@ -26,7 +26,7 @@ import {
   findCodexSignIn,
   findFlagValue,
   formatResumeCommand,
-  makeAgentEnvFileWriter,
+  makeAgentEnvFileSyncer,
   probeTranscriptResumable,
 } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
@@ -104,7 +104,7 @@ export function createCodexAdapter(
   stateDirectory: string = stateDir,
 ): CodexAdapter {
   const authProfiles: Config['authProfiles'] = config?.authProfiles ?? new Map();
-  const writeEnvFile = makeAgentEnvFileWriter(entry, stateDirectory);
+  const syncEnvFile = makeAgentEnvFileSyncer(entry, stateDirectory);
 
   const resolveCodexHome = (): string =>
     codexHome ?? resolveAgentHome(CODEX_HOME_LOCATION.env, CODEX_HOME_LOCATION.folder);
@@ -342,13 +342,11 @@ export function createCodexAdapter(
         sessionHost.files,
       ),
 
-    // the entry's env file sits on the daemon's machine, beside the generated settings file a
-    // claude entry resumes with
     planResumeCommand: (cwd, agentSessionID) => {
       const resume =
         agentSessionID === undefined ? 'codex resume' : `codex resume ${agentSessionID}`;
 
-      return formatResumeCommand(cwd, resume, writeEnvFile());
+      return formatResumeCommand(cwd, resume, syncEnvFile());
     },
   };
 }

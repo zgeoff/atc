@@ -2,21 +2,20 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
-import { makeAgentEnvFileWriter } from './make-agent-env-file-writer';
+import { makeAgentEnvFileSyncer } from './make-agent-env-file-syncer';
 
-// A state folder of the test's own.
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-agent-env-writer-');
+  const temporaryDirectory = setupTempDir('atc-agent-env-syncer-');
 
   return { directory: temporaryDirectory.path };
 }
 
 test('it writes no file for an entry without env', () => {
   const ctx = setupTest();
-  const writeEnvFile = makeAgentEnvFileWriter({ id: 'grok', env: {} }, ctx.directory);
+  const syncEnvFile = makeAgentEnvFileSyncer({ id: 'grok', env: {} }, ctx.directory);
 
   expect({
-    file: writeEnvFile(),
+    file: syncEnvFile(),
     written: existsSync(join(ctx.directory, 'agent-env-grok.sh')),
   }).toStrictEqual({ file: null, written: false });
 });
@@ -25,7 +24,7 @@ test('it removes the env file an earlier run wrote for an entry that no longer h
   const ctx = setupTest();
 
   writeFileSync(join(ctx.directory, 'agent-env-codex.sh'), "export NOTES_VAULT='desk/old-key'\n");
-  makeAgentEnvFileWriter({ id: 'codex', env: {} }, ctx.directory)();
+  makeAgentEnvFileSyncer({ id: 'codex', env: {} }, ctx.directory)();
 
   expect(existsSync(join(ctx.directory, 'agent-env-codex.sh'))).toBeFalse();
 });
@@ -33,7 +32,7 @@ test('it removes the env file an earlier run wrote for an entry that no longer h
 test('it keeps the env file of an agent id that holds a slash inside the folder', () => {
   const ctx = setupTest();
 
-  const file = makeAgentEnvFileWriter(
+  const file = makeAgentEnvFileSyncer(
     { id: '../team/codex', env: { NOTES_VAULT: 'desk/notes-key' } },
     ctx.directory,
   )();
@@ -44,15 +43,15 @@ test('it keeps the env file of an agent id that holds a slash inside the folder'
 test('it writes the env file on its first call alone', () => {
   const ctx = setupTest();
 
-  const writeEnvFile = makeAgentEnvFileWriter(
+  const syncEnvFile = makeAgentEnvFileSyncer(
     { id: 'codex', env: { NOTES_VAULT: 'desk/notes-key' } },
     ctx.directory,
   );
 
-  const file = writeEnvFile();
+  const file = syncEnvFile();
 
   writeFileSync(join(ctx.directory, 'agent-env-codex.sh'), 'export NOTES_VAULT=edited\n');
-  writeEnvFile();
+  syncEnvFile();
 
   expect(readFileSync(join(ctx.directory, 'agent-env-codex.sh'), 'utf8')).toBe(
     'export NOTES_VAULT=edited\n',

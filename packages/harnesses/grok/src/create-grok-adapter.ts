@@ -8,7 +8,7 @@ import type {
   LineInputStep,
   TerminalInputModes,
 } from '@atc/plugin-api';
-import { formatResumeCommand, makeAgentEnvFileWriter, planPastedLineInput } from '@atc/plugin-api';
+import { formatResumeCommand, makeAgentEnvFileSyncer, planPastedLineInput } from '@atc/plugin-api';
 import type { AgentSessionID, SpawnOptionSpec } from '@atcx/contract';
 import { loadGrokName } from './load-grok-name';
 import { planGrokHookEvents } from './plan-grok-hook-events';
@@ -49,7 +49,7 @@ export function createGrokAdapter(
   home: string | null = null,
   stateDirectory: string = stateDir,
 ): GrokAdapter {
-  const writeEnvFile = makeAgentEnvFileWriter(entry, stateDirectory);
+  const syncEnvFile = makeAgentEnvFileSyncer(entry, stateDirectory);
 
   const resolveHome = (): string =>
     home ?? resolveAgentHome(GROK_HOME_LOCATION.env, GROK_HOME_LOCATION.folder);
@@ -96,12 +96,10 @@ export function createGrokAdapter(
 
     canResume: (session) => session.agentSessionID !== undefined,
 
-    // the entry's env file sits on the daemon's machine, beside the generated settings file a
-    // claude entry resumes with
     planResumeCommand: (cwd, agentSessionID) => {
       const resume = agentSessionID === undefined ? 'grok' : `grok --resume ${agentSessionID}`;
 
-      return formatResumeCommand(cwd, resume, writeEnvFile());
+      return formatResumeCommand(cwd, resume, syncEnvFile());
     },
   };
 }

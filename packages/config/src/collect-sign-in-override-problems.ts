@@ -1,6 +1,3 @@
-// The variables an entry that signs in through the target's broker sets in
-// each env source, where the kind's own check names one that would override
-// that sign-in or route the CLI around the broker.
 export function collectSignInOverrideProblems(
   sources: readonly (readonly [string, readonly string[]])[],
   isOverride: (key: string) => boolean,

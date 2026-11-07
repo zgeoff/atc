@@ -2,8 +2,6 @@ import { resolveAuthProfiles } from '@atc/config';
 import { isRecord } from '@atc/core';
 import type { AuthProfile } from '@atc/plugin-api';
 
-// On success, the selected profiles and the profile that sets each variable
-// the selection sets.
 type CollectedCodexAuth =
   | {
       readonly profiles: readonly string[];
