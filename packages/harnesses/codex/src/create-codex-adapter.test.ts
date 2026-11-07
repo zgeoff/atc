@@ -33,6 +33,105 @@ test('it spawns a fresh codex command with the prompt', () => {
   });
 });
 
+test("it spawns codex with the entry's env", () => {
+  const config = parseConfig([CODEX_PLUGIN], {
+    agents: { codex: { env: { NOTES_VAULT: 'desk/notes-key' } } },
+  });
+
+  const adapter = createCodexAdapter(getAgentEntry(config, 'codex'));
+
+  expect(adapter.planSpawn({ prompt: '', resume: false })).toStrictEqual({
+    bin: 'codex',
+    args: ['--no-daemon'],
+    env: { NOTES_VAULT: 'desk/notes-key' },
+  });
+});
+
+test("it plans a remote spawn without the broker with the target's session env over the entry's env", () => {
+  const config = parseConfig([CODEX_PLUGIN], {
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: {
+      codex: {
+        auth: { profiles: ['codex'] },
+        env: { NOTES_VAULT: 'desk/notes-key', NOTES_REGION: 'eu' },
+      },
+    },
+  });
+
+  const adapter = createCodexAdapter(getAgentEntry(config, 'codex'), config);
+
+  const plan = adapter.planGuestSpawn?.(
+    { prompt: '', resume: false },
+    {
+      atc: null,
+      directory: '/tmp/atc/sessions/s1',
+      sessionEnv: { NOTES_VAULT: 'box/notes-key' },
+    },
+  );
+
+  expect(plan?.env).toStrictEqual({ NOTES_VAULT: 'box/notes-key', NOTES_REGION: 'eu' });
+});
+
+test("it plans a spawn behind the broker with the entry's env and the target's session env over it", () => {
+  const config = parseConfig([CODEX_PLUGIN], {
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: {
+      codex: {
+        auth: { profiles: ['codex'] },
+        env: { NOTES_VAULT: 'desk/notes-key', NOTES_REGION: 'eu' },
+      },
+    },
+  });
+
+  const adapter = createCodexAdapter(getAgentEntry(config, 'codex'), config);
+
+  const plan = adapter.planGuestSpawn?.(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc',
+      directory: '/tmp/atc/sessions/s1',
+      sessionEnv: { NOTES_VAULT: 'box/notes-key' },
+      auth: {
+        revision: 1,
+        env: {},
+        profileEnv: {},
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  expect(plan?.env).toStrictEqual({
+    NOTES_VAULT: 'box/notes-key',
+    NOTES_REGION: 'eu',
+    CODEX_HOME: '/tmp/atc/sessions/s1/codex-home',
+  });
+});
+
 test('it spawns codex resume with the picker when no id was captured', () => {
   const adapter = createCodexAdapter(getAgentEntry(parseConfig([CODEX_PLUGIN], {}), 'codex'));
 
@@ -357,7 +456,7 @@ test('it plans a remote spawn with auth but without the broker as a local spawn 
     },
   );
 
-  expect(plan).toStrictEqual({ bin: 'codex', args: ['--no-daemon', 'go'], files: {} });
+  expect(plan).toStrictEqual({ bin: 'codex', args: ['--no-daemon', 'go'], env: {}, files: {} });
 });
 
 test('it plans a spawn behind the broker with a Codex home of its own and hooks it trusts at launch', () => {

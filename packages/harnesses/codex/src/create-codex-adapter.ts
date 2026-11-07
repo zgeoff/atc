@@ -126,6 +126,7 @@ export function createCodexAdapter(
       ...(typeof opts.resume === 'string' ? ['resume', opts.resume] : []),
       ...(opts.prompt === '' ? [] : [opts.prompt]),
     ],
+    ...(Object.keys(entry.env).length === 0 ? {} : { env: entry.env }),
   });
 
   // The bridge owns the thread a terminal on its App Server joins, so a
@@ -176,8 +177,12 @@ export function createCodexAdapter(
   // the atc inside its host to report, and its own codex home's hooks are trusted at launch, since
   // atc wrote them
   const planSignedInGuestSpawn = (opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null => {
+    // the daemon lays a guest plan's env over the target's session env, which
+    // outranks the entry's own, so the plan lays the two itself
+    const env = { ...entry.env, ...guest.sessionEnv };
+
     if (guest.auth === undefined) {
-      return { ...planSpawn(opts), files: {} };
+      return { ...planSpawn(opts), env, files: {} };
     }
 
     if (guest.atc === null) {
@@ -206,7 +211,7 @@ export function createCodexAdapter(
         [`${authDir}/config.toml`]: buildCodexConfig(),
         [`${authDir}/hooks.json`]: buildCodexHookFile([guest.atc]),
       },
-      env: { ...guest.auth.profileEnv, ...guest.auth.env, ...launch.env },
+      env: { ...env, ...guest.auth.profileEnv, ...guest.auth.env, ...launch.env },
     };
   };
 

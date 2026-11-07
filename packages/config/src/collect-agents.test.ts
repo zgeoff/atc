@@ -296,9 +296,9 @@ test('it refuses an entry with a baseURL on codex and reports it alone', () => {
   });
 });
 
-test('it refuses an entry with env on grok and reports it alone', () => {
+test('it refuses an entry with settings on grok and reports it alone', () => {
   const result = collectAgents(
-    { grok: { env: { DEBUG: '1' } }, 'claude-ok': { kind: 'claude' } },
+    { grok: { settings: { outputStyle: 'terse' } }, 'claude-ok': { kind: 'claude' } },
     new Map(),
     buildStubHarnessPlugins(),
   );
@@ -315,7 +315,33 @@ test('it refuses an entry with env on grok and reports it alone', () => {
         env: {},
       },
     ],
-    errors: ['agents.grok: env is not valid for kind grok'],
+    errors: ['agents.grok: settings is not valid for kind grok'],
+  });
+});
+
+test.each([
+  ['codex', 'Codex', 'c'],
+  ['grok', 'Grok', 'g'],
+] as const)('it loads the env of a %s entry', (kind, label, mark) => {
+  const result = collectAgents(
+    { [kind]: { env: { NOTES_VAULT: 'desk/notes-key' } } },
+    new Map(),
+    buildStubHarnessPlugins(),
+  );
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: kind,
+        kind,
+        label,
+        mark,
+        bin: kind,
+        args: [],
+        env: { NOTES_VAULT: 'desk/notes-key' },
+      },
+    ],
+    errors: [],
   });
 });
 

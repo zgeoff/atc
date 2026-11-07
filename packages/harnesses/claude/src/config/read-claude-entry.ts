@@ -1,5 +1,9 @@
 import type { AgentEntry, AgentEntryRead } from '@atc/config';
-import { collectProfileEnvProblems, resolveAuthProfiles } from '@atc/config';
+import {
+  collectProfileEnvProblems,
+  collectSignInOverrideProblems,
+  resolveAuthProfiles,
+} from '@atc/config';
 import { isRecord, isSubscriptionOverrideVariable } from '@atc/core';
 import type { AuthProfile } from '@atc/plugin-api';
 import { checkGatewayAuth } from './check-gateway-auth';
@@ -69,8 +73,6 @@ export function readClaudeEntry(args: ClaudeEntryArgs): AgentEntryRead {
   };
 }
 
-const OVERRIDE_REASON = ', which would override or route around the subscription sign-in';
-
 // What a stock entry with `auth` sets that would override the subscription
 // sign-in or route the CLI around the target's broker.
 function collectSubscriptionProblems(entry: AgentEntry): string[] {
@@ -79,14 +81,13 @@ function collectSubscriptionProblems(entry: AgentEntry): string[] {
   const settingsKeys =
     isRecord(settingsEnv) && !Array.isArray(settingsEnv) ? Object.keys(settingsEnv) : [];
 
-  const problems = [
-    ...Object.keys(entry.env)
-      .filter((key) => isSubscriptionOverrideVariable(key))
-      .map((key) => `env must not set ${key}${OVERRIDE_REASON}`),
-    ...settingsKeys
-      .filter((key) => isSubscriptionOverrideVariable(key))
-      .map((key) => `settings.env must not set ${key}${OVERRIDE_REASON}`),
-  ];
+  const problems = collectSignInOverrideProblems(
+    [
+      ['env', Object.keys(entry.env)],
+      ['settings.env', settingsKeys],
+    ],
+    isSubscriptionOverrideVariable,
+  );
 
   if (entry.settings?.['apiKeyHelper'] !== undefined) {
     problems.push(

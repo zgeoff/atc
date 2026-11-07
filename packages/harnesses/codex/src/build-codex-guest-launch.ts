@@ -1,10 +1,8 @@
 import type { SpawnPlan } from '@atc/plugin-api';
+import { CODEX_CREDENTIAL_VARIABLES } from './codex-credential-variables';
 import { CODEX_TRUST_SEED_FILE } from './codex-trust-seed-file';
 
 const CODEX_HOME_FOLDER = 'codex-home';
-
-// Variables Codex takes a credential from ahead of its sign-in file.
-const CREDENTIAL_VARIABLES = ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN'];
 
 // The arguments are the Codex home, the staged folder, the trust seed, and
 // the CLI's own command line. The home and its sign-in file are its
@@ -15,7 +13,7 @@ const SEED_HOME_SCRIPT = [
   '{ [ ! -f "$3" ] || cat "$3" >> "$1/config.toml"; }',
   'cp "$2/hooks.json" "$1/hooks.json"',
   'shift 3',
-  `unset ${CREDENTIAL_VARIABLES.join(' ')}`,
+  `unset ${CODEX_CREDENTIAL_VARIABLES.join(' ')}`,
   'exec "$@"',
 ].join(' && ');
 

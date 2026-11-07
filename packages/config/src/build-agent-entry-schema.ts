@@ -61,7 +61,7 @@ function parseAgentEntryFields(
 }
 
 // The fields every kind takes.
-const COMMON_FIELDS: ReadonlySet<string> = new Set(['kind', 'label', 'mark', 'bin', 'args']);
+const COMMON_FIELDS: ReadonlySet<string> = new Set(['kind', 'label', 'mark', 'bin', 'args', 'env']);
 
 function collectFieldProblems(
   raw: Readonly<Record<string, unknown>>,

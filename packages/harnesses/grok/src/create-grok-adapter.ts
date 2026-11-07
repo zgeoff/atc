@@ -78,6 +78,7 @@ export function createGrokAdapter(entry: AgentEntry, home: string | null = null)
         ...(typeof opts.resume === 'string' ? ['--resume', opts.resume] : []),
         ...(opts.prompt === '' ? [] : [opts.prompt]),
       ],
+      ...(Object.keys(entry.env).length === 0 ? {} : { env: entry.env }),
     }),
 
     agentHomeLocation: GROK_HOME_LOCATION,

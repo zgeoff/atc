@@ -4,15 +4,15 @@ import { buildAgentEntrySchema } from './build-agent-entry-schema';
 test('it reports one issue per problem, in the order the entry holds its fields', () => {
   const schema = buildAgentEntrySchema(
     { kind: 'grok', fields: [], defaultLabel: 'Grok' },
-    { authProfiles: new Map(), entryID: 'grok', foreignFields: new Set(['env']) },
+    { authProfiles: new Map(), entryID: 'grok', foreignFields: new Set(['settings']) },
   );
 
-  const result = schema.safeParse({ colour: 'red', bin: '', env: {} });
+  const result = schema.safeParse({ colour: 'red', bin: '', settings: {} });
 
   expect(result.error?.issues.map((issue) => issue.message)).toStrictEqual([
     'unknown field colour',
     'bin must be a non-empty string',
-    'env is not valid for kind grok',
+    'settings is not valid for kind grok',
   ]);
 });
 

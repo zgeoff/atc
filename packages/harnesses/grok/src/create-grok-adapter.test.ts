@@ -27,6 +27,23 @@ test('it plans a new spawn without resume or -p and appends --no-leader', () => 
   });
 });
 
+test("it plans a spawn with the entry's env", () => {
+  const config = parseConfig([GROK_PLUGIN], {
+    agents: { grok: { env: { NOTES_VAULT: 'desk/notes-key' } } },
+  });
+
+  const plan = createGrokAdapter(getAgentEntry(config, 'grok')).planSpawn({
+    prompt: '',
+    resume: false,
+  });
+
+  expect(plan).toStrictEqual({
+    bin: 'grok',
+    args: ['--no-leader'],
+    env: { NOTES_VAULT: 'desk/notes-key' },
+  });
+});
+
 test('it plans adopt without --resume', () => {
   const plan = createGrokAdapter(getAgentEntry(parseConfig([GROK_PLUGIN], {}), 'grok')).planSpawn({
     prompt: '',

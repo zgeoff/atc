@@ -229,6 +229,91 @@ test('it refuses a codex entry whose auth has placeholderEnv', () => {
   });
 });
 
+test.each(['HTTPS_PROXY', 'NODE_EXTRA_CA_CERTS', 'OPENAI_API_KEY', 'CODEX_ACCESS_TOKEN'])(
+  'it refuses a codex entry with auth whose env sets %s',
+  (variable) => {
+    const result = collectAgents(
+      { codex: { auth: { profiles: ['codex'] }, env: { [variable]: 'set-by-hand' } } },
+      new Map<string, AuthProfile>([
+        [
+          'codex',
+          buildMockAuthProfile({
+            name: 'codex',
+            kind: 'oauth',
+            host: 'chatgpt.com',
+            header: 'authorization',
+            scheme: 'bearer',
+          }),
+        ],
+      ]),
+      [CODEX_PLUGIN],
+    );
+
+    expect(result).toStrictEqual({
+      agents: [],
+      errors: [
+        `agents.codex: env must not set ${variable}, which would override or route around the subscription sign-in`,
+      ],
+    });
+  },
+);
+
+test('it refuses a codex entry with auth whose env sets a variable a selected profile sets', () => {
+  const result = collectAgents(
+    {
+      codex: {
+        auth: { profiles: ['codex', 'github'] },
+        env: { GH_TOKEN: 'set-by-hand' },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'codex',
+        buildMockAuthProfile({
+          name: 'codex',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'github',
+        buildMockAuthProfile({ kind: 'github', name: 'github', env: { GH_TOKEN: 'placeholder' } }),
+      ],
+    ]),
+    [CODEX_PLUGIN],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: ['agents.codex: env sets GH_TOKEN, which auth profile github sets'],
+  });
+});
+
+test('it loads a codex entry without auth whose env sets a proxy', () => {
+  const result = collectAgents(
+    { codex: { env: { HTTPS_PROXY: 'http://proxy.example:3128' } } },
+    new Map(),
+    [CODEX_PLUGIN],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [
+      {
+        id: 'codex',
+        kind: 'codex',
+        label: 'Codex',
+        mark: 'c',
+        bin: 'codex',
+        args: [],
+        env: { HTTPS_PROXY: 'http://proxy.example:3128' },
+      },
+    ],
+    errors: [],
+  });
+});
+
 test('it creates a codex adapter for an entry', () => {
   const adapter = CODEX_PLUGIN.create(
     {
