@@ -6,7 +6,7 @@ import {
 } from '@atc/config';
 import { isBrokerVariable } from '@atc/core';
 import type { AuthProfile } from '@atc/plugin-api';
-import { CODEX_CREDENTIAL_VARIABLES } from '../codex-credential-variables';
+import { CODEX_CREDENTIAL_VARIABLES } from './codex-credential-variables';
 import { collectCodexAuth } from './collect-codex-auth';
 
 interface CodexEntryArgs {

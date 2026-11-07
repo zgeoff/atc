@@ -1,6 +1,6 @@
 import type { SpawnPlan } from '@atc/plugin-api';
-import { CODEX_CREDENTIAL_VARIABLES } from './codex-credential-variables';
 import { CODEX_TRUST_SEED_FILE } from './codex-trust-seed-file';
+import { CODEX_CREDENTIAL_VARIABLES } from './config/codex-credential-variables';
 
 const CODEX_HOME_FOLDER = 'codex-home';
 
