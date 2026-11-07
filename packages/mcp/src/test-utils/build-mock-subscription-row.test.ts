@@ -15,6 +15,20 @@ test('it builds a default subscription row', () => {
   });
 });
 
+test('it sets the refresh time an hour after the creation time it is given', () => {
+  expect(buildMockSubscriptionRow({ created_at: '2026-10-14T12:00:00.000Z' })).toStrictEqual({
+    id: expect.toStartWith('sub_'),
+    client_id: expect.toBeString(),
+    url: expect.toBeString(),
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: expect.toStartWith('whsec_'),
+    position: expect.toBeString(),
+    refresh_before: '2026-10-14T13:00:00.000Z',
+    created_at: '2026-10-14T12:00:00.000Z',
+  });
+});
+
 test('it applies overrides on top of the defaults', () => {
   expect(
     buildMockSubscriptionRow({

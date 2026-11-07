@@ -9,12 +9,7 @@ export async function seedEventSubscription(
   input: Partial<SubscriptionRow> = {},
 ): Promise<SubscriptionRow> {
   const now = deps.clock.now();
-
-  const row = buildMockSubscriptionRow({
-    created_at: new Date(now).toISOString(),
-    refresh_before: new Date(now + 60 * 60 * 1000).toISOString(),
-    ...input,
-  });
+  const row = buildMockSubscriptionRow({ created_at: new Date(now).toISOString(), ...input });
 
   const started = await createSubscriptionStore(deps.db).start(row, now);
 
