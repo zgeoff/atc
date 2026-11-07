@@ -114,12 +114,12 @@ To add a lane named `<lane>`, for files that end in `.<lane>.test.ts`:
 
 ## Worker count
 
-- Set `TEST_WORKERS` to choose how many workers the unit run and `test:e2e` use. Without it, each
-  picks up to 4, and 1 on a host with less than 4 GiB of memory. The Codex and toolchain lanes run
-  one file at a time.
-- To change how `test:e2e` picks its count, change
-  [`read-worker-count.ts`](../../../scripts/read-worker-count.ts) in the zgeoff/tools repo. A sync
-  job there copies the file into atc, and the next copy replaces a change made here.
+- Set `TEST_WORKERS` to choose how many workers the unit run, `test:e2e` and `test:plugin` use, for
+  one run or in CI. Without it, each picks up to 4, and 1 when the host or its container has less
+  than 4 GiB of memory. The Codex and toolchain lanes run one file at a time.
+- To change the default of `test:e2e` and `test:plugin`, change
+  [`read-worker-count.ts`](../../../scripts/read-worker-count.ts). The unit run takes its default
+  from rig.
 
 ## The PTY harness
 
