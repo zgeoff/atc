@@ -59,6 +59,7 @@ test('it shows why a forget kept the workspace until the next keypress', async (
 
   await ctx.tui.waitFor('killed');
 
+  ctx.tui.reset();
   ctx.tui.write('K');
 
   await ctx.tui.waitFor('kill selected session?');
@@ -66,9 +67,7 @@ test('it shows why a forget kept the workspace until the next keypress', async (
   ctx.tui.reset();
   ctx.tui.write('y');
 
-  // the forget waits up to 2 seconds for the killed harness to exit, then ends it by force and
-  // waits again, which on a loaded runner outlasts the default wait
-  await ctx.tui.waitFor('kept orchard-main: 1 uncommitted or untracked path', 10_000);
+  await ctx.tui.waitFor('kept orchard-main: 1 uncommitted or untracked path');
 
   ctx.tui.reset();
   ctx.tui.write('j');
