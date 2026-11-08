@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.12.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.11.0...@zgeoff/atc@7.12.0) (2026-11-08)
+
+### Features
+
+- **agents:** pass an entry's env to the session for every agent kind
+  ([#1159](https://github.com/zgeoff/atc/issues/1159))
+  ([56a1419](https://github.com/zgeoff/atc/commit/56a1419f9bc25dff8ae712e2e284ffc83b2c0b57))
+
 ## [7.11.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.10.0...@zgeoff/atc@7.11.0) (2026-11-07)
 
 ### Features
