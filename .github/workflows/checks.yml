@@ -105,13 +105,9 @@ jobs:
       - name: Lint mods
         run: bun run lint:mods
 
-      - name: Doc links
-        run: bash .claude/skills/docs-writing/scripts/check-links.sh
-
-      # The root package is private, but its README is the product README, so it is checked
-      # against the package limits.
-      - name: Doc length and prose
-        run: bash .claude/skills/docs-writing/scripts/check-length.sh --package README.md
+      # the docs checks that check:docs names, from chex
+      - name: Docs
+        run: bun run --silent check:docs
 
       - name: Typecheck
         run: bun run typecheck
