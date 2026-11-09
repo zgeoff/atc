@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.12.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.12.0...@zgeoff/atc@7.12.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* keep the settings-file tests off the shared state folder ([#1173](https://github.com/zgeoff/atc/issues/1173)) ([e475f38](https://github.com/zgeoff/atc/commit/e475f38db8adb37e59935ea3aab6d506ab759a7c))
+
 ## [7.12.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.11.0...@zgeoff/atc@7.12.0) (2026-11-08)
 
 ### Features
