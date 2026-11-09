@@ -81,7 +81,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: zgeoff/tools/.github/workflows/release-please.yml@80b7339b4a485d2641825de8b987d8702dc3aa3c # main
+    uses: zgeoff/tools/.github/workflows/release-please.yml@f2d8689e02d514b542b0c8aff33805db458f3dea # main
     # atc and the gateway release from one release PR, whose branch is the
     # workflow's default, release-please--branches--main
     with:
