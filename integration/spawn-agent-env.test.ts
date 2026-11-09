@@ -33,10 +33,16 @@ function setupTest() {
   ) =>
     startTestDaemon({
       prefix: 'atc-agent-env-daemon-',
-      options: () => ({
+      options: (paths) => ({
         adapters: buildAgentAdapters(
           parseConfig(SHIPPED_HARNESS_PLUGINS, { agents }),
           buildMockHostServices(),
+          null,
+          {
+            stateDir: join(paths.directory, 'state'),
+            homeDir: join(paths.directory, 'home'),
+            bridgeTarget: join(paths.directory, 'atc-bridge'),
+          },
         ),
         targets: [
           buildMockExecutionTarget({
