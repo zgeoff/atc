@@ -42,7 +42,7 @@
       "@xterm/headless": "6.0.0",
       "@zgeoff/agent-hooks": "0.2.11",
       "@zgeoff/bun-test-extended": "0.2.3",
-      "@zgeoff/chex": "0.2.5",
+      "@zgeoff/chex": "0.2.6",
       "@zgeoff/diet": "0.2.2",
       "@zgeoff/format-codemod": "0.3.5",
       "@zgeoff/kysely-bun-sqlite": "0.3.2",
