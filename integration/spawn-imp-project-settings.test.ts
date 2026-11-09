@@ -992,6 +992,95 @@ test('it refuses a subscription launch in a subfolder whose repository root hold
   expect(existsSync(ctx.starts)).toBeFalse();
 });
 
+test('it refuses a subscription launch in a subfolder whose own local settings set nothing and whose repository root holds local settings with a credential', async () => {
+  const ctx = await setupTest();
+
+  // A brokered spawn needs a token that may grant each agent's secret, and
+  // the secrets themselves.
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['claude-setup-token', 'glm'],
+  });
+
+  ctx.port.createSecret('claude-setup-token', 'custom', [
+    { host: 'api.anthropic.com', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  // Both agents sign in through impd's broker: `claude` on a subscription
+  // and the gateway `glm`, each running the fake Claude.
+  const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+    },
+    agents: {
+      claude: { bin: ctx.fakeClaude, auth: { profiles: ['claude'] } },
+      glm: {
+        kind: 'claude',
+        bin: ctx.fakeClaude,
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm'],
+          placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+        },
+      },
+    },
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-project-settings-daemon-',
+    options: () => ({
+      adapters: [
+        createClaudeAdapter(getAgentEntry(config, 'claude'), config, buildMockHostServices()),
+        createGatewayAdapter(getGatewayConfig(config, 'glm'), config, buildMockHostServices()),
+      ],
+      gitTransports: ['file'],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  mkdirSync(join(ctx.work, '.claude'));
+  mkdirSync(join(ctx.work, 'sub/.claude'), { recursive: true });
+  writeFileSync(join(ctx.work, 'sub/.claude/settings.local.json'), '{"outputStyle":"terse"}');
+  writeFileSync(join(ctx.work, '.claude/settings.local.json'), '{"apiKeyHelper":"echo key"}');
+
+  const spawn = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.work, 'sub'),
+    agent: 'claude',
+    target: 'box',
+  });
+
+  await spawn.catch(() => null);
+
+  expect(spawn).rejects.toMatchObject({
+    code: 'auth_target_unsupported',
+    data: {
+      agent: 'claude',
+      target: 'box',
+      problem: 'project_settings_conflict',
+      file: join(ctx.work, '.claude/settings.local.json'),
+      setting: 'apiKeyHelper',
+    },
+  });
+
+  expect(existsSync(ctx.starts)).toBeFalse();
+});
+
 test('it refuses a subscription launch in a worktree whose main checkout holds local settings with a credential', async () => {
   const ctx = await setupTest();
 
