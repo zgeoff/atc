@@ -435,6 +435,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "knip@6.44.1": "patches/knip@6.44.1.patch",
+  },
   "catalog": {
     "@anthropic-ai/claude-agent-sdk": "0.3.316",
     "@better-auth/mcp": "1.7.15",
