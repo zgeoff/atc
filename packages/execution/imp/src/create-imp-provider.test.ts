@@ -2096,6 +2096,84 @@ test('it reports the new imp id after the imp is destroyed and made again under 
   expect(provider.findHostFact('s1')).toStrictEqual({ ...before, id: imp.id });
 });
 
+test('it reports the new imp id after the broker creates the imp again under the same name', async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const name = provider.getImpName('s1');
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await ctx.port.destroyImp(name);
+
+  const created = await provider.brokerAuth.createHost('s1');
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name,
+    id: created.id,
+    issuer: expect.any(String),
+  });
+});
+
+test('it reports the new imp id after the broker reads the imp made again under the same name', async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const name = provider.getImpName('s1');
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await ctx.port.destroyImp(name);
+
+  const remade = await ctx.port.createImp({ name });
+
+  await provider.brokerAuth.readHost(name);
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name,
+    id: remade.id,
+    issuer: expect.any(String),
+  });
+});
+
+test('it drops the imp id when the broker reads a destroyed imp', async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const name = provider.getImpName('s1');
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await ctx.port.destroyImp(name);
+  await provider.brokerAuth.readHost(name);
+
+  expect(provider.findHostFact('s1')).toStrictEqual({ name, issuer: expect.any(String) });
+});
+
 test('it reports the id of the imp it read when a later step of the readying fails', async () => {
   const ctx = setupTest();
   const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');

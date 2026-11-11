@@ -12,6 +12,7 @@ function setupTest() {
   const broker = buildImpCredentialBroker(port, {
     impPrefix: 'atc-',
     getImpName: (hostKey) => `atc-${hostKey}`,
+    readImp: (hostName) => port.readImp(hostName),
     createImp: (hostKey) => port.createImp({ name: `atc-${hostKey}` }),
     destroyImp: (hostKey) => port.destroyImp(`atc-${hostKey}`),
   });
@@ -144,6 +145,7 @@ test('it rejects the version check of an outdated impd as too old after one syst
   const broker = buildImpCredentialBroker(port, {
     impPrefix: 'atc-',
     getImpName: (hostKey) => `atc-${hostKey}`,
+    readImp: (hostName) => port.readImp(hostName),
     createImp: (hostKey) => port.createImp({ name: `atc-${hostKey}` }),
     destroyImp: (hostKey) => port.destroyImp(`atc-${hostKey}`),
   });

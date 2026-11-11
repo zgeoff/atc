@@ -370,7 +370,26 @@ export function createImpProvider(
   const brokerAuth = buildImpCredentialBroker(port, {
     impPrefix,
     getImpName: (hostKey) => getImpName(hostKey),
-    createImp: (hostKey) => port.createImp(buildCreateImpSpec(getImpName(hostKey), target)),
+    createImp: async (hostKey) => {
+      const name = getImpName(hostKey);
+
+      const made = await port.createImp(buildCreateImpSpec(name, target));
+
+      impIDs.set(name, made.id);
+
+      return made;
+    },
+    readImp: async (hostName) => {
+      const existing = await port.readImp(hostName);
+
+      if (existing === null) {
+        impIDs.delete(hostName);
+      } else {
+        impIDs.set(hostName, existing.id);
+      }
+
+      return existing;
+    },
     destroyImp: (hostKey) => destroyHost(hostKey),
   });
 
