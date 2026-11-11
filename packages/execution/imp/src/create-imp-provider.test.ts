@@ -2096,6 +2096,66 @@ test('it reports the new imp id after the imp is destroyed and made again under 
   expect(provider.findHostFact('s1')).toStrictEqual({ ...before, id: imp.id });
 });
 
+test('it reports the id of the imp it read when a later step of the readying fails', async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  chmodSync(guestATC, 0o644);
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const name = provider.getImpName('s1');
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await ctx.port.destroyImp(name);
+
+  const remade = await ctx.port.createImp({ name });
+
+  await expect(
+    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
+  ).rejects.toMatchObject({ code: 'unsupported_operation' });
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name,
+    id: remade.id,
+    issuer: expect.any(String),
+  });
+});
+
+test('it reports no imp id when a failed readying destroys the imp it created', async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  chmodSync(guestATC, 0o644);
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await expect(
+    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
+  ).rejects.toMatchObject({ code: 'unsupported_operation' });
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name: provider.getImpName('s1'),
+    issuer: expect.any(String),
+  });
+});
+
 test('it drops the imp id when a destroy removes the host', async () => {
   const ctx = setupTest();
 

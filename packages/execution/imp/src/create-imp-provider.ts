@@ -246,8 +246,6 @@ export function createImpProvider(
     const holdsLease = held !== undefined && (held.harnesses > 0 || held.renewTimer !== null);
     let created = false;
     let leased = false;
-    let impID: string | null = null;
-    let seenIssuer: string | null = null;
     const timer = request.timer ?? createStepTimer();
 
     try {
@@ -261,7 +259,7 @@ export function createImpProvider(
         return readLayout();
       });
 
-      seenIssuer = await port.readIssuer();
+      issuer = await port.readIssuer();
 
       const existing = await timer.withStep('inspect-imp', () => port.readImp(name));
 
@@ -274,9 +272,10 @@ export function createImpProvider(
         );
 
         created = true;
-        impID = made.id;
+
+        impIDs.set(name, made.id);
       } else {
-        impID = existing.id;
+        impIDs.set(name, existing.id);
       }
 
       await timer.withStep('lease', () => port.acquireLease(name, label, leaseSeconds));
@@ -289,6 +288,10 @@ export function createImpProvider(
     } catch (error) {
       const undone = await tryUndoPrepare(name, label, created, leased);
 
+      if (created) {
+        impIDs.delete(name);
+      }
+
       const refusal = toHostRefusal(error, name);
 
       if (!undone) {
@@ -300,12 +303,6 @@ export function createImpProvider(
 
       throw refusal;
     }
-
-    invariant(impID !== null, 'a readying that succeeded read the imp id');
-
-    impIDs.set(name, impID);
-
-    issuer = seenIssuer;
 
     const host = getHost(request.host);
 
