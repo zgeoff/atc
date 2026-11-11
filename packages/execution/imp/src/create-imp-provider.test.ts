@@ -2197,9 +2197,11 @@ test('it reports the id of the imp it read when a later step of the readying fai
 
   const remade = await ctx.port.createImp({ name });
 
-  await expect(
-    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
-  ).rejects.toMatchObject({ code: 'unsupported_operation' });
+  const failure = await provider
+    .prepareHost({ host: 's1', daemonID: 'd1', installATC: true })
+    .catch((error: unknown) => error);
+
+  expect(failure).toMatchObject({ code: 'unsupported_operation' });
 
   expect(provider.findHostFact('s1')).toStrictEqual({
     name,
@@ -2224,9 +2226,11 @@ test('it reports no imp id when a failed readying destroys the imp it created', 
     provider.dispose();
   });
 
-  await expect(
-    provider.prepareHost({ host: 's1', daemonID: 'd1', installATC: true }),
-  ).rejects.toMatchObject({ code: 'unsupported_operation' });
+  const failure = await provider
+    .prepareHost({ host: 's1', daemonID: 'd1', installATC: true })
+    .catch((error: unknown) => error);
+
+  expect(failure).toMatchObject({ code: 'unsupported_operation' });
 
   expect(provider.findHostFact('s1')).toStrictEqual({
     name: provider.getImpName('s1'),
