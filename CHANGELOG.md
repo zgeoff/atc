@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.13.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.12.1...@zgeoff/atc@7.13.0) (2026-11-11)
+
+
+### Features
+
+* **contract:** report the host a session runs on ([#1198](https://github.com/zgeoff/atc/issues/1198)) ([7c206b4](https://github.com/zgeoff/atc/commit/7c206b465e382903398203cc6514be61fced4bc4))
+
 ## [7.12.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.12.0...@zgeoff/atc@7.12.1) (2026-11-09)
 
 ### Bug Fixes
