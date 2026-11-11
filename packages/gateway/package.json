@@ -1,6 +1,6 @@
 {
   "name": "@atc/gateway",
-  "version": "7.9.0",
+  "version": "7.10.0",
   "private": true,
   "description": "The atc gateway's federation: the daemon registry, one connection per daemon, and the routing that rewrites ids and binds idempotency keys across daemons",
   "type": "module",
