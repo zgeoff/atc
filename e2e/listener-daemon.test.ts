@@ -78,7 +78,12 @@ test('it answers a hello on the daemon socket in its test directory', async () =
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
     peerSession: null,
-    features: ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace'],
+    features: [
+      'events.read.from-start',
+      'daemon.hello.viewer',
+      'session.forget.workspace',
+      'session.host',
+    ],
   });
 });
 

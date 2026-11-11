@@ -85,6 +85,24 @@ inside a sleeping host, which a revive brings back as it was. `reattaching` mark
 whose connection dropped while the daemon reconnects to it
 ([the imp provider](../execution/imp-provider.md#reconnecting)).
 
+## The host a session runs on
+
+A session that runs on a VM host carries `host` in its descriptor, so a service that gets a request
+from a session can check that the request came from the machine that runs it. A local session has no
+`host` key.
+
+| Field    | Holds                                                                   | Absent when                        |
+| -------- | ----------------------------------------------------------------------- | ---------------------------------- |
+| `name`   | the host's name on its provider                                         | never                              |
+| `id`     | the provider's id for the host, which a new host of that name never has | the daemon has not read it yet     |
+| `issuer` | the identity issuer of the provider's daemon                            | the provider's daemon reports none |
+
+The daemon asks the session's provider for these facts each time it builds a descriptor, and the
+provider answers from its own record without a call out. A sub-session that shares its parent's host
+reports the parent's `host`, because the machine is the trust boundary.
+[The imp provider](../execution/imp-provider.md#the-host-identity) covers where the imp values come
+from.
+
 ## Sub-sessions
 
 A sub-session is a session spawned with a parent. `atc mcp` started inside a local session reads

@@ -127,7 +127,7 @@ still waiting for a response, and decides for itself whether to resend it.
 
 ## Versions
 
-The protocol version is one integer compared for equality, and the current version is 13. The daemon
+The protocol version is one integer compared for equality, and the current version is 14. The daemon
 records it in `daemon.json` beside its socket paths, and a client sends its own in the hello. A
 daemon on another version refuses the handshake with `protocol_mismatch`, so a client and a daemon
 on different versions never talk, and the two install together. The error holds both versions and
@@ -141,9 +141,9 @@ daemon that pass the handshake therefore serve the same procedures and fields, s
 every tool and input without asking the daemon what it serves. A peer ignores a field it does not
 know, in a request or in an answer.
 
-Version 13 differs from version 12 in one answer field. The `session.forget` answer that forgets a
-session holds `workspace`, what the forget did with the workspace atc created for the session
-([workspaces](../execution/workspaces.md)).
+Version 14 differs from version 13 in one answer field. A session descriptor holds `host` when the
+session runs on a VM host, the host's name, id and identity issuer on its provider
+([sessions](../daemon/sessions.md#the-host-a-session-runs-on)).
 
 ## Events
 

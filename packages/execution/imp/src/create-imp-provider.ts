@@ -8,6 +8,7 @@ import type {
   ExecutionProvider,
   GuestLayout,
   HarnessSpec,
+  HostFact,
   HostRequest,
 } from '@atc/plugin-api';
 import { EffectRemainsError, isHostNameAllowed } from '@atc/plugin-api';
@@ -49,6 +50,8 @@ export interface ImpProvider extends ExecutionProvider {
   readonly getImpName: (hostKey: string) => string;
 
   readonly checkExistingHost: (host: string) => Promise<boolean>;
+
+  readonly findHostFact: (host: string) => HostFact;
 
   // An imp whose agent booted before read-only files has no such place,
   // which a later cold boot of the imp gives it.
@@ -142,6 +145,15 @@ export function createImpProvider(
   const reconnectDelaysMs = options.reconnectDelaysMs ?? RECONNECT_DELAYS_MS;
   const atcBinary = options.atcBinary === undefined ? findOwnLinuxBinary() : options.atcBinary;
   const hasGuestATC = target.guestATC !== undefined || atcBinary !== null;
+
+  // The id impd gave each imp, by imp name, as the latest readying or restore
+  // check read it. A readying that finds no imp drops the entry before it
+  // creates one, so a new imp made under the same name never shows an old id.
+  const impIDs = new Map<string, string>();
+
+  // The identity issuer of the impd, as the latest readying or restore check
+  // read it.
+  let issuer: string | null = null;
 
   // impd's scratch folder changes only with impd's own config, so the first
   // read holds for the provider's life.
@@ -247,14 +259,23 @@ export function createImpProvider(
         return readLayout();
       });
 
+      issuer = await port.readIssuer();
+
       const existing = await timer.withStep('inspect-imp', () => port.readImp(name));
 
       if (existing === null) {
         guestATC.removeImageVersion(name);
+        impIDs.delete(name);
 
-        await timer.withStep('create-imp', () => port.createImp(buildCreateImpSpec(name, target)));
+        const made = await timer.withStep('create-imp', () =>
+          port.createImp(buildCreateImpSpec(name, target)),
+        );
 
         created = true;
+
+        impIDs.set(name, made.id);
+      } else {
+        impIDs.set(name, existing.id);
       }
 
       await timer.withStep('lease', () => port.acquireLease(name, label, leaseSeconds));
@@ -266,6 +287,10 @@ export function createImpProvider(
       );
     } catch (error) {
       const undone = await tryUndoPrepare(name, label, created, leased);
+
+      if (created) {
+        impIDs.delete(name);
+      }
 
       const refusal = toHostRefusal(error, name);
 
@@ -330,6 +355,7 @@ export function createImpProvider(
     }
 
     hosts.delete(hostKey);
+    impIDs.delete(name);
     guestATC.removeImageVersion(name);
   };
 
@@ -344,7 +370,26 @@ export function createImpProvider(
   const brokerAuth = buildImpCredentialBroker(port, {
     impPrefix,
     getImpName: (hostKey) => getImpName(hostKey),
-    createImp: (hostKey) => port.createImp(buildCreateImpSpec(getImpName(hostKey), target)),
+    createImp: async (hostKey) => {
+      const name = getImpName(hostKey);
+
+      const made = await port.createImp(buildCreateImpSpec(name, target));
+
+      impIDs.set(name, made.id);
+
+      return made;
+    },
+    readImp: async (hostName) => {
+      const existing = await port.readImp(hostName);
+
+      if (existing === null) {
+        impIDs.delete(hostName);
+      } else {
+        impIDs.set(hostName, existing.id);
+      }
+
+      return existing;
+    },
     destroyImp: (hostKey) => destroyHost(hostKey),
   });
 
@@ -394,10 +439,33 @@ export function createImpProvider(
           return false;
         }
 
-        return (await port.readImp(name)) !== null;
+        const existing = await port.readImp(name);
+
+        if (existing === null) {
+          impIDs.delete(name);
+
+          return false;
+        }
+
+        impIDs.set(name, existing.id);
+
+        issuer = await port.readIssuer();
+
+        return true;
       } catch {
         return false;
       }
+    },
+
+    findHostFact: (hostKey): HostFact => {
+      const name = getImpName(hostKey);
+      const id = impIDs.get(name);
+
+      return {
+        name,
+        ...(id === undefined ? {} : { id }),
+        ...(issuer === null ? {} : { issuer }),
+      };
     },
 
     // Creates the host's imp when impd holds none, then takes the daemon's

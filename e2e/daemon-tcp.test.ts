@@ -123,6 +123,11 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
     peerSession: null,
-    features: ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace'],
+    features: [
+      'events.read.from-start',
+      'daemon.hello.viewer',
+      'session.forget.workspace',
+      'session.host',
+    ],
   });
 });

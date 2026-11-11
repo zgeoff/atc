@@ -45,7 +45,7 @@ test('it keeps the daemon state in the home and records the daemon process there
     reporterSocketPath: paths.socketPath,
     eventsSocketPath: paths.eventsSocketPath,
     listenPort: null,
-    protocol: 13,
+    protocol: 14,
   });
 });
 
@@ -218,7 +218,7 @@ test('it lays the config variables over the environment of the daemon', async ()
     reporterSocketPath: paths.socketPath,
     eventsSocketPath: paths.eventsSocketPath,
     listenPort: null,
-    protocol: 13,
+    protocol: 14,
   });
 });
 
@@ -263,7 +263,7 @@ test('it removes a variable the config sets to undefined from the environment of
     reporterSocketPath: paths.socketPath,
     eventsSocketPath: paths.eventsSocketPath,
     listenPort: null,
-    protocol: 13,
+    protocol: 14,
   });
 });
 

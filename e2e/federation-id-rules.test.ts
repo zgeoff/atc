@@ -4,10 +4,19 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
 import { buildPayloadHash } from '@atc/daemon';
+import { createImpProvider } from '@atc/execution-imp';
+import { createStubImpPort } from '@atc/execution-imp/testing';
+import { createLocalPTYProvider } from '@atc/execution-local';
 import { ERROR_DATA_RULES, ID_RULES, collectUnruledIDPaths } from '@atc/gateway';
 import { parseClaudeTranscriptLine } from '@atc/harness-claude';
 import { createStateStore } from '@atc/store';
-import { buildMockAgentAdapter, getRecord, registerTestCleanup, waitFor } from '@atc/test-utils';
+import {
+  buildMockAgentAdapter,
+  createStubEchoClaude,
+  getRecord,
+  registerTestCleanup,
+  waitFor,
+} from '@atc/test-utils';
 import { REQUEST_PARAM_SCHEMAS } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -376,4 +385,61 @@ test('it has a rule for the confirm token in a session.forget answer', () => {
       ID_RULES['session.forget'] ?? new Map(),
     ),
   ).toStrictEqual([]);
+});
+
+test('it has a rule for every id in a session.get answer of a session with a host', async () => {
+  const port = createStubImpPort();
+  const cwd = mkdtempSync('/tmp/atc-id-rules-cwd-');
+
+  registerTestCleanup(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  const ctx = await startTestDaemon({
+    prefix: 'atc-id-rules-',
+    options: (paths) => {
+      const fakeClaude = createStubEchoClaude(paths.directory);
+
+      return {
+        adapter: buildMockAgentAdapter({ planSpawn: () => ({ bin: fakeClaude, args: [] }) }),
+        targets: [
+          {
+            id: 'local',
+            kind: 'local-pty',
+            options: {},
+            identity: 'local-pty:test',
+            provider: createLocalPTYProvider(),
+          },
+          {
+            id: 'box',
+            kind: 'imp',
+            options: {},
+            identity: 'imp:test',
+            provider: createImpProvider(
+              port,
+              { guestDir: join(paths.directory, 'g') },
+              { reconnectDelaysMs: [0, 0, 0], version: '1.0.0' },
+            ),
+          },
+        ],
+        defaultTarget: 'local',
+      };
+    },
+  });
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    cwd,
+    cols: 80,
+    rows: 24,
+    target: 'box',
+  });
+
+  const got = await ctx.client.sendRequest('session.get', {
+    session: getRecord(spawned, 'session')['id'],
+  });
+
+  const host = getRecord(getRecord(got, 'session'), 'host');
+
+  expect(host['id']).toMatch(/^[\da-f]{8}-/u);
+  expect(collectUnruledIDPaths(got, ID_RULES['session.get'] ?? new Map())).toStrictEqual([]);
 });

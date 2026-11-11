@@ -16,12 +16,15 @@ import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { buildTarArchive } from '@atc/core';
 import {
+  buildMockSessionDescriptor,
   createStubBin,
   registerTestCleanup,
   setupTempDir,
   startStubImpd,
   waitFor,
 } from '@atc/test-utils';
+import { SESSION_DESCRIPTOR_SCHEMA } from '@atcx/contract';
+import { checkSessionImp } from '@impz/client/identity';
 import invariant from 'tiny-invariant';
 import { createImpClientPort } from './create-imp-client-port';
 import { createImpProvider } from './create-imp-provider';
@@ -1994,5 +1997,357 @@ test('it listens on the guest socket no more when the daemon lets go of the harn
 
   expect(ctx.port.calls.filter((call) => call.startsWith('reverse '))).toStrictEqual([
     `reverse atc-s1 ${join(ctx.directory, 'g', 'run', 's1.sock')}`,
+  ]);
+});
+
+test("it reports a prepared host with the imp's id from impd and impd's issuer", async () => {
+  const ctx = setupTest();
+
+  ctx.port.issuer = 'https://impd.example.test';
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  const imp = await ctx.port.readImp(provider.getImpName('s1'));
+
+  invariant(imp !== null, 'the prepare created the imp');
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name: provider.getImpName('s1'),
+    id: imp.id,
+    issuer: 'https://impd.example.test',
+  });
+});
+
+test('it reports a prepared host with no issuer while impd has identity off', async () => {
+  const ctx = setupTest();
+
+  ctx.port.issuer = null;
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  const imp = await ctx.port.readImp(provider.getImpName('s1'));
+
+  invariant(imp !== null, 'the prepare created the imp');
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name: provider.getImpName('s1'),
+    id: imp.id,
+  });
+});
+
+test('it reports a host no readying or check has read with its name alone', () => {
+  const ctx = setupTest();
+  const provider = createImpProvider(ctx.port, {}, { version: '1.0.0' });
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  expect(provider.findHostFact('s1')).toStrictEqual({ name: provider.getImpName('s1') });
+});
+
+test('it reports the new imp id after the imp is destroyed and made again under the same name', async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const name = provider.getImpName('s1');
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  const before = provider.findHostFact('s1');
+
+  await ctx.port.destroyImp(name);
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  const imp = await ctx.port.readImp(name);
+
+  invariant(imp !== null, 'the second prepare created the imp again');
+
+  expect(imp.id).not.toBe(before.id);
+  expect(provider.findHostFact('s1')).toStrictEqual({ ...before, id: imp.id });
+});
+
+test('it reports the new imp id after the broker creates the imp again under the same name', async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const name = provider.getImpName('s1');
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await ctx.port.destroyImp(name);
+
+  const created = await provider.brokerAuth.createHost('s1');
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name,
+    id: created.id,
+    issuer: expect.any(String),
+  });
+});
+
+test('it reports the new imp id after the broker reads the imp made again under the same name', async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const name = provider.getImpName('s1');
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await ctx.port.destroyImp(name);
+
+  const remade = await ctx.port.createImp({ name });
+
+  await provider.brokerAuth.readHost(name);
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name,
+    id: remade.id,
+    issuer: expect.any(String),
+  });
+});
+
+test('it drops the imp id when the broker reads a destroyed imp', async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const name = provider.getImpName('s1');
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await ctx.port.destroyImp(name);
+  await provider.brokerAuth.readHost(name);
+
+  expect(provider.findHostFact('s1')).toStrictEqual({ name, issuer: expect.any(String) });
+});
+
+test('it reports the id of the imp it read when a later step of the readying fails', async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  chmodSync(guestATC, 0o644);
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const name = provider.getImpName('s1');
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await ctx.port.destroyImp(name);
+
+  const remade = await ctx.port.createImp({ name });
+
+  const failure = await provider
+    .prepareHost({ host: 's1', daemonID: 'd1', installATC: true })
+    .catch((error: unknown) => error);
+
+  expect(failure).toMatchObject({ code: 'unsupported_operation' });
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name,
+    id: remade.id,
+    issuer: expect.any(String),
+  });
+});
+
+test('it reports no imp id when a failed readying destroys the imp it created', async () => {
+  const ctx = setupTest();
+  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+
+  chmodSync(guestATC, 0o644);
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g'), guestATC },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const failure = await provider
+    .prepareHost({ host: 's1', daemonID: 'd1', installATC: true })
+    .catch((error: unknown) => error);
+
+  expect(failure).toMatchObject({ code: 'unsupported_operation' });
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name: provider.getImpName('s1'),
+    issuer: expect.any(String),
+  });
+});
+
+test('it drops the imp id when a destroy removes the host', async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await provider.destroyHost('s1');
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name: provider.getImpName('s1'),
+    issuer: expect.any(String),
+  });
+});
+
+test('it reads the id and the issuer of an existing host at a restore check', async () => {
+  const ctx = setupTest();
+  const provider = createImpProvider(ctx.port, {}, { version: '1.0.0' });
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  const imp = await ctx.port.createImp({ name: provider.getImpName('s1') });
+  const reachable = await provider.checkExistingHost('s1');
+
+  expect(reachable).toBe(true);
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name: provider.getImpName('s1'),
+    id: imp.id,
+    issuer: expect.any(String),
+  });
+});
+
+test('it drops the kept id when a restore check finds no imp', async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+  await ctx.port.destroyImp(provider.getImpName('s1'));
+
+  const reachable = await provider.checkExistingHost('s1');
+
+  expect(reachable).toBe(false);
+
+  expect(provider.findHostFact('s1')).toStrictEqual({
+    name: provider.getImpName('s1'),
+    issuer: expect.any(String),
+  });
+});
+
+test("it lets a service check a caller's imp against the host a session read reports", async () => {
+  const ctx = setupTest();
+
+  ctx.port.issuer = 'https://impd.example.test';
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g') },
+    { version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.prepareHost({ host: 's1', daemonID: 'd1' });
+
+  // The session read carries the provider's host fact as the descriptor's host.
+  const read = SESSION_DESCRIPTOR_SCHEMA.parse({
+    ...buildMockSessionDescriptor(),
+    host: provider.findHostFact('s1'),
+  });
+
+  invariant(read.host !== undefined, 'the session read holds a host');
+
+  const session = {
+    impName: read.host.name,
+    impID: read.host.id ?? null,
+    impIssuer: read.host.issuer ?? null,
+  };
+
+  const name = provider.getImpName('s1');
+  const id = read.host.id ?? '';
+  const issuer = read.host.issuer ?? '';
+
+  expect([
+    checkSessionImp({ issuer, id, name }, session),
+    checkSessionImp({ issuer, id: 'another-imp-id', name }, session),
+    checkSessionImp({ issuer: 'https://other.example.test', id, name }, session),
+  ]).toStrictEqual([
+    { kind: 'allowed' },
+    { kind: 'refused', reason: 'other-imp' },
+    { kind: 'refused', reason: 'other-host' },
   ]);
 });

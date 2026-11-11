@@ -507,3 +507,31 @@ test('it accepts a daemon list whose down daemon has no build', () => {
 
   expect(z.fromJSONSchema(schema).safeParse(result).data).toStrictEqual(result);
 });
+
+test('it describes each field of a session entry host in the session get output schema', () => {
+  const tool = MCP_TOOLS.find((candidate) => candidate.name === 'atc_session_get');
+  const entry = getRecord(getRecord(tool?.outputSchema ?? {}, 'properties'), 'session');
+  const fields = getRecord(getRecord(getRecord(entry, 'properties'), 'host'), 'properties');
+
+  expect(Object.keys(fields)).toStrictEqual(['name', 'id', 'issuer']);
+
+  expect(
+    Object.values(fields).map((field) => getRecord({ field }, 'field')['description']),
+  ).toSatisfyAll((description) => typeof description === 'string');
+});
+
+test('it accepts a session entry whose host holds a name, an id and an issuer', () => {
+  const tool = MCP_TOOLS.find((candidate) => candidate.name === 'atc_session_get');
+  const entry = getRecord(getRecord(tool?.outputSchema ?? {}, 'properties'), 'session');
+  const host = getRecord(getRecord(entry, 'properties'), 'host');
+
+  const result = z
+    .fromJSONSchema(host)
+    .safeParse({ name: 'box-bakery', id: 'host-7', issuer: 'https://hosts.example.test' });
+
+  expect(result.data).toStrictEqual({
+    name: 'box-bakery',
+    id: 'host-7',
+    issuer: 'https://hosts.example.test',
+  });
+});

@@ -8,6 +8,7 @@ import { IMPD_UPGRADE } from './impd-upgrade';
 interface ImpBrokerHosts {
   readonly impPrefix: string;
   readonly getImpName: (hostKey: string) => string;
+  readonly readImp: (hostName: string) => Promise<ImpView | null>;
   readonly createImp: (hostKey: string) => Promise<ImpView>;
   readonly destroyImp: (hostKey: string) => Promise<void>;
 }
@@ -44,7 +45,7 @@ export function buildImpCredentialBroker(port: ImpPort, hosts: ImpBrokerHosts): 
     removeGrant: (hostName, secret) => withBrokerErrors(() => port.removeGrant(hostName, secret)),
     readHost: (hostName) =>
       withBrokerErrors(async () => {
-        const imp = await port.readImp(hostName);
+        const imp = await hosts.readImp(hostName);
 
         return imp === null ? null : { id: imp.id, name: imp.name };
       }),

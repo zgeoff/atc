@@ -37,7 +37,12 @@ test('it answers daemon.hello with the build and limits', async () => {
     idempotency: { completedRetentionMs: 86_400_000 },
     lastUsedAgent: 'claude',
     peerSession: null,
-    features: ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace'],
+    features: [
+      'events.read.from-start',
+      'daemon.hello.viewer',
+      'session.forget.workspace',
+      'session.host',
+    ],
   });
 });
 
@@ -49,12 +54,12 @@ test('it rejects a protocol version mismatch naming both builds and closes the c
     client.stop();
   });
 
-  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 14 });
+  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 15 });
 
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/newer-build speaks protocol v14, daemon atc/test-build speaks v13; restart the daemon so both run the same build',
+      'atc/newer-build speaks protocol v15, daemon atc/test-build speaks v14; restart the daemon so both run the same build',
   });
 
   await Promise.allSettled([refused]);

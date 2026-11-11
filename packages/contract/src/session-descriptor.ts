@@ -5,6 +5,19 @@ import { toAgentSessionID } from './to-agent-session-id';
 import { toDaemonID } from './to-daemon-id';
 import { toSessionID } from './to-session-id';
 
+const SESSION_HOST_SCHEMA = z.object({
+  // the host's name on its provider
+  name: z.string(),
+
+  // the provider's id for this host, which a new host made under the same
+  // name never shares; absent while the daemon does not know it
+  id: z.string().optional(),
+
+  // the identity issuer of the provider's daemon; absent when that daemon
+  // reports none
+  issuer: z.string().optional(),
+});
+
 export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   id: z.string().transform((id) => toSessionID(id)),
   name: z.string(),
@@ -64,6 +77,11 @@ export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   // the plugin folders the spawn asked for, after the ones the agent's
   // config sets; absent when it asked for none
   pluginDirs: z.array(z.string()).readonly().optional(),
+
+  // the VM host the session runs on, as its provider names it; absent for a
+  // session with no VM host, such as a local one. Sub-sessions that share a
+  // parent's host report the same host.
+  host: SESSION_HOST_SCHEMA.optional(),
 });
 
 export type SessionDescriptor = Readonly<z.output<typeof SESSION_DESCRIPTOR_SCHEMA>>;

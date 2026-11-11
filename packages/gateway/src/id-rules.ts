@@ -9,6 +9,11 @@ const DESCRIPTOR_RULES: readonly (readonly [string, IDRule])[] = [
   ['children[]', 'id'],
   ['locator', 'locator'],
   ['agentSessionID', 'keep'],
+
+  // the provider's own values for the host, never atc's ids
+  ['host.name', 'keep'],
+  ['host.id', 'keep'],
+  ['host.issuer', 'keep'],
 ];
 
 // by field path: object keys joined with `.`, and `[]` for every element of an array

@@ -7,6 +7,10 @@ export interface ImpPort {
   // Rejects with `IMPD_OUTDATED` when impd declares none.
   readonly readGuestScratchDir: () => Promise<string>;
 
+  // The identity issuer impd signs host tokens as, or null while impd's
+  // identity is off. A fact of impd, shared by all its imps.
+  readonly readIssuer: () => Promise<string | null>;
+
   // The caller's own identity: its scope, the imps it may reach, and the
   // secrets it may grant.
   readonly readIdentity: () => Promise<ImpIdentity>;

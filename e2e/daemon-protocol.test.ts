@@ -706,7 +706,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   // The hook reads the wire form, which carries the protocol version the
   // client drops.
   expect({ payload: parsed, eventName, rest }).toStrictEqual({
-    payload: { version: 13, ...event },
+    payload: { version: 14, ...event },
     eventName: 'SessionAttached',
     rest: '',
   });

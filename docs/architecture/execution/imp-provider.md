@@ -38,6 +38,25 @@ imp from memory and attaches to each harness again. A daemon that crashes cannot
 back, so each one lapses when its length runs out, and the next daemon takes its leases under the
 same label, since the label holds the daemon id the store keeps.
 
+## The host identity
+
+The provider reports each imp's name, impd's id for it, and impd's identity issuer, which the daemon
+puts in the session's `host`
+([the host a session runs on](../daemon/sessions.md#the-host-a-session-runs-on)). The name is the
+imp's name, built from the host key. The id comes from impd's answer, never from the name: a new imp
+made under the same name gets a new id.
+
+- Every readying reads the imp from impd, and keeps the id of the imp it found or created. A
+  readying that finds no imp drops the kept id before it creates one.
+- A restore's check of an existing host keeps the id it reads, and drops the kept id when impd holds
+  no imp.
+- A destroy drops the kept id.
+
+A session whose imp the daemon has not readied or checked since it started lists its imp's name and
+no id. The issuer is a fact of impd, read from its status report with the version check. The
+provider keeps the issuer each readying and restore check reads. While impd's identity is off, the
+report holds no issuer and the session lists none.
+
 ## The guest folder
 
 Each session's files live in the target's guest folder inside the imp. The provider places that

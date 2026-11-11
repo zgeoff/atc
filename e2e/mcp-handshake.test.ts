@@ -190,6 +190,24 @@ test('it lists the fleet tools', async () => {
                         "description": "the session's working directory on its host",
                         "type": "string",
                       },
+                      "host": {
+                        "description": "the VM host the session runs on, as the host provider names it; absent for a session with no VM host, such as a local one. A sub-session on its parent's host reports the same host",
+                        "properties": {
+                          "id": {
+                            "description": "the provider's id for the host, which a new host made under the same name never shares; absent while atc does not know it",
+                            "type": "string",
+                          },
+                          "issuer": {
+                            "description": "the identity issuer of the provider's daemon; absent when that daemon reports none",
+                            "type": "string",
+                          },
+                          "name": {
+                            "description": "the host's name on its provider",
+                            "type": "string",
+                          },
+                        },
+                        "type": "object",
+                      },
                       "id": {
                         "description": "the atc session id; under the gateway it starts with the daemon's name",
                         "type": "string",
@@ -511,6 +529,24 @@ test('it lists the fleet tools', async () => {
                 "cwd": {
                   "description": "the session's working directory on its host",
                   "type": "string",
+                },
+                "host": {
+                  "description": "the VM host the session runs on, as the host provider names it; absent for a session with no VM host, such as a local one. A sub-session on its parent's host reports the same host",
+                  "properties": {
+                    "id": {
+                      "description": "the provider's id for the host, which a new host made under the same name never shares; absent while atc does not know it",
+                      "type": "string",
+                    },
+                    "issuer": {
+                      "description": "the identity issuer of the provider's daemon; absent when that daemon reports none",
+                      "type": "string",
+                    },
+                    "name": {
+                      "description": "the host's name on its provider",
+                      "type": "string",
+                    },
+                  },
+                  "type": "object",
                 },
                 "id": {
                   "description": "the atc session id; under the gateway it starts with the daemon's name",
@@ -1772,6 +1808,24 @@ test('it lists the fleet tools', async () => {
                     "cwd": {
                       "description": "the session's working directory on its host",
                       "type": "string",
+                    },
+                    "host": {
+                      "description": "the VM host the session runs on, as the host provider names it; absent for a session with no VM host, such as a local one. A sub-session on its parent's host reports the same host",
+                      "properties": {
+                        "id": {
+                          "description": "the provider's id for the host, which a new host made under the same name never shares; absent while atc does not know it",
+                          "type": "string",
+                        },
+                        "issuer": {
+                          "description": "the identity issuer of the provider's daemon; absent when that daemon reports none",
+                          "type": "string",
+                        },
+                        "name": {
+                          "description": "the host's name on its provider",
+                          "type": "string",
+                        },
+                      },
+                      "type": "object",
                     },
                     "id": {
                       "description": "the atc session id; under the gateway it starts with the daemon's name",
