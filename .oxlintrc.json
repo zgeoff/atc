@@ -74,6 +74,23 @@
           "packages/tui"
         ]
       }
+    ],
+    // these packages still hold files that no export is named for
+    "zgeoff/file-named-for-export": [
+      "error",
+      {
+        "pending": [
+          "packages/app",
+          "packages/config",
+          "packages/contract",
+          "packages/daemon",
+          "packages/execution/imp",
+          "packages/lifecycle",
+          "packages/protocol",
+          "packages/reporters",
+          "packages/tui"
+        ]
+      }
     ]
   },
   "overrides": [
