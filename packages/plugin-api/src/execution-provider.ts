@@ -54,6 +54,11 @@ export interface ExecutionProvider {
   // provider cannot check an existing host.
   readonly checkExistingHost?: (host: string) => Promise<boolean>;
 
+  // What the provider knows now of the host a key runs on, read from its own
+  // record without a call out, or null for a host with no identity to report.
+  // Absent on a provider whose hosts are not VMs.
+  readonly findHostFact?: (host: string) => HostFact | null;
+
   // Starts a process in a pseudo-terminal of the given size, on the host the
   // spec holds, which a prepare readied first.
   readonly spawnHarness: (spec: HarnessSpec) => HarnessHandle;
@@ -115,6 +120,19 @@ export interface HostRequest {
   // Times each step of the readying under its name, for the launch that
   // asked for it.
   readonly timer?: StepTimer;
+}
+
+export interface HostFact {
+  // The host's name on its provider.
+  readonly name: string;
+
+  // The provider's id for the host, which a new host made under the same name
+  // never shares. Absent until the provider has read it from its own daemon.
+  readonly id?: string;
+
+  // The identity issuer of the provider's daemon. Absent until the provider
+  // has read it, and when that daemon reports none.
+  readonly issuer?: string;
 }
 
 export interface GuestLayout {

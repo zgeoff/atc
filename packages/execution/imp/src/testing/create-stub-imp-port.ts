@@ -45,6 +45,10 @@ interface StubImpPort extends ImpPort {
   // before it declared one.
   scratchDir: string | null;
 
+  // The identity issuer impd reports; null stands for an impd with identity
+  // off.
+  issuer: string | null;
+
   // Where the port keeps each imp's read-only files, one folder per imp
   // name; null stands for an imp agent from before them.
   readOnlyFilesDir: string | null;
@@ -194,6 +198,8 @@ export function createStubImpPort(
 
     scratchDir: '/tmp',
 
+    issuer: 'https://impd.stub.invalid',
+
     readOnlyFilesDir: null,
 
     continuity: 'offsets',
@@ -232,6 +238,10 @@ export function createStubImpPort(
         resolve(requireGuestScratchDir(info));
       });
     },
+
+    // The real port answers from the status report its version check read,
+    // so this records no call of its own.
+    readIssuer: () => Promise.resolve(self.issuer),
 
     readIdentity: secrets.readIdentity,
     readSecrets: secrets.readSecrets,

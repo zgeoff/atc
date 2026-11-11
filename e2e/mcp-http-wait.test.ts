@@ -129,7 +129,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     reporterSocketPath: ctx.paths.socketPath,
     eventsSocketPath: ctx.paths.eventsSocketPath,
     listenPort: null,
-    protocol: 13,
+    protocol: 14,
   });
 
   expect(Bun.peek.status(daemon.exited)).toBe('pending');

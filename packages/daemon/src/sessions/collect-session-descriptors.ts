@@ -1,3 +1,4 @@
+import type { HostFact } from '@atc/plugin-api';
 import type { FleetStore } from '@atc/store';
 import type { SessionDescriptor, SessionLifecycle } from '@atcx/contract';
 import { buildSessionLifecycle } from './build-session-lifecycle';
@@ -6,7 +7,7 @@ import { pickSessionState } from './pick-session-state';
 import type { Session } from './session';
 
 export function collectSessionDescriptors(
-  registry: Pick<SessionRegistry, 'sessions' | 'findAdapter'>,
+  registry: Pick<SessionRegistry, 'sessions' | 'findAdapter' | 'findProvider'>,
   store: Pick<FleetStore, 'daemonID'>,
 ): SessionDescriptor[] {
   return registry.sessions.map((session) => ({
@@ -36,6 +37,7 @@ export function collectSessionDescriptors(
     lifecycle: buildLifecycle(session),
     ...(session.model === undefined ? {} : { model: session.model }),
     ...(session.pluginDirs === undefined ? {} : { pluginDirs: session.pluginDirs }),
+    ...buildHostField(registry.findProvider(session)?.findHostFact?.(session.hostKey) ?? null),
   }));
 }
 
@@ -49,4 +51,8 @@ function buildLifecycle(session: Session): SessionLifecycle {
     kind: session.kind,
     state: session.state,
   });
+}
+
+function buildHostField(fact: HostFact | null): Pick<SessionDescriptor, 'host'> {
+  return fact === null ? {} : { host: fact };
 }

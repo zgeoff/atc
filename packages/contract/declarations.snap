@@ -739,6 +739,11 @@ export declare const DAEMON_CONTRACT: {
                 }, z.core.$strip>;
                 model: z.ZodOptional<z.ZodString>;
                 pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                host: z.ZodOptional<z.ZodObject<{
+                    name: z.ZodString;
+                    id: z.ZodOptional<z.ZodString>;
+                    issuer: z.ZodOptional<z.ZodString>;
+                }, z.core.$strip>>;
             }, z.core.$strip>>>;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
             access: "owner" | "principal";
@@ -854,6 +859,11 @@ export declare const DAEMON_CONTRACT: {
                 }, z.core.$strip>;
                 model: z.ZodOptional<z.ZodString>;
                 pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                host: z.ZodOptional<z.ZodObject<{
+                    name: z.ZodString;
+                    id: z.ZodOptional<z.ZodString>;
+                    issuer: z.ZodOptional<z.ZodString>;
+                }, z.core.$strip>>;
             }, z.core.$strip>;
             warnings: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
@@ -1156,6 +1166,11 @@ export declare const DAEMON_CONTRACT: {
                 }, z.core.$strip>;
                 model: z.ZodOptional<z.ZodString>;
                 pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+                host: z.ZodOptional<z.ZodObject<{
+                    name: z.ZodString;
+                    id: z.ZodOptional<z.ZodString>;
+                    issuer: z.ZodOptional<z.ZodString>;
+                }, z.core.$strip>>;
             }, z.core.$strip>;
             prompt: z.ZodNullable<z.ZodString>;
             lastActivityAt: z.ZodNumber;
@@ -1442,6 +1457,11 @@ export declare const DAEMON_CONTRACT: {
                 };
                 model?: string | undefined;
                 pluginDirs?: readonly string[] | undefined;
+                host?: {
+                    name: string;
+                    id?: string | undefined;
+                    issuer?: string | undefined;
+                } | undefined;
             };
             ev: "SessionAdded";
         } | {
@@ -1483,6 +1503,11 @@ export declare const DAEMON_CONTRACT: {
                 };
                 model?: string | undefined;
                 pluginDirs?: readonly string[] | undefined;
+                host?: {
+                    name: string;
+                    id?: string | undefined;
+                    issuer?: string | undefined;
+                } | undefined;
             };
             ev: "SessionState";
         } | {
@@ -1524,6 +1549,11 @@ export declare const DAEMON_CONTRACT: {
                 };
                 model?: string | undefined;
                 pluginDirs?: readonly string[] | undefined;
+                host?: {
+                    name: string;
+                    id?: string | undefined;
+                    issuer?: string | undefined;
+                } | undefined;
             };
             ev: "SessionAttached";
         } | {
@@ -1565,6 +1595,11 @@ export declare const DAEMON_CONTRACT: {
                 };
                 model?: string | undefined;
                 pluginDirs?: readonly string[] | undefined;
+                host?: {
+                    name: string;
+                    id?: string | undefined;
+                    issuer?: string | undefined;
+                } | undefined;
             };
             ev: "SessionDetached";
         }, unknown, void>, import("@orpc/contract").AsyncIteratorClass<{
@@ -1728,6 +1763,11 @@ export declare const DAEMON_CONTRACT: {
                 };
                 model?: string | undefined;
                 pluginDirs?: readonly string[] | undefined;
+                host?: {
+                    name: string;
+                    id?: string | undefined;
+                    issuer?: string | undefined;
+                } | undefined;
             };
             ev: "SessionAdded";
         } | {
@@ -1769,6 +1809,11 @@ export declare const DAEMON_CONTRACT: {
                 };
                 model?: string | undefined;
                 pluginDirs?: readonly string[] | undefined;
+                host?: {
+                    name: string;
+                    id?: string | undefined;
+                    issuer?: string | undefined;
+                } | undefined;
             };
             ev: "SessionState";
         } | {
@@ -1810,6 +1855,11 @@ export declare const DAEMON_CONTRACT: {
                 };
                 model?: string | undefined;
                 pluginDirs?: readonly string[] | undefined;
+                host?: {
+                    name: string;
+                    id?: string | undefined;
+                    issuer?: string | undefined;
+                } | undefined;
             };
             ev: "SessionAttached";
         } | {
@@ -1851,6 +1901,11 @@ export declare const DAEMON_CONTRACT: {
                 };
                 model?: string | undefined;
                 pluginDirs?: readonly string[] | undefined;
+                host?: {
+                    name: string;
+                    id?: string | undefined;
+                    issuer?: string | undefined;
+                } | undefined;
             };
             ev: "SessionDetached";
         }, unknown, void>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
@@ -2055,6 +2110,11 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }, z.core.$strip>;
         model: z.ZodOptional<z.ZodString>;
         pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+        host: z.ZodOptional<z.ZodObject<{
+            name: z.ZodString;
+            id: z.ZodOptional<z.ZodString>;
+            issuer: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>;
     }, z.core.$strip>;
     ev: z.ZodLiteral<"SessionAdded">;
 }, z.core.$strip>, z.ZodObject<{
@@ -2126,6 +2186,11 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }, z.core.$strip>;
         model: z.ZodOptional<z.ZodString>;
         pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+        host: z.ZodOptional<z.ZodObject<{
+            name: z.ZodString;
+            id: z.ZodOptional<z.ZodString>;
+            issuer: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>;
     }, z.core.$strip>;
     ev: z.ZodLiteral<"SessionState">;
 }, z.core.$strip>, z.ZodObject<{
@@ -2197,6 +2262,11 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }, z.core.$strip>;
         model: z.ZodOptional<z.ZodString>;
         pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+        host: z.ZodOptional<z.ZodObject<{
+            name: z.ZodString;
+            id: z.ZodOptional<z.ZodString>;
+            issuer: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>;
     }, z.core.$strip>;
     ev: z.ZodLiteral<"SessionAttached">;
 }, z.core.$strip>, z.ZodObject<{
@@ -2268,6 +2338,11 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }, z.core.$strip>;
         model: z.ZodOptional<z.ZodString>;
         pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+        host: z.ZodOptional<z.ZodObject<{
+            name: z.ZodString;
+            id: z.ZodOptional<z.ZodString>;
+            issuer: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>;
     }, z.core.$strip>;
     ev: z.ZodLiteral<"SessionDetached">;
 }, z.core.$strip>, z.ZodObject<{
@@ -2411,7 +2486,7 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
 export type DaemonEvent = z.output<typeof DAEMON_EVENT_SCHEMA>;
 
 // daemon-features.d.ts
-export declare const DAEMON_FEATURES: readonly ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace'];
+export declare const DAEMON_FEATURES: readonly ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace', 'session.host'];
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];
 
 // daemon-id.d.ts
@@ -3276,6 +3351,11 @@ export declare const SESSION_DESCRIPTOR_SCHEMA: z.ZodObject<{
     }, z.core.$strip>;
     model: z.ZodOptional<z.ZodString>;
     pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+    host: z.ZodOptional<z.ZodObject<{
+        name: z.ZodString;
+        id: z.ZodOptional<z.ZodString>;
+        issuer: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 export type SessionDescriptor = Readonly<z.output<typeof SESSION_DESCRIPTOR_SCHEMA>>;
 
@@ -3446,6 +3526,11 @@ export declare const SPAWN_ANSWER_SCHEMA: z.ZodObject<{
         }, z.core.$strip>;
         model: z.ZodOptional<z.ZodString>;
         pluginDirs: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
+        host: z.ZodOptional<z.ZodObject<{
+            name: z.ZodString;
+            id: z.ZodOptional<z.ZodString>;
+            issuer: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>;
     }, z.core.$strip>;
     warnings: z.ZodOptional<z.ZodReadonly<z.ZodArray<z.ZodString>>>;
 }, z.core.$strip>;

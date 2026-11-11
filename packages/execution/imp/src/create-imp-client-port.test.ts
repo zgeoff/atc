@@ -1272,3 +1272,30 @@ test('it sends a start without requirements when the request holds none', async 
     },
   ]);
 });
+
+test("it reads impd's identity issuer from the status report", async () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', {
+    status: 200,
+    json: { version: '2.6.0', identity: { issuer: 'https://impd.example.test' } },
+  });
+
+  const port = createImpClientPort({ url: ctx.impd.url, readToken: () => 'issuer-token' });
+
+  const issuer = await port.readIssuer();
+
+  expect(issuer).toBe('https://impd.example.test');
+});
+
+test('it reads no issuer while impd has identity off', async () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/system/info', { status: 200, json: { version: '2.6.0' } });
+
+  const port = createImpClientPort({ url: ctx.impd.url, readToken: () => 'issuer-token' });
+
+  const issuer = await port.readIssuer();
+
+  expect(issuer).toBeNull();
+});

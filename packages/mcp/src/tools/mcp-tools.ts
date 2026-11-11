@@ -749,6 +749,24 @@ const SESSION_ENTRY_PROPERTIES: Readonly<Record<string, unknown>> = {
       'the repository and commit atc checked out for the session; absent without a workspace source',
   },
   locator: { type: 'object', description: 'the daemon and target the session runs on' },
+  host: {
+    type: 'object',
+    description:
+      "the VM host the session runs on, as the host provider names it; absent for a session with no VM host, such as a local one. A sub-session on its parent's host reports the same host",
+    properties: {
+      name: { type: 'string', description: "the host's name on its provider" },
+      id: {
+        type: 'string',
+        description:
+          "the provider's id for the host, which a new host made under the same name never shares; absent while atc does not know it",
+      },
+      issuer: {
+        type: 'string',
+        description:
+          "the identity issuer of the provider's daemon; absent when that daemon reports none",
+      },
+    },
+  },
   lifecycle: {
     type: 'object',
     description: "the wanted and actual state of the session's host, harness and attachment",

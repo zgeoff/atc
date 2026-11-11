@@ -127,7 +127,7 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
     reporterSocketPath: daemon.reporterSocketPath,
     eventsSocketPath: daemon.paths.eventsSocketPath,
     listenPort: null,
-    protocol: 13,
+    protocol: 14,
   });
 });
 

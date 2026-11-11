@@ -796,7 +796,7 @@ test('it serves a daemon on the contract version that lacks a feature and warns 
   expect(listed).toStrictEqual([{ sessions: [] }, { sessions: [] }]);
 
   expect(warnings).toStrictEqual([
-    `daemon 'cloud' runs atc/${CONTRACT_VERSION}+lq2x9a, which lacks session.forget.workspace; a call that needs one fails`,
+    `daemon 'cloud' runs atc/${CONTRACT_VERSION}+lq2x9a, which lacks session.forget.workspace, session.host; a call that needs one fails`,
   ]);
 });
 

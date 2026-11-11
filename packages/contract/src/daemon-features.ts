@@ -5,6 +5,7 @@ export const DAEMON_FEATURES = [
   'events.read.from-start',
   'daemon.hello.viewer',
   'session.forget.workspace',
+  'session.host',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

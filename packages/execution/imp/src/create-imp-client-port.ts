@@ -23,7 +23,7 @@ import { toImpSecret } from './to-imp-secret';
 import { toImpView } from './to-imp-view';
 import { watchSocketLiveness } from './watch-socket-liveness';
 
-type ImpdInfo = Pick<ImpdOutput<'system.info'>, 'version' | 'guest'>;
+type ImpdInfo = Pick<ImpdOutput<'system.info'>, 'version' | 'guest' | 'identity'>;
 
 interface ImpClientPortOptions {
   readonly url: string;
@@ -31,8 +31,8 @@ interface ImpClientPortOptions {
   readonly clock?: Clock;
 }
 
-// How long one read of impd's slow status report answers later version and
-// scratch folder checks; both change only when impd is replaced, which the
+// How long one read of impd's slow status report answers later version,
+// scratch folder and issuer checks; both change only when impd is replaced, which the
 // doc on runtime auth weighs.
 const INFO_MAX_AGE_MS = 30_000;
 
@@ -129,6 +129,12 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
       const read = await readInfo();
 
       return requireGuestScratchDir(read);
+    },
+
+    readIssuer: async () => {
+      const read = await readInfo();
+
+      return read.identity?.issuer ?? null;
     },
 
     readIdentity: async () => {

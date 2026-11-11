@@ -46,7 +46,8 @@ lists the features the contract knows that the daemon lacks, and the ones the da
 contract does not know.
 
 A release that adds a capability within a major version adds a feature name, so a client finds out
-what an older daemon lacks without comparing minor versions.
+what an older daemon lacks without comparing minor versions. A daemon that lists `session.host`
+reports the `host` of a session that runs on a VM host in its session descriptors.
 
 The check runs only after a handshake the daemon accepts. Every client sends a protocol version in
 its hello, a client outside atc included, and a daemon on another version refuses the hello with
