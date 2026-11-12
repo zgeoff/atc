@@ -4,6 +4,7 @@ import type { EventDeliverer } from '../events/create-event-deliverer';
 import type { WebhookSender } from '../events/types';
 import type { ModernMCPHandler } from '../http/create-modern-mcp-handler';
 import type { FleetCaller } from '../tools/types';
+import type { ServiceTokenVerifier } from './build-service-token-verifier';
 import type { ApprovalState } from './create-approval-state';
 import type { EnrollmentState } from './create-enrollment-state';
 import type { openMCPAuth } from './open-mcp-auth';
@@ -112,6 +113,10 @@ export interface HTTPServerContext {
   readonly store: MCPAuth;
   readonly approvals: ApprovalState;
   readonly enrollments: EnrollmentState;
+
+  // Checks the bearers that start with the service prefix; null when the
+  // server loaded no token file.
+  readonly serviceTokens: ServiceTokenVerifier | null;
 
   // Receives each sign-in outcome and each refused token as a security event.
   readonly security: { readonly record: (event: SecurityEvent) => void };

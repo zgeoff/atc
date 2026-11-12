@@ -2,6 +2,7 @@ import { isRecord } from '@atc/core';
 import { GRANT_SCOPES } from '@atcx/contract';
 import type { GrantScope } from '@atcx/contract';
 import { isAPIError } from 'better-auth/api';
+import { SERVICE_TOKEN_PREFIX } from '../auth/service-token-prefix';
 import type { HTTPServerContext } from '../auth/types';
 
 interface TokenAccess {
@@ -9,12 +10,16 @@ interface TokenAccess {
   readonly scopes: readonly GrantScope[];
 }
 
-// An inactive, unknown, expired or revoked token, one bound to another
+// A service token reads as null, because it is never an OAuth token. An inactive, unknown, expired or revoked token, one bound to another
 // resource, or one without a client id reads as null. Reading records no use.
 export async function readTokenAccess(
   ctx: HTTPServerContext,
   token: string,
 ): Promise<TokenAccess | null> {
+  if (token.startsWith(SERVICE_TOKEN_PREFIX)) {
+    return null;
+  }
+
   let payload: unknown;
 
   try {

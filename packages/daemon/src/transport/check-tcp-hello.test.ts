@@ -297,3 +297,37 @@ test('it refuses a handshake on another protocol version', async () => {
 
   expect(hello).toMatchObject({ ok: false, code: 'protocol_mismatch' });
 });
+
+test('it accepts a handshake for a listed principal whose ID holds a colon', async () => {
+  const ctx = setupTest();
+
+  const hello = await checkTCPHello(
+    {
+      version: PROTOCOL_V,
+      id: 1,
+      method: 'daemon.hello',
+      params: {
+        client: 'remote-tui',
+        principal: 'service:ci-bot',
+        auth: { scheme: 'bearer', token: 't-good' },
+      },
+    },
+    {
+      tcp: {
+        verifyHandshake: () => Promise.resolve('fp-1'),
+        recordRefusedPrincipal: ctx.recordRefusedPrincipal,
+      },
+      hasListedPrincipal: (principal) => principal === 'service:ci-bot',
+      build: '1.2.3',
+    },
+  );
+
+  expect(hello).toStrictEqual({
+    ok: true,
+    fingerprint: 'fp-1',
+    principal: 'service:ci-bot',
+    viewer: null,
+    session: null,
+    client: 'remote-tui',
+  });
+});
