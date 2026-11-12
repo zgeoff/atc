@@ -47,7 +47,7 @@ test.each([
   ['atcs_'],
   [`atcs_${'d'.repeat(32)}`],
   [`atcs_${'a'.repeat(32)}`.slice(0, -1)],
-  [`${`atcs_${'a'.repeat(32)}`}x`],
+  [`atcs_${'a'.repeat(32)}x`],
 ])('it gives no access to the token %p', (token) => {
   const ctx = setupTest();
 

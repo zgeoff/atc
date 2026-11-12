@@ -162,7 +162,8 @@ test('it names no token in the reason for a client name that holds one', () => {
 
   const parsed = parseServiceTokenFile(text);
 
-  expect(parsed).toStrictEqual({ ok: false, reason: expect.not.stringContaining('atcs_') });
+  expect(parsed.ok).toBe(false);
+  expect(JSON.stringify(parsed)).not.toContain('atcs_');
 });
 
 test('it names no token in the reason for a misplaced field', () => {
@@ -172,10 +173,10 @@ test('it names no token in the reason for a misplaced field', () => {
     clients: { ci: { scopes: ['read'], tokens: [`atcs_${'b'.repeat(40)}`] } },
   });
 
-  expect(parseServiceTokenFile(text)).toStrictEqual({
-    ok: false,
-    reason: expect.not.stringContaining('atcs_'),
-  });
+  const parsed = parseServiceTokenFile(text);
+
+  expect(parsed.ok).toBe(false);
+  expect(JSON.stringify(parsed)).not.toContain('atcs_');
 });
 
 test('it keeps each scope once', () => {

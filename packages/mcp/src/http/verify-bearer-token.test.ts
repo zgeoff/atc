@@ -271,7 +271,7 @@ test('it refuses a service token as a refresh token at the token endpoint', asyn
   expect(refreshed.status).toBeGreaterThanOrEqual(400);
 });
 
-test('it refuses to start when the token file is for another resource', async () => {
+test('it refuses to start when the token file is for another resource', () => {
   const temporaryDirectory = setupTempDir('atc-mcp-service-tokens-');
 
   const started = startMCPHTTPServer({
@@ -292,7 +292,7 @@ test('it refuses to start when the token file is for another resource', async ()
     },
   });
 
-  await expect(started).rejects.toThrow(
+  expect(started).rejects.toThrow(
     "the service token file is not for the resource 'https://atc.example.com/mcp'",
   );
 });
