@@ -419,6 +419,7 @@ test('it refuses a spawn on a stopped daemon as daemon_unavailable', async () =>
 
   expect(refused).toStrictEqual({
     content: [{ type: 'text', text: "daemon_unavailable: daemon 'pc' is unreachable" }],
+    structuredContent: { code: 'daemon_unavailable' },
     isError: true,
   });
 });
@@ -439,6 +440,7 @@ test('it answers daemon_unauthorized for a daemon that refuses the gateway token
     content: [
       { type: 'text', text: "daemon_unauthorized: daemon 'pc' refused the gateway's token" },
     ],
+    structuredContent: { code: 'daemon_unauthorized' },
     isError: true,
   });
 });
@@ -522,6 +524,7 @@ test('it refuses a client no daemon lists as unauthorized', async () => {
 
   expect(refused).toStrictEqual({
     content: [{ type: 'text', text: expect.toStartWith('unauthorized: ') }],
+    structuredContent: { code: 'unauthorized' },
     isError: true,
   });
 });
