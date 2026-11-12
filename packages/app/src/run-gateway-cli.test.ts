@@ -119,6 +119,7 @@ test.each([
     trustForwardedFrom: [],
     registryPath: 'registry.json',
     stateDir: 'flagged',
+    serviceTokenFile: null,
   });
 });
 
@@ -253,6 +254,7 @@ test('it serves on port 0 for the kernel to pick a free port', async () => {
     trustForwardedFrom: [],
     registryPath: 'registry.json',
     stateDir: 'flagged',
+    serviceTokenFile: null,
   });
 });
 
@@ -284,6 +286,37 @@ test('it serves trusting every proxy address that --trust-forwarded-from repeats
     trustForwardedFrom: ['127.0.0.1', '::1'],
     registryPath: 'registry.json',
     stateDir: 'flagged',
+    serviceTokenFile: null,
+  });
+});
+
+test('it serves with the service token file that --service-token-file names', async () => {
+  const ctx = setupTest();
+
+  await runGatewayCLI(
+    [
+      'serve',
+      '--public-url',
+      'https://atc.example.com',
+      '--registry',
+      'registry.json',
+      '--state-dir',
+      'flagged',
+      '--service-token-file',
+      'service-tokens.json',
+    ],
+    {},
+    ctx.io,
+  );
+
+  expect(ctx.io.runGateway).toHaveBeenCalledExactlyOnceWith(`atc-gateway/${GATEWAY_VERSION}`, {
+    host: '127.0.0.1',
+    port: 8414,
+    publicURL: 'https://atc.example.com',
+    trustForwardedFrom: [],
+    registryPath: 'registry.json',
+    stateDir: 'flagged',
+    serviceTokenFile: 'service-tokens.json',
   });
 });
 
@@ -507,6 +540,7 @@ test('it serves under the build of the version it is given, not the app package 
     trustForwardedFrom: [],
     registryPath: 'registry.json',
     stateDir: 'from-env',
+    serviceTokenFile: null,
   });
 });
 

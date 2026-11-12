@@ -103,3 +103,100 @@ test('it serves from the state directory given before its subcommand over the en
   expect(stored).toStrictEqual([true, true]);
   expect(exitCode).toBe(0);
 });
+
+test('it lists tools for a service token from the file that --service-token-file names', async () => {
+  const ctx = setupTest();
+  const token = `atcs_${'k'.repeat(40)}`;
+
+  writeFileSync(
+    join(ctx.directory, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  writeFileSync(
+    join(ctx.directory, 'service-tokens.json'),
+    JSON.stringify({
+      resource: 'https://atc.example.com/mcp',
+      clients: { 'ci-bot': { scopes: ['read'], tokens: [token] } },
+    }),
+    { mode: 0o600 },
+  );
+
+  const gateway = Bun.spawn(
+    [
+      ...ctx.command,
+      '--state-dir',
+      'state',
+      'serve',
+      '--public-url',
+      'https://atc.example.com',
+      '--registry',
+      'registry.json',
+      '--port',
+      '0',
+      '--service-token-file',
+      'service-tokens.json',
+    ],
+    {
+      cwd: ctx.directory,
+      env: { ...ctx.env, ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+
+  registerTestCleanup(() => {
+    gateway.kill();
+
+    return gateway.exited;
+  });
+
+  const reader = gateway.stdout.getReader();
+
+  const chunk = await reader.read();
+
+  reader.releaseLock();
+
+  const serving = new TextDecoder().decode(chunk.value);
+
+  const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)\n$/u.exec(serving)?.groups?.[
+    'port'
+  ];
+
+  invariant(port !== undefined, `no bound port in the serving line: ${serving}`);
+
+  const listed = await fetch(`http://127.0.0.1:${port}/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+  });
+
+  const refused = await fetch(`http://127.0.0.1:${port}/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer atcs_${'z'.repeat(40)}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+  });
+
+  const body = await listed.text();
+
+  gateway.kill('SIGTERM');
+
+  await gateway.exited;
+
+  expect(listed.status).toBe(200);
+  expect(body).toContain('"name":"atc_sessions_list"');
+  expect(refused.status).toBe(401);
+});

@@ -1,4 +1,5 @@
 import { mkdirSync } from 'node:fs';
+import { NODE_TOKEN_FILE_ACCESS } from '@atc/config/token-file';
 import { loadGatewayRegistry, openGatewayCaller } from '@atc/gateway';
 import { startMCPHTTPServer } from '@atc/mcp';
 import type { MCPHTTPServer } from '@atc/mcp';
@@ -6,6 +7,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import { openSQLite } from '@atc/store/sqlite';
 import { GATEWAY_PATHS } from '@atcx/contract';
 import { buildGatewayStatePaths } from './build-gateway-state-paths';
+import { loadServiceTokenFile } from './load-service-token-file';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
@@ -19,6 +21,9 @@ interface GatewayFlags {
   readonly trustForwardedFrom: readonly string[];
   readonly registryPath: string;
   readonly stateDir: string;
+
+  // The file of service tokens `/mcp` accepts; null for none.
+  readonly serviceTokenFile: string | null;
 }
 
 interface GatewayIO extends Pick<ProcessIO, 'print' | 'printError' | 'exit' | 'registerSignal'> {
@@ -39,6 +44,20 @@ export async function runGateway(
       io.printError(`atc-gateway: ${error}`);
     }
 
+    io.exit(1);
+
+    return;
+  }
+
+  // The file is read once, before anything starts, so a bad file stops the
+  // gateway with nothing opened.
+  const serviceTokens =
+    flags.serviceTokenFile === null
+      ? null
+      : loadServiceTokenFile(flags.serviceTokenFile, NODE_TOKEN_FILE_ACCESS);
+
+  if (serviceTokens !== null && !serviceTokens.ok) {
+    io.printError(`atc-gateway: --service-token-file: ${serviceTokens.reason}`);
     io.exit(1);
 
     return;
@@ -72,6 +91,7 @@ export async function runGateway(
       dbPath: statePaths.mcpAuthDBFile,
       openAuthDatabase: openMCPAuthDatabase,
       probes: true,
+      ...(serviceTokens === null ? {} : { serviceTokens: serviceTokens.file }),
 
       // Request lines go to stderr, beside the security events.
       printRequest: (line) => {
