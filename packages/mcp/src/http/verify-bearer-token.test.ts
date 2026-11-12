@@ -293,8 +293,38 @@ test('it refuses to start when the token file is for another resource', async ()
   });
 
   await expect(started).rejects.toThrow(
-    "the service token file is for the resource 'https://other.example.com/mcp', not 'https://atc.example.com/mcp'",
+    "the service token file is not for the resource 'https://atc.example.com/mcp'",
   );
+});
+
+test('it leaves a token written as the resource out of the start error', async () => {
+  const temporaryDirectory = setupTempDir('atc-mcp-service-tokens-');
+  const token = `atcs_${'r'.repeat(40)}`;
+
+  const started = startMCPHTTPServer({
+    caller: buildStubFleetCaller(),
+    build: 'atc/test-build',
+    host: '127.0.0.1',
+    port: 0,
+    publicURL: 'https://atc.example.com',
+    allowedHosts: [],
+    trustForwardedFrom: [],
+    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
+    openAuthDatabase: openTestAuthDatabase,
+    printRequest: () => {},
+    printSecurity: () => {},
+    serviceTokens: {
+      resource: token,
+      clients: [{ name: 'reader', scopes: ['read'], tokens: [token] }],
+    },
+  });
+
+  const error = await started.then(
+    () => null,
+    (error_: unknown) => error_,
+  );
+
+  expect(String(error)).not.toContain(token);
 });
 
 test('it issues OAuth client IDs that no service client ID can equal', async () => {

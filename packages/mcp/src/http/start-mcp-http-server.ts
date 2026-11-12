@@ -139,7 +139,13 @@ const VIEWER_ACCESS_RECHECK_MS = 5000;
 // cannot hold its watcher.
 const WEBHOOK_TIMEOUT_MS = 10_000;
 
-export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise<MCPHTTPServer> {
+export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<MCPHTTPServer> {
+  const { serviceTokens: file, ...options } = input;
+
+  // Only the digests outlive this block: the callbacks below close over
+  // `options`, which holds no token, and never over `input` or `file`.
+  const tokenResource = file?.resource ?? null;
+  const serviceTokens = file === undefined ? null : buildServiceTokenVerifier(file);
   const clock = options.clock ?? systemClock;
 
   // Normalized before binding, so an invalid public URL throws with no port
@@ -285,16 +291,13 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   const origin = publicOrigin ?? local;
   const resource = `${origin}${GATEWAY_PATHS.machine.mcp}`;
 
-  if (options.serviceTokens !== undefined && options.serviceTokens.resource !== resource) {
+  // The message names the served resource alone, because the file's value
+  // may be a token.
+  if (tokenResource !== null && tokenResource !== resource) {
     await server.stop(true);
 
-    throw new Error(
-      `the service token file is for the resource '${options.serviceTokens.resource}', not '${resource}'`,
-    );
+    throw new Error(`the service token file is not for the resource '${resource}'`);
   }
-
-  const serviceTokens =
-    options.serviceTokens === undefined ? null : buildServiceTokenVerifier(options.serviceTokens);
 
   const hosts: ReadonlySet<string> = new Set([
     new URL(origin).host,

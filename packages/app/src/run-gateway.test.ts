@@ -825,7 +825,7 @@ test('it exits 1 when the service token file is for another resource', async () 
 
   expect({ errors, exits }).toStrictEqual({
     errors: [
-      "atc-gateway: the service token file is for the resource 'https://other.example.com/mcp', not 'https://atc.example.com/mcp'",
+      "atc-gateway: the service token file is not for the resource 'https://atc.example.com/mcp'",
     ],
     exits: [1],
   });
