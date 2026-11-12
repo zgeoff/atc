@@ -29,8 +29,9 @@ with the connection's full reach.
 The daemon tells four callers apart, and labels each message with the one that sent it
 ([messages](./messages.md#who-a-message-is-from)):
 
-- A connector is a principal: an OAuth client that atc-gateway or `atc mcp --http` vouches for. A
-  connector is never an atc session.
+- A connector is a principal: an OAuth client that atc-gateway or `atc mcp --http` vouches for, or a
+  [service client](../remote/oauth.md#service-tokens) of atc-gateway, whose ID is `service:<name>`.
+  A connector is never an atc session.
 - A session is the owner plus a session binding. On the local socket the kernel's answer for the
   connecting process sets the binding, else the session the handshake gives
   ([the protocol](./protocol.md)).

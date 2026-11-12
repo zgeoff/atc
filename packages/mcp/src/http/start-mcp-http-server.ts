@@ -7,11 +7,14 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import type { Server } from 'bun';
 import invariant from 'tiny-invariant';
 import { APPROVAL_WINDOW_SECONDS } from '../auth/approval-window-seconds';
+import { buildServiceTokenVerifier } from '../auth/build-service-token-verifier';
 import { createApprovalState } from '../auth/create-approval-state';
 import { createEnrollmentState } from '../auth/create-enrollment-state';
 import { createSecurityEventLog } from '../auth/create-security-event-log';
+import { isServiceClientID } from '../auth/is-service-client-id';
 import type { MCPAuthDatabase } from '../auth/mcp-auth-database';
 import { openMCPAuth } from '../auth/open-mcp-auth';
+import type { ServiceTokenFile } from '../auth/parse-service-token-file';
 import type { HTTPServerContext, Requester, VerifiedAccess } from '../auth/types';
 import { createEventDeliverer } from '../events/create-event-deliverer';
 import { createSubscriptionStore } from '../events/create-subscription-store';
@@ -77,6 +80,10 @@ interface MCPHTTPServerOptions {
   readonly dbPath: string;
   readonly openAuthDatabase: (path: string) => MCPAuthDatabase;
 
+  // The service tokens the server accepts on `/mcp` beside OAuth tokens; its
+  // `resource` must equal the resource the server serves.
+  readonly serviceTokens?: ServiceTokenFile;
+
   // Receives one line per request the server answers.
   readonly printRequest: (line: string) => void;
 
@@ -132,7 +139,13 @@ const VIEWER_ACCESS_RECHECK_MS = 5000;
 // cannot hold its watcher.
 const WEBHOOK_TIMEOUT_MS = 10_000;
 
-export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise<MCPHTTPServer> {
+export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<MCPHTTPServer> {
+  const { serviceTokens: file, ...options } = input;
+
+  // Only the digests outlive this block: the callbacks below close over
+  // `options`, which holds no token, and never over `input` or `file`.
+  const tokenResource = file?.resource ?? null;
+  const serviceTokens = file === undefined ? null : buildServiceTokenVerifier(file);
   const clock = options.clock ?? systemClock;
 
   // Normalized before binding, so an invalid public URL throws with no port
@@ -276,6 +289,15 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
   const port = server.port ?? options.port;
   const local = `http://127.0.0.1:${port}`;
   const origin = publicOrigin ?? local;
+  const resource = `${origin}${GATEWAY_PATHS.machine.mcp}`;
+
+  // The message names the served resource alone, because the file's value
+  // may be a token.
+  if (tokenResource !== null && tokenResource !== resource) {
+    await server.stop(true);
+
+    throw new Error(`the service token file is not for the resource '${resource}'`);
+  }
 
   const hosts: ReadonlySet<string> = new Set([
     new URL(origin).host,
@@ -344,7 +366,10 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     caller: options.caller,
     send: sendWebhook,
     clock,
-    probeAccess: (clientID) => probeReadAccess(store.db, clientID, clock.now()),
+    probeAccess: (clientID) =>
+      isServiceClientID(clientID)
+        ? Promise.resolve(serviceTokens?.findScopes(clientID)?.includes('read') ?? false)
+        : probeReadAccess(store.db, clientID, clock.now()),
     log: options.printRequest,
   });
 
@@ -360,7 +385,8 @@ export async function startMCPHTTPServer(options: MCPHTTPServerOptions): Promise
     caller: options.caller,
     build: options.build,
     origin,
-    resource: `${origin}${GATEWAY_PATHS.machine.mcp}`,
+    resource,
+    serviceTokens,
     store,
     approvals: createApprovalState(APPROVAL_WINDOW_SECONDS * 1000, () => clock.now()),
     enrollments: createEnrollmentState(() => clock.now()),

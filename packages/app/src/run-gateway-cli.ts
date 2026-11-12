@@ -92,6 +92,7 @@ export async function runGatewayCLI(
           trustForwardedFrom: ctx.values['trust-forwarded-from'] ?? [],
           registryPath: ctx.values.registry,
           stateDir,
+          serviceTokenFile: ctx.values['service-token-file'] ?? null,
         }),
       );
     },
@@ -117,6 +118,11 @@ export async function runGatewayCLI(
             'A proxy address whose CF-Connecting-IP header security events trust; repeat for more',
         },
         registry: { type: 'string', required: true, description: 'The registry JSON file' },
+        'service-token-file': {
+          type: 'string',
+          description:
+            'A JSON file of service tokens that /mcp accepts beside OAuth tokens; read once at start',
+        },
         ...STATE_DIR_ARG,
       },
     },

@@ -1,4 +1,5 @@
 export * from './auth/create-enrollment-token';
+export * from './auth/parse-service-token-file';
 export * from './auth/create-passkey';
 export * from './auth/is-allowed-redirect-uri';
 export type * from './auth/mcp-auth-database';

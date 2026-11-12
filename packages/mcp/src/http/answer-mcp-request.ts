@@ -11,7 +11,7 @@ import type { AuthInfo } from '@modelcontextprotocol/server';
 import type { BearerReason, HTTPServerContext, Requester } from '../auth/types';
 import { buildPrincipalCaller } from '../tools/build-principal-caller';
 import { createMCPServer } from '../tools/create-mcp-server';
-import { verifyAccessToken } from './verify-access-token';
+import { verifyBearerToken } from './verify-bearer-token';
 
 // `requester` is where the request came from, for its security events.
 export async function answerMCPRequest(
@@ -39,7 +39,7 @@ export async function answerMCPRequest(
     });
   }
 
-  const access = await verifyAccessToken(ctx, token);
+  const access = await verifyBearerToken(ctx, token);
 
   if (access === null) {
     recordRefusedBearer(ctx, path, requester, 'invalid_token');

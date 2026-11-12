@@ -40,6 +40,7 @@ test('it answers the liveness probe for the host of its public URL', async () =>
       trustForwardedFrom: [],
       registryPath: join(ctx.directory, 'registry.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -98,6 +99,7 @@ test('it trusts the forwarded address from a proxy its flags list', async () => 
       trustForwardedFrom: ['127.0.0.1'],
       registryPath: join(ctx.directory, 'registry.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -172,6 +174,7 @@ test('it leaves the forwarded address unverified from a peer its flags do not li
       trustForwardedFrom: ['192.0.2.1'],
       registryPath: join(ctx.directory, 'registry.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -250,6 +253,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
       trustForwardedFrom: [],
       registryPath: join(ctx.directory, 'registry.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -348,6 +352,7 @@ test('it writes a probe from a Host it does not serve as a bad_host security eve
       trustForwardedFrom: [],
       registryPath: join(ctx.directory, 'registry.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -413,6 +418,7 @@ test('it answers the readiness probe for the host of its public URL', async () =
       trustForwardedFrom: [],
       registryPath: join(ctx.directory, 'registry.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -470,6 +476,7 @@ test('it refuses a probe from a foreign host', async () => {
       trustForwardedFrom: [],
       registryPath: join(ctx.directory, 'registry.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -525,6 +532,7 @@ test('it keeps both databases in the state directory and writes nowhere else', a
       trustForwardedFrom: [],
       registryPath: join(ctx.directory, 'registry.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -577,6 +585,7 @@ test('it exits 1 naming the token variable a daemon lacks', async () => {
       trustForwardedFrom: [],
       registryPath: join(ctx.directory, 'registry.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: {},
@@ -616,6 +625,7 @@ test('it exits 1 on a registry that is not JSON', async () => {
       trustForwardedFrom: [],
       registryPath: join(ctx.directory, 'bad.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -665,6 +675,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
       trustForwardedFrom: [],
       registryPath: join(ctx.directory, 'registry.json'),
       stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: null,
     },
     {
       env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
@@ -699,4 +710,123 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
   expect(
     fetch(`http://127.0.0.1:${port}/healthz`, { headers: { host: 'atc.example.com' } }),
   ).rejects.toThrow();
+});
+
+test('it exits 1 naming the fault in a service token file and starts nothing', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.directory, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const tokenFile = join(ctx.directory, 'service-tokens.json');
+
+  writeFileSync(
+    tokenFile,
+    JSON.stringify({
+      resource: 'https://atc.example.com/mcp',
+      clients: { ci: { scopes: ['read'], tokens: [`atcs_${'a'.repeat(31)}`] } },
+    }),
+    { mode: 0o600 },
+  );
+
+  const errors: string[] = [];
+  const exits: number[] = [];
+
+  await runGateway(
+    'atc-gateway/test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: tokenFile,
+    },
+    {
+      env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: (code) => {
+        exits.push(code);
+      },
+      registerSignal: () => {},
+    },
+  );
+
+  expect({ errors, exits, stateEntries: existsSync(join(ctx.directory, 'state')) }).toStrictEqual({
+    errors: [
+      `atc-gateway: --service-token-file: ${tokenFile}: clients.ci.tokens[0]: a token must be atcs_ followed by 32 or more of A-Z, a-z, 0-9, _ and -`,
+    ],
+    exits: [1],
+    stateEntries: false,
+  });
+});
+
+test('it exits 1 when the service token file is for another resource', async () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    join(ctx.directory, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  const tokenFile = join(ctx.directory, 'service-tokens.json');
+
+  writeFileSync(
+    tokenFile,
+    JSON.stringify({
+      resource: 'https://other.example.com/mcp',
+      clients: { ci: { scopes: ['read'], tokens: [`atcs_${'a'.repeat(32)}`] } },
+    }),
+    { mode: 0o600 },
+  );
+
+  const errors: string[] = [];
+  const exits: number[] = [];
+
+  await runGateway(
+    'atc-gateway/test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: tokenFile,
+    },
+    {
+      env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: (code) => {
+        exits.push(code);
+      },
+      registerSignal: () => {},
+    },
+  );
+
+  expect({ errors, exits }).toStrictEqual({
+    errors: [
+      "atc-gateway: the service token file is not for the resource 'https://atc.example.com/mcp'",
+    ],
+    exits: [1],
+  });
 });

@@ -87,6 +87,7 @@ atc-gateway serve --host 0.0.0.0 --port 8414 --public-url https://atc.example.co
 | `--registry`             | the registry file                                                                               | required                 |
 | `--state-dir`            | the directory for `gateway.db` and `mcp-auth.db`                                                | `$ATC_GATEWAY_STATE_DIR` |
 | `--trust-forwarded-from` | a proxy address whose `CF-Connecting-IP` header security events mark `trusted`; repeat for more | none                     |
+| `--service-token-file`   | a [service token file](#service-tokens) that `/mcp` accepts beside OAuth tokens                 | none                     |
 
 The gateway speaks plain HTTP: `--public-url` names the https origin clients use and enables no TLS.
 A host other than loopback, as in this example, needs an https public URL and a TLS-terminating
@@ -101,6 +102,38 @@ separate value is missing or starts with `-`; write such a value as `--<flag>=<v
 `atc security` events for sign-ins and refused tokens go to stderr, and a log shipper matches the
 events by their prefix ([security events](../architecture/remote/oauth.md#security-events)). No line
 holds a value that signs in. SIGTERM stops the gateway and exits 0.
+
+## Service tokens
+
+A service in the same cluster that cannot sign in with a browser calls `/mcp` with a fixed bearer
+token. Write the tokens to a JSON file and pass it with `--service-token-file`:
+
+```json
+{
+  "resource": "https://atc.example.com/mcp",
+  "clients": {
+    "ci-bot": { "scopes": ["read", "message"], "tokens": ["atcs_<32 or more characters>"] }
+  }
+}
+```
+
+- `resource` is `<public URL>/mcp`. The gateway exits 1 at start when it differs from the resource
+  it serves.
+- Each client name matches `[a-z][a-z0-9-]{0,31}`. `scopes` names at least one of `read`, `message`,
+  `spawn` and `kill`.
+- `tokens` holds one or two tokens. Each is `atcs_` followed by 32 or more of `A-Z`, `a-z`, `0-9`,
+  `_` and `-`. A token appears once in the file.
+- The file belongs to the user who runs the gateway, with mode 600.
+
+The gateway exits 1 at start for any fault, and the message names the fault and never prints a
+token. It reads the file once, so restart it after a change. To rotate a token, add the new one
+beside the old, restart, move the service to the new token, then remove the old one and restart.
+
+The service sends the header `Authorization: Bearer <token>` and the public `Host` header. Its
+principal ID is `service:<name>`; list that ID under the daemon's
+[`principals`](./configuration/principals.md) key to give it targets. The
+[architecture doc](../architecture/remote/oauth.md#service-tokens) covers how the gateway checks the
+token.
 
 ## Clients
 
