@@ -95,3 +95,10 @@ test('it grants nothing to an entry whose targets holds an empty name and keeps 
     ],
   });
 });
+
+test('it reads a principal ID that holds a colon, as a service client ID does', () => {
+  expect(collectPrincipals({ 'service:ci-bot': { targets: ['local'] } })).toStrictEqual({
+    principals: new Map([['service:ci-bot', ['local']]]),
+    errors: [],
+  });
+});

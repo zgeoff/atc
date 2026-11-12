@@ -25,6 +25,7 @@ export * from './is-env-name';
 export * from './is-reserved-env-name';
 export * from './legacy-agent-keys';
 export * from './load-listener-tokens';
+export * from './read-owner-only-file';
 export * from './load-mcp-http-config';
 export * from './local-target';
 export * from './node-token-file-access';
