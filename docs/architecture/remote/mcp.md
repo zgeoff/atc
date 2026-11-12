@@ -26,6 +26,14 @@ content with an output schema. Both servers run on the MCP TypeScript SDK, so th
 protocol revision the SDK supports and check each call's arguments against the tool's input schema
 before the tool runs. The `tool-contract` skill holds the rules for naming and describing a tool.
 
+A failed call returns `isError: true` with the error as text, and a daemon error also as structured
+content `{ code, problem? }`: `code` is the atc error code, and `problem` is present only when the
+error's `data.problem` is a string, such as `host_asleep` under `unsupported_operation`. No other
+field of the error's data passes, because it can describe sessions or targets outside the caller's
+reach. The SDK skips the output schema for an error result, so this shape needs no schema. The
+server's `instructions` in the handshake describe it once. An error with no atc code, such as an
+argument the input schema refuses, has text alone.
+
 A server lists every tool and every input, because the daemon it reaches passed a handshake on the
 same protocol version ([the protocol](../protocol/protocol.md#versions)). Only the gateway adds the
 daemons tool and the inputs that name a daemon.

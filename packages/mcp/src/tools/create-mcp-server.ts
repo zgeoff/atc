@@ -11,6 +11,7 @@ import { Ajv, AjvJsonSchemaValidator } from '@modelcontextprotocol/server/valida
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import type { RegisteredAgent } from './build-spawn-descriptions';
+import { buildToolErrorContent } from './build-tool-error-content';
 import { buildToolList } from './build-tool-list';
 import { formatToolError } from './format-tool-error';
 import { MCP_TOOLS } from './mcp-tools';
@@ -25,6 +26,10 @@ interface MCPServerDeps {
   // The scopes the caller holds; absent means every tool is allowed.
   readonly scopes?: readonly GrantScope[];
 }
+
+// Every tool shares one error shape, so the tool descriptions do not repeat it.
+const SERVER_INSTRUCTIONS =
+  "A failed tool call returns isError true with the error as text and structuredContent { code, problem }. code is the atc error code, such as no_such_session. problem is present only when the daemon names a cause within that code, such as host_asleep under unsupported_operation. An error result holds no other structured field, and a tool's output schema describes only its successful result.";
 
 const isListToolsResult = isSpecType.ListToolsResult;
 
@@ -68,7 +73,7 @@ const schemaValidator: jsonSchemaValidator = {
 export function createMCPServer(deps: MCPServerDeps): McpServer {
   const server = new McpServer(
     { name: 'atc', version: deps.build },
-    { capabilities: { tools: { listChanged: false } } },
+    { capabilities: { tools: { listChanged: false } }, instructions: SERVER_INSTRUCTIONS },
   );
 
   for (const tool of buildToolList(deps.caller.features, null)) {
@@ -128,6 +133,7 @@ async function answerToolCall(
           text: `insufficient_scope: atcAccess grants ${ungranted.join(', ')}, which this token does not hold`,
         },
       ],
+      structuredContent: { code: 'insufficient_scope' },
       isError: true,
     };
   }
@@ -140,7 +146,13 @@ async function answerToolCall(
       ...(result.structured === null ? {} : { structuredContent: result.structured }),
     };
   } catch (error) {
-    return { content: [{ type: 'text', text: formatToolError(error) }], isError: true };
+    const detail = buildToolErrorContent(error);
+
+    return {
+      content: [{ type: 'text', text: formatToolError(error) }],
+      ...(detail === null ? {} : { structuredContent: detail }),
+      isError: true,
+    };
   }
 }
 

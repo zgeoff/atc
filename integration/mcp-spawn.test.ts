@@ -126,7 +126,7 @@ test('it reports an unregistered agent id as a failed tool call', async () => {
   expect(failed).toStrictEqual({
     isError: true,
     text: expect.toInclude("unsupported: no adapter for agent 'gemini'"),
-    structured: undefined,
+    structured: { code: 'unsupported' },
   });
 });
 

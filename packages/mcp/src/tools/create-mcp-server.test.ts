@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
+import { DaemonError } from '@atc/protocol/wire';
 import { getRecord, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import type { GrantScope } from '@atcx/contract';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
@@ -189,6 +190,7 @@ test('it refuses a spawn that grants the new session a scope the caller does not
             text: 'insufficient_scope: atcAccess grants kill, which this token does not hold',
           },
         ],
+        structuredContent: { code: 'insufficient_scope' },
         isError: true,
       },
     });
@@ -240,4 +242,82 @@ test('it reads no agents for a caller without the read scope', async () => {
   });
 
   expect(caller.requests).toStrictEqual([]);
+});
+
+test('it returns the code and the problem of a refused call as structured content', async () => {
+  const caller = buildStubFleetCaller({
+    answer: () => {
+      throw new DaemonError('unsupported_operation', 'the host has no room', {
+        problem: 'ram_budget_exceeded',
+        session: 'harbor/s-9',
+      });
+    },
+  });
+
+  const ctx = await setupTest(caller);
+
+  await ctx.client.send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: 'atc_session_get', arguments: { session: 's-1' } },
+  });
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({ id: 1 });
+  });
+
+  expect(ctx.answers).toPartiallyContain({
+    id: 1,
+    result: {
+      content: [{ type: 'text', text: 'unsupported_operation: the host has no room' }],
+      structuredContent: { code: 'unsupported_operation', problem: 'ram_budget_exceeded' },
+      isError: true,
+    },
+  });
+});
+
+test('it returns the code alone for a refusal that carries no problem', async () => {
+  const caller = buildStubFleetCaller({
+    answer: () => {
+      throw new DaemonError('no_such_session', 'no session', { session: 'harbor/s-9' });
+    },
+  });
+
+  const ctx = await setupTest(caller);
+
+  await ctx.client.send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: 'atc_session_get', arguments: { session: 's-1' } },
+  });
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({ id: 1 });
+  });
+
+  expect(ctx.answers).toPartiallyContain({
+    id: 1,
+    result: expect.objectContaining({
+      structuredContent: { code: 'no_such_session' },
+      isError: true,
+    }),
+  });
+});
+
+test('it names the error shape in the server instructions', async () => {
+  const ctx = await setupTest(buildStubFleetCaller());
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({ id: 0 });
+  });
+
+  const initialized = ctx.answers.find((answer) => isRecord(answer) && answer['id'] === 0);
+
+  invariant(isRecord(initialized));
+
+  expect(getRecord(initialized, 'result')['instructions']).toInclude(
+    'structuredContent { code, problem }',
+  );
 });

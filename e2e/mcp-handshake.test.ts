@@ -42,6 +42,7 @@ test('it answers initialize with the requested protocol version and its server n
     result: {
       protocolVersion: '2025-06-18',
       capabilities: { tools: { listChanged: false } },
+      instructions: expect.toInclude('structuredContent { code, problem }'),
       serverInfo: { name: 'atc', version: expect.toBeString() },
     },
   });
@@ -77,6 +78,7 @@ test('it answers an unsupported protocol version with the latest supported one',
     result: {
       protocolVersion: '2025-11-25',
       capabilities: { tools: { listChanged: false } },
+      instructions: expect.toInclude('structuredContent { code, problem }'),
       serverInfo: { name: 'atc', version: expect.toBeString() },
     },
   });
@@ -1797,6 +1799,10 @@ test('it lists the fleet tools', async () => {
                       "description": "the agent id the session runs",
                       "type": "string",
                     },
+                    "agentSessionID": {
+                      "description": "the id the agent CLI gives the conversation, which resumes it; absent until the agent reports it",
+                      "type": "string",
+                    },
                     "alive": {
                       "description": "whether atc holds a live process for the session",
                       "type": "boolean",
@@ -1835,12 +1841,26 @@ test('it lists the fleet tools', async () => {
                       "description": "pty for a terminal session, headless for a headless one",
                       "type": "string",
                     },
+                    "lastAttachedAt": {
+                      "description": "when a terminal last attached to the session, in epoch milliseconds",
+                      "type": "number",
+                    },
                     "lastMsg": {
                       "description": "atc's one-line summary of the session's latest state",
                       "type": "string",
                     },
                     "lifecycle": {
                       "description": "the wanted and actual state of the session's host, harness and attachment",
+                      "properties": {
+                        "desired": {
+                          "description": "what the operator asked for: run, sleep or stop; a later daemon may add a value",
+                          "type": "string",
+                        },
+                        "harness": {
+                          "description": "the state of the agent process: running, suspended or exited; a later daemon may add a value",
+                          "type": "string",
+                        },
+                      },
                       "type": "object",
                     },
                     "locator": {
@@ -2578,7 +2598,7 @@ test('it keeps answering after a failed tool call', async () => {
   expect(failed).toStrictEqual({
     isError: true,
     text: expect.toInclude('no_such_session'),
-    structured: undefined,
+    structured: { code: 'no_such_session' },
   });
 
   const pong = await mcp.sendRequest('ping');

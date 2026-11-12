@@ -469,7 +469,9 @@ test('it accepts a session read whose prompt, pending, result and record are nul
       lastMsg: 'the beacon is lit',
       createdAt: 1_760_000_000_000,
       locator: { daemonID: 'd-1', targetID: 'local' },
-      lifecycle: {},
+      agentSessionID: 'agent-7',
+      lastAttachedAt: 1_760_000_005_000,
+      lifecycle: { desired: 'run', harness: 'running' },
     },
     prompt: null,
     lastActivityAt: 1_760_000_000_000,
@@ -479,6 +481,32 @@ test('it accepts a session read whose prompt, pending, result and record are nul
   };
 
   expect(z.fromJSONSchema(schema).safeParse(result).data).toStrictEqual(result);
+});
+
+test('it rejects a session read whose lifecycle harness is not text', () => {
+  const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_session_get')?.outputSchema;
+
+  invariant(schema !== undefined, 'the session read declares no output schema');
+
+  const result = z.fromJSONSchema(schema).safeParse({
+    session: {
+      id: 's-7',
+      name: 'lighthouse',
+      cwd: '/srv/lighthouse',
+      agent: 'claude',
+      state: 'done',
+      unread: false,
+      pinned: false,
+      alive: true,
+      kind: 'pty',
+      lastMsg: 'the beacon is lit',
+      createdAt: 1_760_000_000_000,
+      locator: { daemonID: 'd-1', targetID: 'local' },
+      lifecycle: { harness: 4 },
+    },
+  });
+
+  expect(result.success).toBe(false);
 });
 
 test('it accepts a transcript page whose row holds no time', () => {
