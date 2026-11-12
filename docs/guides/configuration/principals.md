@@ -50,6 +50,10 @@ both under its client ID:
 }
 ```
 
+A service client of the gateway, which authenticates with a
+[service token](../gateway.md#service-tokens), is the principal `service:<name>`, so list it under
+that key: `"service:ci-bot": { "targets": ["local"] }`.
+
 A grant holds target names, and it covers each target as the target stands now: change a target's
 provider or options, and the sessions started on it before the change leave every principal's reach.
 A `principals` that is not an object grants nothing to anyone, and an entry that is not an object

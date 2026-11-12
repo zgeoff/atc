@@ -100,13 +100,49 @@ server, and anyone with that access can enroll a passkey.
 
 A grant is everything one authorization code produced: the refresh tokens rotated from it and the
 access tokens each issued. Access tokens are short-lived, refresh tokens rotate on every use, and
-the code is single-use. Every MCP request checks its access token against the database and requires
-its audience to be the resource, so a revoked grant loses access on its next request, and a change
-of the public URL ends every token bound to the old one. Once a code is exchanged, atc detaches its
-tokens from the owner session, so a session's end never ends a grant.
+the code is single-use. Every MCP request that carries an OAuth access token checks it against the
+database and requires its audience to be the resource, so a revoked grant loses access on its next
+request, and a change of the public URL ends every token bound to the old one. Once a code is
+exchanged, atc detaches its tokens from the owner session, so a session's end never ends a grant.
 
 Presenting a spent refresh token again counts as replay: better-auth revokes every refresh token the
 client holds, and each of that client's grants needs approving again.
+
+## Service tokens
+
+`/mcp` accepts two kinds of bearer credential. An OAuth access token comes from a grant, as above. A
+service token is a fixed secret that atc-gateway reads from a file at start, so a non-interactive
+service in the same cluster can call `/mcp` with no browser sign-in. `atc mcp --http` takes no
+service tokens.
+
+The first characters of the bearer pick the check:
+
+- A bearer that starts with `atcs_` is compared with the file's tokens alone, and never reaches the
+  database. With no file loaded it is refused as `invalid_token`.
+- Any other bearer is checked against the database alone, as an OAuth access token.
+
+A match gives the access an OAuth token gives, with the scopes the file lists for that client, and
+tool listing, scope checks and event methods then behave as for an OAuth token with those scopes. A
+service token has no grant, so it never reaches consent, refresh or revocation, and revoking a grant
+or removing an OAuth client does not touch it. A refused `atcs_` bearer writes the same `bearer`
+security event as a refused OAuth token, and no event, line or error holds the token or part of it.
+
+Each service client has the principal ID `service:<name>`. That ID goes wherever an OAuth client ID
+goes: the daemon's principal, the client ID of the event subscriptions, and the security events. An
+OAuth client ID is 32 random alphanumeric characters and never holds a colon, so the two kinds never
+collide. List `service:<name>` in the daemon's
+[`principals` key](../../guides/configuration/principals.md) to give it targets.
+
+The file's `resource` takes the place of the audience check an OAuth token gets: the gateway refuses
+to start when it differs from the resource it serves, so a file written for another gateway or
+another public URL is never accepted. The file must belong to the user who runs the gateway, with no
+group or other permission bits, the same check the daemon applies to its token file.
+
+A client lists one or two tokens. Two tokens let an operator rotate with no outage: add the new
+token beside the old one, restart the gateway, move the service to the new token, then drop the old
+one and restart again. The gateway reads the file once at start, so every change to the file takes a
+restart. It compares tokens by their SHA-256 digests in constant time against every stored token,
+and keeps only the digests in memory.
 
 ## Request checks
 
