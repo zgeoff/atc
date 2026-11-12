@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.14.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.13.0...@zgeoff/atc@7.14.0) (2026-11-12)
+
+
+### Features
+
+* **gateway:** accept service tokens on the mcp endpoint ([#1205](https://github.com/zgeoff/atc/issues/1205)) ([1112334](https://github.com/zgeoff/atc/commit/111233404ec3e8ee97a3a464c3df0e10795c12ed))
+* **mcp:** give tool errors the problem code ([#1207](https://github.com/zgeoff/atc/issues/1207)) ([66777b9](https://github.com/zgeoff/atc/commit/66777b965b8c61d02d89a6525e6ab3572e84ebb2))
+
 ## [7.13.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.12.1...@zgeoff/atc@7.13.0) (2026-11-11)
 
 ### Features
