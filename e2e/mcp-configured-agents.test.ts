@@ -80,7 +80,7 @@ test('it refuses through a spawn a registered agent that is not installed', asyn
   expect(failed).toStrictEqual({
     isError: true,
     text: "unsupported: agent 'codex' is registered but not installed on this host",
-    structured: undefined,
+    structured: { code: 'unsupported' },
   });
 });
 

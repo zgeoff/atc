@@ -196,6 +196,7 @@ test("it declares Events through the gateway under the draft's extensions entry 
         extensions: { 'io.modelcontextprotocol/events': {} },
         events: {},
       },
+      instructions: expect.toInclude('structuredContent { code, problem }'),
       resultType: 'complete',
       ttlMs: 0,
       cacheScope: 'private',

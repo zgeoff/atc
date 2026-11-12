@@ -861,10 +861,44 @@ const SCOPE_ADD_OUTPUT: Readonly<Record<string, unknown>> = {
   required: ['record'],
 };
 
+// The fields the session read returns beside the entry fields the other session tools share.
+const SESSION_GET_ENTRY: Readonly<Record<string, unknown>> = {
+  ...SESSION_ENTRY,
+  description: 'the entry atc_sessions_list shows',
+  properties: {
+    ...SESSION_ENTRY_PROPERTIES,
+    agentSessionID: {
+      type: 'string',
+      description:
+        'the id the agent CLI gives the conversation, which resumes it; absent until the agent reports it',
+    },
+    lastAttachedAt: {
+      type: 'number',
+      description: 'when a terminal last attached to the session, in epoch milliseconds',
+    },
+    lifecycle: {
+      type: 'object',
+      description: "the wanted and actual state of the session's host, harness and attachment",
+      properties: {
+        desired: {
+          type: 'string',
+          description:
+            'what the operator asked for: run, sleep or stop; a later daemon may add a value',
+        },
+        harness: {
+          type: 'string',
+          description:
+            'the state of the agent process: running, suspended or exited; a later daemon may add a value',
+        },
+      },
+    },
+  },
+};
+
 const SESSION_GET_OUTPUT: Readonly<Record<string, unknown>> = {
   type: 'object',
   properties: {
-    session: { ...SESSION_ENTRY, description: 'the entry atc_sessions_list shows' },
+    session: SESSION_GET_ENTRY,
     prompt: {
       type: ['string', 'null'],
       description: 'the prompt the session was spawned with; null without one',

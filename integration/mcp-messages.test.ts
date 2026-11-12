@@ -31,7 +31,7 @@ test('it reports a message to a session with no tap as a failed tool call', asyn
   expect(result).toStrictEqual({
     isError: true,
     text: expect.toStartWith('unsupported:'),
-    structured: undefined,
+    structured: { code: 'unsupported' },
   });
 });
 
