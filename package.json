@@ -40,7 +40,7 @@
       "@types/proper-lockfile": "4.1.4",
       "@xterm/addon-serialize": "0.14.0",
       "@xterm/headless": "6.0.0",
-      "@zgeoff/agent-hooks": "0.2.11",
+      "@zgeoff/agent-hooks": "0.2.12",
       "@zgeoff/bun-test-extended": "0.2.3",
       "@zgeoff/chex": "0.3.2",
       "@zgeoff/diet": "0.2.2",
