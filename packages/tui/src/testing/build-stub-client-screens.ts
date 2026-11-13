@@ -7,8 +7,8 @@ export function buildStubClientScreens() {
     openHome: () => {
       calls.push('openHome');
     },
-    openAttached: (sessionID) => {
-      calls.push(`openAttached:${sessionID}`);
+    openAttached: (key) => {
+      calls.push(`openAttached:${key.id}`);
     },
     closeAttached: () => {
       calls.push('closeAttached');
@@ -22,8 +22,8 @@ export function buildStubClientScreens() {
     openPicker: (resume) => {
       calls.push(`openPicker:${resume}`);
     },
-    openEject: (sessionID) => {
-      calls.push(`openEject:${sessionID}`);
+    openEject: (key) => {
+      calls.push(`openEject:${key.id}`);
     },
   };
 

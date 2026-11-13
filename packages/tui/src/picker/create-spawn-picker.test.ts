@@ -32,7 +32,7 @@ function setupTest() {
     scheduleStatus: host.scheduleStatus,
     showBase: host.showBase,
     attach: host.attach,
-    toMirrorSession,
+    toMirrorSession: (value: unknown) => toMirrorSession(value, null),
     upsertMirror: () => {},
     write: terminal.write,
     cwd,

@@ -131,6 +131,7 @@ export * from './start-stub-unanswering-unix-listener';
 export * from './start-tui-harness';
 export * from './subscribe-to-socket-lines';
 export * from './tab-to-repo-rows';
+export * from './take-free-port';
 export * from './try-create-listeners';
 export * from './try-send-request';
 export * from './update-env';

@@ -1,26 +1,32 @@
 import { ansi } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
 import type { ClientActor } from './build-client-machine';
+import type { DaemonLinks } from './create-daemon-links';
 import type { FleetMirror } from './create-fleet-mirror';
 import type { OverlayConfirm, OverlayScreen } from './create-overlay-screen';
 import type { SessionActions } from './create-session-actions';
 import { KEY, isDown, isUp } from './keys';
 import { pickPinTarget } from './pick-pin-target';
 import { pickTabTarget } from './pick-tab-target';
+import { toSessionKey } from './session-key';
+import type { SessionKey } from './session-key';
 
 // What the overlay's keys borrow from the client that owns the screen, the
 // fleet mirror, and the daemon connection.
 export interface OverlayKeyDeps {
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
-  readonly overlay: OverlayScreen;
+  readonly overlay: Pick<
+    OverlayScreen,
+    'notice' | 'render' | 'pickSessions' | 'listVisible' | 'selected' | 'filter' | 'grouped'
+  >;
   readonly actions: SessionActions;
+  readonly links: Pick<DaemonLinks, 'stateOf'>;
   readonly getConfirm: () => OverlayConfirm;
-  readonly getBoot: () => DaemonBoot;
+  readonly getBoot: () => Pick<DaemonBoot, 'stale'>;
   readonly isLeaderKey: (buf: Buffer) => boolean;
   readonly showBase: () => void;
-  readonly attach: (sessionID: string) => Promise<void>;
-  readonly sendQuiet: (method: string, params?: Readonly<Record<string, unknown>>) => Promise<void>;
+  readonly attach: (key: SessionKey) => Promise<void>;
   readonly restartDaemonOnce: () => Promise<void>;
   readonly logClientEvent: (line: string) => void;
   readonly quit: () => void;
@@ -37,11 +43,24 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   const sel = filtered[deps.overlay.selected];
   const confirm = deps.getConfirm();
 
+  // A confirmation acts on the session it opened on, never on the row selected now, and only
+  // while that session is still listed and its daemon's link is up.
+  const confirmKey = deps.service.getSnapshot().context.confirmKey;
+
+  const confirmed =
+    confirmKey !== null &&
+    deps.mirror.has(toSessionKey(confirmKey)) &&
+    deps.links.stateOf(confirmKey.daemon).kind === 'up'
+      ? confirmKey
+      : null;
+
   if (confirm === 'kill') {
+    const session = confirmed === null ? undefined : deps.mirror.find(toSessionKey(confirmed));
+
     // a kill of an exited session forgets it, and only the forget answers
     // with what became of the session's workspace
-    if (buf[0] === KEY.y && sel !== undefined) {
-      void (sel.alive ? deps.actions.sendKill(sel.id) : deps.actions.sendForget(sel.id));
+    if (buf[0] === KEY.y && confirmed !== null && session !== undefined) {
+      void (session.alive ? deps.actions.sendKill(confirmed) : deps.actions.sendForget(confirmed));
     }
 
     deps.service.send({ type: 'CONFIRM_DONE' });
@@ -50,11 +69,9 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
     return;
   }
 
-  const destroyID = deps.service.getSnapshot().context.destroyID;
-
-  if (confirm === 'destroy' && destroyID !== null) {
-    if (buf[0] === KEY.y) {
-      void deps.actions.sendDestroy(destroyID);
+  if (confirm === 'destroy' && confirmKey !== null) {
+    if (buf[0] === KEY.y && confirmed !== null) {
+      void deps.actions.sendDestroy(confirmed);
     }
 
     deps.service.send({ type: 'CONFIRM_DONE' });
@@ -102,23 +119,23 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   const ch = buf.toString();
 
   if (buf[0] === KEY.tab) {
-    const target = pickTabTarget(deps.mirror.sessions, (id) => deps.mirror.doneAt.get(id));
+    const target = pickTabTarget(deps.overlay.listVisible(), (key) => deps.mirror.doneAt.get(key));
 
     if (target !== undefined) {
-      void deps.attach(target.id);
+      void deps.attach(toSessionKey(target));
     }
 
     return;
   }
 
   if (buf[0] === KEY.enter && sel !== undefined && sel.alive) {
-    void deps.attach(sel.id);
+    void deps.attach(toSessionKey(sel));
 
     return;
   }
 
   if (ch === 'a' && sel !== undefined) {
-    void deps.sendQuiet('session.ack', { session: sel.id });
+    void deps.actions.sendAck(toSessionKey(sel));
     deps.overlay.render();
 
     return;
@@ -145,7 +162,7 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
     const target = pickPinTarget(sel, deps.mirror.sessions);
 
     target.pinned = !target.pinned;
-    void deps.sendQuiet('session.update', { session: target.id, pinned: target.pinned });
+    void deps.actions.sendPinned(toSessionKey(target), target.pinned);
     deps.overlay.render();
 
     return;
@@ -164,7 +181,7 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   }
 
   if (ch === 'H' && sel !== undefined && sel.kind === 'pty' && sel.alive && sel.canEject) {
-    deps.service.send({ type: 'EJECT', sessionID: sel.id });
+    deps.service.send({ type: 'EJECT', key: toSessionKey(sel) });
 
     return;
   }
@@ -176,7 +193,7 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   }
 
   if (ch === 'P' && sel !== undefined && sel.resumable && (sel.kind === 'headless' || !sel.alive)) {
-    void deps.actions.adoptSession(sel.id);
+    void deps.actions.adoptSession(toSessionKey(sel));
 
     return;
   }
@@ -188,13 +205,13 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   }
 
   if ((ch === 'y' || ch === 'Y') && sel !== undefined) {
-    void deps.actions.yankResume(sel.id, ch === 'Y');
+    void deps.actions.yankResume(toSessionKey(sel), ch === 'Y');
 
     return;
   }
 
   if (ch === 'K' && sel !== undefined) {
-    deps.service.send({ type: 'CONFIRM_KILL' });
+    deps.service.send({ type: 'CONFIRM_KILL', key: toSessionKey(sel) });
     deps.overlay.render();
 
     return;

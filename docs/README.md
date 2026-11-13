@@ -31,6 +31,11 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
 - [Terminals](architecture/daemon/terminals.md) — the screen model, attaching, backpressure, several
   clients on one session and submitting a line
 
+### TUI
+
+- [The TUI and its daemons](architecture/tui/daemon-links.md) — one link per daemon, the primary
+  daemon, link states and retries, session keys, and confirmations that hold their key
+
 ### Protocol
 
 - [The client protocol](architecture/protocol/protocol.md) — JSON lines, errors, the handshake,

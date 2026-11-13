@@ -5,6 +5,7 @@ test('it builds a default mirror session', () => {
   const session = buildMockMirrorSession();
 
   expect(session).toStrictEqual({
+    daemon: null,
     id: expect.toBeString(),
     name: expect.toBeString(),
     cwd: expect.toStartWith('/'),
@@ -37,6 +38,7 @@ test('it applies overrides on top of the defaults', () => {
       harness: 'suspended',
     }),
   ).toStrictEqual({
+    daemon: null,
     id: 'worker',
     name: expect.toBeString(),
     cwd: expect.toStartWith('/'),

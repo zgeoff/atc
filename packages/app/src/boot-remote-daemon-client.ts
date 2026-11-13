@@ -6,6 +6,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
+import { RemoteTokenError } from './remote-token-error';
 
 // How long one attempt gives the remote daemon to take the connection and
 // answer the handshake, the same budget a local boot gives its daemon.
@@ -48,9 +49,10 @@ export async function bootRemoteDaemonClient(
   try {
     token = await readRemoteDaemonToken(daemon);
   } catch (error) {
-    throw new Error(`${error instanceof Error ? error.message : String(error)}. ${NO_FALLBACK}`, {
-      cause: error,
-    });
+    throw new RemoteTokenError(
+      `${error instanceof Error ? error.message : String(error)}. ${NO_FALLBACK}`,
+      { cause: error },
+    );
   }
 
   const deadline =

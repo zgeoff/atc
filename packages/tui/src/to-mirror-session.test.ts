@@ -2,19 +2,23 @@ import { expect, test } from 'bun:test';
 import { toMirrorSession } from './to-mirror-session';
 
 test('it round-trips a gateway agent id instead of coercing it to claude', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-    agent: 'zai',
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+      agent: 'zai',
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -38,18 +42,22 @@ test('it round-trips a gateway agent id instead of coercing it to claude', () =>
 });
 
 test('it falls back the last attach time to the creation time when the descriptor omits it', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 4200,
-    alive: true,
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 4200,
+      alive: true,
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -73,18 +81,22 @@ test('it falls back the last attach time to the creation time when the descripto
 });
 
 test('it falls back the repository root to the working directory when the descriptor omits it', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo/nested',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo/nested',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo/nested',
@@ -108,18 +120,22 @@ test('it falls back the repository root to the working directory when the descri
 });
 
 test('it reads a session as a terminal session when the descriptor omits its kind', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -143,19 +159,23 @@ test('it reads a session as a terminal session when the descriptor omits its kin
 });
 
 test('it keeps the parent when the descriptor carries one', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-    parent: 's-0',
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+      parent: 's-0',
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -179,18 +199,22 @@ test('it keeps the parent when the descriptor carries one', () => {
 });
 
 test('it reports no parent when the descriptor omits it', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -217,20 +241,24 @@ test('it reports no parent when the descriptor omits it', () => {
 // descriptor's own flag, not the agent id, decides whether its row offers
 // the headless handoff.
 test('it offers the headless handoff when the descriptor allows it', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-    agent: 'zai',
-    canEject: true,
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+      agent: 'zai',
+      canEject: true,
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -254,18 +282,22 @@ test('it offers the headless handoff when the descriptor allows it', () => {
 });
 
 test('it withholds the headless handoff when the descriptor omits it', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -289,19 +321,23 @@ test('it withholds the headless handoff when the descriptor omits it', () => {
 });
 
 test('it reads the target from the descriptor locator', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-    locator: { daemonID: 'd-1', targetID: 'imp-box' },
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+      locator: { daemonID: 'd-1', targetID: 'imp-box' },
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -325,18 +361,22 @@ test('it reads the target from the descriptor locator', () => {
 });
 
 test('it falls back the target to local when the descriptor carries no locator', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -360,19 +400,23 @@ test('it falls back the target to local when the descriptor carries no locator',
 });
 
 test('it keeps the model the session was spawned with', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-    model: 'opus',
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+      model: 'opus',
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -396,18 +440,22 @@ test('it keeps the model the session was spawned with', () => {
 });
 
 test('it reports no model when the descriptor omits it', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -431,19 +479,23 @@ test('it reports no model when the descriptor omits it', () => {
 });
 
 test('it reads the harness layer of the descriptor lifecycle', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: false,
-    lifecycle: { desired: 'sleep', vm: 'asleep', harness: 'suspended', attachment: 'detached' },
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: false,
+      lifecycle: { desired: 'sleep', vm: 'asleep', harness: 'suspended', attachment: 'detached' },
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -467,18 +519,22 @@ test('it reads the harness layer of the descriptor lifecycle', () => {
 });
 
 test('it reads an exited harness from a dead session when the descriptor omits the lifecycle', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: false,
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: false,
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -502,18 +558,22 @@ test('it reads an exited harness from a dead session when the descriptor omits t
 });
 
 test('it reads a running harness from a live session when the descriptor omits the lifecycle', () => {
-  const mirror = toMirrorSession({
-    id: 's-1',
-    name: 'work',
-    cwd: '/repo',
-    state: 'running',
-    unread: false,
-    lastMsg: 'hi',
-    createdAt: 1000,
-    alive: true,
-  });
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+    },
+    null,
+  );
 
   expect(mirror).toStrictEqual({
+    daemon: null,
     id: 's-1',
     name: 'work',
     cwd: '/repo',
@@ -538,14 +598,17 @@ test('it reads a running harness from a live session when the descriptor omits t
 
 test('it returns null for a descriptor missing a required field, rather than throwing', () => {
   expect(
-    toMirrorSession({
-      id: 's-1',
-      cwd: '/repo',
-      state: 'running',
-      unread: false,
-      lastMsg: 'hi',
-      createdAt: 1000,
-      alive: true,
-    }),
+    toMirrorSession(
+      {
+        id: 's-1',
+        cwd: '/repo',
+        state: 'running',
+        unread: false,
+        lastMsg: 'hi',
+        createdAt: 1000,
+        alive: true,
+      },
+      null,
+    ),
   ).toBeNull();
 });

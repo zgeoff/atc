@@ -63,8 +63,9 @@ flowchart TB
   session on an [execution target](./execution/targets.md) such as an imp runs on a remote host that
   the daemon reaches through that target's provider.
 - **Clients** speak the client protocol over the daemon's socket: the TUI, the stdio MCP server, the
-  HTTP MCP server and `atc tap`. Any of them boots the daemon when none answers, unless a service
-  manager owns the daemon.
+  HTTP MCP server and `atc tap`. The TUI also links to every daemon in the config's `daemons` key
+  and merges their sessions into one list ([the TUI and its daemons](./tui/daemon-links.md)). Any of
+  them boots the daemon when none answers, unless a service manager owns the daemon.
 - **Session helpers** run inside a session on every hook event, statusline render, note and answer.
   They speak a one-line dialect on the reporter socket, so a helper needs no handshake.
 - **atc-gateway** is a separate binary that serves the MCP tools for several daemons over HTTP and

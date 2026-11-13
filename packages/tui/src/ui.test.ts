@@ -784,3 +784,113 @@ test('#buildSessionRow falls back to the raw model when the alias would hit an i
     }
   `);
 });
+
+test('#drawOverlay names the daemon of a remote row and leaves a local row unnamed', () => {
+  const terminal = buildStubTerminal();
+
+  drawOverlay(
+    {
+      sessions: [
+        buildMockMirrorSession({ daemon: null, name: 'near' }),
+        buildMockMirrorSession({ daemon: 'geoffcloud', name: 'far' }),
+      ],
+      agentLabels: { claude: 'Claude' },
+      agentModels: {},
+      showDaemon: true,
+      showTarget: false,
+      selected: 0,
+      confirmKill: false,
+      confirmDestroy: false,
+      filter: null,
+      notice: null,
+      stale: false,
+      grouped: false,
+    },
+    terminal.write,
+  );
+
+  const drawnRows = terminal
+    .getText()
+    .replaceAll(KEYS.esc, '')
+    .split(/\[[0-9;]+H/u)
+    .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim());
+
+  expect(drawnRows).toSatisfyAny(
+    (row: string) => /^│.*near/u.test(row) && !row.includes('geoffcloud'),
+  );
+
+  expect(drawnRows).toSatisfyAny((row: string) => /^│.*geoffcloud far/u.test(row));
+});
+
+test('#drawOverlay draws one line for each daemon that is not up under the rows', () => {
+  const terminal = buildStubTerminal();
+
+  drawOverlay(
+    {
+      sessions: [buildMockMirrorSession({ daemon: null, name: 'near' })],
+      agentLabels: { claude: 'Claude' },
+      agentModels: {},
+      showDaemon: true,
+      daemonLines: ['box: down — cannot reach daemon'],
+      showTarget: false,
+      selected: 0,
+      confirmKill: false,
+      confirmDestroy: false,
+      filter: null,
+      notice: null,
+      stale: false,
+      grouped: false,
+    },
+    terminal.write,
+  );
+
+  const text = terminal.getText().replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '');
+
+  expect(text).toInclude('box: down — cannot reach daemon');
+});
+
+test("#drawOverlay reads a remote row's agent label from its own daemon's answer", () => {
+  const terminal = buildStubTerminal();
+
+  drawOverlay(
+    {
+      sessions: [buildMockMirrorSession({ daemon: 'geoffcloud', name: 'far', agent: 'claude' })],
+      agentLabels: { claude: 'Claude' },
+      agentModels: {},
+      remoteAgents: new Map([['geoffcloud', { labels: { claude: 'Cloud Claude' }, models: {} }]]),
+      showDaemon: true,
+      showTarget: false,
+      selected: 0,
+      confirmKill: false,
+      confirmDestroy: false,
+      filter: null,
+      notice: null,
+      stale: false,
+      grouped: false,
+    },
+    terminal.write,
+  );
+
+  const text = terminal.getText().replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '');
+
+  expect(text).toInclude('Cloud Claude');
+});
+
+test('#buildOverlayHint points a sub-session at a parent on its own daemon', () => {
+  const sameIDOnOtherDaemon = buildMockMirrorSession({
+    daemon: null,
+    id: 'wrangler',
+    pinned: true,
+  });
+
+  const parent = buildMockMirrorSession({ daemon: 'box', id: 'wrangler', pinned: false });
+
+  const child = buildMockMirrorSession({
+    daemon: 'box',
+    id: 'worker',
+    parent: 'wrangler',
+    pinned: false,
+  });
+
+  expect(buildOverlayHint(child, [sameIDOnOtherDaemon, parent, child])).toInclude('p pin parent');
+});

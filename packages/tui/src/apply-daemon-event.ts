@@ -5,6 +5,8 @@ import type { FleetMirror } from './create-fleet-mirror';
 import type { OverlayScreen } from './create-overlay-screen';
 import { parseDaemonEvent } from './parse-daemon-event';
 import type { RawDaemonEvent } from './parse-daemon-event';
+import { isSameSessionKey } from './session-key';
+import type { DaemonName, SessionKey } from './session-key';
 import type { MirrorSession } from './to-mirror-session';
 
 // What a daemon event borrows from the client that owns the screen and the
@@ -12,18 +14,19 @@ import type { MirrorSession } from './to-mirror-session';
 export interface DaemonEventDeps {
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
-  readonly overlay: OverlayScreen;
+  readonly overlay: Pick<OverlayScreen, 'render'>;
   readonly clock: Clock;
   readonly getMode: () => ClientMode;
-  readonly findFocusedID: () => string | null;
-  readonly setFocusedID: (sessionID: string | null) => void;
+  readonly findFocusedKey: () => SessionKey | null;
+  readonly setFocusedKey: (key: SessionKey | null) => void;
   readonly setLastUsedAgent: (agent: AgentID) => void;
   readonly findFocused: () => MirrorSession | null;
   readonly scheduleStatus: () => void;
 }
 
-export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
-  const event = parseDaemonEvent(raw);
+// Applies one event of one daemon; it moves only that daemon's rows.
+export function applyDaemonEvent(daemon: DaemonName, raw: RawDaemonEvent, deps: DaemonEventDeps) {
+  const event = parseDaemonEvent(raw, daemon);
 
   if (event === null) {
     return;
@@ -33,7 +36,13 @@ export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
 
   match(event)
     .with({ ev: 'SessionOutput' }, (output) => {
-      if (deps.getMode() === 'attached' && output.sessionID === deps.findFocusedID()) {
+      const focused = deps.findFocusedKey();
+
+      if (
+        deps.getMode() === 'attached' &&
+        focused !== null &&
+        isSameSessionKey(focused, { daemon, id: output.sessionID })
+      ) {
         process.stdout.write(output.data);
       }
     })
@@ -43,11 +52,11 @@ export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
       refreshScreens(deps);
     })
     .with({ ev: 'SessionState' }, (changed) => {
-      const existing = mirror.sessions.find((x) => x.id === changed.session.id);
+      const existing = mirror.find({ daemon, id: changed.session.id });
 
       if (existing !== undefined) {
         if (changed.session.state === 'done' && existing.state !== 'done') {
-          mirror.doneAt.set(changed.session.id, deps.clock.now());
+          mirror.doneAt.set({ daemon, id: changed.session.id }, deps.clock.now());
         }
 
         if (changed.session.resumable && !existing.resumable) {
@@ -60,7 +69,7 @@ export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
       refreshScreens(deps);
     })
     .with({ ev: 'SessionRenamed' }, (renamed) => {
-      const session = mirror.sessions.find((x) => x.id === renamed.sessionID);
+      const session = mirror.find({ daemon, id: renamed.sessionID });
 
       if (session !== undefined) {
         session.name = renamed.name;
@@ -69,12 +78,16 @@ export function applyDaemonEvent(raw: RawDaemonEvent, deps: DaemonEventDeps) {
       refreshScreens(deps);
     })
     .with({ ev: 'SessionRemoved' }, (removed) => {
-      mirror.sessions = mirror.sessions.filter((x) => x.id !== removed.sessionID);
+      const key = { daemon, id: removed.sessionID };
 
-      mirror.doneAt.delete(removed.sessionID);
+      mirror.sessions = mirror.sessions.filter((x) => !isSameSessionKey(x, key));
 
-      if (deps.findFocusedID() === removed.sessionID) {
-        deps.setFocusedID(null);
+      mirror.doneAt.remove(key);
+
+      const focused = deps.findFocusedKey();
+
+      if (focused !== null && isSameSessionKey(focused, key)) {
+        deps.setFocusedKey(null);
       }
 
       refreshScreens(deps);

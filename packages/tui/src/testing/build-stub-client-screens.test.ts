@@ -9,12 +9,12 @@ test('it records each screen it opens or closes with its argument, in the order 
   const stub = buildStubClientScreens();
 
   stub.deps.openHome();
-  stub.deps.openAttached('s1');
+  stub.deps.openAttached({ daemon: null, id: 's1' });
   stub.deps.closeAttached();
   stub.deps.openOverlay();
   stub.deps.openHelp();
   stub.deps.openPicker(true);
-  stub.deps.openEject('s2');
+  stub.deps.openEject({ daemon: null, id: 's2' });
 
   expect(stub.calls).toStrictEqual([
     'openHome',

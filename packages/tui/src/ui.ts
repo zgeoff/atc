@@ -8,6 +8,8 @@ import { planOverlayColumns } from './plan-overlay-columns';
 import type { OverlayColumnPlan } from './plan-overlay-columns';
 import { planVacatedRows } from './plan-vacated-rows';
 import type { BoxExtent } from './plan-vacated-rows';
+import type { AgentMetadata } from './resolve-agent-metadata';
+import type { DaemonName } from './session-key';
 import type { HarnessLifecycle } from './to-mirror-session';
 
 // The slice of a session the drawing layer needs; satisfied by both the
@@ -70,6 +72,9 @@ export interface StatusView {
   // bar shows beside the name so a remote fleet never passes for the local
   // one; absent or null for the local daemon.
   readonly daemonName?: string | null;
+
+  // A line that says why the last action on a daemon sent nothing or was refused, until it times out.
+  readonly notice?: string | null;
 }
 
 export function drawStatusBar(view: StatusView) {
@@ -98,6 +103,10 @@ export function drawStatusBar(view: StatusView) {
 
   if (counts.exited > 0) {
     parts.push(`✗ ${counts.exited}`);
+  }
+
+  if (view.notice !== undefined && view.notice !== null) {
+    parts.push(view.notice);
   }
 
   if (view.waiting === true) {
@@ -180,6 +189,8 @@ function dimRow(width: number, text: string): Row {
 
 // Selection-dependent hints need the liveness facts of each row.
 export interface OverlaySessionView extends SessionView {
+  // The daemon that holds the session; a sub-session nests under a parent of the same daemon.
+  readonly daemon: DaemonName;
   readonly id: string;
   readonly parent: string | null;
   readonly alive: boolean;
@@ -204,6 +215,16 @@ export interface OverlayView {
   // the daemon's `agents.list` answer over the config.
   agentLabels: Readonly<Record<AgentID, string>>;
   agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>>;
+
+  // What a remote daemon's own answer says about its agents, which its rows read in place of the
+  // two maps above.
+  remoteAgents?: ReadonlyMap<string, AgentMetadata>;
+
+  // Whether a column names each row's daemon, as it does while the client links to several.
+  showDaemon?: boolean;
+
+  // One line for each daemon whose link is not up, drawn under the rows.
+  daemonLines?: readonly string[];
 
   // Whether more than one execution target is available to spawn on, which
   // is what brings the target column in.
@@ -240,6 +261,37 @@ function resolveModelAlias(
   return aliases === undefined ? model : (findMapValue(aliases, model) ?? model);
 }
 
+// The agent labels and models a row reads: its own daemon's answer, else the primary's.
+function pickAgentMetadata(view: Readonly<OverlayView>, daemon: DaemonName): AgentMetadata {
+  return (
+    (daemon === null ? undefined : view.remoteAgents?.get(daemon)) ?? {
+      labels: view.agentLabels,
+      models: view.agentModels,
+    }
+  );
+}
+
+const DAEMON_COLUMN_MAX = 12;
+
+// The width of the daemon column: 0 unless the list names daemons and one of its rows has a name.
+function getDaemonWidth(view: Readonly<OverlayView>): number {
+  if (view.showDaemon !== true) {
+    return 0;
+  }
+
+  return Math.min(
+    DAEMON_COLUMN_MAX,
+    Math.max(0, ...view.sessions.map((session) => session.daemon?.length ?? 0)),
+  );
+}
+
+function isSubSession(session: Readonly<OverlaySessionView>, list: readonly OverlaySessionView[]) {
+  return (
+    session.parent !== null &&
+    list.some((x) => x.id === session.parent && x.daemon === session.daemon)
+  );
+}
+
 // A session row draws status (the attention glyph plus the unread mark),
 // pin, name, the flat view's directory, then the target, harness, model,
 // harness lifecycle, and last event columns the width plan allows.
@@ -249,7 +301,12 @@ export function buildSessionRow(
   view: Readonly<OverlayView>,
   sel: boolean,
 ): Row {
-  const sub = session.parent !== null && view.sessions.some((x) => x.id === session.parent);
+  const sub = isSubSession(session, view.sessions);
+  const metadata = pickAgentMetadata(view, session.daemon);
+  const daemonWidth = getDaemonWidth(view);
+
+  const daemon =
+    daemonWidth > 0 ? truncate(session.daemon ?? '', daemonWidth).padEnd(daemonWidth) : '';
 
   const name =
     plan.nameWidth >= 4 && sub
@@ -262,11 +319,11 @@ export function buildSessionRow(
   const target =
     plan.targetWidth > 0 ? truncate(session.target, plan.targetWidth).padEnd(plan.targetWidth) : '';
 
-  const label = findMapValue(view.agentLabels, session.agent) ?? session.agent;
+  const label = findMapValue(metadata.labels, session.agent) ?? session.agent;
   const harness = truncate(label, plan.harnessWidth).padEnd(plan.harnessWidth);
 
   const resolved =
-    session.model === null ? '' : resolveModelAlias(view.agentModels, session.agent, session.model);
+    session.model === null ? '' : resolveModelAlias(metadata.models, session.agent, session.model);
 
   const model =
     plan.modelWidth > 0 ? truncate(resolved, plan.modelWidth).padEnd(plan.modelWidth) : '';
@@ -274,7 +331,7 @@ export function buildSessionRow(
   const lifecycle = truncate(session.harness, plan.lifecycleWidth).padEnd(plan.lifecycleWidth);
   const event = truncate(session.lastMsg, plan.eventWidth).padEnd(plan.eventWidth);
 
-  const cells = [name, directory, target, harness, model, lifecycle, event].filter(
+  const cells = [daemon, name, directory, target, harness, model, lifecycle, event].filter(
     (cell) => cell !== '',
   );
 
@@ -304,7 +361,11 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
   const harnessMax = Math.max(
     0,
     ...view.sessions.map(
-      (session) => (findMapValue(view.agentLabels, session.agent) ?? session.agent).length,
+      (session) =>
+        (
+          findMapValue(pickAgentMetadata(view, session.daemon).labels, session.agent) ??
+          session.agent
+        ).length,
     ),
   );
 
@@ -315,14 +376,19 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
         return 0;
       }
 
-      return resolveModelAlias(view.agentModels, session.agent, session.model).length;
+      return resolveModelAlias(
+        pickAgentMetadata(view, session.daemon).models,
+        session.agent,
+        session.model,
+      ).length;
     }),
   );
 
   const targetMax = Math.max(0, ...view.sessions.map((session) => session.target.length));
+  const daemonWidth = getDaemonWidth(view);
 
   const plan = planOverlayColumns({
-    innerWidth: width - 4,
+    innerWidth: width - 4 - (daemonWidth > 0 ? daemonWidth + 1 : 0),
     grouped: view.grouped,
     showTarget: view.showTarget,
     targetMax,
@@ -336,8 +402,8 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
   let lastKey: string | null = null;
 
   for (const [index, session] of view.sessions.entries()) {
-    const sub = session.parent !== null && view.sessions.some((x) => x.id === session.parent);
-    const key = session.pinned ? PINNED_GROUP_KEY : session.repoRoot;
+    const sub = isSubSession(session, view.sessions);
+    const key = session.pinned ? PINNED_GROUP_KEY : `${session.daemon ?? ''}\n${session.repoRoot}`;
 
     if (view.grouped && !sub && key !== lastKey) {
       lastKey = key;
@@ -348,6 +414,10 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
     const row = buildSessionRow(session, plan, view, index === view.selected);
 
     rowsList.push(boxRow(width, row.styled, row.width));
+  }
+
+  for (const line of view.daemonLines ?? []) {
+    rowsList.push(dimRow(width, line));
   }
 
   rowsList.push(boxDivider(width));
@@ -395,7 +465,11 @@ function formatKillConfirm(
   session: OverlaySessionView | undefined,
   list: readonly OverlaySessionView[],
 ): string {
-  const children = session === undefined ? [] : list.filter((x) => x.parent === session.id);
+  const children =
+    session === undefined
+      ? []
+      : list.filter((x) => x.parent === session.id && x.daemon === session.daemon);
+
   const affected = children.filter((x) => x.alive === (session?.alive ?? false));
 
   if (affected.length === 0) {

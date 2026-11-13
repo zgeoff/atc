@@ -1,9 +1,11 @@
 import { ansi } from '@atc/core';
-import type { DaemonClient } from '@atc/protocol/client';
 import { match } from 'ts-pattern';
 import type { ClientActor } from './build-client-machine';
 import type { SessionActions } from './create-session-actions';
 import { planTextEdit } from './keys';
+import { sendToDaemon } from './send-to-daemon';
+import type { RequestLinks } from './send-to-daemon';
+import type { SessionKey } from './session-key';
 import { drawPicker } from './ui';
 
 // What the eject prompt borrows from the client that owns the screen and the
@@ -11,7 +13,7 @@ import { drawPicker } from './ui';
 export interface EjectScreenDeps {
   readonly service: ClientActor;
   readonly actions: SessionActions;
-  readonly getClient: () => DaemonClient;
+  readonly links: RequestLinks;
   readonly isLeaderKey: (buf: Buffer) => boolean;
   readonly showBase: () => void;
   readonly scheduleStatus: () => void;
@@ -20,13 +22,16 @@ export interface EjectScreenDeps {
 // The prompt that takes the instruction a session runs on headless once it
 // is ejected.
 export interface EjectScreen {
-  readonly open: (sessionID: string) => void;
+  readonly open: (key: SessionKey) => void;
+
+  // The session the prompt opened on, so the client can drop the prompt when it leaves the list.
+  readonly findTarget: () => SessionKey | null;
   readonly render: () => void;
   readonly applyKey: (buf: Buffer) => void;
 }
 
 export function createEjectScreen(deps: EjectScreenDeps): EjectScreen {
-  let target = '';
+  let target: SessionKey | null = null;
   let input = '';
 
   const render = () => {
@@ -43,21 +48,28 @@ export function createEjectScreen(deps: EjectScreenDeps): EjectScreen {
   };
 
   const yankToHeadless = async (instruction: string) => {
+    // The key was set when the screen opened, so the eject acts on the session it opened on.
+    const key = target;
+
+    if (key === null) {
+      return;
+    }
+
     try {
-      await deps.getClient().sendRequest('session.eject', {
-        session: target,
+      await sendToDaemon(deps.links, key.daemon, 'session.eject', {
+        session: key.id,
         ...(instruction === '' ? {} : { prompt: instruction }),
       });
     } catch (error) {
-      deps.actions.recordActionFailure(target, error);
+      deps.actions.recordActionFailure(key, error);
     }
 
     deps.service.send({ type: 'OVERLAY' });
   };
 
   return {
-    open: (sessionID) => {
-      target = sessionID;
+    open: (key) => {
+      target = key;
       input = '';
 
       process.stdout.write(ansi.clear);
@@ -66,6 +78,7 @@ export function createEjectScreen(deps: EjectScreenDeps): EjectScreen {
     },
 
     render,
+    findTarget: () => target,
 
     applyKey: (buf) => {
       const edit = planTextEdit(buf, input, {

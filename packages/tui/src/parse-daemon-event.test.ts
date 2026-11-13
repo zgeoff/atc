@@ -18,11 +18,12 @@ test('it parses a SessionAdded event into a mirror session', () => {
     },
   };
 
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent(raw, null);
 
   expect(event).toStrictEqual({
     ev: 'SessionAdded',
     session: {
+      daemon: null,
       id: 's-1',
       name: 'work',
       cwd: '/repo',
@@ -62,11 +63,12 @@ test('it parses a SessionState event into a mirror session', () => {
     },
   };
 
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent(raw, null);
 
   expect(event).toStrictEqual({
     ev: 'SessionState',
     session: {
+      daemon: null,
       id: 's-1',
       name: 'work',
       cwd: '/repo',
@@ -99,7 +101,7 @@ test('it parses a SessionRenamed event', () => {
     namedBy: 'agent',
   };
 
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent(raw, null);
 
   expect(event).toStrictEqual({
     ev: 'SessionRenamed',
@@ -110,19 +112,22 @@ test('it parses a SessionRenamed event', () => {
 });
 
 test('it parses a SessionRemoved event', () => {
-  const event = parseDaemonEvent({ version: 4, ev: 'SessionRemoved', sessionID: 's-1' });
+  const event = parseDaemonEvent({ version: 4, ev: 'SessionRemoved', sessionID: 's-1' }, null);
 
   expect(event).toStrictEqual({ ev: 'SessionRemoved', sessionID: 's-1' });
 });
 
 test('it parses a SessionResized event', () => {
-  const event = parseDaemonEvent({
-    version: 4,
-    ev: 'SessionResized',
-    sessionID: 's-1',
-    cols: 80,
-    rows: 24,
-  });
+  const event = parseDaemonEvent(
+    {
+      version: 4,
+      ev: 'SessionResized',
+      sessionID: 's-1',
+      cols: 80,
+      rows: 24,
+    },
+    null,
+  );
 
   expect(event).toStrictEqual({ ev: 'SessionResized', sessionID: 's-1', cols: 80, rows: 24 });
 });
@@ -136,7 +141,7 @@ test('it parses a SessionOutput event', () => {
     data: '\u001B[1mhello\u001B[0m',
   };
 
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent(raw, null);
 
   expect(event).toStrictEqual({
     ev: 'SessionOutput',
@@ -147,12 +152,15 @@ test('it parses a SessionOutput event', () => {
 });
 
 test('it parses a SessionDesync event', () => {
-  const event = parseDaemonEvent({
-    version: 4,
-    ev: 'SessionDesync',
-    sessionID: 's-1',
-    dropped: 512,
-  });
+  const event = parseDaemonEvent(
+    {
+      version: 4,
+      ev: 'SessionDesync',
+      sessionID: 's-1',
+      dropped: 512,
+    },
+    null,
+  );
 
   expect(event).toStrictEqual({ ev: 'SessionDesync', sessionID: 's-1', dropped: 512 });
 });
@@ -167,7 +175,7 @@ test('it parses a PermissionRequested event', () => {
     respondable: true,
   };
 
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent(raw, null);
 
   expect(event).toStrictEqual({
     ev: 'PermissionRequested',
@@ -179,12 +187,15 @@ test('it parses a PermissionRequested event', () => {
 });
 
 test('it parses a PermissionResolved event', () => {
-  const event = parseDaemonEvent({
-    version: 4,
-    ev: 'PermissionResolved',
-    request: 'r-1',
-    decision: 'allow',
-  });
+  const event = parseDaemonEvent(
+    {
+      version: 4,
+      ev: 'PermissionResolved',
+      request: 'r-1',
+      decision: 'allow',
+    },
+    null,
+  );
 
   expect(event).toStrictEqual({ ev: 'PermissionResolved', request: 'r-1', decision: 'allow' });
 });
@@ -198,24 +209,27 @@ test('it still parses a known event that carries extra fields', () => {
     unexpected: { nested: true },
   };
 
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent(raw, null);
 
   expect(event).toStrictEqual({ ev: 'SessionRemoved', sessionID: 's-1' });
 });
 
 test('it misses on an unknown event kind instead of throwing', () => {
-  const event = parseDaemonEvent({ version: 4, ev: 'session.teleported', sessionID: 's-1' });
+  const event = parseDaemonEvent({ version: 4, ev: 'session.teleported', sessionID: 's-1' }, null);
 
   expect(event).toBeNull();
 });
 
 test('it misses on a known event kind with a missing required field', () => {
-  const event = parseDaemonEvent({
-    version: 4,
-    ev: 'SessionRenamed',
-    sessionID: 's-1',
-    namedBy: 'agent',
-  });
+  const event = parseDaemonEvent(
+    {
+      version: 4,
+      ev: 'SessionRenamed',
+      sessionID: 's-1',
+      namedBy: 'agent',
+    },
+    null,
+  );
 
   expect(event).toBeNull();
 });
@@ -235,7 +249,7 @@ test('it misses on a SessionAdded event whose session descriptor is malformed', 
     },
   };
 
-  const event = parseDaemonEvent(raw);
+  const event = parseDaemonEvent(raw, null);
 
   expect(event).toBeNull();
 });

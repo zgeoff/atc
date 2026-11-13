@@ -14,7 +14,7 @@ test('it sends the actions through the client it was given and starts with no no
 
   onTestFinished(harness.stop);
 
-  await harness.actions.sendForget('s-orchard');
+  await harness.actions.sendForget({ daemon: null, id: 's-orchard' });
 
   expect({ sent, notice: harness.overlay.notice }).toStrictEqual({
     sent: [['session.forget', { session: 's-orchard', refuseLive: true }]],
