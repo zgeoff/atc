@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { StartedTestDaemon, TestDaemonConfig } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildDirsSource } from '@atc/source-dirs';
@@ -88,7 +89,7 @@ async function setupTest() {
 
   // The picker offers a daemon once its link is up, and the link is up once its session shows in
   // the list.
-  const openPickerWithRemoteUp = async (remote: Awaited<ReturnType<typeof startTestDaemon>>) => {
+  const openPickerWithRemoteUp = async (remote: StartedTestDaemon<TestDaemonConfig>) => {
     await spawnNamedSession(
       (method, params) => remote.client.sendRequest(method, params),
       'already-there',
