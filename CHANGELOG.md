@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.15.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.15.0...@zgeoff/atc@7.15.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **auth:** move to mcp-auth 0.2.0 and remove clients by their id ([#1219](https://github.com/zgeoff/atc/issues/1219)) ([d497779](https://github.com/zgeoff/atc/commit/d497779c273af2717b34e4aa9cb9763c49fcce12))
+* **auth:** move to mcp-auth 0.2.1 and drop the entry polyfill import ([#1221](https://github.com/zgeoff/atc/issues/1221)) ([b2fc2fa](https://github.com/zgeoff/atc/commit/b2fc2fad0a013b81d3aac13613b9f93cefd8c5c5))
+
 ## [7.15.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.14.0...@zgeoff/atc@7.15.0) (2026-11-13)
 
 ### Features
