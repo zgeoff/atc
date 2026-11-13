@@ -1,6 +1,7 @@
 import type { WorkspacesConfig } from '@atc/config';
 import { DEFAULT_GIT_TRANSPORTS } from '@atc/config';
 import type { AgentID } from '@atc/core';
+import type { DaemonName } from '../session-key';
 import type { PickerContext } from './picker-flow';
 
 const NO_WORKSPACES: WorkspacesConfig = {
@@ -13,11 +14,14 @@ const NO_WORKSPACES: WorkspacesConfig = {
 export function buildPickerContext(
   resume: boolean,
   agent: AgentID,
+  daemon: DaemonName,
   workspaces: WorkspacesConfig = NO_WORKSPACES,
 ): PickerContext {
   return {
     step: 'agent',
     resume,
+    daemon,
+    daemons: [],
     sources: [],
     sourceIndex: -1,
     input: '',

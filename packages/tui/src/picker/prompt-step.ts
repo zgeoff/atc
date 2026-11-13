@@ -71,7 +71,7 @@ export function applySpawnOutcome(
     return;
   }
 
-  flow.effects.push({ kind: 'attach', sessionID: outcome.sessionID });
+  flow.effects.push({ kind: 'attach', daemon: ctx.daemon, sessionID: outcome.sessionID });
 }
 
 function applySpawnRefusal(flow: PickerFlow, error: unknown, prompt: string) {

@@ -21,6 +21,7 @@ export function buildPickerView(ctx: PickerContext, deps: PickerDeps): PickerVie
   const verb = ctx.resume ? 'adopt' : 'spawn';
 
   return match(ctx.step)
+    .with('daemon', () => buildDaemonView(ctx, verb))
     .with('agent', () => buildAgentView(ctx, verb))
     .with('list', () => buildListView(ctx, deps, verb))
     .with('ref', () => buildRefView(ctx))
@@ -57,6 +58,16 @@ export function buildPickerView(ctx: PickerContext, deps: PickerDeps): PickerVie
         ctx.pending?.label ?? ctx.refusal ?? 'first message for the session · ⏎ spawn · esc back',
     }))
     .exhaustive();
+}
+
+function buildDaemonView(ctx: PickerContext, verb: string): PickerView {
+  return {
+    title: `${verb}: daemon`,
+    items: ctx.daemons.map((daemon) => daemon ?? 'local'),
+    selected: ctx.selected,
+    input: ctx.input,
+    hint: ctx.refusal ?? '↑↓ move · ⏎ select · esc cancel',
+  };
 }
 
 function buildAgentView(ctx: PickerContext, verb: string): PickerView {

@@ -76,10 +76,9 @@ ignores the key. `atc config migrate` drops it.
 
 ## Remote daemons
 
-The `daemons` key lists the daemons on other hosts that the TUI opens beside your local daemon when
-you run `atc`, that it opens alone with `atc --daemon <name>`, and that `atc mcp --daemon <name>`
-can serve as MCP tools, keyed by a name of a lowercase letter followed by lowercase letters, digits,
-or hyphens:
+The `daemons` key lists daemons on other hosts. `atc` opens them beside your local daemon,
+`atc --daemon <name>` opens one alone, and `atc mcp --daemon <name>` serves one as MCP tools. Each
+key is a name: a lowercase letter followed by lowercase letters, digits, or hyphens:
 
 ```json
 {
@@ -108,7 +107,7 @@ or hyphens:
 Plain `atc` opens every entry beside the local daemon, in the order the entries appear in the file,
 and shows their sessions in one list
 ([opening every daemon at once](./using-atc.md#opening-every-daemon-at-once)). Each entry connects
-as its own `principal`, and each retry of a refused entry reads the token again.
+as its own `principal`, and atc reads the token again on each retry of a refused entry.
 
 Set exactly one of `tokenFile` and `tokenCommand`. atc refuses an entry that holds the token itself
 under `token`, so the config file never holds a credential. The remote daemon serves a TCP request

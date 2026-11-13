@@ -1,4 +1,4 @@
-import type { PickerContext, PickerDeps } from './picker-flow';
+import type { PickerContext, PickerDeps, PickerFlow } from './picker-flow';
 import { collectEligibleTargets, findEffectiveTarget, isGitFlow } from './picker-queries';
 
 export function buildTargetParam(ctx: PickerContext): Readonly<Record<string, string>> {
@@ -8,14 +8,11 @@ export function buildTargetParam(ctx: PickerContext): Readonly<Record<string, st
 // A principal may hold no default target, and a config that lists targets
 // may name none, so a request without one fails on the daemon. A local
 // daemon falls back on its own default when it has one.
-export function buildPathTargetParam(
-  ctx: PickerContext,
-  deps: PickerDeps,
-): Readonly<Record<string, string>> {
+export function buildPathTargetParam(ctx: PickerContext): Readonly<Record<string, string>> {
   const eligible = collectEligibleTargets(ctx, false);
   const fallback = eligible.find((candidate) => candidate.isDefault);
 
-  if (deps.remoteDaemon !== true && fallback !== undefined) {
+  if (ctx.daemon === null && fallback !== undefined) {
     return {};
   }
 
@@ -24,8 +21,11 @@ export function buildPathTargetParam(
   return target === undefined ? {} : { target: target.id };
 }
 
-export function buildClientCwdParam(deps: PickerDeps): Readonly<Record<string, string>> {
-  return deps.remoteDaemon === true ? {} : { clientCwd: deps.cwd };
+export function buildClientCwdParam(
+  ctx: PickerContext,
+  deps: PickerDeps,
+): Readonly<Record<string, string>> {
+  return ctx.daemon === null ? { clientCwd: deps.cwd } : {};
 }
 
 // A git source lists under one target for the whole list, chosen before the
@@ -36,12 +36,14 @@ export function buildListingTargetParam(ctx: PickerContext): Readonly<Record<str
 }
 
 export function buildListingKey(
-  deps: PickerDeps,
+  flow: PickerFlow,
   sourceID: string,
   targetID: string,
   scope: string | null,
 ): string {
-  return [deps.getDaemonSocketPath?.() ?? '', sourceID, targetID, scope ?? ''].join('\n');
+  const socketPath = flow.deps.getDaemonSocketPath?.(flow.ctx.daemon) ?? '';
+
+  return [socketPath, sourceID, targetID, scope ?? ''].join('\n');
 }
 
 export function buildSourceParams(ctx: PickerContext): Readonly<Record<string, unknown>> {

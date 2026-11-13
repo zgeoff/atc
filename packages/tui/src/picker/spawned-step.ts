@@ -17,7 +17,7 @@ export function applySpawnedKey(flow: PickerFlow, buf: Buffer) {
   ctx.step = 'agent';
 
   if (edit.kind === 'submit' && sessionID !== null) {
-    flow.effects.push({ kind: 'attach', sessionID });
+    flow.effects.push({ kind: 'attach', daemon: ctx.daemon, sessionID });
 
     return;
   }

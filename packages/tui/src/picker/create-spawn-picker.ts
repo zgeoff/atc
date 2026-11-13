@@ -1,5 +1,6 @@
 import { toTimerClock } from '@atc/core';
 import { createActor } from 'xstate';
+import type { DaemonName } from '../session-key';
 import { createPickerMachine } from './create-picker-machine';
 import type { SpawnPickerDeps } from './picker-flow';
 
@@ -8,7 +9,13 @@ export interface SpawnPicker {
   readonly applyKey: (buf: Buffer) => void;
   readonly render: () => void;
 
+  // Tells the daemon step that a link changed, so it offers the daemons that are up now.
+  readonly refreshDaemons: () => void;
+
   readonly stopFlow: () => void;
+
+  // True while the flow runs against the daemon: open, and past the daemon step.
+  readonly isOpenOn: (daemon: DaemonName) => boolean;
 }
 
 export function createSpawnPicker<TMirror extends { readonly id: string }>(
@@ -28,8 +35,20 @@ export function createSpawnPicker<TMirror extends { readonly id: string }>(
     render: () => {
       actor.send({ type: 'RENDER' });
     },
+    refreshDaemons: () => {
+      actor.send({ type: 'LINKS_CHANGED' });
+    },
     stopFlow: () => {
       actor.send({ type: 'STOP' });
+    },
+    isOpenOn: (daemon) => {
+      const snapshot = actor.getSnapshot();
+
+      return (
+        snapshot.matches('open') &&
+        snapshot.context.step !== 'daemon' &&
+        snapshot.context.daemon === daemon
+      );
     },
   };
 }

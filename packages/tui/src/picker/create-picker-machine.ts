@@ -3,17 +3,18 @@ import { machineTypes } from '@zgeoff/std';
 import { P, match } from 'ts-pattern';
 import { assertEvent, enqueueActions, raise, setup } from 'xstate';
 import { drawPicker } from '../ui';
-import { openAgentMenu } from './agent-step';
 import { applyPickerKey } from './apply-picker-key';
 import { applyRequestOutcome } from './apply-request-outcome';
 import { buildPickerContext } from './build-picker-context';
 import { buildPickerView } from './build-picker-view';
 import type { CompletionOutcome, ListingOutcome, RequestOutcome } from './create-picker-actors';
 import { createPickerActors } from './create-picker-actors';
+import { applyLinksChanged, openFirstStep } from './daemon-step';
 import { applyCompletion, applyListing } from './list-step';
 import { renderFlow, stopListings } from './navigate-picker';
 import type {
   CompletionRequest,
+  OnDaemon,
   PickerContext,
   PickerFlow,
   PickerRequest,
@@ -27,9 +28,10 @@ type PickerEvent =
   | { readonly type: 'OPEN'; readonly resume: boolean }
   | { readonly type: 'KEY'; readonly buf: Buffer }
   | { readonly type: 'RENDER' }
+  | { readonly type: 'LINKS_CHANGED' }
   | { readonly type: 'STOP' }
   | { readonly type: 'CLOSE' }
-  | { readonly type: 'REQUEST'; readonly request: PickerRequest }
+  | { readonly type: 'REQUEST'; readonly request: OnDaemon<PickerRequest> }
   | { readonly type: 'REQUEST_DONE'; readonly outcome: RequestOutcome }
   | { readonly type: 'CANCEL_REQUEST' }
   | { readonly type: `xstate.done.actor.listing.${string}`; readonly output: ListingOutcome }
@@ -53,7 +55,8 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
           event.type === 'OPEN'
             ? buildPickerContext(
                 event.resume,
-                deps.getLastUsedAgent(),
+                deps.getLastUsedAgent(deps.primaryDaemon),
+                deps.primaryDaemon,
                 deps.readConfig().workspaces,
               )
             : args.context;
@@ -68,7 +71,10 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
         for (const effect of flow.effects) {
           match(effect)
             .with({ kind: 'request' }, (sent) => {
-              enqueue.raise({ type: 'REQUEST', request: sent.request });
+              enqueue.raise({
+                type: 'REQUEST',
+                request: { ...sent.request, daemon: flow.ctx.daemon },
+              });
             })
             .with({ kind: 'cancel-request' }, () => {
               enqueue.raise({ type: 'CANCEL_REQUEST' });
@@ -77,7 +83,11 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
               const id = toListingChildID(listing.request.sourceID);
 
               enqueue.stopChild(id);
-              enqueue.spawnChild('listing', { id, input: listing.request });
+
+              enqueue.spawnChild('listing', {
+                id,
+                input: { ...listing.request, daemon: flow.ctx.daemon },
+              });
             })
             .with({ kind: 'cancel-listing' }, (cancel) => {
               enqueue.stopChild(toListingChildID(cancel.sourceID));
@@ -114,7 +124,7 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
             })
             .with({ kind: 'attach' }, (attach) => {
               enqueue(() => {
-                void deps.attach(attach.sessionID);
+                void deps.attach(attach.daemon, attach.sessionID);
               });
             })
             .with({ kind: 'show-base' }, () => {
@@ -139,7 +149,11 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
   }).createMachine({
     id: 'spawn-picker',
     initial: 'closed',
-    context: buildPickerContext(false, deps.getLastUsedAgent()),
+    context: buildPickerContext(
+      false,
+      deps.getLastUsedAgent(deps.primaryDaemon),
+      deps.primaryDaemon,
+    ),
     on: {
       OPEN: { target: '.open', reenter: true, actions: 'step' },
       RENDER: { actions: 'step' },
@@ -153,6 +167,7 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
           CLOSE: '#spawn-picker.closed',
           KEY: { actions: 'step' },
           STOP: { actions: 'step' },
+          LINKS_CHANGED: { actions: 'step' },
           REQUEST_DONE: { actions: 'step' },
           'xstate.done.actor.listing.*': { actions: 'step' },
           COMPLETED: { actions: 'step' },
@@ -212,7 +227,10 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
                 invoke: {
                   // oxlint-disable-next-line zgeoff/no-abbreviated-names -- xstate's invoke config names its actor src
                   src: 'completion',
-                  input: (args) => getCompletion(args.context),
+                  input: (args) => ({
+                    ...getCompletion(args.context),
+                    daemon: args.context.daemon,
+                  }),
                   onDone: {
                     target: 'idle',
                     actions: raise((args) => ({ type: 'COMPLETED', outcome: args.event.output })),
@@ -230,13 +248,16 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
 function applyEvent(flow: PickerFlow, event: PickerEvent) {
   match(event)
     .with({ type: 'OPEN' }, () => {
-      openAgentMenu(flow);
+      openFirstStep(flow);
     })
     .with({ type: 'KEY' }, (key) => {
       applyPickerKey(flow, key.buf);
     })
     .with({ type: 'RENDER' }, () => {
       renderFlow(flow);
+    })
+    .with({ type: 'LINKS_CHANGED' }, () => {
+      applyLinksChanged(flow);
     })
     .with({ type: 'STOP' }, () => {
       stopFlow(flow);

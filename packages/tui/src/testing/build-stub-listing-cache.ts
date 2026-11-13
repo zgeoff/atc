@@ -1,5 +1,6 @@
 import { LISTING_CACHE_LIFETIME_MS } from '../listing-cache';
 import type { CachedListing, ListingCache } from '../listing-cache';
+import type { DaemonName } from '../session-key';
 
 // The listing cache contract in memory: a read past the lifetime finds
 // nothing, and a write for an older request never replaces a newer one.
@@ -24,4 +25,11 @@ export function buildStubListingCache(): ListingCache {
       return Promise.resolve();
     },
   };
+}
+
+// One in-memory cache that every daemon shares, for a test that holds no daemon apart.
+export function buildStubListingCacheOf(): (daemon: DaemonName) => ListingCache {
+  const cache = buildStubListingCache();
+
+  return () => cache;
 }

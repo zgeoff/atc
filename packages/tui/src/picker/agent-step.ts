@@ -22,10 +22,10 @@ export function applyAgentList(flow: PickerFlow, list: AgentList | null, failure
 
   ctx.selected = Math.max(
     0,
-    ctx.picks.findIndex((pick) => pick.agent === deps.getLastUsedAgent()),
+    ctx.picks.findIndex((pick) => pick.agent === deps.getLastUsedAgent(ctx.daemon)),
   );
 
-  ctx.agent = ctx.picks[ctx.selected]?.agent ?? deps.getLastUsedAgent();
+  ctx.agent = ctx.picks[ctx.selected]?.agent ?? deps.getLastUsedAgent(ctx.daemon);
 
   if (failure !== null) {
     flow.effects.push({ kind: 'log', line: `agent list failed: ${failure}` });

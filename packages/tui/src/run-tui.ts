@@ -229,11 +229,16 @@ export async function runTUI(host: TUIHost): Promise<void> {
     picker.open(resume);
   };
 
-  // The picker spawns on the primary daemon.
-  const sendRequest = (method: string, params?: Readonly<Record<string, unknown>>) =>
-    sendToDaemon(links, primaryName, method, params);
+  const sendRequest = (
+    daemon: DaemonName,
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
+  ) => sendToDaemon(links, daemon, method, params);
 
-  const getLastUsedAgent = (): AgentID => lastUsedAgent;
+  const readLastUsedAgent = (daemon: DaemonName): AgentID =>
+    daemon === primaryName
+      ? lastUsedAgent
+      : (links.lastUsedAgent(daemon) ?? host.readConfig().defaultAgent);
 
   const setLastUsedAgent = (agent: AgentID) => {
     lastUsedAgent = agent;
@@ -345,6 +350,21 @@ export async function runTUI(host: TUIHost): Promise<void> {
     });
   };
 
+  // A picker open on a remote daemon that leaves `up` ends, and the status bar says where the
+  // daemon stands. The primary's own loss already ends the picker.
+  const endPickerOn = (daemon: DaemonName) => {
+    const state = links.stateOf(daemon);
+
+    if (state.kind === 'up' || getMode() !== 'picker' || !picker.isOpenOn(daemon)) {
+      return;
+    }
+
+    picker.stopFlow();
+    service.send({ type: 'OVERLAY' });
+
+    showStatusNotice(formatLinkState(daemon, state));
+  };
+
   const drawMode = () => {
     match(getMode())
       .with('home', () => {
@@ -385,14 +405,16 @@ export async function runTUI(host: TUIHost): Promise<void> {
   });
 
   const picker = createSpawnPicker<MirrorSession>({
+    primaryDaemon: primaryName,
+    upDaemons: links.upDaemons,
     sendRequest,
     ptyRows,
     isLeaderKey,
-    getLastUsedAgent,
+    getLastUsedAgent: readLastUsedAgent,
     scheduleStatus,
     showBase,
-    attach: (id) => attach({ daemon: primaryName, id }),
-    toMirrorSession: (value) => toMirrorSession(value, primaryName),
+    attach: (daemon, id) => attach({ daemon, id }),
+    toMirrorSession: (daemon, value) => toMirrorSession(value, daemon),
     upsertMirror: (session) => {
       mirror.upsert(session);
     },
@@ -405,14 +427,13 @@ export async function runTUI(host: TUIHost): Promise<void> {
     },
     cwd: process.cwd(),
     home: resolveHomeDir(),
-    remoteDaemon: primaryName !== null,
     readConfig: host.readConfig,
     onDropAnswer: (kind) => {
       logClientEvent(`dropped ${kind} answer`);
     },
     log: logClientEvent,
-    listingCache: primary.listingCache,
-    getDaemonSocketPath: () => getBoot().socketPath,
+    getListingCache: (daemon) => host.daemons.find((entry) => entry.name === daemon)?.listingCache,
+    getDaemonSocketPath: (daemon) => (daemon === primaryName ? getBoot().socketPath : ''),
     clock,
   });
 
@@ -518,8 +539,11 @@ export async function runTUI(host: TUIHost): Promise<void> {
   links.onChange((daemon) => {
     cancelStaleConfirmations();
 
+    picker.refreshDaemons();
+
     if (daemon !== primaryName) {
       resumeAttachedSession(daemon);
+      endPickerOn(daemon);
     }
 
     if (getMode() === 'overlay') {

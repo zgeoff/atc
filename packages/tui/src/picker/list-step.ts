@@ -1,6 +1,7 @@
 import { isPathInput } from '@atc/core';
 import { match } from 'ts-pattern';
 import type { CompletionOutcome, ListingOutcome, RequestOutcome } from './create-picker-actors';
+import { openAgentStep } from './daemon-step';
 import { findAlternateURL, formatListFailure, formatPickerError } from './format-picker-error';
 import {
   applyDir,
@@ -8,7 +9,6 @@ import {
   buildOwnRows,
   checkRepoAccess,
   collectSourceIndexes,
-  openAgentStep,
   openRefStep,
   readTypedInput,
   renderFlow,
@@ -146,8 +146,8 @@ function scheduleCompletion(flow: PickerFlow, input: string) {
     params: {
       source: source.id,
       input,
-      ...buildPathTargetParam(ctx, deps),
-      ...buildClientCwdParam(deps),
+      ...buildPathTargetParam(ctx),
+      ...buildClientCwdParam(ctx, deps),
     },
   };
 

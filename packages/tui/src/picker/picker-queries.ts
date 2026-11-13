@@ -176,6 +176,7 @@ export function collectRefItems(ctx: PickerContext): GitRef[] {
 
 export function getSelectedIndex(ctx: PickerContext): number {
   return match(ctx.step)
+    .with('daemon', () => Math.min(ctx.selected, ctx.daemons.length - 1))
     .with('agent', () => Math.min(ctx.selected, ctx.picks.length - 1))
     .with('target', () => Math.min(ctx.selected, ctx.targets.length - 1))
     .with('list', () => clampToItems(ctx.selected, collectListItems(ctx).length))

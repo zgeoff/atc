@@ -3,8 +3,18 @@ import type { AgentID, Clock } from '@atc/core';
 import type { AgentEntry, GitRef, SourceEntry, SourcePick } from '@atcx/contract';
 import type { TargetPick } from '../collect-target-picks';
 import type { ListingCache } from '../listing-cache';
+import type { DaemonName } from '../session-key';
 
-type PickerStep = 'agent' | 'list' | 'ref' | 'target' | 'confirm' | 'name' | 'prompt' | 'spawned';
+type PickerStep =
+  | 'daemon'
+  | 'agent'
+  | 'list'
+  | 'ref'
+  | 'target'
+  | 'confirm'
+  | 'name'
+  | 'prompt'
+  | 'spawned';
 
 export type DroppedAnswer =
   | 'listing'
@@ -16,17 +26,23 @@ export type DroppedAnswer =
   | 'agent list';
 
 export interface SpawnPickerDeps<TMirror> {
+  // The daemon the picker opens on, and the one it skips the daemon step for.
+  readonly primaryDaemon: DaemonName;
+
+  // The daemons whose link is up, the primary first.
+  readonly upDaemons: () => readonly DaemonName[];
   readonly sendRequest: (
+    daemon: DaemonName,
     method: string,
     params?: Readonly<Record<string, unknown>>,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly ptyRows: () => number;
   readonly isLeaderKey: (buf: Buffer) => boolean;
-  readonly getLastUsedAgent: () => AgentID;
+  readonly getLastUsedAgent: (daemon: DaemonName) => AgentID;
   readonly scheduleStatus: () => void;
   readonly showBase: () => void;
-  readonly attach: (sessionID: string) => Promise<void>;
-  readonly toMirrorSession: (value: unknown) => TMirror | null;
+  readonly attach: (daemon: DaemonName, sessionID: string) => Promise<void>;
+  readonly toMirrorSession: (daemon: DaemonName, value: unknown) => TMirror | null;
   readonly upsertMirror: (session: Readonly<TMirror>) => void;
 
   readonly write: (chunk: string) => void;
@@ -35,18 +51,15 @@ export interface SpawnPickerDeps<TMirror> {
 
   readonly home: string;
 
-  // The client's own directory stands for nothing on a remote daemon's host.
-  readonly remoteDaemon?: boolean;
-
   readonly readConfig: () => Config;
 
   readonly onDropAnswer?: (kind: DroppedAnswer) => void;
 
   readonly log?: (line: string) => void;
 
-  readonly listingCache?: ListingCache;
+  readonly getListingCache?: (daemon: DaemonName) => ListingCache | undefined;
 
-  readonly getDaemonSocketPath?: () => string;
+  readonly getDaemonSocketPath?: (daemon: DaemonName) => string;
 
   readonly clock: Clock;
 }
@@ -106,9 +119,18 @@ interface PendingRequest {
   readonly kind: 'interpret' | 'probe' | 'spawn';
 }
 
+// A request, listing or completion, stamped with the daemon it goes to.
+export type OnDaemon<TRequest> = TRequest & { readonly daemon: DaemonName };
+
 export interface PickerContext {
   readonly step: PickerStep;
   readonly resume: boolean;
+
+  // The daemon every later step runs against; a name other than null takes a remote daemon's rules.
+  readonly daemon: DaemonName;
+
+  // The daemons the daemon step offers, empty when the picker skipped that step.
+  readonly daemons: readonly DaemonName[];
 
   readonly sources: readonly SourceEntry[];
   readonly sourceIndex: number;
@@ -176,7 +198,7 @@ type PickerEffect =
   | { readonly kind: 'render'; readonly clear: boolean; readonly ctx: PickerContext }
   | { readonly kind: 'quit' }
   | { readonly kind: 'stop' }
-  | { readonly kind: 'attach'; readonly sessionID: string }
+  | { readonly kind: 'attach'; readonly daemon: DaemonName; readonly sessionID: string }
   | { readonly kind: 'show-base' }
   | { readonly kind: 'log'; readonly line: string };
 
