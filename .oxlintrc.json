@@ -44,17 +44,11 @@
     // atc is ES modules throughout, so a module loads through an import
     "typescript/no-require-imports": "error",
     // bun-pty reads BUN_PTY_LIB as it loads, and only an import that runs
-    // before it can point it at atc's copy of the PTY library; a binary's
-    // entry loads reflect-metadata before the passkey library needs it
+    // before it can point it at atc's copy of the PTY library
     "import/no-unassigned-import": [
       "error",
       {
-        "allow": [
-          "jest-extended",
-          "**/augment-bun-test.ts",
-          "./point-bun-pty-at-copy",
-          "reflect-metadata"
-        ]
+        "allow": ["jest-extended", "**/augment-bun-test.ts", "./point-bun-pty-at-copy"]
       }
     ],
     // GEO-1196 splits the 19 files over the shared 500-line limit

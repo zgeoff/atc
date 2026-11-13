@@ -1,9 +1,6 @@
 // atc CLI entry: no subcommand opens the client TUI; `hook-report` and
 // `statusline` are the commands injected into wrangled sessions.
 
-// A compiled binary runs the passkey library's code before its own import of
-// this polyfill.
-import 'reflect-metadata';
 import { resolve } from 'node:path';
 import type { RemoteDaemon } from '@atc/config';
 import { parseListenAddress } from '@atc/config/host';

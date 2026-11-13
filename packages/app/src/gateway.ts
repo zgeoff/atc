@@ -1,6 +1,3 @@
-// A compiled binary runs the passkey library's code before its own import of
-// this polyfill.
-import 'reflect-metadata';
 import { runGatewayCLI } from './run-gateway-cli';
 
 // atc-gateway entry: serves the MCP tools over HTTP for the daemons a
