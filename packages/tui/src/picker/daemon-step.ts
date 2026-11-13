@@ -25,7 +25,7 @@ export function openFirstStep(flow: PickerFlow) {
   openDaemonStep(flow);
 }
 
-export function openDaemonStep(flow: PickerFlow) {
+function openDaemonStep(flow: PickerFlow) {
   const ctx = flow.ctx;
 
   ctx.step = 'daemon';
