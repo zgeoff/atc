@@ -75,7 +75,23 @@ export async function runClients(
         return;
       }
 
-      await admin.clients.remove(client.name);
+      // The package looks a name up after it cleans it, so a name the old
+      // server stored uncleaned finds no client.
+      try {
+        await admin.clients.remove(client.name);
+      } catch (error) {
+        if (!(error instanceof MCPAuthError) || error.code !== 'not-found') {
+          throw error;
+        }
+
+        io.printError(
+          `${target.command} remove: the client's stored name '${client.name}' does not match it, so atc cannot remove it`,
+        );
+
+        io.setExitCode(1);
+
+        return;
+      }
 
       io.print(`Removed client ${action.clientID} and revoked every grant it held`);
 

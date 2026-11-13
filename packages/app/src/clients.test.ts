@@ -379,3 +379,32 @@ test('it refuses to remove a client whose name another client shares, and remove
     listed: 2,
   });
 });
+
+test('it refuses to remove a client whose stored name the package cannot find, and keeps it', async () => {
+  const ctx = setupTest();
+  const [clientID] = ctx.writeOldClients(['  Spaced\tOrchard  ']);
+  const errors: string[] = [];
+  const codes: number[] = [];
+
+  await runClients(
+    { kind: 'remove', clientID: clientID ?? '' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+      exit: () => {},
+    },
+  );
+
+  expect({ errors, codes }).toStrictEqual({
+    errors: [
+      "atc clients remove: the client's stored name '  Spaced\tOrchard  ' does not match it, so atc cannot remove it",
+    ],
+    codes: [1],
+  });
+});

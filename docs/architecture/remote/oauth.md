@@ -114,7 +114,8 @@ request, and a change of the public URL ends every token bound to the old one. E
 own row, so `atc grants --revoke` ends that grant's tokens and leaves every other grant alone. A
 revoke also ends the event subscriptions of a client that no longer holds `read`.
 
-A refresh token works once: the package refuses a spent one with `invalid_grant`.
+Presenting a spent refresh token again counts as replay: the package refuses it with `invalid_grant`
+and ends that token's grant, which then needs approving again.
 
 ## Service tokens
 
