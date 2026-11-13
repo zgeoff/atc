@@ -1,13 +1,32 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { seedOwnerClient, seedOwnerSchema } from '@atc/mcp/test-utils';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { runClients } from './clients';
+import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-clients-');
+  const dbPath = join(temporaryDirectory.path, 'state', 'mcp-auth.db');
 
-  return { dbPath: join(temporaryDirectory.path, 'state', 'mcp-auth.db') };
+  return {
+    dbPath,
+
+    // atc's own server let two clients share a name, and the move to the
+    // package keeps both.
+    writeOldClients: (names: readonly string[]) => {
+      const sqlite = openMCPAuthDatabase(dbPath);
+
+      registerTestCleanup(() => {
+        sqlite.close();
+      });
+
+      seedOwnerSchema(sqlite);
+
+      return names.map((name) => seedOwnerClient(sqlite, { name }).clientID);
+    },
+  };
 }
 
 test('it adds a client and prints its client ID', async () => {
@@ -315,4 +334,48 @@ test('it sets the process exit code to 1 when it refuses a remove by default', a
   );
 
   expect(process.exitCode).toBe(1);
+});
+
+test('it refuses to remove a client whose name another client shares, and removes neither', async () => {
+  const ctx = setupTest();
+  const [, second] = ctx.writeOldClients(['Orchard', 'Orchard']);
+  const errors: string[] = [];
+  const codes: number[] = [];
+  const listed: string[] = [];
+
+  await runClients(
+    { kind: 'remove', clientID: second ?? '' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+      exit: () => {},
+    },
+  );
+
+  await runClients(
+    { kind: 'list' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        listed.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+      exit: () => {},
+    },
+  );
+
+  expect({ errors, codes, listed: listed.length }).toStrictEqual({
+    errors: [
+      "atc clients remove: another client has the name 'Orchard', so atc cannot remove this one alone",
+    ],
+    codes: [1],
+    listed: 2,
+  });
 });

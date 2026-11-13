@@ -59,6 +59,22 @@ export async function runClients(
         return;
       }
 
+      // A database from before the package can hold two clients with one name,
+      // and a removal by that name would remove the wrong one.
+      const isShared = clients.some(
+        (listed) => listed.name === client.name && listed.clientID !== client.clientID,
+      );
+
+      if (isShared) {
+        io.printError(
+          `${target.command} remove: another client has the name '${client.name}', so atc cannot remove this one alone`,
+        );
+
+        io.setExitCode(1);
+
+        return;
+      }
+
       await admin.clients.remove(client.name);
 
       io.print(`Removed client ${action.clientID} and revoked every grant it held`);
