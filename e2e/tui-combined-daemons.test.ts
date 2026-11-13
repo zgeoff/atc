@@ -452,10 +452,12 @@ test('it returns to the list when the remote daemon restarts without the attache
 
   await restartRemoteTestDaemon(remote, { restoreFleet: false });
 
-  await ctx.tui.waitFor('┌ sessions');
+  await ctx.tui.waitFor('no sessions — n to spawn');
 
-  expect(ctx.tui.read()).not.toInclude('far-session');
-  expect(ctx.tui.read()).not.toInclude('waiting for daemon');
+  const frame = ctx.tui.read().split('┌ sessions ').at(-1);
+
+  expect(frame).not.toInclude('far-session');
+  expect(frame).not.toInclude('waiting for daemon');
 });
 
 test('it tells the user why a line typed into an attached remote session went nowhere', async () => {
