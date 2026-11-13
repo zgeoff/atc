@@ -50,7 +50,7 @@ A link reports one of five states:
 
 The app's remote boot classifies each failure into one of these kinds, so the link sets its state
 without reading error text. A `down` link retries on the transport's backoff. An `unauthorized` or
-`mismatched` link keeps its state and boots again every 30 seconds, much longer than the backoff,
+`mismatched` link keeps its state and boots again on a fixed interval much longer than the backoff,
 because a refusal does not heal in seconds. Each boot reads the token again, so a token fix or a
 remote upgrade heals the link without a client restart. The state stays at the last refusal until a
 retry ends in another outcome.
