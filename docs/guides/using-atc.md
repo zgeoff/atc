@@ -223,6 +223,38 @@ daemon's directory source. On a remote daemon, it leaves out the directory you r
 typed `~` stands for the home of the user the daemon runs as, and a typed relative path reads from
 that home. The roots and the zoxide list it shows are the daemon's own.
 
+## Opening every daemon at once
+
+Run `atc` with no `--daemon` flag after you add entries to the config's
+[`daemons` key](./configuration.md#remote-daemons), and the list shows the sessions of your local
+daemon and of each entry. Each row on a remote daemon starts with that daemon's name, and a local
+row looks as it does without entries. With no entries, `atc` behaves as before.
+
+A remote daemon you cannot reach shows as one line under the rows, with its name and its state:
+
+- `down`: the daemon is unreachable or the connection dropped. atc tries again by itself.
+- `unauthorized`: the token is missing or unreadable, or the daemon refused it or your principal.
+  atc reads the token again and retries every 30 seconds, so fixing the token heals the link.
+- `mismatched`: the daemon speaks another protocol version. atc retries every 30 seconds, so
+  upgrading the daemon heals the link.
+
+While a remote daemon is not up, the list hides its rows and the rest of the list works as usual.
+atc never ends because of a remote daemon, and a failed local start still ends it at once.
+
+Each action on a row goes to the daemon that holds the session: attach, typing, answering a prompt,
+rename, pin, stop, forget and eject. When that daemon is not up, atc sends nothing and the status
+bar shows the daemon's name and state. When a remote daemon refuses an action, such as a principal
+that may not stop the session, the status bar shows the daemon's name and the refusal. A kill or
+forget you confirmed acts on the session you opened it on, and it cancels when that session leaves
+the list or its daemon drops.
+
+When the daemon of the session you are attached to drops, the status bar shows
+`⟳ waiting for daemon`. atc attaches again once the daemon is back and still holds the session, and
+returns to the list otherwise.
+
+`n` spawns on your local daemon. `u`, `R` and the count of stored sessions on the home screen act on
+your local daemon only. `atc --daemon <name>` still opens that one daemon alone.
+
 ## Running the daemon under systemd
 
 `atc daemon` runs the daemon in the foreground. Install it as the `atc-daemon.service` user unit,

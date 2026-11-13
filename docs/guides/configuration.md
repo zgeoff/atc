@@ -17,18 +17,18 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 }
 ```
 
-| Field                   | Default          | Meaning                                                                                                                                         |
-| ----------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agents`                | `{ claude: {} }` | The agents atc offers, keyed by agent id. The [agents guide](./configuration/agents.md) covers the fields of an entry.                          |
-| `sources`               | see above        | The workspace sources the spawn picker offers, keyed by source id. The [sources guide](./configuration/workspaces.md#sources) covers it.        |
-| `authProfiles`          | unset            | Credential references an agent's `auth` selects from. The [brokered credentials guide](./configuration/brokered-credentials.md) covers them.    |
-| `hooks`                 | `{}`             | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                             |
-| `leader`                | `"ctrl-space"`   | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                           |
-| `targets`               | unset            | Where sessions run, keyed by target id. The [targets guide](./configuration/targets.md) covers it.                                              |
-| `defaultTarget`         | unset            | The target a spawn without a target runs on.                                                                                                    |
-| `workspaces`            | see above        | Where workspaces come from and land. The [workspaces guide](./configuration/workspaces.md#git-transports) covers it.                            |
-| `restoreFleetOnRestart` | `true`           | Whether the daemon restores the fleet by itself after a restart. The [fleet restore](#fleet-restore) section covers it.                         |
-| `daemons`               | unset            | Daemons on other hosts that `atc --daemon <name>` and `atc mcp --daemon <name>` reach. The [remote daemons](#remote-daemons) section covers it. |
+| Field                   | Default          | Meaning                                                                                                                                                |
+| ----------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `agents`                | `{ claude: {} }` | The agents atc offers, keyed by agent id. The [agents guide](./configuration/agents.md) covers the fields of an entry.                                 |
+| `sources`               | see above        | The workspace sources the spawn picker offers, keyed by source id. The [sources guide](./configuration/workspaces.md#sources) covers it.               |
+| `authProfiles`          | unset            | Credential references an agent's `auth` selects from. The [brokered credentials guide](./configuration/brokered-credentials.md) covers them.           |
+| `hooks`                 | `{}`             | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                                    |
+| `leader`                | `"ctrl-space"`   | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                                  |
+| `targets`               | unset            | Where sessions run, keyed by target id. The [targets guide](./configuration/targets.md) covers it.                                                     |
+| `defaultTarget`         | unset            | The target a spawn without a target runs on.                                                                                                           |
+| `workspaces`            | see above        | Where workspaces come from and land. The [workspaces guide](./configuration/workspaces.md#git-transports) covers it.                                   |
+| `restoreFleetOnRestart` | `true`           | Whether the daemon restores the fleet by itself after a restart. The [fleet restore](#fleet-restore) section covers it.                                |
+| `daemons`               | unset            | Daemons on other hosts that `atc`, `atc --daemon <name>` and `atc mcp --daemon <name>` reach. The [remote daemons](#remote-daemons) section covers it. |
 
 ## Guides by task
 
@@ -76,9 +76,10 @@ ignores the key. `atc config migrate` drops it.
 
 ## Remote daemons
 
-The `daemons` key lists the daemons on other hosts that the TUI can open with `atc --daemon <name>`
-and that `atc mcp --daemon <name>` can serve as MCP tools, keyed by a name of a lowercase letter
-followed by lowercase letters, digits, or hyphens:
+The `daemons` key lists the daemons on other hosts that the TUI opens beside your local daemon when
+you run `atc`, that it opens alone with `atc --daemon <name>`, and that `atc mcp --daemon <name>`
+can serve as MCP tools, keyed by a name of a lowercase letter followed by lowercase letters, digits,
+or hyphens:
 
 ```json
 {
@@ -103,6 +104,11 @@ followed by lowercase letters, digits, or hyphens:
 | `principal`    | the principal atc acts as, which the remote daemon's own `principals` key must list                  |
 | `tokenFile`    | an absolute or `~` path to a file that holds one token from the remote daemon's token file           |
 | `tokenCommand` | a command, as an array run without a shell, that prints that token, such as a password manager's CLI |
+
+Plain `atc` opens every entry beside the local daemon, in the order the entries appear in the file,
+and shows their sessions in one list
+([opening every daemon at once](./using-atc.md#opening-every-daemon-at-once)). Each entry connects
+as its own `principal`, and each retry of a refused entry reads the token again.
 
 Set exactly one of `tokenFile` and `tokenCommand`. atc refuses an entry that holds the token itself
 under `token`, so the config file never holds a credential. The remote daemon serves a TCP request
