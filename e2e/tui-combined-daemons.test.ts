@@ -336,3 +336,60 @@ test('it tells the user why a line typed into an attached remote session went no
 
   await ctx.tui.waitFor('box: down');
 });
+
+test('it shows the refusal of a connected remote daemon for a line typed into its session', async () => {
+  const ctx = await setupTest();
+
+  const stub = startStubLegacyDaemon(
+    { hostname: '127.0.0.1', port: 0 },
+    {
+      replies: {
+        'session.list': {
+          sessions: [
+            {
+              id: 's-far',
+              name: 'far-session',
+              cwd: '/work/far',
+              state: 'running',
+              unread: false,
+              lastMsg: '',
+              createdAt: 1,
+              alive: true,
+            },
+          ],
+        },
+        'session.attach': {},
+        'session.detach': {},
+      },
+      refusals: { 'session.input': { code: 'unauthorized', message: 'input refused' } },
+    },
+  );
+
+  ctx.writeEntry(`127.0.0.1:${stub.port}`);
+  ctx.tui.boot();
+
+  await ctx.tui.waitFor('atc — control tower');
+
+  ctx.tui.write(KEYS.ctrlSpace);
+
+  await ctx.tui.waitFor('far-session');
+
+  ctx.tui.write('/');
+
+  await ctx.tui.waitFor('/ \u001B[93m█');
+
+  ctx.tui.write('far-');
+
+  await ctx.tui.waitFor('/ far-');
+
+  ctx.tui.write(KEYS.enter);
+
+  await waitFor(() => {
+    expect(stub.requests.map((request) => request.method)).toContain('session.attach');
+  });
+
+  ctx.tui.reset();
+  ctx.tui.write('refused-line');
+
+  await ctx.tui.waitFor('box: input refused');
+});

@@ -24,6 +24,9 @@ interface StubLegacyDaemonOptions {
 
   readonly replies?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 
+  // Methods the daemon refuses with this error, in place of a reply.
+  readonly refusals?: Readonly<Record<string, { readonly code: string; readonly message: string }>>;
+
   // Drops the connection when this request arrives, without a response.
   readonly closeOnRequest?: string;
 
@@ -66,6 +69,12 @@ export function startStubLegacyDaemon(
 
       if (request.method === options.closeOnRequest) {
         return 'close';
+      }
+
+      const refusal = options.refusals?.[request.method];
+
+      if (refusal !== undefined) {
+        return { err: refusal };
       }
 
       return pickLegacyAnswer(request, answers, protocol, options.refusalHoldsProtocol ?? false);

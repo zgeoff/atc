@@ -269,3 +269,23 @@ test('it leaves a daemon its caller owns listening once the test finishes', () =
     rmSync(path, { force: true });
   });
 });
+
+test('it refuses a method with the error it was given', async () => {
+  const ctx = setupTest();
+
+  startStubLegacyDaemon(ctx.socketPath, {
+    refusals: { 'session.input': { code: 'unauthorized', message: 'input refused' } },
+  });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test-build');
+
+  expect(
+    client.sendRequest('session.input', { session: 's1', data: 'x' }),
+  ).rejects.toThrowWithMessage(Error, 'input refused');
+});
