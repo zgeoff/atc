@@ -109,7 +109,7 @@ test.each([
   {
     args: ['clients', 'remove', 'client-1'],
     run: 'runClients',
-    with: [{ kind: 'remove', clientID: 'client-1' }],
+    with: [{ kind: 'remove', client: 'client-1' }],
   },
   { args: ['passkeys'], run: 'runPasskeys', with: [{ kind: 'list' }] },
   { args: ['passkeys', 'list'], run: 'runPasskeys', with: [{ kind: 'list' }] },

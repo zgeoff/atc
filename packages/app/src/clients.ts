@@ -1,5 +1,6 @@
-import { MCPAuthError, normalizeClientName } from '@atc/mcp';
-import { match } from 'ts-pattern';
+import { MCPAuthError } from '@atc/mcp';
+import type { MCPAuthAdmin, OAuthClientID } from '@atc/mcp';
+import { P, match } from 'ts-pattern';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
 import { withMCPAuthAdmin } from './with-mcp-auth-admin';
@@ -7,7 +8,9 @@ import { withMCPAuthAdmin } from './with-mcp-auth-admin';
 export type ClientsAction =
   | { readonly kind: 'list' }
   | { readonly kind: 'add'; readonly name: string; readonly redirectURIs: readonly string[] }
-  | { readonly kind: 'remove'; readonly clientID: string };
+
+  // `client` is a client ID, or a name that exactly one client has.
+  | { readonly kind: 'remove'; readonly client: string };
 
 // The authorization server's database, and the command that prefixes every
 // message, such as `atc clients`.
@@ -47,26 +50,18 @@ export async function runClients(
     }
 
     if (action.kind === 'remove') {
-      // The CLI names a client by its ID, and the package removes one by name.
-      const clients = await admin.clients.list();
+      const resolved = await resolveClientID(admin, action.client);
 
-      const client = clients.find((listed) => listed.clientID === action.clientID);
-
-      if (client === undefined) {
-        io.printError(`${target.command} remove: no client has the ID '${action.clientID}'`);
+      if (resolved.kind === 'none') {
+        io.printError(`${target.command} remove: no client has the ID or name '${action.client}'`);
         io.setExitCode(1);
 
         return;
       }
 
-      // The package removes the first client stored under the cleaned name, so
-      // a migrated name stored uncleaned, or one another client cleans to,
-      // would remove the wrong client or none.
-      const cleaned = normalizeClientName(client.name, '');
-
-      if (cleaned !== client.name) {
+      if (resolved.kind === 'many') {
         io.printError(
-          `${target.command} remove: the client's stored name '${client.name}' does not match it, so atc cannot remove it`,
+          `${target.command} remove: ${resolved.clientIDs.length} clients have the name '${action.client}', so give the ID of the one to remove: ${resolved.clientIDs.join(', ')}`,
         );
 
         io.setExitCode(1);
@@ -74,40 +69,21 @@ export async function runClients(
         return;
       }
 
-      const isShared = clients.some(
-        (listed) =>
-          listed.clientID !== client.clientID && normalizeClientName(listed.name, '') === cleaned,
-      );
-
-      if (isShared) {
-        io.printError(
-          `${target.command} remove: another client has the name '${client.name}', so atc cannot remove this one alone`,
-        );
-
-        io.setExitCode(1);
-
-        return;
-      }
-
-      // A client stored with no name lists under its ID, which no stored name
-      // matches.
+      // Another command may remove the client between the lookup and here.
       try {
-        await admin.clients.remove(client.name);
+        await admin.clients.remove(resolved.clientID);
       } catch (error) {
         if (!(error instanceof MCPAuthError) || error.code !== 'not-found') {
           throw error;
         }
 
-        io.printError(
-          `${target.command} remove: the client's stored name '${client.name}' does not match it, so atc cannot remove it`,
-        );
-
+        io.printError(`${target.command} remove: no client has the ID '${resolved.clientID}'`);
         io.setExitCode(1);
 
         return;
       }
 
-      io.print(`Removed client ${action.clientID} and revoked every grant it held`);
+      io.print(`Removed client ${resolved.clientID} and revoked every grant it held`);
 
       return;
     }
@@ -137,4 +113,41 @@ function formatAddError(error: MCPAuthError): string {
     .with('invalid-client-name', () => 'give the client a name')
     .with('not-found', 'invalid-setup', () => error.message)
     .exhaustive();
+}
+
+type ResolvedClient =
+  | { readonly kind: 'one'; readonly clientID: OAuthClientID }
+  | { readonly kind: 'many'; readonly clientIDs: readonly OAuthClientID[] }
+  | { readonly kind: 'none' };
+
+// An ID wins over a name, so a name never hides the client whose ID it is.
+async function resolveClientID(admin: MCPAuthAdmin, client: string): Promise<ResolvedClient> {
+  const clients = await admin.clients.list();
+
+  const byID = clients.find((listed) => listed.clientID === client);
+
+  if (byID !== undefined) {
+    return { kind: 'one', clientID: byID.clientID };
+  }
+
+  const byName = await readClientsByName(admin, client);
+
+  return match(byName)
+    .returnType<ResolvedClient>()
+    .with([], () => ({ kind: 'none' }))
+    .with([{ clientID: P.string }], ([only]) => ({ kind: 'one', clientID: only.clientID }))
+    .otherwise((many) => ({ kind: 'many', clientIDs: many.map((listed) => listed.clientID) }));
+}
+
+// A name that cleans to nothing names no client.
+async function readClientsByName(admin: MCPAuthAdmin, name: string) {
+  try {
+    return await admin.clients.readByName(name);
+  } catch (error) {
+    if (error instanceof MCPAuthError && error.code === 'invalid-client-name') {
+      return [];
+    }
+
+    throw error;
+  }
 }

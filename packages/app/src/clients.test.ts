@@ -26,6 +26,49 @@ function setupTest() {
 
       return names.map((name) => seedOwnerClient(sqlite, { name }).clientID);
     },
+
+    captureOutput: () => {
+      const printed: string[] = [];
+      const errors: string[] = [];
+      const codes: number[] = [];
+
+      return {
+        printed,
+        errors,
+        codes,
+        io: {
+          print: (line: string) => {
+            printed.push(line);
+          },
+          printError: (line: string) => {
+            errors.push(line);
+          },
+          setExitCode: (code: number) => {
+            codes.push(code);
+          },
+          exit: () => {},
+        },
+      };
+    },
+
+    readListedIDs: async (): Promise<string[]> => {
+      const printed: string[] = [];
+
+      await runClients(
+        { kind: 'list' },
+        { dbPath, command: 'atc clients' },
+        {
+          print: (line) => {
+            printed.push(line);
+          },
+          printError: () => {},
+          setExitCode: () => {},
+          exit: () => {},
+        },
+      );
+
+      return printed.map((line) => line.split('  ')[0] ?? '');
+    },
   };
 }
 
@@ -131,7 +174,7 @@ test('it removes a client and says it revoked every grant the client held', asyn
   const printed: string[] = [];
 
   await runClients(
-    { kind: 'remove', clientID },
+    { kind: 'remove', client: clientID },
     { dbPath: ctx.dbPath, command: 'atc clients' },
     {
       print: (line) => {
@@ -168,7 +211,7 @@ test('it lists no clients and how to add one once the last client is removed', a
   invariant(clientID !== undefined, `no client ID in: ${added.join('\n')}`);
 
   await runClients(
-    { kind: 'remove', clientID },
+    { kind: 'remove', client: clientID },
     { dbPath: ctx.dbPath, command: 'atc clients' },
     { print: () => {}, printError: () => {}, setExitCode: () => {}, exit: () => {} },
   );
@@ -294,7 +337,7 @@ test('it refuses to remove an unknown client', async () => {
   const exits: number[] = [];
 
   await runClients(
-    { kind: 'remove', clientID: 'unknown' },
+    { kind: 'remove', client: 'unknown' },
     { dbPath: ctx.dbPath, command: 'atc clients' },
     {
       print: () => {},
@@ -313,7 +356,7 @@ test('it refuses to remove an unknown client', async () => {
   expect({ exits, codes, errors }).toStrictEqual({
     exits: [],
     codes: [1],
-    errors: ["atc clients remove: no client has the ID 'unknown'"],
+    errors: ["atc clients remove: no client has the ID or name 'unknown'"],
   });
 });
 
@@ -329,117 +372,113 @@ test('it sets the process exit code to 1 when it refuses a remove by default', a
   });
 
   await runClients(
-    { kind: 'remove', clientID: 'unknown' },
+    { kind: 'remove', client: 'unknown' },
     { dbPath: ctx.dbPath, command: 'atc clients' },
   );
 
   expect(process.exitCode).toBe(1);
 });
 
-test('it refuses to remove a client whose name another client shares, and removes neither', async () => {
+test('it removes a client by a name only that client has', async () => {
   const ctx = setupTest();
-  const [, second] = ctx.writeOldClients(['Orchard', 'Orchard']);
-  const errors: string[] = [];
-  const codes: number[] = [];
-  const listed: string[] = [];
+  const [claude, orchard] = ctx.writeOldClients(['Claude', 'Orchard']);
+  const removed = ctx.captureOutput();
+
+  invariant(orchard !== undefined, 'two clients were seeded');
 
   await runClients(
-    { kind: 'remove', clientID: second ?? '' },
+    { kind: 'remove', client: 'Claude' },
     { dbPath: ctx.dbPath, command: 'atc clients' },
-    {
-      print: () => {},
-      printError: (line) => {
-        errors.push(line);
-      },
-      setExitCode: (code) => {
-        codes.push(code);
-      },
-      exit: () => {},
-    },
+    removed.io,
   );
 
-  await runClients(
-    { kind: 'list' },
-    { dbPath: ctx.dbPath, command: 'atc clients' },
-    {
-      print: (line) => {
-        listed.push(line);
-      },
-      printError: () => {},
-      setExitCode: () => {},
-      exit: () => {},
-    },
-  );
-
-  expect({ errors, codes, listed: listed.length }).toStrictEqual({
-    errors: [
-      "atc clients remove: another client has the name 'Orchard', so atc cannot remove this one alone",
-    ],
-    codes: [1],
-    listed: 2,
+  expect({
+    printed: removed.printed,
+    errors: removed.errors,
+    listed: await ctx.readListedIDs(),
+  }).toStrictEqual({
+    printed: [`Removed client ${claude} and revoked every grant it held`],
+    errors: [],
+    listed: [orchard],
   });
 });
 
-test('it refuses to remove a client whose stored name the package cannot find, and keeps it', async () => {
+test('it refuses a name two clients clean to, then removes the one its ID names', async () => {
   const ctx = setupTest();
-  const [clientID] = ctx.writeOldClients(['  Spaced\tOrchard  ']);
-  const errors: string[] = [];
-  const codes: number[] = [];
+  const [spaced, plain] = ctx.writeOldClients(['  Spaced\tOrchard  ', 'Spaced Orchard']);
+  const refused = ctx.captureOutput();
+  const removed = ctx.captureOutput();
+
+  invariant(spaced !== undefined && plain !== undefined, 'two clients were seeded');
 
   await runClients(
-    { kind: 'remove', clientID: clientID ?? '' },
+    { kind: 'remove', client: 'Spaced Orchard' },
     { dbPath: ctx.dbPath, command: 'atc clients' },
-    {
-      print: () => {},
-      printError: (line) => {
-        errors.push(line);
-      },
-      setExitCode: (code) => {
-        codes.push(code);
-      },
-      exit: () => {},
-    },
+    refused.io,
   );
 
-  expect({ errors, codes }).toStrictEqual({
-    errors: [
-      "atc clients remove: the client's stored name '  Spaced\tOrchard  ' does not match it, so atc cannot remove it",
+  const afterRefusal = await ctx.readListedIDs();
+
+  await runClients(
+    { kind: 'remove', client: spaced },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    removed.io,
+  );
+
+  expect({
+    refusedErrors: refused.errors,
+    refusedCodes: refused.codes,
+    afterRefusal: afterRefusal.toSorted(),
+    removed: removed.printed,
+    afterRemove: await ctx.readListedIDs(),
+  }).toStrictEqual({
+    refusedErrors: [
+      expect.stringMatching(
+        /^atc clients remove: 2 clients have the name 'Spaced Orchard', so give the ID of the one to remove: \w+, \w+$/u,
+      ),
     ],
-    codes: [1],
+    refusedCodes: [1],
+    afterRefusal: [spaced, plain].toSorted(),
+    removed: [`Removed client ${spaced} and revoked every grant it held`],
+    afterRemove: [plain],
+  });
+
+  expect(refused.errors[0]).toIncludeMultiple([spaced, plain]);
+});
+
+test('it removes by ID one of two clients stored under the same name, and keeps the other', async () => {
+  const ctx = setupTest();
+  const [first, second] = ctx.writeOldClients(['Orchard', 'Orchard']);
+  const removed = ctx.captureOutput();
+
+  invariant(first !== undefined && second !== undefined, 'two clients were seeded');
+
+  await runClients(
+    { kind: 'remove', client: second },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    removed.io,
+  );
+
+  expect({ errors: removed.errors, listed: await ctx.readListedIDs() }).toStrictEqual({
+    errors: [],
+    listed: [first],
   });
 });
 
-test('it refuses to remove a client whose cleaned name another client holds, and removes neither', async () => {
+test('it refuses a name that cleans to nothing as naming no client', async () => {
   const ctx = setupTest();
-  const [spaced] = ctx.writeOldClients(['  Spaced\tOrchard  ', 'Spaced Orchard']);
-  const codes: number[] = [];
-  const listed: string[] = [];
+  const refused = ctx.captureOutput();
+
+  ctx.writeOldClients(['Orchard']);
 
   await runClients(
-    { kind: 'remove', clientID: spaced ?? '' },
+    { kind: 'remove', client: ' \t ' },
     { dbPath: ctx.dbPath, command: 'atc clients' },
-    {
-      print: () => {},
-      printError: () => {},
-      setExitCode: (code) => {
-        codes.push(code);
-      },
-      exit: () => {},
-    },
+    refused.io,
   );
 
-  await runClients(
-    { kind: 'list' },
-    { dbPath: ctx.dbPath, command: 'atc clients' },
-    {
-      print: (line) => {
-        listed.push(line);
-      },
-      printError: () => {},
-      setExitCode: () => {},
-      exit: () => {},
-    },
-  );
-
-  expect({ codes, listed: listed.length }).toStrictEqual({ codes: [1], listed: 2 });
+  expect({ errors: refused.errors, codes: refused.codes }).toStrictEqual({
+    errors: ["atc clients remove: no client has the ID or name ' \t '"],
+    codes: [1],
+  });
 });

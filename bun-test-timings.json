@@ -690,7 +690,6 @@
     "packages/test-utils/src/read-json-record.test.ts": 0,
     "packages/daemon/src/fleet/format-restore-refusal.test.ts": 0,
     "packages/daemon/src/sessions/mint-message-id.test.ts": 0,
-    "packages/mcp/src/auth/normalize-client-name.test.ts": 0,
     "packages/config/src/collect-principals.test.ts": 0,
     "packages/test-utils/src/build-stub-attention-adapter.test.ts": 0,
     "packages/protocol/src/encode-cursor.test.ts": 0,
