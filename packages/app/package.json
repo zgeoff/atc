@@ -28,6 +28,7 @@
     "@atcx/contract": "workspace:*",
     "@zgeoff/std": "catalog:",
     "gunshi": "catalog:",
+    "reflect-metadata": "catalog:",
     "ts-pattern": "catalog:",
     "zod": "catalog:"
   },
