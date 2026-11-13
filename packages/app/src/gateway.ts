@@ -1,5 +1,3 @@
-// Keep this import first: mcp-auth's own import of it loads too late in a compiled binary.
-import 'reflect-metadata';
 import { runGatewayCLI } from './run-gateway-cli';
 
 // atc-gateway entry: serves the MCP tools over HTTP for the daemons a

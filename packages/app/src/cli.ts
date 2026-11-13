@@ -1,8 +1,6 @@
 // atc CLI entry: no subcommand opens the client TUI; `hook-report` and
 // `statusline` are the commands injected into wrangled sessions.
 
-// Keep this import first: mcp-auth's own import of it loads too late in a compiled binary.
-import 'reflect-metadata';
 import { resolve } from 'node:path';
 import type { RemoteDaemon } from '@atc/config';
 import { parseListenAddress } from '@atc/config/host';
