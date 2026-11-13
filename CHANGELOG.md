@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.15.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.14.0...@zgeoff/atc@7.15.0) (2026-11-13)
+
+
+### Features
+
+* **auth:** move the mcp oauth server to @zgeoff/mcp-auth ([#1215](https://github.com/zgeoff/atc/issues/1215)) ([3c488c3](https://github.com/zgeoff/atc/commit/3c488c31e8057b5b9feb8b0186172aea72463bdb))
+* **tui:** list every configured daemon's sessions in one list ([#1214](https://github.com/zgeoff/atc/issues/1214)) ([39a192b](https://github.com/zgeoff/atc/commit/39a192b66653135bebffb54c8b09efc9420c96c9))
+* **tui:** spawn sessions on any connected daemon ([#1216](https://github.com/zgeoff/atc/issues/1216)) ([1768038](https://github.com/zgeoff/atc/commit/17680380f6fa2647ff6900cf4db98d8ea8892505))
+
+
+### Bug Fixes
+
+* **deps:** update @hono/node-server to fix advisories ([#1211](https://github.com/zgeoff/atc/issues/1211)) ([b3aa179](https://github.com/zgeoff/atc/commit/b3aa17965036e774891a73a097d140ee1ce0355e))
+
 ## [7.14.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.13.0...@zgeoff/atc@7.14.0) (2026-11-12)
 
 ### Features
