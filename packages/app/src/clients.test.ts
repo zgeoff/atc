@@ -408,3 +408,38 @@ test('it refuses to remove a client whose stored name the package cannot find, a
     codes: [1],
   });
 });
+
+test('it refuses to remove a client whose cleaned name another client holds, and removes neither', async () => {
+  const ctx = setupTest();
+  const [spaced] = ctx.writeOldClients(['  Spaced\tOrchard  ', 'Spaced Orchard']);
+  const codes: number[] = [];
+  const listed: string[] = [];
+
+  await runClients(
+    { kind: 'remove', clientID: spaced ?? '' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: () => {},
+      printError: () => {},
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+      exit: () => {},
+    },
+  );
+
+  await runClients(
+    { kind: 'list' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        listed.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+      exit: () => {},
+    },
+  );
+
+  expect({ codes, listed: listed.length }).toStrictEqual({ codes: [1], listed: 2 });
+});

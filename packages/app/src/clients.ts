@@ -1,4 +1,4 @@
-import { MCPAuthError } from '@atc/mcp';
+import { MCPAuthError, normalizeClientName } from '@atc/mcp';
 import { match } from 'ts-pattern';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
@@ -59,10 +59,24 @@ export async function runClients(
         return;
       }
 
-      // A database from before the package can hold two clients with one name,
-      // and a removal by that name would remove the wrong one.
+      // The package removes the first client stored under the cleaned name, so
+      // a migrated name stored uncleaned, or one another client cleans to,
+      // would remove the wrong client or none.
+      const cleaned = normalizeClientName(client.name, '');
+
+      if (cleaned !== client.name) {
+        io.printError(
+          `${target.command} remove: the client's stored name '${client.name}' does not match it, so atc cannot remove it`,
+        );
+
+        io.setExitCode(1);
+
+        return;
+      }
+
       const isShared = clients.some(
-        (listed) => listed.name === client.name && listed.clientID !== client.clientID,
+        (listed) =>
+          listed.clientID !== client.clientID && normalizeClientName(listed.name, '') === cleaned,
       );
 
       if (isShared) {
@@ -75,8 +89,8 @@ export async function runClients(
         return;
       }
 
-      // The package looks a name up after it cleans it, so a name the old
-      // server stored uncleaned finds no client.
+      // A client stored with no name lists under its ID, which no stored name
+      // matches.
       try {
         await admin.clients.remove(client.name);
       } catch (error) {
