@@ -3,6 +3,7 @@ import { KEY, planTextEdit } from '../keys';
 import type { TextEdit } from '../keys';
 import { applyAgentSubmit } from './agent-step';
 import { applyConfirmCancel, applyConfirmSubmit } from './confirm-step';
+import { applyAgentCancel, applyDaemonCancel, applyDaemonSubmit } from './daemon-step';
 import { applyListCancel, applyListInput, applyListSubmit, applyListTab } from './list-step';
 import { applyNameCancel, applyNameSubmit } from './name-step';
 import { quitFlow, refreshListings, renderFlow } from './navigate-picker';
@@ -27,7 +28,11 @@ export function applyPickerKey(flow: PickerFlow, buf: Buffer) {
   const edit = planTextEdit(buf, ctx.input, {
     isLeaderKey: deps.isLeaderKey,
     moves:
-      ctx.step === 'agent' || ctx.step === 'list' || ctx.step === 'ref' || ctx.step === 'target',
+      ctx.step === 'daemon' ||
+      ctx.step === 'agent' ||
+      ctx.step === 'list' ||
+      ctx.step === 'ref' ||
+      ctx.step === 'target',
   });
 
   if (ctx.pending !== null) {
@@ -117,8 +122,11 @@ function applyCancel(flow: PickerFlow) {
   const ctx = flow.ctx;
 
   match(ctx.step)
+    .with('daemon', () => {
+      applyDaemonCancel(flow);
+    })
     .with('agent', () => {
-      quitFlow(flow);
+      applyAgentCancel(flow);
     })
     .with('list', () => {
       applyListCancel(flow);
@@ -149,6 +157,9 @@ function applyCancel(flow: PickerFlow) {
 
 function applySubmit(flow: PickerFlow) {
   match(flow.ctx.step)
+    .with('daemon', () => {
+      applyDaemonSubmit(flow);
+    })
     .with('agent', () => {
       applyAgentSubmit(flow);
     })

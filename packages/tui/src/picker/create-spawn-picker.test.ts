@@ -10,8 +10,13 @@ import {
   buildStubHarnessPlugins,
   buildStubTerminal,
 } from '@atc/test-utils';
+import { toSessionID } from '@atcx/contract';
 import { resolveHomeDir } from '@atcx/contract/light';
-import { buildStubListingCache } from '../testing/build-stub-listing-cache';
+import type { DaemonName } from '../session-key';
+import {
+  buildStubListingCache,
+  buildStubListingCacheOf,
+} from '../testing/build-stub-listing-cache';
 import { buildStubPickerHost } from '../testing/build-stub-picker-host';
 import { toMirrorSession } from '../to-mirror-session';
 import { createSpawnPicker } from './create-spawn-picker';
@@ -26,13 +31,18 @@ function setupTest() {
   const clock = buildStubClock(1_000_000_000);
 
   const deps = {
-    sendRequest: (method: string, params?: Readonly<Record<string, unknown>>) =>
-      daemon.sendRequest(method, params),
+    primaryDaemon: null,
+    upDaemons: () => [null],
+    sendRequest: (
+      _daemon: DaemonName,
+      method: string,
+      params?: Readonly<Record<string, unknown>>,
+    ) => daemon.sendRequest(method, params),
     isLeaderKey: (buf: Buffer) => buf.toString() === KEYS.ctrlRightBracket,
     scheduleStatus: host.scheduleStatus,
     showBase: host.showBase,
     attach: host.attach,
-    toMirrorSession: (value: unknown) => toMirrorSession(value, null),
+    toMirrorSession: (owner: DaemonName, value: unknown) => toMirrorSession(value, owner),
     upsertMirror: () => {},
     write: terminal.write,
     cwd,
@@ -2560,7 +2570,7 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: cache,
+    getListingCache: () => cache,
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2596,7 +2606,7 @@ test('it shows the listing an earlier client kept at once, marked with its age, 
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: cache,
+    getListingCache: () => cache,
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2640,7 +2650,7 @@ test('it swaps the fresh listing in for the cached one when it answers, keeping 
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: buildStubListingCache(),
+    getListingCache: buildStubListingCacheOf(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2772,7 +2782,8 @@ test('it spawns in a directory listed past the tenth row', async () => {
 
   const picker = createSpawnPicker({
     ...ctx.deps,
-    remoteDaemon: true,
+    primaryDaemon: 'box',
+    upDaemons: () => ['box'],
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
   });
@@ -2900,7 +2911,7 @@ test('it lists again on ctrl-r and shows a repository created since the last lis
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: buildStubListingCache(),
+    getListingCache: buildStubListingCacheOf(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -2956,7 +2967,7 @@ test('it waits on the listing when the kept one is older than a day', async () =
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: buildStubListingCache(),
+    getListingCache: buildStubListingCacheOf(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -3022,7 +3033,7 @@ test('it keeps the cached listing with the failure in its hint when listing agai
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: buildStubListingCache(),
+    getListingCache: buildStubListingCacheOf(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -3092,7 +3103,7 @@ test('it leaves the list on esc while it refreshes a cached listing', async () =
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: buildStubListingCache(),
+    getListingCache: buildStubListingCacheOf(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -3157,7 +3168,7 @@ test('it shows nothing from the cache on the next open once a listing answers em
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: buildStubListingCache(),
+    getListingCache: buildStubListingCacheOf(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -3226,7 +3237,7 @@ test('it shows the listing asked for last on the next open when an earlier one a
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: buildStubListingCache(),
+    getListingCache: buildStubListingCacheOf(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -3301,7 +3312,7 @@ test('it shows the cached listing of an owner typed on the list at once, while i
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: buildStubListingCache(),
+    getListingCache: buildStubListingCacheOf(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -3388,7 +3399,7 @@ test('it reads typed github:owner/repo text the cached listing leaves out throug
     ...ctx.deps,
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
-    listingCache: buildStubListingCache(),
+    getListingCache: buildStubListingCacheOf(),
     getDaemonSocketPath: () => '/run/atc/atc.sock',
   });
 
@@ -3451,7 +3462,8 @@ test("it drops a remote daemon's completion of input typed over since, keeping t
 
   const picker = createSpawnPicker({
     ...ctx.deps,
-    remoteDaemon: true,
+    primaryDaemon: 'box',
+    upDaemons: () => ['box'],
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
   });
@@ -3509,7 +3521,8 @@ test('it keeps the latest completion when an earlier one answers for input typed
 
   const picker = createSpawnPicker({
     ...ctx.deps,
-    remoteDaemon: true,
+    primaryDaemon: 'box',
+    upDaemons: () => ['box'],
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
   });
@@ -3563,7 +3576,8 @@ test('it spawns in the directory a remote daemon completed', async () => {
 
   const picker = createSpawnPicker({
     ...ctx.deps,
-    remoteDaemon: true,
+    primaryDaemon: 'box',
+    upDaemons: () => ['box'],
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
   });
@@ -3830,7 +3844,8 @@ test("it shows a remote daemon's refused completion in place of the hint", async
 
   const picker = createSpawnPicker({
     ...ctx.deps,
-    remoteDaemon: true,
+    primaryDaemon: 'box',
+    upDaemons: () => ['box'],
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
   });
@@ -3877,7 +3892,8 @@ test('it spawns in the directory a remote daemon reads a typed ~ path as when no
 
   const picker = createSpawnPicker({
     ...ctx.deps,
-    remoteDaemon: true,
+    primaryDaemon: 'box',
+    upDaemons: () => ['box'],
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
   });
@@ -3928,7 +3944,8 @@ test("it shows a remote daemon's refusal to read a typed ~ path", async () => {
 
   const picker = createSpawnPicker({
     ...ctx.deps,
-    remoteDaemon: true,
+    primaryDaemon: 'box',
+    upDaemons: () => ['box'],
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
   });
@@ -3979,7 +3996,8 @@ test('it names the one target a remote principal may use in its directory reques
 
   const picker = createSpawnPicker({
     ...ctx.deps,
-    remoteDaemon: true,
+    primaryDaemon: 'box',
+    upDaemons: () => ['box'],
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
   });
@@ -4021,7 +4039,8 @@ test("it shows why a remote daemon's directory listing failed", async () => {
 
   const picker = createSpawnPicker({
     ...ctx.deps,
-    remoteDaemon: true,
+    primaryDaemon: 'box',
+    upDaemons: () => ['box'],
     ptyRows: () => 24,
     getLastUsedAgent: () => 'claude',
   });
@@ -4978,4 +4997,194 @@ test('it fits every key of a list with a git source in the hint row, esc back in
   expect(ctx.terminal.getTextSince(mark)).toInclude(
     'type to filter · ⏎ select · ^r refresh · tab next source · esc back',
   );
+});
+
+test('it opens at the daemon step when a remote daemon is up beside the primary', () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    upDaemons: () => [null, 'box'],
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.open();
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('spawn: daemon');
+  expect(shown).toInclude('local');
+  expect(shown).toInclude('box');
+  expect(ctx.daemon.collectSent('agents.list')).toStrictEqual([]);
+});
+
+test('it opens at the daemon step when the one daemon up is not the primary', () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    upDaemons: () => ['box'],
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.open();
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: daemon');
+});
+
+test('it reads the agents of the picked daemon, starting on that daemon last used agent', async () => {
+  const ctx = setupTest();
+  const sentTo: DaemonName[] = [];
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    upDaemons: () => [null, 'box'],
+    sendRequest: (
+      daemon: DaemonName,
+      method: string,
+      params?: Readonly<Record<string, unknown>>,
+    ) => {
+      sentTo.push(daemon);
+
+      return ctx.daemon.sendRequest(method, params);
+    },
+    ptyRows: () => 24,
+    getLastUsedAgent: (daemon: DaemonName) => (daemon === 'box' ? 'grok' : 'claude'),
+  });
+
+  picker.open();
+  picker.applyKey(Buffer.from(KEYS.down));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  const mark = ctx.terminal.countChunks();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        label: 'Claude',
+        installed: true,
+        capabilities: { spawn: true },
+      }),
+      buildMockListedAgent({
+        id: 'grok',
+        label: 'Grok',
+        installed: true,
+        capabilities: { spawn: true },
+      }),
+    ],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  expect(sentTo).toStrictEqual(['box']);
+  expect(ctx.terminal.getTextSince(mark)).toInclude('\u001B[7mGrok');
+});
+
+test('it lists the picked remote daemon directories without the client directory, and spawns and attaches there', async () => {
+  const ctx = setupTest();
+  const attached: [DaemonName, string][] = [];
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    upDaemons: () => [null, 'box'],
+    attach: (daemon: DaemonName, id: string) => {
+      attached.push([daemon, id]);
+
+      return ctx.deps.attach();
+    },
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+  picker.applyKey(Buffer.from(KEYS.down));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+    ],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  expect(ctx.daemon.collectSent('sources.list')).toStrictEqual([{ source: 'dirs' }]);
+
+  await ctx.daemon.answer('sources.list', {
+    source: 'dirs',
+    scope: null,
+    candidates: [{ label: '/srv/orchard', pick: { kind: 'path', directory: '/srv/orchard' } }],
+  });
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(`far-one${KEYS.enter}`));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('session.spawn')[0]).not.toHaveProperty('clientCwd');
+
+  await ctx.daemon.answer('session.spawn', {
+    session: buildMockSessionDescriptor({ id: toSessionID('on-the-box') }),
+  });
+
+  expect(attached).toStrictEqual([['box', 'on-the-box']]);
+});
+
+test('it goes back to the daemon step on esc from the agent step', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    upDaemons: () => [null, 'box'],
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok', installed: true, capabilities: { spawn: true } }),
+    ],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.esc));
+
+  expect(ctx.terminal.getTextSince(mark)).toInclude('spawn: daemon');
+  expect(ctx.counts.exits).toBe(0);
+});
+
+test('it reports the picker open on a daemon only past the daemon step', () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    upDaemons: () => [null, 'box'],
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  expect(picker.isOpenOn('box')).toBe(false);
+
+  picker.open();
+
+  expect(picker.isOpenOn(null)).toBe(false);
+
+  picker.applyKey(Buffer.from(KEYS.down));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(picker.isOpenOn('box')).toBe(true);
+  expect(picker.isOpenOn(null)).toBe(false);
 });

@@ -57,26 +57,6 @@ export function sendPending(
   renderFlow(flow);
 }
 
-export function openAgentStep(flow: PickerFlow) {
-  const ctx = flow.ctx;
-
-  if (ctx.picks.length === 1) {
-    quitFlow(flow);
-
-    return;
-  }
-
-  ctx.selected = Math.max(
-    0,
-    ctx.picks.findIndex((pick) => pick.agent === ctx.agent),
-  );
-
-  ctx.agentStepWait = null;
-  ctx.step = 'agent';
-
-  renderFlow(flow, true);
-}
-
 export function openList(flow: PickerFlow) {
   const ctx = flow.ctx;
   const brokered = ctx.listedAgents.some((entry) => entry.id === ctx.agent && entry.brokerRequired);
@@ -168,7 +148,7 @@ function listPathSource(flow: PickerFlow, index: number, sourceID: string, scope
       params: {
         source: sourceID,
         ...(scope === null ? {} : { scope }),
-        ...buildPathTargetParam(flow.ctx, flow.deps),
+        ...buildPathTargetParam(flow.ctx),
       },
     },
   });
@@ -191,8 +171,11 @@ function listGitSource(flow: PickerFlow, sourceID: string, scope: string | null)
     return;
   }
 
-  const key = buildListingKey(flow.deps, sourceID, target.id, scope);
-  const cached = flow.deps.listingCache?.readListing(key, flow.deps.clock.now()) ?? null;
+  const key = buildListingKey(flow, sourceID, target.id, scope);
+
+  const cached =
+    flow.deps.getListingCache?.(ctx.daemon)?.readListing(key, flow.deps.clock.now()) ?? null;
+
   const kept = cached !== null && (cached.candidates.length > 0 || cached.scope !== null);
   const rows = kept ? parseCandidates(cached.candidates, sourceID) : [];
   const keptScope = kept ? cached.scope : null;
@@ -241,7 +224,7 @@ function sendGitListing(
       kind: 'git',
       sourceID,
       scope,
-      key: buildListingKey(flow.deps, sourceID, targetID, scope),
+      key: buildListingKey(flow, sourceID, targetID, scope),
       requestedAt: flow.deps.clock.now(),
       params: { source: sourceID, ...(scope === null ? {} : { scope }), target: targetID },
     },
@@ -262,7 +245,7 @@ export function stopListings(flow: PickerFlow) {
 export function buildOwnRows(flow: PickerFlow, sourceID: string): ListedCandidate[] {
   const deps = flow.deps;
 
-  if (deps.remoteDaemon === true) {
+  if (flow.ctx.daemon !== null) {
     return [];
   }
 
@@ -448,8 +431,8 @@ export function readTypedInput(
           ...(source.kind === 'git'
             ? buildListingTargetParam(flow.ctx)
             : {
-                ...buildPathTargetParam(flow.ctx, flow.deps),
-                ...buildClientCwdParam(flow.deps),
+                ...buildPathTargetParam(flow.ctx),
+                ...buildClientCwdParam(flow.ctx, flow.deps),
               }),
         },
         countsRefusal: followUp.kind === 'refuse',

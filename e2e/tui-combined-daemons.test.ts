@@ -1,11 +1,14 @@
 import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { buildDirsSource } from '@atc/source-dirs';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
+  buildMockAgentProfile,
+  buildStubAttentionAdapter,
   spawnDaemonSession,
   spawnNamedSession,
   startStubLegacyDaemon,
@@ -14,6 +17,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { startRemoteTestDaemon } from '../packages/app/src/test-utils/start-remote-test-daemon';
+import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 import { startTUIDaemon } from '../packages/app/src/test-utils/start-tui-daemon';
 
 // Plain `atc` with a `daemons` entry: the local daemon runs as the client's own, and the remote
@@ -43,7 +47,65 @@ async function setupTest() {
     return client;
   };
 
-  return { tui, tokenFile, writeEntry, openLocalClient };
+  // A remote test daemon that lists one directory and one startable agent, so the picker can spawn on
+  // it. Its sessions print REMOTE_UP and echo each typed line.
+  const startPickerRemote = async () => {
+    const remote = await startTestDaemon({
+      options: (paths) => ({
+        adapter: buildStubAttentionAdapter({
+          profile: buildMockAgentProfile({ bin: 'bash' }),
+          planSpawn: () => ({
+            bin: 'bash',
+            args: ['-c', 'echo REMOTE_UP; while read -r line; do echo "GOT-REMOTE:$line"; done'],
+          }),
+        }),
+        principals: new Map([['laptop', ['local']]]),
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile,
+          failureDelayMs: 0,
+        },
+        sources: [
+          buildDirsSource({
+            id: 'dirs',
+            roots: [],
+            readZoxideDirs: () => Promise.resolve([]),
+            homeDir: paths.directory,
+          }),
+        ],
+      }),
+    });
+
+    if (remote.daemon.listenPort === null) {
+      throw new Error('the remote daemon bound no TCP port');
+    }
+
+    mkdirSync(join(remote.directory, 'alpha-box'));
+
+    return remote;
+  };
+
+  // The picker offers a daemon once its link is up, and the link is up once its session shows in
+  // the list.
+  const openPickerWithRemoteUp = async (remote: Awaited<ReturnType<typeof startTestDaemon>>) => {
+    await spawnNamedSession(
+      (method, params) => remote.client.sendRequest(method, params),
+      'already-there',
+      join(remote.directory, 'alpha-box'),
+    );
+
+    tui.write(KEYS.ctrlSpace);
+
+    await tui.waitFor('already-there');
+
+    tui.reset();
+    tui.write('n');
+
+    await tui.waitFor('spawn: daemon');
+  };
+
+  return { tui, tokenFile, writeEntry, openLocalClient, startPickerRemote, openPickerWithRemoteUp };
 }
 
 test('it lists the sessions of the local daemon and a remote daemon, each remote row with its daemon name', async () => {
@@ -392,4 +454,96 @@ test('it shows the refusal of a connected remote daemon for a line typed into it
   ctx.tui.write('refused-line');
 
   await ctx.tui.waitFor('box: input refused');
+});
+
+test('it opens the picker at the daemon step, lists the remote directories and starts and attaches the session on the remote daemon', async () => {
+  const ctx = await setupTest();
+  const remote = await ctx.startPickerRemote();
+  const local = await ctx.openLocalClient();
+
+  ctx.writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
+  ctx.tui.boot();
+
+  await ctx.tui.waitFor('atc — control tower');
+  await ctx.openPickerWithRemoteUp(remote);
+
+  expect(ctx.tui.read()).toInclude('\u001B[7mlocal');
+
+  ctx.tui.write(KEYS.down);
+
+  await ctx.tui.waitFor('\u001B[7mbox');
+
+  ctx.tui.write(KEYS.enter);
+
+  await ctx.tui.waitFor('spawn: workspace');
+  await ctx.tui.waitFor('~/alpha-box');
+
+  ctx.tui.write(KEYS.enter);
+
+  await ctx.tui.waitFor('spawn: name');
+
+  ctx.tui.write(`far-one${KEYS.enter}`);
+
+  await ctx.tui.waitFor('spawn: initial prompt');
+
+  ctx.tui.reset();
+  ctx.tui.write(KEYS.enter);
+
+  await ctx.tui.waitFor('REMOTE_UP');
+
+  const remoteListed = await remote.client.sendRequest('session.list');
+  const localListed = await local.sendRequest('session.list');
+
+  expect(remoteListed['sessions']).toPartiallyContain({
+    name: 'far-one',
+    cwd: join(remote.directory, 'alpha-box'),
+  });
+
+  expect(localListed['sessions']).toStrictEqual([]);
+});
+
+test('it opens the picker at the agent step when the remote daemon is not up', async () => {
+  const ctx = await setupTest();
+
+  ctx.writeEntry(`127.0.0.1:${takeFreePort()}`);
+  ctx.tui.boot();
+
+  await ctx.tui.waitFor('atc — control tower');
+
+  ctx.tui.write(KEYS.ctrlSpace);
+
+  await ctx.tui.waitFor('box: down');
+
+  ctx.tui.reset();
+  ctx.tui.write('n');
+
+  await ctx.tui.waitFor('spawn: agent');
+
+  expect(ctx.tui.read()).not.toInclude('spawn: daemon');
+});
+
+test('it ends the picker with the daemon state in the status bar when the daemon it is open on drops', async () => {
+  const ctx = await setupTest();
+  const remote = await ctx.startPickerRemote();
+
+  ctx.writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
+  ctx.tui.boot();
+
+  await ctx.tui.waitFor('atc — control tower');
+  await ctx.openPickerWithRemoteUp(remote);
+
+  ctx.tui.write(KEYS.down);
+
+  await ctx.tui.waitFor('\u001B[7mbox');
+
+  ctx.tui.write(KEYS.enter);
+
+  await ctx.tui.waitFor('~/alpha-box');
+
+  ctx.tui.reset();
+
+  await remote.stop();
+  await ctx.tui.waitFor('box: down');
+
+  expect(ctx.tui.read()).not.toInclude('spawn: workspace');
 });

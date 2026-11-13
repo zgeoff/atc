@@ -3,6 +3,7 @@ import { match } from 'ts-pattern';
 import { fromPromise } from 'xstate';
 import { collectTargetPicks } from '../collect-target-picks';
 import type { TargetPick } from '../collect-target-picks';
+import type { DaemonName } from '../session-key';
 import { canTakeReading } from './can-take-reading';
 import { formatPickerError } from './format-picker-error';
 import {
@@ -17,6 +18,7 @@ import type {
   DroppedAnswer,
   ListedCandidate,
   ListingRequest,
+  OnDaemon,
   PickerRequest,
   SpawnPickerDeps,
 } from './picker-flow';
@@ -68,11 +70,12 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
   deps: SpawnPickerDeps<TMirror>,
 ) {
   const sendAnswered = async (
+    daemon: DaemonName,
     method: string,
     params?: Answer,
   ): Promise<{ readonly answer: Answer | null; readonly error: unknown }> => {
     try {
-      return { answer: await deps.sendRequest(method, params), error: null };
+      return { answer: await deps.sendRequest(daemon, method, params), error: null };
     } catch (error) {
       return { answer: null, error };
     }
@@ -85,11 +88,11 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
   };
 
   return {
-    request: fromPromise<RequestOutcome, PickerRequest>(async (args) => {
+    request: fromPromise<RequestOutcome, OnDaemon<PickerRequest>>(async (args) => {
       const input = args.input;
 
       if (input.kind === 'agents') {
-        const sent = await sendAnswered('agents.list');
+        const sent = await sendAnswered(input.daemon, 'agents.list');
 
         reportDrop(args.signal, 'agent list');
 
@@ -111,7 +114,7 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
         const failures: string[] = [];
 
         for (const attempt of input.attempts) {
-          const sent = await sendAnswered('sources.interpret', attempt.params);
+          const sent = await sendAnswered(input.daemon, 'sources.interpret', attempt.params);
 
           reportDrop(args.signal, 'interpret');
 
@@ -143,7 +146,7 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
       }
 
       if (input.kind === 'probe') {
-        const sent = await sendAnswered('git.probe', input.params);
+        const sent = await sendAnswered(input.daemon, 'git.probe', input.params);
 
         reportDrop(args.signal, 'probe');
 
@@ -160,9 +163,10 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
         };
       }
 
-      const sent = await sendAnswered('session.spawn', input.params);
+      const sent = await sendAnswered(input.daemon, 'session.spawn', input.params);
 
-      const session = sent.answer === null ? null : deps.toMirrorSession(sent.answer['session']);
+      const session =
+        sent.answer === null ? null : deps.toMirrorSession(input.daemon, sent.answer['session']);
 
       reportDrop(args.signal, 'spawn');
 
@@ -184,17 +188,17 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
       };
     }),
 
-    listing: fromPromise<ListingOutcome, ListingRequest>(async (args) => {
+    listing: fromPromise<ListingOutcome, OnDaemon<ListingRequest>>(async (args) => {
       const request = args.input;
 
-      const sent = await sendAnswered('sources.list', request.params);
+      const sent = await sendAnswered(request.daemon, 'sources.list', request.params);
 
       const dropped = match(request)
         .returnType<DroppedAnswer>()
         .with({ kind: 'path' }, () => 'directory listing')
         .with({ kind: 'git' }, (git) => {
           if (sent.answer !== null && Array.isArray(sent.answer['candidates'])) {
-            void deps.listingCache?.writeListing(git.key, {
+            void deps.getListingCache?.(request.daemon)?.writeListing(git.key, {
               candidates: sent.answer['candidates'],
               scope: typeof sent.answer['scope'] === 'string' ? sent.answer['scope'] : git.scope,
               listedAt: git.requestedAt,
@@ -209,8 +213,8 @@ export function createPickerActors<TMirror extends { readonly id: string }>(
 
       return { request, answer: sent.answer, error: sent.error };
     }),
-    completion: fromPromise<CompletionOutcome, CompletionRequest>(async (args) => {
-      const sent = await sendAnswered('sources.complete', args.input.params);
+    completion: fromPromise<CompletionOutcome, OnDaemon<CompletionRequest>>(async (args) => {
+      const sent = await sendAnswered(args.input.daemon, 'sources.complete', args.input.params);
 
       reportDrop(args.signal, 'path completion');
 
