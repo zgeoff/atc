@@ -65,6 +65,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
   let statusNotice: string | null = null;
   let cancelStatusNotice: (() => void) | null = null;
 
+  // A notice drawn over an attached session stays on the bar's row until the bar draws again.
+  let isNoticeOverAttached = false;
+
   // the config alone until the daemon's `agents.list` answer arrives; it re-resolves on
   // every overlay open, so a backend configured after this client started still lists
   // under its name.
@@ -97,7 +100,11 @@ export async function runTUI(host: TUIHost): Promise<void> {
     statusTimer = setTimeout(() => {
       statusTimer = null;
 
-      if (getMode() !== 'attached' || isAttachedLinkDown()) {
+      const isOverAttached = getMode() === 'attached' && !isAttachedLinkDown();
+
+      if (!isOverAttached || statusNotice !== null || isNoticeOverAttached) {
+        isNoticeOverAttached = isOverAttached && statusNotice !== null;
+
         const focused = findFocused();
         const visible = overlay.listVisible();
         const urgent = sortSessionViews(visible).find((session) => session.state === 'needs_you');
@@ -155,6 +162,16 @@ export async function runTUI(host: TUIHost): Promise<void> {
     try {
       await sendToDaemon(links, daemon, method, params);
     } catch {}
+  };
+
+  // A refusal of typed input shows on the status bar, so a keystroke is never dropped without a
+  // word.
+  const sendInput = async (key: SessionKey, data: string) => {
+    try {
+      await sendToDaemon(links, key.daemon, 'session.input', { session: key.id, data });
+    } catch (error) {
+      reportFailure(key.daemon, error);
+    }
   };
 
   const attach = async (key: SessionKey) => {
@@ -423,9 +440,13 @@ export async function runTUI(host: TUIHost): Promise<void> {
     findFocusedKey,
     getMode,
     getConfirm,
-    getBoot,
+    findConfirmKey: () => service.getSnapshot().context.confirmKey,
+    isBootStale: () => getBoot().stale,
     isDaemonRestarting,
     scheduleStatus,
+    write: (chunk) => {
+      stdout.write(chunk);
+    },
   });
 
   const actions = createSessionActions({
@@ -584,7 +605,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     isLeaderKey,
     showBase,
     attach,
-    sendQuiet,
+    sendInput,
     restoreFleet,
     restartDaemonOnce,
     logClientEvent,

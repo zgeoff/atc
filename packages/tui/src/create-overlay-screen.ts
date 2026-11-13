@@ -1,7 +1,6 @@
 import type { Config } from '@atc/config';
 import type { AgentID } from '@atc/core';
 import { ansi } from '@atc/core';
-import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
 import type { ClientMode } from './build-client-machine';
 import { collectSessionRows } from './collect-session-rows';
@@ -30,9 +29,13 @@ export interface OverlayScreenDeps {
   readonly findFocusedKey: () => SessionKey | null;
   readonly getMode: () => ClientMode;
   readonly getConfirm: () => OverlayConfirm;
-  readonly getBoot: () => DaemonBoot;
+
+  // The session the pending confirmation opened on, or null when none is pending.
+  readonly findConfirmKey: () => SessionKey | null;
+  readonly isBootStale: () => boolean;
   readonly isDaemonRestarting: () => boolean;
   readonly scheduleStatus: () => void;
+  readonly write: (chunk: string) => void;
 }
 
 // The session list the leader key opens, with its selection, its search,
@@ -122,24 +125,39 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
     render: (confirm = deps.getConfirm()) => {
       const sessions = self.pickSessions();
 
+      // A confirmation names the session it opened on, so the row it highlights follows that
+      // session when the rows reorder.
+      const confirmKey = confirm === 'none' ? null : deps.findConfirmKey();
+
+      const confirmIndex = sessions.findIndex(
+        (session) => confirmKey !== null && isSameSessionKey(session, confirmKey),
+      );
+
+      if (confirmIndex !== -1) {
+        self.selected = confirmIndex;
+      }
+
       self.selected = Math.max(0, Math.min(self.selected, sessions.length - 1));
 
-      drawOverlay({
-        sessions,
-        agentLabels: self.agentLabels,
-        agentModels: self.agentModels,
-        remoteAgents: self.remoteAgents,
-        showDaemon: daemons.length > 1,
-        daemonLines: collectDaemonLines(),
-        showTarget: self.availableTargets >= 2,
-        selected: self.selected,
-        confirmKill: confirm === 'kill',
-        confirmDestroy: confirm === 'destroy',
-        filter: self.filter,
-        notice: self.notice,
-        stale: deps.getBoot().stale && !deps.isDaemonRestarting(),
-        grouped: self.grouped,
-      });
+      drawOverlay(
+        {
+          sessions,
+          agentLabels: self.agentLabels,
+          agentModels: self.agentModels,
+          remoteAgents: self.remoteAgents,
+          showDaemon: daemons.length > 1,
+          daemonLines: collectDaemonLines(),
+          showTarget: self.availableTargets >= 2,
+          selected: self.selected,
+          confirmKill: confirm === 'kill',
+          confirmDestroy: confirm === 'destroy',
+          filter: self.filter,
+          notice: self.notice,
+          stale: deps.isBootStale() && !deps.isDaemonRestarting(),
+          grouped: self.grouped,
+        },
+        deps.write,
+      );
 
       deps.scheduleStatus();
     },
@@ -194,7 +212,7 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
 
       self.selected = Math.max(0, focusedIndex);
 
-      process.stdout.write(ansi.resetInputModes + ansi.clear);
+      deps.write(ansi.resetInputModes + ansi.clear);
       self.render('none');
     },
   };

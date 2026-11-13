@@ -297,3 +297,42 @@ test('it reattaches the attached remote session when its link drops and comes ba
 
   await ctx.tui.waitFor('GOT-REMOTE:after-drop');
 });
+
+test('it tells the user why a line typed into an attached remote session went nowhere', async () => {
+  const ctx = await setupTest();
+  const remote = await startRemoteTestDaemon();
+
+  await spawnNamedSession(
+    (method, params) => remote.client.sendRequest(method, params),
+    'far-session',
+    remote.directory,
+  );
+
+  ctx.writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
+  ctx.tui.boot();
+
+  await ctx.tui.waitFor('atc — control tower');
+
+  ctx.tui.write(KEYS.ctrlSpace);
+
+  await ctx.tui.waitFor('far-session');
+
+  ctx.tui.write('/');
+
+  await ctx.tui.waitFor('/ \u001B[93m█');
+
+  ctx.tui.write('far-');
+
+  await ctx.tui.waitFor('/ far-');
+
+  ctx.tui.write(KEYS.enter);
+
+  await ctx.tui.waitFor('REMOTE_UP');
+  await remote.stop();
+  await ctx.tui.waitFor('waiting for daemon');
+
+  ctx.tui.reset();
+  ctx.tui.write('lost-line');
+
+  await ctx.tui.waitFor('box: down');
+});
