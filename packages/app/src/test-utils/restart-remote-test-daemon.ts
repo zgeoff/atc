@@ -6,8 +6,8 @@ interface RestartOptions {
 }
 
 // Stops a remote test daemon and boots it again on its state directory, listener port, token and
-// principals. With `restoreFleet` it restores the stored fleet by itself and the call returns once
-// that restore has registered every session; without it the daemon boots with no sessions listed.
+// principals. With `restoreFleet` the call settles with the daemon's own fleet restore; without it
+// the daemon boots with no sessions listed.
 export async function restartRemoteTestDaemon(
   remote: StartedTestDaemon<TestDaemonConfig>,
   options: RestartOptions,
@@ -18,17 +18,34 @@ export async function restartRemoteTestDaemon(
     throw new Error('the remote daemon bound no TCP port');
   }
 
+  if (!options.restoreFleet) {
+    await remote.restart((paths) => ({
+      ...writeRemoteTestDaemonOptions(paths, port),
+      restoreFleetOnRestart: false,
+    }));
+
+    return;
+  }
+
   const settled = Promise.withResolvers<void>();
 
-  await remote.restart((paths) => ({
-    ...writeRemoteTestDaemonOptions(paths, port),
-    restoreFleetOnRestart: options.restoreFleet,
-    onRestoreSettled: () => {
-      settled.resolve();
-    },
-  }));
+  await Promise.all([
+    remote.restart((paths) => ({
+      ...writeRemoteTestDaemonOptions(paths, port),
+      restoreFleetOnRestart: true,
+      onRestoreSettled: (restore) => {
+        if (restore.outcome === 'failed') {
+          settled.reject(new Error('the remote daemon failed to restore its fleet'));
 
-  if (options.restoreFleet) {
-    await settled.promise;
-  }
+          return;
+        }
+
+        settled.resolve();
+      },
+      onRestoreSkipped: (reason) => {
+        settled.reject(new Error(`the remote daemon skipped its fleet restore: ${reason}`));
+      },
+    })),
+    settled.promise,
+  ]);
 }

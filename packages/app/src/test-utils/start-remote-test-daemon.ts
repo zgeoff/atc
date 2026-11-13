@@ -6,16 +6,15 @@ import { buildStubAttentionAdapter } from '@atc/test-utils';
 import { toAgentSessionID } from '@atcx/contract';
 import { startTestDaemon } from './start-test-daemon';
 
-// A test daemon on a loopback TCP port that stands in for a daemon on another host. It takes the
-// principal `laptop` with the token `aaaa…` (32 letters a), and its sessions echo each line typed into them as `GOT-REMOTE:<line>`, so a
-// test sees where input went. `port` 0 takes any free port.
 type OptionsBuilder = NonNullable<TestDaemonConfig['options']>;
 
 type TestDaemonPaths = Parameters<OptionsBuilder>[0];
 
 type TestDaemonOptions = Awaited<ReturnType<OptionsBuilder>>;
 
-// The options of the remote test daemon, which a restart passes again with the port it bound.
+// A stand-in for a daemon on another host, on a loopback TCP port: principal `laptop`, token of 32
+// letters a, and sessions that echo each typed line as `GOT-REMOTE:<line>`. A restart passes these
+// options again with the port the daemon bound; `port` 0 takes any free port.
 export function writeRemoteTestDaemonOptions(
   paths: TestDaemonPaths,
   port: number,

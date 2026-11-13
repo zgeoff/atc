@@ -81,3 +81,12 @@ test('it lists no session after a restart without a fleet restore', async () => 
 
   expect(listed).toStrictEqual({ sessions: [] });
 });
+
+test('it rejects a restart with a fleet restore when the daemon holds no fleet', async () => {
+  const remote = await startRemoteTestDaemon();
+
+  expect(restartRemoteTestDaemon(remote, { restoreFleet: true })).rejects.toThrowWithMessage(
+    Error,
+    /skipped its fleet restore: empty/u,
+  );
+});

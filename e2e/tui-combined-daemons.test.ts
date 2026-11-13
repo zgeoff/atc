@@ -422,6 +422,8 @@ test('it reattaches the attached remote session under the same id when the remot
   const remote = await startRemoteTestDaemon();
   const remoteID = await ctx.attachRemoteSession(remote);
 
+  ctx.tui.reset();
+
   await remote.stop();
   await ctx.tui.waitFor('waiting for daemon');
 
@@ -445,6 +447,9 @@ test('it returns to the list when the remote daemon restarts without the attache
   const remote = await startRemoteTestDaemon();
 
   await ctx.attachRemoteSession(remote);
+
+  ctx.tui.reset();
+
   await remote.stop();
   await ctx.tui.waitFor('waiting for daemon');
 
