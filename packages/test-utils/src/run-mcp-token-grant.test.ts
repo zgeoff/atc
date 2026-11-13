@@ -2,8 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
-import { createEnrollmentToken } from '../../mcp/src/auth/create-enrollment-token';
-import { openMCPAuth } from '../../mcp/src/auth/open-mcp-auth';
+import { openTestAuthAdmin } from '../../app/src/test-utils/open-test-auth-admin';
 import { startMCPHTTPServer } from '../../mcp/src/http/start-mcp-http-server';
 import { createTransportCaller } from '../../mcp/src/tools/create-transport-caller';
 import { buildStubAuthenticator } from './build-stub-authenticator';
@@ -42,13 +41,10 @@ async function setupTest() {
 
   registerTestCleanup(() => server.stop());
 
-  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
-
-  registerTestCleanup(() => store.close());
+  const store = await openTestAuthAdmin(dbPath);
 
   const authenticator = buildStubAuthenticator();
-
-  const enrollment = await createEnrollmentToken(store.db, Date.now());
+  const enrollment = { token: await store.admin.passkeys.createEnrollmentToken() };
 
   await runPasskeyEnrollment(server, enrollment.token, authenticator);
 
@@ -57,10 +53,7 @@ async function setupTest() {
 
 test('it returns an access token that holds the ticked scopes', async () => {
   const ctx = await setupTest();
-
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
-  });
+  const created = await ctx.store.admin.clients.add('dots', ['https://dots.example/cb']);
 
   const grant = await runMCPTokenGrant(ctx, {
     clientID: created.clientID,

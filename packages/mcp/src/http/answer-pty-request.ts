@@ -1,15 +1,14 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { DaemonEvent } from '@atcx/contract';
+import type { SecuritySink } from '@zgeoff/mcp-auth';
 import invariant from 'tiny-invariant';
-import type { HTTPServerContext, Requester, SecurityEvent } from '../auth/types';
+import type { HTTPServerContext, Requester } from '../auth/types';
 import { createPTYViewer } from './create-pty-viewer';
 import type { PTYSnapshot, PTYViewer, WatchChannel } from './create-pty-viewer';
 import { pickPTYAdmission } from './pick-pty-admission';
 import type { PTYRefusalOutcome } from './pick-pty-admission';
 import { pickPTYPrincipal } from './pick-pty-principal';
 import { pickSnapshotStatus } from './pick-snapshot-status';
-import { readTokenAccess } from './read-token-access';
-import { verifyAccessToken } from './verify-access-token';
 
 // What the live-terminal route needs beyond the routes' context.
 export interface PTYRoute {
@@ -34,7 +33,7 @@ export interface PTYRoute {
   // principal; null is the daemon's owner.
   readonly openWatchChannel: (principal: string | null) => Promise<WatchChannel>;
   readonly readRequester: (request: Request) => Requester;
-  readonly security: { readonly record: (event: SecurityEvent) => void };
+  readonly security: SecuritySink;
 }
 
 // One request for a session's live terminal, and the server's upgrade of it,
@@ -90,7 +89,7 @@ export async function answerPTYRequest(
 
   const token = admission.token;
   const isOwnerToken = route.ownerTokens.some((ownerToken) => isSameToken(ownerToken, token));
-  const access = isOwnerToken ? null : await verifyAccessToken(ctx, token);
+  const access = isOwnerToken ? null : await readOAuthAccess(ctx, token);
   const resolved = pickPTYPrincipal({ isOwnerToken, access });
 
   if (resolved.kind === 'refuse') {
@@ -135,7 +134,7 @@ export async function answerPTYRequest(
         ? null
         : {
             probe: async () => {
-              const current = await readTokenAccess(ctx, token);
+              const current = await readOAuthAccess(ctx, token);
 
               return current?.scopes.includes('read') ?? false;
             },
@@ -164,6 +163,14 @@ function isSameToken(expected: string, presented: string): boolean {
   const presentedDigest = createHash('sha256').update(presented).digest();
 
   return timingSafeEqual(expectedDigest, presentedDigest);
+}
+
+// A live terminal takes the owner's tokens and OAuth access tokens, and no
+// service token.
+async function readOAuthAccess(ctx: HTTPServerContext, token: string) {
+  const access = await ctx.auth.verify(token);
+
+  return access?.kind === 'oauth' ? access : null;
 }
 
 async function readSnapshot(channel: WatchChannel, sessionID: string): Promise<PTYSnapshot> {

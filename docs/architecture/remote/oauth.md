@@ -3,9 +3,9 @@
 `atc mcp --http` runs an OAuth 2.1 authorization server in its own process, so a hosted assistant
 can reach the fleet with a grant the owner approved. The server is single-user by construction: only
 clients the owner added by hand can start an authorization, and every authorization needs a fresh
-sign-in with one of the owner's passkeys, bound to that one request. better-auth's OAuth provider
-runs the protocol, and atc adds the parts that make it single-user. atc-gateway runs the same server
-([the gateway](./gateway.md)).
+sign-in with one of the owner's passkeys, bound to that one request. The shared package
+`@zgeoff/mcp-auth` runs the server, and atc serves its routes through the package's Elysia adapter.
+atc-gateway runs the same server ([the gateway](./gateway.md)).
 
 [The MCP servers](./mcp.md#remote-callers) covers what a grant lets a client call, and the
 [remote MCP guide](../../guides/remote-mcp.md) covers adding clients and approving them.
@@ -23,9 +23,15 @@ readable by its owner only and sets that mode again on every open. The daemon ne
 reach check fails when a module that the daemon's entry points reach names the file, and the
 `atc daemon` process refuses to open any SQLite file with that name. The client and grant commands
 open it directly, so they work whether or not the server runs. The file holds clients, consent,
-short-lived owner sessions, the owner's passkeys as credential ids and public keys, and hashes of
-enrollment tokens, access tokens, refresh tokens and authorization codes, never one of those tokens
-in the clear.
+short-lived owner sessions, one row per grant, the owner's passkeys as credential ids and public
+keys, and hashes of enrollment tokens, access tokens, refresh tokens and authorization codes, never
+one of those tokens in the clear. atc passes its own table names for the passkeys and enrollment
+tokens, `atc_passkey` and `atc_enrollment_token`, to the package.
+
+A file from before atc moved to the package kept every grant on one shared owner row. Before each
+open, atc splits that row into one row per grant, in one transaction that ends with
+`PRAGMA foreign_key_check` returning no rows. A grant keeps the authorization code it came from as
+its ID, and the move ends the owner sessions and drops `atc_grant_use`.
 
 Pending approvals and their WebAuthn challenges live in memory, and the server signs each
 authorization request and owner session with a secret it draws at start. Restarting the server
@@ -33,12 +39,13 @@ therefore ends the approvals and sign-ins in progress, and the grants survive.
 
 ## Who does what
 
-better-auth runs the protocol: request validation at the authorization endpoint (client, exact
-redirect URI, scopes, PKCE and the resource indicator), authorization codes, opaque access tokens,
-rotating refresh tokens with reuse detection, revocation, and the two metadata documents. atc adds
-the owner and everything around the protocol: the passkeys, the sign-in, enrollment and consent
-pages, the parameters it sets on every authorization request, the bearer check on the MCP endpoint
-and the per-tool grant scope check, the route list, and the request checks below.
+`@zgeoff/mcp-auth` runs the protocol and the owner around it: request validation at the
+authorization endpoint (client, exact redirect URI, scopes, PKCE and the resource indicator),
+authorization codes, opaque access tokens, rotating refresh tokens, revocation, the two metadata
+documents, the passkeys, the sign-in, enrollment and consent pages, the bearer check on the MCP
+endpoint, and the Host and origin checks below. atc adds the per-tool grant scope check, the event
+subscriptions a revoke ends, the live terminals and the probes beside the package's routes, and the
+request line.
 
 A client is a public client the owner adds by hand, with no client secret and PKCE with S256
 required. atc offers no dynamic client registration and fetches no client metadata documents, so a
@@ -48,11 +55,11 @@ client the owner never added cannot start an authorization.
 
 1. **Discovery.** An unauthenticated MCP request gets a 401 whose challenge points at the protected
    resource metadata, which points at the authorization server metadata.
-2. **Authorization.** Before better-auth sees the request, atc forces a fresh login and the consent
-   page, whatever session or consent a browser kept, asks for offline access so better-auth issues a
-   refresh token, and sets the resource when the client gave none. An unknown client or a redirect
-   URI the client was not added with gets an error page and is never redirected, so a crafted link
-   cannot bounce the owner to a stranger's site.
+2. **Authorization.** The package forces a fresh login and the consent page, whatever session or
+   consent a browser kept, asks for offline access so the client gets a refresh token, and sets the
+   resource when the client gave none. An unknown client or a redirect URI the client was not added
+   with gets an error page and is never redirected, so a crafted link cannot bounce the owner to a
+   stranger's site.
 3. **Passkey sign-in.** A valid request gets a pending approval and the sign-in page, which shows
    the client and its full redirect URI. Each page shown mints a fresh WebAuthn challenge for that
    one request, replacing the last, and a posted assertion takes the challenge whether or not it
@@ -64,8 +71,9 @@ client the owner never added cannot start an authorization.
    minute.
 4. **Consent.** The consent page requires the session the passkey signed in, for the request it
    approved: the same client, redirect URI, scopes, resource, state and PKCE challenge. The page
-   lists the scopes the client asked for with only `read` ticked to start. Either answer ends the
-   session's binding, so one sign-in approves exactly one authorization.
+   lists the scopes the client asked for, none ticked to start. A token holds only scopes the client
+   asked for, whatever else the form ticks. Either answer ends the session's binding, so one sign-in
+   approves exactly one authorization.
 5. **Token exchange.** The client exchanges the code once, with the same client id and redirect URI
    and a verifier that matches its PKCE challenge. A second exchange of the same code fails and
    revokes the tokens the first produced.
@@ -79,12 +87,12 @@ and atc asks for no attestation: it trusts a new passkey through the enrollment 
 not through the device that made it.
 
 Enrollment starts on the host. `atc passkeys enroll`, or `atc-gateway passkeys enroll` for a
-gateway, opens `mcp-auth.db` and writes the hash of a fresh random token that expires soon after.
-The owner types the token on the enrollment page, which mints a challenge bound to that token, and
-the registration that verifies against the challenge stores the passkey and spends the token in one
-transaction, so one token enrolls one passkey. Enrolling signs nobody in. No route adds, removes or
-resets a passkey without a token, and an installation with no passkey refuses every sign-in rather
-than letting the first visitor claim it.
+gateway, opens `mcp-auth.db` and writes the hash of a fresh random `enroll-` token that expires soon
+after. The owner types the token on the enrollment page, which mints a challenge bound to that
+token, and the registration that verifies against the challenge stores the passkey and spends the
+token in one transaction, so one token enrolls one passkey. Enrolling signs nobody in. No route
+adds, removes or resets a passkey without a token, and an installation with no passkey refuses every
+sign-in rather than letting the first visitor claim it.
 
 More than one passkey may be enrolled, so a second device covers a lost one. Removing a passkey, or
 the reset that `--reset` runs before it prints a new token, deletes every owner session, and a reset
@@ -102,11 +110,12 @@ A grant is everything one authorization code produced: the refresh tokens rotate
 access tokens each issued. Access tokens are short-lived, refresh tokens rotate on every use, and
 the code is single-use. Every MCP request that carries an OAuth access token checks it against the
 database and requires its audience to be the resource, so a revoked grant loses access on its next
-request, and a change of the public URL ends every token bound to the old one. Once a code is
-exchanged, atc detaches its tokens from the owner session, so a session's end never ends a grant.
+request, and a change of the public URL ends every token bound to the old one. Each grant has its
+own row, so `atc grants --revoke` ends that grant's tokens and leaves every other grant alone. A
+revoke also ends the event subscriptions of a client that no longer holds `read`.
 
-Presenting a spent refresh token again counts as replay: better-auth revokes every refresh token the
-client holds, and each of that client's grants needs approving again.
+Presenting a spent refresh token again counts as replay: the package refuses it with `invalid_grant`
+and ends that token's grant, which then needs approving again.
 
 ## Service tokens
 
@@ -161,39 +170,41 @@ and keeps only the digests in memory.
   a post whose `Accept` header leaves out JSON or an event stream, as Streamable HTTP requires.
 
 The server logs one line per request to stderr with the method, the path, the status, the time taken
-and the MCP method and tool. A line never holds a request body, a query, a cookie or an address.
-better-auth's telemetry stays off: atc sets its environment before better-auth starts, so a variable
-the owner sets cannot turn it on.
+and the MCP method and tool. A line never holds a request body, a query, a cookie or an address. The
+package keeps better-auth's telemetry off.
 
 ## Security events
 
 Each sign-in outcome and each refused token writes one line to stderr: `atc security ` followed by a
 JSON object. A log shipper matches that prefix. No line the server writes, on stdout or stderr,
-holds a value that signs in. The events come from the shared server code, so `atc mcp --http` and
+holds a value that signs in. The events come from the package, so `atc mcp --http` and
 `atc-gateway serve` write the same lines, and atc holds no delivery credential: sign-in never waits
 on an alert.
 
-| `kind`              | `outcome`              | `reason`                                                                        |
-| ------------------- | ---------------------- | ------------------------------------------------------------------------------- |
-| `authorize_started` | `accepted`, `rejected` | `rate_limited` when the limit on approval starts refused it                     |
-| `authorize_invalid` | `rejected`             | better-auth's error code from a fixed list, `bad_host`, `bad_origin` or `other` |
-| `owner_auth`        | `succeeded`, `failed`  | `assertion_failed`, `locked`, `expired`, `not_enrolled` or `invalid_token`      |
-| `consent`           | `allowed`, `denied`    | `none_ticked` when allow came with no scope ticked                              |
-| `token_exchange`    | `rejected`             | better-auth's error code from a fixed list, or `other`                          |
-| `bearer`            | `rejected`             | `malformed` or `invalid_token`                                                  |
-| `suppressed`        | none                   | the kind the burst cap dropped, with the dropped `count`                        |
+| `kind`              | `outcome`               | `reason`                                                                   |
+| ------------------- | ----------------------- | -------------------------------------------------------------------------- |
+| `authorize_started` | `accepted`, `rejected`  | `rate_limited` when the limit on approval starts refused it                |
+| `authorize_invalid` | `rejected`              | the OAuth error code from a fixed list, or `other`                         |
+| `bad_host`          | `rejected`              | `host_not_allowed`                                                         |
+| `bad_origin`        | `rejected`              | `origin_not_allowed`                                                       |
+| `owner_auth`        | `succeeded`, `failed`   | `assertion_failed`, `locked`, `expired`, `not_enrolled` or `invalid_token` |
+| `consent`           | `allowed`, `denied`     | `none_ticked` when allow came with no scope ticked                         |
+| `token_exchange`    | `succeeded`, `rejected` | the OAuth error code from a fixed list, or `other`, when rejected          |
+| `bearer`            | `rejected`              | `missing`, `malformed` or `invalid_token`                                  |
+| `suppressed`        | none                    | the kind the burst cap dropped, with the dropped `count`                   |
 
 A consent is `allowed` only when the answer issued an authorization code. The Host and origin checks
-under [request checks](#request-checks) write `authorize_invalid` for every route they refuse, and
-an `owner_auth` event comes only from a posted sign-in or enrollment, never from showing a page. An
-enrollment writes `owner_auth` with route `/enroll`: `succeeded` once the passkey is stored, and
-`invalid_token` for a token the database does not hold unexpired.
+under [request checks](#request-checks) write `bad_host` and `bad_origin` for every route they
+refuse, and an `owner_auth` event comes only from a posted sign-in or enrollment, never from showing
+a page. An enrollment writes `owner_auth` with route `/enroll`: `succeeded` once the passkey is
+stored, and `invalid_token` for a token the database does not hold unexpired.
 
-A `token_exchange` event comes from a code exchange or a refresh that better-auth refused, such as a
-replayed refresh token, and a token request that issues tokens writes none. A `bearer` event comes
-from an MCP request whose `Authorization` header holds no bearer token (`malformed`) or a token that
-does not verify for the resource (`invalid_token`). An MCP request with no `Authorization` header
-writes no event, because every client sends one to discover the authorization server.
+A `token_exchange` event comes from each code exchange or refresh: `succeeded` when it issues
+tokens, and `rejected` when it refuses one, such as a spent refresh token. A `bearer` event comes
+from an MCP request with no `Authorization` header (`missing`), one whose header holds no bearer
+token (`malformed`), or a token that does not verify for the resource (`invalid_token`). Every
+client sends one request with no header to discover the authorization server, so one `missing` event
+per connection is normal.
 
 An accepted start mints a random correlation id with its pending approval. The passkey sign-in
 carries it to the owner session it starts, and the consent event repeats it, so one authorization's
@@ -206,8 +217,7 @@ name, so a value added to an event never reaches the line by accident:
 - `version`, `ts`, `kind`, `outcome` and `reason`, with `method` on `owner_auth`: `passkey` for a
   sign-in and `enrollment_token` for an enrollment.
 - `route`: the request's path when it is one atc serves, else `other`, and never a query.
-- `client` with its id and name, only for a client atc holds, and `redirectHost` only once
-  better-auth validated the redirect URI.
+- `client` with its id and name, only for a client atc holds.
 - `peer`, the socket's address with provenance `socket`, and `forwarded`, the `CF-Connecting-IP`
   header with provenance `trusted` or `unverified`, as
   [the forwarded address](#the-forwarded-address) describes.

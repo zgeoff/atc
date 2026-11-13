@@ -1,13 +1,32 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { seedOwnerClient, seedOwnerSchema } from '@atc/mcp/test-utils';
+import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { runClients } from './clients';
+import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-clients-');
+  const dbPath = join(temporaryDirectory.path, 'state', 'mcp-auth.db');
 
-  return { dbPath: join(temporaryDirectory.path, 'state', 'mcp-auth.db') };
+  return {
+    dbPath,
+
+    // atc's own server let two clients share a name, and the move to the
+    // package keeps both.
+    writeOldClients: (names: readonly string[]) => {
+      const sqlite = openMCPAuthDatabase(dbPath);
+
+      registerTestCleanup(() => {
+        sqlite.close();
+      });
+
+      seedOwnerSchema(sqlite);
+
+      return names.map((name) => seedOwnerClient(sqlite, { name }).clientID);
+    },
+  };
 }
 
 test('it adds a client and prints its client ID', async () => {
@@ -228,11 +247,43 @@ test('it exits 1 for a redirect URI that is not https or loopback http', async (
   );
 
   expect({ exits, codes, errors }).toStrictEqual({
-    exits: [1],
-    codes: [],
+    exits: [],
+    codes: [1],
     errors: [
-      "atc clients add: 'http://dots.example/cb' is not a redirect URI atc accepts; use https, or http on a loopback host, with no fragment",
+      'atc clients add: a redirect URI is not one atc accepts; use https, or http on a loopback host, with no fragment',
     ],
+  });
+});
+
+test('it exits 1 when a client already has the name', async () => {
+  const ctx = setupTest();
+  const errors: string[] = [];
+  const codes: number[] = [];
+
+  await runClients(
+    { kind: 'add', name: 'dots', redirectURIs: ['https://dots.example/cb'] },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    { print: () => {}, printError: () => {}, setExitCode: () => {}, exit: () => {} },
+  );
+
+  await runClients(
+    { kind: 'add', name: 'dots', redirectURIs: ['https://dots.example/other'] },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+      exit: () => {},
+    },
+  );
+
+  expect({ codes, errors }).toStrictEqual({
+    codes: [1],
+    errors: ['atc clients add: a client already has that name'],
   });
 });
 
@@ -283,4 +334,112 @@ test('it sets the process exit code to 1 when it refuses a remove by default', a
   );
 
   expect(process.exitCode).toBe(1);
+});
+
+test('it refuses to remove a client whose name another client shares, and removes neither', async () => {
+  const ctx = setupTest();
+  const [, second] = ctx.writeOldClients(['Orchard', 'Orchard']);
+  const errors: string[] = [];
+  const codes: number[] = [];
+  const listed: string[] = [];
+
+  await runClients(
+    { kind: 'remove', clientID: second ?? '' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+      exit: () => {},
+    },
+  );
+
+  await runClients(
+    { kind: 'list' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        listed.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+      exit: () => {},
+    },
+  );
+
+  expect({ errors, codes, listed: listed.length }).toStrictEqual({
+    errors: [
+      "atc clients remove: another client has the name 'Orchard', so atc cannot remove this one alone",
+    ],
+    codes: [1],
+    listed: 2,
+  });
+});
+
+test('it refuses to remove a client whose stored name the package cannot find, and keeps it', async () => {
+  const ctx = setupTest();
+  const [clientID] = ctx.writeOldClients(['  Spaced\tOrchard  ']);
+  const errors: string[] = [];
+  const codes: number[] = [];
+
+  await runClients(
+    { kind: 'remove', clientID: clientID ?? '' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+      exit: () => {},
+    },
+  );
+
+  expect({ errors, codes }).toStrictEqual({
+    errors: [
+      "atc clients remove: the client's stored name '  Spaced\tOrchard  ' does not match it, so atc cannot remove it",
+    ],
+    codes: [1],
+  });
+});
+
+test('it refuses to remove a client whose cleaned name another client holds, and removes neither', async () => {
+  const ctx = setupTest();
+  const [spaced] = ctx.writeOldClients(['  Spaced\tOrchard  ', 'Spaced Orchard']);
+  const codes: number[] = [];
+  const listed: string[] = [];
+
+  await runClients(
+    { kind: 'remove', clientID: spaced ?? '' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: () => {},
+      printError: () => {},
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+      exit: () => {},
+    },
+  );
+
+  await runClients(
+    { kind: 'list' },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: (line) => {
+        listed.push(line);
+      },
+      printError: () => {},
+      setExitCode: () => {},
+      exit: () => {},
+    },
+  );
+
+  expect({ codes, listed: listed.length }).toStrictEqual({ codes: [1], listed: 2 });
 });

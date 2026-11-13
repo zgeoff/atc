@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { systemClock } from '@atc/core';
 import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
@@ -10,12 +11,12 @@ import {
   runPasskeyEnrollment,
   sendModernMCPRequest,
 } from '@atc/test-utils';
-import { createEnrollmentToken } from '../auth/create-enrollment-token';
-import { openMCPAuth } from '../auth/open-mcp-auth';
+import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
+import { openEventDatabase } from './open-event-database';
 
 // `atc mcp --http` in front of a daemon, with the owner's passkey enrolled
 // and a stand-in for the subscriber's endpoint that echoes each challenge.
@@ -51,28 +52,35 @@ async function setupTest() {
 
   registerTestCleanup(() => server.stop());
 
-  const store = await openMCPAuth({ dbPath, openDatabase: openTestAuthDatabase, origin: null });
+  const sqlite = openTestAuthDatabase(dbPath);
 
-  registerTestCleanup(() => store.close());
+  registerTestCleanup(() => {
+    sqlite.close();
+  });
+
+  const admin = await openATCAuthAdmin(sqlite, systemClock);
+
+  registerTestCleanup(() => admin.close());
+
+  const events = openEventDatabase(sqlite);
+
+  registerTestCleanup(() => events.destroy());
 
   const authenticator = buildStubAuthenticator();
 
-  const enrollment = await createEnrollmentToken(store.db, Date.now());
+  const enrollmentToken = await admin.passkeys.createEnrollmentToken();
 
-  await runPasskeyEnrollment(server, enrollment.token, authenticator);
+  await runPasskeyEnrollment(server, enrollmentToken, authenticator);
 
-  return { url: server.url, origin: server.origin, authenticator, store, receiver };
+  return { url: server.url, origin: server.origin, authenticator, admin, events, receiver };
 }
 
 test("it declares Events under the draft's extensions entry and the events key ChatGPT reads", async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await ctx.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const grant = await runMCPTokenGrant(ctx, {
     clientID: created.clientID,
@@ -98,12 +106,9 @@ test("it declares Events under the draft's extensions entry and the events key C
 test('it lists each event type for webhook delivery with no arguments and a session payload', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await ctx.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const grant = await runMCPTokenGrant(ctx, {
     clientID: created.clientID,
@@ -142,12 +147,9 @@ test('it lists each event type for webhook delivery with no arguments and a sess
 test('it subscribes a verified callback and answers with the grant', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await ctx.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const grant = await runMCPTokenGrant(ctx, {
     clientID: created.clientID,
@@ -191,12 +193,9 @@ test('it subscribes a verified callback and answers with the grant', async () =>
 test('it ends a subscription on an unsubscribe with its key and answers with an empty result', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await ctx.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const grant = await runMCPTokenGrant(ctx, {
     clientID: created.clientID,
@@ -222,7 +221,7 @@ test('it ends a subscription on an unsubscribe with its key and answers with an 
     delivery: { mode: 'webhook', url: 'https://connectors.example.com/hooks/atc' },
   });
 
-  const rows = await ctx.store.db.selectFrom('atc_event_subscription').select('id').execute();
+  const rows = await ctx.events.selectFrom('atc_event_subscription').select('id').execute();
 
   expect(answer).toStrictEqual({
     status: 200,
@@ -242,12 +241,9 @@ test('it ends a subscription on an unsubscribe with its key and answers with an 
 test('it refuses a subscribe to a plain http callback with invalid params', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await ctx.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const grant = await runMCPTokenGrant(ctx, {
     clientID: created.clientID,

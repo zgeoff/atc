@@ -1,49 +1,54 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { systemClock } from '@atc/core';
-import { readJSONRecord, runMCPAuthorization } from '@atc/test-utils';
+import { join } from 'node:path';
+import { seedOwnerClient, seedOwnerGrant, seedOwnerSchema } from '@atc/mcp/test-utils';
+import {
+  readJSONRecord,
+  registerTestCleanup,
+  runMCPAuthorization,
+  setupTempDir,
+} from '@atc/test-utils';
 import { runGrants } from './grants';
-import { buildSeeder } from './test-utils/build-seeder';
+import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { setupMCPHTTP } from './test-utils/setup-mcp-http';
 
-async function setupTest() {
-  const server = await setupMCPHTTP();
+// A migrated grant needs no server, so the server starts only when a test
+// asks for it.
+function setupTest() {
+  return {
+    startServer: () => setupMCPHTTP(),
 
-  return { server, seed: buildSeeder({ db: server.store.db, clock: systemClock }) };
+    // A grant made before atc moved to its shared OAuth server keeps the
+    // authorization code it came from as its ID, which can start with a dash.
+    writeMigratedGrant: (grantID: string) => {
+      const temporaryDirectory = setupTempDir('atc-grants-');
+      const dbPath = join(temporaryDirectory.path, 'state', 'mcp-auth.db');
+      const sqlite = openMCPAuthDatabase(dbPath);
+
+      registerTestCleanup(() => {
+        sqlite.close();
+      });
+
+      const owner = seedOwnerSchema(sqlite);
+      const client = seedOwnerClient(sqlite, { name: 'Claude' });
+
+      seedOwnerGrant(sqlite, {
+        ownerID: owner.ownerID,
+        clientID: client.clientID,
+        resource: 'https://atc.example/mcp',
+        scopes: ['read'],
+        grantID,
+      });
+
+      return { dbPath };
+    },
+  };
 }
 
-// A grant id is random base64url, so one in 64 starts with a dash; this one
-// does, with an underscore after it, the shape an argument parser reads as a
-// group of short flags.
 test('it lists a grant whose id starts with a dash', async () => {
-  const ctx = await setupTest();
-
-  const clientID = await ctx.server.createClient('Claude', [
-    'https://claude.ai/api/mcp/auth_callback',
-  ]);
-
-  const authorized = await runMCPAuthorization(ctx.server, {
-    clientID,
-    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
-    scope: 'read message',
-    ticked: ['read'],
-  });
-
-  await fetch(`${ctx.server.url}/oauth2/token`, {
-    method: 'POST',
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code: authorized.code,
-      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-      client_id: clientID,
-      code_verifier: authorized.verifier,
-    }),
-  });
-
-  await ctx.seed.grantID({ clientID, grantID: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' });
-
+  const ctx = setupTest().writeMigratedGrant('-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc');
   const printed: string[] = [];
 
-  await runGrants(null, ctx.server.dbPath, {
+  await runGrants(null, ctx.dbPath, {
     print: (line) => {
       printed.push(line);
     },
@@ -56,8 +61,35 @@ test('it lists a grant whose id starts with a dash', async () => {
   ]);
 });
 
+test('it revokes a grant whose id starts with a dash', async () => {
+  const ctx = setupTest().writeMigratedGrant('-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc');
+  const printed: string[] = [];
+  const listed: string[] = [];
+
+  await runGrants('-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc', ctx.dbPath, {
+    print: (line) => {
+      printed.push(line);
+    },
+    printError: () => {},
+    setExitCode: () => {},
+  });
+
+  await runGrants(null, ctx.dbPath, {
+    print: (line) => {
+      listed.push(line);
+    },
+    printError: () => {},
+    setExitCode: () => {},
+  });
+
+  expect({ printed, listed }).toStrictEqual({
+    printed: ['Revoked grant -yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],
+    listed: ['No grants.'],
+  });
+});
+
 test('it revokes a grant so its access token stops working and it lists no grants', async () => {
-  const ctx = await setupTest();
+  const ctx = { server: await setupTest().startServer() };
 
   const clientID = await ctx.server.createClient('Claude', [
     'https://claude.ai/api/mcp/auth_callback',
@@ -82,14 +114,13 @@ test('it revokes a grant so its access token stops working and it lists no grant
   });
 
   const tokens = await readJSONRecord(exchanged);
-
-  await ctx.seed.grantID({ clientID, grantID: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' });
+  const [grant] = await ctx.server.admin.grants.list();
 
   const printed: string[] = [];
   const errors: string[] = [];
   const codes: number[] = [];
 
-  await runGrants('-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc', ctx.server.dbPath, {
+  await runGrants(grant?.grantID ?? '', ctx.server.dbPath, {
     print: (line) => {
       printed.push(line);
     },
@@ -118,7 +149,7 @@ test('it revokes a grant so its access token stops working and it lists no grant
   });
 
   expect({ printed, errors, codes }).toStrictEqual({
-    printed: ['Revoked grant -yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],
+    printed: [`Revoked grant ${grant?.grantID ?? ''}`],
     errors: [],
     codes: [],
   });
@@ -128,8 +159,7 @@ test('it revokes a grant so its access token stops working and it lists no grant
 });
 
 test('it refuses to revoke an unknown grant', async () => {
-  const ctx = await setupTest();
-
+  const ctx = { server: await setupTest().startServer() };
   const errors: string[] = [];
   const codes: number[] = [];
 
@@ -150,7 +180,7 @@ test('it refuses to revoke an unknown grant', async () => {
 });
 
 test('it sets the process exit code to 1 when it refuses to revoke by default', async () => {
-  const ctx = await setupTest();
+  const ctx = { server: await setupTest().startServer() };
 
   // Bun ignores an assignment of undefined, so an unset exit code goes back
   // as 0, the code an unset one exits with.

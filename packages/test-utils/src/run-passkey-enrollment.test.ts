@@ -2,9 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
-import { createEnrollmentToken } from '../../mcp/src/auth/create-enrollment-token';
-import { openMCPAuth } from '../../mcp/src/auth/open-mcp-auth';
-import { readPasskeyViews } from '../../mcp/src/auth/read-passkey-views';
+import { openTestAuthAdmin } from '../../app/src/test-utils/open-test-auth-admin';
 import { startMCPHTTPServer } from '../../mcp/src/http/start-mcp-http-server';
 import { createTransportCaller } from '../../mcp/src/tools/create-transport-caller';
 import { buildStubAuthenticator } from './build-stub-authenticator';
@@ -43,9 +41,7 @@ async function setupTest() {
 
   registerTestCleanup(() => server.stop());
 
-  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
-
-  registerTestCleanup(() => store.close());
+  const store = await openTestAuthAdmin(dbPath);
 
   return { url: server.url, origin: server.origin, store };
 }
@@ -54,16 +50,13 @@ test("it enrolls the authenticator's passkey with the token", async () => {
   const ctx = await setupTest();
 
   const authenticator = buildStubAuthenticator();
-
-  const enrollment = await createEnrollmentToken(ctx.store.db, Date.now());
+  const enrollment = { token: await ctx.store.admin.passkeys.createEnrollmentToken() };
 
   await runPasskeyEnrollment(ctx, enrollment.token, authenticator);
 
-  const passkeys = await readPasskeyViews(ctx.store.db);
+  const passkeys = await ctx.store.admin.passkeys.list();
 
-  expect(passkeys).toStrictEqual([
-    { id: authenticator.credentialID, createdAt: expect.toBeString(), lastUsedAt: null },
-  ]);
+  expect(passkeys).toMatchObject([{ id: authenticator.credentialID }]);
 });
 
 test('it throws when the token does not reach the passkey prompt', async () => {
@@ -79,7 +72,8 @@ test('it throws when the token does not reach the passkey prompt', async () => {
 
 test('it throws when the passkey does not enroll', async () => {
   const ctx = await setupTest();
-  const enrollment = await createEnrollmentToken(ctx.store.db, Date.now());
+
+  const enrollment = { token: await ctx.store.admin.passkeys.createEnrollmentToken() };
 
   const enrolling = runPasskeyEnrollment(ctx, enrollment.token, {
     create: (options) =>

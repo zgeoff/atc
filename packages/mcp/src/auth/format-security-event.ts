@@ -41,9 +41,6 @@ export function formatSecurityEvent(
             name: toEventText(event.client.name, 100),
           },
         }),
-    ...(event.redirectHost === undefined
-      ? {}
-      : { redirectHost: toEventText(event.redirectHost, 255) }),
     ...(event.correlationID === undefined ? {} : { correlationID: event.correlationID }),
     ...(requester.socketAddress === null
       ? {}

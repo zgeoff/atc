@@ -8,49 +8,23 @@ import {
   isLegacyRequest,
 } from '@modelcontextprotocol/server';
 import type { AuthInfo } from '@modelcontextprotocol/server';
-import type { BearerReason, HTTPServerContext, Requester } from '../auth/types';
+import type { HTTPServerContext, VerifiedAccess } from '../auth/types';
 import { buildPrincipalCaller } from '../tools/build-principal-caller';
 import { createMCPServer } from '../tools/create-mcp-server';
-import { verifyBearerToken } from './verify-bearer-token';
 
-// `requester` is where the request came from, for its security events.
+// The adapter verified the request's bearer token before it got here.
 export async function answerMCPRequest(
   ctx: HTTPServerContext,
   request: Request,
-  requester: Requester,
+  access: VerifiedAccess,
 ): Promise<Response> {
-  const path = new URL(request.url).pathname;
+  if (request.method !== 'POST') {
+    return new Response(null, { status: 405, headers: { allow: 'POST' } });
+  }
 
   const metadataURL = `${ctx.origin}${GATEWAY_PATHS.machine.mcpResourceMetadata}`;
-  const authorization = request.headers.get('authorization');
-  const token = /^Bearer (?<token>\S+)$/iu.exec(authorization ?? '')?.groups?.['token'];
-
-  if (token === undefined) {
-    // a request with no header at all is a client discovering the
-    // authorization server, so only a header that holds no bearer token is
-    // recorded.
-    if (authorization !== null) {
-      recordRefusedBearer(ctx, path, requester, 'malformed');
-    }
-
-    return new Response(null, {
-      status: 401,
-      headers: { 'www-authenticate': `Bearer resource_metadata="${metadataURL}"` },
-    });
-  }
-
-  const access = await verifyBearerToken(ctx, token);
-
-  if (access === null) {
-    recordRefusedBearer(ctx, path, requester, 'invalid_token');
-
-    return new Response(null, {
-      status: 401,
-      headers: {
-        'www-authenticate': `Bearer error="invalid_token", resource_metadata="${metadataURL}"`,
-      },
-    });
-  }
+  const authorization = request.headers.get('authorization') ?? '';
+  const token = /^Bearer (?<token>\S+)$/iu.exec(authorization)?.groups?.['token'] ?? '';
 
   const authInfo: AuthInfo = {
     token,
@@ -97,16 +71,6 @@ export async function answerMCPRequest(
   } finally {
     await server.close();
   }
-}
-
-// The event holds neither the header nor the token.
-function recordRefusedBearer(
-  ctx: HTTPServerContext,
-  path: string,
-  requester: Requester,
-  reason: BearerReason,
-): void {
-  ctx.security.record({ kind: 'bearer', outcome: 'rejected', reason, path, requester });
 }
 
 // The JSON-RPC method of a request, read from a copy of its body, so the

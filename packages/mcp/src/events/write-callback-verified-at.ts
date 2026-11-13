@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
+import type { EventSchema } from './event-schema';
 
 interface CallbackVerification {
   readonly clientID: string;
@@ -8,7 +8,7 @@ interface CallbackVerification {
 }
 
 export async function writeCallbackVerifiedAt(
-  db: Kysely<MCPAuthSchema>,
+  db: Kysely<EventSchema>,
   verification: CallbackVerification,
 ): Promise<void> {
   const verifiedAt = new Date(verification.now).toISOString();

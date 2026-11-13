@@ -7,14 +7,7 @@ import {
   buildStubMemoryProvider,
   startTestDaemon,
 } from '@atc/daemon/testing';
-import {
-  createEnrollmentToken,
-  createTransportCaller,
-  openMCPAuth,
-  readGrantViews,
-  revokeGrant,
-  startMCPHTTPServer,
-} from '@atc/mcp';
+import { createTransportCaller, startMCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -31,6 +24,7 @@ import {
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
 import { openWatchChannel } from '../packages/app/src/open-watch-channel';
+import { openTestAuthAdmin } from '../packages/app/src/test-utils/open-test-auth-admin';
 
 interface StackOptions {
   readonly ownerTokens: readonly string[];
@@ -92,20 +86,17 @@ function setupTest() {
 
     registerTestCleanup(() => server.stop());
 
-    const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
-
-    registerTestCleanup(() => store.close());
+    const store = await openTestAuthAdmin(dbPath);
 
     const grantToken = async (scopes: readonly string[]) => {
       const authenticator = buildStubAuthenticator();
-
-      const enrollment = await createEnrollmentToken(store.db, Date.now());
+      const enrollment = { token: await store.admin.passkeys.createEnrollmentToken() };
 
       await runPasskeyEnrollment(server, enrollment.token, authenticator);
 
-      const created = await store.auth.api.createFixedClient({
-        body: { name: 'Panel', redirectURIs: ['https://panel.example.com/callback'] },
-      });
+      const created = await store.admin.clients.add('Panel', [
+        'https://panel.example.com/callback',
+      ]);
 
       const grant = await runMCPTokenGrant(
         { url: server.url, origin: server.origin, authenticator },
@@ -343,11 +334,11 @@ test('it refuses the access token of a revoked grant before it upgrades', async 
   stack.principals.set(grant.clientID, ['local']);
 
   const session = await stack.spawnSession();
-  const [granted] = await readGrantViews(stack.store.db);
+  const [granted] = await stack.store.admin.grants.list();
 
   invariant(granted, 'the token grant left no grant');
 
-  await revokeGrant(stack.store.db, granted.grantID, Date.now());
+  await stack.store.admin.grants.revoke(granted.grantID);
 
   const answered = await fetch(stack.ptyURL(session.id).replace('ws:', 'http:'), {
     headers: {
@@ -367,7 +358,7 @@ test('it ends an open stream as revoked once the grant it opened with is revoked
 
   const stack = await ctx.startStack({ ownerTokens: [], viewerAccessRecheckMs: 20 });
   const first = await stack.grantToken(['read']);
-  const [firstGrant] = await readGrantViews(stack.store.db);
+  const [firstGrant] = await stack.store.admin.grants.list();
 
   invariant(firstGrant, 'the first token grant left no grant');
 
@@ -382,7 +373,7 @@ test('it ends an open stream as revoked once the grant it opened with is revoked
     origin: 'https://panel.example.com',
   });
 
-  await revokeGrant(stack.store.db, firstGrant.grantID, Date.now());
+  await stack.store.admin.grants.revoke(firstGrant.grantID);
 
   const closed = await viewer.closed;
 

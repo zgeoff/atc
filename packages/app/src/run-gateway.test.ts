@@ -1,12 +1,11 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { openMCPAuth } from '@atc/mcp';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildGatewayStatePaths } from './build-gateway-state-paths';
-import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { runGateway } from './run-gateway';
+import { openTestAuthAdmin } from './test-utils/open-test-auth-admin';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-gateway-');
@@ -140,8 +139,8 @@ test('it trusts the forwarded address from a proxy its flags list', async () => 
     ),
   ).toMatchObject([
     {
-      kind: 'authorize_invalid',
-      reason: 'bad_host',
+      kind: 'bad_host',
+      reason: 'host_not_allowed',
       forwarded: { address: '198.51.100.23', header: 'cf-connecting-ip', provenance: 'trusted' },
     },
   ]);
@@ -215,8 +214,8 @@ test('it leaves the forwarded address unverified from a peer its flags do not li
     ),
   ).toMatchObject([
     {
-      kind: 'authorize_invalid',
-      reason: 'bad_host',
+      kind: 'bad_host',
+      reason: 'host_not_allowed',
       forwarded: {
         address: '198.51.100.23',
         header: 'cf-connecting-ip',
@@ -281,17 +280,13 @@ test('it prints nothing to stdout once it serves and each sign-in security event
   invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
 
   // The gateway's database, opened the way `atc-gateway clients` opens it.
-  const store = await openMCPAuth({
-    dbPath: buildGatewayStatePaths(join(ctx.directory, 'state')).mcpAuthDBFile,
-    openDatabase: openMCPAuthDatabase,
-    origin: null,
-  });
+  const store = await openTestAuthAdmin(
+    buildGatewayStatePaths(join(ctx.directory, 'state')).mcpAuthDBFile,
+  );
 
-  registerTestCleanup(() => store.close());
-
-  const created = await store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await store.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const startup = [...printed];
 
@@ -320,7 +315,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
       /^atc security \{"version":1,.*"kind":"authorize_started","outcome":"accepted"/u,
     ),
     expect.stringMatching(
-      /^atc security \{"version":1,.*"kind":"authorize_invalid".*"reason":"bad_host"/u,
+      /^atc security \{"version":1,.*"kind":"bad_host".*"reason":"host_not_allowed"/u,
     ),
   ]);
 });
@@ -387,7 +382,7 @@ test('it writes a probe from a Host it does not serve as a bad_host security eve
 
   expect(errors.filter((line) => line.startsWith('atc security '))).toIncludeSameMembers([
     expect.stringMatching(
-      /^atc security \{"version":1,.*"kind":"authorize_invalid","outcome":"rejected","reason":"bad_host","route":"\/healthz"/u,
+      /^atc security \{"version":1,.*"kind":"bad_host","outcome":"rejected","reason":"host_not_allowed","route":"\/healthz"/u,
     ),
   ]);
 });
@@ -825,7 +820,7 @@ test('it exits 1 when the service token file is for another resource', async () 
 
   expect({ errors, exits }).toStrictEqual({
     errors: [
-      "atc-gateway: the service token file is not for the resource 'https://atc.example.com/mcp'",
+      'atc-gateway: the service token file names another resource than https://atc.example.com/mcp',
     ],
     exits: [1],
   });

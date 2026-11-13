@@ -1,16 +1,21 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { resolvePaths } from '@atc/config';
-import { readClientViews, readPasskeyViews } from '@atc/mcp';
+import type { OAuthClientID, PasskeyID } from '@atc/mcp';
 import { readJSONRecord } from '@atc/test-utils';
+import { toTagged } from '@zgeoff/std';
 import { setupMCPHTTP } from './setup-mcp-http';
 
 test("it enrolls the owner's passkey on the authenticator it returns", async () => {
   const server = await setupMCPHTTP();
-  const passkeys = await readPasskeyViews(server.store.db);
+  const passkeys = await server.admin.passkeys.list();
 
   expect(passkeys).toStrictEqual([
-    { id: server.authenticator.credentialID, createdAt: expect.toBeString(), lastUsedAt: null },
+    {
+      id: toTagged<PasskeyID>(server.authenticator.credentialID),
+      createdAt: expect.toBeString(),
+      lastUsedAt: null,
+    },
   ]);
 });
 
@@ -34,11 +39,11 @@ test('it keeps the authorization database where atc keeps it under the home dire
 test('it adds a client the store lists under its name and redirect URIs', async () => {
   const server = await setupMCPHTTP();
   const clientID = await server.createClient('dots', ['https://dots.example/cb']);
-  const clients = await readClientViews(server.store.db);
+  const clients = await server.admin.clients.list();
 
   expect(clients).toStrictEqual([
     {
-      clientID,
+      clientID: toTagged<OAuthClientID>(clientID),
       name: 'dots',
       redirectURIs: ['https://dots.example/cb'],
       createdAt: expect.toBeString(),

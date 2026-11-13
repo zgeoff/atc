@@ -12,7 +12,7 @@ test('it watches as the client of an access token with the read scope', () => {
   expect(
     pickPTYPrincipal({
       isOwnerToken: false,
-      access: { clientID: 'client-7c2e', clientName: 'viewer', scopes: ['read', 'message'] },
+      access: { clientID: 'client-7c2e', scopes: ['read', 'message'] },
     }),
   ).toStrictEqual({ kind: 'principal', principal: 'client-7c2e' });
 });
@@ -27,7 +27,7 @@ test.each([
   [
     'an access token with no scope',
     403,
-    { isOwnerToken: false, access: { clientID: 'client-7c2e', clientName: 'viewer', scopes: [] } },
+    { isOwnerToken: false, access: { clientID: 'client-7c2e', scopes: [] } },
     null,
   ],
   [
@@ -37,7 +37,6 @@ test.each([
       isOwnerToken: false,
       access: {
         clientID: 'client-7c2e',
-        clientName: 'viewer',
         scopes: ['message', 'spawn', 'kill'],
       },
     },
@@ -46,7 +45,7 @@ test.each([
   [
     'an access token for an empty client with only the message scope',
     403,
-    { isOwnerToken: false, access: { clientID: '', clientName: '', scopes: ['message'] } },
+    { isOwnerToken: false, access: { clientID: '', scopes: ['message'] } },
     null,
   ],
 ] as const)('it refuses %s with %d', (_label, status, check, outcome) => {

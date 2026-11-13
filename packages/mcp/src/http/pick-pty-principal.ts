@@ -1,4 +1,4 @@
-import type { VerifiedAccess } from '../auth/types';
+import type { GrantScope } from '@atcx/contract';
 import type { PTYRefusalOutcome } from './pick-pty-admission';
 
 // The principal a token watches as, where null is the daemon's owner, or the
@@ -15,8 +15,8 @@ interface PTYTokenCheck {
   // Whether the token is one from the owner's token file.
   readonly isOwnerToken: boolean;
 
-  // The OAuth access the token verified to, null when it verified to none.
-  readonly access: VerifiedAccess | null;
+  // The access the token verified to, null when it verified to none.
+  readonly access: { readonly clientID: string; readonly scopes: readonly GrantScope[] } | null;
 }
 
 // An OAuth access token needs the read scope to watch.

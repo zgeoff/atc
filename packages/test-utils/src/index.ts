@@ -125,7 +125,6 @@ export * from './start-stub-stalled-listener';
 export * from './start-stub-stalling-proxy';
 export * from './start-stub-tap';
 export * from './start-stub-tcp-daemon';
-export * from './start-stub-telemetry-collector';
 export * from './start-stub-unanswering-listener';
 export * from './start-stub-unanswering-unix-listener';
 export * from './start-tui-harness';

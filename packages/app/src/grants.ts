@@ -1,24 +1,18 @@
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
 import { mcpAuthDBFile } from '@atc/config';
-import { systemClock } from '@atc/core';
-import { openMCPAuth, readGrantViews, revokeGrant } from '@atc/mcp';
-import { openMCPAuthDatabase } from './open-mcp-auth-database';
+import type { GrantID } from '@atc/mcp';
+import { toTagged } from '@zgeoff/std';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
+import { withMCPAuthAdmin } from './with-mcp-auth-admin';
 
 export async function runGrants(
   revoke: string | null,
   dbPath: string = mcpAuthDBFile,
   io: Pick<ProcessIO, 'print' | 'printError' | 'setExitCode'> = PROCESS_IO,
 ): Promise<void> {
-  mkdirSync(dirname(dbPath), { recursive: true });
-
-  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
-
-  try {
+  await withMCPAuthAdmin(dbPath, async (admin) => {
     if (revoke !== null) {
-      const revoked = await revokeGrant(store.db, revoke, systemClock.now());
+      const revoked = await admin.grants.revoke(toTagged<GrantID>(revoke));
 
       if (!revoked) {
         io.printError(`atc grants: no grant has the ID '${revoke}'`);
@@ -32,7 +26,7 @@ export async function runGrants(
       return;
     }
 
-    const grants = await readGrantViews(store.db);
+    const grants = await admin.grants.list();
 
     if (grants.length === 0) {
       io.print('No grants.');
@@ -45,7 +39,5 @@ export async function runGrants(
         `${grant.grantID}  ${grant.clientName}  ${grant.scopes.join(',')}  last used ${grant.lastUsedAt ?? 'never'}`,
       );
     }
-  } finally {
-    await store.close();
-  }
+  });
 }

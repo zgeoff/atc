@@ -29,8 +29,7 @@
       "entry": ["src/**/*.test.ts"]
     },
     "packages/test-utils": {
-      "entry": ["src/**/*.test.ts", "src/run-stub-*.ts"],
-      "ignoreDependencies": ["better-auth"]
+      "entry": ["src/**/*.test.ts", "src/run-stub-*.ts"]
     }
   },
   "ignoreDependencies": ["@stylistic/eslint-plugin"],

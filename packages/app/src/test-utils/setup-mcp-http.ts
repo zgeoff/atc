@@ -1,14 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
+import { systemClock } from '@atc/core';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
-import {
-  createEnrollmentToken,
-  createTransportCaller,
-  openMCPAuth,
-  startMCPHTTPServer,
-} from '@atc/mcp';
+import { createTransportCaller, openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -87,15 +83,21 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   stack.defer(() => server.stop());
 
-  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
+  const sqlite = openMCPAuthDatabase(dbPath);
 
-  stack.defer(() => store.close());
+  stack.defer(() => {
+    sqlite.close();
+  });
+
+  const admin = await openATCAuthAdmin(sqlite, systemClock);
+
+  stack.defer(() => admin.close());
 
   const authenticator = buildStubAuthenticator();
 
-  const enrollment = await createEnrollmentToken(store.db, Date.now());
+  const enrollmentToken = await admin.passkeys.createEnrollmentToken();
 
-  await runPasskeyEnrollment(server, enrollment.token, authenticator);
+  await runPasskeyEnrollment(server, enrollmentToken, authenticator);
 
   // The lines the enrollment printed are not part of any scenario.
   requests.length = 0;
@@ -110,11 +112,9 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
     requests,
     security,
     caller,
-    store,
+    admin,
     async createClient(name: string, redirectURIs: readonly string[]): Promise<string> {
-      const created = await store.auth.api.createFixedClient({
-        body: { name, redirectURIs: [...redirectURIs] },
-      });
+      const created = await admin.clients.add(name, redirectURIs);
 
       return created.clientID;
     },

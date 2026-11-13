@@ -113,7 +113,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
   await client.sendHello('atc/test');
 
   expect(stderr).toMatch(
-    /^atc mcp --http: no daemon answers yet; waiting up to 30s for one, without starting it\nPOST \/mcp 401 \d+ms\n$/u,
+    /^atc mcp --http: no daemon answers yet; waiting up to 30s for one, without starting it\natc security \{[^\n]*"reason":"missing"[^\n]*\}\nPOST \/mcp 401 \d+ms\n$/u,
   );
 
   expect(stdout).toBe(

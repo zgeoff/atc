@@ -1,20 +1,12 @@
 import { expect, mock, test } from 'bun:test';
-import { join } from 'node:path';
-import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { openMCPAuth } from '../auth/open-mcp-auth';
+import { buildStubClock, registerTestCleanup } from '@atc/test-utils';
 import { buildSeeder } from '../test-utils/build-seeder';
-import { openTestAuthDatabase } from '../testing/open-test-auth-database';
+import { openTestEventDatabase } from '../testing/open-test-event-database';
 import { answerUnsubscribeRequest } from './answer-unsubscribe-request';
 import { buildSubscriptionID } from './build-subscription-id';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-answer-unsubscribe-');
-
-  const store = await openMCPAuth({
-    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
-    openDatabase: openTestAuthDatabase,
-    origin: null,
-  });
+  const store = await openTestEventDatabase();
 
   registerTestCleanup(() => store.close());
 

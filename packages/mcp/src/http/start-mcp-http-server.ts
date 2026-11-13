@@ -1,34 +1,34 @@
+import type { Database } from 'bun:sqlite';
 import { lookup } from 'node:dns/promises';
 import { isRecord, systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { MAX_LINE } from '@atc/protocol/wire';
 import { GATEWAY_PATHS } from '@atcx/contract';
+import type { GrantScope } from '@atcx/contract';
 import type { McpServer } from '@modelcontextprotocol/server';
+import type { ServiceTokenFile } from '@zgeoff/mcp-auth';
+import { createMCPHTTPApp } from '@zgeoff/mcp-auth/elysia';
 import type { Server } from 'bun';
+import { Elysia, NotFound } from 'elysia';
 import invariant from 'tiny-invariant';
-import { APPROVAL_WINDOW_SECONDS } from '../auth/approval-window-seconds';
-import { buildServiceTokenVerifier } from '../auth/build-service-token-verifier';
-import { createApprovalState } from '../auth/create-approval-state';
-import { createEnrollmentState } from '../auth/create-enrollment-state';
 import { createSecurityEventLog } from '../auth/create-security-event-log';
-import { isServiceClientID } from '../auth/is-service-client-id';
-import type { MCPAuthDatabase } from '../auth/mcp-auth-database';
-import { openMCPAuth } from '../auth/open-mcp-auth';
-import type { ServiceTokenFile } from '../auth/parse-service-token-file';
+import { openATCAuth } from '../auth/open-atc-auth';
+import type { ATCAuth } from '../auth/open-atc-auth';
 import type { HTTPServerContext, Requester, VerifiedAccess } from '../auth/types';
 import { createEventDeliverer } from '../events/create-event-deliverer';
 import { createSubscriptionStore } from '../events/create-subscription-store';
 import { createWebhookSender } from '../events/create-webhook-sender';
 import { isPublicAddress } from '../events/is-public-address';
-import { probeReadAccess } from '../events/probe-read-access';
+import { openEventDatabase } from '../events/open-event-database';
 import { registerEventMethods } from '../events/register-event-methods';
+import { removeUnreadableSubscriptions } from '../events/remove-unreadable-subscriptions';
 import type { WebhookSender } from '../events/types';
 import { buildPrincipalCaller } from '../tools/build-principal-caller';
 import { createMCPServer } from '../tools/create-mcp-server';
 import type { FleetCaller } from '../tools/types';
+import { answerMCPRequest } from './answer-mcp-request';
 import { answerPTYRequest } from './answer-pty-request';
 import type { PTYRoute } from './answer-pty-request';
-import { createMCPHTTPApp } from './create-mcp-http-app';
 import { createModernMCPHandler } from './create-modern-mcp-handler';
 import type { PTYViewer, WatchChannel } from './create-pty-viewer';
 import { isLoopbackHost } from './is-loopback-host';
@@ -75,23 +75,21 @@ interface MCPHTTPServerOptions {
   // labels `trusted`, each exactly as the socket reports its address.
   readonly trustForwardedFrom: readonly string[];
 
-  // The authorization server's SQLite database, and the opener the entry
-  // wires in for it.
+  // The authorization server's SQLite database, and the entry's opener for
+  // it, which makes the file owner-only and turns foreign keys on. The
+  // server opens it twice: for the package and for atc's event tables.
   readonly dbPath: string;
-  readonly openAuthDatabase: (path: string) => MCPAuthDatabase;
+  readonly openAuthDatabase: (path: string) => Database;
 
   // The service tokens the server accepts on `/mcp` beside OAuth tokens; its
   // `resource` must equal the resource the server serves.
-  readonly serviceTokens?: ServiceTokenFile;
+  readonly serviceTokens?: ServiceTokenFile<GrantScope>;
 
   // Receives one line per request the server answers.
   readonly printRequest: (line: string) => void;
 
   // Receives one `atc security {json}` line per sign-in outcome or refused token.
   readonly printSecurity: (line: string) => void;
-
-  // How long a rotated refresh token still answers with its successor.
-  readonly refreshReuseSeconds?: number;
 
   // Serves `/healthz` and `/readyz` for an orchestrator's probes.
   readonly probes?: boolean;
@@ -121,12 +119,6 @@ export interface MCPHTTPServer {
   readonly stop: () => Promise<void>;
 }
 
-// The JSON-RPC method and tool name of an MCP request, for its request line.
-interface RPCLabel {
-  readonly method: string;
-  readonly tool: string | null;
-}
-
 // How many bytes a live-terminal socket holds unsent before its viewer drops
 // output for a fresh snapshot: a few full screens.
 const VIEWER_BUFFER_BYTES = 1_048_576;
@@ -139,13 +131,17 @@ const VIEWER_ACCESS_RECHECK_MS = 5000;
 // cannot hold its watcher.
 const WEBHOOK_TIMEOUT_MS = 10_000;
 
+// How often the server removes expired tokens, sessions and grants.
+const REMOVE_EXPIRED_MS = 10 * 60 * 1000;
+
+// Paths under this belong to atc, beside the routes the adapter serves: the
+// live terminals, which the server answers before the adapter sees them.
+const BESIDE_PREFIX = '/sessions';
+
+const PROBE_PATHS: ReadonlySet<string> = new Set(Object.values(GATEWAY_PATHS.probes));
+
 export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<MCPHTTPServer> {
   const { serviceTokens: file, ...options } = input;
-
-  // Only the digests outlive this block: the callbacks below close over
-  // `options`, which holds no token, and never over `input` or `file`.
-  const tokenResource = file?.resource ?? null;
-  const serviceTokens = file === undefined ? null : buildServiceTokenVerifier(file);
   const clock = options.clock ?? systemClock;
 
   // Normalized before binding, so an invalid public URL throws with no port
@@ -182,8 +178,8 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
 
   const holder: {
     ctx: HTTPServerContext | null;
-    app: ReturnType<typeof createMCPHTTPApp> | null;
-  } = { ctx: null, app: null };
+    answerApp: ((request: Request) => Promise<Response>) | null;
+  } = { ctx: null, answerApp: null };
 
   // The socket's peer is the requester, or the proxy or tunnel in front of
   // atc. Only a listed peer vouches for the forwarded address.
@@ -207,9 +203,38 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
     };
   };
 
-  // The JSON-RPC label of each MCP request the app let through, for its
-  // request line.
-  const labels = new WeakMap<Request, RPCLabel | null>();
+  // A probe answers before the authorization server opens, and the other
+  // routes answer 503 until it does.
+  const answerAppRequest = (request: Request): Response | Promise<Response> => {
+    const path = new URL(request.url).pathname;
+
+    const isProbe = options.probes === true && PROBE_PATHS.has(path);
+
+    if (isProbe && !hosts.has(request.headers.get('host') ?? '')) {
+      security.record({
+        kind: 'bad_host',
+        outcome: 'rejected',
+        reason: 'host_not_allowed',
+        path,
+        requester: readRequester(request),
+      });
+
+      return new Response(null, { status: 403 });
+    }
+
+    if (isProbe) {
+      return answerProbeRequest(
+        request.method,
+        path === GATEWAY_PATHS.probes.health || holder.answerApp !== null,
+      );
+    }
+
+    if (holder.answerApp === null) {
+      return new Response(null, { status: 503 });
+    }
+
+    return holder.answerApp(request);
+  };
 
   const answerRequest = async (request: Request): Promise<Response | undefined> => {
     const startedAt = performance.now();
@@ -239,13 +264,11 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
       return answered;
     }
 
-    // Bun runs a request's fetch on a later turn than the one that bound the
-    // port, and that turn builds the app.
-    invariant(holder.app, 'a request arrived before the server built its app');
+    // Read once the Host and Origin headers pass and before the bearer token
+    // is checked, so a request refused for its token names its method.
+    const rpc = isLabelledRequest(request, hosts, origins) ? await readRPCLabel(request) : null;
 
-    const response = await holder.app.handle(request);
-
-    const rpc = labels.get(request) ?? null;
+    const response = await answerAppRequest(request);
 
     options.printRequest(
       formatRequestLine(request, rpc, response.status, performance.now() - startedAt),
@@ -289,15 +312,6 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
   const port = server.port ?? options.port;
   const local = `http://127.0.0.1:${port}`;
   const origin = publicOrigin ?? local;
-  const resource = `${origin}${GATEWAY_PATHS.machine.mcp}`;
-
-  // The message names the served resource alone, because the file's value
-  // may be a token.
-  if (tokenResource !== null && tokenResource !== resource) {
-    await server.stop(true);
-
-    throw new Error(`the service token file is not for the resource '${resource}'`);
-  }
 
   const hosts: ReadonlySet<string> = new Set([
     new URL(origin).host,
@@ -305,6 +319,8 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
     `localhost:${port}`,
     ...options.allowedHosts,
   ]);
+
+  const origins: ReadonlySet<string> = new Set([origin, local, `http://localhost:${port}`]);
 
   const ptyRoute: PTYRoute | null =
     liveTerminals === null
@@ -320,34 +336,34 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
           security,
         };
 
-  holder.app = createMCPHTTPApp({
-    hosts,
-    origins: new Set([origin, local, `http://localhost:${port}`]),
-    probes: options.probes === true,
-    readContext: () => holder.ctx,
-    readRequester,
-    onMCPRequest: async (request) => {
-      const label = await readRPCLabel(request);
-
-      labels.set(request, label);
-    },
-    security,
-  });
-
-  let store: HTTPServerContext['store'];
+  const authDatabase = options.openAuthDatabase(options.dbPath);
+  const eventDatabase = options.openAuthDatabase(options.dbPath);
+  const events = openEventDatabase(eventDatabase);
+  let auth: ATCAuth;
 
   try {
-    store = await openMCPAuth({
-      dbPath: options.dbPath,
-      openDatabase: options.openAuthDatabase,
+    auth = await openATCAuth({
+      database: authDatabase,
       origin,
-      ...(options.refreshReuseSeconds === undefined
-        ? {}
-        : { refreshReuseSeconds: options.refreshReuseSeconds }),
+      clock,
+      security,
+      serviceTokens: file ?? null,
+      onGrantRevoked: () => {
+        removeUnreadableSubscriptions(events, (clientID) => probeReadAccess(auth, clientID)).catch(
+          (error: unknown) => {
+            options.printRequest(
+              `atc mcp --http: could not end the subscriptions of a revoked grant: ${String(error)}`,
+            );
+          },
+        );
+      },
     });
   } catch (error) {
     await server.stop(true);
+    await events.destroy();
 
+    authDatabase.close();
+    eventDatabase.close();
     throw error;
   }
 
@@ -361,15 +377,12 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
     });
 
   const deliverer = createEventDeliverer({
-    db: store.db,
-    subscriptions: createSubscriptionStore(store.db),
+    db: events,
+    subscriptions: createSubscriptionStore(events),
     caller: options.caller,
     send: sendWebhook,
     clock,
-    probeAccess: (clientID) =>
-      isServiceClientID(clientID)
-        ? Promise.resolve(serviceTokens?.findScopes(clientID)?.includes('read') ?? false)
-        : probeReadAccess(store.db, clientID, clock.now()),
+    probeAccess: (clientID) => probeReadAccess(auth, clientID),
     log: options.printRequest,
   });
 
@@ -381,21 +394,55 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
     },
   });
 
-  holder.ctx = {
+  const ctx: HTTPServerContext = {
     caller: options.caller,
     build: options.build,
     origin,
-    resource,
-    serviceTokens,
-    store,
-    approvals: createApprovalState(APPROVAL_WINDOW_SECONDS * 1000, () => clock.now()),
-    enrollments: createEnrollmentState(() => clock.now()),
+    auth,
+    events,
     security,
     clock,
     modern,
     deliverer,
     sendWebhook,
   };
+
+  holder.ctx = ctx;
+
+  const app = new Elysia()
+    .onError((context) =>
+      context.error instanceof NotFound
+        ? new Response(null, { status: 404 })
+        : new Response(null, { status: 503 }),
+    )
+    .use(
+      createMCPHTTPApp({
+        auth,
+        hosts,
+        origins,
+        readRequester,
+        security,
+        mcp: {
+          // oxlint-disable-next-line zgeoff/function-verb -- the adapter's option names its handler fetch
+          fetch: (request, access) => answerMCPRequest(ctx, request, access),
+        },
+        besidePrefix: BESIDE_PREFIX,
+      }),
+    );
+
+  holder.answerApp = (request) => app.handle(request);
+
+  const removeExpiredRows = async (): Promise<void> => {
+    try {
+      await auth.removeExpired();
+    } catch (error) {
+      options.printRequest(`atc mcp --http: could not remove expired grants: ${String(error)}`);
+    }
+  };
+
+  const removeExpired = setInterval(() => {
+    void removeExpiredRows();
+  }, REMOVE_EXPIRED_MS);
 
   await deliverer.start();
 
@@ -404,15 +451,36 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
     listening: formatBindURL(options.host, port),
     origin,
     stop: async () => {
+      clearInterval(removeExpired);
+
       deliverer.stop();
 
       await server.stop(true);
       await modern.close();
-      await store.close();
+      await auth.close();
+      await events.destroy();
 
+      authDatabase.close();
+      eventDatabase.close();
       security.drain();
     },
   };
+}
+
+// `ready` is whether the probe answers ready; its body stays empty, so a
+// probe learns nothing about the fleet.
+function answerProbeRequest(method: string, ready: boolean): Response {
+  if (method !== 'GET' && method !== 'HEAD') {
+    return new Response(null, { status: 405, headers: { allow: 'GET, HEAD' } });
+  }
+
+  return new Response(null, { status: ready ? 200 : 503 });
+}
+
+// The JSON-RPC method and tool name of an MCP request, for its request line.
+interface RPCLabel {
+  readonly method: string;
+  readonly tool: string | null;
 }
 
 // Client-sent values in a request line are cut to this many characters.
@@ -449,8 +517,28 @@ function toLogText(value: string, length: number): string {
   return value.replaceAll(/[\p{Cc}\p{Cf}\s]/gu, '').slice(0, length);
 }
 
+const MCP_PATHS: ReadonlySet<string> = new Set([
+  GATEWAY_PATHS.machine.mcp,
+  GATEWAY_PATHS.machine.root,
+]);
+
 // The method and tool of an MCP request, read from a copy of its body, so
 // the route still reads the body itself.
+function isLabelledRequest(
+  request: Request,
+  hosts: ReadonlySet<string>,
+  origins: ReadonlySet<string>,
+): boolean {
+  const requestOrigin = request.headers.get('origin');
+
+  return (
+    request.method === 'POST' &&
+    MCP_PATHS.has(new URL(request.url).pathname) &&
+    hosts.has(request.headers.get('host') ?? '') &&
+    (requestOrigin === null || origins.has(requestOrigin))
+  );
+}
+
 async function readRPCLabel(request: Request): Promise<RPCLabel | null> {
   const body = await request.clone().text();
 
@@ -474,6 +562,14 @@ async function readRPCLabel(request: Request): Promise<RPCLabel | null> {
   };
 }
 
+// A client reads events while one of its grants, or its service token,
+// holds read.
+async function probeReadAccess(auth: ATCAuth, clientID: string): Promise<boolean> {
+  const scopes = await auth.findClientScopes(clientID);
+
+  return scopes?.includes('read') ?? false;
+}
+
 async function resolveAddresses(hostname: string): Promise<readonly string[]> {
   const found = await lookup(hostname, { all: true });
 
@@ -493,7 +589,7 @@ function createPrincipalServer(ctx: HTTPServerContext, access: VerifiedAccess): 
   });
 
   registerEventMethods(server, {
-    db: ctx.store.db,
+    db: ctx.events,
     caller,
     clientID: access.clientID,
     send: ctx.sendWebhook,

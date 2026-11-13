@@ -1,18 +1,10 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
-import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { openMCPAuth } from '../auth/open-mcp-auth';
-import { openTestAuthDatabase } from '../testing/open-test-auth-database';
+import { buildStubClock, registerTestCleanup } from '@atc/test-utils';
+import { openTestEventDatabase } from '../testing/open-test-event-database';
 import { seedEventSubscription } from './seed-event-subscription';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-seed-event-subscription-');
-
-  const store = await openMCPAuth({
-    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
-    openDatabase: openTestAuthDatabase,
-    origin: null,
-  });
+  const store = await openTestEventDatabase();
 
   registerTestCleanup(() => store.close());
 
@@ -22,9 +14,9 @@ async function setupTest() {
 test('it writes a subscription created at the clock time and live for an hour', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.store.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   await seedEventSubscription(ctx, { id: 'sub-one', client_id: created.clientID });
 
@@ -41,9 +33,9 @@ test('it writes a subscription created at the clock time and live for an hour', 
 test('it writes the input over the defaults', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.store.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   await seedEventSubscription(ctx, {
     id: 'sub-one',

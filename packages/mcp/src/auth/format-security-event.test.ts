@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import type { CorrelationID, OAuthClientID } from '@zgeoff/mcp-auth';
+import { toTagged } from '@zgeoff/std';
 import { formatSecurityEvent } from './format-security-event';
 
 test('it formats an event with every field as one prefixed JSON line', () => {
@@ -13,15 +15,14 @@ test('it formats an event with every field as one prefixed JSON line', () => {
         connectingIP: { address: '203.0.113.9', provenance: 'unverified' },
         userAgent: 'Mozilla/5.0',
       },
-      client: { id: 'client-1', name: 'Claude' },
-      redirectHost: 'claude.ai',
-      correlationID: '6f1c2a4e-0000-4000-8000-000000000000',
+      client: { id: toTagged<OAuthClientID>('client-1'), name: 'Claude' },
+      correlationID: toTagged<CorrelationID>('6f1c2a4e-0000-4000-8000-000000000000'),
     },
     Date.UTC(2026, 9, 14, 12, 0, 0),
   );
 
   expect(line).toMatchInlineSnapshot(
-    `"atc security {"version":1,"ts":"2026-10-14T12:00:00.000Z","kind":"owner_auth","outcome":"failed","reason":"assertion_failed","method":"passkey","route":"/login","client":{"id":"client-1","name":"Claude"},"redirectHost":"claude.ai","correlationID":"6f1c2a4e-0000-4000-8000-000000000000","peer":{"address":"10.0.0.7","provenance":"socket"},"forwarded":{"address":"203.0.113.9","header":"cf-connecting-ip","provenance":"unverified"},"userAgent":{"summary":"Mozilla/5.0","provenance":"client"}}"`,
+    `"atc security {"version":1,"ts":"2026-10-14T12:00:00.000Z","kind":"owner_auth","outcome":"failed","reason":"assertion_failed","method":"passkey","route":"/login","client":{"id":"client-1","name":"Claude"},"correlationID":"6f1c2a4e-0000-4000-8000-000000000000","peer":{"address":"10.0.0.7","provenance":"socket"},"forwarded":{"address":"203.0.113.9","header":"cf-connecting-ip","provenance":"unverified"},"userAgent":{"summary":"Mozilla/5.0","provenance":"client"}}"`,
   );
 });
 
@@ -102,15 +103,16 @@ test('it drops control and format characters from client strings and cuts their 
         connectingIP: { address: '203.0.113.9\nforged', provenance: 'unverified' },
         userAgent: `ua‮${'x'.repeat(100)}`,
       },
-      client: { id: `id\u0007${'i'.repeat(100)}`, name: `name‍${'n'.repeat(150)}` },
-      redirectHost: `host\r${'h'.repeat(300)}`,
+      client: {
+        id: toTagged<OAuthClientID>(`id\u0007${'i'.repeat(100)}`),
+        name: `name‍${'n'.repeat(150)}`,
+      },
     },
     0,
   );
 
   expect(JSON.parse(line.slice('atc security '.length))).toMatchObject({
     client: { id: `id${'i'.repeat(62)}`, name: `name${'n'.repeat(96)}` },
-    redirectHost: `host ${'h'.repeat(250)}`,
     peer: { address: `[31m${'1'.repeat(41)}` },
     forwarded: { address: '203.0.113.9 forged' },
     userAgent: { summary: `ua${'x'.repeat(58)}` },

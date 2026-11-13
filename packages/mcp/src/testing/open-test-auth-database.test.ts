@@ -2,7 +2,6 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/test-utils';
-import { Kysely, sql } from 'kysely';
 import { openTestAuthDatabase } from './open-test-auth-database';
 
 function setupTest() {
@@ -11,29 +10,23 @@ function setupTest() {
   return { path: join(temporaryDirectory.path, 'mcp-auth.db') };
 }
 
-test('it opens the database with foreign keys enforced', async () => {
+test('it opens the database with foreign keys enforced', () => {
   const ctx = setupTest();
-  const database = openTestAuthDatabase(ctx.path);
+  const sqlite = openTestAuthDatabase(ctx.path);
 
-  const db = new Kysely({ dialect: database.dialect });
+  onTestFinished(() => {
+    sqlite.close();
+  });
 
-  onTestFinished(() => db.destroy());
-
-  const result = await sql`PRAGMA foreign_keys`.execute(db);
-
-  expect(result.rows).toStrictEqual([{ foreign_keys: 1 }]);
+  expect(sqlite.query('PRAGMA foreign_keys').get()).toStrictEqual({ foreign_keys: 1 });
 });
 
-test('it releases the file once closed, so another connection writes to it', async () => {
+test('it releases the file once closed, so another connection writes to it', () => {
   const ctx = setupTest();
-  const database = openTestAuthDatabase(ctx.path);
+  const sqlite = openTestAuthDatabase(ctx.path);
 
-  const db = new Kysely({ dialect: database.dialect });
-
-  await sql`CREATE TABLE note (id TEXT)`.execute(db);
-  await db.destroy();
-
-  database.close();
+  sqlite.run('CREATE TABLE note (id TEXT)');
+  sqlite.close();
 
   const other = new Database(ctx.path);
 

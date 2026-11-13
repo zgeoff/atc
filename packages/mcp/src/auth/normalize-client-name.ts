@@ -1,3 +1,6 @@
+// A copy of normalizeClientName from zgeoff/tools
+// packages/mcp-auth/src/utils/normalize-client-name.ts, which the package
+// does not export; the test beside this fails when the two differ.
 export function normalizeClientName(
   raw: unknown,
   fallback = 'unnamed client',

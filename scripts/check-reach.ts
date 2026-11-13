@@ -79,6 +79,7 @@ const GATEWAY_APP_MODULES: readonly string[] = [
   'load-service-token-file.ts',
   'build-gateway-state-paths.ts',
   'open-mcp-auth-database.ts',
+  'with-mcp-auth-admin.ts',
   'clients.ts',
   'passkeys.ts',
   'create-clients-command.ts',

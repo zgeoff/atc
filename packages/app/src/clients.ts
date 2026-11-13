@@ -1,15 +1,8 @@
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-import {
-  isAllowedRedirectURI,
-  normalizeClientName,
-  openMCPAuth,
-  readClientViews,
-  removeClient,
-} from '@atc/mcp';
-import { openMCPAuthDatabase } from './open-mcp-auth-database';
+import { MCPAuthError, normalizeClientName } from '@atc/mcp';
+import { match } from 'ts-pattern';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
+import { withMCPAuthAdmin } from './with-mcp-auth-admin';
 
 export type ClientsAction =
   | { readonly kind: 'list' }
@@ -28,48 +21,87 @@ export async function runClients(
   target: ClientsTarget,
   io: Pick<ProcessIO, 'print' | 'printError' | 'setExitCode' | 'exit'> = PROCESS_IO,
 ): Promise<void> {
-  if (action.kind === 'add') {
-    const refused = action.redirectURIs.find((uri) => !isAllowedRedirectURI(uri));
+  if (action.kind === 'add' && action.redirectURIs.length === 0) {
+    io.printError(`${target.command} add: give at least one --redirect-uri`);
+    io.exit(1);
 
-    if (action.redirectURIs.length === 0 || refused !== undefined) {
-      const message =
-        refused === undefined
-          ? `${target.command} add: give at least one --redirect-uri`
-          : `${target.command} add: '${refused}' is not a redirect URI atc accepts; use https, or http on a loopback host, with no fragment`;
-
-      io.printError(message);
-      io.exit(1);
-
-      return;
-    }
+    return;
   }
 
-  mkdirSync(dirname(target.dbPath), { recursive: true });
-
-  const store = await openMCPAuth({
-    dbPath: target.dbPath,
-    openDatabase: openMCPAuthDatabase,
-    origin: null,
-  });
-
-  try {
+  await withMCPAuthAdmin(target.dbPath, async (admin) => {
     if (action.kind === 'add') {
-      const name = normalizeClientName(action.name);
+      try {
+        const created = await admin.clients.add(action.name, action.redirectURIs);
 
-      const created = await store.auth.api.createFixedClient({
-        body: { name, redirectURIs: [...action.redirectURIs] },
-      });
+        io.print(`Added ${created.name}. Its client ID is ${created.clientID}`);
+      } catch (error) {
+        if (!(error instanceof MCPAuthError)) {
+          throw error;
+        }
 
-      io.print(`Added ${name}. Its client ID is ${created.clientID}`);
+        io.printError(`${target.command} add: ${formatAddError(error)}`);
+        io.setExitCode(1);
+      }
 
       return;
     }
 
     if (action.kind === 'remove') {
-      const removed = await removeClient(store.db, action.clientID);
+      // The CLI names a client by its ID, and the package removes one by name.
+      const clients = await admin.clients.list();
 
-      if (!removed) {
+      const client = clients.find((listed) => listed.clientID === action.clientID);
+
+      if (client === undefined) {
         io.printError(`${target.command} remove: no client has the ID '${action.clientID}'`);
+        io.setExitCode(1);
+
+        return;
+      }
+
+      // The package removes the first client stored under the cleaned name, so
+      // a migrated name stored uncleaned, or one another client cleans to,
+      // would remove the wrong client or none.
+      const cleaned = normalizeClientName(client.name, '');
+
+      if (cleaned !== client.name) {
+        io.printError(
+          `${target.command} remove: the client's stored name '${client.name}' does not match it, so atc cannot remove it`,
+        );
+
+        io.setExitCode(1);
+
+        return;
+      }
+
+      const isShared = clients.some(
+        (listed) =>
+          listed.clientID !== client.clientID && normalizeClientName(listed.name, '') === cleaned,
+      );
+
+      if (isShared) {
+        io.printError(
+          `${target.command} remove: another client has the name '${client.name}', so atc cannot remove this one alone`,
+        );
+
+        io.setExitCode(1);
+
+        return;
+      }
+
+      // A client stored with no name lists under its ID, which no stored name
+      // matches.
+      try {
+        await admin.clients.remove(client.name);
+      } catch (error) {
+        if (!(error instanceof MCPAuthError) || error.code !== 'not-found') {
+          throw error;
+        }
+
+        io.printError(
+          `${target.command} remove: the client's stored name '${client.name}' does not match it, so atc cannot remove it`,
+        );
+
         io.setExitCode(1);
 
         return;
@@ -80,7 +112,7 @@ export async function runClients(
       return;
     }
 
-    const clients = await readClientViews(store.db);
+    const clients = await admin.clients.list();
 
     if (clients.length === 0) {
       io.print(`No clients. Add one with: ${target.command} add <name> --redirect-uri <uri>`);
@@ -91,7 +123,18 @@ export async function runClients(
     for (const client of clients) {
       io.print(`${client.clientID}  ${client.name}  ${client.redirectURIs.join(' ')}`);
     }
-  } finally {
-    await store.close();
-  }
+  });
+}
+
+function formatAddError(error: MCPAuthError): string {
+  return match(error.code)
+    .with(
+      'invalid-redirect-uri',
+      () =>
+        'a redirect URI is not one atc accepts; use https, or http on a loopback host, with no fragment',
+    )
+    .with('conflict', () => 'a client already has that name')
+    .with('invalid-client-name', () => 'give the client a name')
+    .with('not-found', 'invalid-setup', () => error.message)
+    .exhaustive();
 }

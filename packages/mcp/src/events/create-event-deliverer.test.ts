@@ -1,6 +1,5 @@
 import { expect, mock, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
-import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
@@ -13,12 +12,11 @@ import {
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
-import { openMCPAuth } from '../auth/open-mcp-auth';
 import { buildSeeder } from '../test-utils/build-seeder';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { buildStubRacingSubscriptionStore } from '../testing/build-stub-racing-subscription-store';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
-import { openTestAuthDatabase } from '../testing/open-test-auth-database';
+import { openTestEventDatabase } from '../testing/open-test-event-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { createEventDeliverer } from './create-event-deliverer';
 import { createSubscriptionStore } from './create-subscription-store';
@@ -45,11 +43,7 @@ async function setupTest(
 
   registerTestCleanup(() => caller.stop());
 
-  const store = await openMCPAuth({
-    dbPath: join(daemon.directory, 'mcp-auth.db'),
-    openDatabase: openTestAuthDatabase,
-    origin: null,
-  });
+  const store = await openTestEventDatabase();
 
   registerTestCleanup(() => store.close());
 

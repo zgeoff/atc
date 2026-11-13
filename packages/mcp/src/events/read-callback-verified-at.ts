@@ -1,8 +1,8 @@
 import type { Kysely } from 'kysely';
-import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
+import type { EventSchema } from './event-schema';
 
 export async function readCallbackVerifiedAt(
-  db: Kysely<MCPAuthSchema>,
+  db: Kysely<EventSchema>,
   clientID: string,
   url: string,
 ): Promise<string | null> {
