@@ -128,9 +128,9 @@ test("it routes a remote daemon's events to that daemon", async () => {
   await ctx.spawn(ctx.remote, 'late-one');
 
   await waitFor(() => {
-    expect(ctx.events).toSatisfyAny(
-      ([daemon, event]) => daemon === 'box' && event.ev === 'SessionAdded',
-    );
+    expect(
+      ctx.events.some(([daemon, event]) => daemon === 'box' && event.ev === 'SessionAdded'),
+    ).toBe(true);
   });
 });
 

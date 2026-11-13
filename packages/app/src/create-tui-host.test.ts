@@ -1,5 +1,5 @@
-import { expect, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { expect, onTestFinished, test } from 'bun:test';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { configFile } from '@atc/config';
 import { logClientEvent } from '@atc/lifecycle';
@@ -20,6 +20,10 @@ test('it hands the client the local daemon as its primary, with no daemon name',
 
 test('it follows the local daemon with each daemon of the config in config order', () => {
   mkdirSync(dirname(configFile), { recursive: true });
+
+  onTestFinished(() => {
+    rmSync(configFile, { force: true });
+  });
 
   writeFileSync(
     configFile,
