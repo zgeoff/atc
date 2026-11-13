@@ -191,6 +191,16 @@ A `cleanup` that is not an object, or an `enabled` other than `true` or `false`,
 the daemon prints it at startup and removes nothing on a forget until you fix it. Any other `check`
 value is a config error too, and the daemon uses `"unpushed"` until you fix it.
 
+When atc keeps the folder, atc writes its name and the reasons on the hint line at the foot of the
+list, in place of the key hints:
+
+```text
+kept shop-main-4: 2 unpushed commits on fix-cart
+```
+
+When the daemon refuses the forget, atc writes the daemon's error on the hint line instead. Either
+message stays until you press the next key.
+
 [Workspace cleanup](../../architecture/execution/workspace-cleanup.md#cleanup-on-forget) gives the
 checks in full.
 

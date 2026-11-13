@@ -5,9 +5,10 @@ quitting atc leaves your sessions running.
 
 ## Spawning a session
 
-Press `n` to spawn a session: pick an agent, pick a directory or a repository, give it a name, and
-type a first prompt if you have one. The session takes the whole screen, and you work in it as you
-would in a plain terminal.
+Press `n` to spawn a session: pick a daemon when
+[a remote daemon is connected](#opening-every-daemon-at-once), pick an agent, pick a directory or a
+repository, give it a name, and type a first prompt if you have one. The session takes the whole
+screen, and you work in it as you would in a plain terminal.
 
 The agent picker lists only the agents whose binary the daemon finds and that some target can start,
 and opens only when it lists more than one. After the agent, the picker shows one list that holds
@@ -80,17 +81,7 @@ When you forget a session, atc takes it off the list and removes the workspace f
 cloned for it. atc keeps a workspace folder that holds work found nowhere else, such as an unpushed
 commit.
 [Cleanup when you forget a session](./configuration/workspaces.md#cleanup-when-you-forget-a-session)
-lists every reason atc keeps one.
-
-When atc keeps the folder, atc writes its name and the reasons on the hint line at the foot of the
-list, in place of the key hints:
-
-```text
-kept shop-main-4: 2 unpushed commits on fix-cart
-```
-
-When the daemon refuses the forget, atc writes the daemon's error on the hint line instead. Either
-message stays until you press the next key.
+lists every reason atc keeps one, and where the list shows it.
 
 `y` copies a shell command that resumes the selected session outside atc, and `Y` copies it and then
 kills the session here. Only a session on the daemon's own machine has that command, because the
@@ -208,12 +199,12 @@ The name selects an entry in the config's [`daemons` key](./configuration.md#rem
 holds the daemon's address, the principal you act as, and where your token comes from. The status
 bar shows `atc@<name>` while you are on a remote daemon.
 
-The TUI connects to that daemon alone. It never starts, finds, or falls back to your local daemon,
-so when the remote daemon is unreachable, refuses your token, or speaks another protocol version,
-`atc` exits 1 with a message that holds the daemon's name, its address, and both builds and protocol
-versions for a mismatch. A connection that drops after the TUI opens shows `⟳ waiting for daemon`
-and reconnects when the daemon answers again. A reconnect that the daemon refuses, such as one with
-a token it no longer holds, exits 1 with the refusal.
+The TUI connects to that daemon alone and never starts, finds, or falls back to your local one. When
+the daemon is unreachable, refuses your token, or speaks another protocol version, `atc` exits 1
+with the daemon's name, its address, and for a mismatch both builds and protocol versions. A
+connection that drops after the TUI opens shows `⟳ waiting for daemon` and reconnects when the
+daemon answers again. A reconnect that the daemon refuses, such as one with a token it no longer
+holds, exits 1 with the refusal.
 
 atc cannot restart a daemon on another host, so the TUI never offers `u` there: restart it on its
 own host. A principal may not restore the fleet, so `R` restores nothing on a remote daemon.
@@ -227,33 +218,25 @@ that home. The roots and the zoxide list it shows are the daemon's own.
 
 Run `atc` with no `--daemon` flag after you add entries to the config's
 [`daemons` key](./configuration.md#remote-daemons), and the list shows the sessions of your local
-daemon and of each entry. Each row on a remote daemon starts with that daemon's name, and a local
-row looks as it does without entries. With no entries, `atc` behaves as before.
+daemon and of each entry. A remote row starts with its daemon's name, and a local row has no name.
+With no entries, the list shows your local daemon alone.
 
-A remote daemon you cannot reach shows as one line under the rows, with its name and its state:
+A remote daemon you cannot reach shows as one line with its name and its state, and the list hides
+its rows. `down` means unreachable or dropped, and atc retries within seconds. `unauthorized` means
+the token is missing or refused, and `mismatched` means another protocol version. atc retries both
+every 30 seconds, so fixing the token or upgrading the daemon heals the link. A remote daemon never
+ends atc.
 
-- `down`: the daemon is unreachable or the connection dropped. atc tries again by itself.
-- `unauthorized`: the token is missing or unreadable, or the daemon refused it or your principal.
-  atc reads the token again and retries every 30 seconds, so fixing the token heals the link.
-- `mismatched`: the daemon speaks another protocol version. atc retries every 30 seconds, so
-  upgrading the daemon heals the link.
+Each action on a row goes to the daemon that holds the session. When that daemon is not up, atc
+sends nothing and the status bar shows its name and state.
+[The TUI and its daemons](../architecture/tui/daemon-links.md) covers refusals, confirmations and
+reattaching.
 
-While a remote daemon is not up, the list hides its rows and the rest of the list works as usual.
-atc never ends because of a remote daemon, and a failed local start still ends it at once.
-
-Each action on a row goes to the daemon that holds the session: attach, typing, answering a prompt,
-rename, pin, stop, forget and eject. When that daemon is not up, atc sends nothing and the status
-bar shows the daemon's name and state. When a remote daemon refuses an action, such as a principal
-that may not stop the session, the status bar shows the daemon's name and the refusal. A kill or
-forget you confirmed acts on the session you opened it on, and it cancels when that session leaves
-the list or its daemon drops.
-
-When the daemon of the session you are attached to drops, the status bar shows
-`⟳ waiting for daemon`. atc attaches again once the daemon is back and still holds the session, and
-returns to the list otherwise.
-
-`n` spawns on your local daemon. `u`, `R` and the count of stored sessions on the home screen act on
-your local daemon only. `atc --daemon <name>` still opens that one daemon alone.
+`n` asks which daemon to spawn on when a remote daemon is up beside the local one. The later steps
+list that daemon's directories, agents and targets. A remote daemon leaves out the directory you ran
+`atc` from, and `~` stands for its home. The new session attaches on that daemon. If the daemon
+drops while you pick, the picker closes and the status bar shows its state. `u`, `R` and the count
+of stored sessions on the home screen act on your local daemon only.
 
 ## Running the daemon under systemd
 
