@@ -23,6 +23,30 @@ test('it refuses a token other than the one it holds', async () => {
   ).rejects.toThrow();
 });
 
+test('it records the session_id of a hook line as the agent session id', async () => {
+  const remote = await startRemoteTestDaemon();
+
+  const spawned = await remote.client.sendRequest('session.spawn', {
+    cwd: remote.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = getRecord(spawned, 'session')['id'];
+
+  await remote.sendHookLines({
+    atcId: String(id),
+    event: 'SessionStart',
+    payload: { session_id: 'agent-7' },
+  });
+
+  await waitFor(async () => {
+    const listed = await remote.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({ id, agentSessionID: 'agent-7' });
+  });
+});
+
 test('it echoes a line typed into a session as GOT-REMOTE', async () => {
   const remote = await startRemoteTestDaemon();
 
