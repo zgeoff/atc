@@ -1,5 +1,4 @@
-// A compiled binary runs the passkey library's code before its own import of
-// this polyfill.
+// Keep this import first: mcp-auth's own import of it loads too late in a compiled binary.
 import 'reflect-metadata';
 import { runGatewayCLI } from './run-gateway-cli';
 
