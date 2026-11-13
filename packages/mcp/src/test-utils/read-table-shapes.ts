@@ -33,7 +33,7 @@ export function readTableShapes(sqlite: Database) {
         indexes: sqlite
           .query(`PRAGMA index_list("${table}")`)
           .all()
-          .map((row) => NameSchema.passthrough().parse(row))
+          .map((row) => NameSchema.loose().parse(row))
           .map((row) => {
             const { seq: _seq, ...index } = row;
 

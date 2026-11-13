@@ -7,7 +7,7 @@ import type { GrantID, MCPAuth, SecuritySink, ServiceTokenFile } from '@zgeoff/m
 import { ATC_AUTH_PATHS, ATC_AUTH_TABLES, SERVICE_TOKEN_PREFIX } from './constants';
 import { runGrantMigration } from './run-grant-migration';
 
-export type ATCAuth = MCPAuth<GrantScope, null>;
+export type ATCAuth = MCPAuth<GrantScope>;
 
 interface ATCAuthOptions {
   readonly database: Database;

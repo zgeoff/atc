@@ -56,7 +56,7 @@ test("it enrolls the authenticator's passkey with the token", async () => {
 
   const passkeys = await ctx.store.admin.passkeys.list();
 
-  expect(passkeys.map((passkey) => `${passkey.id}`)).toStrictEqual([authenticator.credentialID]);
+  expect(passkeys).toMatchObject([{ id: authenticator.credentialID }]);
 });
 
 test('it throws when the token does not reach the passkey prompt', async () => {
