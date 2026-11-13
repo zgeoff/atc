@@ -4,7 +4,7 @@ import type { TUIDaemon } from '@atc/tui';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
 import { buildRemoteListingCachePath } from './build-remote-listing-cache-path';
 import { openListingCache } from './open-listing-cache';
-import { toDaemonLinkFailureError } from './to-daemon-link-failure';
+import { toDaemonLinkFailureError } from './to-daemon-link-failure-error';
 
 // The TUI's entry for a daemon from the config's `daemons` map: a boot that acts as the entry's
 // principal and rejects with the failure's kind, and a listing cache of the daemon's own, so the

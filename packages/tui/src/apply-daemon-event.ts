@@ -14,7 +14,7 @@ import type { MirrorSession } from './to-mirror-session';
 export interface DaemonEventDeps {
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
-  readonly overlay: OverlayScreen;
+  readonly overlay: Pick<OverlayScreen, 'render'>;
   readonly clock: Clock;
   readonly getMode: () => ClientMode;
   readonly findFocusedKey: () => SessionKey | null;
