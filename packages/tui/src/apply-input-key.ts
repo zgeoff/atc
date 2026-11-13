@@ -5,6 +5,7 @@ import type { ClientMode, RestartConsent } from './build-client-machine';
 import type { EjectScreen } from './create-eject-screen';
 import { KEY } from './keys';
 import type { SpawnPicker } from './picker/create-spawn-picker';
+import type { DaemonName, SessionKey } from './session-key';
 
 // What a key from stdin borrows from the client that owns the screen, on top
 // of what the overlay's keys borrow.
@@ -13,7 +14,12 @@ export interface InputKeyDeps extends OverlayKeyDeps {
   readonly eject: EjectScreen;
   readonly stdinDecoder: TextDecoder;
   readonly getMode: () => ClientMode;
-  readonly findFocusedID: () => string | null;
+  readonly findFocusedKey: () => SessionKey | null;
+  readonly sendQuiet: (
+    daemon: DaemonName,
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
+  ) => Promise<void>;
   readonly findRestartConsent: () => RestartConsent | null;
   readonly restoreFleet: () => Promise<void>;
 }
@@ -57,11 +63,11 @@ function applyAttachedKey(buf: Buffer, deps: InputKeyDeps) {
     return;
   }
 
-  const focusedID = deps.findFocusedID();
+  const focused = deps.findFocusedKey();
 
-  if (focusedID !== null) {
-    void deps.sendQuiet('session.input', {
-      session: focusedID,
+  if (focused !== null) {
+    void deps.sendQuiet(focused.daemon, 'session.input', {
+      session: focused.id,
       data: deps.stdinDecoder.decode(buf, { stream: true }),
     });
   }

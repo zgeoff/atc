@@ -10,13 +10,13 @@ import { buildRemoteListingCachePath } from './build-remote-listing-cache-path';
 import { createRemoteTUIHost } from './create-remote-tui-host';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 
-test('it holds the daemon name', () => {
+test('it holds the one daemon the flag names, as the primary', () => {
   const host = createRemoteTUIHost(
     buildMockLifecycleHost(),
     buildMockRemoteDaemon({ name: 'box' }),
   );
 
-  expect(host.daemonName).toBe('box');
+  expect(host.daemons.map((daemon) => daemon.name)).toStrictEqual(['box']);
 });
 
 test("it keeps the daemon's listings in a cache of its own beside the local one", async () => {
@@ -30,22 +30,14 @@ test("it keeps the daemon's listings in a cache of its own beside the local one"
     buildMockRemoteDaemon({ name: 'box' }),
   );
 
-  await host.listingCache.writeListing('github', { candidates: [], scope: 'acme', listedAt: 1 });
+  await host.daemons[0]?.listingCache.writeListing('github', {
+    candidates: [],
+    scope: 'acme',
+    listedAt: 1,
+  });
 
   expect(existsSync(buildRemoteListingCachePath(paths.listingCacheFile, 'box'))).toBeTrue();
   expect(existsSync(paths.listingCacheFile)).toBeFalse();
-});
-
-test('it refuses a restart, since the daemon host restarts it', () => {
-  const host = createRemoteTUIHost(
-    buildMockLifecycleHost(),
-    buildMockRemoteDaemon({ name: 'box' }),
-  );
-
-  expect(host.restartDaemon('127.0.0.1:7420')).rejects.toThrowWithMessage(
-    Error,
-    "daemon 'box' runs on another host; restart it on that host",
-  );
 });
 
 test('it boots the remote daemon with the build the invocation reads', () => {
@@ -74,7 +66,7 @@ test('it boots the remote daemon with the build the invocation reads', () => {
     }),
   );
 
-  expect(host.bootDaemon()).rejects.toThrow(
+  expect(host.daemons[0]?.bootDaemon()).rejects.toThrow(
     `The daemon answered: atc/remote-host-test speaks protocol v${PROTOCOL_V}`,
   );
 });

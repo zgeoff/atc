@@ -10,6 +10,7 @@ export function buildMockMirrorSession(
 
   return mergeDeep<MirrorSession>(
     {
+      daemon: null,
       id: faker.string.uuid(),
       name: faker.word.noun(),
       cwd,

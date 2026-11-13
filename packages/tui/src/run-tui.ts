@@ -2,8 +2,9 @@ import type { AgentID } from '@atc/core';
 import { ansi, makeSingleFlight, systemClock } from '@atc/core';
 import { countSessionStates, sortSessionViews } from '@atc/protocol';
 import type { DaemonBoot } from '@atc/protocol';
-import type { DaemonClient } from '@atc/protocol/client';
+import type { DaemonEvent } from '@atcx/contract';
 import { resolveHomeDir } from '@atcx/contract/light';
+import invariant from 'tiny-invariant';
 import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { applyDaemonEvent } from './apply-daemon-event';
@@ -13,31 +14,56 @@ import type { InputKeyDeps } from './apply-input-key';
 import { buildClientMachine } from './build-client-machine';
 import type { RestartConsent } from './build-client-machine';
 import { buildLeaderChords } from './build-leader-chords';
+import { createDaemonLinks } from './create-daemon-links';
 import { createEjectScreen } from './create-eject-screen';
 import { createFleetMirror } from './create-fleet-mirror';
 import { createOverlayScreen } from './create-overlay-screen';
 import { createSessionActions } from './create-session-actions';
 import { createTUIDaemonConnection } from './create-tui-daemon-connection';
+import { formatLinkState } from './daemon-link-state';
 import { createSpawnPicker } from './picker/create-spawn-picker';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
 import { restartDaemon } from './restart-daemon';
+import { formatDaemonFailure, sendToDaemon } from './send-to-daemon';
+import { toSessionKey } from './session-key';
+import type { DaemonName, SessionKey } from './session-key';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
 import type { TUIHost } from './tui-host';
 import { cols, drawHelp, drawHome, drawStatusBar, rows } from './ui';
 
+// How long the status bar keeps the reason an action sent nothing or was refused.
+const STATUS_NOTICE_MS = 8000;
+
 export async function runTUI(host: TUIHost): Promise<void> {
-  const bootDaemonClient = host.bootDaemon;
-  const restartDaemonAt = host.restartDaemon;
+  const [primary] = host.daemons;
+
+  invariant(primary !== undefined, 'the host passes the client at least its primary daemon');
+
+  const primaryName: DaemonName = primary.name;
+  const bootDaemonClient = primary.bootDaemon;
+
+  // Only the local daemon can be restarted from here; a daemon on another host restarts there.
+  const restartDaemonAt =
+    primary.name === null
+      ? primary.restartDaemon
+      : (): Promise<boolean> =>
+          Promise.reject(
+            new Error(`daemon '${primary.name}' runs on another host; restart it on that host`),
+          );
+
   const logClientEvent = host.logEvent;
-  const remoteDaemonName = host.daemonName;
 
   // The time and the timers every wait of this client runs on.
   const clock = systemClock;
-  const mirror = createFleetMirror();
-  let focusedID: string | null = null;
+  const mirror = createFleetMirror(primaryName);
+  let focusedKey: SessionKey | null = null;
   let lastUsedAgent: AgentID = host.readConfig().defaultAgent;
   let statusTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Why the last action on a daemon sent nothing or was refused, until it times out.
+  let statusNotice: string | null = null;
+  let cancelStatusNotice: (() => void) | null = null;
 
   // the config alone until the daemon's `agents.list` answer arrives; it re-resolves on
   // every overlay open, so a backend configured after this client started still lists
@@ -48,15 +74,15 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const leaderChords = buildLeaderChords(leader.code);
 
   const findFocused = (): MirrorSession | null =>
-    mirror.sessions.find((session) => session.id === focusedID) ?? null;
+    focusedKey === null ? null : (mirror.find(toSessionKey(focusedKey)) ?? null);
 
   const openHome = () => {
     drawHome(mirror.count, leader.label);
     scheduleStatus();
   };
 
-  const openAttached = (sessionID: string) => {
-    focusedID = sessionID;
+  const openAttached = (key: SessionKey) => {
+    focusedKey = key;
 
     stdout.write(ansi.clear + ansi.showCursor);
 
@@ -71,50 +97,92 @@ export async function runTUI(host: TUIHost): Promise<void> {
     statusTimer = setTimeout(() => {
       statusTimer = null;
 
-      if (getMode() !== 'attached') {
+      if (getMode() !== 'attached' || isAttachedLinkDown()) {
         const focused = findFocused();
-
-        const urgent = sortSessionViews(mirror.sessions).find(
-          (session) => session.state === 'needs_you',
-        );
+        const visible = overlay.listVisible();
+        const urgent = sortSessionViews(visible).find((session) => session.state === 'needs_you');
 
         drawStatusBar({
-          counts: countSessionStates(mirror.sessions),
+          counts: countSessionStates(visible),
           focusedName: focused === null ? null : focused.name,
           urgentName: urgent === undefined ? null : urgent.name,
           leaderLabel: leader.label,
           stale: getBoot().stale,
           restarting: isDaemonRestarting(),
-          waiting: isDaemonWaiting(),
-          daemonName: remoteDaemonName,
+          waiting: isDaemonWaiting() || isAttachedLinkDown(),
+          daemonName: primaryName,
+          notice: statusNotice,
         });
       }
     }, 50);
   };
 
-  const sendQuiet = async (method: string, params?: Readonly<Record<string, unknown>>) => {
+  // The attached session's daemon is a remote one whose link is not up: the session waits for it
+  // on its own screen and comes back once the link does.
+  const isAttachedLinkDown = (): boolean =>
+    getMode() === 'attached' &&
+    focusedKey !== null &&
+    focusedKey.daemon !== primaryName &&
+    links.stateOf(focusedKey.daemon).kind !== 'up';
+
+  const showStatusNotice = (text: string) => {
+    statusNotice = text;
+    cancelStatusNotice?.();
+
+    cancelStatusNotice = clock.schedule(() => {
+      statusNotice = null;
+      cancelStatusNotice = null;
+
+      scheduleStatus();
+    }, STATUS_NOTICE_MS);
+
+    scheduleStatus();
+  };
+
+  const reportFailure = (daemon: DaemonName, error: unknown) => {
+    const text = formatDaemonFailure(daemon, error);
+
+    if (text !== null) {
+      showStatusNotice(text);
+    }
+  };
+
+  const sendQuiet = async (
+    daemon: DaemonName,
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
+  ) => {
     try {
-      await getClient().sendRequest(method, params);
+      await sendToDaemon(links, daemon, method, params);
     } catch {}
   };
 
-  const attach = async (sessionID: string) => {
-    service.send({ type: 'ATTACH', sessionID });
+  const attach = async (key: SessionKey) => {
+    // A daemon whose link is not up gets nothing, and says why on the status bar.
+    if (links.clientFor(key.daemon) === null) {
+      showStatusNotice(formatLinkState(key.daemon, links.stateOf(key.daemon)));
+
+      return;
+    }
+
+    service.send({ type: 'ATTACH', key });
 
     try {
-      await getClient().sendRequest('session.attach', {
-        session: sessionID,
+      await sendToDaemon(links, key.daemon, 'session.attach', {
+        session: key.id,
         cols: cols(),
         rows: ptyRows(),
       });
-    } catch {
+    } catch (error) {
+      reportFailure(key.daemon, error);
+
       service.send({ type: 'OVERLAY' });
     }
   };
 
   const detachFocused = () => {
-    if (focusedID !== null) {
-      void sendQuiet('session.detach', { session: focusedID });
+    if (focusedKey !== null) {
+      void sendQuiet(focusedKey.daemon, 'session.detach', { session: focusedKey.id });
     }
   };
 
@@ -122,8 +190,13 @@ export async function runTUI(host: TUIHost): Promise<void> {
     const focused = findFocused();
 
     if (focused !== null && focused.alive) {
-      service.send({ type: 'ATTACH', sessionID: focused.id });
-      void sendQuiet('session.attach', { session: focused.id, cols: cols(), rows: ptyRows() });
+      service.send({ type: 'ATTACH', key: { daemon: focused.daemon, id: focused.id } });
+
+      void sendQuiet(focused.daemon, 'session.attach', {
+        session: focused.id,
+        cols: cols(),
+        rows: ptyRows(),
+      });
     } else {
       service.send({ type: 'HOME' });
     }
@@ -139,8 +212,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
     picker.open(resume);
   };
 
+  // The picker spawns on the primary daemon.
   const sendRequest = (method: string, params?: Readonly<Record<string, unknown>>) =>
-    getClient().sendRequest(method, params);
+    sendToDaemon(links, primaryName, method, params);
 
   const getLastUsedAgent = (): AgentID => lastUsedAgent;
 
@@ -148,25 +222,28 @@ export async function runTUI(host: TUIHost): Promise<void> {
     lastUsedAgent = agent;
   };
 
-  const findFocusedID = (): string | null => focusedID;
+  const findFocusedKey = (): SessionKey | null => focusedKey;
 
   const restoreFleet = async () => {
     try {
-      await getClient().sendRequest('fleet.restore', { cols: cols(), rows: ptyRows() });
+      await sendToDaemon(links, primaryName, 'fleet.restore', { cols: cols(), rows: ptyRows() });
     } catch {
       return;
     }
 
-    const first = sortSessionViews(mirror.sessions).find((session) => session.alive);
+    const first = sortSessionViews(
+      mirror.sessions.filter((session) => session.daemon === primaryName),
+    ).find((session) => session.alive);
 
     if (first !== undefined) {
-      await attach(first.id);
+      await attach({ daemon: primaryName, id: first.id });
     }
   };
 
   const quit = (code = 0, message?: string): never => {
     detachFocused();
 
+    links.stop();
     connection.transport.stop();
     stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);
 
@@ -194,12 +271,62 @@ export async function runTUI(host: TUIHost): Promise<void> {
 
   // The restart prompt that waits for its key, or null.
   const findRestartConsent = (): RestartConsent | null => service.getSnapshot().context.consent;
-  const getClient = (): DaemonClient => connection.getClient();
   const getBoot = (): DaemonBoot => connection.getBoot();
 
   // Where the client stands with the daemon, as the machine holds it.
   const isDaemonWaiting = (): boolean => service.getSnapshot().matches({ daemon: 'waiting' });
   const isDaemonRestarting = (): boolean => service.getSnapshot().matches({ daemon: 'restarting' });
+
+  // A confirmation or the eject prompt holds the key of the session it opened on, and ends once
+  // that session leaves the list or its daemon's link leaves up.
+  const isStale = (key: SessionKey): boolean =>
+    !mirror.has(toSessionKey(key)) || links.stateOf(key.daemon).kind !== 'up';
+
+  const cancelStaleConfirmations = () => {
+    const confirmKey = service.getSnapshot().context.confirmKey;
+
+    if (confirmKey !== null && getConfirm() !== 'none' && isStale(confirmKey)) {
+      service.send({ type: 'CONFIRM_DONE' });
+
+      if (getMode() === 'overlay') {
+        overlay.render();
+      }
+    }
+
+    const ejectKey = eject.findTarget();
+
+    if (getMode() === 'picker-eject' && ejectKey !== null && isStale(ejectKey)) {
+      service.send({ type: 'OVERLAY' });
+    }
+  };
+
+  // A remote link that came back reattaches the session on screen when its refreshed list still
+  // holds it, and otherwise returns to the list.
+  const resumeAttachedSession = (daemon: DaemonName) => {
+    if (getMode() !== 'attached' || focusedKey === null || focusedKey.daemon !== daemon) {
+      return;
+    }
+
+    if (links.stateOf(daemon).kind !== 'up') {
+      return;
+    }
+
+    const focused = findFocused();
+
+    if (focused === null || !focused.alive) {
+      service.send({ type: 'OVERLAY' });
+
+      return;
+    }
+
+    stdout.write(ansi.clear);
+
+    void sendQuiet(daemon, 'session.attach', {
+      session: focused.id,
+      cols: cols(),
+      rows: ptyRows(),
+    });
+  };
 
   const drawMode = () => {
     match(getMode())
@@ -229,6 +356,17 @@ export async function runTUI(host: TUIHost): Promise<void> {
     scheduleStatus();
   };
 
+  const links = createDaemonLinks({
+    daemons: host.daemons,
+    clock,
+    mirror,
+    onEvent: (daemon, event) => {
+      handleDaemonEvent(daemon, event);
+    },
+    readAgents: (daemon, client) => overlay.readAgents(daemon, client),
+    logEvent: logClientEvent,
+  });
+
   const picker = createSpawnPicker<MirrorSession>({
     sendRequest,
     ptyRows,
@@ -236,8 +374,8 @@ export async function runTUI(host: TUIHost): Promise<void> {
     getLastUsedAgent,
     scheduleStatus,
     showBase,
-    attach,
-    toMirrorSession,
+    attach: (id) => attach({ daemon: primaryName, id }),
+    toMirrorSession: (value) => toMirrorSession(value, primaryName),
     upsertMirror: (session) => {
       mirror.upsert(session);
     },
@@ -250,13 +388,13 @@ export async function runTUI(host: TUIHost): Promise<void> {
     },
     cwd: process.cwd(),
     home: resolveHomeDir(),
-    remoteDaemon: remoteDaemonName !== null,
+    remoteDaemon: primaryName !== null,
     readConfig: host.readConfig,
     onDropAnswer: (kind) => {
       logClientEvent(`dropped ${kind} answer`);
     },
     log: logClientEvent,
-    listingCache: host.listingCache,
+    listingCache: primary.listingCache,
     getDaemonSocketPath: () => getBoot().socketPath,
     clock,
   });
@@ -271,8 +409,8 @@ export async function runTUI(host: TUIHost): Promise<void> {
       },
       openHelp,
       openPicker,
-      openEject: (sessionID) => {
-        eject.open(sessionID);
+      openEject: (key) => {
+        eject.open(key);
       },
     }),
   );
@@ -281,10 +419,10 @@ export async function runTUI(host: TUIHost): Promise<void> {
     mirror,
     bootMetadata,
     readConfig: host.readConfig,
-    findFocusedID,
+    links,
+    findFocusedKey,
     getMode,
     getConfirm,
-    getClient,
     getBoot,
     isDaemonRestarting,
     scheduleStatus,
@@ -294,17 +432,17 @@ export async function runTUI(host: TUIHost): Promise<void> {
     service,
     mirror,
     overlay,
-    getClient,
+    links,
     getMode,
     attach,
-    sendQuiet,
     ptyRows,
+    reportFailure,
   });
 
   const eject = createEjectScreen({
     service,
     actions,
-    getClient,
+    links,
     isLeaderKey,
     showBase,
     scheduleStatus,
@@ -316,9 +454,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
     overlay,
     clock,
     getMode,
-    findFocusedID,
-    setFocusedID: (sessionID) => {
-      focusedID = sessionID;
+    findFocusedKey,
+    setFocusedKey: (key) => {
+      focusedKey = key;
     },
     setLastUsedAgent,
     findFocused,
@@ -328,7 +466,8 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const connection = createTUIDaemonConnection({
     clock,
     bootDaemonClient,
-    remoteDaemonName,
+    primary: primaryName,
+    links,
     service,
     mirror,
     overlay,
@@ -342,13 +481,33 @@ export async function runTUI(host: TUIHost): Promise<void> {
     quit,
     logClientEvent,
     onEvent: (raw) => {
-      applyDaemonEvent(raw, eventDeps);
+      handleDaemonEvent(primaryName, raw);
     },
     setLastUsedAgent,
   });
 
+  // The links of the daemons beside the primary open once the primary's first boot is through.
+  const handleDaemonEvent = (daemon: DaemonName, raw: DaemonEvent) => {
+    applyDaemonEvent(daemon, raw, eventDeps);
+    cancelStaleConfirmations();
+  };
+
   // A boot that fails leaves before the first frame, with its message alone:
   // the message holds the daemon and what to do, and a stack would bury it.
+  links.onChange((daemon) => {
+    cancelStaleConfirmations();
+
+    if (daemon !== primaryName) {
+      resumeAttachedSession(daemon);
+    }
+
+    if (getMode() === 'overlay') {
+      overlay.render();
+    }
+
+    scheduleStatus();
+  });
+
   const firstLink = await connection.transport.waitForConnection().catch((error: unknown) => {
     stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);
 
@@ -362,11 +521,13 @@ export async function runTUI(host: TUIHost): Promise<void> {
   });
 
   if (firstLink.restarted) {
-    await sendQuiet('fleet.restore', { cols: cols(), rows: ptyRows() });
+    await sendQuiet(primaryName, 'fleet.restore', { cols: cols(), rows: ptyRows() });
   }
 
-  await mirror.refresh(getClient);
+  await mirror.refresh(primaryName, connection.getClient());
   await overlay.refreshAgents();
+
+  links.openRemotes();
 
   const restartDaemonOnce = makeSingleFlight(async () => {
     service.send({ type: 'RESTART_STARTED' });
@@ -380,9 +541,10 @@ export async function runTUI(host: TUIHost): Promise<void> {
         transport: connection.transport,
         clock,
         getBoot,
-        getClient,
+        getClient: connection.getClient,
         restartDaemonAt,
         readConfig: host.readConfig,
+        primary: primaryName,
         sendQuiet,
         logClientEvent,
         scheduleStatus,
@@ -416,7 +578,8 @@ export async function runTUI(host: TUIHost): Promise<void> {
     getMode,
     getConfirm,
     getBoot,
-    findFocusedID,
+    links,
+    findFocusedKey,
     findRestartConsent,
     isLeaderKey,
     showBase,
@@ -443,8 +606,12 @@ export async function runTUI(host: TUIHost): Promise<void> {
       return;
     }
 
-    if (getMode() === 'attached' && focusedID !== null) {
-      void sendQuiet('session.resize', { session: focusedID, cols: cols(), rows: ptyRows() });
+    if (getMode() === 'attached' && focusedKey !== null) {
+      void sendQuiet(focusedKey.daemon, 'session.resize', {
+        session: focusedKey.id,
+        cols: cols(),
+        rows: ptyRows(),
+      });
     }
 
     drawMode();

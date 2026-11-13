@@ -9,8 +9,8 @@ test("it hands the client lifecycle's client event log, so the client writes no 
   expect(host.logEvent).toBe(logClientEvent);
 });
 
-test('it hands the client the local daemon, with no daemon name', () => {
+test('it hands the client the local daemon as its primary, with no daemon name', () => {
   const host = createTUIHost(buildMockLifecycleHost());
 
-  expect(host.daemonName).toBeNull();
+  expect(host.daemons.map((daemon) => daemon.name)).toStrictEqual([null]);
 });

@@ -59,7 +59,7 @@ test('#sendForget shows the kept folder and its reasons when the forget keeps th
   writeFileSync(join(String(session['cwd']), 'harvest-plan.md'), '# pick the pears first\n');
 
   await ctx.client.sendRequest('session.kill', { session: session['id'] });
-  await ctx.actions.sendForget(String(session['id']));
+  await ctx.actions.sendForget({ daemon: null, id: String(session['id']) });
 
   expect(ctx.overlay.notice).toBe('kept orchard-main: 1 uncommitted or untracked path');
 });
@@ -79,7 +79,7 @@ test('#sendForget shows no notice when the forget removes the workspace', async 
   const id = getRecord(spawned, 'session')['id'];
 
   await ctx.client.sendRequest('session.kill', { session: id });
-  await ctx.actions.sendForget(String(id));
+  await ctx.actions.sendForget({ daemon: null, id: String(id) });
 
   expect(ctx.overlay.notice).toBeNull();
 });
@@ -96,7 +96,7 @@ test("#sendForget shows the daemon's refusal of a forget of a session that came 
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  await ctx.actions.sendForget(id);
+  await ctx.actions.sendForget({ daemon: null, id });
 
   expect(ctx.overlay.notice).toBe(`session ${id} is live; stop it before forgetting it`);
 });
@@ -114,12 +114,12 @@ test('#sendForget asks once more when the forget destroys the host, and destroys
   const id = String(getRecord(spawned, 'session')['id']);
 
   await ctx.client.sendRequest('session.kill', { session: id });
-  await ctx.actions.sendForget(id);
+  await ctx.actions.sendForget({ daemon: null, id });
 
   expect({
-    destroyID: ctx.service.getSnapshot().context.destroyID,
+    confirmKey: ctx.service.getSnapshot().context.confirmKey,
     destroyed: ctx.imp.destroyed,
-  }).toStrictEqual({ destroyID: id, destroyed: [] });
+  }).toStrictEqual({ confirmKey: { daemon: null, id }, destroyed: [] });
 });
 
 test('#sendDestroy hands the offered token back and forgets the session with its host', async () => {
@@ -135,7 +135,7 @@ test('#sendDestroy hands the offered token back and forgets the session with its
   const id = String(getRecord(spawned, 'session')['id']);
 
   await ctx.client.sendRequest('session.kill', { session: id });
-  await ctx.actions.sendDestroy(id);
+  await ctx.actions.sendDestroy({ daemon: null, id });
 
   expect({
     notice: ctx.overlay.notice,
@@ -158,7 +158,7 @@ test("#sendDestroy shows the daemon's refusal when the host destroy fails", asyn
   const id = String(getRecord(spawned, 'session')['id']);
 
   await ctx.client.sendRequest('session.kill', { session: id });
-  await ctx.actions.sendDestroy(id);
+  await ctx.actions.sendDestroy({ daemon: null, id });
 
   expect(ctx.overlay.notice).toInclude('the orchard host did not answer');
 });

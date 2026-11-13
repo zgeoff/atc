@@ -6,7 +6,7 @@ import type { OverlayScreen } from '../create-overlay-screen';
 import { createSessionActions } from '../create-session-actions';
 import { buildStubClientScreens } from './build-stub-client-screens';
 
-// The overlay's session actions over the client a test gives, with the client's real state
+// The overlay's session actions over the one daemon client a test gives, as the local daemon, with the client's real state
 // machine and an overlay that only holds its notice; the test stops the machine.
 export function createSessionActionsHarness(client: Pick<DaemonClient, 'sendRequest'>) {
   const service = createActor(buildClientMachine(buildStubClientScreens().deps));
@@ -20,13 +20,13 @@ export function createSessionActionsHarness(client: Pick<DaemonClient, 'sendRequ
 
   const actions = createSessionActions({
     service,
-    mirror: createFleetMirror(),
+    mirror: createFleetMirror(null),
     overlay,
-    getClient: () => client,
+    links: { clientFor: () => client, stateOf: () => ({ kind: 'up' }) },
     getMode: () => service.getSnapshot().value.mode,
     attach: () => Promise.resolve(),
-    sendQuiet: () => Promise.resolve(),
     ptyRows: () => 24,
+    reportFailure: () => {},
   });
 
   return {

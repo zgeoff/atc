@@ -37,7 +37,7 @@ test('it attaches a session from the home screen', () => {
   const ctx = setupTest();
 
   ctx.actor.start();
-  ctx.actor.send({ type: 'ATTACH', sessionID: 's1' });
+  ctx.actor.send({ type: 'ATTACH', key: { daemon: null, id: 's1' } });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('attached');
   expect(ctx.calls).toStrictEqual(['openHome', 'openAttached:s1']);
@@ -58,7 +58,7 @@ test('it lets the attached session go before it opens the overlay', () => {
 
   ctx.actor.start();
 
-  for (const event of [{ type: 'ATTACH', sessionID: 's1' }] as const) {
+  for (const event of [{ type: 'ATTACH', key: { daemon: null, id: 's1' } }] as const) {
     ctx.actor.send(event);
   }
 
@@ -73,11 +73,14 @@ test('it lets the attached session go before it attaches another from the overla
 
   ctx.actor.start();
 
-  for (const event of [{ type: 'ATTACH', sessionID: 's1' }, { type: 'OVERLAY' }] as const) {
+  for (const event of [
+    { type: 'ATTACH', key: { daemon: null, id: 's1' } },
+    { type: 'OVERLAY' },
+  ] as const) {
     ctx.actor.send(event);
   }
 
-  ctx.actor.send({ type: 'ATTACH', sessionID: 's2' });
+  ctx.actor.send({ type: 'ATTACH', key: { daemon: null, id: 's2' } });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('attached');
 
@@ -129,7 +132,7 @@ test('it opens the eject prompt for the selected session from the overlay', () =
     ctx.actor.send(event);
   }
 
-  ctx.actor.send({ type: 'EJECT', sessionID: 's7' });
+  ctx.actor.send({ type: 'EJECT', key: { daemon: null, id: 's7' } });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('picker-eject');
   expect(ctx.calls).toStrictEqual(['openHome', 'openOverlay', 'openEject:s7']);
@@ -140,7 +143,10 @@ test('it returns to the overlay from the eject prompt', () => {
 
   ctx.actor.start();
 
-  for (const event of [{ type: 'OVERLAY' }, { type: 'EJECT', sessionID: 's7' }] as const) {
+  for (const event of [
+    { type: 'OVERLAY' },
+    { type: 'EJECT', key: { daemon: null, id: 's7' } },
+  ] as const) {
     ctx.actor.send(event);
   }
 
@@ -174,7 +180,7 @@ test('it attaches a session from the spawn picker', () => {
     ctx.actor.send(event);
   }
 
-  ctx.actor.send({ type: 'ATTACH', sessionID: 's3' });
+  ctx.actor.send({ type: 'ATTACH', key: { daemon: null, id: 's3' } });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('attached');
   expect(ctx.calls).toStrictEqual(['openHome', 'openPicker:false', 'openAttached:s3']);
@@ -194,7 +200,7 @@ test('it ignores an eject request on the home screen', () => {
   const ctx = setupTest();
 
   ctx.actor.start();
-  ctx.actor.send({ type: 'EJECT', sessionID: 's1' });
+  ctx.actor.send({ type: 'EJECT', key: { daemon: null, id: 's1' } });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('home');
   expect(ctx.calls).toStrictEqual(['openHome']);
@@ -205,7 +211,7 @@ test('it ignores a return-home request while attached', () => {
 
   ctx.actor.start();
 
-  for (const event of [{ type: 'ATTACH', sessionID: 's1' }] as const) {
+  for (const event of [{ type: 'ATTACH', key: { daemon: null, id: 's1' } }] as const) {
     ctx.actor.send(event);
   }
 
@@ -220,7 +226,7 @@ test('it ignores a spawn request while attached', () => {
 
   ctx.actor.start();
 
-  for (const event of [{ type: 'ATTACH', sessionID: 's1' }] as const) {
+  for (const event of [{ type: 'ATTACH', key: { daemon: null, id: 's1' } }] as const) {
     ctx.actor.send(event);
   }
 
@@ -239,7 +245,7 @@ test('it ignores an eject request in the spawn picker', () => {
     ctx.actor.send(event);
   }
 
-  ctx.actor.send({ type: 'EJECT', sessionID: 's1' });
+  ctx.actor.send({ type: 'EJECT', key: { daemon: null, id: 's1' } });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('picker');
   expect(ctx.calls).toStrictEqual(['openHome', 'openPicker:false']);
@@ -269,7 +275,7 @@ test('it attaches a session from the overlay', () => {
     ctx.actor.send(event);
   }
 
-  ctx.actor.send({ type: 'ATTACH', sessionID: 's4' });
+  ctx.actor.send({ type: 'ATTACH', key: { daemon: null, id: 's4' } });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('attached');
   expect(ctx.calls).toStrictEqual(['openHome', 'openOverlay', 'openAttached:s4']);
@@ -310,11 +316,14 @@ test('it attaches a session from the eject prompt', () => {
 
   ctx.actor.start();
 
-  for (const event of [{ type: 'OVERLAY' }, { type: 'EJECT', sessionID: 's7' }] as const) {
+  for (const event of [
+    { type: 'OVERLAY' },
+    { type: 'EJECT', key: { daemon: null, id: 's7' } },
+  ] as const) {
     ctx.actor.send(event);
   }
 
-  ctx.actor.send({ type: 'ATTACH', sessionID: 's7' });
+  ctx.actor.send({ type: 'ATTACH', key: { daemon: null, id: 's7' } });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('attached');
   expect(ctx.calls).toStrictEqual(['openHome', 'openOverlay', 'openEject:s7', 'openAttached:s7']);
@@ -325,7 +334,10 @@ test('it returns to the home screen from the eject prompt', () => {
 
   ctx.actor.start();
 
-  for (const event of [{ type: 'OVERLAY' }, { type: 'EJECT', sessionID: 's7' }] as const) {
+  for (const event of [
+    { type: 'OVERLAY' },
+    { type: 'EJECT', key: { daemon: null, id: 's7' } },
+  ] as const) {
     ctx.actor.send(event);
   }
 
@@ -378,7 +390,7 @@ test('it starts with no confirmation, no restart prompt, and the daemon connecte
   });
 
   expect(ctx.actor.getSnapshot().context).toStrictEqual({
-    destroyID: null,
+    confirmKey: null,
     consent: null,
     freshUntil: 0,
   });
@@ -389,7 +401,7 @@ test('it waits on a kill confirmation until the next key settles it', () => {
 
   ctx.actor.start();
   ctx.actor.send({ type: 'OVERLAY' });
-  ctx.actor.send({ type: 'CONFIRM_KILL' });
+  ctx.actor.send({ type: 'CONFIRM_KILL', key: { daemon: null, id: 's-harbor' } });
 
   const pending = ctx.actor.getSnapshot().value.confirm;
 
@@ -404,15 +416,15 @@ test('it holds the session whose forget waits on a confirmation and drops it onc
 
   ctx.actor.start();
   ctx.actor.send({ type: 'OVERLAY' });
-  ctx.actor.send({ type: 'CONFIRM_DESTROY', sessionID: 's-harbor' });
+  ctx.actor.send({ type: 'CONFIRM_DESTROY', key: { daemon: null, id: 's-harbor' } });
 
   const pending = ctx.actor.getSnapshot();
 
   ctx.actor.send({ type: 'CONFIRM_DONE' });
 
   expect(pending.value.confirm).toBe('destroy');
-  expect(pending.context.destroyID).toBe('s-harbor');
-  expect(ctx.actor.getSnapshot().context.destroyID).toBeNull();
+  expect(pending.context.confirmKey).toStrictEqual({ daemon: null, id: 's-harbor' });
+  expect(ctx.actor.getSnapshot().context.confirmKey).toBeNull();
 });
 
 test('it drops a pending confirmation when the overlay opens again', () => {
@@ -420,11 +432,11 @@ test('it drops a pending confirmation when the overlay opens again', () => {
 
   ctx.actor.start();
   ctx.actor.send({ type: 'OVERLAY' });
-  ctx.actor.send({ type: 'CONFIRM_DESTROY', sessionID: 's-harbor' });
+  ctx.actor.send({ type: 'CONFIRM_DESTROY', key: { daemon: null, id: 's-harbor' } });
   ctx.actor.send({ type: 'OVERLAY' });
 
   expect(ctx.actor.getSnapshot().value.confirm).toBe('none');
-  expect(ctx.actor.getSnapshot().context.destroyID).toBeNull();
+  expect(ctx.actor.getSnapshot().context.confirmKey).toBeNull();
 });
 
 test('it keeps the screen mode while a confirmation waits', () => {
@@ -432,7 +444,7 @@ test('it keeps the screen mode while a confirmation waits', () => {
 
   ctx.actor.start();
   ctx.actor.send({ type: 'OVERLAY' });
-  ctx.actor.send({ type: 'CONFIRM_KILL' });
+  ctx.actor.send({ type: 'CONFIRM_KILL', key: { daemon: null, id: 's-harbor' } });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('overlay');
   expect(ctx.calls).toStrictEqual(['openHome', 'openOverlay']);

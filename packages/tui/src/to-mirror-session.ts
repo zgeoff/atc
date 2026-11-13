@@ -2,10 +2,13 @@ import type { AgentID } from '@atc/core';
 import { isRecord, toAgentID } from '@atc/core';
 import type { SessionState } from '@atc/protocol';
 import { z } from 'zod';
+import type { DaemonName } from './session-key';
 
 export type HarnessLifecycle = 'running' | 'suspended' | 'exited';
 
 export interface MirrorSession {
+  // The daemon that holds the session; its id is that daemon's own.
+  readonly daemon: DaemonName;
   id: string;
   name: string;
   cwd: string;
@@ -52,7 +55,7 @@ const REQUIRED_MIRROR_FIELDS_SCHEMA = z.looseObject({
   alive: z.boolean(),
 });
 
-export function toMirrorSession(value: unknown): MirrorSession | null {
+export function toMirrorSession(value: unknown, daemon: DaemonName): MirrorSession | null {
   const parsed = REQUIRED_MIRROR_FIELDS_SCHEMA.safeParse(value);
 
   if (!parsed.success) {
@@ -62,6 +65,7 @@ export function toMirrorSession(value: unknown): MirrorSession | null {
   const record = parsed.data;
 
   return {
+    daemon,
     id: record.id,
     name: record.name,
     cwd: record.cwd,

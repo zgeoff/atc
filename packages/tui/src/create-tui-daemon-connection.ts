@@ -6,10 +6,12 @@ import { createDaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonEvent } from '@atcx/contract';
 import type { ClientActor, ClientMode } from './build-client-machine';
+import type { DaemonLinks } from './create-daemon-links';
 import type { FleetMirror } from './create-fleet-mirror';
 import type { OverlayScreen } from './create-overlay-screen';
 import type { SpawnPicker } from './picker/create-spawn-picker';
-import type { TUIHost } from './tui-host';
+import type { DaemonName } from './session-key';
+import type { TUIDaemon } from './tui-host';
 import { cols } from './ui';
 import { waitForRestartConsent } from './wait-for-restart-consent';
 
@@ -17,8 +19,13 @@ import { waitForRestartConsent } from './wait-for-restart-consent';
 // fleet mirror.
 export interface TUIDaemonConnectionDeps {
   readonly clock: Clock;
-  readonly bootDaemonClient: TUIHost['bootDaemon'];
-  readonly remoteDaemonName: string | null;
+  readonly bootDaemonClient: TUIDaemon['bootDaemon'];
+
+  // The primary daemon this connection links to; a name means a remote primary.
+  readonly primary: DaemonName;
+
+  // Where the connection reports the primary link's state and boot.
+  readonly links: Pick<DaemonLinks, 'setPrimary'>;
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
   readonly overlay: OverlayScreen;
@@ -27,7 +34,11 @@ export interface TUIDaemonConnectionDeps {
   readonly isDaemonRestarting: () => boolean;
   readonly scheduleStatus: () => void;
   readonly drawMode: () => void;
-  readonly sendQuiet: (method: string, params?: Readonly<Record<string, unknown>>) => Promise<void>;
+  readonly sendQuiet: (
+    daemon: DaemonName,
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
+  ) => Promise<void>;
   readonly ptyRows: () => number;
   readonly quit: (code: number, message: string) => never;
   readonly logClientEvent: (line: string) => void;
@@ -66,10 +77,13 @@ export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDae
 
     try {
       if (restarted) {
-        await deps.sendQuiet('fleet.restore', { cols: cols(), rows: deps.ptyRows() });
+        await deps.sendQuiet(deps.primary, 'fleet.restore', {
+          cols: cols(),
+          rows: deps.ptyRows(),
+        });
       }
 
-      await deps.mirror.refresh(() => getClient());
+      await deps.mirror.refresh(deps.primary, getClient());
       await deps.overlay.refreshAgents();
     } catch (error) {
       if (!isClosed()) {
@@ -133,9 +147,10 @@ export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDae
     isFatal: (error) =>
       transport.findLatest() === null ||
       (error instanceof DaemonError && error.code === 'protocol_mismatch') ||
-      deps.remoteDaemonName !== null,
+      deps.primary !== null,
     onReady: (link) => {
       deps.setLastUsedAgent(link.boot.lastUsedAgent);
+      deps.links.setPrimary({ kind: 'up' }, link.boot);
 
       link.boot.client.onEvent = deps.onEvent;
 
@@ -145,6 +160,7 @@ export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDae
     onLost: () => {
       // The reconnect leaves the picker, so no answer its flow still waits on
       // draws it again. A deliberate restart keeps the screen it drew.
+      deps.links.setPrimary({ kind: 'down', detail: 'the connection dropped' });
       deps.service.send({ type: 'DAEMON_LOST' });
 
       if (!deps.isDaemonRestarting()) {
@@ -156,6 +172,8 @@ export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDae
     },
     onOpenFailed: (error, fatal) => {
       const message = error instanceof Error ? error.message : String(error);
+
+      deps.links.setPrimary({ kind: 'down', detail: message });
 
       if (fatal && transport.findLatest() !== null) {
         deps.quit(1, `atc: ${message}`);

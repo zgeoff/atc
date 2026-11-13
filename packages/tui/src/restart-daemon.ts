@@ -7,6 +7,7 @@ import type { ClientActor } from './build-client-machine';
 import type { FleetMirror } from './create-fleet-mirror';
 import type { OverlayScreen } from './create-overlay-screen';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
+import type { DaemonName } from './session-key';
 import { cols } from './ui';
 
 // What a restart borrows from the client that owns the screen, the fleet
@@ -21,7 +22,12 @@ export interface RestartDaemonDeps<TLink> {
   readonly getClient: () => DaemonClient;
   readonly restartDaemonAt: (socketPath: string) => Promise<boolean>;
   readonly readConfig: () => Config;
-  readonly sendQuiet: (method: string, params?: Readonly<Record<string, unknown>>) => Promise<void>;
+  readonly primary: DaemonName;
+  readonly sendQuiet: (
+    daemon: DaemonName,
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
+  ) => Promise<void>;
   readonly logClientEvent: (line: string) => void;
   readonly scheduleStatus: () => void;
   readonly ptyRows: () => number;
@@ -83,8 +89,8 @@ export async function restartDaemon<TLink>(deps: RestartDaemonDeps<TLink>) {
 
   cancelLate();
 
-  await deps.sendQuiet('fleet.restore', { cols: cols(), rows: deps.ptyRows() });
-  await deps.mirror.refresh(deps.getClient).catch(() => {});
+  await deps.sendQuiet(deps.primary, 'fleet.restore', { cols: cols(), rows: deps.ptyRows() });
+  await deps.mirror.refresh(deps.primary, deps.getClient()).catch(() => {});
   await deps.overlay.refreshAgents();
 
   deps.service.send({ type: 'OVERLAY' });

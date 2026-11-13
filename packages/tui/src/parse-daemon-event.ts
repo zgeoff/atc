@@ -1,5 +1,6 @@
 import { match } from 'ts-pattern';
 import { z } from 'zod';
+import type { DaemonName } from './session-key';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
 
@@ -80,7 +81,7 @@ export interface RawDaemonEvent {
   readonly [field: string]: unknown;
 }
 
-export function parseDaemonEvent(raw: RawDaemonEvent): DaemonEvent | null {
+export function parseDaemonEvent(raw: RawDaemonEvent, daemon: DaemonName): DaemonEvent | null {
   const parsed = DAEMON_EVENT_SCHEMA.safeParse(raw);
 
   if (!parsed.success) {
@@ -89,7 +90,7 @@ export function parseDaemonEvent(raw: RawDaemonEvent): DaemonEvent | null {
 
   return match(parsed.data)
     .with({ ev: 'SessionAdded' }, { ev: 'SessionState' }, (payload) => {
-      const session = toMirrorSession(payload.session);
+      const session = toMirrorSession(payload.session, daemon);
 
       return session === null ? null : { ev: payload.ev, session };
     })

@@ -1,6 +1,7 @@
 import { machineTypes } from '@zgeoff/std';
 import { assign, setup } from 'xstate';
 import type { Actor } from 'xstate';
+import type { SessionKey } from './session-key';
 
 export interface RestartConsent {
   readonly prompt: string;
@@ -8,14 +9,14 @@ export interface RestartConsent {
 }
 
 type ClientMachineEvent =
-  | { readonly type: 'ATTACH'; readonly sessionID: string }
+  | { readonly type: 'ATTACH'; readonly key: SessionKey }
   | { readonly type: 'HOME' }
   | { readonly type: 'OVERLAY' }
   | { readonly type: 'HELP' }
   | { readonly type: 'SPAWN'; readonly resume: boolean }
-  | { readonly type: 'EJECT'; readonly sessionID: string }
-  | { readonly type: 'CONFIRM_KILL' }
-  | { readonly type: 'CONFIRM_DESTROY'; readonly sessionID: string }
+  | { readonly type: 'EJECT'; readonly key: SessionKey }
+  | { readonly type: 'CONFIRM_KILL'; readonly key: SessionKey }
+  | { readonly type: 'CONFIRM_DESTROY'; readonly key: SessionKey }
   | { readonly type: 'CONFIRM_DONE' }
   | { readonly type: 'CONSENT_ASKED'; readonly consent: RestartConsent }
   | { readonly type: 'CONSENT_ANSWERED' }
@@ -26,9 +27,10 @@ type ClientMachineEvent =
   | { readonly type: 'RESTART_ENDED'; readonly connected: boolean };
 
 interface ClientMachineContext {
-  // The session whose kill or forget the daemon holds until the operator
-  // confirms that forgetting it destroys its host.
-  readonly destroyID: string | null;
+  // The session a confirmation opened on: a kill, or a forget the daemon
+  // holds until the operator confirms that forgetting it destroys its host.
+  // The confirmation acts on this key, never on the row selected later.
+  readonly confirmKey: SessionKey | null;
 
   // The restart prompt that waits for its key.
   readonly consent: RestartConsent | null;
@@ -43,12 +45,12 @@ interface ClientMachineContext {
 // triggers but never performs itself.
 export interface ClientMachineDeps {
   readonly openHome: () => void;
-  readonly openAttached: (sessionID: string) => void;
+  readonly openAttached: (key: SessionKey) => void;
   readonly closeAttached: () => void;
   readonly openOverlay: () => void;
   readonly openHelp: () => void;
   readonly openPicker: (resume: boolean) => void;
-  readonly openEject: (sessionID: string) => void;
+  readonly openEject: (key: SessionKey) => void;
 }
 
 export function buildClientMachine(deps: ClientMachineDeps) {
@@ -60,7 +62,7 @@ export function buildClientMachine(deps: ClientMachineDeps) {
       },
       openAttached: (args) => {
         if (args.event.type === 'ATTACH') {
-          deps.openAttached(args.event.sessionID);
+          deps.openAttached(args.event.key);
         }
       },
       closeAttached: () => {
@@ -72,10 +74,13 @@ export function buildClientMachine(deps: ClientMachineDeps) {
       openHelp: () => {
         deps.openHelp();
       },
-      setDestroyID: assign({
-        destroyID: (args) => (args.event.type === 'CONFIRM_DESTROY' ? args.event.sessionID : null),
+      setConfirmKey: assign({
+        confirmKey: (args) =>
+          args.event.type === 'CONFIRM_DESTROY' || args.event.type === 'CONFIRM_KILL'
+            ? args.event.key
+            : null,
       }),
-      resetDestroyID: assign({ destroyID: null }),
+      resetConfirmKey: assign({ confirmKey: null }),
       setConsent: assign({
         consent: (args) => (args.event.type === 'CONSENT_ASKED' ? args.event.consent : null),
       }),
@@ -92,7 +97,7 @@ export function buildClientMachine(deps: ClientMachineDeps) {
   }).createMachine({
     id: 'client',
     type: 'parallel',
-    context: { destroyID: null, consent: null, freshUntil: 0 },
+    context: { confirmKey: null, consent: null, freshUntil: 0 },
     states: {
       mode: {
         initial: 'home',
@@ -137,7 +142,7 @@ export function buildClientMachine(deps: ClientMachineDeps) {
               EJECT: {
                 target: 'picker-eject',
                 actions: (args) => {
-                  deps.openEject(args.event.sessionID);
+                  deps.openEject(args.event.key);
                 },
               },
             },
@@ -167,10 +172,10 @@ export function buildClientMachine(deps: ClientMachineDeps) {
       confirm: {
         initial: 'none',
         on: {
-          CONFIRM_KILL: { target: '.kill', actions: 'resetDestroyID' },
-          CONFIRM_DESTROY: { target: '.destroy', actions: 'setDestroyID' },
-          CONFIRM_DONE: { target: '.none', actions: 'resetDestroyID' },
-          OVERLAY: { target: '.none', actions: 'resetDestroyID' },
+          CONFIRM_KILL: { target: '.kill', actions: 'setConfirmKey' },
+          CONFIRM_DESTROY: { target: '.destroy', actions: 'setConfirmKey' },
+          CONFIRM_DONE: { target: '.none', actions: 'resetConfirmKey' },
+          OVERLAY: { target: '.none', actions: 'resetConfirmKey' },
         },
         states: {
           none: {},
