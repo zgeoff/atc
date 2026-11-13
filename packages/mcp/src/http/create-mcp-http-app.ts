@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core';
 import { GATEWAY_PATHS } from '@atcx/contract';
-import { Elysia } from 'elysia';
+import { Elysia, NotFound } from 'elysia';
 import invariant from 'tiny-invariant';
 import { match } from 'ts-pattern';
 import { answerAuthorizeRequest } from '../auth/answer-authorize-request';
@@ -91,11 +91,11 @@ export function createMCPHTTPApp(options: MCPHTTPAppOptions) {
       return isClosed ? new Response(null, { status: 503 }) : undefined;
     })
     .onError((context) =>
-      context.code === 'NOT_FOUND'
+      context.error instanceof NotFound
         ? new Response(null, { status: 404 })
         : new Response(null, { status: 503 }),
     )
-    .post(GATEWAY_PATHS.machine.revoke, (context) =>
+    .post(GATEWAY_PATHS.machine.revoke, { parse: 'none' }, (context) =>
       requireContext().store.auth.handler(toPublicRequest(requireContext(), context.request)),
     )
     .get(GATEWAY_PATHS.machine.authorizationServerMetadata, (context) =>
@@ -108,7 +108,7 @@ export function createMCPHTTPApp(options: MCPHTTPAppOptions) {
         options.readRequester(context.request),
       ),
     )
-    .post(GATEWAY_PATHS.machine.token, (context) =>
+    .post(GATEWAY_PATHS.machine.token, { parse: 'none' }, (context) =>
       answerTokenRequest(requireContext(), context.request, options.readRequester(context.request)),
     )
     .get(GATEWAY_PATHS.browser.error, (context) => {
@@ -146,17 +146,9 @@ export function createMCPHTTPApp(options: MCPHTTPAppOptions) {
 
     app.post(
       path,
-      async (context) => {
-        const body = await context.request.text();
-
-        return answerPageRequest(requireContext(), {
-          path,
-          request: context.request,
-          body,
-          requester: options.readRequester(context.request),
-        });
-      },
       {
+        parse: 'none',
+
         // a form posts from the server's own pages, so a post with no origin
         // or another one is a forged form
         beforeHandle: (context) => {
@@ -172,12 +164,35 @@ export function createMCPHTTPApp(options: MCPHTTPAppOptions) {
             : undefined;
         },
       },
+      async (context) => {
+        const body = await context.request.text();
+
+        return answerPageRequest(requireContext(), {
+          path,
+          request: context.request,
+          body,
+          requester: options.readRequester(context.request),
+        });
+      },
     );
   }
 
   for (const path of MCP_PATHS) {
     app.all(
       path,
+      {
+        parse: 'none',
+        beforeHandle: (context) => {
+          const origin = context.request.headers.get('origin');
+          const isForeign = origin !== null && !options.origins.has(origin);
+
+          if (isForeign) {
+            recordBadOrigin(options, context.request);
+          }
+
+          return isForeign ? new Response(null, { status: 403 }) : undefined;
+        },
+      },
       async (context) => {
         if (context.request.method !== 'POST') {
           return new Response(null, { status: 405, headers: { allow: 'POST' } });
@@ -190,18 +205,6 @@ export function createMCPHTTPApp(options: MCPHTTPAppOptions) {
           context.request,
           options.readRequester(context.request),
         );
-      },
-      {
-        beforeHandle: (context) => {
-          const origin = context.request.headers.get('origin');
-          const isForeign = origin !== null && !options.origins.has(origin);
-
-          if (isForeign) {
-            recordBadOrigin(options, context.request);
-          }
-
-          return isForeign ? new Response(null, { status: 403 }) : undefined;
-        },
       },
     );
   }

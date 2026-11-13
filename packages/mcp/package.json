@@ -20,10 +20,13 @@
     "@zgeoff/std": "catalog:",
     "better-auth": "catalog:",
     "elysia": "catalog:",
+    "exact-mirror": "catalog:",
     "kysely": "catalog:",
+    "openapi-types": "catalog:",
     "reflect-metadata": "catalog:",
     "tiny-invariant": "catalog:",
     "ts-pattern": "catalog:",
+    "typebox": "catalog:",
     "xstate": "catalog:",
     "zod": "catalog:"
   },
