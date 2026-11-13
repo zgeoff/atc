@@ -20,6 +20,7 @@ minimumReleaseAgeExcludes = [
   "@zgeoff/diet",
   "@zgeoff/format-codemod",
   "@zgeoff/kysely-bun-sqlite",
+  "@zgeoff/mcp-auth",
   "@zgeoff/oxlint-config",
   "@zgeoff/rig",
   "@zgeoff/std",
@@ -38,6 +39,5 @@ pathIgnorePatterns = ["mods/**", "e2e/**"]
 preload = [
   "./packages/test-utils/src/isolate-home.ts",
   "./packages/test-utils/src/seed-faker.ts",
-  "./packages/mcp/src/testing/load-web-authn-early.ts",
   "@zgeoff/bun-test-extended",
 ]

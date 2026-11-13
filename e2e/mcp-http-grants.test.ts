@@ -1,85 +1,67 @@
 import { expect, test } from 'bun:test';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
 import { systemClock } from '@atc/core';
-import {
-  readJSONRecord,
-  resolveATCCommand,
-  runCommand,
-  runMCPAuthorization,
-} from '@atc/test-utils';
-import invariant from 'tiny-invariant';
-import { buildSeeder } from '../packages/app/src/test-utils/build-seeder';
-import { setupMCPHTTP } from '../packages/app/src/test-utils/setup-mcp-http';
+import { openATCAuth } from '@atc/mcp';
+import { seedOwnerClient, seedOwnerGrant, seedOwnerSchema } from '@atc/mcp/test-utils';
+import { registerTestCleanup, resolveATCCommand, runCommand, setupTempDir } from '@atc/test-utils';
+import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
 
-async function setupTest() {
-  const server = await setupMCPHTTP();
+// An authorization database from before atc moved to its shared OAuth
+// server, under a home of its own, holding one grant with the given ID.
+function setupTest(grantID: string) {
+  const home = setupTempDir('atc-e2e-grants-').path;
+  const dbPath = resolvePaths({ HOME: home }).mcpAuthDBFile;
+
+  mkdirSync(join(dbPath, '..'), { recursive: true });
+
+  const sqlite = openMCPAuthDatabase(dbPath);
+
+  registerTestCleanup(() => {
+    sqlite.close();
+  });
+
+  const owner = seedOwnerSchema(sqlite);
+  const client = seedOwnerClient(sqlite, { name: 'Claude' });
+
+  const grant = seedOwnerGrant(sqlite, {
+    ownerID: owner.ownerID,
+    clientID: client.clientID,
+    resource: 'https://atc.example/mcp',
+    scopes: ['read'],
+    grantID,
+  });
 
   return {
-    server,
+    sqlite,
+    grant,
     atc: resolveATCCommand(),
-    env: { PATH: process.env['PATH'] ?? '', HOME: server.home },
-    seed: buildSeeder({ db: server.store.db, clock: systemClock }),
+    env: { PATH: process.env['PATH'] ?? '', HOME: home },
   };
 }
 
-// The grant id starts with a dash, with an underscore after it, the shape an
-// argument parser reads as a group of short flags.
+// A grant made before the move keeps its authorization code as its ID, which
+// can start with a dash and an underscore, the shape an argument parser reads
+// as a group of short flags.
 test('it revokes a grant whose id starts with a dash with --revoke=<id> so its access token stops working', async () => {
-  const ctx = await setupTest();
-
-  const clientID = await ctx.server.createClient('Claude', [
-    'https://claude.ai/api/mcp/auth_callback',
-  ]);
-
-  const authorized = await runMCPAuthorization(ctx.server, {
-    clientID,
-    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
-    scope: 'read message',
-    ticked: ['read'],
-  });
-
-  const exchanged = await fetch(`${ctx.server.url}/oauth2/token`, {
-    method: 'POST',
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code: authorized.code,
-      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-      client_id: clientID,
-      code_verifier: authorized.verifier,
-    }),
-  });
-
-  invariant(exchanged.status === 200, 'the exchange failed');
-
-  const tokens = await readJSONRecord(exchanged);
-
-  const before = await fetch(`${ctx.server.url}/mcp`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${String(tokens['access_token'])}`,
-      accept: 'application/json, text/event-stream',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
-  });
-
-  await ctx.seed.grantID({ clientID, grantID: '-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc' });
+  const ctx = setupTest('-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc');
 
   const revoked = await runCommand(
     [...ctx.atc, 'grants', '--revoke=-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],
     { env: ctx.env },
   );
 
-  const pinged = await fetch(`${ctx.server.url}/mcp`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${String(tokens['access_token'])}`,
-      accept: 'application/json, text/event-stream',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' }),
+  const auth = await openATCAuth({
+    database: ctx.sqlite,
+    origin: 'https://atc.example',
+    clock: systemClock,
+    security: { record: () => {} },
+    serviceTokens: null,
+    onGrantRevoked: () => {},
   });
 
-  expect(before.status).toBe(200);
+  registerTestCleanup(() => auth.close());
 
   expect({
     exitCode: revoked.exitCode,
@@ -91,5 +73,5 @@ test('it revokes a grant whose id starts with a dash with --revoke=<id> so its a
     stderr: '',
   });
 
-  expect(pinged.status).toBe(401);
+  expect(auth.verify(ctx.grant.accessToken)).resolves.toBeNull();
 });

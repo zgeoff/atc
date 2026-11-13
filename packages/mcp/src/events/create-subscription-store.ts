@@ -1,8 +1,8 @@
 import type { Kysely } from 'kysely';
 import invariant from 'tiny-invariant';
-import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
+import type { EventSchema } from './event-schema';
 
-export type SubscriptionRow = MCPAuthSchema['atc_event_subscription'];
+export type SubscriptionRow = EventSchema['atc_event_subscription'];
 
 // A stored subscription is live until its refreshBefore and expired after it.
 type SubscriptionState = 'live' | 'expired';
@@ -34,7 +34,7 @@ export interface SubscriptionStore {
   readonly endForClient: (clientID: string) => Promise<void>;
 }
 
-export function createSubscriptionStore(db: Kysely<MCPAuthSchema>): SubscriptionStore {
+export function createSubscriptionStore(db: Kysely<EventSchema>): SubscriptionStore {
   return {
     read: async (subscriptionID, now) => {
       const row = await db

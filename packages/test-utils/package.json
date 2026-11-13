@@ -25,7 +25,6 @@
   },
   "devDependencies": {
     "@simplewebauthn/server": "catalog:",
-    "better-auth": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

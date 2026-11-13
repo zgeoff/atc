@@ -323,11 +323,12 @@
             "allow": ["claude-sdk-files"]
           },
           // tests, e2e journeys, and integration flows open a state database to
-          // check what a run wrote
+          // check what a run wrote; the authorization server takes the
+          // connection the app opens for it
           {
             "name": "confinement",
             "modules": ["bun:sqlite", "@zgeoff/kysely-bun-sqlite"],
-            "allow": ["store", "app", "tests"]
+            "allow": ["store", "mcp", "app", "tests"]
           },
           // the authorization server queries the database the app opens for it
           {
@@ -337,7 +338,13 @@
           },
           {
             "name": "confinement",
-            "modules": ["better-auth", "@better-auth", "elysia", "@modelcontextprotocol/server"],
+            "modules": [
+              "better-auth",
+              "@better-auth",
+              "@zgeoff/mcp-auth",
+              "elysia",
+              "@modelcontextprotocol/server"
+            ],
             "allow": ["mcp", "tests"]
           },
           { "name": "confinement", "modules": ["proper-lockfile"], "allow": ["config-lock-check"] },

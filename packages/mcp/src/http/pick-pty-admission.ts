@@ -17,7 +17,8 @@ interface PTYAdmissionPolicy {
 
 // A refusal that the security log records.
 export type PTYRefusalOutcome =
-  | { readonly kind: 'authorize_invalid'; readonly reason: 'bad_host' | 'bad_origin' }
+  | { readonly kind: 'bad_host'; readonly reason: 'host_not_allowed' }
+  | { readonly kind: 'bad_origin'; readonly reason: 'origin_not_allowed' }
   | { readonly kind: 'bearer'; readonly reason: 'malformed' | 'invalid_token' };
 
 type PTYAdmission =
@@ -40,7 +41,7 @@ export function pickPTYAdmission(
     return {
       kind: 'refuse',
       status: 403,
-      outcome: { kind: 'authorize_invalid', reason: 'bad_host' },
+      outcome: { kind: 'bad_host', reason: 'host_not_allowed' },
     };
   }
 
@@ -58,7 +59,7 @@ export function pickPTYAdmission(
     return {
       kind: 'refuse',
       status: 403,
-      outcome: { kind: 'authorize_invalid', reason: 'bad_origin' },
+      outcome: { kind: 'bad_origin', reason: 'origin_not_allowed' },
     };
   }
 

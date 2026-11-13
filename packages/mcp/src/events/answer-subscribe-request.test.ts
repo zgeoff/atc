@@ -1,24 +1,16 @@
 import { expect, mock, test } from 'bun:test';
-import { join } from 'node:path';
 import { DaemonError } from '@atc/protocol/wire';
-import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { openMCPAuth } from '../auth/open-mcp-auth';
+import { buildStubClock, registerTestCleanup } from '@atc/test-utils';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
-import { openTestAuthDatabase } from '../testing/open-test-auth-database';
+import { openTestEventDatabase } from '../testing/open-test-event-database';
 import { answerSubscribeRequest } from './answer-subscribe-request';
 import { createSubscriptionStore } from './create-subscription-store';
 
 // The authorization database the subscriptions live in, a clock at a fixed
 // instant, and a deliverer that records which subscriptions it was told to watch.
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-answer-subscribe-');
-
-  const store = await openMCPAuth({
-    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
-    openDatabase: openTestAuthDatabase,
-    origin: null,
-  });
+  const store = await openTestEventDatabase();
 
   registerTestCleanup(() => store.close());
 

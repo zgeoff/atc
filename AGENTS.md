@@ -136,8 +136,6 @@ prints its own reason, and the rules live where each bullet points.
   in the PR description. `knip.json` takes no comments, so the reasons for its ignores live here:
   - `@stylistic/eslint-plugin`: `@zgeoff/oxlint-config`, which `.oxlintrc.json` extends, loads it by
     name as a JS plugin.
-  - `better-auth` in `packages/test-utils`: the telemetry collector's test loads it inside a spawned
-    `bun -e` script.
   - The `openssl` binary: the test certificate helper runs it to make a self-signed certificate, and
     no package provides it.
   - `rig.config.ts` as an entry: rig loads it by name, and it holds the one import of `@zgeoff/rig`

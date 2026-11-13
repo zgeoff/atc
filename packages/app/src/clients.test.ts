@@ -228,11 +228,43 @@ test('it exits 1 for a redirect URI that is not https or loopback http', async (
   );
 
   expect({ exits, codes, errors }).toStrictEqual({
-    exits: [1],
-    codes: [],
+    exits: [],
+    codes: [1],
     errors: [
-      "atc clients add: 'http://dots.example/cb' is not a redirect URI atc accepts; use https, or http on a loopback host, with no fragment",
+      'atc clients add: a redirect URI is not one atc accepts; use https, or http on a loopback host, with no fragment',
     ],
+  });
+});
+
+test('it exits 1 when a client already has the name', async () => {
+  const ctx = setupTest();
+  const errors: string[] = [];
+  const codes: number[] = [];
+
+  await runClients(
+    { kind: 'add', name: 'dots', redirectURIs: ['https://dots.example/cb'] },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    { print: () => {}, printError: () => {}, setExitCode: () => {}, exit: () => {} },
+  );
+
+  await runClients(
+    { kind: 'add', name: 'dots', redirectURIs: ['https://dots.example/other'] },
+    { dbPath: ctx.dbPath, command: 'atc clients' },
+    {
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      setExitCode: (code) => {
+        codes.push(code);
+      },
+      exit: () => {},
+    },
+  );
+
+  expect({ codes, errors }).toStrictEqual({
+    codes: [1],
+    errors: ['atc clients add: a client already has that name'],
   });
 });
 

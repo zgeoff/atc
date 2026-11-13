@@ -4,12 +4,12 @@ import { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
 import { ProtocolError } from '@modelcontextprotocol/server';
 import type { Kysely } from 'kysely';
 import type { z } from 'zod';
-import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 import type { FleetCaller } from '../tools/types';
 import { buildSubscriptionID } from './build-subscription-id';
 import type { EventDeliverer } from './create-event-deliverer';
 import { createSubscriptionStore } from './create-subscription-store';
 import { EVENT_ERROR_CODES } from './event-error-codes';
+import type { EventSchema } from './event-schema';
 import { parseSubscribeRequest } from './parse-subscribe-request';
 import type { SUBSCRIBE_PARAMS, SubscribeRequest } from './parse-subscribe-request';
 import { readCallbackVerifiedAt } from './read-callback-verified-at';
@@ -18,7 +18,7 @@ import { verifyCallback } from './verify-callback';
 import { writeCallbackVerifiedAt } from './write-callback-verified-at';
 
 export interface EventMethodDeps {
-  readonly db: Kysely<MCPAuthSchema>;
+  readonly db: Kysely<EventSchema>;
 
   // Acts as the subscribing client.
   readonly caller: FleetCaller;

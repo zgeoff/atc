@@ -13,17 +13,14 @@
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atcx/contract": "workspace:*",
-    "@better-auth/mcp": "catalog:",
-    "@better-auth/oauth-provider": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
-    "@simplewebauthn/server": "catalog:",
+    "@zgeoff/kysely-bun-sqlite": "catalog:",
+    "@zgeoff/mcp-auth": "catalog:",
     "@zgeoff/std": "catalog:",
-    "better-auth": "catalog:",
     "elysia": "catalog:",
     "exact-mirror": "catalog:",
     "kysely": "catalog:",
     "openapi-types": "catalog:",
-    "reflect-metadata": "catalog:",
     "tiny-invariant": "catalog:",
     "ts-pattern": "catalog:",
     "typebox": "catalog:",
@@ -33,7 +30,6 @@
   "devDependencies": {
     "@atc/daemon": "workspace:*",
     "@atc/test-utils": "workspace:*",
-    "@faker-js/faker": "catalog:",
-    "@zgeoff/kysely-bun-sqlite": "catalog:"
+    "@faker-js/faker": "catalog:"
   }
 }

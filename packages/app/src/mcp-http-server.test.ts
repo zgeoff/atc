@@ -2,12 +2,9 @@ import { expect, test } from 'bun:test';
 import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
-import { systemClock } from '@atc/core';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
-import { createEnrollmentToken, openMCPAuth } from '@atc/mcp';
-import { seedPasskey } from '@atc/mcp/test-utils';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -29,6 +26,7 @@ import { runMCPHTTPServer } from './mcp-http-server';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { buildLocalTarget } from './test-utils/build-local-target';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
+import { openTestAuthAdmin } from './test-utils/open-test-auth-admin';
 import { startTestDaemon } from './test-utils/start-test-daemon';
 
 async function setupTest() {
@@ -123,7 +121,10 @@ test('it serves MCP through the daemon it boots and says no client can connect a
   ]);
 
   expect(served.status).toBe(401);
-  expect(requests.join('\n')).toMatch(/^POST \/mcp 401 \d+ms$/u);
+
+  expect(requests.filter((line) => !line.startsWith('atc security '))).toStrictEqual([
+    expect.stringMatching(/^POST \/mcp 401 \d+ms$/u),
+  ]);
 });
 
 test('it trusts the forwarded address from a proxy the config lists', async () => {
@@ -286,18 +287,9 @@ test('it leaves the forwarded address unverified from a peer the config does not
 
 test('it prints no hint to add a client once one can connect', async () => {
   const ctx = await setupTest();
+  const store = await openTestAuthAdmin(ctx.dbPath);
 
-  const store = await openMCPAuth({
-    dbPath: ctx.dbPath,
-    openDatabase: openMCPAuthDatabase,
-    origin: null,
-  });
-
-  registerTestCleanup(() => store.close());
-
-  await store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  await store.admin.clients.add('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
   const printed: string[] = [];
 
@@ -353,16 +345,9 @@ test('it prints no hint to add a client once one can connect', async () => {
 
 test('it prints no hint to enroll a passkey once one is enrolled', async () => {
   const ctx = await setupTest();
+  const store = await openTestAuthAdmin(ctx.dbPath);
 
-  const store = await openMCPAuth({
-    dbPath: ctx.dbPath,
-    openDatabase: openMCPAuthDatabase,
-    origin: null,
-  });
-
-  registerTestCleanup(() => store.close());
-
-  await seedPasskey({ db: store.db, clock: systemClock }, { id: 'cred-phone' });
+  store.seedPasskey({ id: 'cred-phone', createdAt: '2026-10-14T12:00:00.000Z' });
 
   const printed: string[] = [];
 
@@ -418,18 +403,11 @@ test('it prints no hint to enroll a passkey once one is enrolled', async () => {
 
 test('it prints nothing to stdout once it serves and each sign-in security event to stderr', async () => {
   const ctx = await setupTest();
+  const store = await openTestAuthAdmin(ctx.dbPath);
 
-  const store = await openMCPAuth({
-    dbPath: ctx.dbPath,
-    openDatabase: openMCPAuthDatabase,
-    origin: null,
-  });
-
-  registerTestCleanup(() => store.close());
-
-  const created = await store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await store.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const printed: string[] = [];
   const errors: string[] = [];
@@ -512,7 +490,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
       /^atc security \{"version":1,.*"kind":"authorize_started","outcome":"accepted"/u,
     ),
     expect.stringMatching(
-      /^atc security \{"version":1,.*"kind":"authorize_invalid".*"reason":"bad_host"/u,
+      /^atc security \{"version":1,.*"kind":"bad_host".*"reason":"host_not_allowed"/u,
     ),
   ]);
 });
@@ -855,15 +833,11 @@ test('it answers a tool call with the sessions of a named daemon it reaches over
 
   writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 
-  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
-
-  registerTestCleanup(() => store.close());
+  const store = await openTestAuthAdmin(dbPath);
 
   // The named daemon must list the connector's principal, which is the
   // client id the authorization server mints, so the client comes first.
-  const created = await store.auth.api.createFixedClient({
-    body: { name: 'Panel', redirectURIs: ['https://panel.example.com/callback'] },
-  });
+  const created = await store.admin.clients.add('Panel', ['https://panel.example.com/callback']);
 
   const remote = await startTestDaemon({
     options: (paths) => {
@@ -956,9 +930,9 @@ test('it answers a tool call with the sessions of a named daemon it reaches over
 
   const authenticator = buildStubAuthenticator();
 
-  const enrollment = await createEnrollmentToken(store.db, Date.now());
+  const enrollmentToken = await store.admin.passkeys.createEnrollmentToken();
 
-  await runPasskeyEnrollment({ url, origin: url }, enrollment.token, authenticator);
+  await runPasskeyEnrollment({ url, origin: url }, enrollmentToken, authenticator);
 
   const grant = await runMCPTokenGrant(
     { url, origin: url, authenticator },

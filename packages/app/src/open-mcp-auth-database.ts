@@ -1,17 +1,18 @@
-import type { MCPAuthDatabase } from '@atc/mcp';
+import type { Database } from 'bun:sqlite';
+import { chmodSync, closeSync, mkdirSync, openSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { openSQLite } from '@atc/store/sqlite';
-import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
 
-export function openMCPAuthDatabase(path: string): MCPAuthDatabase {
+export function openMCPAuthDatabase(path: string): Database {
+  mkdirSync(dirname(path), { recursive: true });
+
+  // The file holds token hashes and sessions, so only its owner may read it.
+  // SQLite gives the WAL and shared-memory files the main file's mode, so the
+  // mode is set before SQLite opens it.
+  closeSync(openSync(path, 'a', 0o600));
+  chmodSync(path, 0o600);
+
   // a write waits for another process's lock, since the commands and a running
-  // server share the file; the cascades from a client to its tokens and
-  // consent need foreign keys
-  const sqlite = openSQLite(path, { busyTimeoutMs: 5000, foreignKeys: true });
-
-  return {
-    dialect: buildSQLiteDialect(sqlite),
-    close: () => {
-      sqlite.close();
-    },
-  };
+  // server share the file; a revoke's cascade needs foreign keys
+  return openSQLite(path, { busyTimeoutMs: 5000, foreignKeys: true });
 }

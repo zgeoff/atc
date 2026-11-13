@@ -1,12 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/testing';
-import {
-  createEnrollmentToken,
-  createTransportCaller,
-  openMCPAuth,
-  startMCPHTTPServer,
-} from '@atc/mcp';
+import { createTransportCaller, startMCPHTTPServer } from '@atc/mcp';
 import type { WebhookSender } from '@atc/mcp';
 import { buildStubWebhookReceiver } from '@atc/mcp/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
@@ -27,6 +22,7 @@ import {
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
+import { openTestAuthAdmin } from '../packages/app/src/test-utils/open-test-auth-admin';
 
 // The subscriber's endpoint is the receiver each test passes, because a test
 // cannot reach an endpoint across the internet.
@@ -66,9 +62,7 @@ async function setupTest() {
 
     registerTestCleanup(() => server.stop());
 
-    const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
-
-    registerTestCleanup(() => store.close());
+    const store = await openTestAuthAdmin(dbPath);
 
     return { server, store };
   };
@@ -85,16 +79,14 @@ test('it lets a subscriber that lost a notification find its event by reading th
   const authenticator = buildStubAuthenticator();
 
   const started = await ctx.startServer(receiver.send);
-  const enrollment = await createEnrollmentToken(started.store.db, Date.now());
+
+  const enrollment = { token: await started.store.admin.passkeys.createEnrollmentToken() };
 
   await runPasskeyEnrollment(started.server, enrollment.token, authenticator);
 
-  const created = await started.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await started.store.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const grant = await runMCPTokenGrant(
     { url: started.server.url, origin: started.server.origin, authenticator },
@@ -174,16 +166,14 @@ test('it repeats a notification whose answer was lost with its eventId, after wh
   const authenticator = buildStubAuthenticator();
 
   const started = await ctx.startServer(receiver.send);
-  const enrollment = await createEnrollmentToken(started.store.db, Date.now());
+
+  const enrollment = { token: await started.store.admin.passkeys.createEnrollmentToken() };
 
   await runPasskeyEnrollment(started.server, enrollment.token, authenticator);
 
-  const created = await started.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await started.store.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const grant = await runMCPTokenGrant(
     { url: started.server.url, origin: started.server.origin, authenticator },

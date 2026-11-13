@@ -1,125 +1,35 @@
 import type { Clock } from '@atc/core';
 import type { GrantScope } from '@atcx/contract';
+import type { Access, SecuritySink } from '@zgeoff/mcp-auth';
+import type { Kysely } from 'kysely';
 import type { EventDeliverer } from '../events/create-event-deliverer';
+import type { EventSchema } from '../events/event-schema';
 import type { WebhookSender } from '../events/types';
 import type { ModernMCPHandler } from '../http/create-modern-mcp-handler';
 import type { FleetCaller } from '../tools/types';
-import type { ServiceTokenVerifier } from './build-service-token-verifier';
-import type { ApprovalState } from './create-approval-state';
-import type { EnrollmentState } from './create-enrollment-state';
-import type { openMCPAuth } from './open-mcp-auth';
+import type { ATCAuth } from './open-atc-auth';
 
-export interface Requester {
-  readonly socketAddress: string | null;
-
-  // the `CF-Connecting-IP` header. Anyone can send it, so it is `trusted`
-  // only when the socket's peer is a proxy the owner listed.
-  readonly connectingIP: {
-    readonly address: string;
-    readonly provenance: 'trusted' | 'unverified';
-  } | null;
-  readonly userAgent: string | null;
-}
-
-export type SecurityOutcome =
-  | { readonly kind: 'authorize_started'; readonly outcome: 'accepted' }
-  | {
-      readonly kind: 'authorize_started';
-      readonly outcome: 'rejected';
-      readonly reason: 'rate_limited';
-    }
-  | {
-      readonly kind: 'authorize_invalid';
-      readonly outcome: 'rejected';
-      readonly reason: AuthorizeInvalidReason;
-    }
-  | { readonly kind: 'owner_auth'; readonly outcome: 'succeeded' }
-  | {
-      readonly kind: 'owner_auth';
-      readonly outcome: 'failed';
-      readonly reason?: OwnerAuthFailure;
-    }
-  | { readonly kind: 'consent'; readonly outcome: 'allowed' }
-  | { readonly kind: 'consent'; readonly outcome: 'denied'; readonly reason?: 'none_ticked' }
-  | {
-      readonly kind: 'token_exchange';
-      readonly outcome: 'rejected';
-      readonly reason: TokenExchangeReason;
-    }
-  | { readonly kind: 'bearer'; readonly outcome: 'rejected'; readonly reason: BearerReason };
-
-export type OwnerAuthFailure =
-  | 'assertion_failed'
-  | 'locked'
-  | 'expired'
-  | 'not_enrolled'
-  | 'invalid_token';
-
-export type AuthorizeInvalidReason =
-  | 'invalid_client'
-  | 'client_disabled'
-  | 'invalid_redirect'
-  | 'unauthorized_client'
-  | 'unsupported_response_type'
-  | 'invalid_request'
-  | 'invalid_scope'
-  | 'invalid_target'
-  | 'bad_host'
-  | 'bad_origin'
-  | 'other';
-
-export type TokenExchangeReason =
-  | 'invalid_request'
-  | 'invalid_client'
-  | 'invalid_grant'
-  | 'unauthorized_client'
-  | 'unsupported_grant_type'
-  | 'invalid_scope'
-  | 'invalid_target'
-  | 'other';
-
-export type BearerReason = 'malformed' | 'invalid_token';
-
-export type SecurityEvent = SecurityOutcome & {
-  readonly path: string;
-  readonly requester: Requester;
-  readonly client?: { readonly id: string; readonly name: string };
-  readonly redirectHost?: string;
-  readonly correlationID?: string;
-};
+export type { Requester, SecurityEvent } from '@zgeoff/mcp-auth';
 
 // What a valid bearer token grants: the client it was issued to, and the
 // scopes it holds.
-export interface VerifiedAccess {
-  readonly clientID: string;
-  readonly clientName: string;
-  readonly scopes: readonly GrantScope[];
-}
+export type VerifiedAccess = Access<GrantScope, null>;
 
-type MCPAuth = Awaited<ReturnType<typeof openMCPAuth>>;
-
-// What every HTTP route reads: the daemon, the server's own identity, the
-// authorization server, the approvals waiting for the owner, and the
-// passkey enrollments in progress.
+// What the MCP route and the live terminal read: the daemon, the server's
+// own identity, the authorization server, and the event subscriptions.
 export interface HTTPServerContext {
   readonly caller: FleetCaller;
   readonly build: string;
 
   // The public origin: the OAuth issuer.
   readonly origin: string;
+  readonly auth: ATCAuth;
 
-  // `<origin>/mcp`: the one resource every token is bound to.
-  readonly resource: string;
-  readonly store: MCPAuth;
-  readonly approvals: ApprovalState;
-  readonly enrollments: EnrollmentState;
+  // atc's own event tables, on a connection of their own.
+  readonly events: Kysely<EventSchema>;
 
-  // Checks the bearers that start with the service prefix; null when the
-  // server loaded no token file.
-  readonly serviceTokens: ServiceTokenVerifier | null;
-
-  // Receives each sign-in outcome and each refused token as a security event.
-  readonly security: { readonly record: (event: SecurityEvent) => void };
+  // Receives each refused token as a security event.
+  readonly security: SecuritySink;
 
   // The time the routes stamp and check expiries against.
   readonly clock: Clock;

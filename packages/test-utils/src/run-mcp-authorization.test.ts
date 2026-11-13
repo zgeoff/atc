@@ -2,9 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { openDaemonClient } from '@atc/protocol/client';
 import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
-import { createEnrollmentToken } from '../../mcp/src/auth/create-enrollment-token';
-import { openMCPAuth } from '../../mcp/src/auth/open-mcp-auth';
-import { resetPasskeys } from '../../mcp/src/auth/reset-passkeys';
+import { openTestAuthAdmin } from '../../app/src/test-utils/open-test-auth-admin';
 import { startMCPHTTPServer } from '../../mcp/src/http/start-mcp-http-server';
 import { createTransportCaller } from '../../mcp/src/tools/create-transport-caller';
 import { buildStubAuthenticator } from './build-stub-authenticator';
@@ -46,13 +44,10 @@ async function setupTest() {
 
   // The authorization database opened the way `atc clients` opens it, to
   // register clients through.
-  const store = await openMCPAuth({ dbPath, openDatabase: openMCPAuthDatabase, origin: null });
-
-  registerTestCleanup(() => store.close());
+  const store = await openTestAuthAdmin(dbPath);
 
   const authenticator = buildStubAuthenticator();
-
-  const enrollment = await createEnrollmentToken(store.db, Date.now());
+  const enrollment = { token: await store.admin.passkeys.createEnrollmentToken() };
 
   await runPasskeyEnrollment(server, enrollment.token, authenticator);
 
@@ -61,10 +56,7 @@ async function setupTest() {
 
 test('it returns at the redirect URI with an authorization code its verifier exchanges for tokens', async () => {
   const ctx = await setupTest();
-
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
-  });
+  const created = await ctx.store.admin.clients.add('dots', ['https://dots.example/cb']);
 
   const authorized = await runMCPAuthorization(ctx, {
     clientID: created.clientID,
@@ -93,10 +85,7 @@ test('it returns at the redirect URI with an authorization code its verifier exc
 
 test('it throws when the authorization stops short of the login page', async () => {
   const ctx = await setupTest();
-
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
-  });
+  const created = await ctx.store.admin.clients.add('dots', ['https://dots.example/cb']);
 
   const authorizing = runMCPAuthorization(ctx, {
     clientID: created.clientID,
@@ -114,11 +103,9 @@ test('it throws when the authorization stops short of the login page', async () 
 test('it throws when the login page holds no passkey ceremony', async () => {
   const ctx = await setupTest();
 
-  await resetPasskeys(ctx.store.db);
+  await ctx.store.admin.passkeys.reset();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
-  });
+  const created = await ctx.store.admin.clients.add('dots', ['https://dots.example/cb']);
 
   const authorizing = runMCPAuthorization(ctx, {
     clientID: created.clientID,
@@ -132,10 +119,7 @@ test('it throws when the login page holds no passkey ceremony', async () => {
 
 test('it throws when the passkey sign-in does not reach the consent page', async () => {
   const ctx = await setupTest();
-
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'dots', redirectURIs: ['https://dots.example/cb'] },
-  });
+  const created = await ctx.store.admin.clients.add('dots', ['https://dots.example/cb']);
 
   const stranger = buildStubAuthenticator();
 

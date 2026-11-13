@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { readJSONRecord, registerTestCleanup } from '@atc/test-utils';
 import { McpServer } from '@modelcontextprotocol/server';
+import type { GrantID, OAuthClientID } from '@zgeoff/mcp-auth';
+import { toTagged } from '@zgeoff/std';
 import { createModernMCPHandler } from './create-modern-mcp-handler';
 
 test('it builds the server of each request for the access its token verified to', async () => {
@@ -44,7 +46,14 @@ test('it builds the server of each request for the access its token verified to'
 
   const answered = await handler.answer(
     request,
-    { clientID: 'client-one', clientName: 'Night Desk', scopes: ['read'] },
+    {
+      kind: 'oauth',
+      grantID: toTagged<GrantID>('grant-one'),
+      clientID: toTagged<OAuthClientID>('client-one'),
+      clientName: 'Night Desk',
+      scopes: ['read'],
+      limits: null,
+    },
     { token: 'token-one', clientId: 'client-one', scopes: ['read'] },
   );
 

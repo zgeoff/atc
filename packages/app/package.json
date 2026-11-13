@@ -26,7 +26,7 @@
     "@atc/store": "workspace:*",
     "@atc/tui": "workspace:*",
     "@atcx/contract": "workspace:*",
-    "@zgeoff/kysely-bun-sqlite": "catalog:",
+    "@zgeoff/std": "catalog:",
     "gunshi": "catalog:",
     "ts-pattern": "catalog:",
     "zod": "catalog:"
@@ -34,7 +34,6 @@
   "devDependencies": {
     "@atc/test-utils": "workspace:*",
     "@faker-js/faker": "catalog:",
-    "kysely": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

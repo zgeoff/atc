@@ -7,23 +7,23 @@ import invariant from 'tiny-invariant';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
 import { z } from 'zod';
-import type { MCPAuthSchema } from '../auth/mcp-auth-schema';
 import { normalizeClientName } from '../auth/normalize-client-name';
-import { readClientName } from '../auth/read-client-name';
 import type { FleetCaller } from '../tools/types';
 import { buildWebhookRequest } from './build-webhook-request';
 import type { SubscriptionRow, SubscriptionStore } from './create-subscription-store';
 import { createSubscriptionWatcherMachine } from './create-subscription-watcher-machine';
 import type { PageDelivery, TrailPage } from './create-subscription-watcher-machine';
+import type { EventSchema } from './event-schema';
 import { EVENT_TYPES } from './event-types';
 import { parseWebhookSecret } from './parse-webhook-secret';
 import { pickAccessStep } from './pick-access-step';
 import { pickDeliveryStep } from './pick-delivery-step';
 import { pickEventStep } from './pick-event-step';
+import { readClientName } from './read-client-name';
 import type { WebhookOutcome, WebhookRequest, WebhookSender } from './types';
 
 interface EventDelivererDeps {
-  readonly db: Kysely<MCPAuthSchema>;
+  readonly db: Kysely<EventSchema>;
   readonly subscriptions: SubscriptionStore;
   readonly caller: FleetCaller;
   readonly send: WebhookSender;

@@ -1,18 +1,10 @@
 import { expect, test } from 'bun:test';
-import { join } from 'node:path';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
-import { openMCPAuth } from '../auth/open-mcp-auth';
-import { openTestAuthDatabase } from '../testing/open-test-auth-database';
+import { registerTestCleanup } from '@atc/test-utils';
+import { openTestEventDatabase } from '../testing/open-test-event-database';
 import { createSubscriptionStore } from './create-subscription-store';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-subscription-store-');
-
-  const auth = await openMCPAuth({
-    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
-    openDatabase: openTestAuthDatabase,
-    origin: null,
-  });
+  const auth = await openTestEventDatabase();
 
   registerTestCleanup(() => auth.close());
 

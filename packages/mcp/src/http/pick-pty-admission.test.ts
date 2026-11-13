@@ -47,7 +47,7 @@ test.each([
   ).toStrictEqual({
     kind: 'refuse',
     status: 403,
-    outcome: { kind: 'authorize_invalid', reason: 'bad_host' },
+    outcome: { kind: 'bad_host', reason: 'host_not_allowed' },
   });
 });
 
@@ -102,7 +102,7 @@ test.each([
   ).toStrictEqual({
     kind: 'refuse',
     status: 403,
-    outcome: { kind: 'authorize_invalid', reason: 'bad_origin' },
+    outcome: { kind: 'bad_origin', reason: 'origin_not_allowed' },
   });
 });
 

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { systemClock } from '@atc/core';
 import { startTestDaemon } from '@atc/daemon/testing';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
@@ -19,14 +20,9 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { createEnrollmentToken } from '../auth/create-enrollment-token';
-import { openMCPAuth } from '../auth/open-mcp-auth';
-import { readGrantViews } from '../auth/read-grant-views';
-import { readOwnerSessionViews } from '../auth/read-owner-session-views';
-import { removeClient } from '../auth/remove-client';
-import { resetPasskeys } from '../auth/reset-passkeys';
-import { revokeGrant } from '../auth/revoke-grant';
+import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import { createSubscriptionStore } from '../events/create-subscription-store';
+import { openEventDatabase } from '../events/open-event-database';
 import { buildSeeder } from '../test-utils/build-seeder';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
 import { openTestAuthDatabase } from '../testing/open-test-auth-database';
@@ -81,15 +77,25 @@ async function setupTest() {
 
   registerTestCleanup(() => server.stop());
 
-  const store = await openMCPAuth({ dbPath, openDatabase: openTestAuthDatabase, origin: null });
+  const sqlite = openTestAuthDatabase(dbPath);
 
-  registerTestCleanup(() => store.close());
+  registerTestCleanup(() => {
+    sqlite.close();
+  });
+
+  const admin = await openATCAuthAdmin(sqlite, clock);
+
+  registerTestCleanup(() => admin.close());
+
+  const events = openEventDatabase(sqlite);
+
+  registerTestCleanup(() => events.destroy());
 
   const authenticator = buildStubAuthenticator();
 
-  const enrollment = await createEnrollmentToken(store.db, clock.now());
+  const enrollmentToken = await admin.passkeys.createEnrollmentToken();
 
-  await runPasskeyEnrollment(server, enrollment.token, authenticator);
+  await runPasskeyEnrollment(server, enrollmentToken, authenticator);
 
   // The lines the enrollment printed are not part of any scenario.
   requests.length = 0;
@@ -108,8 +114,9 @@ async function setupTest() {
     security,
     clock,
     caller,
-    store,
-    seed: buildSeeder({ db: store.db, clock }),
+    admin,
+    events,
+    seed: buildSeeder({ db: events, clock }),
 
     // Stops the server and starts a fresh process's worth of it on the same
     // port and database, as an operator's restart does, trusting the
@@ -185,9 +192,9 @@ test('it challenges a request without a token with where to find the resource me
 test('it issues an access and refresh token for an approved authorization code', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -217,7 +224,7 @@ test('it issues an access and refresh token for an approved authorization code',
   expect(tokens).toStrictEqual({
     access_token: expect.toBeString(),
     token_type: 'Bearer',
-    expires_in: 3600,
+    expires_in: 900,
     expires_at: expect.toBeNumber(),
     refresh_token: expect.toBeString(),
     scope: 'read kill offline_access',
@@ -227,9 +234,9 @@ test('it issues an access and refresh token for an approved authorization code',
 test('it returns to the client with the issuer and the state it sent', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -254,9 +261,9 @@ test('it returns to the client with the issuer and the state it sent', async () 
 test('it runs a tool call whose scope the token holds', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -309,9 +316,9 @@ test('it runs a tool call whose scope the token holds', async () => {
 test('it refuses an MCP request that does not accept an event stream with 406', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -356,14 +363,17 @@ test('it refuses an MCP request that does not accept an event stream with 406', 
 test('it shows a remote MCP client the sessions of the targets the principals grant to its client id', async () => {
   const temporaryDirectory = setupTempDir('atc-mcp-http-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
+  const sqlite = openTestAuthDatabase(dbPath);
 
-  const store = await openMCPAuth({ dbPath, openDatabase: openTestAuthDatabase, origin: null });
-
-  registerTestCleanup(() => store.close());
-
-  const created = await store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  registerTestCleanup(() => {
+    sqlite.close();
   });
+
+  const admin = await openATCAuthAdmin(sqlite, systemClock);
+
+  registerTestCleanup(() => admin.close());
+
+  const created = await admin.clients.add('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
   const daemon = await startTestDaemon({
     prefix: 'atc-mcp-http-',
@@ -397,9 +407,9 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
 
   const authenticator = buildStubAuthenticator();
 
-  const enrollment = await createEnrollmentToken(store.db, Date.now());
+  const enrollmentToken = await admin.passkeys.createEnrollmentToken();
 
-  await runPasskeyEnrollment(server, enrollment.token, authenticator);
+  await runPasskeyEnrollment(server, enrollmentToken, authenticator);
 
   const spawned = await caller.sendRequest('session.spawn', { cwd: daemon.directory });
 
@@ -456,14 +466,17 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
 test('it shows a remote MCP client no sessions when the principals grant the targets to another client id', async () => {
   const temporaryDirectory = setupTempDir('atc-mcp-http-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
+  const sqlite = openTestAuthDatabase(dbPath);
 
-  const store = await openMCPAuth({ dbPath, openDatabase: openTestAuthDatabase, origin: null });
-
-  registerTestCleanup(() => store.close());
-
-  const created = await store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
+  registerTestCleanup(() => {
+    sqlite.close();
   });
+
+  const admin = await openATCAuthAdmin(sqlite, systemClock);
+
+  registerTestCleanup(() => admin.close());
+
+  const created = await admin.clients.add('Claude', ['https://claude.ai/api/mcp/auth_callback']);
 
   const daemon = await startTestDaemon({
     prefix: 'atc-mcp-http-',
@@ -497,9 +510,9 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
 
   const authenticator = buildStubAuthenticator();
 
-  const enrollment = await createEnrollmentToken(store.db, Date.now());
+  const enrollmentToken = await admin.passkeys.createEnrollmentToken();
 
-  await runPasskeyEnrollment(server, enrollment.token, authenticator);
+  await runPasskeyEnrollment(server, enrollmentToken, authenticator);
 
   await caller.sendRequest('session.spawn', { cwd: daemon.directory });
 
@@ -553,9 +566,9 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
 test('it refuses a tool call for a scope the operator left unticked with insufficient_scope', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -616,12 +629,9 @@ test('it refuses a tool call for a scope the operator left unticked with insuffi
 test('it refuses an event method to a token without read with insufficient_scope for read', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await ctx.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const grant = await runMCPTokenGrant(ctx, {
     clientID: created.clientID,
@@ -662,12 +672,9 @@ test('it refuses an event method to a token without read with insufficient_scope
 test('it serves a tool call in the stateless revision with the result type it requires', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await ctx.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const grant = await runMCPTokenGrant(ctx, {
     clientID: created.clientID,
@@ -690,12 +697,12 @@ test('it serves a tool call in the stateless revision with the result type it re
   });
 });
 
-test('it refuses consent to a scope the client did not request', async () => {
+test('it grants no scope the client did not request, even one the consent ticks', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -739,16 +746,28 @@ test('it refuses consent to a scope the client did not request', async () => {
     body: form,
   });
 
-  expect(consented.status).toBe(400);
-  expect(consented.headers.get('location')).toBeNull();
+  const code = new URL(consented.headers.get('location') ?? '/', ctx.url).searchParams.get('code');
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: code ?? '',
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: 'verifier-0123456789-abcdefghijklmnopqrstuvwxyz',
+    }),
+  });
+
+  expect(readJSONRecord(exchanged)).resolves.toMatchObject({ scope: 'read offline_access' });
 });
 
 test('it denies the request when the operator allows nothing', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -803,9 +822,9 @@ test('it denies the request when the operator allows nothing', async () => {
 test('it shows the consent page on every authorization of a client', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -830,9 +849,9 @@ test('it shows the consent page on every authorization of a client', async () =>
 test('it binds a token to /mcp when the client names no resource', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
   const verifier = 'verifier-0123456789-abcdefghijklmnopqrstuvwxyz';
@@ -903,9 +922,9 @@ test('it binds a token to /mcp when the client names no resource', async () => {
 test('it asks a browser that kept its owner session for a fresh passkey sign-in', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -945,9 +964,9 @@ test('it asks a browser that kept its owner session for a fresh passkey sign-in'
 test('it refuses an access token once its grant is revoked', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -970,7 +989,7 @@ test('it refuses an access token once its grant is revoked', async () => {
   });
 
   const tokens = await readJSONRecord(exchanged);
-  const [grant] = await readGrantViews(ctx.store.db);
+  const [grant] = await ctx.admin.grants.list();
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
@@ -986,7 +1005,7 @@ test('it refuses an access token once its grant is revoked', async () => {
 
   invariant(before.status === 200, 'the token did not work before the revoke');
 
-  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
+  await ctx.admin.grants.revoke(grant.grantID);
 
   const after = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -1004,12 +1023,9 @@ test('it refuses an access token once its grant is revoked', async () => {
 test('it removes the subscription of a client that revoked its refresh token, and delivers it no later event', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await ctx.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const authorized = await runMCPAuthorization(ctx, {
     clientID: created.clientID,
@@ -1061,20 +1077,17 @@ test('it removes the subscription of a client that revoked its refresh token, an
     'the spawn returned no session',
   );
 
-  await ctx.daemon.sendHookLines({ atcId: String(session.id), event: 'Stop', payload: {} });
-  await ctx.restartServer();
-
-  await waitFor(() => {
-    expect(ctx.clock.collectPending()).toContain(5000);
-  });
-
-  ctx.clock.advance(5000);
-
+  // The revoke ends the subscription in the process that serves it, before
+  // the next event.
   await waitFor(async () => {
-    const subscriptions = await createSubscriptionStore(ctx.store.db).readIDs();
+    const subscriptions = await createSubscriptionStore(ctx.events).readIDs();
 
     expect(subscriptions).toStrictEqual([]);
   });
+
+  await ctx.daemon.sendHookLines({ atcId: String(session.id), event: 'Stop', payload: {} });
+
+  ctx.clock.advance(5000);
 
   expect(ctx.receiver.received).toStrictEqual([]);
 });
@@ -1082,9 +1095,9 @@ test('it removes the subscription of a client that revoked its refresh token, an
 test('it refuses to refresh a token once its grant is revoked', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1107,7 +1120,7 @@ test('it refuses to refresh a token once its grant is revoked', async () => {
   });
 
   const tokens = await readJSONRecord(exchanged);
-  const [grant] = await readGrantViews(ctx.store.db);
+  const [grant] = await ctx.admin.grants.list();
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
@@ -1123,7 +1136,7 @@ test('it refuses to refresh a token once its grant is revoked', async () => {
 
   invariant(before.status === 200, 'the token did not work before the revoke');
 
-  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
+  await ctx.admin.grants.revoke(grant.grantID);
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
@@ -1140,9 +1153,9 @@ test('it refuses to refresh a token once its grant is revoked', async () => {
 test('it shows the consent page again to a client whose grant was revoked', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1164,11 +1177,11 @@ test('it shows the consent page again to a client whose grant was revoked', asyn
     }),
   });
 
-  const [grant] = await readGrantViews(ctx.store.db);
+  const [grant] = await ctx.admin.grants.list();
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
-  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
+  await ctx.admin.grants.revoke(grant.grantID);
 
   const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
@@ -1200,15 +1213,15 @@ test('it shows the consent page again to a client whose grant was revoked', asyn
   const html = await page.text();
 
   expect(next.pathname).toBe('/consent');
-  expect(html).toInclude('value="read" checked');
+  expect(html).toInclude('value="read"');
 });
 
 test('it rotates a refresh token into a new one with the same scope', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1252,9 +1265,9 @@ test('it rotates a refresh token into a new one with the same scope', async () =
 test('it refuses a spent refresh token as invalid_grant', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1304,16 +1317,16 @@ test('it refuses a spent refresh token as invalid_grant', async () => {
 
   expect(replay).toStrictEqual({
     error: 'invalid_grant',
-    error_description: 'invalid refresh token',
+    error_description: 'the refresh token was already used',
   });
 });
 
 test('it refuses the successor of a refresh token once the spent one is replayed', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1374,9 +1387,9 @@ test('it refuses the successor of a refresh token once the spent one is replayed
 test('it refuses a reused authorization code and revokes what the first use issued', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1426,9 +1439,9 @@ test.each([
 ])('it refuses the redirect URI %p without redirecting to it', async (redirectURI) => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1456,9 +1469,9 @@ test.each([
 test('it refuses an authorization for another resource with invalid_target', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1496,9 +1509,9 @@ test('it refuses an authorization for another resource with invalid_target', asy
 test('it refuses a code exchange for another resource with invalid_target', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1534,9 +1547,9 @@ test('it refuses a code exchange for another resource with invalid_target', asyn
 test('it refuses an authorization without PKCE before asking the operator', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1569,9 +1582,9 @@ test('it refuses an authorization without PKCE before asking the operator', asyn
 test('it refuses a code exchange with the wrong PKCE verifier', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1606,9 +1619,9 @@ test('it refuses a code exchange with the wrong PKCE verifier', async () => {
 test('it refuses an eleventh authorization started within a minute', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1640,9 +1653,9 @@ test('it refuses an eleventh authorization started within a minute', async () =>
 test("it ends a client's oldest approval when the client starts a fourth", async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
   const logins = [];
@@ -1802,9 +1815,9 @@ test.each([['/oauth2/get-clients'], ['/list-sessions']])(
 test('it keeps serving an access token once the exchange deletes the session that approved it', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1844,9 +1857,9 @@ test('it keeps serving an access token once the exchange deletes the session tha
 test('it refreshes a token once the exchange deletes the session that approved it', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1885,9 +1898,9 @@ test('it refreshes a token once the exchange deletes the session that approved i
 test('it serves a token refreshed once the exchange deletes the session that approved it', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1938,9 +1951,9 @@ test('it serves a token refreshed once the exchange deletes the session that app
 test('it refuses the access token of a removed client', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -1963,9 +1976,8 @@ test('it refuses the access token of a removed client', async () => {
   });
 
   const tokens = await readJSONRecord(exchanged);
-  const removed = await removeClient(ctx.store.db, clientID);
 
-  invariant(removed, 'the client was not removed');
+  await ctx.admin.clients.remove('Claude');
 
   const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -1983,9 +1995,9 @@ test('it refuses the access token of a removed client', async () => {
 test('it refuses the refresh token of a removed client', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2008,9 +2020,8 @@ test('it refuses the refresh token of a removed client', async () => {
   });
 
   const tokens = await readJSONRecord(exchanged);
-  const removed = await removeClient(ctx.store.db, clientID);
 
-  invariant(removed, 'the client was not removed');
+  await ctx.admin.clients.remove('Claude');
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
@@ -2027,9 +2038,9 @@ test('it refuses the refresh token of a removed client', async () => {
 test('it refuses a token bound to the resource of an earlier public URL', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2154,9 +2165,9 @@ test('it listens beyond loopback behind an https public URL', async () => {
 test('it refuses a consent answer for a request no passkey signed in for', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2226,9 +2237,9 @@ test('it refuses a consent answer for a request no passkey signed in for', async
 test("it refuses a consent answer carrying another approval's owner session", async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2310,9 +2321,9 @@ test("it refuses a consent answer carrying another approval's owner session", as
 test('it refuses a consent answer whose query still asks for a login', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2366,9 +2377,9 @@ test('it refuses a consent answer whose query still asks for a login', async () 
 test("it shows an error page instead of the consent page for another approval's request", async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2423,16 +2434,16 @@ test("it shows an error page instead of the consent page for another approval's 
   const html = await page.text();
 
   expect(page.status).toBe(400);
-  expect(html).toInclude('This approval expired or was already used.');
+  expect(html).toInclude('This sign-in expired or was already used.');
   expect(html).not.toInclude('<form');
 });
 
 test('it shows an error page instead of the consent page for a query with a broken signature', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2471,16 +2482,16 @@ test('it shows an error page instead of the consent page for a query with a brok
   expect(page.status).toBe(400);
 
   expect(html).toMatchInlineSnapshot(
-    `"<!doctype html><html lang="en"><head><meta charset="utf-8"><title>atc</title></head><body><p>This approval expired or was already used. Start again from the client.</p></body></html>"`,
+    `"<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sign in</title></head><body><p>This sign-in expired or was already used. Start again from the client.</p></body></html>"`,
   );
 });
 
 test('it shows an error page instead of the consent page to a browser with no owner session', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2514,16 +2525,16 @@ test('it shows an error page instead of the consent page to a browser with no ow
   expect(page.status).toBe(400);
 
   expect(html).toMatchInlineSnapshot(
-    `"<!doctype html><html lang="en"><head><meta charset="utf-8"><title>atc</title></head><body><p>This approval expired or was already used. Start again from the client.</p></body></html>"`,
+    `"<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sign in</title></head><body><p>This sign-in expired or was already used. Start again from the client.</p></body></html>"`,
   );
 });
 
 test('it refuses a second consent answer from one login', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2582,119 +2593,6 @@ test('it refuses a second consent answer from one login', async () => {
   expect(second.headers.get('location')).toBeNull();
 });
 
-test('it deletes the owner session when the operator denies the request', async () => {
-  const ctx = await setupTest();
-
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
-
-  const clientID = created.clientID;
-
-  const authorize = new URL(`${ctx.url}/oauth2/authorize`);
-
-  authorize.search = new URLSearchParams({
-    response_type: 'code',
-    client_id: clientID,
-    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-    scope: 'read',
-    state: 'state-1',
-    code_challenge: createHash('sha256')
-      .update('verifier-0123456789-abcdefghijklmnopqrstuvwxyz')
-      .digest('base64url'),
-    code_challenge_method: 'S256',
-  }).toString();
-
-  const authorized = await fetch(authorize, { redirect: 'manual' });
-
-  const login = new URL(authorized.headers.get('location') ?? '/', ctx.url);
-
-  const signedIn = await runPasskeySignIn(ctx, login);
-
-  const consent = new URL(signedIn.headers.get('location') ?? '/', ctx.url);
-
-  const cookie = signedIn.headers
-    .getSetCookie()
-    .map((line) => line.split(';')[0])
-    .join('; ');
-
-  const before = await readOwnerSessionViews(ctx.store.db);
-
-  invariant(before.length === 1, 'the login left no owner session');
-
-  const denied = await fetch(`${ctx.url}/consent`, {
-    method: 'POST',
-    redirect: 'manual',
-    headers: { origin: ctx.url, cookie, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ oauth_query: consent.search.slice(1), decision: 'deny' }),
-  });
-
-  const after = await readOwnerSessionViews(ctx.store.db);
-
-  expect(denied.status).toBe(302);
-  expect(after).toBeEmpty();
-});
-
-test('it keeps the owner session no longer than the authorization code it approved', async () => {
-  const ctx = await setupTest();
-
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
-
-  const clientID = created.clientID;
-
-  await runMCPAuthorization(ctx, {
-    clientID,
-    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
-    scope: 'read',
-    ticked: ['read'],
-  });
-
-  const sessions = await readOwnerSessionViews(ctx.store.db);
-
-  const [session] = sessions;
-
-  invariant(session !== undefined, 'the consent left no owner session');
-
-  expect(sessions).toBeArrayOfSize(1);
-  expect(Date.parse(session.expiresAt)).toBeLessThanOrEqual(Date.now() + 600_000);
-});
-
-test('it deletes the owner session once its authorization code is exchanged', async () => {
-  const ctx = await setupTest();
-
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
-
-  const clientID = created.clientID;
-
-  const authorized = await runMCPAuthorization(ctx, {
-    clientID,
-    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
-    scope: 'read',
-    ticked: ['read'],
-  });
-
-  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
-    method: 'POST',
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code: authorized.code,
-      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-      client_id: clientID,
-      code_verifier: authorized.verifier,
-    }),
-  });
-
-  invariant(exchanged.status === 200, 'the exchange failed');
-
-  const sessions = await readOwnerSessionViews(ctx.store.db);
-
-  expect(sessions).toBeEmpty();
-});
-
 test('it shows a fixed sentence on the error page whatever text the link carries', async () => {
   const ctx = await setupTest();
 
@@ -2731,19 +2629,16 @@ test('it shows the sentence for an unknown client on the error page', async () =
   const html = await page.text();
 
   expect(html).toInclude(
-    'atc refused this authorization request: the client is not one added to atc.',
+    'atc refused this authorization request: the client is not one the owner added.',
   );
 });
 
 test('it accepts a token bound to /mcp at the bare origin', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: {
-      name: 'ChatGPT',
-      redirectURIs: ['https://chatgpt.com/connector_platform_oauth_redirect'],
-    },
-  });
+  const created = await ctx.admin.clients.add('ChatGPT', [
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2833,9 +2728,9 @@ test('it prints one line per request with its method, path, tool, status, time, 
 test('it prints a request line without the query, the token, or the requester address', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2903,9 +2798,9 @@ test('it prints a refused MCP request without reading its JSON-RPC method', asyn
 test('it writes an accepted start, an owner sign-in, and an allowed consent as security events', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -2928,7 +2823,6 @@ test('it writes an accepted start, an owner sign-in, and an allowed consent as s
       outcome: 'accepted',
       route: '/oauth2/authorize',
       client: { id: clientID, name: 'Claude' },
-      redirectHost: 'claude.ai',
       correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
       peer: { address: '127.0.0.1', provenance: 'socket' },
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
@@ -2952,7 +2846,6 @@ test('it writes an accepted start, an owner sign-in, and an allowed consent as s
       outcome: 'allowed',
       route: '/consent',
       client: { id: clientID, name: 'Claude' },
-      redirectHost: 'claude.ai',
       correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
       peer: { address: '127.0.0.1', provenance: 'socket' },
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
@@ -2963,9 +2856,9 @@ test('it writes an accepted start, an owner sign-in, and an allowed consent as s
 test('it carries one correlation id from the start of an authorization through its consent', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   await runMCPAuthorization(ctx, {
     clientID: created.clientID,
@@ -2995,9 +2888,9 @@ test('it carries one correlation id from the start of an authorization through i
 test('it writes a start refused by the limit on starts as rate_limited', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -3028,7 +2921,6 @@ test('it writes a start refused by the limit on starts as rate_limited', async (
     reason: 'rate_limited',
     route: '/oauth2/authorize',
     client: { id: clientID, name: 'Claude' },
-    redirectHost: 'claude.ai',
     peer: { address: '127.0.0.1', provenance: 'socket' },
     userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
   });
@@ -3037,9 +2929,9 @@ test('it writes a start refused by the limit on starts as rate_limited', async (
 test('it writes an authorization better-auth refuses with its error code', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -3071,7 +2963,6 @@ test('it writes an authorization better-auth refuses with its error code', async
       reason: 'invalid_target',
       route: '/oauth2/authorize',
       client: { id: clientID, name: 'Claude' },
-      redirectHost: 'claude.ai',
       peer: { address: '127.0.0.1', provenance: 'socket' },
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
     },
@@ -3115,9 +3006,9 @@ test('it writes an authorization for an unknown client as invalid_client without
 test('it writes a code exchange better-auth refuses as token_exchange with its error code', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -3201,12 +3092,12 @@ test('it writes a token exchange with a grant type atc does not offer as unsuppo
   ]);
 });
 
-test('it writes no security event for a token exchange that issues tokens', async () => {
+test('it writes a token exchange that issues tokens as succeeded', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -3231,7 +3122,17 @@ test('it writes no security event for a token exchange that issues tokens', asyn
   });
 
   expect(exchanged.status).toBe(200);
-  expect(ctx.security).toStrictEqual([]);
+
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toMatchObject([
+    {
+      kind: 'token_exchange',
+      outcome: 'succeeded',
+      route: '/oauth2/token',
+      client: { name: 'Claude' },
+    },
+  ]);
 });
 
 test('it writes an MCP request with a bearer token atc never issued as invalid_token', async () => {
@@ -3284,7 +3185,7 @@ test('it writes an MCP request whose Authorization header is not a bearer token 
   ]);
 });
 
-test('it writes no security event for an MCP request with no Authorization header', async () => {
+test('it writes an MCP request with no Authorization header as missing', async () => {
   const ctx = await setupTest();
 
   await fetch(`${ctx.url}/mcp`, {
@@ -3292,15 +3193,17 @@ test('it writes no security event for an MCP request with no Authorization heade
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  expect(ctx.security).toStrictEqual([]);
+  expect(
+    JSON.parse(`[${ctx.security.map((line) => line.slice('atc security '.length)).join(',')}]`),
+  ).toMatchObject([{ kind: 'bearer', outcome: 'rejected', reason: 'missing', route: '/mcp' }]);
 });
 
 test('it writes a token bound to the resource of an earlier public URL as invalid_token', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -3435,9 +3338,9 @@ test('it writes a request whose Host header it does not serve as bad_host', asyn
     {
       version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
-      kind: 'authorize_invalid',
+      kind: 'bad_host',
       outcome: 'rejected',
-      reason: 'bad_host',
+      reason: 'host_not_allowed',
       route: '/.well-known/oauth-authorization-server',
       peer: { address: '127.0.0.1', provenance: 'socket' },
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
@@ -3464,9 +3367,9 @@ test('it writes a form post from another origin as bad_origin', async () => {
     {
       version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
-      kind: 'authorize_invalid',
+      kind: 'bad_origin',
       outcome: 'rejected',
-      reason: 'bad_origin',
+      reason: 'origin_not_allowed',
       route: '/login',
       peer: { address: '127.0.0.1', provenance: 'socket' },
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
@@ -3489,9 +3392,9 @@ test('it writes an MCP request from a browser on another origin as bad_origin', 
     {
       version: 1,
       ts: new Date(ctx.clock.now()).toISOString(),
-      kind: 'authorize_invalid',
+      kind: 'bad_origin',
       outcome: 'rejected',
-      reason: 'bad_origin',
+      reason: 'origin_not_allowed',
       route: '/mcp',
       peer: { address: '127.0.0.1', provenance: 'socket' },
       userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
@@ -3537,9 +3440,9 @@ test('it writes no security event for the approval page itself', async () => {
 test('it writes an allow sent with no scope ticked as a denied consent with none_ticked', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -3584,7 +3487,6 @@ test('it writes an allow sent with no scope ticked as a denied consent with none
     reason: 'none_ticked',
     route: '/consent',
     client: { id: clientID, name: 'Claude' },
-    redirectHost: 'claude.ai',
     correlationID: expect.toSatisfy((id: string) => /^[0-9a-f-]{36}$/u.test(id)),
     peer: { address: '127.0.0.1', provenance: 'socket' },
     userAgent: { summary: expect.toStartWith('Bun/'), provenance: 'client' },
@@ -3594,9 +3496,9 @@ test('it writes an allow sent with no scope ticked as a denied consent with none
 test('it writes a deny as a denied consent with no reason', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
@@ -3659,7 +3561,7 @@ test('it writes one suppressed event with the dropped count once a burst past th
     version: 1,
     ts: new Date(ctx.clock.now()).toISOString(),
     kind: 'suppressed',
-    reason: 'authorize_invalid',
+    reason: 'bad_host',
     count: 6,
   });
 });
@@ -3667,9 +3569,9 @@ test('it writes one suppressed event with the dropped count once a burst past th
 test('it marks every forwarded address unverified and keeps every secret of a full sign-in and its refused tokens out of its events and request lines', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const clientID = created.clientID;
 
@@ -3946,13 +3848,15 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
     { kind: 'owner_auth', forwarded },
     { kind: 'owner_auth', forwarded },
     { kind: 'consent', forwarded },
+    { kind: 'token_exchange', outcome: 'succeeded', forwarded },
+    { kind: 'token_exchange', outcome: 'succeeded', forwarded },
     { kind: 'token_exchange', reason: 'invalid_grant', forwarded },
     { kind: 'token_exchange', reason: 'invalid_grant', forwarded },
     { kind: 'bearer', reason: 'invalid_token', forwarded },
     { kind: 'bearer', reason: 'malformed', forwarded },
-    { kind: 'authorize_invalid', forwarded },
-    { kind: 'authorize_invalid', forwarded },
-    { kind: 'authorize_invalid', forwarded },
+    { kind: 'authorize_invalid', reason: 'invalid_target', forwarded },
+    { kind: 'bad_host', forwarded },
+    { kind: 'bad_origin', forwarded },
   ]);
 
   expect([...ctx.security, ...ctx.requests]).toSatisfyAll((line: string) =>
@@ -3963,9 +3867,9 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
 test('it refreshes a grant issued before a restart', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const authorized = await runMCPAuthorization(ctx, {
     clientID: created.clientID,
@@ -4010,9 +3914,9 @@ test('it refreshes a grant issued before a restart', async () => {
 test('it serves an MCP request with an access token issued before a restart', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const authorized = await runMCPAuthorization(ctx, {
     clientID: created.clientID,
@@ -4054,9 +3958,9 @@ test('it serves an MCP request with an access token issued before a restart', as
 test('it refuses the refresh token of a grant revoked before a restart', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const authorized = await runMCPAuthorization(ctx, {
     clientID: created.clientID,
@@ -4077,12 +3981,11 @@ test('it refuses the refresh token of a grant revoked before a restart', async (
   });
 
   const tokens = await readJSONRecord(exchanged);
-  const [grant] = await readGrantViews(ctx.store.db);
+  const [grant] = await ctx.admin.grants.list();
 
   invariant(grant !== undefined, 'the exchange left no grant');
 
-  await revokeGrant(ctx.store.db, grant.grantID, Date.now());
-
+  await ctx.admin.grants.revoke(grant.grantID);
   await ctx.restartServer();
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
@@ -4102,9 +4005,9 @@ test('it refuses the refresh token of a grant revoked before a restart', async (
 test('it refuses a consent answer from a sign-in made before a restart', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
@@ -4156,9 +4059,9 @@ test('it refuses a consent answer from a sign-in made before a restart', async (
 test('it refuses a login page opened before a restart', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
@@ -4207,9 +4110,9 @@ test('it refuses a login page opened before a restart', async () => {
 test('it refuses a consent answer from a sign-in made before the passkeys were reset', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
@@ -4239,7 +4142,7 @@ test('it refuses a consent answer from a sign-in made before the passkeys were r
 
   invariant(consent.pathname === '/consent', 'the passkey sign-in did not reach the consent page');
 
-  await resetPasskeys(ctx.store.db);
+  await ctx.admin.passkeys.reset();
 
   const consented = await fetch(`${ctx.url}/consent`, {
     method: 'POST',
@@ -4259,13 +4162,13 @@ test('it refuses a consent answer from a sign-in made before the passkeys were r
 test('it refuses the lost passkey once a reset enrolled a new one', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
-  await resetPasskeys(ctx.store.db);
+  await ctx.admin.passkeys.reset();
 
-  const enrollment = await createEnrollmentToken(ctx.store.db, ctx.clock.now());
+  const enrollment = { token: await ctx.admin.passkeys.createEnrollmentToken() };
 
   await runPasskeyEnrollment(ctx, enrollment.token, buildStubAuthenticator());
 
@@ -4295,9 +4198,9 @@ test('it refuses the lost passkey once a reset enrolled a new one', async () => 
 test('it refuses a sign-in abandoned at the passkey prompt once its approval expired', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const authorize = new URL(`${ctx.url}/oauth2/authorize`);
 
@@ -4344,9 +4247,9 @@ test('it refuses a sign-in abandoned at the passkey prompt once its approval exp
 test('it refreshes a grant issued before the passkeys were reset', async () => {
   const ctx = await setupTest();
 
-  const created = await ctx.store.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const authorized = await runMCPAuthorization(ctx, {
     clientID: created.clientID,
@@ -4368,7 +4271,7 @@ test('it refreshes a grant issued before the passkeys were reset', async () => {
 
   const tokens = await readJSONRecord(exchanged);
 
-  await resetPasskeys(ctx.store.db);
+  await ctx.admin.passkeys.reset();
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',

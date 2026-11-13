@@ -1,5 +1,4 @@
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import type { Database } from 'bun:sqlite';
 import type { MCPHTTPConfig } from '@atc/config';
 import {
   NODE_TOKEN_FILE_ACCESS,
@@ -7,8 +6,9 @@ import {
   loadMCPHTTPConfig,
   mcpAuthDBFile,
 } from '@atc/config';
-import type { ChannelCaller, MCPAuthDatabase, WatchChannel } from '@atc/mcp';
-import { openMCPAuth, readClientViews, readPasskeyViews, startMCPHTTPServer } from '@atc/mcp';
+import { systemClock } from '@atc/core';
+import type { ChannelCaller, WatchChannel } from '@atc/mcp';
+import { openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
 import { GATEWAY_PATHS } from '@atcx/contract';
 import { PROCESS_IO } from './process-io';
@@ -58,7 +58,7 @@ export interface MCPDaemonConnection {
 interface MCPHTTPServerHost {
   readonly bootDaemon: (options: DaemonBootOptions) => Promise<DaemonBoot>;
   readonly connectDaemon: (boot: DaemonBoot) => MCPDaemonConnection;
-  readonly openAuthDatabase: (path: string) => MCPAuthDatabase;
+  readonly openAuthDatabase: (path: string) => Database;
 }
 
 // How long `--wait-for-daemon` waits before it exits. A service manager's
@@ -111,8 +111,6 @@ export async function runMCPHTTPServer(
 
   boot.client.stop();
 
-  mkdirSync(dirname(io.dbPath), { recursive: true });
-
   const connection = host.connectDaemon(boot);
   const caller = connection.caller;
 
@@ -160,16 +158,15 @@ export async function runMCPHTTPServer(
     `atc mcp --http: serving ${server.origin}${GATEWAY_PATHS.machine.mcp}, listening on ${server.listening}`,
   );
 
-  const admin = await openMCPAuth({
-    dbPath: io.dbPath,
-    openDatabase: host.openAuthDatabase,
-    origin: null,
-  });
+  const sqlite = host.openAuthDatabase(io.dbPath);
 
-  const clients = await readClientViews(admin.db);
-  const passkeys = await readPasskeyViews(admin.db);
+  const admin = await openATCAuthAdmin(sqlite, systemClock);
+  const clients = await admin.clients.list();
+  const passkeys = await admin.passkeys.list();
 
   await admin.close();
+
+  sqlite.close();
 
   if (clients.length === 0) {
     io.print(

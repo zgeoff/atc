@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { isRecord } from '@atc/core';
 import { openGatewayCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
-import { createEnrollmentToken, openMCPAuth, startMCPHTTPServer } from '@atc/mcp';
+import { startMCPHTTPServer } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
@@ -21,26 +21,19 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
+import { openTestAuthAdmin } from '../packages/app/src/test-utils/open-test-auth-admin';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-');
   const authDBPath = join(temporaryDirectory.path, 'mcp-auth.db');
 
-  const auth = await openMCPAuth({
-    dbPath: authDBPath,
-    openDatabase: openMCPAuthDatabase,
-    origin: null,
-  });
-
-  registerTestCleanup(() => auth.close());
+  const auth = await openTestAuthAdmin(authDBPath);
 
   // The redirect URI the client registers and its code flow uses.
   const redirectURI = 'https://claude.ai/api/mcp/auth_callback';
 
-  const claude = await auth.auth.api.createFixedClient({
-    body: { name: 'Claude', redirectURIs: [redirectURI] },
-  });
+  const claude = await auth.admin.clients.add('Claude', [redirectURI]);
 
   // The token both listeners take, which the gateway presents. Each daemon
   // reads it from a file of its own, so a test can change one daemon's.
@@ -157,8 +150,7 @@ async function setupTest() {
   registerTestCleanup(() => server.stop());
 
   const authenticator = buildStubAuthenticator();
-
-  const enrollment = await createEnrollmentToken(auth.db, Date.now());
+  const enrollment = { token: await auth.admin.passkeys.createEnrollmentToken() };
 
   await runPasskeyEnrollment(server, enrollment.token, authenticator);
 
@@ -489,9 +481,9 @@ test('it answers a tool call from a client the daemons list', async () => {
 test('it refuses a client no daemon lists as unauthorized', async () => {
   const ctx = await setupTest();
 
-  const stranger = await ctx.auth.auth.api.createFixedClient({
-    body: { name: 'Stranger', redirectURIs: ['https://claude.ai/api/mcp/auth_callback'] },
-  });
+  const stranger = await ctx.auth.admin.clients.add('Stranger', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
 
   const authorized = await runMCPAuthorization(
     { url: ctx.url, origin: ctx.origin, authenticator: ctx.authenticator },

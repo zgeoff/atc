@@ -13,9 +13,9 @@ const ENROLLMENT = z.object({ mode: z.literal('create'), options: CREATION_OPTIO
 const PASSKEY_PAGE = z.discriminatedUnion('mode', [SIGN_IN, ENROLLMENT]);
 
 export function parsePasskeyPage(html: string): z.infer<typeof PASSKEY_PAGE> {
-  const block = /<script type="application\/json" id="atc-passkey">(?<json>[^<]*)<\/script>/u.exec(
-    html,
-  )?.groups?.['json'];
+  const block =
+    /<script type="application\/json" id="mcp-auth-passkey">(?<json>[^<]*)<\/script>/u.exec(html)
+      ?.groups?.['json'];
 
   if (block === undefined) {
     throw new Error('the page holds no passkey ceremony');
