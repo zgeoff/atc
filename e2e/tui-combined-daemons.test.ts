@@ -17,6 +17,7 @@ import {
   takeFreePort,
   waitFor,
 } from '@atc/test-utils';
+import { restartRemoteTestDaemon } from '../packages/app/src/test-utils/restart-remote-test-daemon';
 import { startRemoteTestDaemon } from '../packages/app/src/test-utils/start-remote-test-daemon';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 import { startTUIDaemon } from '../packages/app/src/test-utils/start-tui-daemon';
@@ -38,6 +39,53 @@ async function setupTest() {
     tui.writeConfig({
       daemons: { box: { address, principal: 'laptop', tokenFile } },
     });
+  };
+
+  // Attaches the TUI to a remote session whose agent session id the daemon holds, so a restart
+  // restores it.
+  const attachRemoteSession = async (remote: StartedTestDaemon<TestDaemonConfig>) => {
+    const remoteID = await spawnNamedSession(
+      (method, params) => remote.client.sendRequest(method, params),
+      'far-session',
+      remote.directory,
+    );
+
+    await remote.sendHookLines({
+      atcId: remoteID,
+      event: 'SessionStart',
+      payload: { session_id: 'agent-far' },
+    });
+
+    await waitFor(async () => {
+      const listed = await remote.client.sendRequest('session.list');
+
+      expect(listed['sessions']).toPartiallyContain({ id: remoteID, agentSessionID: 'agent-far' });
+    });
+
+    writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
+
+    tui.boot();
+
+    await tui.waitFor('atc — control tower');
+
+    tui.write(KEYS.ctrlSpace);
+
+    await tui.waitFor('far-session');
+
+    tui.write('/');
+
+    await tui.waitFor('/ \u001B[93m█');
+
+    tui.write('far-');
+
+    await tui.waitFor('/ far-');
+
+    tui.reset();
+    tui.write(KEYS.enter);
+
+    await tui.waitFor('REMOTE_UP');
+
+    return remoteID;
   };
 
   const openLocalClient = async () => {
@@ -106,7 +154,15 @@ async function setupTest() {
     await tui.waitFor('spawn: daemon');
   };
 
-  return { tui, tokenFile, writeEntry, openLocalClient, startPickerRemote, openPickerWithRemoteUp };
+  return {
+    tui,
+    tokenFile,
+    writeEntry,
+    attachRemoteSession,
+    openLocalClient,
+    startPickerRemote,
+    openPickerWithRemoteUp,
+  };
 }
 
 test('it lists the sessions of the local daemon and a remote daemon, each remote row with its daemon name', async () => {
@@ -359,6 +415,47 @@ test('it reattaches the attached remote session when its link drops and comes ba
   ctx.tui.write(`after-drop${KEYS.enter}`);
 
   await ctx.tui.waitFor('GOT-REMOTE:after-drop');
+});
+
+test('it reattaches the attached remote session under the same id when the remote daemon restarts with its fleet', async () => {
+  const ctx = await setupTest();
+  const remote = await startRemoteTestDaemon();
+  const remoteID = await ctx.attachRemoteSession(remote);
+
+  await remote.stop();
+  await ctx.tui.waitFor('waiting for daemon');
+
+  ctx.tui.reset();
+
+  await restartRemoteTestDaemon(remote, { restoreFleet: true });
+
+  await ctx.tui.waitFor('REMOTE_UP');
+
+  ctx.tui.write(`after-restart${KEYS.enter}`);
+
+  await ctx.tui.waitFor('GOT-REMOTE:after-restart');
+
+  const screen = await remote.client.sendRequest('session.screen', { session: remoteID });
+
+  expect(String(screen['text'])).toInclude('GOT-REMOTE:after-restart');
+});
+
+test('it returns to the list when the remote daemon restarts without the attached session', async () => {
+  const ctx = await setupTest();
+  const remote = await startRemoteTestDaemon();
+
+  await ctx.attachRemoteSession(remote);
+  await remote.stop();
+  await ctx.tui.waitFor('waiting for daemon');
+
+  ctx.tui.reset();
+
+  await restartRemoteTestDaemon(remote, { restoreFleet: false });
+
+  await ctx.tui.waitFor('┌ sessions');
+
+  expect(ctx.tui.read()).not.toInclude('far-session');
+  expect(ctx.tui.read()).not.toInclude('waiting for daemon');
 });
 
 test('it tells the user why a line typed into an attached remote session went nowhere', async () => {
