@@ -5188,3 +5188,142 @@ test('it reports the picker open on a daemon only past the daemon step', () => {
   expect(picker.isOpenOn('box')).toBe(true);
   expect(picker.isOpenOn(null)).toBe(false);
 });
+
+test('it lists the picked daemon directories on that daemon target after the user backs out of another daemon', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    upDaemons: () => [null, 'box'],
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+    ],
+    targets: [
+      {
+        id: 'primary-only',
+        provider: 'imp',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+      {
+        id: 'primary-spare',
+        provider: 'imp',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    source: 'dirs',
+    scope: null,
+    candidates: [{ label: '/srv/orchard', pick: { kind: 'path', directory: '/srv/orchard' } }],
+  });
+
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.down));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.esc));
+  picker.applyKey(Buffer.from(KEYS.down));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+    ],
+    targets: [
+      {
+        id: 'remote-only',
+        provider: 'imp',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', {
+    source: 'dirs',
+    scope: null,
+    candidates: [{ label: '/srv/orchard', pick: { kind: 'path', directory: '/srv/orchard' } }],
+  });
+
+  expect(ctx.daemon.collectSent('sources.list').at(-1)).toStrictEqual({
+    source: 'dirs',
+    target: 'remote-only',
+  });
+});
+
+test('it offers the daemons that are up when the agent step goes back to the daemon step', async () => {
+  const ctx = setupTest();
+  let up: DaemonName[] = [null, 'box'];
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    upDaemons: () => up,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({ id: 'grok', installed: true, capabilities: { spawn: true } }),
+    ],
+    targets: [],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  up = [null, 'lab'];
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.applyKey(Buffer.from(KEYS.esc));
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('lab');
+  expect(shown).not.toInclude('box');
+});
+
+test('it offers the daemons that are up when a link changes while the daemon step is open', () => {
+  const ctx = setupTest();
+  let up: DaemonName[] = [null, 'box'];
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    upDaemons: () => up,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  up = [null, 'lab'];
+
+  const mark = ctx.terminal.countChunks();
+
+  picker.refreshDaemons();
+
+  const shown = ctx.terminal.getTextSince(mark);
+
+  expect(shown).toInclude('lab');
+  expect(shown).not.toInclude('box');
+});

@@ -9,6 +9,9 @@ export interface SpawnPicker {
   readonly applyKey: (buf: Buffer) => void;
   readonly render: () => void;
 
+  // Tells the daemon step that a link changed, so it offers the daemons that are up now.
+  readonly refreshDaemons: () => void;
+
   readonly stopFlow: () => void;
 
   // True while the flow runs against the daemon: open, and past the daemon step.
@@ -31,6 +34,9 @@ export function createSpawnPicker<TMirror extends { readonly id: string }>(
     },
     render: () => {
       actor.send({ type: 'RENDER' });
+    },
+    refreshDaemons: () => {
+      actor.send({ type: 'LINKS_CHANGED' });
     },
     stopFlow: () => {
       actor.send({ type: 'STOP' });

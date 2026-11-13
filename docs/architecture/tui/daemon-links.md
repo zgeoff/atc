@@ -106,9 +106,9 @@ targets and directories on screen are the picked daemon's own. Esc on the agent 
 The session spawns on the picked daemon, enters the mirror under that daemon's key, and attaches
 through that daemon's link. A picker that is past the `daemon` step ends when the link of its daemon
 leaves `up`, and the status bar shows that daemon's name and state. The primary's own loss ends the
-picker through the client state machine. The step builds its list when it opens, so a daemon that
-leaves `up` while the step is open stays listed, and picking it shows its state as the reason the
-agent list failed.
+picker through the client state machine. The step builds its list each time it opens, and rebuilds
+it when any link changes while it is open, so it offers the daemons that are `up` now. Picking
+another daemon than before clears the target and listing of the previous one.
 
 [The client protocol](../protocol/protocol.md) covers the handshake and the events each link
 consumes, and [principals](../protocol/principals.md) covers what a remote principal may do.

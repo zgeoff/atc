@@ -9,7 +9,7 @@ import { buildPickerContext } from './build-picker-context';
 import { buildPickerView } from './build-picker-view';
 import type { CompletionOutcome, ListingOutcome, RequestOutcome } from './create-picker-actors';
 import { createPickerActors } from './create-picker-actors';
-import { openFirstStep } from './daemon-step';
+import { applyLinksChanged, openFirstStep } from './daemon-step';
 import { applyCompletion, applyListing } from './list-step';
 import { renderFlow, stopListings } from './navigate-picker';
 import type {
@@ -28,6 +28,7 @@ type PickerEvent =
   | { readonly type: 'OPEN'; readonly resume: boolean }
   | { readonly type: 'KEY'; readonly buf: Buffer }
   | { readonly type: 'RENDER' }
+  | { readonly type: 'LINKS_CHANGED' }
   | { readonly type: 'STOP' }
   | { readonly type: 'CLOSE' }
   | { readonly type: 'REQUEST'; readonly request: OnDaemon<PickerRequest> }
@@ -166,6 +167,7 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
           CLOSE: '#spawn-picker.closed',
           KEY: { actions: 'step' },
           STOP: { actions: 'step' },
+          LINKS_CHANGED: { actions: 'step' },
           REQUEST_DONE: { actions: 'step' },
           'xstate.done.actor.listing.*': { actions: 'step' },
           COMPLETED: { actions: 'step' },
@@ -253,6 +255,9 @@ function applyEvent(flow: PickerFlow, event: PickerEvent) {
     })
     .with({ type: 'RENDER' }, () => {
       renderFlow(flow);
+    })
+    .with({ type: 'LINKS_CHANGED' }, () => {
+      applyLinksChanged(flow);
     })
     .with({ type: 'STOP' }, () => {
       stopFlow(flow);

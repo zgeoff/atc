@@ -539,6 +539,8 @@ export async function runTUI(host: TUIHost): Promise<void> {
   links.onChange((daemon) => {
     cancelStaleConfirmations();
 
+    picker.refreshDaemons();
+
     if (daemon !== primaryName) {
       resumeAttachedSession(daemon);
       endPickerOn(daemon);

@@ -28,6 +28,14 @@ export function openFirstStep(flow: PickerFlow) {
 function openDaemonStep(flow: PickerFlow) {
   const ctx = flow.ctx;
 
+  ctx.daemons = flow.deps.upDaemons();
+
+  if (ctx.daemons.length === 0) {
+    quitFlow(flow);
+
+    return;
+  }
+
   ctx.step = 'daemon';
   ctx.input = '';
   ctx.agentStepWait = null;
@@ -47,12 +55,45 @@ export function applyDaemonSubmit(flow: PickerFlow) {
     return;
   }
 
+  if (picked !== ctx.daemon) {
+    ctx.target = null;
+    ctx.targets = [];
+    ctx.targetGap = null;
+    ctx.listedTargets = [];
+    ctx.listingTarget = null;
+
+    ctx.listings = new Map();
+  }
+
   ctx.daemon = picked;
   ctx.step = 'agent';
   ctx.input = '';
   ctx.agent = flow.deps.getLastUsedAgent(picked);
 
   openAgentMenu(flow);
+}
+
+// A link changed while the daemon step is open: the step offers the daemons that are up now.
+export function applyLinksChanged(flow: PickerFlow) {
+  const ctx = flow.ctx;
+
+  if (ctx.step !== 'daemon') {
+    return;
+  }
+
+  const chosen = ctx.daemons[ctx.selected];
+
+  ctx.daemons = flow.deps.upDaemons();
+
+  if (ctx.daemons.length === 0) {
+    quitFlow(flow);
+
+    return;
+  }
+
+  ctx.selected = Math.max(0, ctx.daemons.indexOf(chosen ?? ctx.daemon));
+
+  renderFlow(flow);
 }
 
 export function applyDaemonCancel(flow: PickerFlow) {
