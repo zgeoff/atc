@@ -1977,7 +1977,7 @@ test('it refuses the access token of a removed client', async () => {
 
   const tokens = await readJSONRecord(exchanged);
 
-  await ctx.admin.clients.remove('Claude');
+  await ctx.admin.clients.remove(created.clientID);
 
   const pinged = await fetch(`${ctx.url}/mcp`, {
     method: 'POST',
@@ -2021,7 +2021,7 @@ test('it refuses the refresh token of a removed client', async () => {
 
   const tokens = await readJSONRecord(exchanged);
 
-  await ctx.admin.clients.remove('Claude');
+  await ctx.admin.clients.remove(created.clientID);
 
   const refreshed = await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',

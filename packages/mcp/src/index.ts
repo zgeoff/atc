@@ -1,7 +1,6 @@
 export * from './auth/open-atc-auth';
 export * from './auth/open-atc-auth-admin';
 export * from './auth/constants';
-export * from './auth/normalize-client-name';
 export { createSubscriptionStore } from './events/create-subscription-store';
 export { openEventDatabase } from './events/open-event-database';
 export { removeUnreadableSubscriptions } from './events/remove-unreadable-subscriptions';

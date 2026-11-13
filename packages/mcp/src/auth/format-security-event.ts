@@ -1,5 +1,5 @@
 import { GATEWAY_PATHS } from '@atcx/contract';
-import { normalizeClientName } from './normalize-client-name';
+import { normalizeClientName } from '@zgeoff/mcp-auth';
 import type { SecurityEvent } from './types';
 
 export interface SuppressedSecurityEvent {

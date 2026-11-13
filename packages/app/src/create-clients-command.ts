@@ -47,12 +47,15 @@ export function createClientsCommand(spec: ClientsCommandSpec) {
       ),
       remove: lazy(
         () => async (ctx) => {
-          await spec.runClients({ kind: 'remove', clientID: ctx.values.id }, ctx.values);
+          await spec.runClients({ kind: 'remove', client: ctx.values.client }, ctx.values);
         },
         {
           name: 'remove',
           description: 'Remove a client and revoke every grant it holds',
-          args: { id: { type: 'positional', description: 'The client ID' }, ...spec.sharedArgs },
+          args: {
+            client: { type: 'positional', description: 'The client ID, or a name one client has' },
+            ...spec.sharedArgs,
+          },
         },
       ),
     },

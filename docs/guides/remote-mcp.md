@@ -41,7 +41,8 @@ atc clients add Claude --redirect-uri https://claude.ai/api/mcp/auth_callback --
 
 Each command prints the client ID. Enter it in the connector's OAuth settings with no secret.
 `atc clients` lists the clients, and `atc clients remove <client_id>` removes one with every token
-and consent it holds.
+and consent it holds. `remove` also takes a client's name. When two clients have names that clean to
+the same text, it lists their IDs and removes neither, so pass the ID of the one to remove.
 
 ## Enrolling a passkey
 

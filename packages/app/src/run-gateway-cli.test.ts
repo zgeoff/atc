@@ -92,7 +92,7 @@ test.each([
     );
 
     expect(ctx.io.runClients).toHaveBeenCalledExactlyOnceWith(
-      { kind: 'remove', clientID: 'client-1' },
+      { kind: 'remove', client: 'client-1' },
       { dbPath: buildGatewayStatePaths('flagged').mcpAuthDBFile, command: 'atc-gateway clients' },
     );
   },

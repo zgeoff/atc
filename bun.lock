@@ -463,7 +463,7 @@
     "@zgeoff/diet": "0.2.2",
     "@zgeoff/format-codemod": "0.3.5",
     "@zgeoff/kysely-bun-sqlite": "0.3.2",
-    "@zgeoff/mcp-auth": "0.1.0",
+    "@zgeoff/mcp-auth": "0.2.0",
     "@zgeoff/oxlint-config": "0.10.7",
     "@zgeoff/rig": "0.2.3",
     "@zgeoff/std": "0.4.3",
@@ -1009,7 +1009,7 @@
 
     "@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.2", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-vPVzoBWIDXrO6VCfHY8XJSCTnRlTgW078HtyjrVSQP9grT8UswGlad2CP+G8D0GzQLfDRwpRWqqsg4LgxgNRoA=="],
 
-    "@zgeoff/mcp-auth": ["@zgeoff/mcp-auth@0.1.0", "", { "dependencies": { "@better-auth/mcp": "1.7.15", "@better-auth/oauth-provider": "1.7.15", "@simplewebauthn/server": "14.0.3", "@zgeoff/kysely-bun-sqlite": "0.3.2", "@zgeoff/std": "0.4.3", "better-auth": "1.7.15", "ts-pattern": "5.9.2", "type-fest": "5.10.0", "zod": "4.6.7" }, "peerDependencies": { "elysia": ">=2.0.0-rc.3 <3.0.0", "kysely": ">=0.29.5 <0.30.0" }, "optionalPeers": ["elysia"] }, "sha512-O/bn3bF9HvthCwIKo6hWRkIVKaR10vPVJC4HB9KBCSHDZb3sor+YikNfl72XW1H7V1Z8+WPL8V2FIMzOAxrGoQ=="],
+    "@zgeoff/mcp-auth": ["@zgeoff/mcp-auth@0.2.0", "", { "dependencies": { "@better-auth/mcp": "1.7.15", "@better-auth/oauth-provider": "1.7.15", "@simplewebauthn/server": "14.0.3", "@zgeoff/kysely-bun-sqlite": "0.3.2", "@zgeoff/std": "0.4.3", "better-auth": "1.7.15", "reflect-metadata": "0.2.2", "ts-pattern": "5.9.2", "type-fest": "5.10.0", "zod": "4.6.7" }, "peerDependencies": { "elysia": ">=2.0.0-rc.3 <3.0.0", "kysely": ">=0.29.5 <0.30.0" }, "optionalPeers": ["elysia"] }, "sha512-q0LN7GyJZNBw8P6l6v4mFLr0kd/Lm8AxCIJNHwUU9IMCWhdPikiiJBa3KmvWcld1a+WglNGlIflOrPt09TVYFg=="],
 
     "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.10.7", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-ggK8Vgmy/XvXG9jlblon1iN7H3klJak7Y9EJ0Y5Vs8ge1tRNVLe2tu4ezIN5ITdjV167Uute2i8Jr2C6jtNhjg=="],
 
