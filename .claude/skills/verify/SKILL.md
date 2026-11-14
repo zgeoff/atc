@@ -158,10 +158,10 @@ group, such as `action`: run `bun verify <group> --help` for its commands.
 
 Put a new file's glob in [`feature-paths.ts`](../../../scripts/verify/feature-paths.ts), which holds
 each feature's `paths` and the registry's `.ignore` list. Add it to the `paths` of each feature
-whose journey runs the file, or to the ignore list when atc never reads it at run time. An ignore
-glob beats a feature's glob, so never ignore a folder that holds code a journey runs. The registry
-itself, [`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts), declares
-the target, actions, commands, doctor checks and features.
+whose journey runs the file, or to the ignore list when atc never reads it at run time. Never ignore
+a folder that holds code a journey runs: an ignore glob beats a feature's glob. The registry itself,
+[`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts), declares the
+target, actions, commands, doctor checks and features.
 
 <!-- /repo -->
 

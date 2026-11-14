@@ -18,9 +18,9 @@ failed. The cleanup lines leave the daemon with no session for the next journey.
   of the daemon's database, which `db query` reads, gets `exited` 1.
 - On an exited session, it forgets the session: the row leaves the list and the `fleet` table.
 
-Spawn only the one session: the list moves exited rows to the bottom, so with a second session the
-second `K` acts on the other row. The kill's regex accepts a `!` after the `✗`, the mark of a change
-the TUI user has not looked at.
+Spawn only the one session. The list moves exited rows to the bottom, so with a second session the
+second `K` would act on the other row. The kill's regex accepts a `!` after the `✗`, the mark of a
+change the TUI user has not looked at.
 
 ## Journey
 
