@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { mintServiceSecret } from '@atc/mcp';
 import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildGatewayStatePaths } from './build-gateway-state-paths';
@@ -823,5 +824,115 @@ test('it exits 1 when the service token file is for another resource', async () 
       'atc-gateway: the service token file names another resource than https://atc.example.com/mcp',
     ],
     exits: [1],
+  });
+});
+
+test('it reads the service token file again on SIGHUP, and keeps the old one when the new one fails to load', async () => {
+  const ctx = setupTest();
+  const kept = mintServiceSecret();
+  const added = mintServiceSecret();
+  const tokenFile = join(ctx.directory, 'service-tokens.json');
+
+  writeFileSync(
+    join(ctx.directory, 'registry.json'),
+    JSON.stringify({
+      daemons: {
+        cloud: { address: '127.0.0.1:9', daemonID: '0123abcd-0000-4000-8000-000000000000' },
+      },
+      defaultDaemon: 'cloud',
+    }),
+  );
+
+  writeFileSync(
+    tokenFile,
+    JSON.stringify({
+      resource: 'https://atc.example.com/mcp',
+      clients: { 'ci-bot': { scopes: ['read'], secretDigests: [kept.digest] } },
+    }),
+    { mode: 0o600 },
+  );
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runGateway(
+    'atc-gateway/test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: 'https://atc.example.com',
+      trustForwardedFrom: [],
+      registryPath: join(ctx.directory, 'registry.json'),
+      stateDir: join(ctx.directory, 'state'),
+      serviceTokenFile: tokenFile,
+    },
+    {
+      env: { ATC_GATEWAY_TOKEN_CLOUD: 'c'.repeat(32) },
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stop = signals.get('SIGTERM');
+  const reload = signals.get('SIGHUP');
+
+  invariant(stop, 'the gateway registered no SIGTERM handler');
+  invariant(reload, 'the gateway registered no SIGHUP handler');
+  registerTestCleanup(() => stop());
+
+  const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)$/u.exec(printed.join('\n'))
+    ?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  const requestToken = (name: string, secret: string) =>
+    fetch(`http://127.0.0.1:${port}/oauth2/token`, {
+      method: 'POST',
+      headers: {
+        host: 'atc.example.com',
+        authorization: `Basic ${Buffer.from(`${encodeURIComponent(`service:${name}`)}:${secret}`).toString('base64')}`,
+      },
+      body: new URLSearchParams({ grant_type: 'client_credentials' }),
+    });
+
+  writeFileSync(tokenFile, '{ not json');
+
+  await reload();
+
+  const afterBadFile = await requestToken('ci-bot', kept.secret);
+
+  writeFileSync(
+    tokenFile,
+    JSON.stringify({
+      resource: 'https://atc.example.com/mcp',
+      clients: { 'new-bot': { scopes: ['read'], secretDigests: [added.digest] } },
+    }),
+  );
+
+  await reload();
+
+  const droppedClient = await requestToken('ci-bot', kept.secret);
+  const addedClient = await requestToken('new-bot', added.secret);
+
+  expect({
+    afterBadFile: afterBadFile.status,
+    droppedClient: droppedClient.status,
+    addedClient: addedClient.status,
+    faults: errors.filter((line) => line.startsWith('atc-gateway: --service-token-file:')),
+  }).toStrictEqual({
+    afterBadFile: 200,
+    droppedClient: 401,
+    addedClient: 200,
+    faults: [`atc-gateway: --service-token-file: ${tokenFile}: the file is not valid JSON`],
   });
 });

@@ -462,7 +462,7 @@
     "@zgeoff/diet": "0.2.2",
     "@zgeoff/format-codemod": "0.3.5",
     "@zgeoff/kysely-bun-sqlite": "0.3.2",
-    "@zgeoff/mcp-auth": "0.2.1",
+    "@zgeoff/mcp-auth": "0.2.2",
     "@zgeoff/oxlint-config": "0.10.7",
     "@zgeoff/rig": "0.2.3",
     "@zgeoff/std": "0.4.3",
@@ -1007,7 +1007,7 @@
 
     "@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.2", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-vPVzoBWIDXrO6VCfHY8XJSCTnRlTgW078HtyjrVSQP9grT8UswGlad2CP+G8D0GzQLfDRwpRWqqsg4LgxgNRoA=="],
 
-    "@zgeoff/mcp-auth": ["@zgeoff/mcp-auth@0.2.1", "", { "dependencies": { "@better-auth/mcp": "1.7.15", "@better-auth/oauth-provider": "1.7.15", "@simplewebauthn/server": "14.0.3", "@zgeoff/kysely-bun-sqlite": "0.3.2", "@zgeoff/std": "0.4.3", "better-auth": "1.7.15", "reflect-metadata": "0.2.2", "ts-pattern": "5.9.2", "type-fest": "5.10.0", "zod": "4.6.7" }, "peerDependencies": { "elysia": ">=2.0.0-rc.3 <3.0.0", "kysely": ">=0.29.5 <0.30.0" }, "optionalPeers": ["elysia"] }, "sha512-H0WRU0zeyPig6Hb2pIHKJCOFufbCEy+GdXac0g3GSwePyyf0X49mw/xVRhLT82mUbmoujCYGLWeZHM4m4rC0xw=="],
+    "@zgeoff/mcp-auth": ["@zgeoff/mcp-auth@0.2.2", "", { "dependencies": { "@better-auth/mcp": "1.7.15", "@better-auth/oauth-provider": "1.7.15", "@simplewebauthn/server": "14.1.0", "@zgeoff/kysely-bun-sqlite": "0.3.2", "@zgeoff/std": "0.4.3", "better-auth": "1.7.15", "reflect-metadata": "0.2.2", "ts-pattern": "5.9.2", "type-fest": "5.10.0", "zod": "4.6.7" }, "peerDependencies": { "elysia": ">=2.0.0-rc.3 <3.0.0", "kysely": ">=0.29.5 <0.30.0" }, "optionalPeers": ["elysia"] }, "sha512-wDtoCeQaXAMAStyDw9ydWJVF8ub2lPDlULvU10Yap4g72JIZp6n4gqsixohtcUVFrNzPmbOkVDFdiriCW5pWNA=="],
 
     "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.10.7", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-ggK8Vgmy/XvXG9jlblon1iN7H3klJak7Y9EJ0Y5Vs8ge1tRNVLe2tu4ezIN5ITdjV167Uute2i8Jr2C6jtNhjg=="],
 
@@ -1530,8 +1530,6 @@
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
     "@zgeoff/format-codemod/oxc-parser": ["oxc-parser@0.155.0", "", { "dependencies": { "@oxc-project/types": "^0.155.0" }, "optionalDependencies": { "@oxc-parser/binding-android-arm-eabi": "0.155.0", "@oxc-parser/binding-android-arm64": "0.155.0", "@oxc-parser/binding-darwin-arm64": "0.155.0", "@oxc-parser/binding-darwin-x64": "0.155.0", "@oxc-parser/binding-freebsd-x64": "0.155.0", "@oxc-parser/binding-linux-arm-gnueabihf": "0.155.0", "@oxc-parser/binding-linux-arm-musleabihf": "0.155.0", "@oxc-parser/binding-linux-arm64-gnu": "0.155.0", "@oxc-parser/binding-linux-arm64-musl": "0.155.0", "@oxc-parser/binding-linux-ppc64-gnu": "0.155.0", "@oxc-parser/binding-linux-riscv64-gnu": "0.155.0", "@oxc-parser/binding-linux-riscv64-musl": "0.155.0", "@oxc-parser/binding-linux-s390x-gnu": "0.155.0", "@oxc-parser/binding-linux-x64-gnu": "0.155.0", "@oxc-parser/binding-linux-x64-musl": "0.155.0", "@oxc-parser/binding-openharmony-arm64": "0.155.0", "@oxc-parser/binding-win32-arm64-msvc": "0.155.0", "@oxc-parser/binding-win32-ia32-msvc": "0.155.0", "@oxc-parser/binding-win32-x64-msvc": "0.155.0" } }, "sha512-C/ReSf1JUFukK/zvk6jhcNibSssvas5+ktIzK7fbKVd3CedWe59C3QwHEOrEZj/4Rt9+xg0Jeis/Jv1F/KM1mw=="],
-
-    "@zgeoff/mcp-auth/@simplewebauthn/server": ["@simplewebauthn/server@14.0.3", "", { "dependencies": { "@hexagon/base64": "^1.1.27", "@levischuck/tiny-cbor": "^0.2.2", "@peculiar/asn1-android": "^2.6.0", "@peculiar/asn1-ecc": "^2.6.1", "@peculiar/asn1-rsa": "^2.6.1", "@peculiar/asn1-schema": "^2.6.0", "@peculiar/asn1-x509": "^2.6.1", "@peculiar/asn1-x509-post-quantum": "^2.9.4", "@peculiar/x509": "^2.1.0", "reflect-metadata": "^0.2.2" } }, "sha512-D39/0fiDiYmGV+nraY9s63D1Ho2AX/waMLy22/9gUadTUuvbAnstfb4bpbHYbwZuV5ZLDYN1SmzDKuiHzKAA4Q=="],
 
     "body-parser/content-type": ["content-type@2.1.0", "", {}, "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="],
 

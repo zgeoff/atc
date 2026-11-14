@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { resolveATCCommand, runATC, setupTempDir } from '@atc/test-utils';
 import pkg from '../packages/app/package.json';
 
@@ -49,4 +50,23 @@ test('it prints the version and exits 0 on --version', async () => {
     stdout: `${pkg.version}\n`,
     code: 0,
   });
+});
+
+test('it prints a secret and the sha256 digest of that secret on stdout for atc mcp service-secret', async () => {
+  const ctx = setupTest();
+
+  const ran = await runATC({
+    command: resolveATCCommand(),
+    args: ['mcp', 'service-secret'],
+    home: ctx.directory,
+  });
+
+  const secret = /^secret: (?<value>svcs_\S+)$/mu.exec(ran.stdout)?.groups?.['value'] ?? '';
+
+  expect({ stdout: ran.stdout, code: ran.exitCode }).toStrictEqual({
+    stdout: `secret: ${secret}\ndigest: ${createHash('sha256').update(secret).digest('hex')}\n`,
+    code: 0,
+  });
+
+  expect(secret).toStartWith('svcs_');
 });

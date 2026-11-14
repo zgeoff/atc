@@ -112,7 +112,8 @@ token. Write the tokens to a JSON file and pass it with `--service-token-file`:
 {
   "resource": "https://atc.example.com/mcp",
   "clients": {
-    "ci-bot": { "scopes": ["read", "message"], "tokens": ["atcs_<32 or more characters>"] }
+    "ci-bot": { "scopes": ["read", "message"], "tokens": ["atcs_<32 or more characters>"] },
+    "deploy-bot": { "scopes": ["read"], "secretDigests": ["<64 lowercase hex characters>"] }
   }
 }
 ```
@@ -123,11 +124,30 @@ token. Write the tokens to a JSON file and pass it with `--service-token-file`:
   `spawn` and `kill`.
 - `tokens` holds one or two tokens. Each is `atcs_` followed by 32 or more of `A-Z`, `a-z`, `0-9`,
   `_` and `-`. A token appears once in the file.
+- `secretDigests` holds one or two digests. A client with a digest signs in with the OAuth
+  `client_credentials` grant, described below.
+- Each client holds `tokens`, `secretDigests`, or both.
 - The file belongs to the user who runs the gateway, with mode 600.
 
 The gateway exits 1 at start for any fault, and the message names the fault and never prints a
-token. It reads the file once, so restart it after a change. To rotate a token, add the new one
-beside the old, restart, move the service to the new token, then remove the old one and restart.
+token.
+
+To reload the file with no restart, send the gateway SIGHUP. When the file fails to load, the
+gateway prints `atc-gateway: --service-token-file: <reason>` to stderr and keeps the file it had. To
+rotate a token or a digest, add the new one beside the old, send SIGHUP, move the service to the new
+one, then remove the old one and send SIGHUP again.
+
+### Secrets for client_credentials
+
+Run `atc mcp service-secret` to print a new secret and its digest. The secret goes to stdout and
+appears only then, so copy it to the service's own secret store. Put the digest in the client's
+`secretDigests`, then send SIGHUP. The service sends its client ID `service:<name>` and the secret
+in a `client_secret_basic` header, with `grant_type=client_credentials`, to
+`<public URL>/oauth2/token`. It gets an access token that lasts 600 seconds and holds the client's
+scopes, and it sends that token as the bearer on `/mcp`. A digest that a SIGHUP dropped gets
+`invalid_client` on the next token request. When the new file holds no digest at all, the token
+endpoint answers `400 unsupported_grant_type` instead, because the server then has no service client
+with a secret.
 
 The service sends the header `Authorization: Bearer <token>` and the public `Host` header. Its
 principal ID is `service:<name>`; list that ID under the daemon's

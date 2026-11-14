@@ -121,7 +121,7 @@ export async function runGatewayCLI(
         'service-token-file': {
           type: 'string',
           description:
-            'A JSON file of service tokens that /mcp accepts beside OAuth tokens; read once at start',
+            'A JSON file of service tokens that /mcp accepts beside OAuth tokens; read at start and again on SIGHUP',
         },
         ...STATE_DIR_ARG,
       },

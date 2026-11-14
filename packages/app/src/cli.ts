@@ -86,6 +86,7 @@ const ATC_CLI_IO: ATCCLIIO = {
       publicURL: flags.publicURL,
       waitForDaemon: flags.waitForDaemon,
       tokenFile: flags.tokenFile,
+      serviceTokenFile: flags.serviceTokenFile,
       allowedOrigins: flags.allowedOrigins,
     };
 
@@ -109,6 +110,11 @@ const ATC_CLI_IO: ATCCLIIO = {
       connectDaemon: () => wiring.connectNamedDaemon(named, build),
       openAuthDatabase: database.openMCPAuthDatabase,
     });
+  },
+  runMCPServiceSecret: async () => {
+    const secret = await import('./run-service-secret');
+
+    secret.runServiceSecret(PROCESS_IO);
   },
   runClients: async (action) => {
     const clients = await import('./clients');

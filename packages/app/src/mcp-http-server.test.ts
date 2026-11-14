@@ -5,12 +5,14 @@ import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
+import { mintServiceSecret } from '@atc/mcp';
 import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
   getRecord,
   openPTYViewer,
+  readJSONRecord,
   registerTestCleanup,
   runMCPTokenGrant,
   runPasskeyEnrollment,
@@ -45,15 +47,411 @@ async function setupTest() {
 
   registerTestCleanup(() => daemon.stop());
 
+  const daemonPaths = {
+    socketPath,
+    recordFile: join(temporaryDirectory.path, 'daemon.json'),
+    pidFile: join(temporaryDirectory.path, 'atc-daemon.pid'),
+  };
+
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
+  const serviceTokenFile = join(temporaryDirectory.path, 'service-tokens.json');
+
+  // Serves under the public origin https://atc.example.com, so a service
+  // token file can name its resource before the port is known.
+  const runWithServiceTokens = async () => {
+    const printed: string[] = [];
+    const errors: string[] = [];
+    const boots: string[] = [];
+    const exits: number[] = [];
+
+    const signals = new Map<string, () => Promise<void>>();
+
+    await runMCPHTTPServer(
+      'atc/test-build',
+      {
+        host: '127.0.0.1',
+        port: 0,
+        publicURL: 'https://atc.example.com',
+        waitForDaemon: false,
+        tokenFile: null,
+        serviceTokenFile,
+        allowedOrigins: [],
+      },
+      {
+        bootDaemon: (options) => {
+          boots.push('boot');
+
+          return bootDaemonClient(buildMockLifecycleHost(), options);
+        },
+        connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+        openAuthDatabase: openMCPAuthDatabase,
+      },
+      {
+        loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+        loadConfig: () => ({
+          publicURL: null,
+          host: '127.0.0.1',
+          port: 8414,
+          allowedHosts: [],
+          allowedOrigins: [],
+          trustForwardedFrom: [],
+        }),
+        dbPath,
+        daemonPaths,
+        print: (line) => {
+          printed.push(line);
+        },
+        printError: (line) => {
+          errors.push(line);
+        },
+        exit: (code) => {
+          exits.push(code);
+        },
+        registerSignal: (signal, listener) => {
+          signals.set(signal, listener);
+        },
+      },
+    );
+
+    return { printed, errors, boots, exits, signals };
+  };
+
   return {
-    dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
-    daemonPaths: {
-      socketPath,
-      recordFile: join(temporaryDirectory.path, 'daemon.json'),
-      pidFile: join(temporaryDirectory.path, 'atc-daemon.pid'),
+    dbPath,
+    daemonPaths,
+    serviceTokenFile,
+    runWithServiceTokens,
+
+    serveWithServiceTokens: async () => {
+      const started = await runWithServiceTokens();
+
+      const stopServing = started.signals.get('SIGTERM');
+
+      invariant(stopServing, 'the server registered no SIGTERM handler');
+      registerTestCleanup(stopServing);
+
+      const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)/u.exec(
+        started.printed.join('\n'),
+      )?.groups?.['port'];
+
+      invariant(port !== undefined, `no port in: ${started.printed.join('\n')}`);
+
+      return {
+        url: `http://127.0.0.1:${port}`,
+        errors: started.errors,
+        reload: () => {
+          const reload = started.signals.get('SIGHUP');
+
+          invariant(reload, 'the server registered no SIGHUP handler');
+
+          return reload();
+        },
+      };
     },
   };
 }
+
+test('it gives a client with a secret digest a token from client_credentials that reads on /mcp', async () => {
+  const ctx = await setupTest();
+
+  const minted = mintServiceSecret();
+  const resource = 'https://atc.example.com/mcp';
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource,
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [minted.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const server = await ctx.serveWithServiceTokens();
+
+  const basic = Buffer.from(`${encodeURIComponent('service:ci-bot')}:${minted.secret}`);
+
+  const issued = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${basic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  const tokens = await readJSONRecord(issued);
+
+  const listed = await fetch(`${server.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_sessions_list', arguments: {} },
+    }),
+  });
+
+  expect(issued.status).toBe(200);
+  expect(listed.status).toBe(200);
+
+  const body = await listed.json();
+
+  expect(body).toStrictEqual({
+    jsonrpc: '2.0',
+    id: 1,
+    result: {
+      content: [{ type: 'text', text: '[]' }],
+      structuredContent: { sessions: [] },
+    },
+  });
+});
+
+test('it refuses a client that a SIGHUP reload dropped with invalid_client', async () => {
+  const ctx = await setupTest();
+
+  const dropped = mintServiceSecret();
+  const kept = mintServiceSecret();
+  const resource = 'https://atc.example.com/mcp';
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource,
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [dropped.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const server = await ctx.serveWithServiceTokens();
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource,
+      clients: {
+        'other-bot': { scopes: ['read'], secretDigests: [kept.digest] },
+      },
+    }),
+  );
+
+  await server.reload();
+
+  const droppedBasic = Buffer.from(`${encodeURIComponent('service:ci-bot')}:${dropped.secret}`);
+  const keptBasic = Buffer.from(`${encodeURIComponent('service:other-bot')}:${kept.secret}`);
+
+  const refused = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${droppedBasic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  const admitted = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${keptBasic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  const refusal = await refused.json();
+
+  expect(refused.status).toBe(401);
+  expect(refusal).toMatchObject({ error: 'invalid_client' });
+  expect(admitted.status).toBe(200);
+});
+
+test('it refuses a service-token file for another resource before it boots the daemon', async () => {
+  const ctx = await setupTest();
+
+  const minted = mintServiceSecret();
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource: 'https://other.example.com/mcp',
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [minted.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const run = await ctx.runWithServiceTokens();
+
+  expect({
+    boots: run.boots,
+    exits: run.exits,
+    errors: run.errors,
+  }).toStrictEqual({
+    boots: [],
+    exits: [1],
+    errors: [
+      'atc mcp --http: --service-token-file: the file names the resource https://other.example.com/mcp, and the server serves https://atc.example.com/mcp',
+    ],
+  });
+});
+
+test('it answers unsupported_grant_type when a SIGHUP file leaves no digest', async () => {
+  const ctx = await setupTest();
+
+  const dropped = mintServiceSecret();
+  const resource = 'https://atc.example.com/mcp';
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource,
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [dropped.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const server = await ctx.serveWithServiceTokens();
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource,
+      clients: {
+        'ci-bot': { scopes: ['read'], tokens: [`atcs_${'b'.repeat(32)}`] },
+      },
+    }),
+  );
+
+  await server.reload();
+
+  const basic = Buffer.from(`${encodeURIComponent('service:ci-bot')}:${dropped.secret}`);
+
+  const refused = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${basic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  const refusal = await refused.json();
+
+  expect(refused.status).toBe(400);
+  expect(refusal).toMatchObject({ error: 'unsupported_grant_type' });
+});
+
+test('it keeps the loaded file and prints why when a SIGHUP file fails to parse', async () => {
+  const ctx = await setupTest();
+
+  const minted = mintServiceSecret();
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource: 'https://atc.example.com/mcp',
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [minted.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const server = await ctx.serveWithServiceTokens();
+
+  writeFileSync(ctx.serviceTokenFile, '{ not json');
+
+  await server.reload();
+
+  const basic = Buffer.from(`${encodeURIComponent('service:ci-bot')}:${minted.secret}`);
+
+  const admitted = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${basic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  expect(admitted.status).toBe(200);
+
+  expect(server.errors.filter((line) => !line.startsWith('atc security '))).toContain(
+    `atc mcp --http: --service-token-file: ${ctx.serviceTokenFile}: the file is not valid JSON`,
+  );
+});
+
+test('it refuses a write tool to a service client whose scopes lack the scope the tool needs', async () => {
+  const ctx = await setupTest();
+
+  const minted = mintServiceSecret();
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource: 'https://atc.example.com/mcp',
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [minted.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const server = await ctx.serveWithServiceTokens();
+
+  const basic = Buffer.from(`${encodeURIComponent('service:ci-bot')}:${minted.secret}`);
+
+  const issued = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${basic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  const tokens = await readJSONRecord(issued);
+
+  const spawned = await fetch(`${server.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'atc_session_spawn',
+        arguments: { cwd: ctx.serviceTokenFile },
+      },
+    }),
+  });
+
+  const body = await spawned.json();
+
+  expect(spawned.status).toBe(403);
+
+  expect(body).toStrictEqual({
+    error: 'insufficient_scope',
+    error_description: 'Insufficient scope',
+  });
+});
 
 test('it serves MCP through the daemon it boots and says no client can connect and no passkey is enrolled yet', async () => {
   const ctx = await setupTest();
@@ -71,6 +469,7 @@ test('it serves MCP through the daemon it boots and says no client can connect a
       publicURL: null,
       waitForDaemon: false,
       tokenFile: null,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -112,7 +511,9 @@ test('it serves MCP through the daemon it boots and says no client can connect a
 
   invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
 
-  const served = await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST' });
+  const served = await fetch(`http://127.0.0.1:${port}/mcp`, {
+    method: 'POST',
+  });
 
   expect(printed).toStrictEqual([
     `atc mcp --http: serving http://127.0.0.1:${port}/mcp, listening on http://127.0.0.1:${port}`,
@@ -143,6 +544,7 @@ test('it trusts the forwarded address from a proxy the config lists', async () =
       publicURL: null,
       waitForDaemon: false,
       tokenFile: null,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -199,7 +601,11 @@ test('it trusts the forwarded address from a proxy the config lists', async () =
   ).toMatchObject([
     {
       kind: 'authorize_invalid',
-      forwarded: { address: '198.51.100.23', header: 'cf-connecting-ip', provenance: 'trusted' },
+      forwarded: {
+        address: '198.51.100.23',
+        header: 'cf-connecting-ip',
+        provenance: 'trusted',
+      },
     },
   ]);
 });
@@ -220,6 +626,7 @@ test('it leaves the forwarded address unverified from a peer the config does not
       publicURL: null,
       waitForDaemon: false,
       tokenFile: null,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -303,6 +710,7 @@ test('it prints no hint to add a client once one can connect', async () => {
       publicURL: null,
       waitForDaemon: false,
       tokenFile: null,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -347,7 +755,10 @@ test('it prints no hint to enroll a passkey once one is enrolled', async () => {
   const ctx = await setupTest();
   const store = await openTestAuthAdmin(ctx.dbPath);
 
-  store.seedPasskey({ id: 'cred-phone', createdAt: '2026-10-14T12:00:00.000Z' });
+  store.seedPasskey({
+    id: 'cred-phone',
+    createdAt: '2026-10-14T12:00:00.000Z',
+  });
 
   const printed: string[] = [];
 
@@ -361,6 +772,7 @@ test('it prints no hint to enroll a passkey once one is enrolled', async () => {
       publicURL: null,
       waitForDaemon: false,
       tokenFile: null,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -422,6 +834,7 @@ test('it prints nothing to stdout once it serves and each sign-in security event
       publicURL: null,
       waitForDaemon: false,
       tokenFile: null,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -510,6 +923,7 @@ test('it registers its SIGINT and SIGTERM handlers before it prints the serving 
       publicURL: null,
       waitForDaemon: false,
       tokenFile: null,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -569,6 +983,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
       publicURL: null,
       waitForDaemon: false,
       tokenFile: null,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -630,6 +1045,7 @@ test('it exits 1 with the reason when no daemon answers at its daemon paths', as
       publicURL: null,
       waitForDaemon: false,
       tokenFile: null,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -706,6 +1122,7 @@ test('it streams a snapshot to a viewer that presents the token from its owner-o
       publicURL: null,
       waitForDaemon: false,
       tokenFile,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -756,7 +1173,12 @@ test('it streams a snapshot to a viewer that presents the token from its owner-o
   expect(viewer.frames).toStrictEqual([
     {
       kind: 'control',
-      frame: expect.objectContaining({ type: 'snapshot', cols: 80, rows: 24, state: 'running' }),
+      frame: expect.objectContaining({
+        type: 'snapshot',
+        cols: 80,
+        rows: 24,
+        state: 'running',
+      }),
     },
   ]);
 });
@@ -780,6 +1202,7 @@ test('it exits 1 before it boots a daemon when other users can open its token fi
       publicURL: null,
       waitForDaemon: false,
       tokenFile,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {
@@ -849,7 +1272,11 @@ test('it answers a tool call with the sessions of a named daemon it reaches over
           ['laptop', ['local']],
           [created.clientID, ['local']],
         ]),
-        listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.directory, 'gateway-token'),
+        },
       };
     },
   });
@@ -884,6 +1311,7 @@ test('it answers a tool call with the sessions of a named daemon it reaches over
       publicURL: null,
       waitForDaemon: true,
       tokenFile: null,
+      serviceTokenFile: null,
       allowedOrigins: [],
     },
     {

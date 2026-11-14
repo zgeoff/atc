@@ -120,9 +120,9 @@ and ends that token's grant, which then needs approving again.
 ## Service tokens
 
 `/mcp` accepts two kinds of bearer credential. An OAuth access token comes from a grant, as above. A
-service token is a fixed secret that atc-gateway reads from a file at start, so a non-interactive
-service in the same cluster can call `/mcp` with no browser sign-in. `atc mcp --http` takes no
-service tokens.
+service client is an entry in a file that `atc mcp --http` and atc-gateway read with
+`--service-token-file`, so a non-interactive service can call `/mcp` with no browser sign-in. A
+client holds static tokens, secret digests, or both.
 
 The first characters of the bearer pick the check:
 
@@ -143,15 +143,28 @@ collide. List `service:<name>` in the daemon's
 [`principals` key](../../guides/configuration/principals.md) to give it targets.
 
 The file's `resource` takes the place of the audience check an OAuth token gets: the gateway refuses
-to start when it differs from the resource it serves, so a file written for another gateway or
-another public URL is never accepted. The file must belong to the user who runs the gateway, with no
-group or other permission bits, the same check the daemon applies to its token file.
+to start when it differs from the resource it serves (`atc mcp --http` refuses before it boots the
+daemon whenever the origin is known then: a public URL, or a fixed port), and a SIGHUP reload
+refuses it, so a file written for another gateway or another public URL is never accepted. The file
+must belong to the user who runs the gateway, with no group or other permission bits, the same check
+the daemon applies to its token file.
 
-A client lists one or two tokens. Two tokens let an operator rotate with no outage: add the new
-token beside the old one, restart the gateway, move the service to the new token, then drop the old
-one and restart again. The gateway reads the file once at start, so every change to the file takes a
-restart. It compares tokens by their SHA-256 digests in constant time against every stored token,
-and keeps only the digests in memory.
+A client lists one or two tokens, one or two secret digests, or both. A client with a digest signs
+in with the OAuth `client_credentials` grant: it sends the client ID `service:<name>` and its secret
+in a `client_secret_basic` header to the token route, and gets a short-lived access token capped to
+the client's scopes. That token gets the same access a static token gets, so the scope checks and
+the principal ID apply unchanged. A digest is the SHA-256 of the secret as lowercase hex, and
+`atc mcp service-secret` makes a pair.
+
+Two tokens or two digests let an operator rotate with no outage: add the new one beside the old one,
+send the server SIGHUP, move the service to the new one, then drop the old one and send SIGHUP
+again. On SIGHUP the server reads the file again. A file that fails to load, or that names another
+resource, leaves the loaded file in force, and the server prints
+`<binary>: --service-token-file: <reason>` to stderr. The next token request and the next `/mcp`
+request read the new file, so a dropped digest gets `invalid_client` at once
+(`400 unsupported_grant_type` when no digest is left in the file), though an access token already
+issued from it lives until it expires. Static tokens are compared by their SHA-256 digests in
+constant time against every stored token, and only the digests stay in memory.
 
 ## Request checks
 

@@ -3,7 +3,10 @@ export interface ProcessIO {
   readonly printError: (line: string) => void;
   readonly setExitCode: (code: number) => void;
   readonly exit: (code: number) => void;
-  readonly registerSignal: (signal: 'SIGINT' | 'SIGTERM', listener: () => Promise<void>) => void;
+  readonly registerSignal: (
+    signal: 'SIGINT' | 'SIGTERM' | 'SIGHUP',
+    listener: () => Promise<void>,
+  ) => void;
 }
 
 export const PROCESS_IO: ProcessIO = {
