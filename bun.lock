@@ -445,7 +445,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.3.316",
     "@commitlint/cli": "21.2.4",
     "@faker-js/faker": "10.6.0",
-    "@impz/client": "7.0.1",
+    "@impz/client": "7.2.0",
     "@logtape/logtape": "2.4.2",
     "@maschwenk/tsrslint": "0.1.6",
     "@modelcontextprotocol/sdk": "1.32.2",
@@ -670,7 +670,7 @@
 
     "@humanwhocodes/retry": ["@humanwhocodes/retry@0.4.3", "", {}, "sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ=="],
 
-    "@impz/client": ["@impz/client@7.0.1", "", { "dependencies": { "@orpc/client": "^1.16.1", "@orpc/contract": "^1.16.1", "p-retry": "^8.0.1", "ts-pattern": "^5.9.2", "zod": "^4.6.7" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-qsLAFZeIZI0uHKsRnbFGba5lXe+VYCVEWc73E894uJlDfylX8ts1eLs4UAQb23moBEczDIixE9cm6aBCK9udHQ=="],
+    "@impz/client": ["@impz/client@7.2.0", "", { "dependencies": { "@orpc/client": "^1.16.1", "@orpc/contract": "^1.16.1", "p-retry": "^8.0.1", "ts-pattern": "^5.9.2", "zod": "^4.6.7" }, "peerDependencies": { "@opentelemetry/api": ">=1.9.0" }, "optionalPeers": ["@opentelemetry/api"] }, "sha512-SX6rr67AFmWe24WjlKkPWI5HA9m4wDWykSJdBHBYVGKEVBEmf2+EAQwGE0i39DVse5oZPwHjSgnfhS80k+nJmA=="],
 
     "@jest/diff-sequences": ["@jest/diff-sequences@30.5.0", "", {}, "sha512-OsqBjHXCn8cadasoAZBP6nWYvMsRhpMzGXTpxJ5aO04NlbdhIz+FVe3q49l0AwVhsz/cEmIpBes6gAFl1/dWQg=="],
 
