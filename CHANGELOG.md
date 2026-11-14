@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.17.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.16.0...@zgeoff/atc@7.17.0) (2026-11-14)
+
+
+### Features
+
+* **verify:** add the verify cli with a local target and four journeys ([#1229](https://github.com/zgeoff/atc/issues/1229)) ([c219dcf](https://github.com/zgeoff/atc/commit/c219dcf61f30b9d43935c49aa6b1c3a9cf7a3791))
+
 ## [7.16.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.15.1...@zgeoff/atc@7.16.0) (2026-11-14)
 
 ### Features
