@@ -1,12 +1,23 @@
 # session-list-leader
 
-A user presses the leader key, Ctrl-Space, to open the session list over whatever the TUI shows.
-Each row starts with the session's state mark: `●` while the session needs you. A `!` after the mark
-says the session has news you have not read. `a` acks the selected session, which clears its `!`;
-the `●` stays until the session's agent moves on. `/` opens a filter that narrows the list to the
-rows whose name holds the text.
+Check that `ctrl+space`, the leader key, opens the session list, that `a` marks the selected session
+read, and that `/` filters the list.
 
-Each stand-in asks for permission once it starts, so both sessions need you before the list opens.
+Start the environment first: `bun verify up`, then `bun verify doctor`, as steps 2 and 3 of the
+verify skill's Check a change say. Run the journey's lines in order. At the first line that exits
+non-zero, skip to the cleanup lines at the end of the journey, run them, and count the feature as
+failed. The cleanup lines leave the daemon with no session for the next journey.
+
+- The TUI is atc's terminal client. `terminal start atc` starts it, and the title `control tower`
+  shows once it has connected to the daemon, the atc process that hosts the sessions.
+- `up` installs a fake claude CLI, the stand-in, as the only agent, under the agent name `claude`.
+  It prints a line that starts `FAKE_CLAUDE_UP`, then asks for one permission.
+- The list box is titled `sessions`, and the newest session comes first. So `wv-leader-b`, spawned
+  second, is the selected row when the list opens.
+- Each row starts with marks. `●` shows while the session waits for a permission answer; the journey
+  never sends that answer. `!` after the `●` shows while the row has a change the TUI user has not
+  looked at. `a` clears the `!` and leaves the `●`.
+- `/` opens a filter line, and the list keeps the rows whose name contains the typed text.
 
 ## Journey
 
@@ -20,7 +31,7 @@ bun verify terminal press ctrl+space
 bun verify terminal wait --text '2 need you'
 bun verify terminal screen
 bun verify terminal press a
-bun verify terminal wait --regex '● {3}wv-leader-[ab]'
+bun verify terminal wait --regex '● {3}wv-leader-b'
 bun verify terminal press /
 bun verify terminal type --text wv-leader-a
 bun verify terminal wait --text '/ wv-leader-a'
@@ -32,7 +43,10 @@ bun verify action forget-session --name wv-leader-b
 
 ## End state
 
-- The first `terminal screen` lists both `wv-leader-a` and `wv-leader-b` under `sessions`, each row
-  starting `●!`, and the bottom bar shows `● 2 need you`.
-- The `--regex` wait exits 0: after `a`, the selected row starts `●` with no `!`.
-- The second `terminal screen` lists `wv-leader-a` and no `wv-leader-b` row.
+- Every command exits 0.
+- The first `terminal screen` lists a `wv-leader-b` row and a `wv-leader-a` row in the `sessions`
+  box, each starting `●!`, and the bottom bar shows `● 2 need you`.
+- The `--regex` wait matches the `wv-leader-b` row starting `●` with no `!`. The regex counts three
+  spaces because the `!` leaves a space in its place.
+- The second `terminal screen` lists a `wv-leader-a` session row, still `●!`, and no `wv-leader-b`
+  row.

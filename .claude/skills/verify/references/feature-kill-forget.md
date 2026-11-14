@@ -1,11 +1,26 @@
 # kill-forget
 
-A user selects a session in the session list and presses `K`, then `y` at `kill selected session?`.
-The daemon kills the agent and keeps the session listed with the exited mark `✗`, so it can be
-revived. `K` and `y` on an exited session forget it: the row leaves the list and the daemon's state.
+Check that the session list kills a session, then forgets it.
 
-The journey spawns one session, so the selected row is the only row. The list reorders after a kill,
-so with more sessions the second `K` can land on another row.
+Start the environment first: `bun verify up`, then `bun verify doctor`, as steps 2 and 3 of the
+verify skill's Check a change say. Run the journey's lines in order. At the first line that exits
+non-zero, skip to the cleanup lines at the end of the journey, run them, and count the feature as
+failed. The cleanup lines leave the daemon with no session for the next journey.
+
+- The TUI is atc's terminal client. `terminal start atc` starts it, and the title `control tower`
+  shows once it has connected to the daemon, the atc process that hosts the sessions.
+- `up` installs a fake claude CLI, the stand-in, as the only agent, under the agent name `claude`.
+  It prints a line that starts `FAKE_CLAUDE_UP`, then asks for one permission.
+- In the session list, which `ctrl+space` opens, `K` then `y` at `kill selected session?` acts on
+  the selected row. The journey sends `K` with `terminal type`, because `terminal press` refuses a
+  capital letter.
+- On a live session, it kills the agent. The row stays, marked `✗`, and its row in the `fleet` table
+  of the daemon's database, which `db query` reads, gets `exited` 1.
+- On an exited session, it forgets the session: the row leaves the list and the `fleet` table.
+
+Spawn only the one session: the list moves exited rows to the bottom, so with a second session the
+second `K` acts on the other row. The kill's regex accepts a `!` after the `✗`, the mark of a change
+the TUI user has not looked at.
 
 ## Journey
 
@@ -32,8 +47,9 @@ bun verify action forget-session --name wv-kill
 
 ## End state
 
-- After the kill, the `wv-kill` row starts `✗`, and the first `db query` returns its row with
-  `exited` 1.
-- After the forget, the list holds no `wv-kill` row, and the second `db query` returns a `count`
-  of 0.
-- The last `forget-session` returns an empty `data.forgotten`: the TUI forgot the session already.
+- Every command exits 0.
+- After the kill, the `wv-kill` row starts `✗`, and the first `db query` returns its row in
+  `data.rows` with `exited` 1.
+- After the forget, the list shows `no sessions`, and the second `db query` returns a `count` of 0.
+- The last `forget-session` returns an empty `data.forgotten`. A session id there means the TUI's
+  forget never reached the daemon: the feature fails.

@@ -127,8 +127,8 @@ command points that command alone.
 | `local` | `bun verify use --target local`, then `bun verify up` | read-write |
 
 `up` starts `atc daemon` from this checkout in a new temp home under `/tmp`, apart from any atc you
-run. Claude is a stand-in that prints `FAKE_CLAUDE_UP` and asks for permission once; no journey
-starts a real agent. `down` stops every session and removes the home.
+run. Claude is a stand-in that prints `FAKE_CLAUDE_UP` and asks for permission once, so a journey
+never starts a real agent. `down` stops every session and removes the home.
 
 <!-- /repo -->
 
@@ -143,11 +143,12 @@ group, such as `action`: run `bun verify <group> --help` for its commands.
 
 <!-- repo: commands -->
 
-- `terminal start atc` starts the TUI in the run's home. End each journey with `terminal stop`.
 - Type a capital letter with `terminal type --text K`: `terminal press` refuses a shifted key.
-- Name each session `wv-<feature>`. Each journey ends with `action forget-session` for each one.
-  After a failed journey, run its `forget-session` lines before the next one.
-- The `fleet` table of `db query` holds one row per session the daemon keeps.
+- Name each session you spawn `wv-<name>`. A journey's cleanup lines, `terminal stop` and one
+  `action forget-session` per session, come last. Run them after a failure too, and before you run a
+  journey again, so the next journey starts with no session.
+- `terminal start atc` starts the TUI in the run's home. `db query` reads the daemon's database,
+  whose `fleet` table holds one row per session.
 
 <!-- /repo -->
 
@@ -155,8 +156,12 @@ group, such as `action`: run `bun verify <group> --help` for its commands.
 
 <!-- repo: registry -->
 
-The registry is [`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts),
-and the map from paths to features is `feature-paths.ts` beside it.
+Put a new file's glob in [`feature-paths.ts`](../../../scripts/verify/feature-paths.ts), which holds
+each feature's `paths` and the registry's `.ignore` list. Add it to the `paths` of each feature
+whose journey runs the file, or to the ignore list when atc never reads it at run time. An ignore
+glob beats a feature's glob, so never ignore a folder that holds code a journey runs. The registry
+itself, [`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts), declares
+the target, actions, commands, doctor checks and features.
 
 <!-- /repo -->
 
