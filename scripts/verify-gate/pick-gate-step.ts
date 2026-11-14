@@ -6,11 +6,14 @@ const pullRequestSchema = z.object({
   body: z.string().nullable(),
   base: refSchema,
   head: refSchema,
-  user: z.object({ type: z.string() }),
+  user: z.object({ type: z.string(), login: z.string() }),
 });
 
 // The branch release-please opens its one release pull request from, as main.yml configures it.
 const RELEASE_BRANCH = 'release-please--branches--main';
+
+// The REST login of the Renovate app's bot account, as a pull_request event names it.
+const RENOVATE_LOGIN = 'zgeoff-renovate[bot]';
 const pullRequestEventSchema = z.object({ pull_request: pullRequestSchema });
 
 export type GateStep =
@@ -35,6 +38,16 @@ export function pickGateStep(event: unknown): GateStep {
 
   if (pullRequest.head.ref === RELEASE_BRANCH && pullRequest.user.type === 'Bot') {
     return { kind: 'skip', reason: 'a release pull request carries no verify report' };
+  }
+
+  // Renovate's bot changes only dependency versions, and nobody runs a journey on its pull
+  // requests. A person's `renovate/` branch still meets the gate.
+  if (
+    pullRequest.head.ref.startsWith('renovate/') &&
+    pullRequest.user.type === 'Bot' &&
+    pullRequest.user.login === RENOVATE_LOGIN
+  ) {
+    return { kind: 'skip', reason: 'a renovate pull request carries no verify report' };
   }
 
   return { kind: 'gate', baseRef: pullRequest.base.ref, body: pullRequest.body ?? '' };
