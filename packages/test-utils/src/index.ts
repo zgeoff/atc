@@ -45,6 +45,7 @@ export * from './build-stub-signed-out-gh';
 export * from './build-stub-skip-clock';
 export * from './build-stub-terminal';
 export * from './build-stub-timeout-scheduler';
+export * from './build-stub-tui-claude';
 export * from './read-process-tree';
 export * from './kill-process-group';
 export * from './create-git-fixture';

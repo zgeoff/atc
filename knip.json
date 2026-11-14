@@ -11,7 +11,8 @@
         "scripts/pack-contract.ts",
         "scripts/probe-pty-env.ts",
         "rig.config.ts",
-        "scripts/stage-demo-sessions.ts"
+        "scripts/stage-demo-sessions.ts",
+        "scripts/verify/run-local-daemon.ts"
       ],
       "project": ["e2e/**/*.ts", "integration/**/*.ts", "scripts/**/*.ts"]
     },
