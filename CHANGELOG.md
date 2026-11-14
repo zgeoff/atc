@@ -2,10 +2,11 @@
 
 ## [7.16.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.15.1...@zgeoff/atc@7.16.0) (2026-11-14)
 
-
 ### Features
 
-* **mcp:** accept client_credentials service clients, reload on sighup ([#1225](https://github.com/zgeoff/atc/issues/1225)) ([ecedfcd](https://github.com/zgeoff/atc/commit/ecedfcdb0ae5eebd553c500ac2ef63abf48fc9cb))
+- **mcp:** accept client_credentials service clients, reload on sighup
+  ([#1225](https://github.com/zgeoff/atc/issues/1225))
+  ([ecedfcd](https://github.com/zgeoff/atc/commit/ecedfcdb0ae5eebd553c500ac2ef63abf48fc9cb))
 
 ## [7.15.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.15.0...@zgeoff/atc@7.15.1) (2026-11-13)
 
