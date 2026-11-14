@@ -145,7 +145,9 @@ appears only then, so copy it to the service's own secret store. Put the digest 
 in a `client_secret_basic` header, with `grant_type=client_credentials`, to
 `<public URL>/oauth2/token`. It gets an access token that lasts 600 seconds and holds the client's
 scopes, and it sends that token as the bearer on `/mcp`. A digest that a SIGHUP dropped gets
-`invalid_client` on the next token request.
+`invalid_client` on the next token request. When the new file holds no digest at all, the token
+endpoint answers `400 unsupported_grant_type` instead, because the server then has no service client
+with a secret.
 
 The service sends the header `Authorization: Bearer <token>` and the public `Host` header. Its
 principal ID is `service:<name>`; list that ID under the daemon's

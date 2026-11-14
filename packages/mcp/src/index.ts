@@ -5,6 +5,7 @@ export { createSubscriptionStore } from './events/create-subscription-store';
 export { openEventDatabase } from './events/open-event-database';
 export { removeUnreadableSubscriptions } from './events/remove-unreadable-subscriptions';
 export type { WatchChannel } from './http/create-pty-viewer';
+export { findMCPResource } from './http/find-mcp-resource';
 export * from './http/start-mcp-http-server';
 export * from './tools/build-principal-caller';
 export * from './tools/run-tool';

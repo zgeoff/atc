@@ -143,10 +143,11 @@ collide. List `service:<name>` in the daemon's
 [`principals` key](../../guides/configuration/principals.md) to give it targets.
 
 The file's `resource` takes the place of the audience check an OAuth token gets: the gateway refuses
-to start when it differs from the resource it serves, and a SIGHUP reload refuses it, so a file
-written for another gateway or another public URL is never accepted. The file must belong to the
-user who runs the gateway, with no group or other permission bits, the same check the daemon applies
-to its token file.
+to start when it differs from the resource it serves (`atc mcp --http` refuses before it boots the
+daemon whenever the origin is known then: a public URL, or a fixed port), and a SIGHUP reload
+refuses it, so a file written for another gateway or another public URL is never accepted. The file
+must belong to the user who runs the gateway, with no group or other permission bits, the same check
+the daemon applies to its token file.
 
 A client lists one or two tokens, one or two secret digests, or both. A client with a digest signs
 in with the OAuth `client_credentials` grant: it sends the client ID `service:<name>` and its secret
@@ -160,9 +161,10 @@ send the server SIGHUP, move the service to the new one, then drop the old one a
 again. On SIGHUP the server reads the file again. A file that fails to load, or that names another
 resource, leaves the loaded file in force, and the server prints
 `<binary>: --service-token-file: <reason>` to stderr. The next token request and the next `/mcp`
-request read the new file, so a dropped digest gets `invalid_client` at once, though an access token
-already issued from it lives until it expires. Static tokens are compared by their SHA-256 digests
-in constant time against every stored token, and only the digests stay in memory.
+request read the new file, so a dropped digest gets `invalid_client` at once
+(`400 unsupported_grant_type` when no digest is left in the file), though an access token already
+issued from it lives until it expires. Static tokens are compared by their SHA-256 digests in
+constant time against every stored token, and only the digests stay in memory.
 
 ## Request checks
 

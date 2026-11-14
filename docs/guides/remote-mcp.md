@@ -144,10 +144,11 @@ browser, passkey or grant.
    gets as the bearer on `/mcp`.
 
 To change the file with no restart, edit it and send the server SIGHUP. A client whose digest the
-new file drops gets `invalid_client` on its next token request. When the new file fails to load, the
-server prints `atc mcp --http: --service-token-file: <reason>` to stderr and keeps the old one. To
-rotate a secret, add its new digest beside the old one, send SIGHUP, move the client to the new
-secret, then drop the old digest and send SIGHUP again.
+new file drops gets `invalid_client` on its next token request, or `400 unsupported_grant_type` when
+the new file holds no digest at all. When the new file fails to load, the server prints
+`atc mcp --http: --service-token-file: <reason>` to stderr and keeps the old one. To rotate a
+secret, add its new digest beside the old one, send SIGHUP, move the client to the new secret, then
+drop the old digest and send SIGHUP again.
 
 A client's `scopes` limit its tools: a client without `spawn` cannot call `atc_session_spawn`.
 [The gateway guide](./gateway.md#service-tokens) lists every field of the file, and the

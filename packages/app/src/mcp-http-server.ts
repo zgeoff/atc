@@ -8,7 +8,7 @@ import {
 } from '@atc/config';
 import { systemClock } from '@atc/core';
 import type { ChannelCaller, WatchChannel } from '@atc/mcp';
-import { openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
+import { findMCPResource, openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
 import { GATEWAY_PATHS } from '@atcx/contract';
 import { loadServiceTokenFile } from './load-service-token-file';
@@ -96,6 +96,27 @@ export async function runMCPHTTPServer(
 
   if (serviceTokens !== null && !serviceTokens.ok) {
     io.printError(`atc mcp --http: --service-token-file: ${serviceTokens.reason}`);
+    io.exit(1);
+
+    return;
+  }
+
+  // The daemon boots before the server binds, so a file for another resource
+  // is refused here, where the origin is already known, with nothing started.
+  const expectedResource = findMCPResource(
+    flags.publicURL ?? config.publicURL,
+    flags.port ?? config.port,
+  );
+
+  if (
+    serviceTokens !== null &&
+    expectedResource !== null &&
+    serviceTokens.file.resource !== expectedResource
+  ) {
+    io.printError(
+      `atc mcp --http: --service-token-file: the file names the resource ${serviceTokens.file.resource}, and the server serves ${expectedResource}`,
+    );
+
     io.exit(1);
 
     return;
