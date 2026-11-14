@@ -13,5 +13,5 @@ export * from './tools/create-transport-caller';
 export type * from './events/types';
 export type * from './tools/types';
 export type { GrantID, MCPAuthAdmin, OAuthClientID, PasskeyID } from '@zgeoff/mcp-auth';
-export { MCPAuthError, parseServiceTokenFile } from '@zgeoff/mcp-auth';
+export { MCPAuthError, mintServiceSecret, parseServiceTokenFile } from '@zgeoff/mcp-auth';
 export type { ServiceTokenFile } from '@zgeoff/mcp-auth';

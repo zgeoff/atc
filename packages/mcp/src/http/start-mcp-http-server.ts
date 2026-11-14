@@ -116,6 +116,10 @@ export interface MCPHTTPServer {
 
   // The public origin: the OAuth issuer.
   readonly origin: string;
+
+  // Swaps the service-token file the server checks, so the next token
+  // request and the next `/mcp` request read the new one.
+  readonly replaceServiceTokens: (file: ServiceTokenFile<GrantScope>) => void;
   readonly stop: () => Promise<void>;
 }
 
@@ -450,6 +454,9 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
     url: local,
     listening: formatBindURL(options.host, port),
     origin,
+    replaceServiceTokens: (replacement) => {
+      auth.replaceServiceTokens(replacement);
+    },
     stop: async () => {
       clearInterval(removeExpired);
 

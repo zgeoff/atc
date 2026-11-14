@@ -11,6 +11,7 @@ import { loadServiceTokenFile } from './load-service-token-file';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
+import { registerServiceTokenReload } from './register-service-token-reload';
 
 interface GatewayFlags {
   readonly host: string;
@@ -123,6 +124,15 @@ export async function runGateway(
 
   io.registerSignal('SIGINT', stopServing);
   io.registerSignal('SIGTERM', stopServing);
+
+  if (flags.serviceTokenFile !== null) {
+    registerServiceTokenReload({
+      binary: 'atc-gateway',
+      path: flags.serviceTokenFile,
+      server,
+      io,
+    });
+  }
 
   io.print(
     `atc-gateway: serving ${server.origin}${GATEWAY_PATHS.machine.mcp}, listening on ${server.listening}`,

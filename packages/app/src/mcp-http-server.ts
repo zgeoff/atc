@@ -11,8 +11,10 @@ import type { ChannelCaller, WatchChannel } from '@atc/mcp';
 import { openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
 import { GATEWAY_PATHS } from '@atcx/contract';
+import { loadServiceTokenFile } from './load-service-token-file';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
+import { registerServiceTokenReload } from './register-service-token-reload';
 
 interface MCPHTTPFlags {
   readonly host: string | null;
@@ -20,6 +22,9 @@ interface MCPHTTPFlags {
   readonly publicURL: string | null;
   readonly waitForDaemon: boolean;
   readonly tokenFile: string | null;
+
+  // The file of service tokens `/mcp` accepts; null for none.
+  readonly serviceTokenFile: string | null;
   readonly allowedOrigins: readonly string[];
 }
 
@@ -84,6 +89,18 @@ export async function runMCPHTTPServer(
     return;
   }
 
+  const serviceTokens =
+    flags.serviceTokenFile === null
+      ? null
+      : loadServiceTokenFile(flags.serviceTokenFile, NODE_TOKEN_FILE_ACCESS);
+
+  if (serviceTokens !== null && !serviceTokens.ok) {
+    io.printError(`atc mcp --http: --service-token-file: ${serviceTokens.reason}`);
+    io.exit(1);
+
+    return;
+  }
+
   const waitOptions = flags.waitForDaemon
     ? {
         waitForDaemonMs: DAEMON_WAIT_MS,
@@ -124,6 +141,7 @@ export async function runMCPHTTPServer(
     trustForwardedFrom: config.trustForwardedFrom,
     dbPath: io.dbPath,
     openAuthDatabase: host.openAuthDatabase,
+    ...(serviceTokens === null ? {} : { serviceTokens: serviceTokens.file }),
 
     // Request lines go to stderr, beside the security events.
     printRequest: (line) => {
@@ -153,6 +171,15 @@ export async function runMCPHTTPServer(
 
   io.registerSignal('SIGINT', stopServing);
   io.registerSignal('SIGTERM', stopServing);
+
+  if (flags.serviceTokenFile !== null) {
+    registerServiceTokenReload({
+      binary: 'atc mcp --http',
+      path: flags.serviceTokenFile,
+      server,
+      io,
+    });
+  }
 
   io.print(
     `atc mcp --http: serving ${server.origin}${GATEWAY_PATHS.machine.mcp}, listening on ${server.listening}`,

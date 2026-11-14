@@ -110,6 +110,49 @@ a grant's tokens and the consent its client holds, and the client loses access o
 A live terminal the client has open ends at the server's next access check. A grant ID can start
 with a dash, which the `=` form always passes as the value.
 
+## Service clients
+
+An agent with no person present signs in with the OAuth `client_credentials` grant. It needs no
+browser, passkey or grant.
+
+1. Make a secret and its digest. The secret prints once, to stdout, and no file holds it:
+
+   ```bash
+   atc mcp service-secret
+   ```
+
+2. Write a file that only you can read, with the digest under the client's name:
+
+   ```json
+   {
+     "resource": "https://<public_host>/mcp",
+     "clients": { "ci-bot": { "scopes": ["read"], "secretDigests": ["<digest>"] } }
+   }
+   ```
+
+3. Start the server with the file:
+
+   ```bash
+   atc mcp --http --public-url https://<public_host> --service-token-file ~/.config/atc/service-tokens.json
+   ```
+
+   Expect: a bad file stops the server with `atc mcp --http: --service-token-file: <reason>` and
+   nothing started.
+
+4. The client sends its client ID `service:ci-bot` and the secret in a `client_secret_basic` header,
+   with `grant_type=client_credentials`, to `<origin>/oauth2/token`. It sends the access token it
+   gets as the bearer on `/mcp`.
+
+To change the file with no restart, edit it and send the server SIGHUP. A client whose digest the
+new file drops gets `invalid_client` on its next token request. When the new file fails to load, the
+server prints `atc mcp --http: --service-token-file: <reason>` to stderr and keeps the old one. To
+rotate a secret, add its new digest beside the old one, send SIGHUP, move the client to the new
+secret, then drop the old digest and send SIGHUP again.
+
+A client's `scopes` limit its tools: a client without `spawn` cannot call `atc_session_spawn`.
+[The gateway guide](./gateway.md#service-tokens) lists every field of the file, and the
+[architecture doc](../architecture/remote/oauth.md#service-tokens) covers how the server checks it.
+
 ## Watching a terminal in a browser
 
 The server streams a session's live terminal to a web page over a WebSocket, read-only.
