@@ -1,0 +1,40 @@
+import { expect, test } from 'bun:test';
+import { buildHomeCommand } from './build-home-command.ts';
+
+test('it runs the command in the run home with the enclosing session variables removed', () => {
+  expect(buildHomeCommand('/tmp/atc-test-home-pear', ['bun', 'cli.ts', 'events'])).toStrictEqual([
+    'env',
+    '-u',
+    'ATC_SESSION_ID',
+    '-u',
+    'ATC_SOCKET',
+    '-u',
+    'ATC_BRIDGE',
+    '-u',
+    'ATC_OUTBOX',
+    '-u',
+    'ATC_SESSION_RECORD',
+    '-u',
+    'AUTO_MODE_SCOPE_FILE',
+    '-u',
+    'CLAUDE_CONFIG_DIR',
+    '-u',
+    'CODEX_THREAD_ID',
+    '-u',
+    'CODEX_SESSION_ID',
+    '-u',
+    'CODEX_TOOL_CALL_ID',
+    'HOME=/tmp/atc-test-home-pear/home',
+    'XDG_RUNTIME_DIR=/tmp/atc-test-home-pear/runtime',
+    'XDG_CONFIG_HOME=/tmp/atc-test-home-pear/home/.config',
+    'XDG_DATA_HOME=/tmp/atc-test-home-pear/home/.local/share',
+    'XDG_STATE_HOME=/tmp/atc-test-home-pear/home/.local/state',
+    'XDG_CACHE_HOME=/tmp/atc-test-home-pear/home/.cache',
+    'GROK_HOME=/tmp/atc-test-home-pear/home/.grok',
+    'CODEX_HOME=/tmp/atc-test-home-pear/home/.codex',
+    'ATC_TEST_HOME=/tmp/atc-test-home-pear',
+    'bun',
+    'cli.ts',
+    'events',
+  ]);
+});

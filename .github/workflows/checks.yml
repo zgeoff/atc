@@ -105,6 +105,10 @@ jobs:
       - name: Lint mods
         run: bun run lint:mods
 
+      # the feature map and the verify skill against the verify CLI, with no running app
+      - name: Verify Lint
+        run: bun run --silent verify:lint
+
       # the docs checks that check:docs names, from chex
       - name: Docs
         run: bun run --silent check:docs
