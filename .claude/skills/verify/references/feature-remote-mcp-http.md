@@ -1,19 +1,19 @@
 # remote-mcp-http
 
-Check that `atc mcp --http` refuses a call with no token, and that a service client signs in with
-the OAuth `client_credentials` grant and lists the sessions.
+Check that `atc mcp --http` refuses a request with no token, and that a service client signs in and
+lists the sessions.
 
-Start the environment first: `bun verify up`, then `bun verify doctor`, as steps 2 and 3 of the
-verify skill's Check a change say. Run the journey's lines in order. At the first line that exits
-non-zero, skip to the cleanup line at the end of the journey, run it, and count the feature as
-failed.
+Start a run on `local`, and pass `doctor`, as steps 2 and 3 of
+[Check a change](../SKILL.md#check-a-change) say. Then run the journey's lines in order.
 
-- `up` mints a service client for the run, `service:verify-local`, and starts `atc mcp --http` on a
-  loopback port with the client's secret digest in its service-token file. The `mcp` commands with
-  `--server remote` sign in as that client for you, so you never pass a token or a secret.
-- `http request` goes to the same server, with no token.
-- Check `data.isError` on each call. A tool that fails still gives `ok: true`, with
-  `data.isError: true` and the reason in `data.content`.
+- Treat a tool call that gives `data.isError: true` as a failed line. A tool that fails still exits
+  0 with `ok: true`, and gives the reason in `data.content`.
+- Expect `http request` to exit 0 with the 401 in `data.status`. It fails only when no answer comes.
+- At the first failed line, run the last line, `action forget-session`, and skip `done`. Then go on
+  as step 5 of Check a change says. `forget-session` stops the session if it still runs, and does
+  nothing when no session has the name.
+- Pass no token or secret. `http request` sends none, and `--server remote` signs in for you with
+  the client that `up` creates for the run.
 
 ## Journey
 
@@ -28,10 +28,10 @@ bun verify action forget-session --name wv-remote
 
 ## End state
 
-Each field below sits under `data`.
+Each value below sits under `data` of the command named.
 
-- `http request` gives `status` 401, and its `www-authenticate` header names a `resource_metadata`
+- `http request` gives `status` 401, and `headers["www-authenticate"]` holds a `resource_metadata`
   URL.
-- `mcp tools` gives `server: "remote"` and a list of tools that holds `atc_sessions_list`.
-- `mcp call atc_sessions_list` gives `isError: false`, and `structuredContent.sessions` holds one
-  session, named `wv-remote`.
+- `mcp tools` gives `server` `remote`, and its list of tools holds `atc_sessions_list`.
+- `mcp call` gives `isError: false`, and `structuredContent.sessions` holds a session named
+  `wv-remote`.

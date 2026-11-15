@@ -4,7 +4,7 @@ description:
   'Uses atc the way a user would with `bun verify`: drives the real TUI, daemon, `atc events`, MCP
   servers and gateway against a stand-in claude in a temp home, and records the verdict that a
   feature works. Load it before you check a change in the running app, run the journey of a feature,
-  or put the verdicts in a PR.'
+  read the deployed gateway on prod, or put the verdicts in a PR.'
 metadata:
   wringer-template: 'sha256:97fabc9a9389'
   wringer-command: bun verify
@@ -126,13 +126,13 @@ command points that command alone.
 
 <!-- repo: targets -->
 
-| Target  | Start with                                                      | Access     |
-| ------- | --------------------------------------------------------------- | ---------- |
-| `local` | `bun verify use --target local`, then `bun verify up`           | read-write |
-| `prod`  | the On prod steps in [gateway-routing](#references); no verdict | read-only  |
+| Target  | Start with                                                             | Access     |
+| ------- | ---------------------------------------------------------------------- | ---------- |
+| `local` | `bun verify use --target local`, then `bun verify up`                  | read-write |
+| `prod`  | step 2 of On prod in the [gateway-routing](#references) feature's file | read-only  |
 
-`up` runs this checkout in a temp home under `/tmp`: the daemon, `atc mcp --http` and two gateways,
-and a stand-in claude that prints `FAKE_CLAUDE_UP` and asks for permission once.
+Record a verdict on `local` only. `up` runs this checkout's daemon, MCP servers and gateways in a
+temp home, with a stand-in claude.
 
 <!-- /repo -->
 
@@ -161,10 +161,9 @@ only the name of a group, such as `action`: run `bun verify <group> --help` for 
 
 <!-- repo: registry -->
 
-Put a new file's glob in [`feature-paths.ts`](../../../scripts/verify/feature-paths.ts): in the
-`paths` of each feature whose journey runs it, or in the ignore list when atc never reads it at run
-time. An ignore glob beats a feature's glob. The registry,
-[`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts), declares the rest.
+[`feature-paths.ts`](../../../scripts/verify/feature-paths.ts) holds each feature's `paths` and the
+registry's `.ignore` list. Add a new file's glob to the `paths` of each feature whose journey runs
+it. Ignore it only when atc never reads it at run time: an ignore glob beats a feature's glob.
 
 <!-- /repo -->
 

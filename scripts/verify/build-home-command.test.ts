@@ -24,6 +24,10 @@ test('it runs the command in the run home with the enclosing session variables r
     'CODEX_SESSION_ID',
     '-u',
     'CODEX_TOOL_CALL_ID',
+    '-u',
+    'ATC_VERIFY_LOCAL_MCP_SECRET',
+    '-u',
+    'ATC_PROD_MCP_SECRET',
     'HOME=/tmp/atc-test-home-pear/home',
     'XDG_RUNTIME_DIR=/tmp/atc-test-home-pear/runtime',
     'XDG_CONFIG_HOME=/tmp/atc-test-home-pear/home/.config',
@@ -38,3 +42,21 @@ test('it runs the command in the run home with the enclosing session variables r
     'events',
   ]);
 });
+
+test.each(['ATC_VERIFY_LOCAL_MCP_SECRET', 'ATC_PROD_MCP_SECRET'])(
+  'it keeps %s from the command',
+  async (name) => {
+    const child = Bun.spawn(
+      buildHomeCommand('/tmp/atc-test-home-pear', [
+        process.execPath,
+        '-e',
+        `console.log(process.env.${name} ?? 'unset')`,
+      ]),
+      { env: { PATH: process.env['PATH'], [name]: 'invented-secret' }, stdout: 'pipe' },
+    );
+
+    const printed = await child.stdout.text();
+
+    expect(printed).toBe('unset\n');
+  },
+);

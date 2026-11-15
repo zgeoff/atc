@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { localMCPClient, prodMCPClient } from './constants.ts';
 
 // The variables `with-test-home.sh` removes: a session atc hosts sets them, and a process that
 // keeps one reports to the live daemon of the enclosing session.
@@ -15,15 +16,19 @@ const ENCLOSING_SESSION_VARIABLES = [
   'CODEX_TOOL_CALL_ID',
 ] as const;
 
+// The supervisor holds the service clients' secrets for the mcp driver, and nothing the run
+// starts needs one.
+const SECRET_VARIABLES = [localMCPClient.secretEnv, prodMCPClient.secretEnv] as const;
+
 // Runs argv in the run's temp home, as `with-test-home.sh` sets it up. A wringer program or
 // stream source only adds variables to the supervisor's, so `env` removes the enclosing
-// session's.
+// session's and the secrets.
 export function buildHomeCommand(root: string, argv: readonly string[]): string[] {
   const home = join(root, 'home');
 
   return [
     'env',
-    ...ENCLOSING_SESSION_VARIABLES.flatMap((name) => ['-u', name]),
+    ...[...ENCLOSING_SESSION_VARIABLES, ...SECRET_VARIABLES].flatMap((name) => ['-u', name]),
     `HOME=${home}`,
     `XDG_RUNTIME_DIR=${join(root, 'runtime')}`,
     `XDG_CONFIG_HOME=${join(home, '.config')}`,

@@ -1,21 +1,22 @@
 # gateway-routing
 
 Check that atc-gateway routes a tool call to the daemon over the daemon's TCP listener, and that the
-daemon refuses a gateway that presents the wrong token. After a deploy, also run the reads in
-[On prod](#on-prod) against the deployed gateway.
+daemon refuses a gateway with the wrong token. Run the journey on `local` for each change. Run
+[On prod](#on-prod) only when your task asks for a check of the deployed gateway.
 
-Start the environment first: `bun verify up`, then `bun verify doctor`, as steps 2 and 3 of the
-verify skill's Check a change say. Run the journey's lines in order. At the first line that exits
-non-zero, skip to the cleanup line at the end of the journey, run it, and count the feature as
-failed.
+Start a run on `local`, and pass `doctor`, as steps 2 and 3 of
+[Check a change](../SKILL.md#check-a-change) say. Then run the journey's lines in order.
 
-- `up` starts the daemon with `--listen 127.0.0.1:0 --token-file`, and two gateways that both list
-  it as the daemon `verify`. `gateway` presents the daemon's token, and `gateway-wrong` presents
-  another. Both take the run's service client, so the `mcp` commands sign in for you.
-- The daemon's listener logs each refused handshake to its stderr, which `up` records as the
-  `daemon` stream. `handshake-refusals` reads that stream since `use --feature`.
-- `atc_sessions_list` through a gateway lists the sessions of every daemon it reaches, and names
-  each daemon with its `state` in `structuredContent.daemons`.
+- Treat a tool call that gives `data.isError: true` as a failed line. A tool that fails still exits
+  0 with `ok: true`, and gives the reason in `data.content`.
+- At the first failed line, run the last line, `action forget-session`, and skip `done`. Then go on
+  as step 5 of Check a change says. `forget-session` stops the session if it still runs, and does
+  nothing when no session has the name.
+- `up` starts two gateways. Each has the daemon in its config under the name `verify`, the name that
+  `structuredContent.daemons` shows. `gateway` holds the daemon's token, and `gateway-wrong` holds
+  another. `--server` signs in to each for you with the client that `up` creates for the run.
+- `handshake-refusals` reads the refused handshakes that the daemon logged since you ran
+  `use --feature`.
 
 ## Journey
 
@@ -30,27 +31,25 @@ bun verify action forget-session --name wv-gateway
 
 ## End state
 
-Each field below sits under `data`.
+Each value below sits under `data` of the command named.
 
 - The call through `gateway` gives `isError: false`, `structuredContent.daemons`
-  `[{"name":"verify","state":"up"}]`, and one session in `structuredContent.sessions`, named
-  `wv-gateway`.
-- The call through `gateway-wrong` gives `isError: false`, no session, and
-  `structuredContent.daemons` `[{"name":"verify","state":"unauthorized"}]`.
-- `handshake-refusals` gives at least one entry in `refusals`, each with `reason` `unauthorized`.
+  `[{"name":"verify","state":"up"}]`, and a session named `wv-gateway` in
+  `structuredContent.sessions`.
+- The call through `gateway-wrong` gives `isError: false`, an empty `structuredContent.sessions`,
+  and `structuredContent.daemons` `[{"name":"verify","state":"unauthorized"}]`.
+- `handshake-refusals` gives at least one entry in `refusals`, and each has `reason` `unauthorized`.
 
 ## On prod
 
-`prod` is the deployed atc gateway, and only reads. Run no action there, and record no verdict: run
-`done` on `local` only. The target keeps its evidence local, because a session's name or screen can
-hold anything. When a read fails, give its `data` in your reply.
+Run only the reads below on `prod`, the deployed atc gateway. Run `done` for this feature on `local`
+before you start, and never on `prod`. Keep the evidence of `prod` out of the PR: a session's name
+or screen can hold anything.
 
 1. Run `bun verify use --target prod`, then `bun verify use --feature gateway-routing`.
-2. Start the run with the read client `service:wringer-ro`. 1Password keeps its secret and the
-   gateway's origin in the item `atc verify prod mcp client` of atc's vault, in the fields
-   `credential` and `origin`. Set both variables on the `attach` command alone, and never print the
-   secret. `attach` starts the run's supervisor, which keeps the secret and signs in for each later
-   `mcp` command.
+2. Run `attach` with the two variables below. Set them on this one command, and never print the
+   secret. They hold the secret of the read client, `service:wringer-ro`, and the gateway's origin.
+   The `prod` target signs in as that client, so the command needs no client name.
 
    ```bash
    ATC_PROD_ORIGIN="$(op read 'op://atc/atc verify prod mcp client/origin')" ATC_PROD_MCP_SECRET="$(op read 'op://atc/atc verify prod mcp client/credential')" bun verify attach
@@ -58,25 +57,24 @@ hold anything. When a read fails, give its `data` in your reply.
 
    Expect: `ok: true` and `data.status` `running`.
 
-3. Run `bun verify doctor`. On `prod`, `mcp-door` checks that the gateway names its own `/mcp` as
-   its resource, and `mcp-sign-in` checks that the client signs in. The checks of the `local` run
-   report `skipped`.
+3. Run `bun verify doctor`. Expect: `data.passed: true`, with `mcp-door` and `mcp-sign-in` passed,
+   and each check that runs only on `local` reported as `skipped`. When `mcp-sign-in` fails, go to
+   step 5, and report its message:
+   - `the server has no service clients with secrets`: the gateway holds no digest for the read
+     client yet.
+   - `invalid_client`: the gateway holds another digest, or the secret came from another item.
 
-   Expect: `data.passed: true`. When `mcp-sign-in` fails with
-   `the server has no service clients with secrets`, the deployed gateway's service-token file holds
-   no digest yet. When it fails with `invalid_client`, the file holds another digest, or the secret
-   came from another item.
-
-4. Run the two reads. Take `<session_id>` from the `id` of any session in the list.
+4. Run the list, then a get with the `id` of any session the list gives. Skip the get when the list
+   is empty.
 
    ```bash
    bun verify mcp call atc_sessions_list --server gateway
    bun verify mcp call atc_session_get --server gateway --args '{"session":"<session_id>"}'
    ```
 
-   Expect: `isError: false` on each, and the get gives the session with that `id`. A daemon in
-   `structuredContent.daemons` with a `state` other than `up` is one that does not grant the read
-   client; report it, and go on.
+   Expect: `isError: false` on each, and the get gives the session with that `id`. Report each
+   daemon in `structuredContent.daemons` whose `state` is not `up`: it does not grant the read
+   client. Then go on.
 
-5. Run `bun verify detach`, then `bun verify use --target local`. `detach` removes the run's
-   `secrets.ndjson`, where the run keeps the secret to scrub it from the evidence.
+5. Run `bun verify detach`, then `bun verify use --target local`, after a failure too. `detach`
+   removes the copy of the secret that the run keeps on disk to scrub its evidence.
