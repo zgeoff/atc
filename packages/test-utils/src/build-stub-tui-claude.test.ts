@@ -287,3 +287,66 @@ test('it reports through the CLI entry it is given, with none in the environment
     });
   });
 });
+
+test('it runs the message tap for its session when the tap file exists', async () => {
+  const ctx = setupTest();
+  const calls = join(ctx.directory, 'calls.txt');
+  const entry = join(ctx.directory, 'record-args.ts');
+
+  writeFileSync(
+    entry,
+    `import { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(calls)}, process.argv.slice(2).join(' ') + '\\n');\n`,
+  );
+
+  writeFileSync(join(ctx.directory, 'fake-claude-tap'), '');
+
+  const bin = createStubBin(ctx.directory, 'tapped', buildStubTUIClaude(entry));
+
+  const subprocess = Bun.spawn([bin], {
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin', ATC_SESSION_ID: 's-tap' },
+    stdin: 'pipe',
+    detached: true,
+    stdout: 'ignore',
+  });
+
+  registerTestCleanup(() => {
+    process.kill(-subprocess.pid, 'SIGKILL');
+  });
+
+  await waitFor(async () => {
+    const called = await Bun.file(calls).text();
+
+    expect(called).toInclude('tap --session s-tap\n');
+  });
+});
+
+test('it runs no message tap without the tap file', async () => {
+  const ctx = setupTest();
+  const calls = join(ctx.directory, 'calls.txt');
+  const entry = join(ctx.directory, 'record-args.ts');
+
+  writeFileSync(
+    entry,
+    `import { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(calls)}, process.argv.slice(2).join(' ') + '\\n');\n`,
+  );
+
+  const bin = createStubBin(ctx.directory, 'untapped', buildStubTUIClaude(entry));
+
+  const subprocess = Bun.spawn([bin], {
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin', ATC_SESSION_ID: 's-tap' },
+    stdin: 'pipe',
+    detached: true,
+    stdout: 'ignore',
+  });
+
+  registerTestCleanup(() => {
+    process.kill(-subprocess.pid, 'SIGKILL');
+  });
+
+  // The notification is the stand-in's last report, so every earlier call has run once it lands.
+  await waitFor(async () => {
+    const called = await Bun.file(calls).text();
+
+    expect(called).toBe('hook-report\nhook-report\n');
+  });
+});

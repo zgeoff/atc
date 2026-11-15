@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { localMCPClient } from './constants.ts';
 
 // The config of the `local` target's daemon. Claude runs the stand-in, and Grok and Codex point at
 // files that do not exist, so the daemon lists them as not installed and starts no real agent. The
@@ -11,5 +12,8 @@ export function buildLocalConfig(home: string, stub: string): Readonly<Record<st
       codex: { kind: 'codex', bin: join(home, 'missing-codex') },
     },
     sources: { dirs: { roots: [] } },
+
+    // the TCP listener admits only a principal the config lists
+    principals: { [`service:${localMCPClient.name}`]: { targets: ['local'] } },
   };
 }

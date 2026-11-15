@@ -1,5 +1,6 @@
 export function buildStubTUIClaude(cliEntry: string): string {
   const report = `"${process.execPath}" "${cliEntry}" hook-report`;
+  const tap = `"${process.execPath}" "${cliEntry}" tap --session "$ATC_SESSION_ID"`;
 
   return `#!/usr/bin/env bash
 ARGS="$*"
@@ -13,6 +14,8 @@ paint() { echo "FAKE_CLAUDE_UP args: $ARGS"; }
 trap paint WINCH
 paint
 printf '{"hook_event_name":"SessionStart","session_id":"fake-1","transcript_path":"'"$HOME"'/fake-transcript.jsonl"}' | ${report}
+# The tap prints each message the session gets to the terminal, as one JSON line.
+if [ -f "$HOME/fake-claude-tap" ]; then ${tap} & fi
 if [ -f "$HOME/fake-claude-events.jsonl" ]; then
   while IFS= read -r ev; do
     [ -n "$ev" ] || continue

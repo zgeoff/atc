@@ -17,6 +17,8 @@ minimumReleaseAgeExcludes = [
   "@wringer/core",
   "@wringer/db",
   "@wringer/gunshi",
+  "@wringer/http",
+  "@wringer/mcp",
   "@wringer/stream",
   "@wringer/terminal",
   "@zgeoff/agent-hooks",
