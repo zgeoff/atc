@@ -8,6 +8,7 @@ export type { WatchChannel } from './http/create-pty-viewer';
 export { findMCPResource } from './http/find-mcp-resource';
 export * from './http/start-mcp-http-server';
 export * from './tools/build-principal-caller';
+export { MCP_TOOLS } from './tools/mcp-tools';
 export * from './tools/run-tool';
 export * from './tools/create-channel-caller';
 export * from './tools/create-transport-caller';

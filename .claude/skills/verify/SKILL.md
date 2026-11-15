@@ -1,12 +1,12 @@
 ---
 name: verify
 description:
-  'Uses atc the way a user would with `bun verify`: drives the real TUI, daemon and `atc events`
-  against a stand-in claude in a temp home, and records the verdict that a feature works. Load it
-  before you check a change in the running app, run the journey of a feature, or put the verdicts in
-  a PR.'
+  'Uses atc the way a user would with `bun verify`: drives the real TUI, daemon, `atc events`, MCP
+  servers and gateway against a stand-in claude in a temp home, and records the verdict that a
+  feature works. Load it before you check a change in the running app, run the journey of a feature,
+  or put the verdicts in a PR.'
 metadata:
-  wringer-template: 'sha256:5ad8a6ead397'
+  wringer-template: 'sha256:97fabc9a9389'
   wringer-command: bun verify
 ---
 
@@ -41,25 +41,27 @@ The mistakes that cost the most time:
 
 ## References
 
-Read a feature's file before you run its journey: what the feature does, how a user reaches it, the
-journey of `bun verify` commands, and the end state that shows it works.
+Read a feature's file before you run its journey.
 
 <!-- wringer:features -->
 
-| Feature             | Summary                                                                       | File                                                                                   |
-| ------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| spawn-session       | Spawn a session from the TUI picker, and see it start                         | [references/feature-spawn-session.md](references/feature-spawn-session.md)             |
-| session-list-leader | Open the session list with the leader key, ack a session, and filter the list | [references/feature-session-list-leader.md](references/feature-session-list-leader.md) |
-| kill-forget         | Kill a session from the session list, then forget it                          | [references/feature-kill-forget.md](references/feature-kill-forget.md)                 |
-| events-stream       | Follow the fleet with `atc events` while a session starts and stops           | [references/feature-events-stream.md](references/feature-events-stream.md)             |
+| Feature             | Summary                                                                                 | File                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| spawn-session       | Spawn a session from the TUI picker, and see it start                                   | [references/feature-spawn-session.md](references/feature-spawn-session.md)             |
+| session-list-leader | Open the session list with the leader key, ack a session, and filter the list           | [references/feature-session-list-leader.md](references/feature-session-list-leader.md) |
+| kill-forget         | Kill a session from the session list, then forget it                                    | [references/feature-kill-forget.md](references/feature-kill-forget.md)                 |
+| events-stream       | Follow the fleet with `atc events` while a session starts and stops                     | [references/feature-events-stream.md](references/feature-events-stream.md)             |
+| mcp-fleet-tools     | Spawn, type into, read and stop a session with the tools of `atc mcp`                   | [references/feature-mcp-fleet-tools.md](references/feature-mcp-fleet-tools.md)         |
+| session-messages    | Send a session a message with `atc mcp`, see it reach the session, and read it          | [references/feature-session-messages.md](references/feature-session-messages.md)       |
+| remote-mcp-http     | Sign in to `atc mcp --http` as a service client, and list the sessions                  | [references/feature-remote-mcp-http.md](references/feature-remote-mcp-http.md)         |
+| gateway-routing     | Call a tool through atc-gateway, and see the daemon refuse a gateway with a wrong token | [references/feature-gateway-routing.md](references/feature-gateway-routing.md)         |
 
 <!-- /wringer:features -->
 
 ## Check a change
 
 1. Run `bun verify report`. A feature in `data.report.features` shows `changed: true` when a file
-   under its `paths` differs from the default branch, committed or not. Each changed feature needs a
-   verdict.
+   under its `paths` differs from the default branch, committed or not.
 2. Unless your task names another target, start a run on `local`, with the commands in the
    [Targets](#targets) table. Expect from `up` or `attach`: `ok: true`, and the app's endpoints in
    `data.endpoints`.
@@ -85,13 +87,14 @@ journey of `bun verify` commands, and the end state that shows it works.
    After `done`, an edit to a file under a feature's `paths` makes its verdict `stale`; a commit
    alone leaves each verdict as it was. Repeat steps 4 to 6 for each stale feature.
 9. Run `bun verify publish`. Expect: `ok: true`, and `data.action` of `created`, `replaced` or
-   `unchanged`. It writes the report into the description of the branch's open PR.
+   `unchanged`. It writes the report into the description of the branch's open PR. Until you run
+   `publish`, each verdict from `done` stays in `.wringer/`, where the gate never looks.
 10. End the run: `bun verify down` after `up`, or `bun verify detach` after `attach`.
 
 ## Read the envelope
 
-Each command prints one JSON envelope as its last line, or text for a person with `--human`. A
-streaming command, such as `doctor`, prints JSON event lines before it. Read these fields:
+Each command prints one JSON envelope as its last line, or text with `--human`. A streaming command,
+such as `doctor`, prints JSON event lines before it. Read these fields:
 
 - `ok`, then `data` on success, or `error.code`, `error.message` and `error.hint` on failure;
 - `evidence`: the files the command kept, under `.wringer/`;
@@ -117,26 +120,28 @@ attach target, an app that runs apart from `bun verify`, with `bun verify attach
 `bun verify detach` leaves it running. Your edits never reach an attach target's app, so check a
 change on a launch target.
 
-Run `bun verify use --target <target>` to point every later command at a target. `--target` on one
+Run `bun verify use --target <target>` to point every later command at a target. `use` saves the
+choice in this worktree's `.wringer/`, so it holds across shells and sessions. `--target` on one
 command points that command alone.
 
 <!-- repo: targets -->
 
-| Target  | Start with                                            | Access     |
-| ------- | ----------------------------------------------------- | ---------- |
-| `local` | `bun verify use --target local`, then `bun verify up` | read-write |
+| Target  | Start with                                                      | Access     |
+| ------- | --------------------------------------------------------------- | ---------- |
+| `local` | `bun verify use --target local`, then `bun verify up`           | read-write |
+| `prod`  | the On prod steps in [gateway-routing](#references); no verdict | read-only  |
 
-`up` starts `atc daemon` from this checkout in a new temp home under `/tmp`, apart from any atc you
-run. Claude is a stand-in that prints `FAKE_CLAUDE_UP` and asks for permission once, so a journey
-never starts a real agent. `down` stops every session and removes the home.
+`up` runs this checkout in a temp home under `/tmp`: the daemon, `atc mcp --http` and two gateways,
+and a stand-in claude that prints `FAKE_CLAUDE_UP` and asks for permission once.
 
 <!-- /repo -->
 
 ## Commands
 
-Run `bun verify --help` for the list, with each command marked `[read]` or `[write]`. Run
-`bun verify <command> --help` for a command's flags. The top-level list shows only the name of a
-group, such as `action`: run `bun verify <group> --help` for its commands.
+Run `bun verify --help` for the list, with each command marked `[read]` or `[write]`. A read-only
+target refuses each `[write]` command that writes app data. `up` and `down` are `[read]`, but start
+and stop the app. Run `bun verify <command> --help` for a command's flags. The top-level list shows
+only the name of a group, such as `action`: run `bun verify <group> --help` for its commands.
 
 - Write a negative number with `=`, as in `--offset=-5`.
 - Pass an object as JSON text, as in `--filter '{"shelf":"top"}'`.
@@ -144,11 +149,11 @@ group, such as `action`: run `bun verify <group> --help` for its commands.
 <!-- repo: commands -->
 
 - Type a capital letter with `terminal type --text K`: `terminal press` refuses a shifted key.
-- Name each session you spawn `wv-<name>`. A journey's cleanup lines, `terminal stop` and one
-  `action forget-session` per session, come last. Run them after a failure too, and before you run a
-  journey again, so the next journey starts with no session.
-- `terminal start atc` starts the TUI in the run's home. `db query` reads the daemon's database,
-  whose `fleet` table holds one row per session.
+- Name each session `wv-<name>`. Run a journey's cleanup lines after a failure too, so the next
+  journey starts with no session.
+- `db query` reads the daemon's database; its `fleet` table has a row per session.
+- Pass `--server` to each `mcp` command: `atc` is `atc mcp` over stdio, `remote` is
+  `atc mcp --http`, and `gateway` and `gateway-wrong` are the gateways.
 
 <!-- /repo -->
 
@@ -156,12 +161,10 @@ group, such as `action`: run `bun verify <group> --help` for its commands.
 
 <!-- repo: registry -->
 
-Put a new file's glob in [`feature-paths.ts`](../../../scripts/verify/feature-paths.ts), which holds
-each feature's `paths` and the registry's `.ignore` list. Add it to the `paths` of each feature
-whose journey runs the file, or to the ignore list when atc never reads it at run time. Never ignore
-a folder that holds code a journey runs: an ignore glob beats a feature's glob. The registry itself,
-[`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts), declares the
-target, actions, commands, doctor checks and features.
+Put a new file's glob in [`feature-paths.ts`](../../../scripts/verify/feature-paths.ts): in the
+`paths` of each feature whose journey runs it, or in the ignore list when atc never reads it at run
+time. An ignore glob beats a feature's glob. The registry,
+[`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts), declares the rest.
 
 <!-- /repo -->
 

@@ -3,6 +3,7 @@ import type { StreamClient } from '@wringer/stream';
 import { collectSessionEvents } from './collect-session-events.ts';
 import type { SessionEvent } from './collect-session-events.ts';
 import { findLifecycleGap } from './find-lifecycle-gap.ts';
+import { readStreamLines } from './read-stream-lines.ts';
 
 // The exit line can reach the stream after the kill answers, so a read waits this long for it.
 const SETTLE_MS = 5000;
@@ -17,7 +18,7 @@ export async function readSessionEvents(
   const deadline = Date.now() + SETTLE_MS;
 
   for (;;) {
-    const lines = await readStreamLines(client);
+    const lines = await readStreamLines(client, 'events');
 
     const events = collectSessionEvents(lines, name);
     const gap = findLifecycleGap(events);
@@ -33,22 +34,5 @@ export async function readSessionEvents(
     }
 
     await Bun.sleep(200);
-  }
-}
-
-async function readStreamLines(client: StreamClient): Promise<string[]> {
-  const lines: string[] = [];
-  let from: number | undefined;
-
-  for (;;) {
-    const slice = await client.read({ name: 'events', ...(from === undefined ? {} : { from }) });
-
-    lines.push(...slice.records.map((record) => record.line));
-
-    if (!slice.more) {
-      return lines;
-    }
-
-    from = slice.cursor;
   }
 }

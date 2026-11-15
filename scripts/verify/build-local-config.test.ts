@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { buildLocalConfig } from './build-local-config.ts';
 
-test('it points claude at the stand-in and the other agents at missing files', () => {
+test('it points claude at the stand-in and the other agents at missing files, and grants the run client the local target', () => {
   expect(
     buildLocalConfig('/tmp/atc-test-home-pear/home', '/tmp/atc-test-home-pear/home/fake-claude'),
   ).toStrictEqual({
@@ -11,5 +11,6 @@ test('it points claude at the stand-in and the other agents at missing files', (
       codex: { kind: 'codex', bin: '/tmp/atc-test-home-pear/home/missing-codex' },
     },
     sources: { dirs: { roots: [] } },
+    principals: { 'service:verify-local': { targets: ['local'] } },
   });
 });

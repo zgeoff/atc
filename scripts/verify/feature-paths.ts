@@ -13,6 +13,13 @@ export const featurePaths = {
   'session-list-leader': [...everyJourney, 'packages/tui/**'],
   'kill-forget': [...everyJourney, 'packages/tui/**'],
   'events-stream': [...everyJourney],
+
+  // the MCP tools, which `atc mcp`, `atc mcp --http` and the gateway serve alike; the gateway's
+  // federation; and the daemon's TCP listener, which sits in the daemon package
+  'mcp-fleet-tools': [...everyJourney, 'packages/mcp/**'],
+  'session-messages': [...everyJourney, 'packages/mcp/**'],
+  'remote-mcp-http': [...everyJourney, 'packages/mcp/**'],
+  'gateway-routing': [...everyJourney, 'packages/mcp/**', 'packages/gateway/**'],
 } as const satisfies Record<string, readonly string[]>;
 
 // A change to one of these changes every feature: the verify CLI, the test home it starts the
@@ -80,11 +87,9 @@ export const ignoredPaths = [
 
   // 4. Code that no journey runs. The mod's embedded copy, which the daemon writes, lives in the
   //    claude harness; the journeys run the CLI's source, never the dev shim or an installed
-  //    binary; and no journey configures an imp target, a gateway or an MCP client.
+  //    binary; and no journey configures an imp target.
   'mods/**',
   'bin/atc',
   'install.sh',
   'packages/execution/imp/**',
-  'packages/gateway/**',
-  'packages/mcp/**',
 ] as const;
