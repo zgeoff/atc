@@ -3,23 +3,26 @@
 Check that a message you send with `atc_message_send` reaches the session, and that
 `atc_message_get` gets it back as delivered.
 
-Start a run on `local`, and pass `doctor`, as steps 2 and 3 of
-[Check a change](../SKILL.md#check-a-change) say. Then run the journey's lines in order.
+Run the journey on a `local` run where `doctor` has succeeded. Steps 2 and 3 of
+[Check a change](../SKILL.md#check-a-change) start one, and each later journey reuses it. Run the
+lines in order, and check each value in End state when its command returns.
 
-- Treat a tool call that gives `data.isError: true` as a failed line. A tool that fails still exits
-  0 with `ok: true`, and gives the reason in `data.content`.
-- At the first failed line, run the last line, `action forget-session`, and skip `done`. Then go on
-  as step 5 of Check a change says. `forget-session` stops the session if it still runs, and does
-  nothing when no session has the name.
-- Replace `<home>` with `data.endpoints.home` from `up`, `<session_id>` with
-  `data.structuredContent.id` from the spawn call, and `<message_id>` with
-  `data.structuredContent.message` from the send.
-- The spawn starts the stand-in claude that `up` installs, with no extra argument. The stand-in runs
-  `atc tap`, which takes each message atc hands the session and prints it on the session's terminal
-  as one JSON line. A real claude gives the message to its model instead.
+- A line fails when its command exits non-zero, or when `mcp call` gives `data.isError: true`.
+  `bun verify mcp call` exits 0 when the tool fails, and puts the tool's reason in `data.content`.
+- After a failed line, run the last line, `action forget-session`, and skip `done` on this pass.
+  Then go on as step 5 of Check a change says. `forget-session` stops the session if it still runs,
+  and does nothing when no session has the name.
+- Replace each placeholder with a value from an earlier command:
+  - `<home>`: `data.endpoints.home` from `up`;
+  - `<session_id>`: `data.structuredContent.id` from the spawn call;
+  - `<message_id>`: `data.structuredContent.message` from the send. The field holds the message's
+    id, and its text is in `text`.
+- The session runs the stand-in claude, which runs `atc tap`. The tap takes each message atc hands
+  the session, and prints it on the session's terminal as one JSON line.
 - When the get gives `status` `queued`, the tap has not taken the message yet. Run the get up to
-  three more times, a second apart, before you count it as a failed line. The stand-in never answers
-  a message, so `delivered` is the last status it reaches.
+  three more times, a second apart. A get that still gives `queued`, or any status other than
+  `delivered`, is a failed line. The stand-in never answers a message, so it never goes past
+  `delivered`.
 
 ## Journey
 
@@ -34,11 +37,14 @@ bun verify action forget-session --name wv-message
 
 ## End state
 
-Each field below sits under `data` of the tool call named.
+Each bullet names an `mcp call`, and each value sits under that call's `data`.
 
-- Each tool call gives `isError: false`.
+- Each `mcp call` gives `isError: false`.
 - The send gives a message id in `structuredContent.message`.
-- The get gives `structuredContent.text` `check the hangar`, `structuredContent.session`
-  `<session_id>`, and `structuredContent.status` `delivered`.
-- The terminal read gives a `content` text item with the tap's line, which holds
-  `"text":"check the hangar"`. The envelope escapes its quotes, as `\"text\":\"check the hangar\"`.
+- The get gives:
+  - `structuredContent.text` `check the hangar`;
+  - `structuredContent.session` `<session_id>`;
+  - `structuredContent.status` `delivered`.
+- The terminal read gives a `content` text item that holds the tap's line, with
+  `"text":"check the hangar"` in it. When you search the command's raw output instead of the parsed
+  JSON, look for `\"text\":\"check the hangar\"`: `bun verify` escapes the quotes.

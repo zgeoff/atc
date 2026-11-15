@@ -1,19 +1,21 @@
 # remote-mcp-http
 
-Check that `atc mcp --http` refuses a request with no token, and that a service client signs in and
-lists the sessions.
+Check that `atc mcp --http` refuses a request with no token, and that the run's service client signs
+in and lists the sessions. `up` starts `atc mcp --http` and creates that client for the run.
 
-Start a run on `local`, and pass `doctor`, as steps 2 and 3 of
-[Check a change](../SKILL.md#check-a-change) say. Then run the journey's lines in order.
+Run the journey on a `local` run where `doctor` has succeeded. Steps 2 and 3 of
+[Check a change](../SKILL.md#check-a-change) start one, and each later journey reuses it. Run the
+lines in order, and check each value in End state when its command returns.
 
-- Treat a tool call that gives `data.isError: true` as a failed line. A tool that fails still exits
-  0 with `ok: true`, and gives the reason in `data.content`.
-- Expect `http request` to exit 0 with the 401 in `data.status`. It fails only when no answer comes.
-- At the first failed line, run the last line, `action forget-session`, and skip `done`. Then go on
-  as step 5 of Check a change says. `forget-session` stops the session if it still runs, and does
-  nothing when no session has the name.
-- Pass no token or secret. `http request` sends none, and `--server remote` signs in for you with
-  the client that `up` creates for the run.
+- A line fails when its command exits non-zero, or when `mcp call` gives `data.isError: true`.
+  `bun verify mcp call` exits 0 when the tool fails, and puts the tool's reason in `data.content`.
+- `http request` also exits 0 on the 401. It exits non-zero only when the server sends no HTTP
+  answer, such as a refused connection or a timeout. A status other than 401 is a failed line.
+- After a failed line, run the last line, `action forget-session`, and skip `done` on this pass.
+  Then go on as step 5 of Check a change says. `forget-session` stops the session if it still runs,
+  and does nothing when no session has the name.
+- Add no token or secret to any command. `http request` sends none. `bun verify` signs each
+  `--server remote` command in as the run's service client.
 
 ## Journey
 
@@ -28,10 +30,11 @@ bun verify action forget-session --name wv-remote
 
 ## End state
 
-Each value below sits under `data` of the command named.
+Each bullet names a command, and each value sits under that command's `data`.
 
 - `http request` gives `status` 401, and `headers["www-authenticate"]` holds a `resource_metadata`
   URL.
-- `mcp tools` gives `server` `remote`, and its list of tools holds `atc_sessions_list`.
-- `mcp call` gives `isError: false`, and `structuredContent.sessions` holds a session named
-  `wv-remote`.
+- `mcp tools` gives `server` `remote`, and a `tools` list with an entry whose `name` is
+  `atc_sessions_list`.
+- `mcp call` gives `isError: false`, and `structuredContent.sessions` holds a session whose `name`
+  is `wv-remote`.

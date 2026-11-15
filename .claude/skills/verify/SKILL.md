@@ -126,13 +126,12 @@ command points that command alone.
 
 <!-- repo: targets -->
 
-| Target  | Start with                                                             | Access     |
-| ------- | ---------------------------------------------------------------------- | ---------- |
-| `local` | `bun verify use --target local`, then `bun verify up`                  | read-write |
-| `prod`  | step 2 of On prod in the [gateway-routing](#references) feature's file | read-only  |
+| Target  | Start with                                                                        | Access     |
+| ------- | --------------------------------------------------------------------------------- | ---------- |
+| `local` | `bun verify use --target local`, then `bun verify up`                             | read-write |
+| `prod`  | [On prod](references/feature-gateway-routing.md#on-prod), from step 1; no verdict | read-only  |
 
-Record a verdict on `local` only. `up` runs this checkout's daemon, MCP servers and gateways in a
-temp home, with a stand-in claude.
+`up` runs this checkout's daemon, MCP servers and gateways in a temp home, with a stand-in claude.
 
 <!-- /repo -->
 
@@ -149,8 +148,8 @@ only the name of a group, such as `action`: run `bun verify <group> --help` for 
 <!-- repo: commands -->
 
 - Type a capital letter with `terminal type --text K`: `terminal press` refuses a shifted key.
-- Name each session `wv-<name>`. Run a journey's cleanup lines after a failure too, so the next
-  journey starts with no session.
+- Name each session `wv-` and a word, such as `wv-spawn`. Run a journey's cleanup lines after a
+  failure too.
 - `db query` reads the daemon's database; its `fleet` table has a row per session.
 - Pass `--server` to each `mcp` command: `atc` is `atc mcp` over stdio, `remote` is
   `atc mcp --http`, and `gateway` and `gateway-wrong` are the gateways.
@@ -161,9 +160,11 @@ only the name of a group, such as `action`: run `bun verify <group> --help` for 
 
 <!-- repo: registry -->
 
-[`feature-paths.ts`](../../../scripts/verify/feature-paths.ts) holds each feature's `paths` and the
-registry's `.ignore` list. Add a new file's glob to the `paths` of each feature whose journey runs
-it. Ignore it only when atc never reads it at run time: an ignore glob beats a feature's glob.
+The registry, [`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts),
+declares the targets, commands and features. It takes each feature's `paths` and its `.ignore` list
+from [`feature-paths.ts`](../../../scripts/verify/feature-paths.ts). Add a new file's glob to the
+`paths` of each feature whose journey runs it. Ignore it only when atc never reads it at run time:
+an ignore glob beats a feature's glob.
 
 <!-- /repo -->
 
