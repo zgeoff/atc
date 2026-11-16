@@ -38,7 +38,7 @@
       "@types/proper-lockfile": "4.1.4",
       "@wringer/core": "0.3.1",
       "@wringer/db": "0.1.4",
-      "@wringer/gunshi": "0.3.3",
+      "@wringer/gunshi": "0.3.4",
       "@wringer/http": "0.1.4",
       "@wringer/mcp": "0.1.2",
       "@wringer/stream": "0.1.4",
