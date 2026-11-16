@@ -6,6 +6,7 @@ import { createOverlayScreen } from './create-overlay-screen';
 import type { OverlayConfirm } from './create-overlay-screen';
 import type { SessionKey } from './session-key';
 import { buildMockMirrorSession } from './testing/build-mock-mirror-session';
+import { collectOverlayHeaders } from './testing/collect-overlay-headers';
 
 function setupTest() {
   const terminal = buildStubTerminal();
@@ -37,16 +38,7 @@ function setupTest() {
     return frame.split(`${KEYS.esc}[7m`).at(1)?.split(`${KEYS.esc}[0m`).at(0) ?? '';
   };
 
-  const readHeaders = () => {
-    const frame = terminal.getTextSince(terminal.countChunks() - 1);
-
-    return frame
-      .split(`${KEYS.esc}[90m▸ `)
-      .slice(1)
-      .map((part) => part.split(`${KEYS.esc}[0m`).at(0));
-  };
-
-  return { terminal, mirror, confirm, overlay, readHighlighted, readHeaders };
+  return { terminal, mirror, confirm, overlay, readHighlighted };
 }
 
 test('it highlights the session a kill confirmation opened on after the rows reorder', () => {
@@ -109,9 +101,15 @@ test('it groups the pinned sessions of every daemon under one pinned header at t
 
   ctx.overlay.grouped = true;
 
+  const mark = ctx.terminal.countChunks();
+
   ctx.overlay.render();
 
-  expect(ctx.readHeaders()).toStrictEqual(['pinned', '/work/atlas', '/work/harbor']);
+  expect(collectOverlayHeaders(ctx.terminal.getTextSince(mark))).toStrictEqual([
+    'pinned',
+    '/work/atlas',
+    '/work/harbor',
+  ]);
 
   expect(ctx.overlay.pickSessions().map((session) => session.id)).toStrictEqual([
     'north',
@@ -121,7 +119,7 @@ test('it groups the pinned sessions of every daemon under one pinned header at t
   ]);
 });
 
-test('it moves an unpinned remote session out of the pinned group and leaves no empty pinned header', () => {
+test('it moves an unpinned remote session out of the one pinned group', () => {
   const ctx = setupTest();
 
   ctx.mirror.upsert(
@@ -129,7 +127,7 @@ test('it moves an unpinned remote session out of the pinned group and leaves no 
       id: 'north',
       pinned: true,
       repoRoot: '/work/atlas',
-      lastAttachedAt: 3,
+      lastAttachedAt: 4,
     }),
   );
 
@@ -138,7 +136,7 @@ test('it moves an unpinned remote session out of the pinned group and leaves no 
       id: 'south',
       pinned: false,
       repoRoot: '/work/atlas',
-      lastAttachedAt: 2,
+      lastAttachedAt: 3,
     }),
   );
 
@@ -146,6 +144,16 @@ test('it moves an unpinned remote session out of the pinned group and leaves no 
     buildMockMirrorSession({
       daemon: 'box',
       id: 'east',
+      pinned: true,
+      repoRoot: '/work/harbor',
+      lastAttachedAt: 2,
+    }),
+  );
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({
+      daemon: 'box',
+      id: 'west',
       pinned: true,
       repoRoot: '/work/harbor',
       lastAttachedAt: 1,
@@ -162,16 +170,23 @@ test('it moves an unpinned remote session out of the pinned group and leaves no 
       id: 'east',
       pinned: false,
       repoRoot: '/work/harbor',
-      lastAttachedAt: 1,
+      lastAttachedAt: 2,
     }),
   );
 
+  const mark = ctx.terminal.countChunks();
+
   ctx.overlay.render();
 
-  expect(ctx.readHeaders()).toStrictEqual(['pinned', '/work/atlas', '/work/harbor']);
+  expect(collectOverlayHeaders(ctx.terminal.getTextSince(mark))).toStrictEqual([
+    'pinned',
+    '/work/atlas',
+    '/work/harbor',
+  ]);
 
   expect(ctx.overlay.pickSessions().map((session) => session.id)).toStrictEqual([
     'north',
+    'west',
     'south',
     'east',
   ]);
@@ -194,7 +209,12 @@ test('it draws no pinned header once the only pinned session, on a remote daemon
     buildMockMirrorSession({ daemon: 'box', id: 'east', pinned: false, repoRoot: '/work/harbor' }),
   );
 
+  const mark = ctx.terminal.countChunks();
+
   ctx.overlay.render();
 
-  expect(ctx.readHeaders()).toStrictEqual(['/work/atlas', '/work/harbor']);
+  expect(collectOverlayHeaders(ctx.terminal.getTextSince(mark))).toStrictEqual([
+    '/work/atlas',
+    '/work/harbor',
+  ]);
 });
