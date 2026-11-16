@@ -19,7 +19,7 @@ function setupTest() {
     links: {
       clientFor: () => null,
       stateOf: () => ({ kind: 'up' }),
-      listDaemons: () => [null],
+      listDaemons: () => [null, 'box'],
     },
     findFocusedKey: () => null,
     getMode: () => 'overlay',
@@ -37,7 +37,16 @@ function setupTest() {
     return frame.split(`${KEYS.esc}[7m`).at(1)?.split(`${KEYS.esc}[0m`).at(0) ?? '';
   };
 
-  return { terminal, mirror, confirm, overlay, readHighlighted };
+  const readHeaders = () => {
+    const frame = terminal.getTextSince(terminal.countChunks() - 1);
+
+    return frame
+      .split(`${KEYS.esc}[90m▸ `)
+      .slice(1)
+      .map((part) => part.split(`${KEYS.esc}[0m`).at(0));
+  };
+
+  return { terminal, mirror, confirm, overlay, readHighlighted, readHeaders };
 }
 
 test('it highlights the session a kill confirmation opened on after the rows reorder', () => {
@@ -55,4 +64,137 @@ test('it highlights the session a kill confirmation opened on after the rows reo
 
   expect(ctx.readHighlighted()).toInclude('alpha');
   expect(ctx.readHighlighted()).not.toInclude('beta');
+});
+
+test('it groups the pinned sessions of every daemon under one pinned header at the top', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({
+      id: 'north',
+      pinned: true,
+      repoRoot: '/work/atlas',
+      lastAttachedAt: 4,
+    }),
+  );
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({
+      id: 'south',
+      pinned: false,
+      repoRoot: '/work/atlas',
+      lastAttachedAt: 3,
+    }),
+  );
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({
+      daemon: 'box',
+      id: 'east',
+      pinned: true,
+      repoRoot: '/work/harbor',
+      lastAttachedAt: 2,
+    }),
+  );
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({
+      daemon: 'box',
+      id: 'west',
+      pinned: false,
+      repoRoot: '/work/harbor',
+      lastAttachedAt: 1,
+    }),
+  );
+
+  ctx.overlay.grouped = true;
+
+  ctx.overlay.render();
+
+  expect(ctx.readHeaders()).toStrictEqual(['pinned', '/work/atlas', '/work/harbor']);
+
+  expect(ctx.overlay.pickSessions().map((session) => session.id)).toStrictEqual([
+    'north',
+    'east',
+    'south',
+    'west',
+  ]);
+});
+
+test('it moves an unpinned remote session out of the pinned group and leaves no empty pinned header', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({
+      id: 'north',
+      pinned: true,
+      repoRoot: '/work/atlas',
+      lastAttachedAt: 3,
+    }),
+  );
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({
+      id: 'south',
+      pinned: false,
+      repoRoot: '/work/atlas',
+      lastAttachedAt: 2,
+    }),
+  );
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({
+      daemon: 'box',
+      id: 'east',
+      pinned: true,
+      repoRoot: '/work/harbor',
+      lastAttachedAt: 1,
+    }),
+  );
+
+  ctx.overlay.grouped = true;
+
+  ctx.overlay.render();
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({
+      daemon: 'box',
+      id: 'east',
+      pinned: false,
+      repoRoot: '/work/harbor',
+      lastAttachedAt: 1,
+    }),
+  );
+
+  ctx.overlay.render();
+
+  expect(ctx.readHeaders()).toStrictEqual(['pinned', '/work/atlas', '/work/harbor']);
+
+  expect(ctx.overlay.pickSessions().map((session) => session.id)).toStrictEqual([
+    'north',
+    'south',
+    'east',
+  ]);
+});
+
+test('it draws no pinned header once the only pinned session, on a remote daemon, is unpinned', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'south', repoRoot: '/work/atlas' }));
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({ daemon: 'box', id: 'east', pinned: true, repoRoot: '/work/harbor' }),
+  );
+
+  ctx.overlay.grouped = true;
+
+  ctx.overlay.render();
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({ daemon: 'box', id: 'east', pinned: false, repoRoot: '/work/harbor' }),
+  );
+
+  ctx.overlay.render();
+
+  expect(ctx.readHeaders()).toStrictEqual(['/work/atlas', '/work/harbor']);
 });

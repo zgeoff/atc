@@ -1,5 +1,6 @@
 import type { SessionState } from '@atc/protocol';
 import { sortSessionViews } from '@atc/protocol';
+import { collectPinnedFirst } from './collect-pinned-first';
 import type { DaemonName, SessionKey } from './session-key';
 
 interface TabCandidate {
@@ -15,15 +16,16 @@ interface TabCandidate {
 }
 
 // The most urgent needs-you session, else the latest done one. Each daemon's rows sort on their
-// own, so a sub-session never nests under another daemon's row of the same id.
+// own, so a sub-session never nests under another daemon's row of the same id, and the pinned
+// rows of every daemon rank first, as they list.
 export function pickTabTarget<T extends TabCandidate>(
   list: readonly T[],
   findDoneAt: (key: SessionKey) => number | undefined,
 ): T | undefined {
   const daemons = [...new Set(list.map((session) => session.daemon))];
 
-  const sorted = daemons.flatMap((daemon) =>
-    sortSessionViews(list.filter((session) => session.daemon === daemon)),
+  const sorted = collectPinnedFirst(
+    daemons.map((daemon) => sortSessionViews(list.filter((session) => session.daemon === daemon))),
   );
 
   const needy = sorted.find((session) => session.state === 'needs_you' && session.alive);

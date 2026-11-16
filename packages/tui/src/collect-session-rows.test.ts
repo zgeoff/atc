@@ -50,6 +50,31 @@ test('it keeps the rows that match the filter on each daemon', () => {
   expect(rows.map((row) => row.id)).toStrictEqual(['a', 'b']);
 });
 
+test('it lists a pinned row of the next daemon before the unpinned rows of the first in the flat view', () => {
+  const rows = collectSessionRows(
+    [
+      buildMockMirrorSession({ daemon: null, id: 'near', pinned: false }),
+      buildMockMirrorSession({ daemon: 'box', id: 'far', pinned: true }),
+    ],
+    { daemons: [null, 'box'], grouped: false, filter: null },
+  );
+
+  expect(rows.map((row) => row.id)).toStrictEqual(['far', 'near']);
+});
+
+test('it lists a sub-session with its pinned parent on the next daemon ahead of the first daemon in the grouped view', () => {
+  const rows = collectSessionRows(
+    [
+      buildMockMirrorSession({ daemon: null, id: 'near', pinned: false }),
+      buildMockMirrorSession({ daemon: 'box', id: 'wrangler', pinned: true }),
+      buildMockMirrorSession({ daemon: 'box', id: 'worker', parent: 'wrangler', pinned: false }),
+    ],
+    { daemons: [null, 'box'], grouped: true, filter: null },
+  );
+
+  expect(rows.map((row) => row.id)).toStrictEqual(['wrangler', 'worker', 'near']);
+});
+
 test('it lists no row of a daemon outside the daemons it is given', () => {
   const rows = collectSessionRows([buildMockMirrorSession({ daemon: 'lab', id: 'x' })], {
     daemons: [null, 'box'],
