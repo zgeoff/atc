@@ -22,7 +22,7 @@ each journey line acts on that daemon.
 - Press one key with `terminal press <key>`: a letter in either case, or a named key such as `enter`
   or `tab`, with modifiers such as `shift+tab` or `ctrl+a`. `terminal press` refuses a symbol you
   type with shift, such as `!` or `?`.
-- Send text, symbols included, with `terminal type --text <text>`. It sends no Enter, so follow it
+- Send text, symbols included, with `terminal type --text <text>`. It appends no Enter, so follow it
   with `terminal press enter` when the app waits for one.
 - Read the daemon's SQLite database with `db query "<sql>"`. Its `fleet` table holds one row per
   session. List the columns with `db query "select name from pragma_table_info('fleet')"`.
@@ -30,12 +30,14 @@ each journey line acts on that daemon.
 ## MCP servers
 
 Pass `--server <name>` to each `mcp` command. Use `atc` unless your feature covers another path.
-Each name below is a server that `bun verify up` starts and the `mcp` commands connect to. For
-`remote` and `gateway`, `bun verify` signs in for you, and `doctor` checks the sign-in.
+Each name below is a server that `bun verify up` starts and the `mcp` commands connect to. Add no
+token to an `mcp` command. `bun verify` signs each HTTP server in as the run's service client, and
+`doctor` checks the sign-in to `remote` and `gateway`.
 
 - `atc`: `atc mcp`, over stdio.
 - `remote`: `atc mcp --http`, the daemon's MCP server over HTTP.
 - `gateway`: atc-gateway, the separate binary that serves the MCP tools of several daemons over
   HTTP. `up` gives it the daemon's token.
-- `gateway-wrong`: atc-gateway with a wrong token. The daemon refuses that gateway, so each call
-  returns an empty `sessions` list and the daemon's `state` as `unauthorized`.
+- `gateway-wrong`: atc-gateway with a wrong token. The daemon refuses that gateway. A call that
+  lists, such as `atc_sessions_list`, returns no sessions and the daemon's `state` as
+  `unauthorized`. A call that acts, such as `atc_session_spawn`, fails with `data.isError: true`.
