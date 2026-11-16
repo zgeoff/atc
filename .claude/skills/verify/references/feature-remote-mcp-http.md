@@ -11,11 +11,11 @@ lines in order, and check each value in End state when its command returns.
   `bun verify mcp call` exits 0 when the tool fails, and puts the tool's reason in `data.content`.
 - `http request` also exits 0 on the 401. It exits non-zero only when the server sends no HTTP
   answer, such as a refused connection or a timeout. A status other than 401 is a failed line.
-- After a failed line, run the last line, `action forget-session`, and skip `done` on this pass.
-  Then go on as step 5 of Check a change says. `forget-session` stops the session if it still runs,
-  and does nothing when no session has the name.
-- Add no token or secret to any command. `http request` sends none. `bun verify` signs each
-  `--server remote` command in as the run's service client.
+- After a failed line, run the last line, `action forget-session`, as
+  [Journey commands](journey-commands.md#sessions) says, and skip `done` on this pass. Then go on as
+  step 5 of Check a change says.
+- Add no token or secret to any command. `http request` sends none, and
+  [Journey commands](journey-commands.md#mcp-servers) says how `--server remote` signs in.
 
 ## Journey
 

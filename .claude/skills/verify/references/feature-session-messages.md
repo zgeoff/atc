@@ -9,9 +9,9 @@ lines in order, and check each value in End state when its command returns.
 
 - A line fails when its command exits non-zero, or when `mcp call` gives `data.isError: true`.
   `bun verify mcp call` exits 0 when the tool fails, and puts the tool's reason in `data.content`.
-- After a failed line, run the last line, `action forget-session`, and skip `done` on this pass.
-  Then go on as step 5 of Check a change says. `forget-session` stops the session if it still runs,
-  and does nothing when no session has the name.
+- After a failed line, run the last line, `action forget-session`, as
+  [Journey commands](journey-commands.md#sessions) says, and skip `done` on this pass. Then go on as
+  step 5 of Check a change says.
 - Replace each placeholder with a value from an earlier command:
   - `<home>`: `data.endpoints.home` from `up`;
   - `<session_id>`: `data.structuredContent.id` from the spawn call;
