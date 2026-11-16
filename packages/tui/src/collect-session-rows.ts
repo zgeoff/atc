@@ -1,4 +1,5 @@
 import { sortGroupedSessionViews, sortSessionViews } from '@atc/protocol';
+import { collectPinnedFirst } from './collect-pinned-first';
 import { findFuzzyScore, formatDir } from './dirs';
 import type { DaemonName } from './session-key';
 import type { MirrorSession } from './to-mirror-session';
@@ -16,29 +17,37 @@ export function collectSessionRows(
   sessions: readonly MirrorSession[],
   options: RowOptions,
 ): MirrorSession[] {
-  return options.daemons.flatMap((daemon) => {
-    const fleet = sessions.filter((session) => session.daemon === daemon);
-    const sorted = options.grouped ? sortGroupedSessionViews(fleet) : sortSessionViews(fleet);
+  const fleets = options.daemons.map((daemon) =>
+    collectFleetRows(
+      sessions.filter((session) => session.daemon === daemon),
+      options,
+    ),
+  );
 
-    if (options.filter === null || options.filter === '') {
-      return sorted;
-    }
+  return collectPinnedFirst(fleets);
+}
 
-    const query = options.filter;
+function collectFleetRows(fleet: readonly MirrorSession[], options: RowOptions): MirrorSession[] {
+  const sorted = options.grouped ? sortGroupedSessionViews(fleet) : sortSessionViews(fleet);
 
-    const matched = new Set(
-      sorted
-        .filter(
-          (session) => findFuzzyScore(`${session.name} ${formatDir(session.cwd)}`, query) !== null,
-        )
-        .map((session) => session.id),
-    );
+  if (options.filter === null || options.filter === '') {
+    return sorted;
+  }
 
-    // A matching sub-session keeps its parent row, so it stays nested.
-    return sorted.filter(
-      (session) =>
-        matched.has(session.id) ||
-        sorted.some((child) => child.parent === session.id && matched.has(child.id)),
-    );
-  });
+  const query = options.filter;
+
+  const matched = new Set(
+    sorted
+      .filter(
+        (session) => findFuzzyScore(`${session.name} ${formatDir(session.cwd)}`, query) !== null,
+      )
+      .map((session) => session.id),
+  );
+
+  // A matching sub-session keeps its parent row, so it stays nested.
+  return sorted.filter(
+    (session) =>
+      matched.has(session.id) ||
+      sorted.some((child) => child.parent === session.id && matched.has(child.id)),
+  );
 }

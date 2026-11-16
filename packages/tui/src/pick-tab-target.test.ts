@@ -158,6 +158,37 @@ test('it skips headless and dead sessions in the done fallback', () => {
   expect(target).toBe(sessions[2]);
 });
 
+test('it prefers a pinned needs-you session on the next daemon over an unpinned one on the first', () => {
+  const sessions = [
+    {
+      daemon: null,
+      id: 'near',
+      parent: null,
+      state: 'needs_you',
+      pinned: false,
+      lastAttachedAt: 2,
+      createdAt: 2,
+      alive: true,
+      kind: 'pty',
+    },
+    {
+      daemon: 'box',
+      id: 'far',
+      parent: null,
+      state: 'needs_you',
+      pinned: true,
+      lastAttachedAt: 1,
+      createdAt: 1,
+      alive: true,
+      kind: 'pty',
+    },
+  ] as const;
+
+  const target = pickTabTarget(sessions, (key) => new Map<string, number>().get(key.id));
+
+  expect(target).toBe(sessions[1]);
+});
+
 test('it picks nothing when no session needs you and none are done', () => {
   const sessions = [
     {

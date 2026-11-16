@@ -1,5 +1,6 @@
 import type { SessionState } from '@atc/protocol';
 import { sortSessionViews } from '@atc/protocol';
+import { collectPinnedFirst } from './collect-pinned-first';
 import type { DaemonName, SessionKey } from './session-key';
 
 interface TabCandidate {
@@ -22,8 +23,8 @@ export function pickTabTarget<T extends TabCandidate>(
 ): T | undefined {
   const daemons = [...new Set(list.map((session) => session.daemon))];
 
-  const sorted = daemons.flatMap((daemon) =>
-    sortSessionViews(list.filter((session) => session.daemon === daemon)),
+  const sorted = collectPinnedFirst(
+    daemons.map((daemon) => sortSessionViews(list.filter((session) => session.daemon === daemon))),
   );
 
   const needy = sorted.find((session) => session.state === 'needs_you' && session.alive);
