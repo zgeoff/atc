@@ -4,8 +4,8 @@ interface PinnableRow {
   readonly pinned: boolean;
 }
 
-// Joins the sorted rows of each daemon with the pinned rows of every daemon first, as one
-// daemon's sort puts its own pinned rows first. A sub-session goes with its parent's pin.
+// The session list draws a pinned header where a run of pinned rows starts, so the pinned rows of
+// every daemon must sit together, ahead of every daemon's other rows.
 export function collectPinnedFirst<T extends PinnableRow>(fleets: readonly (readonly T[])[]): T[] {
   return [
     ...fleets.flatMap((rows) => rows.filter((row) => isPinnedRow(row, rows))),

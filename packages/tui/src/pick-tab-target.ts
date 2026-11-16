@@ -16,8 +16,7 @@ interface TabCandidate {
 }
 
 // The most urgent needs-you session, else the latest done one. Each daemon's rows sort on their
-// own, so a sub-session never nests under another daemon's row of the same id, and the pinned
-// rows of every daemon rank first, as they list.
+// own, so a sub-session never nests under another daemon's row of the same id.
 export function pickTabTarget<T extends TabCandidate>(
   list: readonly T[],
   findDoneAt: (key: SessionKey) => number | undefined,

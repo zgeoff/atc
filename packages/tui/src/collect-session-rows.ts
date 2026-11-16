@@ -12,8 +12,7 @@ interface RowOptions {
 }
 
 // The rows of the session list: each daemon's rows sort and filter on their own, so a
-// sub-session never nests under another daemon's row that has the same id. The pinned rows of
-// every daemon lead the list, so the renderer draws them under one pinned header.
+// sub-session never nests under another daemon's row that has the same id.
 export function collectSessionRows(
   sessions: readonly MirrorSession[],
   options: RowOptions,
