@@ -206,5 +206,5 @@
       "rules": { "zgeoff/no-restricted-words": "off" }
     }
   ],
-  "ignorePatterns": [".claude/**", "docs/design/**", "mods/**"]
+  "ignorePatterns": [".claude/**", ".agents/skills/**", "docs/design/**", "mods/**"]
 }

@@ -7,7 +7,8 @@ peer messages, one JSON message per line. `docs/README.md` indexes the docs, and
 
 ## Required reading
 
-The rules a task needs are not repeated here. Load the skill for the work before starting it.
+The rules a task needs are not repeated here. Load the skill for the work before starting it. The
+skills are in `.agents/skills/`, and `.claude/skills` links to that folder.
 
 | Skill                | Load before                                                                                            |
 | -------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -25,10 +26,10 @@ The rules a task needs are not repeated here. Load the skill for the work before
 
 When you write or edit a skill:
 
-1. Load the `skill-writing`, `cold-read` and `deslop` skills from `.claude/skills/`. repo-sync
+1. Load the `skill-writing`, `cold-read` and `deslop` skills from `.agents/skills/`. repo-sync
    delivers them there at the `zgeoff/skills` commit that `zgeoff/tools` pins, so install none of
    them yourself.
-2. Do every step in the "Check it" section of `.claude/skills/skill-writing/SKILL.md`. In its last
+2. Do every step in the "Check it" section of `.agents/skills/skill-writing/SKILL.md`. In its last
    step, you fill in the `## Checks` section of the PR template.
 
 ## Repo structure

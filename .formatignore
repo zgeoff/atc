@@ -5,3 +5,4 @@
 # nested checkouts and agent scratch
 .worktrees/**
 .claude/**
+.agents/skills/**

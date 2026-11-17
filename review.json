@@ -1,18 +1,18 @@
 {
   "extends": "github:zgeoff/noslop-config",
   "rules": [
-    ".claude/skills/project-code-style/SKILL.md",
-    ".claude/skills/project-testing/SKILL.md"
+    ".agents/skills/project-code-style/SKILL.md",
+    ".agents/skills/project-testing/SKILL.md"
   ],
   "synced": [
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".editorconfig",
     "socket.yml",
     ".github/workflows/audit-fix.yml",
-    ".claude/skills/testing/**",
-    ".claude/skills/code-style/**",
-    ".claude/skills/docs-writing/**",
-    ".claude/skills/skill-writing/**",
+    ".agents/skills/testing/**",
+    ".agents/skills/code-style/**",
+    ".agents/skills/docs-writing/**",
+    ".agents/skills/skill-writing/**",
     ".claude/hooks/start.ts"
   ]
 }
