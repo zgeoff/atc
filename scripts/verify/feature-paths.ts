@@ -66,6 +66,7 @@ export const ignoredPaths = [
   'review.json',
   'renovate.json',
   'patches/**',
+  '.agents/**',
   '.claude/**',
   '.codex/**',
   '.github/**',
