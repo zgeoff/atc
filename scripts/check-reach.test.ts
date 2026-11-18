@@ -979,6 +979,49 @@ test('it fails on a daemon testing entry that reaches the mcp-auth.db opener', a
   });
 });
 
+test('it fails on a daemon test helper beside the test daemon that reaches the mcp-auth.db opener', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/open-mcp-auth-database.ts'),
+    'export const OPEN = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
+    'export const START = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/daemon/src/test-utils/build-stub-log.ts'),
+    "export { OPEN } from '../../../app/src/open-mcp-auth-database';\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/daemon/src/test-utils/build-stub-log.test.ts'),
+    "export { OPEN } from '../../../app/src/open-mcp-auth-database';\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
+    stderr:
+      "refused module: packages/daemon/src/test-utils/build-stub-log.ts reaches packages/app/src/open-mcp-auth-database.ts, which opens the gateway's mcp-auth.db\n",
+  });
+});
+
 test('it fails on a daemon module that opens mcp-auth.db by its file name', async () => {
   const ctx = setupTest();
 

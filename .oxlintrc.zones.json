@@ -23,8 +23,8 @@
           "lifecycle": ["packages/lifecycle{,/**}"],
           "daemon": ["packages/daemon{,/**}"],
           "plugins": ["packages/{harnesses,execution,sources}/*{,/**}"],
-          // the front ends: a front end's tests may use the daemon's testing
-          // entry, which its production code may not reach
+          // the front ends: a front end's tests may use the daemon's test-utils
+          // helpers, which its production code may not reach
           "front-ends": ["packages/{tui,mcp,gateway,reporters}{,/**}"],
           "mcp": ["packages/mcp{,/**}"],
           "app": ["packages/app{,/**}"],

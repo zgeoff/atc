@@ -240,10 +240,13 @@ function checkPreloads(root: string, packages: readonly WorkspacePackage[]): str
   const findings: string[] = [];
 
   for (const pkg of packages) {
-    for (const entry of collectEntryFiles(pkg)) {
+    for (const reached of collectEntryFiles(root, pkg)) {
+      const entry = reached.entry;
+      const isWildcard = reached.isWildcard;
       const entryPreload = preloads.find((candidate) => candidate.file === entry);
 
-      if (entryPreload !== undefined) {
+      // a wildcard lists no file on purpose, so a preload among the files it matches is no entry
+      if (entryPreload !== undefined && !isWildcard) {
         findings.push(
           `preloaded entry: ${entry}, an entry point of ${pkg.directory}, is ${entryPreload.preload}, which bunfig.toml preloads; drop it from the exports map`,
         );
@@ -293,14 +296,31 @@ function findPreload(
   )?.preload;
 }
 
-// Every path an exports map lists, conditional entries included.
-function collectEntryFiles(pkg: WorkspacePackage): string[] {
-  const targets: string[] = [];
+interface EntryFile {
+  readonly entry: string;
+  readonly isWildcard: boolean;
+}
+
+// Every path an exports map lists, conditional entries included, and every file that a wildcard
+// target matches.
+function collectEntryFiles(root: string, pkg: WorkspacePackage): EntryFile[] {
+  const targets: EntryFile[] = [];
   const pending: unknown[] = Object.values(pkg.manifest.exports ?? {});
 
   for (let target = pending.pop(); target !== undefined; target = pending.pop()) {
-    if (typeof target === 'string') {
-      targets.push(normalize(join(pkg.directory, target)));
+    if (typeof target === 'string' && target.includes('*')) {
+      const matches = new Bun.Glob(normalize(target)).scanSync({
+        cwd: join(root, pkg.directory),
+      });
+
+      // a test beside a helper is no entry, though the pattern matches it
+      targets.push(
+        ...[...matches]
+          .filter((match) => !match.endsWith('.test.ts'))
+          .map((match) => ({ entry: normalize(join(pkg.directory, match)), isWildcard: true })),
+      );
+    } else if (typeof target === 'string') {
+      targets.push({ entry: normalize(join(pkg.directory, target)), isWildcard: false });
     } else if (typeof target === 'object' && target !== null) {
       const conditions: unknown[] = Object.values(target);
 
@@ -308,7 +328,7 @@ function collectEntryFiles(pkg: WorkspacePackage): string[] {
     }
   }
 
-  return targets.toSorted();
+  return targets.toSorted((left, right) => left.entry.localeCompare(right.entry));
 }
 
 const MODULE_SUFFIXES = [

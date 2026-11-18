@@ -1092,6 +1092,65 @@ test('it fails on an entry point that loads a preloaded module', async () => {
   });
 });
 
+test('it fails on a test helper that loads a preloaded module through the test-utils wildcard', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'bunfig.toml'),
+    '[test]\npreload = ["./packages/core/src/test-utils/isolate-home.ts"]\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/package.json'),
+    JSON.stringify({
+      name: '@atc/core',
+      exports: { '.': './src/index.ts', './test-utils/*': './src/test-utils/*.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/src/index.ts'),
+    "export const CORE = 'core';\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/src/test-utils/isolate-home.ts'),
+    "export const ROOT = '/';\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/src/test-utils/wait-for.ts'),
+    "import { ROOT } from './isolate-home.ts';\n\nexport const WAIT = ROOT;\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/src/test-utils/isolate-home.test.ts'),
+    "import { ROOT } from './isolate-home.ts';\n\nexport const CHECK = ROOT;\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 2 packages, 4 files, 1 findings\n',
+    stderr:
+      'preloaded module: packages/core/src/test-utils/wait-for.ts, which packages/core/src/test-utils/wait-for.ts reaches as an entry point of packages/core, loads ./isolate-home.ts, which bunfig.toml preloads as ./packages/core/src/test-utils/isolate-home.ts; import it by path\n',
+  });
+});
+
 test('it lets a test load a preloaded module that no entry point reaches', async () => {
   const ctx = setupTest();
 
