@@ -35,7 +35,7 @@ test('it checks a tarball npm does not hold, then runs npm publish as a dry run'
       name: '@atcx/contract',
       version: '7.3.0',
       type: 'module',
-      exports: { '.': './index.js', './light': './index.js' },
+      exports: { '.': './index.js', './light': './index.js', './client': './index.js' },
     }),
   );
 
@@ -47,6 +47,8 @@ export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
 export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
 export function checkDaemon() { return { verdict: 'match' }; }
 export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
+export const PROTOCOL_VERSION = 14;
+export async function openDaemonClient() { return {}; }
 `,
   );
 
@@ -58,6 +60,9 @@ export declare const HELLO_RESULT_SCHEMA: { parse(value: unknown): { daemon: str
 export declare const SESSION_ENV_NAMES: { sessionID: string };
 export declare function checkDaemon(hello: { daemon: string; features: string[] }): { verdict: string };
 export declare function resolveAtcPaths(env: object): { socketPath: string };
+export declare const PROTOCOL_VERSION: number;
+export type DaemonClient = { procedures: { session: { list(input: object): Promise<{ sessions: string[] }> } } };
+export declare function openDaemonClient(path: string): Promise<DaemonClient>;
 export type DaemonEvent = { kind: string };
 export type PublishedRecord = { id: string };
 export type SessionID = string;
@@ -103,7 +108,7 @@ test('it checks a tarball npm holds already, then skips npm publish', async () =
       name: '@atcx/contract',
       version: '7.3.0',
       type: 'module',
-      exports: { '.': './index.js', './light': './index.js' },
+      exports: { '.': './index.js', './light': './index.js', './client': './index.js' },
     }),
   );
 
@@ -115,6 +120,8 @@ export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
 export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
 export function checkDaemon() { return { verdict: 'match' }; }
 export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
+export const PROTOCOL_VERSION = 14;
+export async function openDaemonClient() { return {}; }
 `,
   );
 
@@ -126,6 +133,9 @@ export declare const HELLO_RESULT_SCHEMA: { parse(value: unknown): { daemon: str
 export declare const SESSION_ENV_NAMES: { sessionID: string };
 export declare function checkDaemon(hello: { daemon: string; features: string[] }): { verdict: string };
 export declare function resolveAtcPaths(env: object): { socketPath: string };
+export declare const PROTOCOL_VERSION: number;
+export type DaemonClient = { procedures: { session: { list(input: object): Promise<{ sessions: string[] }> } } };
+export declare function openDaemonClient(path: string): Promise<DaemonClient>;
 export type DaemonEvent = { kind: string };
 export type PublishedRecord = { id: string };
 export type SessionID = string;
@@ -174,6 +184,8 @@ export const DAEMON_CONTRACT = { daemon: { hello: {} } };
 export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
 export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
 export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
+export const PROTOCOL_VERSION = 14;
+export async function openDaemonClient() { return {}; }
 `,
     `export declare const DAEMON_FEATURES: string[];
 export declare const DAEMON_CONTRACT: { daemon: { hello: object } };
@@ -181,6 +193,9 @@ export declare const HELLO_RESULT_SCHEMA: { parse(value: unknown): { daemon: str
 export declare const SESSION_ENV_NAMES: { sessionID: string };
 export declare function checkDaemon(hello: { daemon: string; features: string[] }): { verdict: string };
 export declare function resolveAtcPaths(env: object): { socketPath: string };
+export declare const PROTOCOL_VERSION: number;
+export type DaemonClient = { procedures: { session: { list(input: object): Promise<{ sessions: string[] }> } } };
+export declare function openDaemonClient(path: string): Promise<DaemonClient>;
 export type DaemonEvent = { kind: string };
 export type PublishedRecord = { id: string };
 export type SessionID = string;
@@ -195,6 +210,8 @@ export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
 export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
 export function checkDaemon() { return { verdict: 'match' }; }
 export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
+export const PROTOCOL_VERSION = 14;
+export async function openDaemonClient() { return {}; }
 `,
     `export declare const DAEMON_FEATURES: string[];
 export declare const DAEMON_CONTRACT: { daemon: { hello: object } };
@@ -202,10 +219,64 @@ export declare const HELLO_RESULT_SCHEMA: { parse(value: unknown): { daemon: str
 export declare const SESSION_ENV_NAMES: { sessionID: string };
 export declare function checkDaemon(hello: { daemon: string; features: string[] }): { verdict: string };
 export declare function resolveAtcPaths(env: object): { socketPath: string };
+export declare const PROTOCOL_VERSION: number;
+export type DaemonClient = { procedures: { session: { list(input: object): Promise<{ sessions: string[] }> } } };
+export declare function openDaemonClient(path: string): Promise<DaemonClient>;
 export type DaemonEvent = { kind: string };
 export type PublishedRecord = { id: string };
 `,
     `error TS2305: Module '"@atcx/contract"' has no exported member 'SessionID'.`,
+  ],
+  [
+    'a client entry that lacks openDaemonClient',
+    `export const DAEMON_FEATURES = ['sessions'];
+export const DAEMON_CONTRACT = { daemon: { hello: {} } };
+export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
+export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
+export function checkDaemon() { return { verdict: 'match' }; }
+export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
+export const PROTOCOL_VERSION = 14;
+`,
+    `export declare const DAEMON_FEATURES: string[];
+export declare const DAEMON_CONTRACT: { daemon: { hello: object } };
+export declare const HELLO_RESULT_SCHEMA: { parse(value: unknown): { daemon: string; features: string[] } };
+export declare const SESSION_ENV_NAMES: { sessionID: string };
+export declare function checkDaemon(hello: { daemon: string; features: string[] }): { verdict: string };
+export declare function resolveAtcPaths(env: object): { socketPath: string };
+export declare const PROTOCOL_VERSION: number;
+export type DaemonClient = { procedures: { session: { list(input: object): Promise<{ sessions: string[] }> } } };
+export declare function openDaemonClient(path: string): Promise<DaemonClient>;
+export type DaemonEvent = { kind: string };
+export type PublishedRecord = { id: string };
+export type SessionID = string;
+`,
+    '@atcx/contract/client exports no openDaemonClient',
+  ],
+  [
+    'a client whose session list answer is untyped',
+    `export const DAEMON_FEATURES = ['sessions'];
+export const DAEMON_CONTRACT = { daemon: { hello: {} } };
+export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
+export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
+export function checkDaemon() { return { verdict: 'match' }; }
+export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
+export const PROTOCOL_VERSION = 14;
+export async function openDaemonClient() { return {}; }
+`,
+    `export declare const DAEMON_FEATURES: string[];
+export declare const DAEMON_CONTRACT: { daemon: { hello: object } };
+export declare const HELLO_RESULT_SCHEMA: { parse(value: unknown): { daemon: string; features: string[] } };
+export declare const SESSION_ENV_NAMES: { sessionID: string };
+export declare function checkDaemon(hello: { daemon: string; features: string[] }): { verdict: string };
+export declare function resolveAtcPaths(env: object): { socketPath: string };
+export declare const PROTOCOL_VERSION: number;
+export type DaemonClient = { procedures: { session: { list(input: object): Promise<object> } } };
+export declare function openDaemonClient(path: string): Promise<DaemonClient>;
+export type DaemonEvent = { kind: string };
+export type PublishedRecord = { id: string };
+export type SessionID = string;
+`,
+    `error TS2339: Property 'sessions' does not exist on type 'object'.`,
   ],
 ])(
   'it fails a tarball with %s before npm publish, though npm holds its version',
@@ -218,7 +289,7 @@ export type PublishedRecord = { id: string };
         name: '@atcx/contract',
         version: '7.3.0',
         type: 'module',
-        exports: { '.': './index.js', './light': './index.js' },
+        exports: { '.': './index.js', './light': './index.js', './client': './index.js' },
       }),
     );
 

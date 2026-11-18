@@ -57,9 +57,12 @@ if [[ $dry_run == true ]]; then
   (cd "$consumer" && node --input-type=module -e "
     const contract = await import('$name');
     const light = await import('$name/light');
+    const client = await import('$name/client');
     const check = contract.checkDaemon({ daemon: 'atc/$version', features: contract.DAEMON_FEATURES });
     if (check.verdict !== 'match') throw new Error('checkDaemon gave ' + check.verdict);
     if (typeof light.resolveAtcPaths !== 'function') throw new Error('$name/light exports no resolveAtcPaths');
+    if (typeof client.openDaemonClient !== 'function') throw new Error('$name/client exports no openDaemonClient');
+    if (client.PROTOCOL_VERSION !== light.PROTOCOL_VERSION) throw new Error('$name/client gives protocol ' + client.PROTOCOL_VERSION + ', and $name/light gives ' + light.PROTOCOL_VERSION);
     console.log('node imports $name, which exports ' + Object.keys(contract).length + ' names');
   ")
 
@@ -67,12 +70,22 @@ if [[ $dry_run == true ]]; then
 import { DAEMON_CONTRACT, HELLO_RESULT_SCHEMA, checkDaemon } from '$name';
 import type { DaemonEvent, PublishedRecord, SessionID } from '$name';
 import { SESSION_ENV_NAMES, resolveAtcPaths } from '$name/light';
+import { openDaemonClient, PROTOCOL_VERSION } from '$name/client';
+import type { DaemonClient } from '$name/client';
 
 export const verdict = checkDaemon(HELLO_RESULT_SCHEMA.parse({})).verdict;
 export const hello = DAEMON_CONTRACT.daemon.hello;
 export const socket: string = resolveAtcPaths({}).socketPath;
 export const names = SESSION_ENV_NAMES.sessionID;
 export type Read = [DaemonEvent, PublishedRecord, SessionID];
+export const protocol: number = PROTOCOL_VERSION;
+export const open: (path: string) => Promise<DaemonClient> = openDaemonClient;
+
+export async function countSessions(client: DaemonClient): Promise<number> {
+  const listing = await client.procedures.session.list({});
+
+  return listing.sessions.length;
+}
 EOF
   echo '{ "compilerOptions": { "module": "nodenext", "strict": true, "noEmit": true, "skipLibCheck": false },
     "files": ["main.ts"] }' > "$consumer/tsconfig.json"
