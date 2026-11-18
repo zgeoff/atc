@@ -335,3 +335,61 @@ test('it creates a codex adapter for an entry', () => {
   expect(adapter.profile?.kind).toBe('codex');
   expect(adapter.id).toBe('codex-b');
 });
+
+test('it refuses a codex entry with auth whose env sets a variable the telemetry of a selected profile sets', () => {
+  const result = collectAgents(
+    {
+      codex: {
+        auth: { profiles: ['codex', 'records'] },
+        env: { OTEL_LOGS_EXPORTER: 'console' },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'codex',
+        buildMockAuthProfile({
+          name: 'codex',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      ['records', buildMockAuthProfile({ name: 'records', telemetry: { logs: true } })],
+    ]),
+    [CODEX_PLUGIN],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.codex: env sets OTEL_LOGS_EXPORTER, which the telemetry of auth profile records sets',
+    ],
+  });
+});
+
+test('it refuses a codex entry with auth that selects two profiles with telemetry', () => {
+  const result = collectAgents(
+    { codex: { auth: { profiles: ['codex', 'records', 'archive'] } } },
+    new Map<string, AuthProfile>([
+      [
+        'codex',
+        buildMockAuthProfile({
+          name: 'codex',
+          kind: 'oauth',
+          host: 'chatgpt.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      ['records', buildMockAuthProfile({ name: 'records', telemetry: { logs: true } })],
+      ['archive', buildMockAuthProfile({ name: 'archive', telemetry: { logs: true } })],
+    ]),
+    [CODEX_PLUGIN],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: ['agents.codex: auth: profiles archive and records both set telemetry'],
+  });
+});

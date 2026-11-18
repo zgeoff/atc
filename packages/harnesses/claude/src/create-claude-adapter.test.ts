@@ -13,6 +13,7 @@ import {
 } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
+import { z } from 'zod';
 import { ATC_BRIDGE_FILES } from './bridge/atc-bridge-files';
 import { CLAUDE_PLUGIN } from './claude-plugin';
 import { createClaudeAdapter } from './create-claude-adapter';
@@ -2619,4 +2620,152 @@ test('it plans no Codex home when a ChatGPT profile sets no bearer authorization
   });
 
   expect(Object.keys(plan.files).filter((path) => path.includes('codex-home'))).toBeEmpty();
+});
+
+test("it sets the telemetry variables for the binding's telemetry host in a subscription guest's settings env and spawn env", () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      records: {
+        secret: 'records',
+        host: 'records.example.com',
+        header: 'authorization',
+        scheme: 'bearer',
+        telemetry: { logs: true },
+      },
+    },
+    agents: { claude: { auth: { profiles: ['claude', 'records'] } } },
+  });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.directory, 'home') },
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/work/sessions/s1',
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+        telemetryHost: 'records.example.com',
+      },
+    },
+  );
+
+  const settingsFile = plan?.files['auth-r2/settings.json'];
+
+  invariant(
+    plan !== null && typeof settingsFile === 'string',
+    'expected a guest spawn plan with a settings file',
+  );
+
+  const settings = z
+    .object({ env: z.record(z.string(), z.string()) })
+    .parse(JSON.parse(settingsFile));
+
+  expect({ spawn: plan.env, settings: settings.env }).toStrictEqual({
+    spawn: {
+      CLAUDE_CONFIG_DIR: '/work/sessions/s1/claude-config',
+      TMPDIR: '/work/sessions/s1/scratch',
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      OTEL_LOGS_EXPORTER: 'otlp',
+      OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
+      OTEL_EXPORTER_OTLP_ENDPOINT: 'https://records.example.com',
+      CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
+    },
+    settings: {
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      OTEL_LOGS_EXPORTER: 'otlp',
+      OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
+      OTEL_EXPORTER_OTLP_ENDPOINT: 'https://records.example.com',
+      CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    },
+  });
+});
+
+test("it writes a log exporter to the binding's telemetry host into the Codex home of a subscription guest", () => {
+  const ctx = setupTest();
+
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      records: {
+        secret: 'records',
+        host: 'records.example.com',
+        header: 'authorization',
+        scheme: 'bearer',
+        telemetry: { logs: true },
+      },
+    },
+    agents: { claude: { auth: { profiles: ['claude', 'codex', 'records'] } } },
+  });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: join(ctx.directory, 'home') },
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/work/sessions/s1',
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+        telemetryHost: 'records.example.com',
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  expect(plan?.files['auth-r2/codex-home/config.toml']).toBe(
+    [
+      'cli_auth_credentials_store = "file"',
+      'check_for_update_on_startup = false',
+      '',
+      '[otel]',
+      'log_user_prompt = false',
+      'exporter = { otlp-http = { endpoint = "https://records.example.com/v1/logs", protocol = "json" } }',
+      '',
+    ].join('\n'),
+  );
 });

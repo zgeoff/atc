@@ -68,6 +68,7 @@ test('it resolves the dependency closure into the complete rule set grouped by s
       ],
       env: {},
       envOwners: {},
+      telemetry: null,
     },
   });
 });
@@ -197,6 +198,7 @@ test('it merges two profiles that hold the same rule for one host into one rule'
       ],
       env: {},
       envOwners: {},
+      telemetry: null,
     },
   });
 });
@@ -234,6 +236,7 @@ test('it resolves a 40-profile chain where each profile depends on every profile
       })),
       env: {},
       envOwners: {},
+      telemetry: null,
     },
   });
 });
@@ -279,6 +282,7 @@ test('it resolves a github profile to a github secret with no rules beside a cus
       ],
       env: {},
       envOwners: {},
+      telemetry: null,
     },
   });
 });
@@ -324,6 +328,7 @@ test('it resolves a custom profile on a github host beside a github profile, who
       ],
       env: {},
       envOwners: {},
+      telemetry: null,
     },
   });
 });
@@ -373,6 +378,7 @@ test('it merges the variables of every reached profile with the profile that set
       ]),
       env: { TOKEN: 'broker-placeholder', B_HOST: 'https://b.example.com' },
       envOwners: { TOKEN: 'a', B_HOST: 'b' },
+      telemetry: null,
     },
   });
 });
@@ -387,6 +393,63 @@ test('it refuses two profiles that set one variable to different values', () => 
     problem: {
       code: 'auth_collision',
       message: 'profiles a and b set SERVICE_URL to different values',
+    },
+  });
+});
+
+test('it resolves the telemetry of the one profile that turns its logs on', () => {
+  const profiles = new Map<string, AuthProfile>([
+    ['glm', buildMockAuthProfile({ name: 'glm', telemetry: { logs: false } })],
+    [
+      'records',
+      buildMockAuthProfile({
+        name: 'records',
+        host: 'records.example.com',
+        telemetry: { logs: true },
+      }),
+    ],
+  ]);
+
+  expect(resolveAuthProfiles(profiles, ['glm', 'records'])).toMatchObject({
+    resolved: { env: {}, telemetry: { profile: 'records', host: 'records.example.com' } },
+  });
+});
+
+test('it refuses two profiles that both turn telemetry on, one of them a dependency', () => {
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'glm',
+      buildMockAuthProfile({ name: 'glm', telemetry: { logs: true }, dependencies: ['records'] }),
+    ],
+    ['records', buildMockAuthProfile({ name: 'records', telemetry: { logs: true } })],
+  ]);
+
+  expect(resolveAuthProfiles(profiles, ['glm'])).toStrictEqual({
+    problem: {
+      code: 'auth_collision',
+      message: 'profiles glm and records both set telemetry',
+    },
+  });
+});
+
+test("it refuses a profile whose env sets a variable another profile's telemetry sets", () => {
+  const profiles = new Map<string, AuthProfile>([
+    [
+      'collector',
+      buildMockAuthProfile({
+        name: 'collector',
+        host: 'collector.example.com',
+        env: { OTEL_EXPORTER_OTLP_ENDPOINT: 'https://collector.example.com' },
+      }),
+    ],
+    ['records', buildMockAuthProfile({ name: 'records', telemetry: { logs: true } })],
+  ]);
+
+  expect(resolveAuthProfiles(profiles, ['collector', 'records'])).toStrictEqual({
+    problem: {
+      code: 'auth_collision',
+      message:
+        'profile collector sets OTEL_EXPORTER_OTLP_ENDPOINT, which the telemetry of profile records sets',
     },
   });
 });

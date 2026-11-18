@@ -6,6 +6,7 @@ type CollectedCodexAuth =
   | {
       readonly profiles: readonly string[];
       readonly envOwners: Readonly<Record<string, string>>;
+      readonly telemetry: { readonly profile: string; readonly host: string } | null;
       readonly errors: readonly [];
     }
   | { readonly profiles: null; readonly errors: readonly string[] };
@@ -63,5 +64,10 @@ export function collectCodexAuth(
     };
   }
 
-  return { profiles: selected, envOwners: resolution.resolved.envOwners, errors: [] };
+  return {
+    profiles: selected,
+    envOwners: resolution.resolved.envOwners,
+    telemetry: resolution.resolved.telemetry,
+    errors: [],
+  };
 }

@@ -947,3 +947,169 @@ test('it creates a gateway adapter for an entry with a base URL', () => {
   expect(adapter.profile?.kind).toBe('gateway');
   expect(adapter.id).toBe('zai');
 });
+
+test('it refuses a stock claude entry whose env sets a variable the telemetry of its profile sets', () => {
+  const result = collectAgents(
+    {
+      claude: {
+        env: { OTEL_EXPORTER_OTLP_PROTOCOL: 'grpc' },
+        auth: { profiles: ['claude', 'records'] },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      ['records', buildMockAuthProfile({ name: 'records', telemetry: { logs: true } })],
+    ]),
+    [buildClaudePlugin()],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.claude: env sets OTEL_EXPORTER_OTLP_PROTOCOL, which the telemetry of auth profile records sets',
+    ],
+  });
+});
+
+test('it refuses a stock claude entry whose settings.env sets a variable the telemetry of its profile sets', () => {
+  const result = collectAgents(
+    {
+      claude: {
+        settings: { env: { CLAUDE_CODE_ENABLE_TELEMETRY: '0' } },
+        auth: { profiles: ['claude', 'records'] },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      ['records', buildMockAuthProfile({ name: 'records', telemetry: { logs: true } })],
+    ]),
+    [buildClaudePlugin()],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.claude: settings.env sets CLAUDE_CODE_ENABLE_TELEMETRY, which the telemetry of auth profile records sets',
+    ],
+  });
+});
+
+test('it refuses a stock claude entry that selects two profiles with telemetry', () => {
+  const result = collectAgents(
+    { claude: { auth: { profiles: ['claude', 'records', 'archive'] } } },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      ['records', buildMockAuthProfile({ name: 'records', telemetry: { logs: true } })],
+      ['archive', buildMockAuthProfile({ name: 'archive', telemetry: { logs: true } })],
+    ]),
+    [buildClaudePlugin()],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: ['agents.claude: auth: profiles archive and records both set telemetry'],
+  });
+});
+
+test('it refuses a gateway whose env sets a variable the telemetry of its profile sets', () => {
+  const result = collectAgents(
+    {
+      glm: {
+        kind: 'claude',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        env: { OTEL_EXPORTER_OTLP_ENDPOINT: 'https://collector.example.com' },
+        auth: { profiles: ['glm', 'records'] },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'glm',
+        buildMockAuthProfile({
+          name: 'glm',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      ['records', buildMockAuthProfile({ name: 'records', telemetry: { logs: true } })],
+    ]),
+    [buildClaudePlugin()],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.glm: env sets OTEL_EXPORTER_OTLP_ENDPOINT, which the telemetry of auth profile records sets',
+    ],
+  });
+});
+
+test('it loads a stock claude entry whose env sets three telemetry variables beside a profile whose env sets the endpoint', () => {
+  const result = collectAgents(
+    {
+      claude: {
+        env: {
+          CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+          OTEL_LOGS_EXPORTER: 'otlp',
+          OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
+        },
+        auth: { profiles: ['claude', 'records'] },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      [
+        'records',
+        buildMockAuthProfile({
+          name: 'records',
+          host: 'records.example.com',
+          env: { OTEL_EXPORTER_OTLP_ENDPOINT: 'https://records.example.com' },
+        }),
+      ],
+    ]),
+    [buildClaudePlugin()],
+  );
+
+  expect({ errors: result.errors, env: result.agents.map((agent) => agent.env) }).toStrictEqual({
+    errors: [],
+    env: [
+      {
+        CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+        OTEL_LOGS_EXPORTER: 'otlp',
+        OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
+      },
+    ],
+  });
+});

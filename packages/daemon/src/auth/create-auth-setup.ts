@@ -579,6 +579,7 @@ async function planGuestAuth(
     revision,
     env: auth.binding.placeholderEnv,
     profileEnv: auth.binding.profileEnv,
+    ...(auth.binding.telemetryHost === null ? {} : { telemetryHost: auth.binding.telemetryHost }),
     ...(oauth === undefined ? {} : { oauth }),
   };
 }

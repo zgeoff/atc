@@ -2,6 +2,7 @@ import type { AgentEntry, AgentEntryRead } from '@atc/config';
 import {
   collectProfileEnvProblems,
   collectSignInOverrideProblems,
+  collectTelemetryEnvProblems,
   resolveAuthProfiles,
 } from '@atc/config';
 import { isRecord, isSubscriptionOverrideVariable } from '@atc/core';
@@ -112,16 +113,18 @@ function collectEntryProfileEnvProblems(
 
   const settingsEnv = entry.settings?.['env'];
 
-  return collectProfileEnvProblems(
+  const sources = [
+    ['env', Object.keys(entry.env)],
     [
-      ['env', Object.keys(entry.env)],
-      [
-        'settings.env',
-        isRecord(settingsEnv) && !Array.isArray(settingsEnv) ? Object.keys(settingsEnv) : [],
-      ],
+      'settings.env',
+      isRecord(settingsEnv) && !Array.isArray(settingsEnv) ? Object.keys(settingsEnv) : [],
     ],
-    resolution.resolved.envOwners,
-  );
+  ] as const;
+
+  return [
+    ...collectProfileEnvProblems(sources, resolution.resolved.envOwners),
+    ...collectTelemetryEnvProblems(sources, resolution.resolved.telemetry),
+  ];
 }
 
 // The placeholders a stock entry's env or settings env also sets, whose

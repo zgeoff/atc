@@ -10,6 +10,7 @@ import { verifyRestoredFleet } from '@atc/lifecycle';
 import { createStateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
+  buildMockAuthProfile,
   buildStubBrokeredAgentAdapter,
   buildStubProxiedAgentAdapter,
   getRecord,
@@ -478,6 +479,91 @@ test('it starts a brokered harness with the variables its guest plan holds besid
     CLAUDE_CONFIG_DIR: expect.toEndWith(`/sessions/${id}/claude-config`),
     ATC_SESSION_ID: id,
   });
+});
+
+test('it gives the guest plan of a brokered harness the host of the profile that turns telemetry on', async () => {
+  const ctx = setupTest();
+
+  const glm = buildMockAgentAdapter({
+    id: 'glm',
+    planGuestSpawn: (_opts, guest) => ({
+      bin: 'sleep',
+      args: ['30'],
+      files: {},
+      env: { RECORDS_HOST: guest.auth?.telemetryHost ?? 'none' },
+    }),
+    findAuthSelection: () => ({
+      brokerRequired: true,
+      gateway: {
+        id: 'glm',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: { profiles: ['glm', 'records'], placeholderEnv: {} },
+      },
+      profiles: new Map([
+        [
+          'glm',
+          buildMockAuthProfile({
+            name: 'glm',
+            secret: 'glm',
+            host: 'api.z.ai',
+            header: 'authorization',
+            scheme: 'bearer',
+          }),
+        ],
+        [
+          'records',
+          buildMockAuthProfile({
+            name: 'records',
+            secret: 'records',
+            host: 'records.example.com',
+            header: 'authorization',
+            scheme: 'bearer',
+            telemetry: { logs: true },
+          }),
+        ],
+      ]),
+    }),
+  });
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-runtime-auth-daemon-',
+    options: () => ({
+      adapter: glm,
+      adapters: [glm],
+      targets: [
+        { id: 'box', kind: 'imp', options: {}, identity: 'imp:test', provider: ctx.provider },
+      ],
+      defaultTarget: 'box',
+    }),
+  });
+
+  ctx.port.setIdentity({
+    kind: 'token',
+    name: 'atc-runtime',
+    scope: 'manage',
+    imps: ['atc-*'],
+    grantable: ['glm', 'records'],
+  });
+
+  ctx.port.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  ctx.port.createSecret('records', 'custom', [
+    { host: 'records.example.com', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    agent: 'glm',
+    target: 'box',
+  });
+
+  const [start] = ctx.port.sessionRequests;
+
+  invariant(start?.kind === 'start', 'expected the harness start');
+
+  expect(start.env).toMatchObject({ RECORDS_HOST: 'records.example.com' });
 });
 
 test('it refuses a brokered spawn whose guest plan sets a proxy variable before touching impd', async () => {
@@ -3691,6 +3777,7 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
       ],
       placeholderEnv: {},
       profileEnv: {},
+      telemetryHost: null,
       hash: 'h1',
     },
   });

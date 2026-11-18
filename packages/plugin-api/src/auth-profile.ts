@@ -17,6 +17,9 @@ interface CustomAuthProfile {
   readonly scheme: 'bearer' | 'raw';
   readonly env: Readonly<Record<string, string>>;
 
+  // `logs` true sends the log records of a session's agents to the profile's host.
+  readonly telemetry?: { readonly logs: boolean };
+
   // the profiles a session selecting this one needs beside it.
   readonly dependencies: readonly string[];
 }

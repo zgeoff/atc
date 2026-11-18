@@ -50,6 +50,7 @@ with it:
 | `scheme`       | How impd renders the value: `bearer`, or `raw` for the value alone. atc binds these two.  |
 | `kind`         | The kind of secret the profile names: `custom`, the default, `oauth`, or `github`.        |
 | `env`          | Variables a `custom` profile sets in a session that reaches it. See below.                |
+| `telemetry`    | `{ "logs": true }` sends the log records of a session's agents to `host`. See below.      |
 | `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's. |
 
 An imp target is unusable while any profile's `secret` or `header` breaks impd's name rules, since
@@ -128,3 +129,66 @@ profile, and refuses an entry that selects it, when its `env` sets:
 Two selected profiles that set one variable to different values are refused, and so is an entry
 whose `env` or `settings.env` sets a variable that one of its profiles sets. A change to a profile's
 `env` gives the session's binding a new revision.
+
+## Profile telemetry
+
+To send the OpenTelemetry log records of a session's agents to a service the broker authenticates,
+set `telemetry` on the service's profile. Add the secret to impd as a `custom` secret on the
+service's host. Then select the profile in an agent's `auth.profiles`:
+
+```json
+{
+  "authProfiles": {
+    "records": {
+      "secret": "records",
+      "host": "records.example.com",
+      "header": "authorization",
+      "scheme": "bearer",
+      "telemetry": { "logs": true }
+    }
+  },
+  "agents": {
+    "claude": { "auth": { "profiles": ["claude", "records"] } }
+  }
+}
+```
+
+`telemetry` holds one key, `logs`. atc sets nothing for a profile without `telemetry`, or with
+`logs` set to `false`. atc sends log records only, so it leaves out a profile whose `telemetry`
+holds any other key. A `github` profile takes no `telemetry`, since it names no host. The endpoint
+is always `https://` followed by the profile's `host`, so the config never holds it. The local
+target never gets telemetry from a profile.
+
+On an imp target, a session that reaches the profile, through the entry's `auth.profiles` or a
+dependency, gets:
+
+- In a Claude Code session, on a stock entry or a gateway entry, four variables in the settings file
+  and the environment: `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=otlp`,
+  `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`, and `OTEL_EXPORTER_OTLP_ENDPOINT` set to `https://` and
+  the host.
+- In each Codex `config.toml` that atc writes for the session, the log exporter below. Codex reads
+  its exporter from that file alone, and ignores the four variables. The
+  [Codex subscription guide](./codex-subscription.md) covers when atc writes the file.
+
+```toml
+[otel]
+log_user_prompt = false
+exporter = { otlp-http = { endpoint = "https://records.example.com/v1/logs", protocol = "json" } }
+```
+
+atc leaves out a profile that turns telemetry on and sets one of the four variables in its own
+`env`, and refuses an entry that selects it. atc also refuses an entry when:
+
+- Two of the profiles it reaches turn telemetry on.
+- Its `env` or `settings.env` sets one of the four variables, and a profile it reaches turns
+  telemetry on.
+- One profile it reaches turns telemetry on, and another sets one of the four variables in its
+  `env`.
+
+A profile with no `telemetry` may still set `OTEL_EXPORTER_OTLP_ENDPOINT` in its `env`, beside an
+entry whose `env` sets the other three variables. That form reaches Claude Code only, and gives
+Codex no exporter.
+
+A change to a profile's `telemetry` gives the session's binding a new revision.
+[Session telemetry](../../architecture/agents/agent-integration.md#session-telemetry) covers the
+session id atc adds to every record.

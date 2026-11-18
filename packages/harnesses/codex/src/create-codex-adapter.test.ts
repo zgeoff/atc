@@ -1063,3 +1063,64 @@ test('it refuses a resume through the session picker on an App Server', () => {
     }),
   ).rejects.toMatchObject({ code: 'unsupported' });
 });
+
+test('it writes a log exporter to the telemetry host into the config of a brokered guest, and sets no telemetry variable', () => {
+  const config = parseConfig([CODEX_PLUGIN], {
+    authProfiles: {
+      codex: {
+        secret: 'codex-chatgpt',
+        kind: 'oauth',
+        host: 'chatgpt.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+      records: {
+        secret: 'records',
+        host: 'records.example.com',
+        header: 'authorization',
+        scheme: 'bearer',
+        telemetry: { logs: true },
+      },
+    },
+    agents: { codex: { auth: { profiles: ['codex', 'records'] } } },
+  });
+
+  const adapter = createCodexAdapter(getAgentEntry(config, 'codex'), config);
+
+  const plan = adapter.planGuestSpawn?.(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc',
+      directory: '/work/sessions/s1',
+      auth: {
+        revision: 2,
+        env: {},
+        profileEnv: {},
+        telemetryHost: 'records.example.com',
+        oauth: {
+          'codex-chatgpt': {
+            status: 'ready',
+            idClaims: {
+              'https://api.openai.com/auth': {
+                chatgpt_account_id: '5f0c1d7e-0000-4000-8000-00000000c0de',
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  expect({ env: plan?.env, config: plan?.files['auth-r2/config.toml'] }).toStrictEqual({
+    env: { CODEX_HOME: '/work/sessions/s1/codex-home' },
+    config: [
+      'cli_auth_credentials_store = "file"',
+      'check_for_update_on_startup = false',
+      '',
+      '[otel]',
+      'log_user_prompt = false',
+      'exporter = { otlp-http = { endpoint = "https://records.example.com/v1/logs", protocol = "json" } }',
+      '',
+    ].join('\n'),
+  });
+});

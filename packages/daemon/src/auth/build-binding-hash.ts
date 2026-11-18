@@ -8,6 +8,7 @@ import { GITHUB_SECRET_RULES } from './github-secret-rules';
 interface HashedBinding {
   readonly secrets: readonly { readonly kind: string; readonly rules: readonly unknown[] }[];
   readonly profileEnv: Readonly<Record<string, string>>;
+  readonly telemetryHost: string | null;
 }
 
 // An older atc stored a github secret's rules in its binding. They hash as no
@@ -27,7 +28,13 @@ export function buildBindingHash(binding: HashedBinding): string {
     ]),
   );
 
-  const hashed = Object.keys(profileEnv).length === 0 ? { secrets } : { secrets, profileEnv };
+  // a part the binding leaves empty is left out, so a binding an older atc
+  // stored without it keeps its hash
+  const hashed = {
+    secrets,
+    ...(Object.keys(profileEnv).length === 0 ? {} : { profileEnv }),
+    ...(binding.telemetryHost === null ? {} : { telemetryHost: binding.telemetryHost }),
+  };
 
   return createHash('sha256')
     .update(JSON.stringify(sortJSONKeys(hashed, 'locale')))

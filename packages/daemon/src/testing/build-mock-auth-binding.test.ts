@@ -9,6 +9,7 @@ test('it builds a default auth binding', () => {
     secrets: [],
     placeholderEnv: {},
     profileEnv: {},
+    telemetryHost: null,
     hash: expect.toSatisfy((value: string) => /^[0-9a-f]{64}$/u.test(value)),
   });
 });
@@ -39,6 +40,7 @@ test('it applies overrides on top of the defaults, replacing a list whole', () =
     ],
     placeholderEnv: {},
     profileEnv: { REGION: 'intl' },
+    telemetryHost: null,
     hash: expect.toBeString(),
   });
 });

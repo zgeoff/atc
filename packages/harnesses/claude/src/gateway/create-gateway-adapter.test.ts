@@ -13,6 +13,7 @@ import {
 } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
+import { z } from 'zod';
 import { ATC_BRIDGE_FILES } from '../bridge/atc-bridge-files';
 import { CLAUDE_PLUGIN } from '../claude-plugin';
 import { buildMockGatewayConfig } from '../testing/build-mock-gateway-config';
@@ -2722,4 +2723,77 @@ test('it refuses a local plan of a gateway whose profile sets variables', () => 
   expect(() => adapter.planSpawn({ prompt: '', resume: false })).toThrow(
     expect.objectContaining({ code: 'auth_target_unsupported', data: { agent: 'glm' } }),
   );
+});
+
+test("it sets the telemetry variables for the binding's telemetry host in a brokered guest's settings env and spawn env", () => {
+  const adapter = createGatewayAdapter(
+    buildMockGatewayConfig({
+      id: 'glm',
+      bin: 'claude',
+      baseURL: 'https://api.z.ai/api/anthropic',
+      auth: {
+        profiles: ['glm', 'records'],
+        placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+      },
+    }),
+    parseConfig([CLAUDE_PLUGIN], {
+      authProfiles: {
+        glm: { secret: 'glm', host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+        records: {
+          secret: 'records',
+          host: 'records.example.com',
+          header: 'authorization',
+          scheme: 'bearer',
+          telemetry: { logs: true },
+        },
+      },
+    }),
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/work/sessions/s1',
+      auth: {
+        revision: 3,
+        env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+        telemetryHost: 'records.example.com',
+      },
+    },
+  );
+
+  const settingsFile = plan?.files['auth-r3/settings.json'];
+
+  invariant(
+    plan !== null && typeof settingsFile === 'string',
+    'expected a guest spawn plan with a settings file',
+  );
+
+  const settings = z
+    .object({ env: z.record(z.string(), z.string()) })
+    .parse(JSON.parse(settingsFile));
+
+  expect({ spawn: plan.env, settings: settings.env }).toStrictEqual({
+    spawn: {
+      CLAUDE_CONFIG_DIR: '/work/sessions/s1/claude-config',
+      TMPDIR: '/work/sessions/s1/scratch',
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      OTEL_LOGS_EXPORTER: 'otlp',
+      OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
+      OTEL_EXPORTER_OTLP_ENDPOINT: 'https://records.example.com',
+      ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
+    },
+    settings: {
+      ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      OTEL_LOGS_EXPORTER: 'otlp',
+      OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
+      OTEL_EXPORTER_OTLP_ENDPOINT: 'https://records.example.com',
+      ANTHROPIC_AUTH_TOKEN: 'broker-placeholder',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    },
+  });
 });

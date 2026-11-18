@@ -11,6 +11,10 @@ export interface AuthBinding {
   readonly secrets: readonly ResolvedAuthSecret[];
   readonly placeholderEnv: Readonly<Record<string, string>>;
   readonly profileEnv: Readonly<Record<string, string>>;
+
+  // the host the session's agents send their log records to, null when no
+  // profile turns telemetry on.
+  readonly telemetryHost: string | null;
   readonly hash: string;
 }
 
@@ -34,6 +38,7 @@ export function buildAuthBinding(
 
   const secrets = resolution.resolved.secrets;
   const profileEnv = resolution.resolved.env;
+  const telemetryHost = resolution.resolved.telemetry?.host ?? null;
 
   return {
     binding: {
@@ -43,7 +48,8 @@ export function buildAuthBinding(
       secrets,
       placeholderEnv: gateway.auth.placeholderEnv,
       profileEnv,
-      hash: buildBindingHash({ secrets, profileEnv }),
+      telemetryHost,
+      hash: buildBindingHash({ secrets, profileEnv, telemetryHost }),
     },
   };
 }

@@ -1,5 +1,6 @@
 import { BROKER_PLACEHOLDER, isRecord } from '@atc/core';
 import type { AuthProfile } from '@atc/plugin-api';
+import { buildTelemetryEnv } from './build-telemetry-env';
 import { isEnvName } from './is-env-name';
 import { isReservedEnvName } from './is-reserved-env-name';
 
@@ -79,6 +80,10 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
       return "env cannot be set on a github profile, whose placeholders the broker's github secret sets";
     }
 
+    if (entry['telemetry'] !== undefined) {
+      return 'telemetry cannot be set on a github profile, which names no host to send records to';
+    }
+
     return { name, secret, kind, env: {}, dependencies: dependencies ?? [] };
   }
 
@@ -104,6 +109,20 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
     return env;
   }
 
+  const telemetry = parseTelemetry(entry['telemetry']);
+
+  if (typeof telemetry === 'string') {
+    return telemetry;
+  }
+
+  if (telemetry?.logs === true) {
+    const set = Object.keys(buildTelemetryEnv(host)).find((key) => env[key] !== undefined);
+
+    if (set !== undefined) {
+      return `env.${set} cannot be set together with telemetry, which sets it`;
+    }
+  }
+
   return {
     name,
     secret,
@@ -112,6 +131,7 @@ function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
     header,
     scheme,
     env,
+    ...(telemetry === undefined ? {} : { telemetry }),
     dependencies: dependencies ?? [],
   };
 }
@@ -147,4 +167,28 @@ function parseProfileEnv(raw: unknown, host: string): Record<string, string> | s
   }
 
   return env;
+}
+
+function parseTelemetry(raw: unknown): { readonly logs: boolean } | string | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(raw) || Array.isArray(raw)) {
+    return 'telemetry must be an object with a logs key';
+  }
+
+  const extra = Object.keys(raw).find((key) => key !== 'logs');
+
+  if (extra !== undefined) {
+    return `telemetry.${extra} cannot be set: logs is the only signal atc sends`;
+  }
+
+  const logs = raw['logs'];
+
+  if (logs !== undefined && typeof logs !== 'boolean') {
+    return 'telemetry.logs must be true or false';
+  }
+
+  return { logs: logs ?? false };
 }
