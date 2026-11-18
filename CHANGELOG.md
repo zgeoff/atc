@@ -2,17 +2,23 @@
 
 ## [7.18.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.17.0...@zgeoff/atc@7.18.0) (2026-11-18)
 
-
 ### Features
 
-* **config:** add a telemetry item to auth profiles ([#1255](https://github.com/zgeoff/atc/issues/1255)) ([9803a0a](https://github.com/zgeoff/atc/commit/9803a0a3c35fba38944a890a18a7651b03644657))
-* **imp:** give the imp target an elastic memory max ([#1250](https://github.com/zgeoff/atc/issues/1250)) ([f385390](https://github.com/zgeoff/atc/commit/f385390343b5287df10fadbaf418d12d619e1841))
-* **verify:** add mcp journeys, the gateway and a prod target ([#1232](https://github.com/zgeoff/atc/issues/1232)) ([5e18b14](https://github.com/zgeoff/atc/commit/5e18b1400368268d5c3af9732307636fd84c66d9))
-
+- **config:** add a telemetry item to auth profiles
+  ([#1255](https://github.com/zgeoff/atc/issues/1255))
+  ([9803a0a](https://github.com/zgeoff/atc/commit/9803a0a3c35fba38944a890a18a7651b03644657))
+- **imp:** give the imp target an elastic memory max
+  ([#1250](https://github.com/zgeoff/atc/issues/1250))
+  ([f385390](https://github.com/zgeoff/atc/commit/f385390343b5287df10fadbaf418d12d619e1841))
+- **verify:** add mcp journeys, the gateway and a prod target
+  ([#1232](https://github.com/zgeoff/atc/issues/1232))
+  ([5e18b14](https://github.com/zgeoff/atc/commit/5e18b1400368268d5c3af9732307636fd84c66d9))
 
 ### Bug Fixes
 
-* **tui:** list the pinned sessions of every daemon in one pinned group ([#1241](https://github.com/zgeoff/atc/issues/1241)) ([558e81d](https://github.com/zgeoff/atc/commit/558e81da134945a090eb86dadd4a1da8a91a23ca))
+- **tui:** list the pinned sessions of every daemon in one pinned group
+  ([#1241](https://github.com/zgeoff/atc/issues/1241))
+  ([558e81d](https://github.com/zgeoff/atc/commit/558e81da134945a090eb86dadd4a1da8a91a23ca))
 
 ## [7.17.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.16.0...@zgeoff/atc@7.17.0) (2026-11-14)
 
