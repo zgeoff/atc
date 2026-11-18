@@ -826,6 +826,24 @@ test('it reads the id of the imp it creates', async () => {
   });
 });
 
+test("it sends impd the new imp's memory and memory max", async () => {
+  const ctx = setupTest();
+
+  ctx.impd.answers.set('/rpc/imps/create', {
+    status: 200,
+    json: { id: '0199a1b2-0000-7000-8000-000000000003', name: 'atc-s3', state: 'creating' },
+  });
+
+  const port = createImpClientPort({ url: ctx.impd.url, readToken: () => 'token' });
+
+  await port.createImp({ name: 'atc-s3', memoryMib: 1024, maxMemoryMib: 2048 });
+
+  expect(ctx.impd.calls).toContainEqual({
+    path: '/rpc/imps/create',
+    input: { name: 'atc-s3', memoryMib: 1024, maxMemoryMib: 2048 },
+  });
+});
+
 test('it sends the requirements of a start to impd and ends the connection with its refusal', async () => {
   const ctx = setupTest();
 

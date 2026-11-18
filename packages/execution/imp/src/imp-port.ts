@@ -146,6 +146,7 @@ export interface ImpCreateSpec {
   readonly name: string;
   readonly image?: string;
   readonly memoryMib?: number;
+  readonly maxMemoryMib?: number;
 }
 
 export type ColdBootCause =

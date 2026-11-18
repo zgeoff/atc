@@ -253,6 +253,49 @@ test('it reports a target whose dropSysAdmin is not a boolean, without a provide
   });
 });
 
+test('it builds an imp provider for a target whose maxMemoryMib is at least its memoryMib', () => {
+  const built = createConfiguredImpProvider(
+    'box',
+    { url: 'http://127.0.0.1:9', memoryMib: 1024, maxMemoryMib: 2048 },
+    '1.0.0',
+    {},
+  );
+
+  expect(built.problem).toBeNull();
+  expect(built.provider).not.toBeNull();
+});
+
+test.each([['2048'], [1536.5], [64], [null]])(
+  'it reports a target whose maxMemoryMib is %p, without a provider',
+  (maxMemoryMib) => {
+    const built = createConfiguredImpProvider(
+      'box',
+      { url: 'http://127.0.0.1:9', maxMemoryMib },
+      '1.0.0',
+      {},
+    );
+
+    expect(built).toStrictEqual({
+      provider: null,
+      problem: 'target "box" must give maxMemoryMib as a whole number of MiB, at least 128',
+    });
+  },
+);
+
+test('it reports a target whose maxMemoryMib is below its memoryMib, without a provider', () => {
+  const built = createConfiguredImpProvider(
+    'box',
+    { url: 'http://127.0.0.1:9', memoryMib: 2048, maxMemoryMib: 1024 },
+    '1.0.0',
+    {},
+  );
+
+  expect(built).toStrictEqual({
+    provider: null,
+    problem: 'target "box" must give maxMemoryMib at least as large as its memoryMib',
+  });
+});
+
 test.each([
   [''],
   ['*'],

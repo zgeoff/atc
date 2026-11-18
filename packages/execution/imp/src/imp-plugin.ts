@@ -16,6 +16,7 @@ export const IMP_PLUGIN = definePlugin({
     'impPrefix',
     'image',
     'memoryMib',
+    'maxMemoryMib',
     'guestDir',
     'guestATC',
     'rebindChangedAuth',
@@ -35,7 +36,14 @@ export const IMP_PLUGIN = definePlugin({
   // options that never select an existing imp stay out of its identity
   identity: {
     version: 'reach-v1',
-    ignoredOptions: ['image', 'memoryMib', 'guestATC', 'rebindChangedAuth', 'sessionEnv'],
+    ignoredOptions: [
+      'image',
+      'memoryMib',
+      'maxMemoryMib',
+      'guestATC',
+      'rebindChangedAuth',
+      'sessionEnv',
+    ],
   },
   create: (config, host) => {
     const built = createConfiguredImpProvider(config.id, config.options, host.version, config.env);

@@ -42,7 +42,14 @@ test('it creates a provider that clones on its host, takes the daemon git identi
 test('it declares the identity version and the options that never select an existing imp', () => {
   expect(IMP_PLUGIN.identity).toStrictEqual({
     version: 'reach-v1',
-    ignoredOptions: ['image', 'memoryMib', 'guestATC', 'rebindChangedAuth', 'sessionEnv'],
+    ignoredOptions: [
+      'image',
+      'memoryMib',
+      'maxMemoryMib',
+      'guestATC',
+      'rebindChangedAuth',
+      'sessionEnv',
+    ],
   });
 });
 

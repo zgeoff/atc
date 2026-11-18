@@ -199,6 +199,7 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
           name: spec.name,
           ...(spec.image === undefined ? {} : { image: spec.image }),
           ...(spec.memoryMib === undefined ? {} : { memoryMib: spec.memoryMib }),
+          ...(spec.maxMemoryMib === undefined ? {} : { maxMemoryMib: spec.maxMemoryMib }),
         }),
       );
 

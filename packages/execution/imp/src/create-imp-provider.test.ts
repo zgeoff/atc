@@ -1465,6 +1465,26 @@ test("it creates a host's imp for the broker with the target's image and memory"
   expect(ctx.port.createSpecs).toStrictEqual([{ name: 'atc-s1', image: 'base', memoryMib: 512 }]);
 });
 
+test("it creates a host's imp with the target's memory max", async () => {
+  const ctx = setupTest();
+
+  const provider = createImpProvider(
+    ctx.port,
+    { guestDir: join(ctx.directory, 'g'), memoryMib: 1024, maxMemoryMib: 2048 },
+    { atcBinary: null, version: '1.0.0' },
+  );
+
+  registerTestCleanup(() => {
+    provider.dispose();
+  });
+
+  await provider.brokerAuth.createHost('s1');
+
+  expect(ctx.port.createSpecs).toStrictEqual([
+    { name: 'atc-s1', memoryMib: 1024, maxMemoryMib: 2048 },
+  ]);
+});
+
 test('it sends an archive to an imp gzipped and unpacks it there', async () => {
   const ctx = setupTest();
 
