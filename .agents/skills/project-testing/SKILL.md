@@ -15,7 +15,7 @@ metadata:
 | Fact       | Where                                                                          |
 | ---------- | ------------------------------------------------------------------------------ |
 | Lanes      | [`rig.config.ts`](../../../rig.config.ts), and the table under [Lanes](#lanes) |
-| Test utils | [`packages/test-utils/src/`](../../../packages/test-utils/src/)                |
+| Test utils | `src/test-utils/` of each package, shared through its `./test-utils/*` export  |
 
 ## Departures
 
@@ -26,14 +26,14 @@ None.
 - Put a unit test beside its module in the package's `src/`.
 - Put a flow across several packages in `integration/` at the repo root when it runs in the test's
   own process, with stand-ins such as
-  [`startTestDaemon`](../../../packages/daemon/src/testing/start-test-daemon.ts) or
-  [`createStubExecutionProvider`](../../../packages/execution/local/src/testing/create-stub-execution-provider.ts).
+  [`startTestDaemon`](../../../packages/daemon/src/test-utils/start-test-daemon.ts) or
+  [`createStubExecutionProvider`](../../../packages/execution/local/src/test-utils/create-stub-execution-provider.ts).
   The unit run, `bun run test`, runs it, and fails any test that runs past 5 s.
 - Put a suite in `e2e/` at the repo root when it starts the `atc` CLI, the daemon or `atc-gateway`
-  as a process, through [`runATC`](../../../packages/test-utils/src/run-atc.ts),
-  [`startDaemonProcess`](../../../packages/lifecycle/src/testing/start-daemon-process.ts),
-  [`startMCPStdio`](../../../packages/test-utils/src/start-mcp-stdio.ts) or
-  [`startTUIHarness`](../../../packages/test-utils/src/start-tui-harness.ts), or by running
+  as a process, through [`runATC`](../../../packages/app/src/test-utils/run-atc.ts),
+  [`startDaemonProcess`](../../../packages/lifecycle/src/test-utils/start-daemon-process.ts),
+  [`startMCPStdio`](../../../packages/app/src/test-utils/start-mcp-stdio.ts) or
+  [`startTUIHarness`](../../../packages/app/src/test-utils/start-tui-harness.ts), or by running
   `atc-gateway`. Only the `e2e` lane runs it.
 - Start an e2e file name with `daemon-` or `gateway-` when the suite checks the compiled binary. CI
   runs those suites only in the smoke job of
@@ -47,13 +47,13 @@ None.
   [`with-test-home.sh`](../../../scripts/with-test-home.sh), which points `HOME`, the XDG folders
   and the agent CLIs' homes at a new temp folder, and kills any process a test left behind. A bare
   `bun test` fails before any test runs: a home set in a preload never reaches a test's
-  subprocesses, so the [`isolate-home`](../../../packages/test-utils/src/isolate-home.ts) preload
-  refuses the run.
+  subprocesses, so the [`isolate-home`](../../../packages/core/src/test-utils/isolate-home.ts)
+  preload refuses the run.
 - Get a home path from [`resolveHomeDir`](../../../packages/contract/src/light/resolve-home-dir.ts),
   never from `os.homedir()`. Bun reads `HOME` for `os.homedir()` once, at startup.
 - Change an environment variable through
-  [`updateEnv`](../../../packages/test-utils/src/update-env.ts). The isolate-home preload puts the
-  old value back after the test.
+  [`updateEnv`](../../../packages/core/src/test-utils/update-env.ts). The isolate-home preload puts
+  the old value back after the test.
 - After you add code or a test that writes to a home, run `bun run test:isolation`. It runs the
   suite in a home of canary files, and fails when a test reads, changes or adds to one. It catches a
   read only on a filesystem that updates access times, so trust its Linux run in CI over a local
@@ -62,9 +62,8 @@ None.
 ## Agent CLIs
 
 - Never run the real `claude` binary in a test. Drive a stand-in, such as the PTY harness's stand-in
-  `claude`. Search [`packages/test-utils/src/`](../../../packages/test-utils/src/) for `stub` to
-  find the others. `bun run test:isolation` puts a canary `claude` first on `PATH`, and fails when a
-  test runs it.
+  `claude`. Search the `src/test-utils/` folders of the packages for `stub` to find the others.
+  `bun run test:isolation` puts a canary `claude` first on `PATH`, and fails when a test runs it.
 - Only `bun run test:atc-bridge` runs the real binary: it runs `claude plugin validate` and
   `claude plugin test` on the Claude Code mod in `mods/atc-bridge/`. Neither starts a session.
 - When you test the lock that atc takes on Claude's config file for a clone-trust launch, test it
@@ -123,12 +122,12 @@ To add a lane named `<lane>`, for files that end in `.<lane>.test.ts`:
 
 ## The PTY harness
 
-[`startTUIHarness`](../../../packages/test-utils/src/start-tui-harness.ts) runs the real `atc`
+[`startTUIHarness`](../../../packages/app/src/test-utils/start-tui-harness.ts) runs the real `atc`
 client in a `bun-pty` pseudo-terminal, in a new test home.
 
 - Drive the stand-in `claude` that the harness installs from
-  [`buildStubTUIClaude`](../../../packages/test-utils/src/build-stub-tui-claude.ts). It reports its
-  hook events through the real reporter over the real socket. To change what it reports, write a
+  [`buildStubTUIClaude`](../../../packages/app/src/test-utils/build-stub-tui-claude.ts). It reports
+  its hook events through the real reporter over the real socket. To change what it reports, write a
   scenario file into the harness's `home`, such as `fake-transcript.jsonl` with a `custom-title`
   line. To list the scenario files, search `buildStubTUIClaude` for `fake-`. Never add a flag to the
   stand-in's script.
@@ -139,7 +138,7 @@ client in a `bun-pty` pseudo-terminal, in a new test home.
 - Wait for stable text, such as a session name, a box title or a state label. Hint lines change with
   each new keybinding.
 - Type control bytes and escape sequences through
-  [`KEYS`](../../../packages/test-utils/src/keys.ts), never as raw bytes.
+  [`KEYS`](../../../packages/core/src/test-utils/keys.ts), never as raw bytes.
 
 ## Sockets
 
