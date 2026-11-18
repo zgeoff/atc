@@ -85,11 +85,12 @@ A protocol bump is not a major version bump, so a caller on a caret range can in
 atc release you run. On a refusal, compare `daemonProtocol` with `PROTOCOL_VERSION`: the side with
 the lower number is behind, atc or your program's copy of the package, and that side upgrades.
 
-After the daemon accepts the hello, pass its answer to `checkDaemon`. The package's version is atc's
-version ([versions](#versions)), so the helper compares the major version of the daemon's build, in
-the answer's `daemon` field such as `atc/7.17.0`, with its own. Equal protocol versions mean the
-daemon serves the procedures and fields the client sends, and equal major versions mean the daemon
-runs the release line the contract describes.
+After the daemon accepts the hello, parse its answer with `HELLO_RESULT_SCHEMA`, and pass the result
+to `checkDaemon`. The hello resolves with an untyped record, which `checkDaemon` does not take. The
+package's version is atc's version ([versions](#versions)), so the helper compares the major version
+of the daemon's build, in the answer's `daemon` field such as `atc/7.17.0`, with its own. Equal
+protocol versions mean the daemon serves the procedures and fields the client sends, and equal major
+versions mean the daemon runs the release line the contract describes.
 
 | Verdict      | When                                 | Fields                         |
 | ------------ | ------------------------------------ | ------------------------------ |

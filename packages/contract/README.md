@@ -27,7 +27,8 @@ it. To call a daemon from Bun:
 3. Send the hello with `client.sendHello('<your program>/<its version>')`. The hello carries the
    package's `PROTOCOL_VERSION`. Expect: the daemon's answer, or a `DaemonError` with the code
    `protocol_mismatch` when the daemon speaks another protocol version.
-4. Pass the answer to `checkDaemon`. Expect: the verdict `match`, with the features the daemon lacks
+4. Parse the answer with `HELLO_RESULT_SCHEMA.parse(answer)`, and pass the result to `checkDaemon`.
+   Both come from `@atcx/contract`. Expect: the verdict `match`, with the features the daemon lacks
    in `missing`, or `older` or `newer` when the major versions differ.
 5. Call a procedure, such as `client.procedures.session.list({})`. Expect: the daemon's answer, with
    the type that the request contract gives it.
