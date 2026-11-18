@@ -29,7 +29,11 @@ export const sharedPaths = [
   'scripts/test-utils/run-local-daemon.ts',
   'scripts/{with-test-home.sh,create-state-template.ts,remove-stale-test-homes.ts,stop-test-home-processes.ts}',
   'packages/app/src/test-utils/build-stub-tui-claude.ts',
-  'packages/core/src/test-utils/{create-stub-bin,wait-for}.ts',
+
+  // `test-utils/**/*` is the old shared package that held the stand-in claude, so its removal
+  // counts as a shared change. It shares a glob with live files because lint rejects a glob that
+  // matches no file.
+  'packages/{core/src/test-utils/{create-stub-bin,wait-for}.ts,test-utils/**/*}',
 ] as const;
 
 // A path that one of these globs matches counts as no change, even where a feature's or a shared
