@@ -327,3 +327,71 @@ export type SessionID = string;
     ]);
   },
 );
+
+test("it fails a tarball whose client entry gives another protocol version than the light entry's, before npm publish", async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/package/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      version: '7.3.0',
+      type: 'module',
+      exports: { '.': './index.js', './light': './index.js', './client': './client.js' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/package/index.js'),
+    `export const DAEMON_FEATURES = ['sessions'];
+export const DAEMON_CONTRACT = { daemon: { hello: {} } };
+export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
+export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
+export function checkDaemon() { return { verdict: 'match' }; }
+export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
+export const PROTOCOL_VERSION = 14;
+`,
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/package/client.js'),
+    `export const PROTOCOL_VERSION = 13;
+export async function openDaemonClient() { return {}; }
+`,
+  );
+
+  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
+    cwd: join(ctx.directory, 'tarball'),
+  });
+
+  await Bun.write(
+    join(ctx.directory, 'scripts/pack-contract.ts'),
+    `console.log(${JSON.stringify(join(ctx.directory, 'tarball/contract.tgz'))});\n`,
+  );
+
+  createStubBin(
+    join(ctx.directory, 'bin'),
+    'npm',
+    buildStubNpm(join(ctx.directory, 'npm.log'), '7.3.0', { installWith: ctx.npm }),
+  );
+
+  const published = await runCommand(
+    ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), '--dry-run'],
+    { env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` } },
+  );
+
+  expect({
+    exitCode: published.exitCode,
+    output: `${published.stdout}${published.stderr}`,
+  }).toStrictEqual({
+    exitCode: 1,
+    output: expect.stringContaining(
+      '@atcx/contract/client gives protocol 13, and @atcx/contract/light gives 14',
+    ),
+  });
+
+  expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8').split('\n')).toStrictEqual([
+    expect.toStartWith('install --prefix '),
+    '',
+  ]);
+});
