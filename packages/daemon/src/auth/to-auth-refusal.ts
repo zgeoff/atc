@@ -1,6 +1,6 @@
 import type { CredentialBroker } from '@atc/plugin-api';
 import { CredentialBrokerError, EffectRemainsError } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { BrokerAuthorityError } from './broker-authority-error';
 
 // A credential broker's refusal or an authority refusal as the daemon error it answers.

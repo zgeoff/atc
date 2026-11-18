@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { z } from 'zod';
 
 // The leases that impd's refusal to suspend a leased imp holds: those the

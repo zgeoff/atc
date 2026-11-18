@@ -2,7 +2,6 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { copyFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   getRecord,
   getString,
@@ -11,6 +10,7 @@ import {
   setupTempDir,
   waitForEvent,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
 // The source and the fresh daemon run in the test's process, and only the

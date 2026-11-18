@@ -1,4 +1,4 @@
-import { createLineDecoder } from '../wire/create-line-decoder';
+import { createLineDecoder } from '@atcx/contract/client';
 
 export interface BridgeSocket {
   readonly writeLine: (value: Readonly<Record<string, unknown>>) => void;

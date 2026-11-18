@@ -1,8 +1,8 @@
 import { parseDeclaredScope } from '@atc/protocol';
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import { DAEMON_CONTRACT } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { implement } from '@orpc/server';
 import type { DaemonContext } from '../daemon-context';
 import type { ProcedureContext } from './procedure-context';

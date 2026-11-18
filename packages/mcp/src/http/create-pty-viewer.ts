@@ -1,6 +1,6 @@
 import type { Clock } from '@atc/core';
-import type { DaemonClient, DaemonProcedures } from '@atc/protocol/client';
 import type { DaemonEvent, SessionDescriptor } from '@atcx/contract';
+import type { DaemonClient, DaemonProcedures } from '@atcx/contract/client';
 import { P, match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { PTY_VIEWER_MACHINE } from './pty-viewer-machine';

@@ -1,5 +1,5 @@
 import type { AgentID } from '@atc/core';
-import type { DaemonClient } from './client/daemon-client';
+import type { DaemonClient } from '@atcx/contract/client';
 
 export interface DaemonBoot {
   readonly client: DaemonClient;

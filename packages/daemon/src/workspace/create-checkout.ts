@@ -1,7 +1,7 @@
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { StepTimer } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { createGuestClone } from './create-guest-clone';
 import { createWorkspaceClone } from './create-workspace-clone';
 import type { ProgressTracker } from './materialization-progress';

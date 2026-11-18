@@ -1,5 +1,5 @@
 import type { LaunchTicket } from '@atc/plugin-api';
-import type { DaemonError } from '@atc/protocol/wire';
+import type { DaemonError } from '@atcx/contract/client';
 
 export function buildStubLaunchAdmission(check: () => DaemonError | null) {
   return {

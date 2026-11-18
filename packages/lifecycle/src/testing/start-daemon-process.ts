@@ -1,10 +1,10 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import { openDaemonClient } from '@atc/protocol/client';
-import type { DaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import { killProcessGroup, registerTestCleanup, waitFor } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
+import type { DaemonClient } from '@atcx/contract/client';
 import type { Subprocess } from 'bun';
 import { readDaemonRecord } from '../read-daemon-record';
 import { buildStderrReportingClient } from './build-stderr-reporting-client';

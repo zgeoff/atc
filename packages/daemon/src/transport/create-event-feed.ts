@@ -1,7 +1,8 @@
-import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { DaemonEvent, SessionID } from '@atcx/contract';
 import { DAEMON_EVENT_SCHEMA } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
 import { EVENT_FEED_MACHINE } from './event-feed-machine';
@@ -215,7 +216,7 @@ function emitDesyncs(
     state.desynced.delete(sessionID);
 
     if (options.canSeeOutput(sessionID)) {
-      emit({ version: PROTOCOL_V, ev: 'SessionDesync', sessionID, dropped });
+      emit({ version: PROTOCOL_VERSION, ev: 'SessionDesync', sessionID, dropped });
 
       options.resync(sessionID);
     }

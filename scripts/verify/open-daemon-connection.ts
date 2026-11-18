@@ -1,5 +1,5 @@
-import { openDaemonClient } from '@atc/protocol/client';
-import type { DaemonClient } from '@atc/protocol/client';
+import { openDaemonClient } from '@atcx/contract/client';
+import type { DaemonClient } from '@atcx/contract/client';
 
 // A client of the daemon at the socket, past its handshake, that a `using` declaration closes.
 export async function openDaemonConnection(socket: string): Promise<DaemonClient & Disposable> {

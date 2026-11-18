@@ -1,5 +1,5 @@
 import type { ScreenMenu, ScreenMenuOption } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { expandScreenMenu } from './expand-screen-menu';
 import { MENU_KEYS } from './menu-terminal';
 import type { MenuTerminal, MenuWaits } from './menu-terminal';

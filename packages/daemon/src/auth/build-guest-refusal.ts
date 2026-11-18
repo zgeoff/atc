@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 
 // An agent that plans no remote spawn: for want of an atc inside the host
 // when the host has none, or because the agent never runs remotely.

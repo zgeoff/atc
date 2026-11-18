@@ -1,4 +1,4 @@
-import type { ErrorCode } from '@atcx/contract/light';
+import type { ErrorCode } from '../light/error-codes';
 
 export class DaemonError extends Error {
   readonly code: ErrorCode;

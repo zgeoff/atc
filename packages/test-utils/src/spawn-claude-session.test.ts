@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openDaemonClient } from '@atcx/contract/client';
 import { startTUIDaemon } from '../../app/src/test-utils/start-tui-daemon';
 import { registerTestCleanup } from './register-test-cleanup';
 import { spawnClaudeSession } from './spawn-claude-session';

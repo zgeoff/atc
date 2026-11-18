@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubExecutionProvider } from '@atc/execution-local/testing';
-import { DaemonError } from '@atc/protocol/wire';
 import { buildMockAgentAdapter, getRecord, waitFor } from '@atc/test-utils';
+import { DaemonError } from '@atcx/contract/client';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it streams the output of a session harness on the local pty provider', async () => {

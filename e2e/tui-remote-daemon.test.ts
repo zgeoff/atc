@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildDirsSource } from '@atc/source-dirs';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
@@ -12,6 +11,7 @@ import {
   startTUIHarness,
   waitFor,
 } from '@atc/test-utils';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
@@ -327,7 +327,7 @@ test('it exits with both builds and versions when the remote daemon speaks anoth
 
   const legacy = startStubLegacyDaemon(
     { hostname: '127.0.0.1', port: 0 },
-    { protocol: PROTOCOL_V + 1 },
+    { protocol: PROTOCOL_VERSION + 1 },
   );
 
   if (legacy.port === null) {
@@ -353,7 +353,7 @@ test('it exits with both builds and versions when the remote daemon speaks anoth
   );
 
   expect(ctx.tui.read()).toInclude(
-    `speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`,
+    `speaks protocol v${PROTOCOL_VERSION}, daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}`,
   );
 
   expect(ctx.tui.read()).toInclude('atc did not fall back to the local daemon.');

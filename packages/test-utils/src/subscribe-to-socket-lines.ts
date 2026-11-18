@@ -1,5 +1,5 @@
-import { createOutboundQueue } from '@atc/protocol/wire';
-import type { OutboundQueue } from '@atc/protocol/wire';
+import { createOutboundQueue } from '@atcx/contract/client';
+import type { OutboundQueue } from '@atcx/contract/client';
 import { registerTestCleanup } from './register-test-cleanup';
 import { waitFor } from './wait-for';
 

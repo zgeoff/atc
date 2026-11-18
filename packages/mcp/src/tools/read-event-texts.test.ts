@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { startTestDaemon } from '@atc/daemon/testing';
-import { openDaemonClient } from '@atc/protocol/client';
 import { buildStubClock, registerTestCleanup } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { createTransportCaller } from './create-transport-caller';
 import { readEventTexts } from './read-event-texts';

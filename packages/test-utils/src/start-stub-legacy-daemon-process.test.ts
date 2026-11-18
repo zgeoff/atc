@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildDaemonStatePaths } from '@atc/config';
-import { openDaemonClient } from '@atc/protocol/client';
-import { PROTOCOL_V } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { registerTestCleanup } from './register-test-cleanup';
 import { setupTempDir } from './setup-temp-dir';
 import { startStubLegacyDaemonProcess } from './start-stub-legacy-daemon-process';
@@ -42,7 +42,7 @@ test('it starts a daemon on the protocol after the current one', async () => {
 
   expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
     code: 'protocol_mismatch',
-    message: `atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+    message: `atc/test-build speaks protocol v${PROTOCOL_VERSION}, daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}; restart the daemon so both run the same build`,
   });
 });
 
@@ -59,6 +59,6 @@ test('it starts a daemon on the next protocol that puts its version in its refus
 
   expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
     code: 'protocol_mismatch',
-    data: { daemonProtocol: PROTOCOL_V + 1 },
+    data: { daemonProtocol: PROTOCOL_VERSION + 1 },
   });
 });

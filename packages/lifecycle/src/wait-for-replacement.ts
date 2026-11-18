@@ -1,5 +1,5 @@
 import { waitUntil } from '@atc/core';
-import type { DaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atcx/contract/client';
 import type { LifecycleHost } from './lifecycle-host';
 import { probeProcessAlive } from './probe-process-alive';
 import { readDaemonRecord } from './read-daemon-record';

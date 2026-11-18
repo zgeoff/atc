@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { createStubHeldInboxSource } from '../testing/create-stub-held-inbox-source';
 import { drainInbox } from './drain-inbox';
 
@@ -163,7 +163,7 @@ test('it sends a tap with notices the answer notice of a message its session sen
   expect(tap.sendEvent.mock.calls).toStrictEqual([
     [
       {
-        version: PROTOCOL_V,
+        version: PROTOCOL_VERSION,
         ev: 'InboxNotice',
         sessionID: 's-1',
         message: 'm-sent',

@@ -5,7 +5,6 @@ import { systemClock } from '@atc/core';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
 import { createTransportCaller, openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
@@ -13,6 +12,7 @@ import {
   runPasskeyEnrollment,
   setupTempDir,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { buildLocalTarget } from './build-local-target';
 

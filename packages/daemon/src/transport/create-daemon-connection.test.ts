@@ -1,7 +1,6 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { openDaemonClient } from '@atc/protocol/client';
-import { MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
+import { MAX_LINE } from '@atc/protocol/wire';
 import {
   buildPeerRequestLine,
   buildStubPeerSocket,
@@ -13,6 +12,8 @@ import {
 import type { PeerFrame } from '@atc/test-utils';
 import type { DaemonEvent, SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
+import { openDaemonClient } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { DaemonContext } from '../daemon-context';
@@ -381,7 +382,11 @@ test('it delivers the connection events to a peer client through its subscriptio
 
   await client.sendHello('atc/test');
 
-  connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-gone' });
+  connections[0]?.sendEvent({
+    version: PROTOCOL_VERSION,
+    ev: 'SessionRemoved',
+    sessionID: 's-gone',
+  });
 
   await waitFor(() => {
     expect(events).toStrictEqual([{ ev: 'SessionRemoved', sessionID: 's-gone' }]);
@@ -415,13 +420,19 @@ test('it delivers a peer client that acts as a principal no event of a session o
 
   connections[0]?.sendOutput(
     toSessionID('s-hidden'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's-hidden', seq: 1, data: 'secret' },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's-hidden',
+      seq: 1,
+      data: 'secret',
+    },
     6,
   );
 
   connections[0]?.sendOutput(
     toSessionID('s-seen'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's-seen', seq: 1, data: 'shown' },
+    { version: PROTOCOL_VERSION, ev: 'SessionOutput', sessionID: 's-seen', seq: 1, data: 'shown' },
     5,
   );
 
@@ -484,7 +495,7 @@ test("it delivers a session's bridge with read the events of the session and its
   await client.sendHello('atc/test');
 
   for (const id of ['parent', 'stranger', 'holder', 'child']) {
-    connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: id });
+    connections[0]?.sendEvent({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: id });
   }
 
   await waitFor(() => {
@@ -551,7 +562,7 @@ test("it delivers a session's bridge with spawn alone no event of the session, i
   await client.sendHello('atc/test');
 
   for (const id of ['holder', 'child', 'parent', 'stranger', 'marker']) {
-    connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: id });
+    connections[0]?.sendEvent({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: id });
   }
 
   await waitFor(() => {
@@ -655,7 +666,7 @@ test.each([
       raw.end();
     });
 
-    const hello = { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' };
+    const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION, principal: 'narrow' };
 
     raw.write(
       buildPeerRequestLine('1', '/daemon/hello', hello) + buildPeerRequestLine('2', path, {}),
@@ -705,7 +716,11 @@ test('it serves a TCP peer client whose token and principal check out, its event
 
   const answer = await client.sendRequest('session.ack', { session: 's-1' }, 'ci');
 
-  connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-gone' });
+  connections[0]?.sendEvent({
+    version: PROTOCOL_VERSION,
+    ev: 'SessionRemoved',
+    sessionID: 's-gone',
+  });
 
   await waitFor(() => {
     expect(events).toStrictEqual([{ ev: 'SessionRemoved', sessionID: 's-gone' }]);
@@ -852,7 +867,11 @@ test('it closes a peer client whose event handler throws, with the reason', asyn
 
   await client.sendHello('atc/test');
 
-  connections[0]?.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-gone' });
+  connections[0]?.sendEvent({
+    version: PROTOCOL_VERSION,
+    ev: 'SessionRemoved',
+    sessionID: 's-gone',
+  });
 
   await waitFor(() => {
     expect(client.isClosed()).toBeTrue();
@@ -880,7 +899,7 @@ test('it holds a peer subscription back while the socket takes nothing, then rep
     }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -895,19 +914,37 @@ test('it holds a peer subscription back while the socket takes nothing, then rep
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 1,
+      data: 'a'.repeat(300),
+    },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 2,
+      data: 'b'.repeat(300),
+    },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 3, data: 'c'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 3,
+      data: 'c'.repeat(300),
+    },
     300,
   );
 
@@ -938,7 +975,7 @@ test('it delivers output again after the dropped output is reported', async () =
     }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -953,19 +990,37 @@ test('it delivers output again after the dropped output is reported', async () =
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 1,
+      data: 'a'.repeat(300),
+    },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 2,
+      data: 'b'.repeat(300),
+    },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 3, data: 'c'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 3,
+      data: 'c'.repeat(300),
+    },
     300,
   );
 
@@ -978,7 +1033,13 @@ test('it delivers output again after the dropped output is reported', async () =
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 4, data: 'z'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 4,
+      data: 'z'.repeat(300),
+    },
     300,
   );
 
@@ -1005,7 +1066,7 @@ test('it reports no dropped output while the socket still takes nothing', async 
     }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1020,19 +1081,37 @@ test('it reports no dropped output while the socket still takes nothing', async 
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 1,
+      data: 'a'.repeat(300),
+    },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 2,
+      data: 'b'.repeat(300),
+    },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 3, data: 'c'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 3,
+      data: 'c'.repeat(300),
+    },
     300,
   );
 
@@ -1065,7 +1144,7 @@ test('it sends a principal no output of a session whose tree left its view, a re
     }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION, principal: 'narrow' };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1077,7 +1156,7 @@ test('it sends a principal no output of a session whose tree left its view, a re
   });
 
   conn.sendEvent({
-    version: PROTOCOL_V,
+    version: PROTOCOL_VERSION,
     ev: 'SessionResized',
     sessionID: 's1',
     cols: 80,
@@ -1092,26 +1171,44 @@ test('it sends a principal no output of a session whose tree left its view, a re
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 1,
+      data: 'a'.repeat(300),
+    },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 2,
+      data: 'b'.repeat(300),
+    },
     300,
   );
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 3, data: 'c'.repeat(300) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 3,
+      data: 'c'.repeat(300),
+    },
     300,
   );
 
   visible = false;
 
   conn.sendEvent({
-    version: PROTOCOL_V,
+    version: PROTOCOL_VERSION,
     ev: 'SessionResized',
     sessionID: 's1',
     cols: 80,
@@ -1121,7 +1218,7 @@ test('it sends a principal no output of a session whose tree left its view, a re
   conn.sendOutput(
     toSessionID('s1'),
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       ev: 'SessionOutput',
       sessionID: 's1',
       seq: 4,
@@ -1140,7 +1237,7 @@ test('it sends a principal no output of a session whose tree left its view, a re
   conn.sendOutput(
     toSessionID('s1'),
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       ev: 'SessionOutput',
       sessionID: 's1',
       seq: 5,
@@ -1165,7 +1262,7 @@ test('it drops the held output of a session that leaves the view and sends its r
     buildStubDaemonContext({ canSeeSession: () => visible }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION, principal: 'narrow' };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1177,7 +1274,7 @@ test('it drops the held output of a session that leaves the view and sends its r
   });
 
   conn.sendEvent({
-    version: PROTOCOL_V,
+    version: PROTOCOL_VERSION,
     ev: 'SessionResized',
     sessionID: 's1',
     cols: 80,
@@ -1186,7 +1283,13 @@ test('it drops the held output of a session that leaves the view and sends its r
 
   conn.sendOutput(
     toSessionID('s1'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'before-hold' },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 1,
+      data: 'before-hold',
+    },
     11,
   );
 
@@ -1203,7 +1306,7 @@ test('it drops the held output of a session that leaves the view and sends its r
   ] as const) {
     conn.sendOutput(
       toSessionID('s1'),
-      { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq, data },
+      { version: PROTOCOL_VERSION, ev: 'SessionOutput', sessionID: 's1', seq, data },
       data.length,
     );
   }
@@ -1211,7 +1314,7 @@ test('it drops the held output of a session that leaves the view and sends its r
   visible = false;
 
   conn.sendEvent({
-    version: PROTOCOL_V,
+    version: PROTOCOL_VERSION,
     ev: 'SessionResized',
     sessionID: 's1',
     cols: 80,
@@ -1277,7 +1380,7 @@ test('it sends a connection that binds a viewer only the output its principal an
   for (const id of ['s-spare', 's-box', 's-marker']) {
     connections[0]?.sendOutput(
       toSessionID(id),
-      { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: id, seq: 1, data: id },
+      { version: PROTOCOL_VERSION, ev: 'SessionOutput', sessionID: id, seq: 1, data: id },
       id.length,
     );
   }
@@ -1335,7 +1438,7 @@ test('it sends a connection that binds no viewer the output of every session its
   for (const id of ['s-spare', 's-box']) {
     connections[0]?.sendOutput(
       toSessionID(id),
-      { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: id, seq: 1, data: id },
+      { version: PROTOCOL_VERSION, ev: 'SessionOutput', sessionID: id, seq: 1, data: id },
       id.length,
     );
   }
@@ -1373,7 +1476,7 @@ test('it answers internal when a procedure returns an answer outside its contrac
     buildStubDaemonContext({ writeStateBackup: () => Promise.resolve(Number.NaN) }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1398,7 +1501,7 @@ test.each([
 ])('it ends the connection when %s overflows the outbound queue', async (_label, path) => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext({ queueBytes: 16 }));
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1471,7 +1574,7 @@ test.each([
   {
     label: 'a handshake',
     path: '/daemon/hello',
-    body: { client: 'atc/test', protocol: PROTOCOL_V },
+    body: { client: 'atc/test', protocol: PROTOCOL_VERSION },
     answer: { daemon: 'atc/test' },
     ends: false,
   },
@@ -1512,9 +1615,9 @@ test('it drops an event sent to a peer connection that awaits its handshake', as
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
 
-  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-early' });
+  conn.sendEvent({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-early' });
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1525,7 +1628,7 @@ test('it drops an event sent to a peer connection that awaits its handshake', as
     expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
-  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-late' });
+  conn.sendEvent({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-late' });
 
   await waitFor(() => {
     expect(JSON.stringify(peer.collectFrames())).toInclude('s-late');
@@ -1540,7 +1643,7 @@ test('it ends a peer connection disposed while it awaits its handshake, and answ
 
   conn.dispose();
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1558,7 +1661,7 @@ test('it refuses a second handshake at once while the first is pending, and keep
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1599,7 +1702,7 @@ test('it holds a peer request back until a pending handshake passes', async () =
     buildStubDaemonContext({ loadLastUsedAgent: load, ackSession: ack }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1642,7 +1745,7 @@ test('it answers a path that names no procedure while the handshake is pending, 
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1679,7 +1782,7 @@ test('it drops an event sent to a peer connection while its handshake is pending
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1690,14 +1793,14 @@ test('it drops an event sent to a peer connection while its handshake is pending
     expect(load).toHaveBeenCalledOnce();
   });
 
-  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-early' });
+  conn.sendEvent({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-early' });
   held.resolve('claude');
 
   await waitFor(() => {
     expect(peer.collectFrames().map((frame) => frame.id)).toContain('1');
   });
 
-  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-late' });
+  conn.sendEvent({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-late' });
 
   await waitFor(() => {
     expect(JSON.stringify(peer.collectFrames())).toInclude('s-late');
@@ -1716,7 +1819,7 @@ test('it ends a peer connection disposed while its handshake is pending', async 
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1733,7 +1836,7 @@ test.each([
   [
     'a handshake',
     '/daemon/hello',
-    { client: 'atc/test', protocol: PROTOCOL_V },
+    { client: 'atc/test', protocol: PROTOCOL_VERSION },
     { code: 'unauthorized', message: 'a connection takes one handshake' },
   ],
   ['a request', '/daemon/ping', {}, {}],
@@ -1741,7 +1844,7 @@ test.each([
 ])('it answers %s on an open peer connection and keeps it', async (_label, path, body, answer) => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1765,7 +1868,7 @@ test.each([
 test('it ends an open peer connection once disposed, and answers nothing after', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1814,7 +1917,7 @@ test.each([
   [
     'a handshake',
     '/daemon/hello',
-    { client: 'atc/test', protocol: PROTOCOL_V },
+    { client: 'atc/test', protocol: PROTOCOL_VERSION },
     { code: 'unauthorized', message: 'a connection takes one handshake' },
   ],
   ['a request', '/daemon/ping', {}, { code: 'unauthorized', message: 'the handshake was refused' }],
@@ -1864,7 +1967,7 @@ test('it ends a peer connection whose peer wrote its last line once every answer
   peer.setAccepting(false);
 
   conn.applyChunk(
-    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }) +
+    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_VERSION }) +
       buildPeerRequestLine('2', '/daemon/ping', {}),
   );
 
@@ -1892,7 +1995,7 @@ test('it keeps a peer connection open while its peer has not written its last li
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
 
   conn.applyChunk(
-    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }) +
+    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_VERSION }) +
       buildPeerRequestLine('2', '/daemon/ping', {}),
   );
 
@@ -1915,7 +2018,7 @@ test('it writes no event to a peer connection whose refusal is still queued', as
     expect(peer.countRefusedWrites()).toBeGreaterThan(0);
   });
 
-  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-refused' });
+  conn.sendEvent({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-refused' });
   peer.setAccepting(true);
   conn.drain();
 
@@ -1947,7 +2050,7 @@ test.each([
   [
     'a handshake',
     '/daemon/hello',
-    { client: 'atc/test', protocol: PROTOCOL_V },
+    { client: 'atc/test', protocol: PROTOCOL_VERSION },
     { code: 'unauthorized', message: 'a connection takes one handshake' },
   ],
   ['a request', '/daemon/ping', {}, { code: 'unauthorized', message: 'the connection is closing' }],
@@ -1985,7 +2088,7 @@ test('it writes no event to a peer connection that is closing', async () => {
     expect(peer.hasEnded()).toBeTrue();
   });
 
-  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-closing' });
+  conn.sendEvent({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-closing' });
 
   expect(JSON.stringify(peer.collectFrames())).not.toInclude('s-closing');
 });
@@ -2008,13 +2111,13 @@ test('it answers nothing on a closing peer connection once disposed', async () =
 });
 
 test.each([
-  ['a handshake', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }],
+  ['a handshake', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_VERSION }],
   ['a request', '/daemon/ping', {}],
   ['a path that names no procedure', '/daemon/ping/', {}],
 ])('it answers nothing to %s on a closed peer connection', async (_label, path, body) => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -2031,7 +2134,7 @@ test.each([
 test('it writes no event to a closed peer connection', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -2043,7 +2146,7 @@ test('it writes no event to a closed peer connection', async () => {
   });
 
   conn.dispose();
-  conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-closed' });
+  conn.sendEvent({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-closed' });
 
   expect(JSON.stringify(peer.collectFrames())).not.toInclude('s-closed');
 });
@@ -2085,7 +2188,7 @@ test('it refuses a peer handshake that gives another session than the one the ke
     id: toSessionID('s-1'),
   });
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V, session: 's-2' };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION, session: 's-2' };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -2112,7 +2215,7 @@ test('it acts as the session the kernel names for a peer handshake that gives no
     id: toSessionID('s-1'),
   });
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION };
   const add = { session: 's-6', scope: { worktrees: [{ path: '/srv/site' }] } };
 
   conn.applyChunk(
@@ -2135,7 +2238,7 @@ test('it answers a peer handshake with the session the kernel names as its peer 
   });
 
   conn.applyChunk(
-    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }),
+    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_VERSION }),
   );
 
   await waitFor(() => {
@@ -2166,7 +2269,7 @@ test('it answers a peer handshake with the session the kernel names as its peer 
 test('it answers a peer handshake that gives a session, from outside every session, with no peer session', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V, session: 's-9' };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_VERSION, session: 's-9' };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 

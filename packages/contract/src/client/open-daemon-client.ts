@@ -1,19 +1,19 @@
-import { isRecord } from '@atc/core';
 import { createORPCClient } from '@orpc/client';
 import { StandardRPCLink } from '@orpc/client/standard';
 import { ClientPeer } from '@orpc/standard-server-peer';
 import type { SocketHandler } from 'bun';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
-import { createLineDecoder } from '../wire/create-line-decoder';
-import type { LineDecoder } from '../wire/create-line-decoder';
-import { createOutboundQueue } from '../wire/create-outbound-queue';
-import type { OutboundQueue } from '../wire/create-outbound-queue';
-import { DaemonError } from '../wire/daemon-error';
-import { PRINCIPAL_HEADERS } from '../wire/principal-headers';
-import { PROTOCOL_V } from '../wire/protocol';
+import { z } from 'zod';
+import { PROTOCOL_VERSION } from '../light/protocol-version';
 import { CLIENT_MACHINE } from './client-machine';
+import { createLineDecoder } from './create-line-decoder';
+import type { LineDecoder } from './create-line-decoder';
+import { createOutboundQueue } from './create-outbound-queue';
+import type { OutboundQueue } from './create-outbound-queue';
 import type { CallContext, DaemonClient, DaemonProcedures } from './daemon-client';
+import { DaemonError } from './daemon-error';
+import { PRINCIPAL_HEADERS } from './principal-headers';
 import { toDaemonError } from './to-daemon-error';
 
 const QUEUE_BYTES = 8 * 1024 * 1024;
@@ -182,6 +182,8 @@ interface SendClientRequestOptions {
   readonly asName?: string | undefined;
 }
 
+const RECORD_SCHEMA = z.record(z.string(), z.unknown());
+
 // A request with a principal acts as that principal and carries its name.
 // A handshake gives this client's protocol version unless its params give
 // one, and the connection's events start once it passes.
@@ -199,11 +201,12 @@ async function sendClientRequest(
     asName: principal === undefined ? undefined : request.asName,
   };
 
-  const params = hello ? { protocol: PROTOCOL_V, ...request.params } : (request.params ?? {});
+  const params = hello ? { protocol: PROTOCOL_VERSION, ...request.params } : (request.params ?? {});
 
   const answer: unknown = await conn.link.call(method.split('.'), params, { context });
 
-  const ok = isRecord(answer) ? answer : {};
+  const record = RECORD_SCHEMA.safeParse(answer);
+  const ok = record.success ? record.data : {};
 
   try {
     client.onAnswer(method, ok);

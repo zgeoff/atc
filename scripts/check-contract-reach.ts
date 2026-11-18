@@ -39,7 +39,14 @@ export function checkContractReach(entries: readonly ContractEntry[]): string[] 
   });
 }
 
-const CONTRACT_PACKAGES: ReadonlySet<string> = new Set(['zod', '@orpc/contract']);
+const CONTRACT_PACKAGES: ReadonlySet<string> = new Set([
+  'zod',
+  '@orpc/contract',
+  '@orpc/client',
+  '@orpc/client/standard',
+  '@orpc/standard-server-peer',
+  'xstate',
+]);
 
 function isContractImport(specifier: string): boolean {
   return specifier.startsWith('.') || isBuiltin(specifier) || CONTRACT_PACKAGES.has(specifier);

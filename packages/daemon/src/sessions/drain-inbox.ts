@@ -1,6 +1,6 @@
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { MessageOwner, MessageRecord } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import type { TapClient } from '../daemon-context';
 import type { TapGeneration, TapRegistry } from './create-tap-registry';
 
@@ -70,7 +70,7 @@ function sendInboxMessage(
   }
 
   client.sendEvent({
-    version: PROTOCOL_V,
+    version: PROTOCOL_VERSION,
     ev: 'InboxMessage',
     sessionID,
     message: record.id,
@@ -104,7 +104,7 @@ function sendInboxNotice(
   }
 
   client.sendEvent({
-    version: PROTOCOL_V,
+    version: PROTOCOL_VERSION,
     ev: 'InboxNotice',
     sessionID,
     message: record.id,

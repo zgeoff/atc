@@ -9,9 +9,9 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { FleetStore, RuntimeAuthBinding } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildGuestSessionDirectory } from '../sessions/build-guest-session-directory';
 import type { HostDirClaims } from '../sessions/create-host-dir-claims';

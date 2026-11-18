@@ -15,7 +15,6 @@ import { buildMockExecutionTarget } from '@atc/daemon/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubDirProvider, createStubExecutionProvider } from '@atc/execution-local/testing';
 import type { ExecutionProvider } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -29,6 +28,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';

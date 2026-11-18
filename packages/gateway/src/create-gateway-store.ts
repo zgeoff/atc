@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { z } from 'zod';
 
 export type BindingOutcome = 'pending' | 'completed' | 'uncertain';

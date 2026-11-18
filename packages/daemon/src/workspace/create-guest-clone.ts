@@ -1,5 +1,5 @@
 import type { ExecutionProvider } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { collectCredentialConfigKeys } from './collect-credential-config-keys';
 import { REPOSITORY_ENV_UNSET_ARGV } from './repository-env-unset-argv';
 

@@ -1,5 +1,5 @@
 import type { InvalidGitTransports } from '@atc/config';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 
 export function requireGitTransports(
   policy: readonly string[] | InvalidGitTransports,

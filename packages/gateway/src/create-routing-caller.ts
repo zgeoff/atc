@@ -1,7 +1,7 @@
 import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { Principal } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { match } from 'ts-pattern';
 import { buildGatewayResult } from './build-gateway-result';
 import type { DaemonPool } from './create-daemon-pool';

@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { createChannelCaller } from '@atc/mcp';
 import type { WatchChannel } from '@atc/mcp';
-import type { DaemonChannel } from '@atc/protocol/wire';
-import { DaemonError } from '@atc/protocol/wire';
+import type { DaemonChannel } from '@atcx/contract/client';
+import { DaemonError } from '@atcx/contract/client';
 import type { MCPDaemonConnection } from './mcp-http-server';
 
 // A channel to the named daemon whose handshake has passed, which serves tool

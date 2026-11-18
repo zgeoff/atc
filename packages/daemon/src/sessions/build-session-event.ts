@@ -1,6 +1,6 @@
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { SessionDescriptor, SessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import type { SessionManager } from './create-session-manager';
 import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';
@@ -14,21 +14,21 @@ export function buildSessionEvent(
     added: () => {
       const session = findDescriptor(manager, live.id);
 
-      return session === null ? null : { version: PROTOCOL_V, ev: 'SessionAdded', session };
+      return session === null ? null : { version: PROTOCOL_VERSION, ev: 'SessionAdded', session };
     },
     state: () => {
       const session = findDescriptor(manager, live.id);
 
-      return session === null ? null : { version: PROTOCOL_V, ev: 'SessionState', session };
+      return session === null ? null : { version: PROTOCOL_VERSION, ev: 'SessionState', session };
     },
     renamed: () => ({
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       ev: 'SessionRenamed',
       sessionID: live.id,
       name: live.name,
       namedBy: live.namedBy,
     }),
-    removed: () => ({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: live.id }),
+    removed: () => ({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: live.id }),
   };
 
   return builders[kind]();

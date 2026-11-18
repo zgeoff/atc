@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { systemClock } from '@atc/core';
 import { startTestDaemon } from '@atc/daemon/testing';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
@@ -11,6 +10,7 @@ import {
   runPasskeyEnrollment,
   sendModernMCPRequest,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';

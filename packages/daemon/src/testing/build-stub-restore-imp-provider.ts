@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import type { StubMemoryProvider } from './build-stub-memory-provider';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 

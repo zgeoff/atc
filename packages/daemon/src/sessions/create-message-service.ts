@@ -1,6 +1,5 @@
 import type { Clock } from '@atc/core';
 import type { DaemonAnswer } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type {
   IdempotencyRecord,
@@ -12,6 +11,7 @@ import type {
 } from '@atc/store';
 import type { MessageID, SessionID } from '@atcx/contract';
 import { MESSAGE_ANSWER_SCHEMA, toMessageID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type {

@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 
 export function buildBusyRefusal(name: string): DaemonError {
   return new DaemonError(

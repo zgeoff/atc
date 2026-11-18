@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openDaemonClient } from '@atcx/contract/client';
 import { registerTestCleanup } from './register-test-cleanup';
 import { startCutProxy } from './start-cut-proxy';
 import { startStubTCPDaemon } from './start-stub-tcp-daemon';

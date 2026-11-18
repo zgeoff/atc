@@ -1,10 +1,10 @@
 import type { AgentID, Clock } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
-import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonEvent } from '@atcx/contract';
+import type { DaemonClient } from '@atcx/contract/client';
+import { DaemonError } from '@atcx/contract/client';
 import type { ClientActor, ClientMode } from './build-client-machine';
 import type { DaemonLinks } from './create-daemon-links';
 import type { FleetMirror } from './create-fleet-mirror';

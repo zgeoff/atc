@@ -1,5 +1,5 @@
 import type { HarnessExit } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 import { formatOutcome } from './format-outcome';

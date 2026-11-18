@@ -1,16 +1,16 @@
 import type { DaemonAnswer, MismatchRefusalData, RequestParams } from '@atc/protocol';
+import { MAX_CHUNK, MAX_LINE } from '@atc/protocol/wire';
+import type { EventMsg } from '@atc/protocol/wire';
+import { DAEMON_FEATURES } from '@atcx/contract';
+import type { SessionID } from '@atcx/contract';
 import {
   DEFAULT_QUEUE_BYTES,
   DaemonError,
-  MAX_CHUNK,
-  MAX_LINE,
-  PROTOCOL_V,
   createLineDecoder,
   createOutboundQueue,
-} from '@atc/protocol/wire';
-import type { EventMsg, SocketWriter } from '@atc/protocol/wire';
-import { DAEMON_FEATURES } from '@atcx/contract';
-import type { SessionID } from '@atcx/contract';
+} from '@atcx/contract/client';
+import type { SocketWriter } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { ServerPeer } from '@orpc/standard-server-peer';
 import type { EncodedMessage } from '@orpc/standard-server-peer';
@@ -309,11 +309,11 @@ export function createDaemonConnection(
 
   const formatMismatch = (client: string, protocol: number | undefined): string => {
     const remedy =
-      protocol !== undefined && protocol < PROTOCOL_V
+      protocol !== undefined && protocol < PROTOCOL_VERSION
         ? 'update or reopen the client'
         : 'restart the daemon';
 
-    return `${client} speaks protocol v${protocol ?? 'unknown'}, daemon ${ctx.build} speaks v${PROTOCOL_V}; ${remedy} so both run the same build`;
+    return `${client} speaks protocol v${protocol ?? 'unknown'}, daemon ${ctx.build} speaks v${PROTOCOL_VERSION}; ${remedy} so both run the same build`;
   };
 
   // Makes the connection act as the principal, its view starting as the
@@ -379,9 +379,9 @@ export function createDaemonConnection(
 
     // A refused handshake leaves the connection's identity as it was.
     if (tcpHello === null) {
-      if (input.protocol !== PROTOCOL_V) {
+      if (input.protocol !== PROTOCOL_VERSION) {
         throw new DaemonError('protocol_mismatch', formatMismatch(input.client, input.protocol), {
-          daemonProtocol: PROTOCOL_V,
+          daemonProtocol: PROTOCOL_VERSION,
         } satisfies MismatchRefusalData);
       }
 

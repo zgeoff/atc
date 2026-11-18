@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import { MAX_EVENTS_CURSOR_BYTES } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { z } from 'zod';
 import type { GatewayRegistry } from './types';
 

@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { StandardRPCHandler } from '@orpc/server/standard';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { buildPeerError } from './build-peer-error';

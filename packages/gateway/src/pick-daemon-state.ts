@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { GatewayError } from './gateway-error';
 import type { CallOutcome } from './wait-for-outcome';
 

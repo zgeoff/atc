@@ -1,7 +1,7 @@
 import type { Clock } from '@atc/core';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { buildTargetAccess } from './auth/build-target-access';
 import { collectSessionSubtree } from './auth/collect-session-subtree';
 import { isTreeInReach } from './auth/is-tree-in-reach';
@@ -121,7 +121,7 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     announceRestart: async (result) => {
       await trail.recordRestart(result);
 
-      deps.emitEvent({ version: PROTOCOL_V, ev: 'DaemonRestarted', result });
+      deps.emitEvent({ version: PROTOCOL_VERSION, ev: 'DaemonRestarted', result });
     },
     killSession: (id, stopOnly) => forgetter.killSession(id, stopOnly),
     forgetSession: (id, confirmToken, refuse, caller) =>

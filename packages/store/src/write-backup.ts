@@ -10,7 +10,7 @@ import {
   statSync,
 } from 'node:fs';
 import { basename, dirname, join as joinPath } from 'node:path';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { StateStoreSchema } from './sqlite/state-store-schema';

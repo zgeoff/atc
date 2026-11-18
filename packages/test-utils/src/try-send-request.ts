@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 
 export async function trySendRequest(
   send: () => Promise<Readonly<Record<string, unknown>>>,

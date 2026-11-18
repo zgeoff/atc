@@ -6,7 +6,6 @@ import { isRecord } from '@atc/core';
 import { openGatewayCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
 import { startMCPHTTPServer } from '@atc/mcp';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
@@ -20,6 +19,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
 import { openTestAuthAdmin } from '../packages/app/src/test-utils/open-test-auth-admin';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';

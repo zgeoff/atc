@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PROTOCOL_V } from '@atc/protocol/wire';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { buildPeerRequestLine } from './build-peer-request-line';
 import { registerTestCleanup } from './register-test-cleanup';
@@ -33,7 +33,7 @@ test('it sends a hello with no auth under the client name it is given, then subs
   expect(ctx.lines).toStrictEqual([
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/stub',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       auth: { scheme: 'none' },
     }) + buildPeerRequestLine('2', '/events/subscribe', {}),
   ]);

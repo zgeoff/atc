@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { machineTypes } from '@zgeoff/std';
 import invariant from 'tiny-invariant';
 import { assign, fromPromise, setup } from 'xstate';

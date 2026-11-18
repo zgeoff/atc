@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { checkTCPHello } from './check-tcp-hello';
 import type { TCPPeer } from './tcp-peer';
 
@@ -13,7 +13,7 @@ test('it accepts a handshake with a held token and a listed principal', async ()
 
   const hello = await checkTCPHello(
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       id: 1,
       method: 'daemon.hello',
       params: {
@@ -48,7 +48,7 @@ test('it accepts a handshake that binds a listed viewer beside a listed principa
 
   const hello = await checkTCPHello(
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       id: 1,
       method: 'daemon.hello',
       params: {
@@ -83,7 +83,7 @@ test('it refuses a viewer the config does not list and records the refusal', asy
 
   const hello = await checkTCPHello(
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       id: 1,
       method: 'daemon.hello',
       params: {
@@ -117,7 +117,7 @@ test('it refuses a viewer without a principal', async () => {
 
   const hello = await checkTCPHello(
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       id: 1,
       method: 'daemon.hello',
       params: {
@@ -148,7 +148,7 @@ test('it accepts a handshake that carries a field it does not know', async () =>
 
   const hello = await checkTCPHello(
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       id: 1,
       method: 'daemon.hello',
       params: {
@@ -176,7 +176,7 @@ test('it refuses a handshake whose token the listener does not hold', async () =
 
   const hello = await checkTCPHello(
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       id: 1,
       method: 'daemon.hello',
       params: { client: 'remote-tui', auth: { scheme: 'bearer', token: 't-wrong' } },
@@ -204,7 +204,7 @@ test('it checks no token for a handshake whose auth is not a bearer token', asyn
 
   await checkTCPHello(
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       id: 1,
       method: 'daemon.hello',
       params: { client: 'remote-tui', auth: { scheme: 'basic', token: 't-good' } },
@@ -224,7 +224,7 @@ test('it refuses a principal the config does not list and records the refusal', 
 
   const hello = await checkTCPHello(
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       id: 1,
       method: 'daemon.hello',
       params: {
@@ -257,7 +257,7 @@ test('it refuses a handshake whose fields do not parse', async () => {
 
   const hello = await checkTCPHello(
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       id: 1,
       method: 'daemon.hello',
       params: { client: 'remote-tui', principal: '', auth: { scheme: 'bearer', token: 't-good' } },
@@ -280,7 +280,7 @@ test('it refuses a handshake on another protocol version', async () => {
 
   const hello = await checkTCPHello(
     {
-      version: PROTOCOL_V + 1,
+      version: PROTOCOL_VERSION + 1,
       id: 1,
       method: 'daemon.hello',
       params: { client: 'remote-tui', auth: { scheme: 'bearer', token: 't-good' } },
@@ -303,7 +303,7 @@ test('it accepts a handshake for a listed principal whose ID holds a colon', asy
 
   const hello = await checkTCPHello(
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       id: 1,
       method: 'daemon.hello',
       params: {

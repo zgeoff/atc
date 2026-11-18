@@ -8,7 +8,6 @@ import {
   startTestDaemon,
 } from '@atc/daemon/testing';
 import { createTransportCaller, startMCPHTTPServer } from '@atc/mcp';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
@@ -21,6 +20,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
 import { openWatchChannel } from '../packages/app/src/open-watch-channel';

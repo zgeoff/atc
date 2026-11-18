@@ -1,5 +1,5 @@
 import type { HarnessExit, HarnessHandle, LaunchTicket } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { P, match } from 'ts-pattern';
 import { buildLostExit } from './build-lost-exit';
 import { buildPreconditionRefusal } from './build-precondition-refusal';

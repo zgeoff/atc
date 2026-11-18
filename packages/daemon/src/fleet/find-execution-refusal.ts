@@ -1,6 +1,6 @@
 import type { TargetConfigError } from '@atc/config';
 import type { ExecutionCapability } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import type { ExecutionTarget } from './build-execution-targets';
 import { isUnconfirmedBinding } from './is-unconfirmed-binding';
 

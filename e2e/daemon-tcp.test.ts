@@ -3,8 +3,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, resolveATCCommand, setupTempDir } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { z } from 'zod';
 
 function setupTest() {

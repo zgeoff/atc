@@ -1,5 +1,5 @@
-import type { DaemonClient } from '@atc/protocol/client';
-import { openDaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atcx/contract/client';
+import { openDaemonClient } from '@atcx/contract/client';
 
 // A live-terminal viewer's own connection, handshaken as the principal it
 // watches for, so a viewer that lags holds back nothing the tools or another

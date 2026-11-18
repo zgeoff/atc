@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { parseGatewayID } from './parse-gateway-id';
 import type { GatewayRegistry, RegistryDaemon } from './types';
 

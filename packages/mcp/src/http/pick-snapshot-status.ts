@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 
 // The status a live-terminal request answers with when its first snapshot
 // fails. A session the caller cannot see answers 404, as one that does not

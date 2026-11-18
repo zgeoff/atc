@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import { DaemonLinkFailureError } from '@atc/tui';
+import { DaemonError } from '@atcx/contract/client';
 import { RemoteTokenError } from './remote-token-error';
 
 // Classifies a remote boot's failure into the state the TUI's link takes: a token the client

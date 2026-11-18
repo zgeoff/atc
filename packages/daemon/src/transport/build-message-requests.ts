@@ -1,5 +1,5 @@
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import type { DaemonContext } from '../daemon-context';
 import type { MessageCaller } from '../sessions/message-caller';
 import { buildKeyedRequest } from './build-keyed-request';

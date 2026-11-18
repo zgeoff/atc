@@ -3,7 +3,6 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { createGrokAdapter } from '@atc/harness-grok';
-import { DaemonError } from '@atc/protocol/wire';
 import {
   buildMockAgentAdapter,
   buildStubHeadlessRunner,
@@ -16,6 +15,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 

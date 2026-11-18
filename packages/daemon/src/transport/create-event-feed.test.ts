@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { createEventFeed } from './create-event-feed';
 
 test('it delivers the events collected before the subscription, in order', async () => {
@@ -11,11 +11,11 @@ test('it delivers the events collected before the subscription, in order', async
     onOverflow: () => {},
   });
 
-  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-1' });
+  feed.emit({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-1' });
 
   feed.emitOutput(
     toSessionID('s-2'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's-2', seq: 1, data: 'hi' },
+    { version: PROTOCOL_VERSION, ev: 'SessionOutput', sessionID: 's-2', seq: 1, data: 'hi' },
     2,
   );
 
@@ -40,24 +40,24 @@ test('it drops what the backlog holds of a forgotten session and keeps the rest 
 
   feed.emitOutput(
     toSessionID('s-gone'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's-gone', seq: 1, data: 'old' },
+    { version: PROTOCOL_VERSION, ev: 'SessionOutput', sessionID: 's-gone', seq: 1, data: 'old' },
     3,
   );
 
   feed.emit({
-    version: PROTOCOL_V,
+    version: PROTOCOL_VERSION,
     ev: 'SessionState',
     session: { id: 's-gone', name: 'gone' },
   });
 
   feed.emitOutput(
     toSessionID('s-kept'),
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's-kept', seq: 1, data: 'new' },
+    { version: PROTOCOL_VERSION, ev: 'SessionOutput', sessionID: 's-kept', seq: 1, data: 'new' },
     3,
   );
 
   feed.forgetSession(toSessionID('s-gone'));
-  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-gone' });
+  feed.emit({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-gone' });
 
   const stream = feed.subscribe(new AbortController().signal);
 
@@ -81,7 +81,7 @@ test('it delivers an event emitted while the subscriber waits', async () => {
   const stream = feed.subscribe(new AbortController().signal);
   const next = stream.next();
 
-  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-3' });
+  feed.emit({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-3' });
 
   const delivered = await next;
 
@@ -102,19 +102,37 @@ test('it drops overflowing output and reports the dropped bytes before the repai
 
   feed.emitOutput(
     s1,
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(8) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 1,
+      data: 'a'.repeat(8),
+    },
     8,
   );
 
   feed.emitOutput(
     s1,
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(8) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 2,
+      data: 'b'.repeat(8),
+    },
     8,
   );
 
   feed.emitOutput(
     s1,
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 3, data: 'c'.repeat(5) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 3,
+      data: 'c'.repeat(5),
+    },
     5,
   );
 
@@ -145,13 +163,25 @@ test('it reports no dropped output of a session the connection can no longer see
 
   feed.emitOutput(
     s1,
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 1, data: 'a'.repeat(8) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 1,
+      data: 'a'.repeat(8),
+    },
     8,
   );
 
   feed.emitOutput(
     s1,
-    { version: PROTOCOL_V, ev: 'SessionOutput', sessionID: 's1', seq: 2, data: 'b'.repeat(8) },
+    {
+      version: PROTOCOL_VERSION,
+      ev: 'SessionOutput',
+      sessionID: 's1',
+      seq: 2,
+      data: 'b'.repeat(8),
+    },
     8,
   );
 
@@ -161,7 +191,7 @@ test('it reports no dropped output of a session the connection can no longer see
 
   const next = stream.next();
 
-  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's1' });
+  feed.emit({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's1' });
 
   const delivered = await next;
 
@@ -180,8 +210,8 @@ test('it ends the connection when an event overflows the backlog of a subscribed
   });
 
   feed.subscribe(new AbortController().signal);
-  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-first-session' });
-  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-second-session' });
+  feed.emit({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-first-session' });
+  feed.emit({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-second-session' });
 
   expect(onOverflow).toHaveBeenCalledOnce();
 });
@@ -196,14 +226,14 @@ test('it stops collecting once the backlog fills before a subscriber comes', asy
     onOverflow,
   });
 
-  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-first-session' });
-  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-second-session' });
-  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-third' });
+  feed.emit({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-first-session' });
+  feed.emit({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-second-session' });
+  feed.emit({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-third' });
 
   const stream = feed.subscribe(new AbortController().signal);
   const next = stream.next();
 
-  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-fourth' });
+  feed.emit({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-fourth' });
 
   const delivered = await next;
 

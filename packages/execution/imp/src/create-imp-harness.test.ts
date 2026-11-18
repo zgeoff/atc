@@ -1,7 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import type { HarnessAttachment, HarnessExit, LaunchTicket } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import {
   buildStubFailingAttachmentListener,
   buildStubLaunchAdmission,
@@ -10,6 +9,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { DaemonError } from '@atcx/contract/client';
 import { createImpHarness } from './create-imp-harness';
 import { buildMockImpSessionRequest } from './testing/build-mock-imp-session-request';
 import { createStubImpPort } from './testing/create-stub-imp-port';

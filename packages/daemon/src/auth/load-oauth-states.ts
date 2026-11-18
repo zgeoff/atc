@@ -1,5 +1,5 @@
 import type { CredentialBroker, GuestOAuthState } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
 import { toAuthRefusal } from './to-auth-refusal';

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { isRecord } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { match } from 'ts-pattern';
 import { parseIdempotencyKey } from './parse-idempotency-key';
 import { readEventTexts } from './read-event-texts';

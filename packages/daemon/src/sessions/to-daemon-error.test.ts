@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
 import { StaleOwnershipError } from '@atc/store';
 import { toDaemonID, toSessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { toDaemonError } from './to-daemon-error';
 
 test('it answers a write refused for stale ownership with stale_epoch and the store message', () => {

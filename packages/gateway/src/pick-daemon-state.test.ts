@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { GatewayError } from './gateway-error';
 import { pickDaemonState } from './pick-daemon-state';
 import type { DaemonState } from './pick-daemon-state';

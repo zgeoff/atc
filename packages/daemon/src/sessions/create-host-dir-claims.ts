@@ -1,8 +1,8 @@
 import { realpathSync } from 'node:fs';
 import { posix } from 'node:path';
 import type { ExecutionProvider } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import type { SessionRegistry } from './create-session-registry';
 import { isPathWithin } from './is-path-within';
 import type { Session } from './session';

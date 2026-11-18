@@ -1,6 +1,6 @@
-import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
 import { WORKSPACE_PRUNE_SCHEMA } from '@atcx/contract';
+import type { DaemonClient } from '@atcx/contract/client';
+import { DaemonError } from '@atcx/contract/client';
 import { formatPruneReport } from './format-prune-report';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';

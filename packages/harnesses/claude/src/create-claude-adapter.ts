@@ -33,8 +33,8 @@ import {
   probeTranscriptResumable,
 } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
-import { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID, SessionID, TranscriptRow } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { z } from 'zod';
 import { buildGuestBridgeFiles } from './bridge/build-guest-bridge-files';
 import { buildClaudeArgs } from './build-claude-args';

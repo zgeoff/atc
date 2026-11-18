@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { buildStubFleetCaller } from './build-stub-fleet-caller';
 
 test('it answers every request with an empty record by default', () => {

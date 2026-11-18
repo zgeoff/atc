@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CommandSpec } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
@@ -13,6 +12,7 @@ import {
   setupTempDir,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { $ } from 'bun';
 import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
 import { materializeWorkspace } from './materialize-workspace';

@@ -6,7 +6,6 @@ import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
 import { mintServiceSecret } from '@atc/mcp';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
@@ -20,6 +19,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
 import { connectNamedDaemon } from './connect-named-daemon';

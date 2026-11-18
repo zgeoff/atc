@@ -1,9 +1,9 @@
 import type { Clock } from '@atc/core';
 import { systemClock } from '@atc/core';
 import type { HarnessHandle } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { FleetEntry, StateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import type { ErrorCode } from '@atcx/contract/light';
 import type { SessionManager } from '../sessions/create-session-manager';
 import type { SessionRuntime } from '../sessions/create-session-runtime';

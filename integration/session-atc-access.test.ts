@@ -6,7 +6,6 @@ import { createImpProvider } from '@atc/execution-imp';
 import { buildReporterSocketBase, createStubImpPort } from '@atc/execution-imp/testing';
 import { createClaudeAdapter } from '@atc/harness-claude';
 import { startInProcessMCP } from '@atc/mcp/testing';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockHostServices,
   createGitFixture,
@@ -17,6 +16,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { createHostServices } from '../packages/app/src/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';

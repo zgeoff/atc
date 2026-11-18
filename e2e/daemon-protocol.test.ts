@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { createGrokAdapter } from '@atc/harness-grok';
 import { encodeCursor } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
 import { createStateStore } from '@atc/store';
 import { seedLaterEpochSessionOwner } from '@atc/store/test-utils';
 import {
@@ -18,6 +17,7 @@ import {
   spawnNamedSession,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';

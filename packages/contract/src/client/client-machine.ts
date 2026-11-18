@@ -1,4 +1,3 @@
-import { machineTypes } from '@zgeoff/std';
 import { assign, setup } from 'xstate';
 
 type ClientEvent =
@@ -10,11 +9,16 @@ interface ClientContext {
   readonly closedReason: string | null;
 }
 
+const CLIENT_TYPES: { readonly context: ClientContext; readonly events: ClientEvent } = {
+  context: { closedReason: null },
+  events: { type: 'SUBSCRIBE' },
+};
+
 // A daemon client's connection: open until it ends, and quiet until its one
 // event subscription starts. It holds state only; the client performs every
 // effect and reads its state back from here.
 export const CLIENT_MACHINE = setup({
-  types: machineTypes<{ context: ClientContext; events: ClientEvent }>(),
+  types: CLIENT_TYPES,
   actions: {
     recordReason: assign({
       closedReason: (args) => (args.event.type === 'CLOSE' ? args.event.reason : null),

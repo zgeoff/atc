@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import type { TapClient } from '../daemon-context';
 import { emitInboxClosed } from './emit-inbox-closed';
 
@@ -10,7 +10,7 @@ test('it tells the tap why its inbox closed', () => {
   emitInboxClosed(tap, toSessionID('s-1'), 'removed');
 
   expect(tap.sendEvent).toHaveBeenCalledExactlyOnceWith({
-    version: PROTOCOL_V,
+    version: PROTOCOL_VERSION,
     ev: 'InboxClosed',
     sessionID: toSessionID('s-1'),
     reason: 'removed',

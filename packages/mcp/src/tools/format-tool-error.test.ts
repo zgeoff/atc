@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { formatToolError } from './format-tool-error';
 
 test('it prefixes a daemon error with its code', () => {

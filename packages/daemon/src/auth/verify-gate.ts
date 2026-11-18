@@ -1,6 +1,6 @@
 import { getSettledValue } from '@atc/core';
 import type { CredentialBroker } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
 import { verifyBrokerAuthority } from './verify-broker-authority';

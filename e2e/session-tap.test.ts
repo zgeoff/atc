@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   registerTestCleanup,
@@ -12,6 +11,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import type { DaemonEvent } from '@atcx/contract';
+import { openDaemonClient } from '@atcx/contract/client';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 async function setupTest() {

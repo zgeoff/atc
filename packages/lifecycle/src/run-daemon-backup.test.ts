@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { resolvePaths } from '@atc/config/host';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { setupTempDir, startStubLegacyDaemon } from '@atc/test-utils';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { runDaemonBackup } from './run-daemon-backup';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 
@@ -80,7 +80,7 @@ test("it prints the daemon's refusal of the backup request with its code", async
 test('it prints the refusal of a daemon on another protocol', async () => {
   const ctx = setupTest();
 
-  startStubLegacyDaemon(ctx.host.paths.daemonSocketPath, { protocol: PROTOCOL_V + 1 });
+  startStubLegacyDaemon(ctx.host.paths.daemonSocketPath, { protocol: PROTOCOL_VERSION + 1 });
 
   const io = { print: mock(), printError: mock() };
 
@@ -89,7 +89,7 @@ test('it prints the refusal of a daemon on another protocol', async () => {
   expect(code).toBe(1);
 
   expect(io.printError).toHaveBeenCalledExactlyOnceWith(
-    `atc backup: atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+    `atc backup: atc/test-build speaks protocol v${PROTOCOL_VERSION}, daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}; restart the daemon so both run the same build`,
   );
 });
 

@@ -3,9 +3,9 @@ import { once } from 'node:events';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import { createOutboundQueue } from '@atcx/contract/client';
+import type { OutboundQueue } from '@atcx/contract/client';
 import type { Socket } from 'bun';
-import { createOutboundQueue } from './create-outbound-queue';
-import type { OutboundQueue } from './create-outbound-queue';
 
 // A Unix socket server and a paused client connected to it. The server's
 // drain callback flushes whatever queue the test hangs on the socket.

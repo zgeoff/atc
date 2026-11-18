@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { openDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
@@ -13,6 +12,7 @@ import {
   startTUIHarness,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { startTUIDaemon } from '../packages/app/src/test-utils/start-tui-daemon';
 
 // The client attaches to a daemon in the test's process, so a boot loads

@@ -1,4 +1,4 @@
-import type { DaemonError } from '@atc/protocol/wire';
+import type { DaemonError } from '@atcx/contract/client';
 import { machineTypes } from '@zgeoff/std';
 import { assign, setup } from 'xstate';
 

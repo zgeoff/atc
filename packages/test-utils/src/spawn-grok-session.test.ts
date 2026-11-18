@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openDaemonClient } from '@atcx/contract/client';
 import { registerTestCleanup } from './register-test-cleanup';
 import { spawnGrokSession } from './spawn-grok-session';
 import { startTUIHarness } from './start-tui-harness';

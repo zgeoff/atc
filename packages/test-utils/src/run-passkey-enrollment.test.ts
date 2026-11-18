@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openDaemonClient } from '@atcx/contract/client';
 import { openMCPAuthDatabase } from '../../app/src/open-mcp-auth-database';
 import { openTestAuthAdmin } from '../../app/src/test-utils/open-test-auth-admin';
 import { startMCPHTTPServer } from '../../mcp/src/http/start-mcp-http-server';

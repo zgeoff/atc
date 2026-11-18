@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { SpawnWorkspaceSource } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { checkURLCredentials } from './check-url-credentials';
 import { expandGitShorthand } from './expand-git-shorthand';
 import { normalizeGitURL } from './normalize-git-url';

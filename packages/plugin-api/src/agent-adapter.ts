@@ -1,8 +1,8 @@
 import type { AgentID } from '@atc/core';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
-import type { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID, SessionID, SpawnOptionSpec, TranscriptRow } from '@atcx/contract';
+import type { DaemonError } from '@atcx/contract/client';
 import type { AuthProfile } from './auth-profile';
 import type { GatewayAuth } from './gateway-auth';
 import type { MessageBridge, MessageBridgeRequest } from './message-bridge';

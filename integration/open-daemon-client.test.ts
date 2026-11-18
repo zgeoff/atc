@@ -10,9 +10,9 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import type { StubPeerAnswer, StubPeerRequest } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { z } from 'zod';
-import { PROTOCOL_V } from '../wire/protocol';
-import { openDaemonClient } from './open-daemon-client';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-client-');
@@ -165,7 +165,7 @@ test('it sends its handshake with its protocol version and subscribes as the pri
       {
         method: 'daemon.hello',
         params: {
-          protocol: PROTOCOL_V,
+          protocol: PROTOCOL_VERSION,
           client: 'atc/test',
           auth: { scheme: 'none' },
           principal: 'ci',

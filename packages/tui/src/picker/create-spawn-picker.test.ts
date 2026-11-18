@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config';
-import { DaemonError } from '@atc/protocol/wire';
 import {
   KEYS,
   buildMockListedAgent,
@@ -11,6 +10,7 @@ import {
   buildStubTerminal,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { resolveHomeDir } from '@atcx/contract/light';
 import type { DaemonName } from '../session-key';
 import {

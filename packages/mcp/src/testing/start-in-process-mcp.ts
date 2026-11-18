@@ -1,5 +1,5 @@
-import { openDaemonClient } from '@atc/protocol/client';
 import { buildMCPToolCalls, registerTestCleanup } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import {
   InMemoryTransport,
   isJSONRPCResponse,

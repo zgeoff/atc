@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core';
-import type { DaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atcx/contract/client';
 
 export interface StoredRow {
   readonly id: string;

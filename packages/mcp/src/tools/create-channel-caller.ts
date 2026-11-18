@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
-import type { DaemonChannel } from '@atc/protocol/wire';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
+import type { DaemonChannel } from '@atcx/contract/client';
 import type { FleetCaller, FleetFeature } from './types';
 
 export interface ChannelCaller extends FleetCaller {

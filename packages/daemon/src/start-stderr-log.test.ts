@@ -8,7 +8,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   registerTestCleanup,
   runCommand,
@@ -17,6 +16,7 @@ import {
   waitFor,
   writeUntilPipeFull,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { getLogger, reset } from '@logtape/logtape';
 import { startStderrLog } from './start-stderr-log';
 

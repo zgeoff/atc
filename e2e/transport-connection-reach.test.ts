@@ -2,7 +2,6 @@ import { expect, mock, test } from 'bun:test';
 import { createDaemonConnection } from '@atc/daemon';
 import type { DaemonContext } from '@atc/daemon';
 import { buildStubDaemonContext } from '@atc/daemon/testing';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildMockFleetEntry, buildMockMessageRecord } from '@atc/store/testing';
 import {
   buildMockSessionDescriptor,
@@ -10,6 +9,7 @@ import {
   buildStubPeerSocket,
 } from '@atc/test-utils';
 import { toDaemonID, toMessageID, toSessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 
 test('it answers session.get whose session leaves the view during the read as for a session that does not exist', async () => {
   const entered = Promise.withResolvers<void>();
@@ -36,7 +36,7 @@ test('it answers session.get whose session leaves the view during the read as fo
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -93,7 +93,7 @@ test('it answers session.screen whose session leaves the view during the read as
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -142,7 +142,7 @@ test('it answers session.menu whose session leaves the view during the read as f
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -202,7 +202,7 @@ test('it answers session.read whose session leaves the view during the read as f
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -255,7 +255,7 @@ test('it leaves out of events.read the events of a session that leaves the view 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -317,7 +317,7 @@ test('it answers note.get whose session leaves the view during the read as for a
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -378,7 +378,7 @@ test('it answers note.get whose sender leaves the view during the read as for a 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -439,7 +439,7 @@ test('it answers message.get whose session leaves the view during the wait as fo
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -497,7 +497,7 @@ test('it answers message.ack whose session leaves the view during the ack as for
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -557,7 +557,7 @@ test('it answers session.message whose session leaves the view during the write 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -612,7 +612,7 @@ test('it refuses a spawn whose session leaves the view before the answer as a re
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );
@@ -674,7 +674,7 @@ test('it leaves out of fleet.list a session that leaves the view during the read
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
       principal: 'narrow',
     }),
   );

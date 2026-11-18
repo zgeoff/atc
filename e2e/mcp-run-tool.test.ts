@@ -13,7 +13,6 @@ import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/t
 import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { buildStubFleetCaller } from '@atc/mcp/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { openDaemonClient } from '@atc/protocol/client';
 import { createStateStore } from '@atc/store';
 import {
   buildMockAgentAdapter,
@@ -25,6 +24,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { REQUEST_PARAM_SCHEMAS, toAgentSessionID, toSessionID } from '@atcx/contract';
+import { openDaemonClient } from '@atcx/contract/client';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';

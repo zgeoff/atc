@@ -2,7 +2,6 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { toAgentID } from '@atc/core';
-import { openDaemonClient } from '@atc/protocol/client';
 import type { HookEvent } from '@atc/protocol/session';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
@@ -13,6 +12,7 @@ import {
   updateEnv,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from './start-test-daemon';
 

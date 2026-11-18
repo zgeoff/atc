@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/testing';
-import { openDaemonClient } from '@atc/protocol/client';
 import { seedSweptIdempotencyKeys } from '@atc/store/test-utils';
 import {
   buildMockAgentAdapter,
@@ -14,6 +13,7 @@ import {
   startCutProxy,
   startStubLegacyDaemon,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { createDaemonPool } from './create-daemon-pool';
 import { createGatewayStore } from './create-gateway-store';

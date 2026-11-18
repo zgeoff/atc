@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { unlinkSync } from 'node:fs';
 import { readDaemonRecord } from '@atc/lifecycle';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import { startStubLegacyDaemonProcess, startTUIHarness } from '@atc/test-utils';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 
 // A client on an idle daemon whose socket a daemon on another protocol has
@@ -37,7 +37,7 @@ test('it restarts a daemon on another protocol that a reconnect meets after the 
 
   await ctx.harness.waitFor('Restart it now?');
 
-  expect(ctx.harness.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
+  expect(ctx.harness.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}`);
 
   ctx.harness.reset();
   ctx.harness.write('y');
@@ -77,6 +77,6 @@ test('it quits when the user keeps a daemon on another protocol that a reconnect
   const code = await ctx.harness.waitForExit();
 
   expect(code).toBe(1);
-  expect(ctx.harness.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
+  expect(ctx.harness.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}`);
   expect(ctx.legacy.exitCode).toBeNull();
 });

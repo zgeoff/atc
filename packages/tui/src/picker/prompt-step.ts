@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { pickRefusalStep } from '../pick-refusal-step';
 import { cols } from '../ui';
 import type { RequestOutcome } from './create-picker-actors';

@@ -1,4 +1,4 @@
-import type { DaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atcx/contract/client';
 import { createActor } from 'xstate';
 import { buildClientMachine } from '../build-client-machine';
 import { createFleetMirror } from '../create-fleet-mirror';

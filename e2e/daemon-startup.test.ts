@@ -6,7 +6,6 @@ import { startDaemon } from '@atc/daemon';
 import { buildStubTargets } from '@atc/daemon/testing';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import { openDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   buildStubClock,
@@ -17,6 +16,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 
 // The lock cases start their daemons in the test's process, each on sockets

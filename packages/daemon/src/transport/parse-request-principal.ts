@@ -1,4 +1,4 @@
-import { DaemonError, PRINCIPAL_HEADERS } from '@atc/protocol/wire';
+import { DaemonError, PRINCIPAL_HEADERS } from '@atcx/contract/client';
 import type { RequestPrincipal } from './request-deps';
 
 type PeerHeaders = Readonly<Record<string, string | readonly string[] | undefined>>;

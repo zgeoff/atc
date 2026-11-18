@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { toDaemonError } from './to-daemon-error';
 
 // A git that cannot start, such as one given a cwd that is gone, reads as

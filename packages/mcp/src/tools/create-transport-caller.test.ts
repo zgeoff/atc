@@ -1,8 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/testing';
-import { openDaemonClient } from '@atc/protocol/client';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import {
   buildMockAgentAdapter,
   getRecord,
@@ -12,6 +10,8 @@ import {
   startStubLegacyDaemon,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { createTransportCaller } from './create-transport-caller';
 
 async function setupTest() {
@@ -65,7 +65,7 @@ test('it closes a connection whose handshake the daemon rejects', async () => {
   const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
 
   const mismatched = startStubLegacyDaemon(join(temporaryDirectory.path, 'daemon.sock'), {
-    protocol: PROTOCOL_V + 1,
+    protocol: PROTOCOL_VERSION + 1,
   });
 
   const caller = createTransportCaller(
@@ -89,7 +89,7 @@ test('it opens a fresh connection for the request after one whose handshake the 
   const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
 
   const mismatched = startStubLegacyDaemon(join(temporaryDirectory.path, 'daemon.sock'), {
-    protocol: PROTOCOL_V + 1,
+    protocol: PROTOCOL_VERSION + 1,
   });
 
   const caller = createTransportCaller(

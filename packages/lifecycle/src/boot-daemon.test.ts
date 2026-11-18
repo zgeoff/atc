@@ -3,7 +3,6 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { buildDaemonStatePaths, resolvePaths } from '@atc/config/host';
 import type { ProtocolMismatch } from '@atc/protocol';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import {
   buildStubClock,
   registerTestCleanup,
@@ -12,6 +11,7 @@ import {
   startStubUnansweringUnixListener,
   waitFor,
 } from '@atc/test-utils';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { bootDaemonClient } from './boot-daemon';
 import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
 
@@ -66,8 +66,8 @@ test('it leaves a daemon on another protocol running and rejects with both build
   expect(bootDaemonClient(host)).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message: [
-      `the atc daemon (pid ${legacy.pid}, socket ${ctx.sockPath}) speaks another protocol than this client, atc/test-build on protocol v${PROTOCOL_V}.`,
-      `The daemon answered: atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+      `the atc daemon (pid ${legacy.pid}, socket ${ctx.sockPath}) speaks another protocol than this client, atc/test-build on protocol v${PROTOCOL_VERSION}.`,
+      `The daemon answered: atc/test-build speaks protocol v${PROTOCOL_VERSION}, daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}; restart the daemon so both run the same build`,
       'It was left running, so the sessions it hosts keep running.',
       'To restart it, run `atc` from the build you want and confirm its restart prompt: every hosted session ends, and the fleet is restored on the new daemon.',
     ].join('\n'),
@@ -136,8 +136,8 @@ test('it never offers to restart a daemon on a later protocol, and tells the use
   expect(booting).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message: [
-      `this client, atc/test-build on protocol v${PROTOCOL_V}, is older than the atc daemon (pid ${newer.pid}, socket ${ctx.sockPath}), which speaks protocol v${PROTOCOL_V + 1}.`,
-      `The daemon answered: atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+      `this client, atc/test-build on protocol v${PROTOCOL_VERSION}, is older than the atc daemon (pid ${newer.pid}, socket ${ctx.sockPath}), which speaks protocol v${PROTOCOL_VERSION + 1}.`,
+      `The daemon answered: atc/test-build speaks protocol v${PROTOCOL_VERSION}, daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}; restart the daemon so both run the same build`,
       'It was left running, so the sessions it hosts keep running.',
       'To reconnect, update atc if this build is out of date, then quit this client and run `atc` again. A daemon restart cannot help, because the daemon comes back on its own build.',
     ].join('\n'),
@@ -151,7 +151,11 @@ test('it never offers to restart a daemon on a later protocol, and tells the use
 test('it offers to restart a daemon on an earlier protocol that names its version', () => {
   const ctx = setupTest();
 
-  startStubLegacyDaemon(ctx.sockPath, { protocol: PROTOCOL_V - 1, refusalHoldsProtocol: true });
+  startStubLegacyDaemon(ctx.sockPath, {
+    protocol: PROTOCOL_VERSION - 1,
+    refusalHoldsProtocol: true,
+  });
+
   writeFileSync(join(ctx.directory, 'atc-daemon.pid'), '4242');
 
   const asked: ProtocolMismatch[] = [];
@@ -176,9 +180,9 @@ test('it offers to restart a daemon on an earlier protocol that names its versio
       socketPath: ctx.sockPath,
       daemonPID: 4242,
       clientBuild: 'atc/test-build',
-      clientProtocol: PROTOCOL_V,
-      daemonProtocol: PROTOCOL_V - 1,
-      daemonMessage: `atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V - 1}; restart the daemon so both run the same build`,
+      clientProtocol: PROTOCOL_VERSION,
+      daemonProtocol: PROTOCOL_VERSION - 1,
+      daemonMessage: `atc/test-build speaks protocol v${PROTOCOL_VERSION}, daemon atc/legacy-build speaks v${PROTOCOL_VERSION - 1}; restart the daemon so both run the same build`,
     },
   ]);
 });
@@ -551,7 +555,7 @@ test('it reads the pid of a daemon on another protocol from the pid file at the 
   mkdirSync(join(ctx.directory, 'given'));
 
   startStubLegacyDaemon(join(ctx.directory, 'given', 'atc-daemon.sock'), {
-    protocol: PROTOCOL_V + 1,
+    protocol: PROTOCOL_VERSION + 1,
   });
 
   writeFileSync(join(ctx.directory, 'given', 'atc-daemon.pid'), '4242');
@@ -578,7 +582,7 @@ test('it reads the pid of a daemon on another protocol from the record at the pa
   mkdirSync(join(ctx.directory, 'given'));
 
   startStubLegacyDaemon(join(ctx.directory, 'given', 'atc-daemon.sock'), {
-    protocol: PROTOCOL_V + 1,
+    protocol: PROTOCOL_VERSION + 1,
   });
 
   writeFileSync(

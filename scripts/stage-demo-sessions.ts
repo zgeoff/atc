@@ -3,7 +3,7 @@
 // its id; `kill-all` kills every session the daemon hosts.
 import { resolvePaths } from '@atc/config/host';
 import { isRecord } from '@atc/core';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openDaemonClient } from '@atcx/contract/client';
 import { createHostServices } from '../packages/app/src/create-host-services';
 
 const [mode, cwd, name = '', prompt = ''] = process.argv.slice(2);

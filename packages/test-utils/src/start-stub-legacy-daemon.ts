@@ -1,4 +1,5 @@
-import { MAX_CHUNK, MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
+import { MAX_CHUNK, MAX_LINE } from '@atc/protocol/wire';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { startStubPeerDaemon } from './start-stub-peer-daemon';
 import type { StubPeerAnswer, StubPeerRequest } from './start-stub-peer-daemon';
 
@@ -53,7 +54,7 @@ export function startStubLegacyDaemon(
     ...options.replies,
   };
 
-  const protocol = options.protocol ?? PROTOCOL_V;
+  const protocol = options.protocol ?? PROTOCOL_VERSION;
   const requests: ReceivedRequest[] = [];
 
   const daemon = startStubPeerDaemon(address, {

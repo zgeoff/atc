@@ -2,11 +2,6 @@ import { isRecord } from '@atc/core';
 import { ERROR_CODES } from '@atcx/contract/light';
 import type { ErrorCode } from '@atcx/contract/light';
 
-// Raised by any change to a procedure, an input field, or an answer field,
-// because a client trusts a daemon on its own version to serve its whole
-// contract.
-export const PROTOCOL_V = 14;
-
 // Control lines are capped before buffering; PTY output is split into chunks
 // so a queued response is delayed by at most one chunk.
 export const MAX_LINE = 1_048_576;

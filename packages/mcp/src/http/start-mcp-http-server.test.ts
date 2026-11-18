@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { systemClock } from '@atc/core';
 import { startTestDaemon } from '@atc/daemon/testing';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
@@ -19,6 +18,7 @@ import {
   setupTempDir,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import { createSubscriptionStore } from '../events/create-subscription-store';

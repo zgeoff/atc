@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { buildRuledValue } from './build-ruled-value';
 import { ERROR_DATA_RULES } from './id-rules';
 import type { RegistryDaemon } from './types';

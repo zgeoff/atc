@@ -2,7 +2,6 @@ import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
@@ -17,6 +16,7 @@ import {
 } from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';

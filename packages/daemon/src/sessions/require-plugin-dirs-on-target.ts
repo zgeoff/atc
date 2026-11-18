@@ -1,5 +1,5 @@
 import { statSync } from 'node:fs';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 
 // A remote target's folders are out of the daemon's sight, so any folder
 // there refuses the launch, as does a path that is not a folder the daemon

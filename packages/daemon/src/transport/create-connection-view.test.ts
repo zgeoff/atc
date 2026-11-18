@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildMockSessionDescriptor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { createConnectionView } from './create-connection-view';
 
@@ -24,7 +24,7 @@ function setupTest() {
 
 test('it sends the event of a session in reach', () => {
   const ctx = setupTest();
-  const event = { version: PROTOCOL_V, ev: 'SessionState', sessionID: 's-1' };
+  const event = { version: PROTOCOL_VERSION, ev: 'SessionState', sessionID: 's-1' };
 
   ctx.held.add(toSessionID('s-1'));
   ctx.reached.add(toSessionID('s-1'));
@@ -41,7 +41,7 @@ test('it withholds the event of a session out of reach', () => {
   ctx.held.add(toSessionID('s-1'));
 
   const update = ctx.view.updateView(
-    { version: PROTOCOL_V, ev: 'SessionState', sessionID: 's-1' },
+    { version: PROTOCOL_VERSION, ev: 'SessionState', sessionID: 's-1' },
     ctx.access,
   );
 
@@ -58,10 +58,10 @@ test('it removes a shown session from the view once it leaves reach', () => {
   ctx.view.startView(ctx.access);
   ctx.reached.delete(toSessionID('s-1'));
 
-  const event = { version: PROTOCOL_V, ev: 'SessionState', sessionID: 's-2' };
+  const event = { version: PROTOCOL_VERSION, ev: 'SessionState', sessionID: 's-2' };
 
   expect(ctx.view.updateView(event, ctx.access)).toStrictEqual({
-    events: [{ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-1' }, event],
+    events: [{ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-1' }, event],
     withdrawn: [toSessionID('s-1')],
   });
 });
@@ -74,7 +74,7 @@ test('it adds a withheld session to the view once it comes into reach', () => {
   ctx.reached.add(toSessionID('s-1'));
 
   const update = ctx.view.updateView(
-    { version: PROTOCOL_V, ev: 'SessionState', sessionID: 's-1' },
+    { version: PROTOCOL_VERSION, ev: 'SessionState', sessionID: 's-1' },
     ctx.access,
   );
 
@@ -83,7 +83,7 @@ test('it adds a withheld session to the view once it comes into reach', () => {
 
 test('it sends the removal of a shown session the daemon no longer holds', () => {
   const ctx = setupTest();
-  const event = { version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-1' };
+  const event = { version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: 's-1' };
 
   ctx.held.add(toSessionID('s-1'));
   ctx.reached.add(toSessionID('s-1'));
@@ -99,13 +99,13 @@ test('it sends the removal of a shown session the daemon no longer holds', () =>
 
 test('it sends the end of a permission request it was shown after its session is gone', () => {
   const ctx = setupTest();
-  const resolved = { version: PROTOCOL_V, ev: 'PermissionResolved', request: 'p-1' };
+  const resolved = { version: PROTOCOL_VERSION, ev: 'PermissionResolved', request: 'p-1' };
 
   ctx.held.add(toSessionID('s-1'));
   ctx.reached.add(toSessionID('s-1'));
 
   ctx.view.updateView(
-    { version: PROTOCOL_V, ev: 'PermissionRequested', sessionID: 's-1', request: 'p-1' },
+    { version: PROTOCOL_VERSION, ev: 'PermissionRequested', sessionID: 's-1', request: 'p-1' },
     ctx.access,
   );
 
@@ -122,7 +122,7 @@ test('it withholds the end of a permission request it was never shown', () => {
   const ctx = setupTest();
 
   const update = ctx.view.updateView(
-    { version: PROTOCOL_V, ev: 'PermissionResolved', request: 'p-1' },
+    { version: PROTOCOL_VERSION, ev: 'PermissionResolved', request: 'p-1' },
     ctx.access,
   );
 

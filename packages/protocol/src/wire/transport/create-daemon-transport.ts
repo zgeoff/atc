@@ -1,7 +1,7 @@
 import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
+import { DaemonError } from '@atcx/contract/client';
 import { createActor } from 'xstate';
-import { DaemonError } from '../daemon-error';
 import { TRANSPORT_MACHINE } from './transport-machine';
 import type { TransportReconnect } from './transport-machine';
 

@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { match } from 'ts-pattern';
 import type { DaemonContext, HeldAtcAccess } from '../daemon-context';
 import { buildScopedContext } from './build-scoped-context';

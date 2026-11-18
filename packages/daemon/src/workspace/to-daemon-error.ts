@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { MaterializationPhase } from '@atc/store';
+import { DaemonError } from '@atcx/contract/client';
 import type { ErrorCode } from '@atcx/contract/light';
 
 // A refusal holds the phase it failed in; one raised without a phase, such

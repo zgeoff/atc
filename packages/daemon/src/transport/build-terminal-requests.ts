@@ -1,6 +1,6 @@
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { P, match } from 'ts-pattern';
 import type { DaemonContext } from '../daemon-context';
 import type { RequestDeps } from './request-deps';

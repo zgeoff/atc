@@ -1,8 +1,9 @@
 import type { Clock } from '@atc/core';
 import { ansi } from '@atc/core';
-import { MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/wire';
+import { MAX_CHUNK } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import type { OutputClient } from '../daemon-context';
 import { createAttachRegistry } from './create-attach-registry';
 import type { Dims } from './create-attach-registry';
@@ -133,7 +134,7 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
     emitEvent(
       {
-        version: PROTOCOL_V,
+        version: PROTOCOL_VERSION,
         ev: 'SessionResized',
         sessionID,
         cols: dims.cols,
@@ -151,7 +152,7 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
     if (session !== undefined) {
       emitEvent(
-        { version: PROTOCOL_V, ev: 'SessionDetached', session },
+        { version: PROTOCOL_VERSION, ev: 'SessionDetached', session },
         { cwd: session.cwd, repoRoot: session.repoRoot },
       );
     }
@@ -174,7 +175,7 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
       client.sendOutput(
         sessionID,
-        { version: PROTOCOL_V, ev: 'SessionOutput', sessionID, seq, data: chunk },
+        { version: PROTOCOL_VERSION, ev: 'SessionOutput', sessionID, seq, data: chunk },
         chunk.length,
       );
     }
@@ -228,7 +229,7 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
         seq++;
 
         const event: EventMsg = {
-          version: PROTOCOL_V,
+          version: PROTOCOL_VERSION,
           ev: 'SessionOutput',
           sessionID: session.id,
           seq,
@@ -270,7 +271,7 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
       const attached = getDescriptor(manager, sessionID);
 
       emitEvent(
-        { version: PROTOCOL_V, ev: 'SessionAttached', session: attached },
+        { version: PROTOCOL_VERSION, ev: 'SessionAttached', session: attached },
         { cwd: attached.cwd, repoRoot: attached.repoRoot },
       );
 

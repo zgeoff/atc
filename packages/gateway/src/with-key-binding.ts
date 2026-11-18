@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Clock } from '@atc/core';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { match } from 'ts-pattern';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';

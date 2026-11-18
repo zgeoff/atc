@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { resolvePaths } from '@atc/config';
-import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, resolveATCCommand, setupTempDir, waitFor } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 
 function setupTest() {

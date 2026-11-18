@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
 import { buildStubClock, registerTestCleanup } from '@atc/test-utils';
+import { DaemonError } from '@atcx/contract/client';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
 import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
 import { openTestEventDatabase } from '../testing/open-test-event-database';

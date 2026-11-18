@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import type { MenuTerminal } from './menu-terminal';
 
 export function sendMenuKey(terminal: MenuTerminal, key: string): void {

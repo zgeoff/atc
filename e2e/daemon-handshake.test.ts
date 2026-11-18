@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   registerTestCleanup,
   subscribeToSocketLines,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // Each test makes every connection to the daemon itself, so the harness opens

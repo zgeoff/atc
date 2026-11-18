@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildDaemonStatePaths } from '@atc/config';
-import { openDaemonClient } from '@atc/protocol/client';
-import { PROTOCOL_V } from '@atc/protocol/wire';
+import { openDaemonClient } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { registerTestCleanup } from './register-test-cleanup';
 import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
@@ -83,7 +83,7 @@ test('it refuses a handshake on the current protocol with protocol_mismatch', as
 
   expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
     code: 'protocol_mismatch',
-    message: `atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+    message: `atc/test-build speaks protocol v${PROTOCOL_VERSION}, daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}; restart the daemon so both run the same build`,
   });
 });
 

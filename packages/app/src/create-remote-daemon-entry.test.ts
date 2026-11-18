@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { setupTempDir, startStubLegacyDaemon, takeFreePort } from '@atc/test-utils';
 import { DaemonLinkFailureError } from '@atc/tui';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { createRemoteDaemonEntry } from './create-remote-daemon-entry';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
@@ -55,7 +55,7 @@ test('it rejects with the kind mismatched and the daemon text when the daemon sp
 
   const legacy = startStubLegacyDaemon(
     { hostname: '127.0.0.1', port: 0 },
-    { protocol: PROTOCOL_V + 1 },
+    { protocol: PROTOCOL_VERSION + 1 },
   );
 
   invariant(legacy.port !== null, 'the stub daemon bound no TCP port');
@@ -74,5 +74,5 @@ test('it rejects with the kind mismatched and the daemon text when the daemon sp
 
   expect(failure).toBeInstanceOf(DaemonLinkFailureError);
   expect(failure).toMatchObject({ kind: 'mismatched' });
-  expect(String(failure)).toInclude(`speaks v${PROTOCOL_V + 1}`);
+  expect(String(failure)).toInclude(`speaks v${PROTOCOL_VERSION + 1}`);
 });

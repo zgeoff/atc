@@ -29,8 +29,8 @@ import {
   makeAgentEnvFileSyncer,
   probeTranscriptResumable,
 } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import { startCodexAppServerBridge } from './app-server/start-codex-app-server-bridge';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 import { buildCodexHookFile } from './build-codex-hook-file';

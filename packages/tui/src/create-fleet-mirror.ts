@@ -1,4 +1,4 @@
-import type { DaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atcx/contract/client';
 import { createSessionMap } from './create-session-map';
 import type { SessionMap } from './create-session-map';
 import { isSameSessionKey, toSessionKey } from './session-key';

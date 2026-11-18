@@ -1,6 +1,6 @@
 import { posix } from 'node:path';
 import { isHomeRelative } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 
 interface WorkspaceRootTarget {
   // The workspaces root the config sets for the target, else the global

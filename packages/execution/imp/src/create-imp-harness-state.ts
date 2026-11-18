@@ -1,4 +1,4 @@
-import type { DaemonError } from '@atc/protocol/wire';
+import type { DaemonError } from '@atcx/contract/client';
 import { createActor } from 'xstate';
 import type { EventFrom } from 'xstate';
 import { IMP_HARNESS_MACHINE } from './imp-harness-machine';

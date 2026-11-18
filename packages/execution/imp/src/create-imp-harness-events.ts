@@ -1,5 +1,5 @@
 import type { HarnessAttachment, HarnessExit, HarnessStart } from '@atc/plugin-api';
-import type { DaemonError } from '@atc/protocol/wire';
+import type { DaemonError } from '@atcx/contract/client';
 
 // The listeners on a harness's output, exit, and attachment, and the waits on
 // its exit and its start, until the harness stops being followed.

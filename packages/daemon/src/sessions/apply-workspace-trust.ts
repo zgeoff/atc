@@ -1,5 +1,5 @@
 import { buildTarArchive } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { buildGuestSessionDirectory } from './build-guest-session-directory';
 import type { SpawnRequest } from './spawn-request';
 

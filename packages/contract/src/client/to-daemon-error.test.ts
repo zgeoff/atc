@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { ORPCError } from '@orpc/client';
-import { DaemonError } from '../wire/daemon-error';
+import { DaemonError } from './daemon-error';
 import { toDaemonError } from './to-daemon-error';
 
 test('it keeps the code, message and data of a refusal the daemon sent', () => {

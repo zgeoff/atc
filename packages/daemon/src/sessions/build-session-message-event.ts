@@ -1,12 +1,12 @@
 import { truncateDetail } from '@atc/core';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { MessageRecord } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 
 export function buildSessionMessageEvent(sessionID: SessionID, record: MessageRecord): EventMsg {
   return {
-    version: PROTOCOL_V,
+    version: PROTOCOL_VERSION,
     ev: 'SessionMessage',
     sessionID,
     message: record.id,

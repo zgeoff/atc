@@ -10,10 +10,10 @@ import {
 import { systemClock } from '@atc/core';
 import { claimDaemonLock, readDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
 import type { HarnessRelay } from '@atc/plugin-api';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { getLogger } from '@logtape/logtape';
 import { isBindingCurrent } from './auth/is-binding-current';
 import type { BridgeBinding } from './auth/is-binding-current';
@@ -203,7 +203,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
           socketPath: opts.eventsSocketPath,
           collectSnapshot: () =>
             manager.collectDescriptors().map((session) => ({
-              version: PROTOCOL_V,
+              version: PROTOCOL_VERSION,
               ev: 'SessionAdded',
               session,
             })),
@@ -608,7 +608,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     reporterSocketPath: opts.reporterSocketPath,
     eventsSocketPath: opts.eventsSocketPath ?? null,
     listenPort: tcpListener?.port ?? null,
-    protocol: PROTOCOL_V,
+    protocol: PROTOCOL_VERSION,
   });
 
   await updateEndedFleetMessages({ manager, store, messages });

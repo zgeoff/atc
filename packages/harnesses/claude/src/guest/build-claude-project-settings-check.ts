@@ -1,6 +1,6 @@
 import { isSubscriptionOverrideVariable } from '@atc/core';
 import type { ProjectSettingsCheck } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { z } from 'zod';
 
 const LOCAL_SETTINGS_FILE = '.claude/settings.local.json';

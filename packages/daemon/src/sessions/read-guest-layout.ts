@@ -1,5 +1,5 @@
 import type { ExecutionProvider, GuestLayout } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 
 export function readGuestLayout(
   provider: Pick<ExecutionProvider, 'kind' | 'readGuest'>,

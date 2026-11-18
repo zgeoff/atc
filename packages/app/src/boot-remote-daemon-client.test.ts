@@ -1,7 +1,7 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { MAX_CHUNK, MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
+import { MAX_CHUNK, MAX_LINE } from '@atc/protocol/wire';
 import {
   buildMockAgentAdapter,
   buildStubSkipClock,
@@ -10,6 +10,7 @@ import {
   startStubRefusingListener,
   startStubUnansweringListener,
 } from '@atc/test-utils';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 import { startTestDaemon } from './test-utils/start-test-daemon';
@@ -151,7 +152,7 @@ test('it connects with no viewer to a daemon whose handshake lists no viewer fea
     {
       method: 'daemon.hello',
       params: {
-        protocol: PROTOCOL_V,
+        protocol: PROTOCOL_VERSION,
         client: 'atc/test-client',
         auth: { scheme: 'bearer', token: 'a'.repeat(32) },
         principal: 'laptop',
@@ -195,7 +196,7 @@ test('it rejects a daemon on another protocol with both builds and versions and 
 
   const legacy = startStubLegacyDaemon(
     { hostname: '127.0.0.1', port: 0 },
-    { protocol: PROTOCOL_V + 1 },
+    { protocol: PROTOCOL_VERSION + 1 },
   );
 
   if (legacy.port === null) {
@@ -218,8 +219,8 @@ test('it rejects a daemon on another protocol with both builds and versions and 
   ).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message: [
-      `daemon 'box' at 127.0.0.1:${legacy.port} speaks another protocol than this client, atc/test-client on protocol v${PROTOCOL_V}.`,
-      `The daemon answered: atc/test-client speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+      `daemon 'box' at 127.0.0.1:${legacy.port} speaks another protocol than this client, atc/test-client on protocol v${PROTOCOL_VERSION}.`,
+      `The daemon answered: atc/test-client speaks protocol v${PROTOCOL_VERSION}, daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}; restart the daemon so both run the same build`,
       "atc did not fall back to the local daemon. Run an atc build on the daemon's protocol here, or update the daemon on its host.",
     ].join('\n'),
   });

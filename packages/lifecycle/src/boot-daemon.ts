@@ -7,10 +7,10 @@ import {
   formatProtocolMismatch,
   isClientBehind,
 } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
-import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
-import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
+import { DaemonError, openDaemonClient } from '@atcx/contract/client';
+import type { DaemonClient } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
 import type { LifecycleHost } from './lifecycle-host';
 import { DAEMON_READY_FD_VARIABLE } from './make-daemon-ready-signal';
@@ -119,7 +119,7 @@ export async function bootDaemonClient(
           procRoot: host.procRoot,
         }),
         clientBuild: build,
-        clientProtocol: PROTOCOL_V,
+        clientProtocol: PROTOCOL_VERSION,
         daemonProtocol: refusal.data?.daemonProtocol ?? null,
         daemonMessage: error.message,
       };

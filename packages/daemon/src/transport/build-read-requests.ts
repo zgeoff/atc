@@ -1,7 +1,7 @@
 import { decodeCursor, encodeCursor } from '@atc/protocol';
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import type { DaemonContext } from '../daemon-context';
 import type { TranscriptPosition } from '../sessions/load-transcript-page';
 

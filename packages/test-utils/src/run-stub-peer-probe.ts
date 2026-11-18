@@ -1,7 +1,6 @@
 import { writeFileSync } from 'node:fs';
-import { openDaemonClient } from '@atc/protocol/client';
-import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError, openDaemonClient } from '@atcx/contract/client';
+import type { DaemonClient } from '@atcx/contract/client';
 
 async function main() {
   const [probe, socketPath, session, outPath] = process.argv.slice(2);

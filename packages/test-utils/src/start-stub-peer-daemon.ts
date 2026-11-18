@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core';
-import { PRINCIPAL_HEADERS, createLineDecoder } from '@atc/protocol/wire';
-import type { LineDecoder } from '@atc/protocol/wire';
+import { PRINCIPAL_HEADERS, createLineDecoder } from '@atcx/contract/client';
+import type { LineDecoder } from '@atcx/contract/client';
 import { ORPCError } from '@orpc/client';
 import { StandardRPCJsonSerializer, StandardRPCSerializer } from '@orpc/client/standard';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';

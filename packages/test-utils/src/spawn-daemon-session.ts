@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openDaemonClient } from '@atcx/contract/client';
 import { spawnNamedSession } from './spawn-named-session';
 import type { TUIHarness } from './start-tui-harness';
 

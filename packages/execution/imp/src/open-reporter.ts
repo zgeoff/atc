@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { HarnessRelay, HarnessSpec } from '@atc/plugin-api';
-import { createLineDecoder } from '@atc/protocol/wire';
+import { createLineDecoder } from '@atcx/contract/client';
 import { match } from 'ts-pattern';
 import { buildReporterSocketBase } from './build-reporter-socket-base';
 import type { ImpHost } from './imp-host';

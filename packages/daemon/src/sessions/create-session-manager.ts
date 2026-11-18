@@ -12,9 +12,9 @@ import type {
 } from '@atc/plugin-api';
 import type { DeclaredScope, SessionState } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
-import type { DaemonError } from '@atc/protocol/wire';
 import type { FleetEntry, FleetStore } from '@atc/store';
 import type { PublishedRecord, SessionDescriptor, SessionID } from '@atcx/contract';
+import type { DaemonError } from '@atcx/contract/client';
 import { createAuthSetup } from '../auth/create-auth-setup';
 import type { AuthRebound } from '../auth/create-auth-setup';
 import type { RuntimeAuthBinder } from '../auth/create-runtime-auth-binder';

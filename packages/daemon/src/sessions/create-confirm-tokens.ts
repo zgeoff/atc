@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 
 interface ConfirmTokensDeps {
   // The clock tokens are minted and checked against, in epoch milliseconds.

@@ -10,7 +10,7 @@ import type {
   HarnessHandle,
   HarnessSpec,
 } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { bunPTYSpawn } from './bun-pty-spawn';
 import type { SessionScopes } from './create-session-scopes';
 

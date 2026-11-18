@@ -1,8 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
-import { openDaemonClient } from '@atc/protocol/client';
-import type { DaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   assertContractAnswer,
@@ -11,6 +9,8 @@ import {
   setupTempDir,
 } from '@atc/test-utils';
 import type { DaemonEvent } from '@atcx/contract';
+import { openDaemonClient } from '@atcx/contract/client';
+import type { DaemonClient } from '@atcx/contract/client';
 import type { Socket } from 'bun';
 import { startDaemon } from '../daemon';
 import type { DaemonHandle } from '../daemon';

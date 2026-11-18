@@ -1,6 +1,6 @@
 import type { LaunchTicket } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 
 export interface LaunchAdmissions {
   // Records an admission on a host and returns the ticket its request

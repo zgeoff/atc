@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config/host';
 import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { setupTempDir, startStubLegacyDaemon } from '@atc/test-utils';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { buildRemoteListingCachePath } from './build-remote-listing-cache-path';
 import { createRemoteTUIHost } from './create-remote-tui-host';
@@ -50,7 +50,7 @@ test('it boots the remote daemon with the build the invocation reads', () => {
   // build in its answer, so the answer shows the build the host sent.
   const legacy = startStubLegacyDaemon(
     { hostname: '127.0.0.1', port: 0 },
-    { protocol: PROTOCOL_V + 1 },
+    { protocol: PROTOCOL_VERSION + 1 },
   );
 
   invariant(legacy.port !== null, 'the stub daemon bound no TCP port');
@@ -67,6 +67,6 @@ test('it boots the remote daemon with the build the invocation reads', () => {
   );
 
   expect(host.daemons[0]?.bootDaemon()).rejects.toThrow(
-    `The daemon answered: atc/remote-host-test speaks protocol v${PROTOCOL_V}`,
+    `The daemon answered: atc/remote-host-test speaks protocol v${PROTOCOL_VERSION}`,
   );
 });

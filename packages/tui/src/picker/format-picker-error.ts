@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 
 export function formatPickerError(error: unknown): string {
   return error instanceof DaemonError ? `${error.code}: ${error.message}` : String(error);

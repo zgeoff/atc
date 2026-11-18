@@ -1,5 +1,5 @@
-import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atcx/contract/client';
+import { DaemonError } from '@atcx/contract/client';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
 

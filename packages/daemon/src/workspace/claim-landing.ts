@@ -1,6 +1,6 @@
 import { dirname } from 'node:path';
 import type { StepTimer } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import type { ProgressTracker } from './materialization-progress';
 import type { Landing, MaterializeDeps } from './materialize-deps';
 import type { MaterializeRequest } from './materialize-request';

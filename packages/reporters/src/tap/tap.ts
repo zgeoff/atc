@@ -1,8 +1,7 @@
 import { daemonSocketPath } from '@atc/config/host';
-import { openDaemonClient } from '@atc/protocol/client';
-import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError, openDaemonClient } from '@atcx/contract/client';
+import type { DaemonClient } from '@atcx/contract/client';
 import { MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
 import { z } from 'zod';
 import { renderMessageLine } from './render-message-line';

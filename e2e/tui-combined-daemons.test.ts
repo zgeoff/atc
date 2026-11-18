@@ -2,8 +2,6 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { StartedTestDaemon, TestDaemonConfig } from '@atc/daemon/testing';
-import { openDaemonClient } from '@atc/protocol/client';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildDirsSource } from '@atc/source-dirs';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
@@ -17,6 +15,8 @@ import {
   takeFreePort,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { restartRemoteTestDaemon } from '../packages/app/src/test-utils/restart-remote-test-daemon';
 import { startRemoteTestDaemon } from '../packages/app/src/test-utils/start-remote-test-daemon';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
@@ -306,7 +306,7 @@ test('it shows one line for a remote daemon on another protocol, and the local f
 
   const legacy = startStubLegacyDaemon(
     { hostname: '127.0.0.1', port: 0 },
-    { protocol: PROTOCOL_V + 1 },
+    { protocol: PROTOCOL_VERSION + 1 },
   );
 
   ctx.writeEntry(`127.0.0.1:${legacy.port}`);

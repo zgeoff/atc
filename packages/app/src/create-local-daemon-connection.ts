@@ -1,5 +1,5 @@
 import { createTransportCaller } from '@atc/mcp';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openDaemonClient } from '@atcx/contract/client';
 import type { MCPDaemonConnection } from './mcp-http-server';
 import { openWatchChannel } from './open-watch-channel';
 

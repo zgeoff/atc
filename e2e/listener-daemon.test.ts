@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { openDaemonClient } from '@atc/protocol/client';
 import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 
 // The listener daemon running on state in a temp directory, with what it
 // printed once it listened and everything it writes to stderr. Cleanup kills

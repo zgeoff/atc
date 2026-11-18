@@ -1,10 +1,9 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
-import { openDaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
 import { getRecord, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import type { GrantScope } from '@atcx/contract';
+import { DaemonError, openDaemonClient } from '@atcx/contract/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import invariant from 'tiny-invariant';
 import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';

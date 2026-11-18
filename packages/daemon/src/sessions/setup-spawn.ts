@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import type { AuthSetup, HarnessAuthSetup, HarnessSetup } from '../auth/create-auth-setup';
 import { applyWorkspaceTrust } from './apply-workspace-trust';
 import type { SpawnRollback } from './create-spawn-rollback';

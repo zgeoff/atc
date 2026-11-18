@@ -5,7 +5,6 @@ import { LOCAL_TARGET } from '@atc/config';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
 import { createLocalPTYProvider } from '@atc/execution-local';
-import { openDaemonClient } from '@atc/protocol/client';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -19,6 +18,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 

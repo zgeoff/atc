@@ -111,7 +111,10 @@
       "name": "@atcx/contract",
       "version": "7.17.0",
       "dependencies": {
+        "@orpc/client": "catalog:",
         "@orpc/contract": "catalog:",
+        "@orpc/standard-server-peer": "catalog:",
+        "xstate": "catalog:",
         "zod": "catalog:",
       },
     },
@@ -178,6 +181,7 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "bun-pty": "catalog:",
       },
       "devDependencies": {
@@ -319,9 +323,7 @@
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atcx/contract": "workspace:*",
-        "@orpc/client": "catalog:",
         "@orpc/contract": "catalog:",
-        "@orpc/standard-server-peer": "catalog:",
         "@zgeoff/std": "catalog:",
         "xstate": "catalog:",
         "zod": "catalog:",
@@ -371,7 +373,7 @@
       "name": "@atc/source-github",
       "dependencies": {
         "@atc/plugin-api": "workspace:*",
-        "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {

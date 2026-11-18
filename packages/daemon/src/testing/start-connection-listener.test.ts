@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { openDaemonClient } from '@atc/protocol/client';
 import { setupTempDir } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
+import { openDaemonClient } from '@atcx/contract/client';
 import { buildStubDaemonContext } from './build-stub-daemon-context';
 import { startConnectionListener } from './start-connection-listener';
 

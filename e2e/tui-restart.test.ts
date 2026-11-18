@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '@atc/daemon';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildMockFleetEntry } from '@atc/store/testing';
@@ -14,6 +13,7 @@ import {
   startTUIHarness,
 } from '@atc/test-utils';
 import { toAgentSessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { createHostServices } from '../packages/app/src/create-host-services';
 import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
@@ -70,7 +70,7 @@ test('it restarts a daemon on another protocol after the user confirms and resto
 
   await ctx.waitFor('Restart it now?');
 
-  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
+  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}`);
 
   ctx.reset();
   ctx.write('y');
@@ -114,7 +114,7 @@ test('it stops a daemon on another protocol after the user confirms, and the man
 
   await ctx.waitFor('Restart it now?');
 
-  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_V + 1}`);
+  expect(ctx.read()).toInclude(`daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}`);
 
   ctx.reset();
   ctx.write('y');

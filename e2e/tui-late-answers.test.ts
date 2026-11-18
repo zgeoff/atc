@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { openDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
@@ -17,6 +16,7 @@ import {
   tabToRepoRows,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { $ } from 'bun';
 
 function setupTest() {

@@ -1,5 +1,5 @@
 import { createConnection } from 'node:net';
-import { PROTOCOL_V } from '@atc/protocol/wire';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { buildPeerRequestLine } from './build-peer-request-line';
 import { registerTestCleanup } from './register-test-cleanup';
 
@@ -27,7 +27,7 @@ export async function startStubStalledClient(
 
   // The handshake and the event subscription go out in one write, so the
   // daemon pushes events the client never reads.
-  const hello = { client, protocol: PROTOCOL_V, auth: { scheme: 'none' } };
+  const hello = { client, protocol: PROTOCOL_VERSION, auth: { scheme: 'none' } };
 
   socket.write(
     buildPeerRequestLine('1', '/daemon/hello', hello) +

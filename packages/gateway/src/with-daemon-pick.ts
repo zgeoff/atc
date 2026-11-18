@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import type { GatewayRegistry, RouteNext, RoutedCall, RoutedOutcome } from './types';
 

@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import type { Landing, MaterializeDeps } from './materialize-deps';
 import type { MaterializeRequest } from './materialize-request';
 import { REPOSITORY_ENV_UNSET_ARGV } from './repository-env-unset-argv';

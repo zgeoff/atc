@@ -1,6 +1,6 @@
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import type { DaemonContext } from '../daemon-context';
 import { findEventSession } from './find-event-session';
@@ -39,7 +39,9 @@ export function createConnectionView(ctx: ViewContext): ConnectionView {
   const buildSessionAdded = (id: SessionID): EventMsg[] => {
     const session = ctx.collectSessions().find((x) => x.id === id);
 
-    return session === undefined ? [] : [{ version: PROTOCOL_V, ev: 'SessionAdded', session }];
+    return session === undefined
+      ? []
+      : [{ version: PROTOCOL_VERSION, ev: 'SessionAdded', session }];
   };
 
   return {
@@ -62,7 +64,7 @@ export function createConnectionView(ctx: ViewContext): ConnectionView {
           shownSessions.delete(id);
           withheldSessions.add(id);
           withdrawn.push(id);
-          sent.push({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: id });
+          sent.push({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID: id });
         }
       }
 
@@ -105,7 +107,7 @@ export function createConnectionView(ctx: ViewContext): ConnectionView {
 
         if (shownSessions.delete(sessionID)) {
           withdrawn.push(sessionID);
-          sent.push({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID });
+          sent.push({ version: PROTOCOL_VERSION, ev: 'SessionRemoved', sessionID });
         }
 
         return { events: sent, withdrawn };

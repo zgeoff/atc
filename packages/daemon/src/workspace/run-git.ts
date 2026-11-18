@@ -1,5 +1,5 @@
 import { DEFAULT_GIT_TRANSPORTS } from '@atc/config';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
 
 interface OpenOutputWatch {

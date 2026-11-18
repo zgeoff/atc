@@ -1,6 +1,6 @@
 import type { ResolvedAuthSecret } from '@atc/config';
 import type { CredentialBroker } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 
 export function toSignInRefusal(
   error: unknown,

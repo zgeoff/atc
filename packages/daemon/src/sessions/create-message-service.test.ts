@@ -1,7 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils';
@@ -9,6 +8,7 @@ import { buildMockFleetEntry } from '@atc/store/testing';
 import { buildStubClock, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import type { TapClient } from '../daemon-context';
 import { updateEndedFleetMessages } from '../fleet/update-ended-fleet-messages';
@@ -304,7 +304,7 @@ test('it closes the inbox of the tap a new tap replaces', async () => {
   ctx.messages.attachTap({ sendEvent: mock<TapClient['sendEvent']>() }, session.id, null, false);
 
   expect(first.sendEvent).toHaveBeenCalledWith({
-    version: PROTOCOL_V,
+    version: PROTOCOL_VERSION,
     ev: 'InboxClosed',
     sessionID: session.id,
     reason: 'replaced',

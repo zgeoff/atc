@@ -1,7 +1,6 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildMockFleetEntry } from '@atc/store/testing';
@@ -17,6 +16,7 @@ import {
 } from '@atc/test-utils';
 import type { SessionID } from '@atcx/contract';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { createSessionManager } from '../sessions/create-session-manager';
 import { createSessionRuntime } from '../sessions/create-session-runtime';

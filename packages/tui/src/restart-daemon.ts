@@ -1,8 +1,8 @@
 import type { Config } from '@atc/config';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
-import type { DaemonClient } from '@atc/protocol/client';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
+import type { DaemonClient } from '@atcx/contract/client';
 import type { ClientActor } from './build-client-machine';
 import type { FleetMirror } from './create-fleet-mirror';
 import type { OverlayScreen } from './create-overlay-screen';

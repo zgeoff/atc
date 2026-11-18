@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { ORPCError, ValidationError } from '@orpc/server';
 
 // The error a peer client receives for a failed procedure, under the daemon's

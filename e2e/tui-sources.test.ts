@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { openDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import {
   KEYS,
@@ -13,6 +12,7 @@ import {
   registerTestCleanup,
   startTUIHarness,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { $ } from 'bun';
 
 function setupTest() {

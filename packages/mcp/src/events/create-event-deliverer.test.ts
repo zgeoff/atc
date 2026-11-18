@@ -1,7 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
 import { startTestDaemon } from '@atc/daemon/testing';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubClock,
@@ -10,6 +9,7 @@ import {
   registerTestCleanup,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { buildSeeder } from '../test-utils/build-seeder';

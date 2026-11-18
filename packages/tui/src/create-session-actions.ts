@@ -1,5 +1,5 @@
 import { formatError } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { match } from 'ts-pattern';
 import type { ClientActor, ClientMode } from './build-client-machine';
 import type { FleetMirror } from './create-fleet-mirror';

@@ -1,6 +1,6 @@
 import { isRecord } from '@atc/core';
-import type { DaemonClient } from '@atc/protocol/client';
-import { PROTOCOL_V } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { buildATCCommand } from './build-atc-command';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
 import type { LifecycleHost } from './lifecycle-host';
@@ -76,7 +76,7 @@ function pickAnswer(probe: DaemonProbe<unknown> | null): DaemonAnswer | null {
   }
 
   return probe.kind === 'ok'
-    ? { kind: 'ok', build: probe.hello.build, protocol: PROTOCOL_V }
+    ? { kind: 'ok', build: probe.hello.build, protocol: PROTOCOL_VERSION }
     : { kind: 'refused', message: probe.message };
 }
 

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { CredentialBroker } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { RuntimeAuthBinding } from '@atc/store';
+import { DaemonError } from '@atcx/contract/client';
 import { applyRebindGrants } from './apply-rebind-grants';
 import { BrokerAuthorityError } from './broker-authority-error';
 import type { AuthBinding } from './build-auth-binding';

@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/testing';
-import { openDaemonClient } from '@atc/protocol/client';
 import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { createDaemonPool } from './create-daemon-pool';
 import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
 

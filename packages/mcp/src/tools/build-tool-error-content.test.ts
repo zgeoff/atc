@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { buildToolErrorContent } from './build-tool-error-content';
 
 test('it gives the code and the problem of a daemon error that names one', () => {

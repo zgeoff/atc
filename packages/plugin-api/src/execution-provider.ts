@@ -1,5 +1,5 @@
 import type { StepTimer } from '@atc/core';
-import type { DaemonError } from '@atc/protocol/wire';
+import type { DaemonError } from '@atcx/contract/client';
 import type { CredentialBroker } from './credential-broker';
 
 export interface ExecutionProvider {

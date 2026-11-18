@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { toAgentID } from '@atc/core';
 import { readDaemonRecord, readRestartResult } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/testing';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/testing';
 import {
@@ -20,6 +19,7 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 
 function setupTest() {
@@ -191,7 +191,7 @@ test('it puts one DaemonRestarted event with the restart result on the replaceme
 
   expect(lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       ev: 'DaemonRestarted',
       result: {
         runID: expect.toBeString(),
@@ -327,7 +327,7 @@ test('it puts the result of a refused restart on the feed of the daemon it left 
 
   expect(lines.map((line): unknown => JSON.parse(line))).toStrictEqual([
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       ev: 'DaemonRestarted',
       result: {
         runID: expect.toBeString(),

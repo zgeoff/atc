@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import type { ExecutionProvider, HarnessRelay, HarnessSpec } from '@atc/plugin-api';
 import { buildSessionEnv } from '@atc/protocol/session';
-import { createLineDecoder } from '@atc/protocol/wire';
-import type { LineDecoder } from '@atc/protocol/wire';
+import { createLineDecoder } from '@atcx/contract/client';
+import type { LineDecoder } from '@atcx/contract/client';
 import type { Socket, UnixSocketListener } from 'bun';
 import { createStubExecutionProvider } from './create-stub-execution-provider';
 

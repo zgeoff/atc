@@ -1,7 +1,7 @@
 import { posix } from 'node:path';
 import type { AgentHomeLocation, ExecutionProvider } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { DaemonError } from '@atcx/contract/client';
 
 export const RESOLVE_AGENT_HOME_SCRIPT = `home=$(printenv "$1") && [ -n "$home" ] && { printf '%s\\n' "$home"; exit 0; }
 cd && printf '%s/%s\\n' "$(pwd -P)" "$2"`;

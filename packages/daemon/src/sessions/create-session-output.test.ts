@@ -1,13 +1,13 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { ansi } from '@atc/core';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import { buildStubClock, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import type { OutputClient } from '../daemon-context';
 import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
@@ -125,7 +125,7 @@ test('it sends the output of a session to an attached client under the next sequ
   expect(client.sendOutput).toHaveBeenLastCalledWith(
     session.id,
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       ev: 'SessionOutput',
       sessionID: session.id,
       seq: 1,
@@ -549,7 +549,7 @@ test('it sends a watcher the output that follows its start under the next sequen
   expect(watcher.sendOutput).toHaveBeenCalledExactlyOnceWith(
     session.id,
     {
-      version: PROTOCOL_V,
+      version: PROTOCOL_VERSION,
       ev: 'SessionOutput',
       sessionID: session.id,
       seq: 1,

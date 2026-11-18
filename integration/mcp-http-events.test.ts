@@ -5,7 +5,6 @@ import { createTransportCaller, startMCPHTTPServer } from '@atc/mcp';
 import type { WebhookSender } from '@atc/mcp';
 import { buildStubWebhookReceiver } from '@atc/mcp/testing';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { openDaemonClient } from '@atc/protocol/client';
 import {
   buildMockAgentAdapter,
   buildStubAuthenticator,
@@ -19,6 +18,7 @@ import {
   sendModernMCPRequest,
   waitFor,
 } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';

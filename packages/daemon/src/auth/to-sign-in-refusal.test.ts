@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
 import { toSignInRefusal } from './to-sign-in-refusal';
 

@@ -2,7 +2,7 @@ import { isRecord } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { Principal } from '@atc/protocol';
 import { decodeCursor, encodeCursor } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { buildGatewayError } from './build-gateway-error';
 import type { GatewayDaemonCaller } from './create-gateway-daemon-caller';

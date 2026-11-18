@@ -1,11 +1,10 @@
 {
   "name": "@atc/protocol",
   "private": true,
-  "description": "What atc's own processes share to talk to the daemon: the line framing, the wire helpers, the session helpers, and the daemon client",
+  "description": "What atc's own processes share to talk to the daemon: the message framing, the reconnecting transport, and the session helpers",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/client/index.ts",
     "./session": "./src/session/index.ts",
     "./wire": "./src/wire/index.ts",
     "./wire/transport": "./src/wire/transport/index.ts"
@@ -13,9 +12,7 @@
   "dependencies": {
     "@atc/core": "workspace:*",
     "@atcx/contract": "workspace:*",
-    "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
-    "@orpc/standard-server-peer": "catalog:",
     "@zgeoff/std": "catalog:",
     "xstate": "catalog:",
     "zod": "catalog:"

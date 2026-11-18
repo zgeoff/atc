@@ -1,5 +1,5 @@
-import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
+import type { DaemonClient } from '@atcx/contract/client';
+import { DaemonError } from '@atcx/contract/client';
 import { buildHostDaemonPaths } from './build-host-daemon-paths';
 import type { LifecycleHost } from './lifecycle-host';
 import { readDaemonSocketPaths } from './read-daemon-socket-paths';

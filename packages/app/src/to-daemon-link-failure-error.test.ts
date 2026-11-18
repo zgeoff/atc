@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { RemoteTokenError } from './remote-token-error';
 import { toDaemonLinkFailureError } from './to-daemon-link-failure-error';
 

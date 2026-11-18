@@ -1,7 +1,7 @@
 import type { Config } from '@atc/config';
 import type { AgentID } from '@atc/core';
 import { ansi } from '@atc/core';
-import type { DaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atcx/contract/client';
 import type { ClientMode } from './build-client-machine';
 import { collectSessionRows } from './collect-session-rows';
 import { collectTargetPicks } from './collect-target-picks';

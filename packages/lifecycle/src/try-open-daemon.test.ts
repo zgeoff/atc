@@ -1,7 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { systemClock } from '@atc/core';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import {
   buildStubClock,
   registerTestCleanup,
@@ -10,6 +9,7 @@ import {
   startStubUnansweringUnixListener,
   waitFor,
 } from '@atc/test-utils';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { tryOpenDaemon } from './try-open-daemon';
 
@@ -71,7 +71,7 @@ test('it refuses a daemon whose hello holds no build or id, and reads nothing fr
 test('it returns the refusal of a daemon on another protocol', async () => {
   const ctx = setupTest();
 
-  startStubLegacyDaemon(join(ctx.directory, 'atc-daemon.sock'), { protocol: PROTOCOL_V + 1 });
+  startStubLegacyDaemon(join(ctx.directory, 'atc-daemon.sock'), { protocol: PROTOCOL_VERSION + 1 });
 
   const probe = await tryOpenDaemon(
     [join(ctx.directory, 'atc-daemon.sock')],
@@ -82,7 +82,7 @@ test('it returns the refusal of a daemon on another protocol', async () => {
   expect(probe).toStrictEqual({
     kind: 'refused',
     socketPath: join(ctx.directory, 'atc-daemon.sock'),
-    message: `atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+    message: `atc/test-build speaks protocol v${PROTOCOL_VERSION}, daemon atc/legacy-build speaks v${PROTOCOL_VERSION + 1}; restart the daemon so both run the same build`,
   });
 });
 

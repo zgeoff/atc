@@ -3,8 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/testing';
-import { openDaemonClient } from '@atc/protocol/client';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import { seedSweptIdempotencyKeys } from '@atc/store/test-utils';
 import {
   buildMockAgentAdapter,
@@ -18,6 +16,8 @@ import {
   waitFor,
 } from '@atc/test-utils';
 import { CONTRACT_VERSION } from '@atcx/contract';
+import { openDaemonClient } from '@atcx/contract/client';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { createGatewayDaemonCaller } from './create-gateway-daemon-caller';
 import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
@@ -688,7 +688,7 @@ test.each([
 test('it refuses a daemon that refuses its protocol version as daemon_mismatched', () => {
   const legacy = startStubLegacyDaemon(
     { hostname: '127.0.0.1', port: 0 },
-    { protocol: PROTOCOL_V + 1 },
+    { protocol: PROTOCOL_VERSION + 1 },
   );
 
   invariant(legacy.port !== null, 'the stub daemon bound no TCP port');

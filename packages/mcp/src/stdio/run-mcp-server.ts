@@ -1,6 +1,6 @@
 import type { DaemonBoot } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
+import { openDaemonClient } from '@atcx/contract/client';
 import type { Transport } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { match } from 'ts-pattern';

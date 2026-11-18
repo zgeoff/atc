@@ -1,8 +1,8 @@
 import type { Clock } from '@atc/core';
 import type { SessionState } from '@atc/protocol';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { createPermissionRegistry } from './create-permission-registry';
 import type { AnswerResult } from './create-permission-registry';
 import type { HookScope } from './make-hook-runner';
@@ -29,7 +29,7 @@ export function createPermissionPrompts(deps: PermissionPromptsDeps): Permission
       onRequested: (req) => {
         deps.emitEvent(
           {
-            version: PROTOCOL_V,
+            version: PROTOCOL_VERSION,
             ev: 'PermissionRequested',
             request: req.id,
             sessionID: req.sessionID,
@@ -40,7 +40,12 @@ export function createPermissionPrompts(deps: PermissionPromptsDeps): Permission
         );
       },
       onResolved: (id, decision) => {
-        deps.emitEvent({ version: PROTOCOL_V, ev: 'PermissionResolved', request: id, decision });
+        deps.emitEvent({
+          version: PROTOCOL_VERSION,
+          ev: 'PermissionResolved',
+          request: id,
+          decision,
+        });
       },
     },
     undefined,

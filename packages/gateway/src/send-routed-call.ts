@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import invariant from 'tiny-invariant';
 import type { DaemonPool } from './create-daemon-pool';
 import type { RoutedCall, RoutedOutcome } from './types';

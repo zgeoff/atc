@@ -1,5 +1,5 @@
 import { readSessionEnv } from '@atc/protocol/session';
-import type { DaemonChannel } from '@atc/protocol/wire';
+import type { DaemonChannel } from '@atcx/contract/client';
 import { createChannelCaller } from './create-channel-caller';
 import type { ChannelCaller } from './create-channel-caller';
 

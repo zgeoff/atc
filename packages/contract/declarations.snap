@@ -248,6 +248,125 @@ export type DaemonCheck = {
 };
 export declare function checkDaemon(hello: Pick<HelloResult, 'daemon' | 'features'>, contractVersion?: string): DaemonCheck;
 
+// client/client-machine.d.ts
+type ClientEvent = {
+    readonly type: 'SUBSCRIBE';
+} | {
+    readonly type: 'CLOSE';
+    readonly reason: string;
+};
+interface ClientContext {
+    readonly closedReason: string | null;
+}
+export declare const CLIENT_MACHINE: import("xstate").StateMachine<ClientContext, ClientEvent, {}, never, {
+    type: "recordReason";
+    params: import("xstate").NonReducibleUnknown;
+}, never, never, "closed" | {
+    open: "quiet" | "subscribed";
+}, string, import("xstate").NonReducibleUnknown, import("xstate").NonReducibleUnknown, import("xstate").EventObject, import("xstate").MetaObject, {
+    id: "daemon-client";
+    states: {
+        readonly open: {
+            states: {
+                readonly quiet: {};
+                readonly subscribed: {};
+            };
+        };
+        readonly closed: {};
+    };
+}, import("xstate").MetaObject>;
+export {};
+
+// client/create-line-decoder.d.ts
+export interface LineDecoder {
+    readonly pendingLength: number;
+    readonly splitChunk: (bytes: Uint8Array) => string[];
+    readonly decodeText: (bytes: Uint8Array) => string;
+    readonly splitText: (text: string) => string[];
+}
+export declare function createLineDecoder(): LineDecoder;
+
+// client/create-outbound-queue.d.ts
+export interface SocketWriter {
+    readonly write: (data: Uint8Array) => number;
+}
+export interface OutboundQueue {
+    readonly queuedBytes: number;
+    readonly send: (payload: string) => boolean;
+    readonly drain: () => void;
+}
+export declare const DEFAULT_QUEUE_BYTES: number;
+export declare function createOutboundQueue(socket: SocketWriter, capacity?: number): OutboundQueue;
+
+// client/daemon-channel.d.ts
+export interface HelloOptions {
+    readonly token?: string;
+    readonly session?: string | undefined;
+    readonly principal?: string;
+    readonly viewer?: string;
+}
+export interface DaemonChannel {
+    onClose: () => void;
+    readonly sendHello: (build: string, options?: HelloOptions) => Promise<Readonly<Record<string, unknown>>>;
+    readonly sendRequest: (method: string, params?: Readonly<Record<string, unknown>>, as?: string, asName?: string) => Promise<Readonly<Record<string, unknown>>>;
+    readonly stop: () => void;
+}
+
+// client/daemon-client.d.ts
+import type { ContractRouterClient } from '@orpc/contract';
+import type { DAEMON_CONTRACT } from '../daemon-contract.js';
+import type { DaemonEvent } from '../daemon-event.js';
+import type { DaemonChannel } from './daemon-channel.js';
+export interface CallContext {
+    readonly as?: string | undefined;
+    readonly asName?: string | undefined;
+}
+export type DaemonProcedures = ContractRouterClient<typeof DAEMON_CONTRACT, CallContext>;
+export interface DaemonClient extends DaemonChannel {
+    onEvent: (event: DaemonEvent) => void;
+    onClose: () => void;
+    onAnswer: (method: string, ok: Readonly<Record<string, unknown>>) => void;
+    principal: string | undefined;
+    readonly procedures: DaemonProcedures;
+    readonly isClosed: () => boolean;
+}
+
+// client/daemon-error.d.ts
+import type { ErrorCode } from '../light/error-codes.js';
+export declare class DaemonError extends Error {
+    readonly code: ErrorCode;
+    readonly data: Readonly<Record<string, unknown>> | undefined;
+    constructor(code: ErrorCode, message: string, data?: Readonly<Record<string, unknown>>);
+}
+
+// client/index.d.ts
+export type * from './daemon-channel.js';
+export type * from './daemon-client.js';
+export * from './create-line-decoder.js';
+export * from './create-outbound-queue.js';
+export * from './daemon-error.js';
+export * from './open-daemon-client.js';
+export * from './principal-headers.js';
+export * from './to-daemon-error.js';
+export { PROTOCOL_VERSION } from '../light/protocol-version.js';
+
+// client/open-daemon-client.d.ts
+import type { DaemonClient } from './daemon-client.js';
+export declare function openDaemonClient(address: string | {
+    readonly hostname: string;
+    readonly port: number;
+}): Promise<DaemonClient>;
+
+// client/principal-headers.d.ts
+export declare const PRINCIPAL_HEADERS: {
+    readonly as: 'x-atc-as';
+    readonly asName: 'x-atc-as-name';
+};
+
+// client/to-daemon-error.d.ts
+import { DaemonError } from './daemon-error.js';
+export declare function toDaemonError(error: unknown): DaemonError;
+
 // commit-id-pattern.d.ts
 export declare const COMMIT_ID_PATTERN: RegExp;
 
@@ -1602,7 +1721,7 @@ export declare const DAEMON_CONTRACT: {
                 } | undefined;
             };
             ev: "SessionDetached";
-        }, unknown, void>, import("@orpc/contract").AsyncIteratorClass<{
+        }, unknown, void>, import("@orpc/client").AsyncIteratorClass<{
             ev: "SessionRenamed";
             sessionID: string;
             name: string;
@@ -2757,6 +2876,7 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
 // light/index.d.ts
 export * from './error-codes.js';
 export * from './message-sender.js';
+export * from './protocol-version.js';
 export * from './resolve-atc-paths.js';
 export * from './resolve-home-dir.js';
 export * from './resolve-state-dir.js';
@@ -2780,6 +2900,9 @@ export declare const MESSAGE_SENDER_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject
     name: z.ZodString;
 }, z.core.$strip>], "kind">;
 export type MessageSender = z.output<typeof MESSAGE_SENDER_SCHEMA>;
+
+// light/protocol-version.d.ts
+export declare const PROTOCOL_VERSION = 14;
 
 // light/resolve-atc-paths.d.ts
 export interface AtcPaths {

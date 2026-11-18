@@ -1,9 +1,9 @@
 import { isRecord } from '@atc/core';
 import { parseRequestParams } from '@atc/protocol';
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { RequestMsg } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import type { ErrorCode } from '@atcx/contract/light';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import type { TCPPeer } from './tcp-peer';
 
 interface TCPHelloChecks {
@@ -72,11 +72,11 @@ export async function checkTCPHello(
     }
   }
 
-  if (req.version !== PROTOCOL_V) {
+  if (req.version !== PROTOCOL_VERSION) {
     return {
       ok: false,
       code: 'protocol_mismatch',
-      message: `${parsedHello.data.client} speaks protocol v${req.version}, daemon ${checks.build} speaks v${PROTOCOL_V}; restart the daemon so both run the same build`,
+      message: `${parsedHello.data.client} speaks protocol v${req.version}, daemon ${checks.build} speaks v${PROTOCOL_VERSION}; restart the daemon so both run the same build`,
     };
   }
 

@@ -1,5 +1,5 @@
 import type { Principal } from '@atc/protocol';
-import type { DaemonError } from '@atc/protocol/wire';
+import type { DaemonError } from '@atcx/contract/client';
 
 export interface RegistryDaemon {
   readonly name: string;

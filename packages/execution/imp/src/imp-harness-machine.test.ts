@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { DaemonError } from '@atcx/contract/client';
 import { createActor } from 'xstate';
 import { IMP_HARNESS_MACHINE } from './imp-harness-machine';
 

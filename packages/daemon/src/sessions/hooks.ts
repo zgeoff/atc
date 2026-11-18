@@ -1,8 +1,8 @@
 import { unlinkSync } from 'node:fs';
 import { socketPath } from '@atc/config';
 import type { HookEvent } from '@atc/protocol/session';
-import { createLineDecoder } from '@atc/protocol/wire';
-import type { LineDecoder } from '@atc/protocol/wire';
+import { createLineDecoder } from '@atcx/contract/client';
+import type { LineDecoder } from '@atcx/contract/client';
 import { parseHookLine } from '../transport/parse-hook-line';
 import { withOwnerOnlySocket } from '../transport/with-owner-only-socket';
 

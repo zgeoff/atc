@@ -1,5 +1,5 @@
 import { formatError } from '@atc/core';
-import type { DaemonClient } from '@atc/protocol/client';
+import type { DaemonClient } from '@atcx/contract/client';
 import { formatLinkState } from './daemon-link-state';
 import type { DaemonLinkState } from './daemon-link-state';
 import { DaemonUnavailableError } from './daemon-unavailable-error';

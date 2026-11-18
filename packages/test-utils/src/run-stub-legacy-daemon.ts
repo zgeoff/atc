@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { buildDaemonStatePaths } from '@atc/config';
-import { PROTOCOL_V } from '@atc/protocol/wire';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
 function main() {
@@ -16,7 +16,7 @@ function main() {
   // A client on the current protocol reads the session list and the fleet
   // as it starts, so the daemon answers both as empty.
   startStubLegacyDaemon(socketPath, {
-    protocol: build === 'current' ? PROTOCOL_V : PROTOCOL_V + 1,
+    protocol: build === 'current' ? PROTOCOL_VERSION : PROTOCOL_VERSION + 1,
     refusalHoldsProtocol: build === 'newer',
     replies: { 'session.list': { sessions: [] }, 'fleet.list': { fleet: [] } },
     owner: 'caller',

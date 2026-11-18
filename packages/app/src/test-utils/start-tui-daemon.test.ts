@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { openDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils';
 import { startTUIHarness, waitFor } from '@atc/test-utils';
+import { openDaemonClient } from '@atcx/contract/client';
 import { startTUIDaemon } from './start-tui-daemon';
 
 // A harness home with its config written and no client booted.

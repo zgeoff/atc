@@ -1,5 +1,5 @@
-import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { MockOverrides } from '@atc/test-utils';
+import { PROTOCOL_VERSION } from '@atcx/contract/light';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
 import type { DaemonRecord } from '../read-daemon-record';
@@ -16,7 +16,7 @@ export function buildMockDaemonRecord(
       reporterSocketPath: `${directory}/atc.sock`,
       eventsSocketPath: null,
       listenPort: null,
-      protocol: PROTOCOL_V,
+      protocol: PROTOCOL_VERSION,
     },
     overrides,
   );
