@@ -28,12 +28,12 @@ const ASKPASS_SECRET_VAR = 'ATC_GIT_ASKPASS_SECRET';
 const ASKPASS_ORIGIN_VAR = 'ATC_GIT_ASKPASS_ORIGIN';
 
 // Answers a prompt only when its URL names the origin in the origin variable, and fails git
-// otherwise. A URL with a character that parsers read differently is refused whole.
-// Username prompts get a name that GitHub and GitLab both accept beside a token.
+// otherwise. A truncated prompt or a URL that parsers read differently is refused whole, and a
+// default port counts as no port. Username prompts get a name GitHub and GitLab both accept.
 export const ASKPASS_SCRIPT = `#!/bin/sh
 q="'"
 case "$1" in
-  "Username for '"*|"Password for '"*) ;;
+  "Username for '"*"': "|"Password for '"*"': ") ;;
   *) exit 1 ;;
 esac
 url=\${1#*"$q"}
@@ -50,6 +50,10 @@ case "$host" in
   ''|*[!]A-Za-z0-9._:[-]*) exit 1 ;;
 esac
 origin=$(printf '%s' "\${url%%://*}://$host" | tr '[:upper:]' '[:lower:]')
+case "$origin" in
+  https://*:443) origin=\${origin%:443} ;;
+  http://*:80) origin=\${origin%:80} ;;
+esac
 [ -n "$${ASKPASS_ORIGIN_VAR}" ] && [ "$origin" = "$${ASKPASS_ORIGIN_VAR}" ] || exit 1
 case "$1" in
   Username*) printf '%s\\n' x-access-token ;;
@@ -88,8 +92,9 @@ export async function createGitAskpass(
     throw error;
   }
 
-  // the token reaches git only through the helper, never the command line or the URL, and
-  // the host's credential helpers are off so none of them stores it
+  // the token reaches git only through the helper, never the command line or the URL, and the
+  // host's credential helpers are off so none stores it. The helper's origin check is the guard:
+  // a URL-scoped http.<url>.followRedirects in the host's git config overrides the flag.
   return {
     ok: true,
     env: {

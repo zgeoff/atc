@@ -42,6 +42,21 @@ test.each([
   expect(result).toStrictEqual({ stdout: answer, exitCode: 0 });
 });
 
+test.each([
+  [
+    'https://github.com:443/owner/repo.git',
+    "Password for 'https://x-access-token@github.com:443': ",
+  ],
+  ['https://github.com/owner/repo.git', "Password for 'https://github.com:443': "],
+  ['https://github.com:443/owner/repo.git', "Password for 'https://github.com': "],
+  ['http://127.0.0.1:80/upstream.git', "Password for 'http://127.0.0.1:80': "],
+])('it answers for source %s the prompt %s', async (sourceURL, prompt) => {
+  const ctx = await setupTest(sourceURL);
+  const result = await ctx.ask(prompt);
+
+  expect(result).toStrictEqual({ stdout: 'tok-c81d\n', exitCode: 0 });
+});
+
 test('it answers a prompt for the source host and port', async () => {
   const ctx = await setupTest('http://127.0.0.1:8080/upstream.git');
   const result = await ctx.ask("Password for 'http://x-access-token@127.0.0.1:8080': ");
@@ -74,6 +89,9 @@ test.each([
   ['an empty host', "Password for 'https://': "],
   ['another kind of prompt', "Passphrase for key '/home/u/.ssh/id': "],
   ['an empty prompt', ''],
+  ['no closing quote', "Password for 'https://github.com"],
+  ['no trailing colon', "Password for 'https://github.com'"],
+  ['text after the closing colon', "Password for 'https://github.com': x"],
 ])('it refuses a prompt it cannot parse with %s', async (_, prompt) => {
   const ctx = await setupTest('https://github.com/owner/repo.git');
   const result = await ctx.ask(prompt);
