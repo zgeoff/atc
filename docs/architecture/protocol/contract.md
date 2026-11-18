@@ -1,59 +1,108 @@
 # The published contract
 
-A program outside atc, such as a dashboard or another agent's tooling, reads atc's protocol from one
-package on npm, `@atcx/contract`, instead of keeping its own copies of the schemas. The package
-holds what such a program needs to talk to a daemon and to read what a daemon writes: the request
-contract, the event schema, the session record, the hello answer with its features, the error codes,
-the session environment names, the state paths, the config file's schema, and the gateway's routes
-and registry schema. The daemon and every atc client build on the same package, so a published
-schema is the one the daemon serves.
+A program outside atc, such as a dashboard or another agent's tooling, calls a daemon and parses the
+events and session records it writes with one package on npm, `@atcx/contract`. The daemon and every
+atc client import the same package, so a published schema is the one the daemon serves. The package
+holds:
 
-## What the package holds
+- the request contract, the oRPC contract of every daemon procedure;
+- the event schema, the session record schema, and the schema of the answer to `daemon.hello`;
+- the error codes and the protocol version;
+- the names of the environment variables a session gets, and the paths of the daemon's sockets and
+  state;
+- the config file's schema;
+- the gateway's route table and registry schema;
+- atc's own daemon client.
 
-atc's own packages import the schemas from the contract package and never keep a copy, so the
-published package and the daemon cannot drift apart. The package leaves out what only atc's own
-processes use: the client and its transport, the event cursor encoding, the store, the terminal
-client's helpers, and the folder that holds the daemon's restart results.
+## Entries
 
-The gateway's half of the package serves a program that deploys atc-gateway. The route table groups
-the HTTP server's paths by who requests them: a person's browser, a machine client, or an
-orchestrator's probe, so an ingress can put the browser routes behind a sign-in and keep the probes
-off the public origin. The registry schema holds every rule the gateway applies to its registry
-file, so a deploy tool refuses a bad registry before the gateway reads it. The gateway and
-`atc mcp --http` route by the same table, and the gateway parses its registry with the same schema.
+| Entry                   | What it holds                                                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `@atcx/contract`        | everything in the light entry, plus the request contract, the schemas, `checkDaemon` and the gateway's tables                        |
+| `@atcx/contract/light`  | the session's environment variable names, the state paths, the error codes, `PROTOCOL_VERSION`, and the schema of a message's sender |
+| `@atcx/contract/schema` | the field builders                                                                                                                   |
+| `@atcx/contract/client` | atc's daemon client, with `PROTOCOL_VERSION`                                                                                         |
 
-The package has a second, light entry that holds the session environment names, the state paths, the
-error codes and the message sender's schema. A hook reporter starts once per event inside a session,
-so it imports the light entry, which skips the request contract and the schemas it builds on.
+A hook reporter starts once per event inside a session, so it imports the light entry, which leaves
+out the request contract and the Zod schemas it builds on.
 
-A third entry holds the field builders the schemas parse with, which read a wrong-typed field as
-absent. atc's config and hook parsers import these builders and keep no copies of them, so a field
-that one of them parses reads the same way in every parser.
+A field builder makes the Zod schema of one optional field. The schema parses a value of the wrong
+type as `undefined` and never fails the parse. atc's config and hook parsers build their fields with
+the same builders, so a field parses the same way in every parser.
 
-npm installs only the contract's own dependencies, Zod and oRPC's contract library, beside it.
-`bun run check:reach` therefore refuses any module that either entry reaches outside the package,
-and any import of another package, type-only imports included. A committed snapshot holds the
-declarations the package publishes, and `bun run check:contract` fails when they differ from it, so
-a change to the published types shows in the pull request that makes it.
+## What stays out of the package
+
+atc's own packages import the schemas and the client from the contract package and keep no copy of
+them. The package leaves out the parts that only atc's own processes use: the transport that
+reconnects atc's clients, the encoding of the cursors that page through events, the state database,
+the terminal client's helpers, and the folder of the daemon's restart results.
+
+npm installs every dependency of the package with it, the client's included, even for a program that
+never imports the client. A module that the package's entries import must therefore sit inside the
+package, and may import only the packages its manifest lists, type-only imports included.
+`bun run check:reach` fails on any other import. A committed snapshot holds the declarations the
+package publishes, and `bun run check:contract` fails when they differ from it, so a change to the
+published types shows in the pull request that makes it.
+
+## The gateway's tables
+
+A program that deploys atc-gateway, atc's HTTP front for several daemons
+([the gateway](../remote/gateway.md)), reads two tables from the package. The route table groups the
+gateway's paths by who requests them: a person's browser, a machine client, or a health check from
+the platform that runs the gateway. An ingress can then put the browser routes behind a sign-in and
+keep the health checks off the public origin. The registry schema holds every rule the gateway
+applies to its registry file, so a deploy tool refuses a bad registry before the gateway reads it.
+The gateway and `atc mcp --http` route by the same table, and the gateway parses its registry with
+the same schema.
+
+## The client entry
+
+Run `@atcx/contract/client` under Bun. The client connects with `Bun.connect`, and its outbound
+queue relies on a Bun socket's `write()` returning the bytes it took. Under Node, the import of the
+entry succeeds, and a call of `openDaemonClient` fails.
+
+The entry holds the client that atc's terminal client, MCP server and gateway run. It writes one
+JSON message per line, and queues what the socket does not take at once.
+
+`openDaemonClient` takes a unix socket path or a TCP address. A program on the daemon's machine
+passes `resolveAtcPaths(process.env).daemonSocketPath`, from the light entry. The `socketPath`
+beside it belongs to the hook reporters, and a hello sent there gets no answer. A daemon that
+listens on TCP takes a bearer token and a principal in the hello's options
+([principals](./principals.md#the-tcp-listener)).
+
+`sendHello` sends the package's `PROTOCOL_VERSION`, and `procedures` holds one typed function per
+daemon procedure.
 
 ## Checking a daemon
 
-A client checks the daemon it talks to with the helper the package exports, which reads the hello
-answer. The helper takes the major version from the daemon's build string and compares it with the
-contract's own: a daemon on another major version is older or newer, and its procedures and fields
-may differ from the contract's. A daemon on the same major version matches, and the helper then
-lists the features the contract knows that the daemon lacks, and the ones the daemon lists that the
-contract does not know.
+Send the package's `PROTOCOL_VERSION` in the hello. The client entry does this for you, and a client
+of your own sends the same number. A daemon on another protocol version refuses the hello with
+`protocol_mismatch` ([versions](./protocol.md#versions)). The error's data holds the daemon's
+version as `daemonProtocol`.
 
-A release that adds a capability within a major version adds a feature name, so a client finds out
-what an older daemon lacks without comparing minor versions. A daemon that lists `session.host`
-reports the `host` of a session that runs on a VM host in its session descriptors.
+A protocol bump is not a major version bump, so a caller on a caret range can install a
+`PROTOCOL_VERSION` that its running daemon does not speak. Pin the package's exact version to the
+atc release you run. On a refusal, compare `daemonProtocol` with `PROTOCOL_VERSION`: the side with
+the lower number is behind, atc or your program's copy of the package, and that side upgrades.
 
-The check runs only after a handshake the daemon accepts. Every client sends a protocol version in
-its hello, a client outside atc included, and a daemon on another version refuses the hello with
-`protocol_mismatch` before the client sees any features ([versions](./protocol.md#versions)). A
-client outside atc therefore sends the daemon's protocol version, and the helper's check does not
-replace that match, because the protocol version changes with every answer field.
+After the daemon accepts the hello, pass its answer to `checkDaemon`. The package's version is atc's
+version ([versions](#versions)), so the helper compares the major version of the daemon's build, in
+the answer's `daemon` field such as `atc/7.17.0`, with its own. Equal protocol versions mean the
+daemon serves the procedures and fields the client sends, and equal major versions mean the daemon
+runs the release line the contract describes.
+
+| Verdict      | When                                 | Fields                         |
+| ------------ | ------------------------------------ | ------------------------------ |
+| `match`      | the major versions are equal         | `missing`, `added`             |
+| `older`      | the daemon's major version is lower  | `daemonMajor`, `contractMajor` |
+| `newer`      | the daemon's major version is higher | `daemonMajor`, `contractMajor` |
+| `unreadable` | the build names no major version     | `daemon`                       |
+
+On `match`, `missing` lists the features the contract knows that the daemon lacks, and `added` lists
+the ones the daemon gives that the contract does not know. Each atc release that adds a capability
+within a major version adds a feature name to the hello's `features`, so a client finds out what an
+older daemon lacks without comparing minor versions. For example, a daemon that lists `session.host`
+gives the VM host that a session runs on in each session descriptor.
 
 ## Versions
 

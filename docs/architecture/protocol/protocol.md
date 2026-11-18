@@ -127,11 +127,12 @@ still waiting for a response, and decides for itself whether to resend it.
 
 ## Versions
 
-The protocol version is one integer compared for equality, and the current version is 14. The daemon
-records it in `daemon.json` beside its socket paths, and a client sends its own in the hello. A
-daemon on another version refuses the handshake with `protocol_mismatch`, so a client and a daemon
-on different versions never talk, and the two install together. The error holds both versions and
-both builds, so the failure says what to do. Its data holds the daemon's version as
+The protocol version is one integer compared for equality, and the current version is 14.
+`PROTOCOL_VERSION` in `@atcx/contract` holds the current version ([the contract](./contract.md)).
+The daemon records it in `daemon.json` beside its socket paths, and a client sends its own in the
+hello. A daemon on another version refuses the handshake with `protocol_mismatch`, so a client and a
+daemon on different versions never talk, and the two install together. The error holds both versions
+and both builds, so the failure says what to do. Its data holds the daemon's version as
 `daemonProtocol`, and that field keeps its shape across versions, because a client on any version
 reads it. [The daemon](../daemon/daemon.md#builds-and-protocol-versions) covers how each client
 handles it.
