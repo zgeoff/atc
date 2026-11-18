@@ -1,5 +1,8 @@
 {
   "extends": "github:zgeoff/noslop-config",
+  "github": {
+    "app": "noslop-review"
+  },
   "rules": [
     ".agents/skills/project-code-style/SKILL.md",
     ".agents/skills/project-testing/SKILL.md"
