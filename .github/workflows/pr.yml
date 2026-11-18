@@ -45,6 +45,8 @@ jobs:
   # the one status the main ruleset requires: it runs even when a job it needs
   # failed or was skipped, and passes only when every one of them succeeded
   checks:
+    # every zgeoff repo's main ruleset requires the same name: `pr / checks`
+    name: pr / checks
     needs: [ci, binaries]
     if: ${{ always() }}
     runs-on: ubuntu-latest
