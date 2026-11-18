@@ -20,6 +20,12 @@
           // the store's seeds, which a front end's tests may use to set up a
           // daemon's state database
           "store-test-utils": ["packages/store/src/test-utils/**", "packages/store/test-utils/**"],
+          // the plugin API's agent adapter stand-in, which a front end's tests use
+          // to start a daemon
+          "plugin-api-test-utils": [
+            "packages/plugin-api/src/test-utils/**",
+            "packages/plugin-api/test-utils/**"
+          ],
           "lifecycle": ["packages/lifecycle{,/**}"],
           "daemon": ["packages/daemon{,/**}"],
           "plugins": ["packages/{harnesses,execution,sources}/*{,/**}"],
@@ -66,6 +72,7 @@
           "pty-files": [
             "packages/execution/local/src/bun-pty-spawn.ts",
             "packages/execution/imp/src/test-utils/{answer-stub-session,stub-imp,try-kill}.ts",
+            "packages/execution/imp/src/test-utils/try-kill.test.ts",
             "packages/app/src/test-utils/start-tui-harness.ts",
             "packages/app/src/test-utils/create-stub-composer.test.ts",
             "scripts/write-delete-only-push-mark.test.ts"
@@ -189,6 +196,7 @@
               "protocol",
               "config",
               "daemon-testing",
+              "plugin-api-test-utils",
               "store-test-utils"
             ],
             "allowWithin": "packages/*"

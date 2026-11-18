@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { DaemonError } from '@atc/protocol/wire';
 
 test('it streams the output of a session harness on the local pty provider', async () => {

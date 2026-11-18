@@ -17,6 +17,7 @@
   "devDependencies": {
     "@faker-js/faker": "catalog:",
     "@zgeoff/std": "catalog:",
-    "tiny-invariant": "catalog:"
+    "tiny-invariant": "catalog:",
+    "type-fest": "catalog:"
   }
 }

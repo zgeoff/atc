@@ -9,7 +9,6 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildPayloadHash } from '@atc/daemon';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { buildStubBrokeredAgentAdapter } from '@atc/daemon/test-utils/build-stub-brokered-agent-adapter';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
@@ -22,6 +21,7 @@ import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-bindi
 import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { buildStubFleetCaller } from '@atc/mcp/test-utils/build-stub-fleet-caller';
 import type { AgentAdapter } from '@atc/plugin-api';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { createStateStore } from '@atc/store';

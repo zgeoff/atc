@@ -152,7 +152,6 @@
       "devDependencies": {
         "@faker-js/faker": "catalog:",
         "tiny-invariant": "catalog:",
-        "type-fest": "catalog:",
       },
     },
     "packages/execution/imp": {
@@ -202,6 +201,7 @@
       },
       "devDependencies": {
         "@atc/daemon": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
         "@atc/store": "workspace:*",
         "@faker-js/faker": "catalog:",
         "@orpc/standard-server-peer": "catalog:",
@@ -295,6 +295,7 @@
       },
       "devDependencies": {
         "@atc/daemon": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
         "@faker-js/faker": "catalog:",
         "@simplewebauthn/server": "catalog:",
       },
@@ -312,6 +313,7 @@
         "@faker-js/faker": "catalog:",
         "@zgeoff/std": "catalog:",
         "tiny-invariant": "catalog:",
+        "type-fest": "catalog:",
       },
     },
     "packages/protocol": {
@@ -343,6 +345,7 @@
       },
       "devDependencies": {
         "@atc/daemon": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
         "tiny-invariant": "catalog:",
       },
     },

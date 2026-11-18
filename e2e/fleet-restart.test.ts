@@ -8,7 +8,7 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { RestoreSettled } from '@atc/daemon';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';

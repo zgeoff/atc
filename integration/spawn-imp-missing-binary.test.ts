@@ -3,11 +3,11 @@ import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { LOCAL_TARGET } from '@atc/config';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubEchoClaude } from '@atc/harness-claude/test-utils/create-stub-echo-claude';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildTargetIdentity } from '@atc/store';
 
 test('it lists an agent whose binary is missing here as spawnable only on the imp target', async () => {

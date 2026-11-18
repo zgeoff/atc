@@ -31,7 +31,6 @@
   },
   "devDependencies": {
     "@faker-js/faker": "catalog:",
-    "tiny-invariant": "catalog:",
-    "type-fest": "catalog:"
+    "tiny-invariant": "catalog:"
   }
 }

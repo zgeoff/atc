@@ -17,11 +17,11 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { buildStubBrokeredGatewayAdapter } from '@atc/daemon/test-utils/build-stub-brokered-gateway-adapter';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createLocalPTYProvider } from '@atc/execution-local';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';

@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';

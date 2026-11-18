@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
 import { subscribeToSocketLines } from '@atc/protocol/test-utils/subscribe-to-socket-lines';
 

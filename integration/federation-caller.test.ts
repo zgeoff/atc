@@ -11,7 +11,6 @@ import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { openGatewayCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon } from '@atc/gateway/test-utils/build-mock-registry-daemon';
 import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-binding-database';
@@ -20,6 +19,7 @@ import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authentic
 import { runMCPAuthorization } from '@atc/mcp/test-utils/run-mcp-authorization';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { sendMCPRequest } from '@atc/mcp/test-utils/send-mcp-request';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
 

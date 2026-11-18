@@ -1,5 +1,5 @@
 import type { AgentAdapter, AuthProfile } from '@atc/plugin-api';
-import { buildMockAgentAdapter } from './build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 
 interface StubBrokeredAgentAdapterConfig {
   readonly id: string;

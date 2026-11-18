@@ -8,8 +8,8 @@ import { getRecord } from '@atc/core/test-utils/get-record';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createStubRelayProvider } from '@atc/execution-local/test-utils/create-stub-relay-provider';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 
 test('it delivers a message to a top-level remote session whose agent started a tap the relay dropped', async () => {
   const host = setupTempDir('atc-tap-start-');

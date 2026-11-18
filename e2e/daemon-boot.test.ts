@@ -8,9 +8,9 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
 import { createHostServices } from '../packages/app/src/create-host-services';
 

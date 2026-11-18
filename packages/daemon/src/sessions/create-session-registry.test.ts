@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildTargetIdentity } from '@atc/store';
 import { toSessionID } from '@atcx/contract';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';

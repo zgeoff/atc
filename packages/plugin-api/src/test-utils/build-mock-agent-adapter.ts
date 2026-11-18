@@ -1,4 +1,4 @@
-import type { AgentAdapter } from '@atc/plugin-api';
+import type { AgentAdapter } from '../index';
 
 export function buildMockAgentAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
   return {

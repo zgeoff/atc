@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { buildDaemonStatePaths } from '@atc/config';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 
 // Each test stops the daemon through its handle, so the harness opens no main
 // client that would outlive it.

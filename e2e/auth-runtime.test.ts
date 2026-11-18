@@ -8,7 +8,6 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createRuntimeAuthBinder } from '@atc/daemon';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { buildStubBrokeredAgentAdapter } from '@atc/daemon/test-utils/build-stub-brokered-agent-adapter';
 import { buildStubProxiedAgentAdapter } from '@atc/daemon/test-utils/build-stub-proxied-agent-adapter';
 import { createImpProvider } from '@atc/execution-imp';
@@ -16,6 +15,7 @@ import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp
 import { getOnlyImpName } from '@atc/execution-imp/test-utils/get-only-imp-name';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { verifyRestoredFleet } from '@atc/lifecycle';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
 import { createStateStore } from '@atc/store';
 import { toSessionID } from '@atcx/contract';

@@ -8,7 +8,6 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
 import { mintServiceSecret } from '@atc/mcp';
@@ -16,6 +15,7 @@ import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authentic
 import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { sendMCPRequest } from '@atc/mcp/test-utils/send-mcp-request';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';

@@ -6,12 +6,12 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
 import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { HookEvent } from '@atc/protocol/session';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import invariant from 'tiny-invariant';
-import { buildMockAgentAdapter } from './build-mock-agent-adapter';
 import { startTestDaemon } from './start-test-daemon';
 
 test('it answers a request on the main client without another handshake', async () => {

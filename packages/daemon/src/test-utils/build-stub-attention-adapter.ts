@@ -1,5 +1,5 @@
 import type { AgentAdapter } from '@atc/plugin-api';
-import { buildMockAgentAdapter } from './build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 
 export function buildStubAttentionAdapter(overrides: Partial<AgentAdapter> = {}): AgentAdapter {
   return buildMockAgentAdapter({

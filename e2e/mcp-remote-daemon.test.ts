@@ -8,7 +8,7 @@ import { resolvePaths } from '@atc/config';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildMockAgentProfile } from '@atc/plugin-api/test-utils/build-mock-agent-profile';
 import invariant from 'tiny-invariant';
 

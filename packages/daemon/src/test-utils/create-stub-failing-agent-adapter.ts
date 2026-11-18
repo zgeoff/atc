@@ -1,7 +1,7 @@
 import { closeSync, constants, openSync, readSync } from 'node:fs';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { buildMockAgentAdapter } from './build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 
 interface Plan {
   readonly bin: string;

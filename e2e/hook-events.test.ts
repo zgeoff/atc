@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { subscribeToSocketLines } from '@atc/protocol/test-utils/subscribe-to-socket-lines';
 import { decodeMessage } from '@atc/protocol/wire';

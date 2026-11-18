@@ -6,10 +6,10 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createTransportCaller, openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
 import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { buildLocalTarget } from './build-local-target';

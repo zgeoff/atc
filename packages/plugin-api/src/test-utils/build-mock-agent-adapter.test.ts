@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
-import { buildHostFiles } from '@atc/plugin-api';
-import type { AgentAdapter } from '@atc/plugin-api';
-import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { RequiredKeysOf } from 'type-fest';
+import { buildHostFiles } from '../index';
+import type { AgentAdapter } from '../index';
 import { buildMockAgentAdapter } from './build-mock-agent-adapter';
+import { runLocalCommand } from './run-local-command';
 
 test('it builds a default agent adapter', () => {
   expect(buildMockAgentAdapter()).toStrictEqual({

@@ -5,6 +5,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { AgentAdapter } from '@atc/plugin-api';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
@@ -18,7 +19,6 @@ import { createSessionRuntime } from '../sessions/create-session-runtime';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
 import type { Session } from '../sessions/session';
 import { startHeadlessTurn } from '../sessions/start-headless-turn';
-import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
 import { buildStubLog } from '../test-utils/build-stub-log';

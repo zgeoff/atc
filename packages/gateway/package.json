@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@atc/daemon": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
     "@atc/store": "workspace:*",
     "@faker-js/faker": "catalog:",
     "@orpc/standard-server-peer": "catalog:"

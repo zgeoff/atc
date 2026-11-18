@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { getString } from '@atc/core/test-utils/get-string';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { startStubTap } from './start-stub-tap';
 import { startTestDaemon } from './start-test-daemon';

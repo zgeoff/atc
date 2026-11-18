@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createSessionActionsHarness } from '@atc/tui/test-utils/create-session-actions-harness';
 
 // The overlay's session actions run against a daemon in the test's process. A session on

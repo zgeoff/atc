@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createLocalDaemonConnection } from './create-local-daemon-connection';
 import { startTestDaemon } from './test-utils/start-test-daemon';
 

@@ -3,11 +3,11 @@ import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubEchoClaude } from '@atc/harness-claude/test-utils/create-stub-echo-claude';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import invariant from 'tiny-invariant';
 
 // A daemon with a local target and an imp target `box` over a stub imp port.

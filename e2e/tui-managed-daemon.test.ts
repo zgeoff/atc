@@ -6,7 +6,7 @@ import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
-import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { createHostServices } from '../packages/app/src/create-host-services';
