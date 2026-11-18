@@ -153,11 +153,11 @@ service's host. Then select the profile in an agent's `auth.profiles`:
 }
 ```
 
-`telemetry` holds one key, `logs`. atc sets nothing for a profile without `telemetry`, or with
-`logs` set to `false`. atc sends log records only, so it leaves out a profile whose `telemetry`
-holds any other key. A `github` profile takes no `telemetry`, since it names no host. The endpoint
-is always `https://` followed by the profile's `host`, so the config never holds it. The local
-target never gets telemetry from a profile.
+`telemetry` holds one key, `logs`, set to `true` or `false`. atc sets nothing for a profile without
+`telemetry`, or with `logs` set to `false`. atc sends log records only, so it leaves out a profile
+whose `telemetry` holds any other key. A `github` profile takes no `telemetry`, since it names no
+host. The endpoint is always `https://` followed by the profile's `host`, so the config never holds
+it. The local target never gets telemetry from a profile.
 
 On an imp target, a session that reaches the profile, through the entry's `auth.profiles` or a
 dependency, gets:
@@ -180,8 +180,8 @@ atc leaves out a profile that turns telemetry on and sets one of the four variab
 `env`, and refuses an entry that selects it. atc also refuses an entry when:
 
 - Two of the profiles it reaches turn telemetry on.
-- Its `env` or `settings.env` sets one of the four variables, and a profile it reaches turns
-  telemetry on.
+- Its `env`, `settings.env` or `auth.placeholderEnv` sets one of the four variables, and a profile
+  it reaches turns telemetry on.
 - One profile it reaches turns telemetry on, and another sets one of the four variables in its
   `env`.
 

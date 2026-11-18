@@ -186,9 +186,9 @@ function parseTelemetry(raw: unknown): { readonly logs: boolean } | string | und
 
   const logs = raw['logs'];
 
-  if (logs !== undefined && typeof logs !== 'boolean') {
+  if (typeof logs !== 'boolean') {
     return 'telemetry.logs must be true or false';
   }
 
-  return { logs: logs ?? false };
+  return { logs };
 }

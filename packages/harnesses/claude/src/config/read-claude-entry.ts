@@ -56,7 +56,7 @@ export function readClaudeEntry(args: ClaudeEntryArgs): AgentEntryRead {
   }
 
   problems.push(
-    ...collectEntryProfileEnvProblems(entry, collected.auth.profiles, args.authProfiles),
+    ...collectEntryProfileEnvProblems(entry, collected.auth, args.authProfiles),
     ...collectPlaceholderOverrideProblems(entry, collected.auth.placeholderEnv),
   );
 
@@ -99,13 +99,20 @@ function collectSubscriptionProblems(entry: AgentEntry): string[] {
   return problems;
 }
 
-// The variables a stock entry sets that its selected profiles also set.
+interface EntryAuth {
+  readonly profiles: readonly string[];
+  readonly placeholderEnv: Readonly<Record<string, string>>;
+}
+
+// The variables a stock entry sets that its selected profiles also set. A
+// placeholder outranks the telemetry variables in the launch, so it counts
+// against them too.
 function collectEntryProfileEnvProblems(
   entry: AgentEntry,
-  selected: readonly string[],
+  auth: EntryAuth,
   authProfiles: ReadonlyMap<string, AuthProfile>,
 ): string[] {
-  const resolution = resolveAuthProfiles(authProfiles, selected);
+  const resolution = resolveAuthProfiles(authProfiles, auth.profiles);
 
   if ('problem' in resolution) {
     return [];
@@ -123,7 +130,10 @@ function collectEntryProfileEnvProblems(
 
   return [
     ...collectProfileEnvProblems(sources, resolution.resolved.envOwners),
-    ...collectTelemetryEnvProblems(sources, resolution.resolved.telemetry),
+    ...collectTelemetryEnvProblems(
+      [...sources, ['auth.placeholderEnv', Object.keys(auth.placeholderEnv)]],
+      resolution.resolved.telemetry,
+    ),
   ];
 }
 

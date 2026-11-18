@@ -70,7 +70,10 @@ export function checkGatewayAuth(
 
     problems.push(
       ...collectProfileEnvProblems(sources, resolution.resolved.envOwners),
-      ...collectTelemetryEnvProblems(sources, resolution.resolved.telemetry),
+      ...collectTelemetryEnvProblems(
+        [...sources, ['placeholderEnv', Object.keys(auth.placeholderEnv)]],
+        resolution.resolved.telemetry,
+      ),
     );
 
     const hostProblem = findBaseURLProblem(entry.baseURL ?? '', resolution.resolved.hosts);

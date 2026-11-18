@@ -1113,3 +1113,71 @@ test('it loads a stock claude entry whose env sets three telemetry variables bes
     ],
   });
 });
+
+test('it refuses a gateway whose placeholderEnv sets a variable the telemetry of its profile sets', () => {
+  const result = collectAgents(
+    {
+      glm: {
+        kind: 'claude',
+        baseURL: 'https://api.z.ai/api/anthropic',
+        auth: {
+          profiles: ['glm', 'records'],
+          placeholderEnv: { OTEL_EXPORTER_OTLP_ENDPOINT: 'broker-placeholder' },
+        },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'glm',
+        buildMockAuthProfile({
+          name: 'glm',
+          host: 'api.z.ai',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      ['records', buildMockAuthProfile({ name: 'records', telemetry: { logs: true } })],
+    ]),
+    [buildClaudePlugin()],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.glm: placeholderEnv sets OTEL_EXPORTER_OTLP_ENDPOINT, which the telemetry of auth profile records sets',
+    ],
+  });
+});
+
+test('it refuses a stock claude entry whose placeholderEnv sets a variable the telemetry of its profile sets', () => {
+  const result = collectAgents(
+    {
+      claude: {
+        auth: {
+          profiles: ['claude', 'records'],
+          placeholderEnv: { OTEL_LOGS_EXPORTER: { profile: 'records' } },
+        },
+      },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'claude',
+        buildMockAuthProfile({
+          name: 'claude',
+          host: 'api.anthropic.com',
+          header: 'authorization',
+          scheme: 'bearer',
+        }),
+      ],
+      ['records', buildMockAuthProfile({ name: 'records', telemetry: { logs: true } })],
+    ]),
+    [buildClaudePlugin()],
+  );
+
+  expect(result).toStrictEqual({
+    agents: [],
+    errors: [
+      'agents.claude: auth.placeholderEnv sets OTEL_LOGS_EXPORTER, which the telemetry of auth profile records sets',
+    ],
+  });
+});

@@ -473,26 +473,13 @@ test('it keeps the telemetry of a profile that names a host', () => {
   });
 });
 
-test('it reads a telemetry with no logs key as logs off', () => {
-  const result = collectAuthProfiles({
-    records: {
-      secret: 'records',
-      host: 'records.example.com',
-      header: 'authorization',
-      scheme: 'bearer',
-      telemetry: {},
-    },
-  });
-
-  expect(result.profiles.get('records')).toMatchObject({ telemetry: { logs: false } });
-});
-
 test.each([
   [
     { logs: true, traces: true },
     'telemetry.traces cannot be set: logs is the only signal atc sends',
   ],
   [{ logs: 'yes' }, 'telemetry.logs must be true or false'],
+  [{}, 'telemetry.logs must be true or false'],
   [true, 'telemetry must be an object with a logs key'],
 ])('it refuses the telemetry %j', (telemetry, problem) => {
   expect(
