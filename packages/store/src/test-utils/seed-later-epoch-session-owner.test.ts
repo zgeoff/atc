@@ -1,10 +1,11 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { toSessionID } from '@atcx/contract';
 import { createStateStore } from '../create-state-store';
-import { buildMockFleetEntry } from '../testing/build-mock-fleet-entry';
+import { buildMockFleetEntry } from './build-mock-fleet-entry';
 import { createMigratedStateDB } from './create-migrated-state-db';
 import { seedLaterEpochSessionOwner } from './seed-later-epoch-session-owner';
 

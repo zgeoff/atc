@@ -1,25 +1,23 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubGuestCLIs } from '@atc/app/test-utils/create-stub-guest-clis';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
+import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildGuestSessionDirectory } from '@atc/daemon';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
+import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { buildGuestSettingsPath, createClaudeAdapter } from '@atc/harness-claude';
-import {
-  buildMockAgentAdapter,
-  buildMockHostServices,
-  createStubGuestCLIs,
-  getAgentEntry,
-  getRecord,
-  readJSONRecord,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import invariant from 'tiny-invariant';
 import { createHostServices } from '../packages/app/src/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // The fixed parts every imp guest test shares: the stub guest tools and the
 // guest folder under a temp directory, and a stub imp port.

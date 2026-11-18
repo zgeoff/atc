@@ -1,24 +1,22 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubComposer } from '@atc/app/test-utils/create-stub-composer';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getRecords } from '@atc/core/test-utils/get-records';
+import { getString } from '@atc/core/test-utils/get-string';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { createStubClaude } from '@atc/harness-claude/test-utils/create-stub-claude';
+import { createStubGrok } from '@atc/harness-grok/test-utils/create-stub-grok';
 import { readDaemonRecord } from '@atc/lifecycle';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
+import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 import { createStateStore } from '@atc/store';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  KEYS,
-  createStubClaude,
-  createStubComposer,
-  createStubGrok,
-  getRecord,
-  getRecords,
-  getString,
-  registerTestCleanup,
-  resolveATCCommand,
-  setupTempDir,
-  waitFor,
-  waitForEvent,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { DaemonEvent } from '@atcx/contract';
 import invariant from 'tiny-invariant';

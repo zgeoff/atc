@@ -1,16 +1,14 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
-import {
-  createStubClaude,
-  createStubComposer,
-  getRecord,
-  getString,
-  resolveATCCommand,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { createStubComposer } from '@atc/app/test-utils/create-stub-composer';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { createStubClaude } from '@atc/harness-claude/test-utils/create-stub-claude';
+import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 
 // The atc-bridge mod folder is written by the daemon command from the build
 // it runs as, so these cases start the real command.

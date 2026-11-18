@@ -9,7 +9,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { buildStubClock, setupTempDir, waitFor } from '@atc/test-utils';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { lock } from 'proper-lockfile';
 import { withClaudeConfigLock } from './with-claude-config-lock';
 

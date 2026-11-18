@@ -1,23 +1,21 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubGuestCLIs } from '@atc/app/test-utils/create-stub-guest-clis';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
+import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
+import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createClaudeAdapter } from '@atc/harness-claude';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { openBridgeSocket, sendBridgeRequest } from '@atc/protocol/session';
-import {
-  buildMockHostServices,
-  createStubGuestCLIs,
-  getAgentEntry,
-  getRecord,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
 import { createHostServices } from '../packages/app/src/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-imp-bridge-');

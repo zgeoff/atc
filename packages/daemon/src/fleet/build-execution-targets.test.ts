@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildTargetIdentity } from '@atc/store';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { buildExecutionTargets } from './build-execution-targets';
 
 test('it builds one target per entry, in config order, each with the provider built for it', () => {

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockHostServices } from '@atc/test-utils';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { LOCAL_PTY_PLUGIN } from './local-pty-plugin';
 
 test('it reads a target slice with its id, options, and environment', () => {

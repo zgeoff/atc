@@ -1,20 +1,18 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { getString } from '@atc/core/test-utils/get-string';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { CommandSpec } from '@atc/plugin-api';
+import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  createGitFixture,
-  getString,
-  registerTestCleanup,
-  runLocalCommand,
-  setupTempDir,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
-import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
+import { buildStubLocalProvider } from '../test-utils/build-stub-local-provider';
 import { materializeWorkspace } from './materialize-workspace';
 
 async function setupTest() {

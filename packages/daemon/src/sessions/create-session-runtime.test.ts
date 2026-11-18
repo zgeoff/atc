@@ -1,5 +1,5 @@
 import { expect, mock, onTestFinished, spyOn, test } from 'bun:test';
-import { buildStubClock } from '@atc/test-utils';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { createScreenModel } from './create-screen-model';
 import { createSessionRuntime } from './create-session-runtime';
 

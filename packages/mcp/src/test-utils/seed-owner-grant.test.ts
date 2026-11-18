@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { createTestDatabase } from '@zgeoff/mcp-auth/testing';
 import { seedOwnerClient } from './seed-owner-client';
 import { seedOwnerGrant } from './seed-owner-grant';

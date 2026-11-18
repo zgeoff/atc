@@ -10,23 +10,21 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildStubBrokeredGatewayAdapter } from '@atc/daemon/test-utils/build-stub-brokered-gateway-adapter';
 import { createImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
+import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStateStore } from '@atc/store';
-import {
-  buildMockAgentAdapter,
-  buildStubBrokeredGatewayAdapter,
-  createGitFixture,
-  getRecord,
-  registerTestCleanup,
-  setupTempDir,
-  updateEnv,
-  waitFor,
-} from '@atc/test-utils';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // The stub imp port runs each imp's commands on this machine.
 async function setupTest() {

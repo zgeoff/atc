@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { KEYS } from '@atc/test-utils';
+import { KEYS } from '@atc/core/test-utils/keys';
 import { buildLeaderChords } from './build-leader-chords';
 
 test.each<[string, string, number]>([

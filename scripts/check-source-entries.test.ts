@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand, setupTempDir } from '@atc/test-utils';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
@@ -110,7 +111,7 @@ test('it checks against the entry path the wrapper exports after a package move'
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/daemon/src/testing/start-probe.ts'),
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-probe.ts'),
     "export const OLD = 'packages/app/src/cli.ts';\nexport const NEW = 'packages/console/src/main.ts';\n",
   );
 
@@ -128,7 +129,7 @@ test('it checks against the entry path the wrapper exports after a package move'
     exitCode: 1,
     stdout: 'check-source-entries: 1 hard-coded source entries\n',
     stderr:
-      'hard-coded source entry: packages/daemon/src/testing/start-probe.ts:2 holds packages/console/src/main.ts; read it from ATC_CLI_ENTRY\n',
+      'hard-coded source entry: packages/daemon/src/test-utils/start-probe.ts:2 holds packages/console/src/main.ts; read it from ATC_CLI_ENTRY\n',
   });
 });
 

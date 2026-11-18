@@ -3,7 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { configFile } from '@atc/config';
 import { logClientEvent } from '@atc/lifecycle';
-import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
+import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
 import { createTUIHost } from './create-tui-host';
 
 test("it hands the client lifecycle's client event log, so the client writes no log file itself", () => {

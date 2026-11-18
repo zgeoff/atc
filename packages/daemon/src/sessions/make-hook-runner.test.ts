@@ -2,8 +2,9 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectHooks } from '@atc/config';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { EventMsg } from '@atc/protocol/wire';
-import { buildStubClock, setupTempDir } from '@atc/test-utils';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookOutcome } from './make-hook-runner';
 

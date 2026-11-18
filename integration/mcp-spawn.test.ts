@@ -1,10 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { startInProcessMCP } from '@atc/mcp/testing';
-import { getRecords, waitFor } from '@atc/test-utils';
+import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemon';
+import { getRecords } from '@atc/core/test-utils/get-records';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startInProcessMCP } from '@atc/mcp/test-utils/start-in-process-mcp';
 import invariant from 'tiny-invariant';
-import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
 // The MCP tools in the test's process, against a daemon in it whose Claude is
 // the in-process stand-in.

@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { resolvePaths } from '@atc/config';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
 import type { OAuthClientID, PasskeyID } from '@atc/mcp';
-import { readJSONRecord } from '@atc/test-utils';
 import { toTagged } from '@zgeoff/std';
 import { setupMCPHTTP } from './setup-mcp-http';
 

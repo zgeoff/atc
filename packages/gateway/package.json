@@ -6,8 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./testing": "./src/testing/index.ts",
-    "./version": "./src/gateway-version.ts"
+    "./version": "./src/gateway-version.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
   },
   "dependencies": {
     "@atc/core": "workspace:*",
@@ -21,7 +21,7 @@
   "devDependencies": {
     "@atc/daemon": "workspace:*",
     "@atc/store": "workspace:*",
-    "@atc/test-utils": "workspace:*",
-    "@faker-js/faker": "catalog:"
+    "@faker-js/faker": "catalog:",
+    "@orpc/standard-server-peer": "catalog:"
   }
 }

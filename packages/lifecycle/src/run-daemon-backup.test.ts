@@ -1,9 +1,10 @@
 import { expect, mock, test } from 'bun:test';
 import { resolvePaths } from '@atc/config/host';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { setupTempDir, startStubLegacyDaemon } from '@atc/test-utils';
 import { runDaemonBackup } from './run-daemon-backup';
-import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
+import { buildMockLifecycleHost } from './test-utils/build-mock-lifecycle-host';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('run-daemon-backup-');

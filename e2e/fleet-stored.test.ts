@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import { buildMockAgentAdapter, getRecord, registerTestCleanup } from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it keeps every stored fleet row restorable when a spawn writes the fleet before the restore', async () => {
   const daemon = await startTestDaemon({

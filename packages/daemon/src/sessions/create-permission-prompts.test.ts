@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import type { EventMsg } from '@atc/protocol/wire';
-import { buildStubClock } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
-import { buildMockSession } from '../testing/build-mock-session';
+import { buildMockSession } from '../test-utils/build-mock-session';
 import { createPermissionPrompts } from './create-permission-prompts';
 
 // The prompts over a stopped clock, with every event they send recorded.

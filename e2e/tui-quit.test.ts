@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { KEYS, startTUIHarness } from '@atc/test-utils';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
 function setupTest() {
   return startTUIHarness({ createStateDB: createMigratedStateDB });

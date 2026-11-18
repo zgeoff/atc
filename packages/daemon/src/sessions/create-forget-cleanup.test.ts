@@ -2,21 +2,19 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  buildStubLog,
-  createGitFixture,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildMockSession } from '../testing/build-mock-session';
-import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
-import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildMockSession } from '../test-utils/build-mock-session';
+import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
+import { buildStubLocalProvider } from '../test-utils/build-stub-local-provider';
+import { buildStubLog } from '../test-utils/build-stub-log';
 import { createForgetCleanup } from './create-forget-cleanup';
 import { createSessionManager } from './create-session-manager';
 

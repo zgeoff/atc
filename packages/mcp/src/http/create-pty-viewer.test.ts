@@ -1,5 +1,7 @@
 import { expect, mock, test } from 'bun:test';
-import { buildMockSessionDescriptor, buildStubClock, waitFor } from '@atc/test-utils';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { toSessionID } from '@atcx/contract';
 import { createPTYViewer } from './create-pty-viewer';
 import type { PTYSocket, WatchAnswer, WatchChannel } from './create-pty-viewer';

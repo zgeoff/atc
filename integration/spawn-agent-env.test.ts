@@ -1,24 +1,22 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { createStubGuestCLIs } from '@atc/app/test-utils/create-stub-guest-clis';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildGuestSessionDirectory } from '@atc/daemon';
-import { buildMockExecutionTarget } from '@atc/daemon/testing';
+import { buildMockExecutionTarget } from '@atc/daemon/test-utils/build-mock-execution-target';
 import { createImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
-import { createStubDirProvider } from '@atc/execution-local/testing';
+import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
+import { createStubDirProvider } from '@atc/execution-local/test-utils/create-stub-dir-provider';
 import { buildGuestSettingsPath } from '@atc/harness-claude';
-import {
-  buildMockHostServices,
-  createStubGuestCLIs,
-  getRecord,
-  readJSONRecord,
-  setupTempDir,
-} from '@atc/test-utils';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { createHostServices } from '../packages/app/src/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-agent-env-');

@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { collectAgents, parseConfig } from '@atc/config';
 import type { AuthProfile } from '@atc/plugin-api';
-import { buildMockAuthProfile, buildMockHostServices } from '@atc/test-utils';
+import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { buildClaudePlugin } from './build-claude-plugin';
 
 test('it loads a gateway with auth through the gateway checks', () => {

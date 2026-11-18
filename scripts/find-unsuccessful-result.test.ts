@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils';
+import { runCommand } from '@atc/core/test-utils/run-command';
 import { findUnsuccessfulResult } from './find-unsuccessful-result';
 
 test.each([

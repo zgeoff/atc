@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { copyFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand, setupTempDir } from '@atc/test-utils';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { pickReleaseShip } from './pick-release-ship';
 
 test.each([

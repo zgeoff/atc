@@ -2,27 +2,26 @@ import { expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { openTestAuthAdmin } from '@atc/app/test-utils/open-test-auth-admin';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { isRecord } from '@atc/core';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { openGatewayCaller } from '@atc/gateway';
-import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
+import { buildMockRegistryDaemon } from '@atc/gateway/test-utils/build-mock-registry-daemon';
+import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-binding-database';
 import { startMCPHTTPServer } from '@atc/mcp';
+import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
+import { runMCPAuthorization } from '@atc/mcp/test-utils/run-mcp-authorization';
+import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
+import { sendMCPRequest } from '@atc/mcp/test-utils/send-mcp-request';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  buildMockAgentAdapter,
-  buildStubAuthenticator,
-  buildStubClock,
-  getRecord,
-  readJSONRecord,
-  registerTestCleanup,
-  runMCPAuthorization,
-  runPasskeyEnrollment,
-  sendMCPRequest,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
-import { openTestAuthAdmin } from '../packages/app/src/test-utils/open-test-auth-admin';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-');

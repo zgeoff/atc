@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockPublishedRecord } from '@atc/test-utils';
+import { buildMockPublishedRecord } from '@atc/protocol/test-utils/build-mock-published-record';
 import { buildScopeFile } from './build-scope-file';
 
 test("it declares the record's checkouts, branches, pull requests, scratch folder, and spawner", () => {

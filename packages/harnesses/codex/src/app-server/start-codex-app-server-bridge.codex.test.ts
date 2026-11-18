@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildStubMessageBridgeHost, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
+import { buildStubMessageBridgeHost } from '../test-utils/build-stub-message-bridge-host';
 import { startCodexAppServerBridge } from './start-codex-app-server-bridge';
 
 function setupTest() {

@@ -1,19 +1,17 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
-import {
-  createStubClaude,
-  createStubComposer,
-  getRecord,
-  getRecords,
-  getString,
-  resolveATCCommand,
-  runATC,
-  setupTempDir,
-  waitFor,
-  waitForEvent,
-} from '@atc/test-utils';
+import { createStubComposer } from '@atc/app/test-utils/create-stub-composer';
+import { runATC } from '@atc/app/test-utils/run-atc';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getRecords } from '@atc/core/test-utils/get-records';
+import { getString } from '@atc/core/test-utils/get-string';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { createStubClaude } from '@atc/harness-claude/test-utils/create-stub-claude';
+import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
+import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 import type { DaemonEvent } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 

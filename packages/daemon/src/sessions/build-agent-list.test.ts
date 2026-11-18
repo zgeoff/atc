@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockAgentAdapter } from '@atc/test-utils';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildAgentList } from './build-agent-list';
 
 test.each([

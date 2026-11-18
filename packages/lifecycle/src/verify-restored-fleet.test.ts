@@ -1,17 +1,15 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openDaemonClient } from '@atc/protocol/client';
-import { buildMockStoredRow } from '@atc/store/testing';
-import {
-  buildMockListedAgent,
-  buildMockSessionDescriptor,
-  buildStubClock,
-  registerTestCleanup,
-  setupTempDir,
-  startStubRestoreDaemon,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockListedAgent } from '@atc/protocol/test-utils/build-mock-listed-agent';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
+import { buildMockStoredRow } from '@atc/store/test-utils/build-mock-stored-row';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { startStubRestoreDaemon } from './test-utils/start-stub-restore-daemon';
 import { verifyRestoredFleet } from './verify-restored-fleet';
 
 async function setupTest() {

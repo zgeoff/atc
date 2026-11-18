@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/test-utils';
-import { openTestEventDatabase } from '../testing/open-test-event-database';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { openTestEventDatabase } from '../test-utils/open-test-event-database';
 import { createSubscriptionStore } from './create-subscription-store';
 
 async function setupTest() {

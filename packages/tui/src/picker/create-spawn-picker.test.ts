@@ -1,23 +1,21 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config';
+import { buildStubHarnessPlugins } from '@atc/config/test-utils/build-stub-harness-plugins';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { buildMockListedAgent } from '@atc/protocol/test-utils/build-mock-listed-agent';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { DaemonError } from '@atc/protocol/wire';
-import {
-  KEYS,
-  buildMockListedAgent,
-  buildMockSessionDescriptor,
-  buildStubClock,
-  buildStubDaemonRequests,
-  buildStubHarnessPlugins,
-  buildStubTerminal,
-} from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { resolveHomeDir } from '@atcx/contract/light';
 import type { DaemonName } from '../session-key';
+import { buildStubDaemonRequests } from '../test-utils/build-stub-daemon-requests';
 import {
   buildStubListingCache,
   buildStubListingCacheOf,
-} from '../testing/build-stub-listing-cache';
-import { buildStubPickerHost } from '../testing/build-stub-picker-host';
+} from '../test-utils/build-stub-listing-cache';
+import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
+import { buildStubTerminal } from '../test-utils/build-stub-terminal';
 import { toMirrorSession } from '../to-mirror-session';
 import { createSpawnPicker } from './create-spawn-picker';
 

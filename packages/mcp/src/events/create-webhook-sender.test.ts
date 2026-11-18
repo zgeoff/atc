@@ -1,5 +1,7 @@
 import { expect, mock, test } from 'bun:test';
-import { createTestCertificate, makeTrustingTransport, registerTestCleanup } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { createTestCertificate } from '../test-utils/create-test-certificate';
+import { makeTrustingTransport } from '../test-utils/make-trusting-transport';
 import { createWebhookSender } from './create-webhook-sender';
 import { isPublicAddress } from './is-public-address';
 

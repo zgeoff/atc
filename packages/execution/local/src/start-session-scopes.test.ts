@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStubBin, createStubSystemd, setupTempDir, waitFor } from '@atc/test-utils';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startSessionScopes } from './start-session-scopes';
+import { createStubSystemd } from './test-utils/create-stub-systemd';
 
 // A stand-in service manager whose programs sit on the daemon's PATH.
 function setupTest() {

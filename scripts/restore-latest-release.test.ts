@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubGHReleases, runCommand, setupTempDir } from '@atc/test-utils';
+import { createStubGHReleases } from '@atc/core/test-utils/create-stub-gh-releases';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
 // A temp directory for the stub gh and its release state.
 function setupTest() {

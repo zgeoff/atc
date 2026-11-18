@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { takeFreePort } from '@atc/core/test-utils/take-free-port';
+import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
+import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { setupTempDir, startStubLegacyDaemon, takeFreePort } from '@atc/test-utils';
 import { DaemonLinkFailureError } from '@atc/tui';
 import invariant from 'tiny-invariant';
 import { createRemoteDaemonEntry } from './create-remote-daemon-entry';

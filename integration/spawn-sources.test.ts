@@ -1,20 +1,18 @@
 import { expect, test } from 'bun:test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildStubGH } from '@atc/daemon/test-utils/build-stub-gh';
 import { createLocalPTYProvider } from '@atc/execution-local';
-import { createStubDirProvider } from '@atc/execution-local/testing';
+import { createStubDirProvider } from '@atc/execution-local/test-utils/create-stub-dir-provider';
 import { runCommand } from '@atc/lifecycle/run-command';
 import { buildDirsSource } from '@atc/source-dirs';
 import { buildGitSource } from '@atc/source-git';
 import { buildGitHubSource } from '@atc/source-github';
-import {
-  buildMockAgentAdapter,
-  buildStubGH,
-  createGitFixture,
-  createStubBin,
-  updateEnv,
-} from '@atc/test-utils';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it lists the sources it offers in order in agents.list', async () => {
   const daemon = await startTestDaemon({

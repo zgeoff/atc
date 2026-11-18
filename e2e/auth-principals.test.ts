@@ -2,29 +2,27 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { collectPrincipals, collectTargets } from '@atc/config';
-import { buildStubTargets } from '@atc/daemon/testing';
-import { createStubExecutionProvider } from '@atc/execution-local/testing';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildStubAttentionAdapter } from '@atc/daemon/test-utils/build-stub-attention-adapter';
+import { buildStubHostHold } from '@atc/daemon/test-utils/build-stub-host-hold';
+import { buildStubTargets } from '@atc/daemon/test-utils/build-stub-targets';
+import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
 import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { encodeCursor } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
+import { startStubStalledClient } from '@atc/protocol/test-utils/start-stub-stalled-client';
+import { trySendRequest } from '@atc/protocol/test-utils/try-send-request';
 import { DaemonError } from '@atc/protocol/wire';
-import { seedTargetlessCompletedIdempotencyKeys } from '@atc/store/test-utils';
-import {
-  buildMockAgentAdapter,
-  buildStubAttentionAdapter,
-  buildStubClock,
-  buildStubHostHold,
-  getRecord,
-  registerTestCleanup,
-  startStubStalledClient,
-  trySendRequest,
-  waitFor,
-} from '@atc/test-utils';
+import { seedTargetlessCompletedIdempotencyKeys } from '@atc/store/test-utils/seed-targetless-completed-idempotency-keys';
 import type { DaemonEvent } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it refuses a client a configured target other than local when the config has no principals', async () => {
   const harnesses: string[] = [];

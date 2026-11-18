@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startInProcessMCP } from '@atc/mcp/testing';
-import { waitFor } from '@atc/test-utils';
-import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
+import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemon';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startInProcessMCP } from '@atc/mcp/test-utils/start-in-process-mcp';
 
 // The MCP tools in the test's process, against a daemon in it whose Claude is
 // the in-process stand-in.

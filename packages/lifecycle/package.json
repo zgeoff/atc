@@ -6,7 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./run-command": "./src/run-command/index.ts",
-    "./testing": "./src/testing/index.ts"
+    "./test-utils/*": "./src/test-utils/*.ts"
   },
   "dependencies": {
     "@atc/config": "workspace:*",
@@ -17,7 +17,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@atc/test-utils": "workspace:*",
     "@faker-js/faker": "catalog:",
     "@zgeoff/std": "catalog:",
     "tiny-invariant": "catalog:"

@@ -2,25 +2,23 @@ import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  buildStubClock,
-  buildStubHeadlessRunner,
-  buildStubHostHold,
-  buildStubLog,
-  createGitFixture,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
-import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
+import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
+import { buildStubHostHold } from '../test-utils/build-stub-host-hold';
+import { buildStubLocalProvider } from '../test-utils/build-stub-local-provider';
+import { buildStubLog } from '../test-utils/build-stub-log';
 import { createConfirmTokens } from './create-confirm-tokens';
 import { createForgetCleanup } from './create-forget-cleanup';
 import { REMOVE_DIR_SCRIPT } from './create-host-dir-claims';

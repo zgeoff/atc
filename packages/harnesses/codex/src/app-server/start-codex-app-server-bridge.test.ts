@@ -1,18 +1,16 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildSessionEnv } from '@atc/protocol/session';
-import {
-  buildStubMessageBridgeHost,
-  createStubAppServerCodex,
-  createStubBin,
-  registerTestCleanup,
-  setupTempDir,
-  updateEnv,
-  waitFor,
-} from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { z } from 'zod';
+import { buildStubMessageBridgeHost } from '../test-utils/build-stub-message-bridge-host';
+import { createStubAppServerCodex } from '../test-utils/create-stub-app-server-codex';
 import { startCodexAppServerBridge } from './start-codex-app-server-bridge';
 
 function setupTest() {

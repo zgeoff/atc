@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { buildMockAgentAdapter } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
 import { buildAgentList } from './build-agent-list';
 import { parseSpawnOverrides } from './parse-spawn-overrides';
 

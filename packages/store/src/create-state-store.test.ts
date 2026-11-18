@@ -9,14 +9,11 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import {
-  buildMockPublishedRecord,
-  buildMockRestartResult,
-  readQueryPlan,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockPublishedRecord } from '@atc/protocol/test-utils/build-mock-published-record';
+import { buildMockRestartResult } from '@atc/protocol/test-utils/build-mock-restart-result';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
 import { Kysely } from 'kysely';
@@ -29,9 +26,10 @@ import { createStateStore } from './create-state-store';
 import { MIGRATIONS } from './sqlite/migrations';
 import { PreLadderDatabaseError } from './sqlite/pre-ladder-database-error';
 import type { StateStoreSchema } from './sqlite/state-store-schema';
+import { buildMockFleetEntry } from './test-utils/build-mock-fleet-entry';
+import { buildMockMessageRecord } from './test-utils/build-mock-message-record';
 import { createMigratedStateDB } from './test-utils/create-migrated-state-db';
-import { buildMockFleetEntry } from './testing/build-mock-fleet-entry';
-import { buildMockMessageRecord } from './testing/build-mock-message-record';
+import { readQueryPlan } from './test-utils/read-query-plan';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-store-');

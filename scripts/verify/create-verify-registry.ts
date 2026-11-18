@@ -241,7 +241,7 @@ function createLaunchPlan(): LaunchPlan {
       'bash',
       join(repoRoot, 'scripts', 'with-test-home.sh'),
       process.execPath,
-      join(import.meta.dir, 'run-local-daemon.ts'),
+      join(repoRoot, 'scripts', 'test-utils', 'run-local-daemon.ts'),
     ],
 
     // A Unix socket path holds at most 108 bytes, so the run's home goes under /tmp, whatever the

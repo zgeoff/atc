@@ -2,7 +2,9 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import { readSourceEntry, runCommand, setupTempDir } from '@atc/test-utils';
+import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-statusline-');

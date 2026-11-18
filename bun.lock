@@ -5,6 +5,7 @@
     "": {
       "name": "@zgeoff/atc",
       "devDependencies": {
+        "@atc/app": "workspace:*",
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
         "@atc/daemon": "workspace:*",
@@ -23,7 +24,6 @@
         "@atc/source-git": "workspace:*",
         "@atc/source-github": "workspace:*",
         "@atc/store": "workspace:*",
-        "@atc/test-utils": "workspace:*",
         "@atc/tui": "workspace:*",
         "@atcx/contract": "workspace:*",
         "@commitlint/cli": "catalog:",
@@ -89,8 +89,8 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
+        "bun-pty": "catalog:",
         "tiny-invariant": "catalog:",
       },
     },
@@ -104,7 +104,8 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
+        "@faker-js/faker": "catalog:",
+        "@zgeoff/std": "catalog:",
       },
     },
     "packages/contract": {
@@ -118,7 +119,11 @@
     "packages/core": {
       "name": "@atc/core",
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
+        "@atcx/contract": "workspace:*",
+        "@faker-js/faker": "catalog:",
+        "tiny-invariant": "catalog:",
+        "type-fest": "catalog:",
+        "zod": "catalog:",
       },
     },
     "packages/daemon": {
@@ -145,9 +150,9 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
         "tiny-invariant": "catalog:",
+        "type-fest": "catalog:",
       },
     },
     "packages/execution/imp": {
@@ -166,7 +171,6 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
         "bun-pty": "catalog:",
       },
@@ -181,7 +185,6 @@
         "bun-pty": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
         "tiny-invariant": "catalog:",
       },
     },
@@ -200,8 +203,8 @@
       "devDependencies": {
         "@atc/daemon": "workspace:*",
         "@atc/store": "workspace:*",
-        "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
+        "@orpc/standard-server-peer": "catalog:",
       },
     },
     "packages/harnesses/claude": {
@@ -218,7 +221,6 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
         "@types/proper-lockfile": "catalog:",
         "@zgeoff/std": "catalog:",
@@ -237,7 +239,6 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
         "tiny-invariant": "catalog:",
       },
     },
@@ -253,7 +254,6 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
         "tiny-invariant": "catalog:",
       },
     },
@@ -268,7 +268,6 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
         "@zgeoff/std": "catalog:",
         "tiny-invariant": "catalog:",
@@ -296,8 +295,8 @@
       },
       "devDependencies": {
         "@atc/daemon": "workspace:*",
-        "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
+        "@simplewebauthn/server": "catalog:",
       },
     },
     "packages/plugin-api": {
@@ -310,7 +309,8 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
+        "@faker-js/faker": "catalog:",
+        "@zgeoff/std": "catalog:",
         "tiny-invariant": "catalog:",
       },
     },
@@ -327,7 +327,9 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
+        "@faker-js/faker": "catalog:",
+        "@orpc/standard-server": "catalog:",
+        "tiny-invariant": "catalog:",
       },
     },
     "packages/reporters": {
@@ -341,7 +343,6 @@
       },
       "devDependencies": {
         "@atc/daemon": "workspace:*",
-        "@atc/test-utils": "workspace:*",
         "tiny-invariant": "catalog:",
       },
     },
@@ -352,9 +353,6 @@
         "@atc/plugin-api": "workspace:*",
         "zod": "catalog:",
       },
-      "devDependencies": {
-        "@atc/test-utils": "workspace:*",
-      },
     },
     "packages/sources/git": {
       "name": "@atc/source-git",
@@ -362,9 +360,6 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "zod": "catalog:",
-      },
-      "devDependencies": {
-        "@atc/test-utils": "workspace:*",
       },
     },
     "packages/sources/github": {
@@ -375,7 +370,7 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
+        "@atc/core": "workspace:*",
         "@faker-js/faker": "catalog:",
       },
     },
@@ -391,33 +386,8 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
         "@zgeoff/std": "catalog:",
-        "tiny-invariant": "catalog:",
-      },
-    },
-    "packages/test-utils": {
-      "name": "@atc/test-utils",
-      "dependencies": {
-        "@atc/config": "workspace:*",
-        "@atc/core": "workspace:*",
-        "@atc/plugin-api": "workspace:*",
-        "@atc/protocol": "workspace:*",
-        "@atcx/contract": "workspace:*",
-        "@faker-js/faker": "catalog:",
-        "@orpc/client": "catalog:",
-        "@orpc/standard-server": "catalog:",
-        "@orpc/standard-server-peer": "catalog:",
-        "@zgeoff/kysely-bun-sqlite": "catalog:",
-        "@zgeoff/std": "catalog:",
-        "bun-pty": "catalog:",
-        "kysely": "catalog:",
-        "type-fest": "catalog:",
-        "zod": "catalog:",
-      },
-      "devDependencies": {
-        "@simplewebauthn/server": "catalog:",
         "tiny-invariant": "catalog:",
       },
     },
@@ -435,7 +405,6 @@
         "zod": "catalog:",
       },
       "devDependencies": {
-        "@atc/test-utils": "workspace:*",
         "@faker-js/faker": "catalog:",
       },
     },
@@ -561,8 +530,6 @@
     "@atc/source-github": ["@atc/source-github@workspace:packages/sources/github"],
 
     "@atc/store": ["@atc/store@workspace:packages/store"],
-
-    "@atc/test-utils": ["@atc/test-utils@workspace:packages/test-utils"],
 
     "@atc/tui": ["@atc/tui@workspace:packages/tui"],
 

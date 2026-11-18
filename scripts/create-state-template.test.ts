@@ -2,8 +2,10 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createStateStore } from '@atc/store';
-import { registerTestCleanup, runCommand, setupTempDir } from '@atc/test-utils';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-state-template-');

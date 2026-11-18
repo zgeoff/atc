@@ -6,8 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./stdio": "./src/stdio/index.ts",
-    "./testing": "./src/testing/index.ts",
-    "./test-utils": "./src/test-utils/index.ts"
+    "./test-utils/*": "./src/test-utils/*.ts"
   },
   "dependencies": {
     "@atc/core": "workspace:*",
@@ -29,7 +28,7 @@
   },
   "devDependencies": {
     "@atc/daemon": "workspace:*",
-    "@atc/test-utils": "workspace:*",
-    "@faker-js/faker": "catalog:"
+    "@faker-js/faker": "catalog:",
+    "@simplewebauthn/server": "catalog:"
   }
 }

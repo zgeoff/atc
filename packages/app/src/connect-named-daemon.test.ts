@@ -1,8 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createLocalPTYProvider } from '@atc/execution-local';
-import { buildMockAgentAdapter, getRecord, setupTempDir, waitFor } from '@atc/test-utils';
 import type { DaemonEvent } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { connectNamedDaemon } from './connect-named-daemon';

@@ -3,7 +3,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
 import { systemClock } from '@atc/core';
-import { buildMockHostServices, setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { buildLifecycleHost } from './build-lifecycle-host';
 
 test('it builds the paths, the /proc root, and the restore boot time from the environment', () => {

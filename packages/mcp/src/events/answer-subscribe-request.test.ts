@@ -1,9 +1,10 @@
 import { expect, mock, test } from 'bun:test';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { DaemonError } from '@atc/protocol/wire';
-import { buildStubClock, registerTestCleanup } from '@atc/test-utils';
-import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
-import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
-import { openTestEventDatabase } from '../testing/open-test-event-database';
+import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
+import { buildStubWebhookReceiver } from '../test-utils/build-stub-webhook-receiver';
+import { openTestEventDatabase } from '../test-utils/open-test-event-database';
 import { answerSubscribeRequest } from './answer-subscribe-request';
 import { createSubscriptionStore } from './create-subscription-store';
 

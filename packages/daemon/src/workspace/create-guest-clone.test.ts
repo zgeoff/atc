@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createGitFixture, runLocalCommand } from '@atc/test-utils';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { $ } from 'bun';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createGuestClone } from './create-guest-clone';
 
 // A bare upstream holding one pushed commit, and the empty directory a

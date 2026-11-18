@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveGatewayCommand, runCommand, setupTempDir } from '@atc/test-utils';
+import { resolveGatewayCommand } from '@atc/core/test-utils/resolve-gateway-command';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { buildGatewayStatePaths } from '../packages/app/src/build-gateway-state-paths';
 import { runClients } from '../packages/app/src/clients';

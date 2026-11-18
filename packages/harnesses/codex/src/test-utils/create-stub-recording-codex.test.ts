@@ -1,0 +1,91 @@
+import { expect, test } from 'bun:test';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { createStubRecordingCodex } from './create-stub-recording-codex';
+
+function setupTest() {
+  const temporaryDirectory = setupTempDir('atc-stub-recording-codex-');
+
+  return { directory: temporaryDirectory.path };
+}
+
+test('it returns the path of the stub under the directory', () => {
+  const ctx = setupTest();
+
+  expect(createStubRecordingCodex(ctx.directory)).toBe(join(ctx.directory, 'fake-codex'));
+});
+
+test('it writes no start log before it runs', () => {
+  const ctx = setupTest();
+
+  createStubRecordingCodex(ctx.directory);
+
+  expect(existsSync(join(ctx.directory, 'codex-starts.log'))).toBeFalse();
+});
+
+test('it records its Codex home and arguments on one line for a start', async () => {
+  const ctx = setupTest();
+  const bin = createStubRecordingCodex(ctx.directory);
+
+  const run = Bun.spawn([bin, '--a', 'two words'], {
+    env: { ...process.env, CODEX_HOME: '/codex/home' },
+  });
+
+  registerTestCleanup(() => {
+    run.kill();
+  });
+
+  await waitFor(() => {
+    expect(readFileSync(join(ctx.directory, 'codex-starts.log'), 'utf8')).toBe(
+      '/codex/home --a two words\n',
+    );
+  });
+});
+
+test('it appends a later start after an earlier one', async () => {
+  const ctx = setupTest();
+  const bin = createStubRecordingCodex(ctx.directory);
+  const log = join(ctx.directory, 'codex-starts.log');
+  const first = Bun.spawn([bin, '--a'], { env: { ...process.env, CODEX_HOME: '/one' } });
+
+  registerTestCleanup(() => {
+    first.kill();
+  });
+
+  await waitFor(() => {
+    expect(readFileSync(log, 'utf8')).toBe('/one --a\n');
+  });
+
+  const second = Bun.spawn([bin, '--b'], { env: { ...process.env, CODEX_HOME: '/two' } });
+
+  registerTestCleanup(() => {
+    second.kill();
+  });
+
+  await waitFor(() => {
+    expect(readFileSync(log, 'utf8')).toBe('/one --a\n/two --b\n');
+  });
+});
+
+test('it is still running after it records its start', async () => {
+  const ctx = setupTest();
+  const bin = createStubRecordingCodex(ctx.directory);
+  const run = Bun.spawn([bin]);
+
+  registerTestCleanup(() => {
+    run.kill();
+  });
+
+  await waitFor(() => {
+    expect(existsSync(join(ctx.directory, 'codex-starts.log'))).toBeTrue();
+  });
+
+  run.kill();
+
+  await run.exited;
+
+  expect(run.signalCode).toBe('SIGTERM');
+});

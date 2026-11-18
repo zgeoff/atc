@@ -1,6 +1,9 @@
 import { LOCAL_TARGET, parseConfig } from '@atc/config';
-import { buildStubTargets, createStubAgentCLIs } from '@atc/daemon/testing';
-import { buildMockHostServices, resolveATCCommand, setupTempDir } from '@atc/test-utils';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { buildStubTargets } from '@atc/daemon/test-utils/build-stub-targets';
+import { createStubAgentCLIs } from '@atc/daemon/test-utils/create-stub-agent-clis';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from './start-test-daemon';

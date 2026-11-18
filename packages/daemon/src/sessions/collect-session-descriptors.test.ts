@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import { toDaemonID } from '@atcx/contract';
-import { buildMockSession } from '../testing/build-mock-session';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockSession } from '../test-utils/build-mock-session';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { collectSessionDescriptors } from './collect-session-descriptors';
 
 function setupTest() {

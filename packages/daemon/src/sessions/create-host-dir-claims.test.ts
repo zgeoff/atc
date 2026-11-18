@@ -1,14 +1,15 @@
 import { expect, mock, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { setupTempDir, waitFor } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { toSessionID } from '@atcx/contract';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildMockSession } from '../testing/build-mock-session';
-import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { buildStubStaleRelativeProvider } from '../testing/build-stub-stale-relative-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildMockSession } from '../test-utils/build-mock-session';
+import { buildStubLocalProvider } from '../test-utils/build-stub-local-provider';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
+import { buildStubStaleRelativeProvider } from '../test-utils/build-stub-stale-relative-provider';
 import {
   REMOVE_DIR_SCRIPT,
   RESOLVE_DIR_SCRIPT,

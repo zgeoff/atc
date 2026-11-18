@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { buildTargetList } from './build-target-list';
 
 test('it lists an imp target as reaching the broker', () => {

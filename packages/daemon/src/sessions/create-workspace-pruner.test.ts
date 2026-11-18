@@ -2,24 +2,22 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { rm, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  buildStubClock,
-  buildStubLog,
-  createGitFixture,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildMockSession } from '../test-utils/build-mock-session';
 import { buildSeeder } from '../test-utils/build-seeder';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildMockSession } from '../testing/build-mock-session';
-import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
-import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
+import { buildStubLocalProvider } from '../test-utils/build-stub-local-provider';
+import { buildStubLog } from '../test-utils/build-stub-log';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createSessionManager } from './create-session-manager';
 import { createWorkspacePruner } from './create-workspace-pruner';
 import { readDirBytes } from './read-dir-bytes';

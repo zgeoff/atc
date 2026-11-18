@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 import { stopTestHomeProcesses } from './stop-test-home-processes';
 

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readBuild } from './read-build';
 
 function setupTest() {

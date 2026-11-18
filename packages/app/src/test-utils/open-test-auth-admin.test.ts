@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { PasskeyID } from '@atc/mcp';
-import { setupTempDir } from '@atc/test-utils';
 import { toTagged } from '@zgeoff/std';
 import { openTestAuthAdmin } from './open-test-auth-admin';
 

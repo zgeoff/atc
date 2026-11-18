@@ -4,7 +4,7 @@ import { MAX_REGISTRY_DAEMONS } from '@atcx/contract';
 import { buildEventsFilterHash } from './build-events-filter-hash';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { encodeGatewayCursor } from './encode-gateway-cursor';
-import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
+import { buildMockRegistryDaemon } from './test-utils/build-mock-registry-daemon';
 
 test('it decodes each registry daemon position an encoded cursor holds', () => {
   const registry = {

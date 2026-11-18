@@ -2,24 +2,21 @@ import { expect, test } from 'bun:test';
 import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { bootDaemonClient } from '@atc/lifecycle';
-import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
+import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
 import { mintServiceSecret } from '@atc/mcp';
+import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
+import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
+import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
+import { sendMCPRequest } from '@atc/mcp/test-utils/send-mcp-request';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  buildMockAgentAdapter,
-  buildStubAuthenticator,
-  getRecord,
-  openPTYViewer,
-  readJSONRecord,
-  registerTestCleanup,
-  runMCPTokenGrant,
-  runPasskeyEnrollment,
-  sendMCPRequest,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
 import { connectNamedDaemon } from './connect-named-daemon';
@@ -28,6 +25,7 @@ import { runMCPHTTPServer } from './mcp-http-server';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { buildLocalTarget } from './test-utils/build-local-target';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
+import { openPTYViewer } from './test-utils/open-pty-viewer';
 import { openTestAuthAdmin } from './test-utils/open-test-auth-admin';
 import { startTestDaemon } from './test-utils/start-test-daemon';
 

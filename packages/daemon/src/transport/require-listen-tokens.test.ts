@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { NODE_TOKEN_FILE_ACCESS } from '@atc/config';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { requireListenTokens } from './require-listen-tokens';
 
 // A temporary folder for the token file.

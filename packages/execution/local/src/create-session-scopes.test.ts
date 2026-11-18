@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStubSystemd } from '@atc/test-utils';
 import { createSessionScopes } from './create-session-scopes';
+import { createStubSystemd } from './test-utils/create-stub-systemd';
 
 // A stand-in service manager that the scopes reach through its programs.
 function setupTest() {

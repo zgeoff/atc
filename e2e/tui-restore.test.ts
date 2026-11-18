@@ -1,15 +1,13 @@
 import { expect, test } from 'bun:test';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { resolvePaths } from '@atc/config';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
+import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  registerTestCleanup,
-  resolveATCCommand,
-  spawnNamedSession,
-  startTUIHarness,
-  waitFor,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
 function setupTest() {
   return startTUIHarness({ createStateDB: createMigratedStateDB });

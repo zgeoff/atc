@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { KEYS } from '@atc/test-utils';
+import { KEYS } from '@atc/core/test-utils/keys';
 import { KEY, planTextEdit } from './keys';
 import type { TextEdit } from './keys';
 

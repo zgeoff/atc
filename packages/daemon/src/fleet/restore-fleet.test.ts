@@ -1,20 +1,15 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { AgentAdapter } from '@atc/plugin-api';
+import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { DaemonError } from '@atc/protocol/wire';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  buildMockAgentAdapter,
-  buildStubClock,
-  buildStubHeadlessRunner,
-  buildStubLog,
-  registerTestCleanup,
-  runLocalCommand,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import type { SessionID } from '@atcx/contract';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
@@ -23,10 +18,13 @@ import { createSessionRuntime } from '../sessions/create-session-runtime';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
 import type { Session } from '../sessions/session';
 import { startHeadlessTurn } from '../sessions/start-headless-turn';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
-import { buildStubRestoreImpProvider } from '../testing/build-stub-restore-imp-provider';
-import { makeQueuedAnswers } from '../testing/make-queued-answers';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildStubHeadlessRunner } from '../test-utils/build-stub-headless-runner';
+import { buildStubLog } from '../test-utils/build-stub-log';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
+import { buildStubRestoreImpProvider } from '../test-utils/build-stub-restore-imp-provider';
+import { makeQueuedAnswers } from '../test-utils/make-queued-answers';
 import type { ExecutionTarget } from './build-execution-targets';
 import { buildExecutionTargets } from './build-execution-targets';
 import { restoreFleet } from './restore-fleet';

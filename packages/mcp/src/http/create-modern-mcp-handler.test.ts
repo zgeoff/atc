@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
-import { readJSONRecord, registerTestCleanup } from '@atc/test-utils';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { McpServer } from '@modelcontextprotocol/server';
 import type { GrantID, OAuthClientID } from '@zgeoff/mcp-auth';
 import { toTagged } from '@zgeoff/std';

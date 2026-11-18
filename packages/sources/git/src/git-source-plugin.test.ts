@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockHostServices } from '@atc/test-utils';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { GIT_SOURCE_PLUGIN } from './git-source-plugin';
 
 test('it creates the git URL source with the id of its config entry from an empty slice', () => {

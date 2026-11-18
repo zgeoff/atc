@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { buildStubClock } from '@atc/test-utils';
+import { buildStubClock } from './test-utils/build-stub-clock';
 import { toTimerClock } from './to-timer-clock';
 
 test('it runs a timer once the clock reaches its delay', () => {

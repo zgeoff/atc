@@ -1,9 +1,9 @@
 import { expect, mock, test } from 'bun:test';
-import { buildStubLog } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildMockSession } from '../testing/build-mock-session';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildMockSession } from '../test-utils/build-mock-session';
+import { buildStubLog } from '../test-utils/build-stub-log';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createSessionHarnesses } from './create-session-harnesses';
 import { createSessionRegistry } from './create-session-registry';
 

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { collectSessionRows } from './collect-session-rows';
-import { buildMockMirrorSession } from './testing/build-mock-mirror-session';
+import { buildMockMirrorSession } from './test-utils/build-mock-mirror-session';
 
 test('it lists the rows of the first daemon before the rows of the next', () => {
   const rows = collectSessionRows(

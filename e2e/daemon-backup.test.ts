@@ -1,17 +1,15 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { copyFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { runATC } from '@atc/app/test-utils/run-atc';
+import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemon';
 import { resolvePaths } from '@atc/config';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  getRecord,
-  getString,
-  resolveATCCommand,
-  runATC,
-  setupTempDir,
-  waitForEvent,
-} from '@atc/test-utils';
-import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
+import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 
 // The source and the fresh daemon run in the test's process, and only the
 // backup command runs as a process.

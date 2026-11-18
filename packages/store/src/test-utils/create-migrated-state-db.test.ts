@@ -1,7 +1,9 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup, setupTempDir, updateEnv } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
 import { createMigratedStateDB } from './create-migrated-state-db';
 import { seedDaemonID } from './seed-daemon-id';
 

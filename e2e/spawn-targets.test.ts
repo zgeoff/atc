@@ -1,17 +1,15 @@
 import { expect, test } from 'bun:test';
-import { buildTargetOptionsFromConfig } from '@atc/daemon/testing';
-import { createStubExecutionProvider } from '@atc/execution-local/testing';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { buildStubHeadlessRunner } from '@atc/daemon/test-utils/build-stub-headless-runner';
+import { buildTargetOptionsFromConfig } from '@atc/daemon/test-utils/build-target-options-from-config';
+import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
 import { createStateStore } from '@atc/store';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  buildMockAgentAdapter,
-  buildStubHeadlessRunner,
-  getRecord,
-  registerTestCleanup,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
   const harnesses: string[] = [];

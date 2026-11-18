@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { collectAgents } from '@atc/config';
 import type { AuthProfile } from '@atc/plugin-api';
-import { buildMockAuthProfile, buildMockHostServices } from '@atc/test-utils';
+import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { CODEX_PLUGIN } from './codex-plugin';
 
 test('it loads a codex entry whose auth signs it in through an oauth profile for chatgpt.com', () => {

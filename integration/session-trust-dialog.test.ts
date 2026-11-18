@@ -1,8 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { getRecord, getRecords, getString, waitFor } from '@atc/test-utils';
+import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemon';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getRecords } from '@atc/core/test-utils/get-records';
+import { getString } from '@atc/core/test-utils/get-string';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
 // Claude Code runs no hook while its folder-trust dialog waits, so the
 // stand-in holds its start and the test draws the dialog on its terminal.

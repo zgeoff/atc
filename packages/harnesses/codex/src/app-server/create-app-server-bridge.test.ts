@@ -1,12 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import {
-  buildStubMessageBridgeHost,
-  setupTempDir,
-  startCodexTerminalThread,
-  startStubCodexAppServer,
-  waitFor,
-} from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildStubMessageBridgeHost } from '../test-utils/build-stub-message-bridge-host';
+import { startCodexTerminalThread } from '../test-utils/start-codex-terminal-thread';
+import { startStubCodexAppServer } from '../test-utils/start-stub-codex-app-server';
 import { AppServerError } from './app-server-error';
 import { createAppServerBridge } from './create-app-server-bridge';
 import { createAppServerConnection } from './create-app-server-connection';

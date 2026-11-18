@@ -1,0 +1,75 @@
+import { expect, test } from 'bun:test';
+import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { runATC } from './run-atc';
+
+function setupTest() {
+  const temporaryDirectory = setupTempDir('atc-run-atc-');
+
+  return { directory: temporaryDirectory.path };
+}
+
+test('it resolves with the exit code and output of a subcommand', async () => {
+  const ctx = setupTest();
+
+  const result = await runATC({
+    command: resolveATCCommand(),
+    args: ['daemon', 'id'],
+    home: ctx.directory,
+  });
+
+  expect(result.exitCode).toBe(1);
+  expect(result.stdout).toBe('');
+
+  const paths = resolvePaths({ HOME: ctx.directory, XDG_RUNTIME_DIR: ctx.directory });
+
+  expect(result.stderr).toInclude(`atc daemon id: no daemon at ${paths.daemonSocketPath}`);
+});
+
+test('it lays the run variables over the home', async () => {
+  const ctx = setupTest();
+
+  const result = await runATC({
+    command: resolveATCCommand(),
+    args: ['daemon', 'id'],
+    home: ctx.directory,
+    env: { XDG_RUNTIME_DIR: join(ctx.directory, 'runtime') },
+  });
+
+  const paths = resolvePaths({
+    HOME: ctx.directory,
+    XDG_RUNTIME_DIR: join(ctx.directory, 'runtime'),
+  });
+
+  expect(result.stderr).toInclude(paths.daemonSocketPath);
+});
+
+test('it removes a variable the run sets to undefined', async () => {
+  const ctx = setupTest();
+
+  const result = await runATC({
+    command: ['/usr/bin/env'],
+    args: [],
+    home: ctx.directory,
+    env: { XDG_RUNTIME_DIR: undefined },
+  });
+
+  expect(result.stdout).toInclude(`HOME=${ctx.directory}\n`);
+  expect(result.stdout).not.toInclude('XDG_RUNTIME_DIR=');
+});
+
+test('it feeds the run its standard input in the directory it names', async () => {
+  const ctx = setupTest();
+
+  const result = await runATC({
+    command: ['/bin/sh', '-c', 'pwd; cat'],
+    args: [],
+    home: ctx.directory,
+    stdin: 'from stdin',
+    cwd: ctx.directory,
+  });
+
+  expect(result.stdout).toBe(`${ctx.directory}\nfrom stdin`);
+});

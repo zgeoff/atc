@@ -1,0 +1,53 @@
+import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
+import { toDaemonID, toSessionID } from '@atcx/contract';
+import type { SessionDescriptor } from '@atcx/contract';
+import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
+
+type DefaultedKey =
+  | 'id'
+  | 'name'
+  | 'cwd'
+  | 'state'
+  | 'unread'
+  | 'lastMsg'
+  | 'agent'
+  | 'pinned'
+  | 'lastAttachedAt'
+  | 'repoRoot'
+  | 'namedBy'
+  | 'createdAt'
+  | 'kind'
+  | 'alive'
+  | 'canEject'
+  | 'locator'
+  | 'lifecycle';
+
+export function buildMockSessionDescriptor(
+  overrides: MockOverrides<SessionDescriptor, DefaultedKey> = {},
+): SessionDescriptor {
+  const cwd = faker.system.directoryPath();
+
+  return mergeDeep<SessionDescriptor>(
+    {
+      id: toSessionID(faker.string.uuid()),
+      name: faker.word.noun(),
+      cwd,
+      state: 'running',
+      unread: false,
+      lastMsg: faker.lorem.sentence(),
+      agent: 'claude',
+      pinned: false,
+      lastAttachedAt: faker.date.recent().getTime(),
+      repoRoot: cwd,
+      namedBy: 'user',
+      createdAt: faker.date.past().getTime(),
+      kind: 'pty',
+      alive: true,
+      canEject: false,
+      locator: { daemonID: toDaemonID(faker.string.uuid()), targetID: 'local' },
+      lifecycle: { desired: 'run', vm: 'none', harness: 'running', attachment: 'local' },
+    },
+    overrides,
+  );
+}

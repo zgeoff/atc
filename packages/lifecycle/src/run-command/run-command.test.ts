@@ -2,14 +2,12 @@ import { expect, test } from 'bun:test';
 import { getEventListeners } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  buildStubForkingGH,
-  createStubBin,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
+import { buildStubForkingGH } from '../test-utils/build-stub-forking-gh';
 import { runCommand } from './run-command';
 
 // A directory for stand-in commands and the files they write.

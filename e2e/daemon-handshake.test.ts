@@ -1,12 +1,10 @@
 import { expect, test } from 'bun:test';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  buildMockAgentAdapter,
-  registerTestCleanup,
-  subscribeToSocketLines,
-  waitFor,
-} from '@atc/test-utils';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
+import { subscribeToSocketLines } from '@atc/protocol/test-utils/subscribe-to-socket-lines';
 
 // Each test makes every connection to the daemon itself, so the harness opens
 // no main client.

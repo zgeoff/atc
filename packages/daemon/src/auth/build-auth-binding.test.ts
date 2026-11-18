@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { LEGACY_BROKER_PLACEHOLDER } from '@atc/config';
-import { buildMockAuthProfile } from '@atc/test-utils';
+import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
 import invariant from 'tiny-invariant';
 import { buildAuthBinding } from './build-auth-binding';
 

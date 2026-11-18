@@ -1,22 +1,20 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  buildStubClock,
-  buildStubLog,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import { createSessionManager } from '../sessions/create-session-manager';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
+import { buildStubLog } from '../test-utils/build-stub-log';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createFleetRestorer } from './create-fleet-restorer';
 import type { RestoreSettled } from './restore-fleet';
 

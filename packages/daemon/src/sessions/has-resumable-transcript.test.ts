@@ -1,13 +1,15 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { buildStubLog, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
+import { buildStubLog } from '../test-utils/build-stub-log';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createSessionManager } from './create-session-manager';
 import { hasResumableTranscript } from './has-resumable-transcript';
 

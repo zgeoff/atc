@@ -8,17 +8,15 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  registerTestCleanup,
-  runCommand,
-  sendLinesBeforeHandshake,
-  setupTempDir,
-  waitFor,
-  writeUntilPipeFull,
-} from '@atc/test-utils';
 import { getLogger, reset } from '@logtape/logtape';
 import { startStderrLog } from './start-stderr-log';
+import { sendLinesBeforeHandshake } from './test-utils/send-lines-before-handshake';
+import { writeUntilPipeFull } from './test-utils/write-until-pipe-full';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-non-blocking-log-');
@@ -50,7 +48,7 @@ async function setupTest() {
     });
 
     const subprocess = Bun.spawn(
-      [process.execPath, join(import.meta.dir, 'testing', 'run-listener-daemon.ts')],
+      [process.execPath, join(import.meta.dir, 'test-utils', 'run-listener-daemon.ts')],
       {
         env: { ATC_TEST_DIR: temporaryDirectory.path, HOME: temporaryDirectory.path },
         stdout: 'pipe',

@@ -1,21 +1,19 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
-import {
-  buildMockHostServices,
-  createStubBin,
-  createStubBrokeredClaude,
-  getRecord,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
+import { createStubBrokeredClaude } from '@atc/harness-claude/test-utils/create-stub-brokered-claude';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // Only a broker that sets the credential for api.github.com, as impd does
 // for an imp, answers this; Bun 1.4.2's skipIf takes a boolean and has no

@@ -1,7 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { killProcessGroup, runCommand, setupTempDir, waitFor } from '@atc/test-utils';
+import { killProcessGroup } from '@atc/core/test-utils/kill-process-group';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 
 // A temp directory that holds the host config a test hands the script, and
 // the directory outside any repository that the script's command runs in.

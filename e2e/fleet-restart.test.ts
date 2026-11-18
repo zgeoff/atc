@@ -1,19 +1,17 @@
 import { expect, mock, test } from 'bun:test';
 import { chmod, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { RestoreSettled } from '@atc/daemon';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  buildMockAgentAdapter,
-  buildStubClock,
-  registerTestCleanup,
-  setupTempDir,
-  updateEnv,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it restores the stored sessions by itself after a restart', async () => {
   const clock = buildStubClock(0);

@@ -3,19 +3,17 @@ import { expect, mock, test } from 'bun:test';
 import { linkSync, readdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  buildMockAgentAdapter,
-  buildStubClock,
-  buildStubLog,
-  registerTestCleanup,
-  setupTempDir,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { createSessionRegistry } from '../sessions/create-session-registry';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockSession } from '../test-utils/build-mock-session';
 import { buildSeeder } from '../test-utils/build-seeder';
-import { buildMockSession } from '../testing/build-mock-session';
+import { buildStubLog } from '../test-utils/build-stub-log';
 import { createSessionFleetWriter } from './create-session-fleet-writer';
 
 // A real state store, an empty registry the test fills with sessions, a

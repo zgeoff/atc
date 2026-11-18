@@ -2,18 +2,16 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { bootDaemonClient } from '@atc/lifecycle';
-import { buildMockLifecycleHost } from '@atc/lifecycle/testing';
+import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
 import { createStateStore } from '@atc/store';
-import {
-  buildMockAgentAdapter,
-  readJSONRecord,
-  readSourceEntry,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
 import { createHostServices } from '../packages/app/src/create-host-services';
 
 function setupTest() {
@@ -262,7 +260,15 @@ test('it stops a daemon on another protocol and boots its own build when the cal
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
+      join(
+        import.meta.dir,
+        '..',
+        'packages',
+        'lifecycle',
+        'src',
+        'test-utils',
+        'run-stub-legacy-daemon.ts',
+      ),
       ctx.sockPath,
       ctx.stateDir,
     ],

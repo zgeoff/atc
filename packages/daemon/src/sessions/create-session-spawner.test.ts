@@ -2,27 +2,25 @@ import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { systemClock } from '@atc/core';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
+import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  buildStubBrokeredGatewayAdapter,
-  registerTestCleanup,
-  runLocalCommand,
-  setupTempDir,
-  updateEnv,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
 import { createAuthSetup } from '../auth/create-auth-setup';
 import { createRuntimeAuthBinder } from '../auth/create-runtime-auth-binder';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildMockSession } from '../testing/build-mock-session';
-import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
-import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildMockSession } from '../test-utils/build-mock-session';
+import { buildStubBrokeredGatewayAdapter } from '../test-utils/build-stub-brokered-gateway-adapter';
+import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
+import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createHostDirClaims } from './create-host-dir-claims';
 import { createPublishedRecords } from './create-published-records';
 import { createSessionHarnesses } from './create-session-harnesses';

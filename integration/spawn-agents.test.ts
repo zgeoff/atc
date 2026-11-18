@@ -1,11 +1,12 @@
 import { expect, test } from 'bun:test';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
-import { buildMockHostServices, getRecords } from '@atc/test-utils';
+import { getRecords } from '@atc/core/test-utils/get-records';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it lists each registered agent with what it can do and the host it runs on', async () => {
   const daemon = await startTestDaemon({

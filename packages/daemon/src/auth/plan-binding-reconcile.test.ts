@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { RuntimeAuthBindingState } from '@atc/store';
-import { buildMockRuntimeAuthBinding } from '@atc/store/testing';
+import { buildMockRuntimeAuthBinding } from '@atc/store/test-utils/build-mock-runtime-auth-binding';
 import { planBindingReconcile } from './plan-binding-reconcile';
 
 test.each<[RuntimeAuthBindingState, 'settle_rebind' | 'remove_attempt' | 'keep']>([

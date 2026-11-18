@@ -1,15 +1,13 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
-import {
-  createStubBin,
-  getRecord,
-  getString,
-  resolveATCCommand,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-peer-');
@@ -21,7 +19,15 @@ function setupTest() {
     home: temporaryDirectory.path,
     atc: resolveATCCommand(),
     configPath: join(configDir, 'config.json'),
-    probe: join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-peer-probe.ts'),
+    probe: join(
+      import.meta.dir,
+      '..',
+      'packages',
+      'protocol',
+      'src',
+      'test-utils',
+      'run-stub-peer-probe.ts',
+    ),
     outPath: join(temporaryDirectory.path, 'probe.json'),
   };
 }

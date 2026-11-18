@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockMessageRecord } from '@atc/store/testing';
+import { buildMockMessageRecord } from '@atc/store/test-utils/build-mock-message-record';
 import { toMessageID, toSessionID } from '@atcx/contract';
 import { buildSessionMessageEvent } from './build-session-message-event';
 

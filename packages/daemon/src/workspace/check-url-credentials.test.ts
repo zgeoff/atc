@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createGitFixture } from '@atc/test-utils';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { $ } from 'bun';
 import { checkURLCredentials } from './check-url-credentials';
 

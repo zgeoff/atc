@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
-import { resolveATCCommand, setupTempDir } from '@atc/test-utils';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-quit-');

@@ -1,26 +1,24 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { StartedTestDaemon, TestDaemonConfig } from '@atc/daemon/testing';
+import { restartRemoteTestDaemon } from '@atc/app/test-utils/restart-remote-test-daemon';
+import { spawnDaemonSession } from '@atc/app/test-utils/spawn-daemon-session';
+import { startRemoteTestDaemon } from '@atc/app/test-utils/start-remote-test-daemon';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { startTUIDaemon } from '@atc/app/test-utils/start-tui-daemon';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { takeFreePort } from '@atc/core/test-utils/take-free-port';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildStubAttentionAdapter } from '@atc/daemon/test-utils/build-stub-attention-adapter';
+import type { StartedTestDaemon, TestDaemonConfig } from '@atc/daemon/test-utils/start-test-daemon';
+import { buildMockAgentProfile } from '@atc/plugin-api/test-utils/build-mock-agent-profile';
 import { openDaemonClient } from '@atc/protocol/client';
+import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
+import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildDirsSource } from '@atc/source-dirs';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  KEYS,
-  buildMockAgentProfile,
-  buildStubAttentionAdapter,
-  spawnDaemonSession,
-  spawnNamedSession,
-  startStubLegacyDaemon,
-  startTUIHarness,
-  takeFreePort,
-  waitFor,
-} from '@atc/test-utils';
-import { restartRemoteTestDaemon } from '../packages/app/src/test-utils/restart-remote-test-daemon';
-import { startRemoteTestDaemon } from '../packages/app/src/test-utils/start-remote-test-daemon';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
-import { startTUIDaemon } from '../packages/app/src/test-utils/start-tui-daemon';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
 // Plain `atc` with a `daemons` entry: the local daemon runs as the client's own, and the remote
 // daemon is a second test daemon on a loopback TCP port that takes the entry's principal.

@@ -1,16 +1,14 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createLocalPTYProvider } from '@atc/execution-local';
-import {
-  buildMockAgentAdapter,
-  createGitFixture,
-  getRecord,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
 import { $ } from 'bun';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // Each session runs `sleep` in a real terminal on the daemon's machine, in a workspace the daemon
 // clones from the fixture's upstream; a git command a test runs there passes an identity, since

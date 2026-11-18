@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildStubNpm, createStubBin, runCommand, setupTempDir } from '@atc/test-utils';
+import { buildStubNpm } from '@atc/core/test-utils/build-stub-npm';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 
 // A temp repo root that holds the real release scripts and root manifest, so

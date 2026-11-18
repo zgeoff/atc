@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
-import { setupTempDir, updateEnv, waitFor } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { runGit } from './run-git';
 

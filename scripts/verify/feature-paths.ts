@@ -23,11 +23,13 @@ export const featurePaths = {
 } as const satisfies Record<string, readonly string[]>;
 
 // A change to one of these changes every feature: the verify CLI, the test home it starts the
-// daemon in, and the stand-in claude, which the test helpers build.
+// daemon in, and the stand-in claude and the helpers that build and start it.
 export const sharedPaths = [
   'scripts/verify/**',
+  'scripts/test-utils/run-local-daemon.ts',
   'scripts/{with-test-home.sh,create-state-template.ts,remove-stale-test-homes.ts,stop-test-home-processes.ts}',
-  'packages/test-utils/**',
+  'packages/app/src/test-utils/build-stub-tui-claude.ts',
+  'packages/core/src/test-utils/{create-stub-bin,wait-for}.ts',
 ] as const;
 
 // A path that one of these globs matches counts as no change, even where a feature's or a shared

@@ -1,0 +1,33 @@
+import { resolvePaths } from '@atc/config/host';
+import { systemClock } from '@atc/core';
+import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
+import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
+import type { LifecycleHost } from '../lifecycle-host';
+import { tryOpenDaemon } from '../try-open-daemon';
+
+export function buildMockLifecycleHost(
+  overrides: MockOverrides<LifecycleHost, keyof LifecycleHost> = {},
+): LifecycleHost {
+  return mergeDeep<LifecycleHost>(
+    {
+      invocation: { argv: ['false'], readBuild: () => 'atc/test-build' },
+      paths: resolvePaths({ HOME: faker.system.directoryPath() }),
+      clock: systemClock,
+      procRoot: '/proc',
+      restoreBootTimeoutMs: 15_000,
+      findManagedUnit: () => null,
+
+      // a missing systemctl, so no test reaches a real service manager.
+      runSystemctl: () =>
+        Promise.resolve({
+          code: 127,
+          stdout: '',
+          stderr: 'systemctl: command not found',
+          aborted: false,
+        }),
+      openDaemon: tryOpenDaemon,
+    },
+    overrides,
+  );
+}

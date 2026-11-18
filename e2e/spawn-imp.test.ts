@@ -1,26 +1,25 @@
 import { expect, test } from 'bun:test';
 import { existsSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { LOCAL_TARGET } from '@atc/config';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createImpProvider } from '@atc/execution-imp';
-import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
+import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
+import { getOnlyImpName } from '@atc/execution-imp/test-utils/get-only-imp-name';
 import { createLocalPTYProvider } from '@atc/execution-local';
+import { createStubEchoClaude } from '@atc/harness-claude/test-utils/create-stub-echo-claude';
 import { openDaemonClient } from '@atc/protocol/client';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  buildMockAgentAdapter,
-  createGitFixture,
-  createStubEchoClaude,
-  getRecord,
-  readJSONRecord,
-  registerTestCleanup,
-  updateEnv,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // A real daemon whose one target `box` runs on the imp provider over a
 // stub imp port, with the daemon id its lease labels carry.

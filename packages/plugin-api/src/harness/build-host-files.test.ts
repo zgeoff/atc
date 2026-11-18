@@ -1,7 +1,8 @@
 import { expect, mock, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runLocalCommand, setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { runLocalCommand } from '../test-utils/run-local-command';
 import { buildHostFiles } from './build-host-files';
 
 function setupTest() {

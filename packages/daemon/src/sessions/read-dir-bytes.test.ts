@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readDirBytes } from './read-dir-bytes';
 
 test('it counts the files in nested folders and not what a symlink leads to', async () => {

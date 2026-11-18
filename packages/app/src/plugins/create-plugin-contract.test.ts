@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { definePlugin } from '@atc/plugin-api';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { buildGitSource } from '@atc/source-git';
-import { buildMockHostServices } from '@atc/test-utils';
 import { z } from 'zod';
 import { createPluginContract } from './create-plugin-contract';
 

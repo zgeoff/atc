@@ -2,7 +2,8 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { buildExecutionTargets } from '@atc/daemon';
 import { IMP_PLUGIN } from '@atc/execution-imp';
 import { LOCAL_PTY_PLUGIN } from '@atc/execution-local';
-import { buildMockAuthProfile, buildMockHostServices } from '@atc/test-utils';
+import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { createShippedExecutionProvider } from './create-shipped-execution-provider';
 
 test('it builds the shipped provider a target entry selects', () => {

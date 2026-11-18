@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { decodeCursor } from '@atc/protocol';
-import { buildMockSessionDescriptor } from '@atc/test-utils';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { buildNoteView } from './build-note-view';
 

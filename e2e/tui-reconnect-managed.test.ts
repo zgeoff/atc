@@ -1,17 +1,15 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildLocalTarget } from '@atc/app/test-utils/build-local-target';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { startDaemon } from '@atc/daemon';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  KEYS,
-  buildMockAgentAdapter,
-  registerTestCleanup,
-  startStubLegacyDaemonProcess,
-  startTUIHarness,
-} from '@atc/test-utils';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { startStubLegacyDaemonProcess } from '@atc/lifecycle/test-utils/start-stub-legacy-daemon-process';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { createHostServices } from '../packages/app/src/create-host-services';
-import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 // A client that waits for an installed unit's daemon after that daemon
 // stopped, so a daemon on another protocol that takes the socket next is

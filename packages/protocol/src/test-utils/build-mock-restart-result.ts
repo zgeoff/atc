@@ -1,0 +1,26 @@
+import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
+import type { RestartResult } from '@atcx/contract';
+import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
+
+type DefaultedKey = keyof RestartResult;
+
+export function buildMockRestartResult(
+  overrides: MockOverrides<RestartResult, DefaultedKey> = {},
+): RestartResult {
+  return mergeDeep<RestartResult>(
+    {
+      runID: faker.string.uuid(),
+      code: 0,
+      pid: faker.number.int({ min: 2, max: 4_194_304 }),
+      build: `atc/${faker.system.semver()}`,
+      listenPort: null,
+      restored: 0,
+      total: 0,
+      failed: [],
+      interrupted: [],
+      error: null,
+    },
+    overrides,
+  );
+}

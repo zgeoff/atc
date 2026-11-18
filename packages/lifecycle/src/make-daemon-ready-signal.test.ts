@@ -4,7 +4,8 @@ import { once } from 'node:events';
 import { fstatSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { makeDaemonReadySignal } from './make-daemon-ready-signal';
 

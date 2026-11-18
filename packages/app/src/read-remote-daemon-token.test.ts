@@ -2,7 +2,10 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { buildStubForkingGH, createStubBin, setupTempDir, waitFor } from '@atc/test-utils';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildStubForkingGH } from '@atc/lifecycle/test-utils/build-stub-forking-gh';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
 import { buildMockRemoteDaemon } from './test-utils/build-mock-remote-daemon';
 

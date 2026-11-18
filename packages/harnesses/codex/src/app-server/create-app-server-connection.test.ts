@@ -1,6 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir, startStubCodexAppServer, waitFor } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startStubCodexAppServer } from '../test-utils/start-stub-codex-app-server';
 import { createAppServerConnection } from './create-app-server-connection';
 
 function setupTest() {

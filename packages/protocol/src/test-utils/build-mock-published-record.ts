@@ -1,0 +1,38 @@
+import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
+import type { PublishedRecord } from '@atcx/contract';
+import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
+
+type DefaultedKey = keyof PublishedRecord;
+
+export function buildMockPublishedRecord(
+  overrides: MockOverrides<PublishedRecord, DefaultedKey> = {},
+): PublishedRecord {
+  return mergeDeep<PublishedRecord>(
+    {
+      format: 'atc.session-record',
+      version: 1,
+      session: faker.string.uuid(),
+      daemonID: faker.string.uuid(),
+      target: 'local',
+      revision: 1,
+      updatedAt: faker.date.recent().toISOString(),
+      name: faker.word.words(2),
+      transcriptPath: null,
+      spawner: null,
+      scratch: null,
+      scope: {
+        workspace: {
+          path: faker.system.directoryPath(),
+          branch: faker.git.branch(),
+          repoURL: null,
+          sha: null,
+        },
+        worktrees: [],
+        branches: [],
+        pullRequests: [],
+      },
+    },
+    overrides,
+  );
+}

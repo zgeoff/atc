@@ -2,17 +2,15 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
 import { systemClock } from '@atc/core';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createTransportCaller, openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
+import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
+import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  buildMockAgentAdapter,
-  buildStubAuthenticator,
-  registerTestCleanup,
-  runPasskeyEnrollment,
-  setupTempDir,
-} from '@atc/test-utils';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { buildLocalTarget } from './build-local-target';
 

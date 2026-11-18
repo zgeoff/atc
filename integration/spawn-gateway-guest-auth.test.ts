@@ -1,26 +1,24 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
+import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createGatewayAdapter } from '@atc/harness-claude';
-import { getGatewayConfig } from '@atc/harness-claude/testing';
-import {
-  buildMockHostServices,
-  createStubBin,
-  createStubRecordingClaude,
-  getRecord,
-  registerTestCleanup,
-  setupTempDir,
-  updateEnv,
-  waitFor,
-} from '@atc/test-utils';
+import { createStubRecordingClaude } from '@atc/harness-claude/test-utils/create-stub-recording-claude';
+import { getGatewayConfig } from '@atc/harness-claude/test-utils/get-gateway-config';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-guest-auth-');

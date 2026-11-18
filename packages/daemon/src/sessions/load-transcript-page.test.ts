@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { TranscriptRow } from '@atcx/contract';
 import { loadTranscriptPage } from './load-transcript-page';
 import { readLocalTranscriptWindow } from './read-local-transcript-window';

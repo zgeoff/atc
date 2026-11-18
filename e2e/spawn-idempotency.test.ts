@@ -1,24 +1,23 @@
 import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildPayloadHash } from '@atc/daemon';
-import { createStubSoftKillProvider } from '@atc/execution-local/testing';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { createStubFailingAgentAdapter } from '@atc/daemon/test-utils/create-stub-failing-agent-adapter';
+import { createStubSoftKillProvider } from '@atc/execution-local/test-utils/create-stub-soft-kill-provider';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
-import { seedSweptIdempotencyKeys } from '@atc/store/test-utils';
-import { buildMockFleetEntry, buildMockMessageRecord } from '@atc/store/testing';
-import {
-  buildMockAgentAdapter,
-  createStubFailingAgentAdapter,
-  getRecord,
-  getString,
-  readOnlyEffectRef,
-  registerTestCleanup,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
+import { buildMockMessageRecord } from '@atc/store/test-utils/build-mock-message-record';
+import { readOnlyEffectRef } from '@atc/store/test-utils/read-only-effect-ref';
+import { seedSweptIdempotencyKeys } from '@atc/store/test-utils/seed-swept-idempotency-keys';
 import { REQUEST_PARAM_SCHEMAS, toMessageID, toSessionID } from '@atcx/contract';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it answers a retried keyed spawn with the first session and spawns once', async () => {
   const daemon = await startTestDaemon({

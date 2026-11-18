@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { lstat, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createGitFixture } from '@atc/test-utils';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { $ } from 'bun';
 import { readWorkspaceTar } from './read-workspace-tar';
 

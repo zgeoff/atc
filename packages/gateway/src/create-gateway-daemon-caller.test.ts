@@ -2,25 +2,23 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startTestDaemon } from '@atc/daemon/testing';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { openDaemonClient } from '@atc/protocol/client';
+import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { seedSweptIdempotencyKeys } from '@atc/store/test-utils';
-import {
-  buildMockAgentAdapter,
-  buildStubChannelOpener,
-  buildStubClock,
-  getRecord,
-  registerTestCleanup,
-  startCutProxy,
-  startStubLegacyDaemon,
-  startStubUnansweringListener,
-  waitFor,
-} from '@atc/test-utils';
+import { seedSweptIdempotencyKeys } from '@atc/store/test-utils/seed-swept-idempotency-keys';
 import { CONTRACT_VERSION } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { createGatewayDaemonCaller } from './create-gateway-daemon-caller';
-import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
+import { buildMockRegistryDaemon } from './test-utils/build-mock-registry-daemon';
+import { buildStubChannelOpener } from './test-utils/build-stub-channel-opener';
+import { startCutProxy } from './test-utils/start-cut-proxy';
+import { startStubUnansweringListener } from './test-utils/start-stub-unanswering-listener';
 import type { RegistryDaemon } from './types';
 
 async function setupTest() {

@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir, startStubReporterSocket } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
 import { sendReport } from './send-report';
 
 // A temp directory to hold the reporter's socket.

@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import { buildMockSessionDescriptor } from '@atc/test-utils';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { toSessionID } from '@atcx/contract';
 import { createFleetMirror } from './create-fleet-mirror';
-import { buildMockMirrorSession } from './testing/build-mock-mirror-session';
-import { buildStubRequestClient } from './testing/build-stub-request-client';
+import { buildMockMirrorSession } from './test-utils/build-mock-mirror-session';
+import { buildStubRequestClient } from './test-utils/build-stub-request-client';
 
 test('it holds two rows for one session id on two daemons, and finds each by its key', () => {
   const mirror = createFleetMirror(null);

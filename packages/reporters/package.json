@@ -16,7 +16,6 @@
   },
   "devDependencies": {
     "@atc/daemon": "workspace:*",
-    "@atc/test-utils": "workspace:*",
     "tiny-invariant": "catalog:"
   }
 }

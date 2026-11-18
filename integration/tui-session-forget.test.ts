@@ -1,11 +1,13 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
 import { createLocalPTYProvider } from '@atc/execution-local';
-import { createStubExecutionProvider } from '@atc/execution-local/testing';
-import { buildMockAgentAdapter, createGitFixture, getRecord } from '@atc/test-utils';
-import { createSessionActionsHarness } from '@atc/tui/testing';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
+import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
+import { createSessionActionsHarness } from '@atc/tui/test-utils/create-session-actions-harness';
 
 // The overlay's session actions run against a daemon in the test's process. A session on
 // `local` runs `sleep` in a real terminal; one on `imp` runs in a stand-in host that a forget

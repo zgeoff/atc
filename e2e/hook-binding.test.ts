@@ -1,18 +1,16 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemon';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 import { runHookReport } from '@atc/reporters';
 import { runTap } from '@atc/reporters/tap';
 import { createStateStore } from '@atc/store';
-import {
-  getRecord,
-  getString,
-  registerTestCleanup,
-  updateEnv,
-  waitFor,
-  waitForEvent,
-} from '@atc/test-utils';
 import { z } from 'zod';
-import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
 // A daemon in the test's process whose agents are the in-process stand-ins,
 // which report their hooks over the daemon's real reporter socket. A test

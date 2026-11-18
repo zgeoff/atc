@@ -10,7 +10,7 @@ import { readOptionalText } from './read-optional-text';
 import { readWorkerCount } from './read-worker-count';
 
 // Tests one plugin package in a workspace holding only it, the packages its
-// rule reaches and the test helpers, so a plugin that reaches past its rule
+// rule reaches and the packages whose test helpers its tests import, so a plugin that reaches past its rule
 // fails. Usage: bun scripts/test-plugin.ts <plugin> [root] [--keep], such as harness-claude
 
 // The root files the test setup reads: the install and test config, the
@@ -65,8 +65,12 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  // the plugin, and the shared test helpers its tests import
-  const packages = collectPackageClosure(workspace, [plugin.name, 'test-utils']);
+  // the plugin, and the packages whose test helpers its tests import
+  const packages = collectPackageClosure(workspace, [
+    plugin.name,
+    ...readDevPackageNames(repo, plugin, workspace),
+  ]);
+
   const directory = mkdtempSync(join(tmpdir(), `atc-test-plugin-${plugin.name}-`));
 
   try {
@@ -114,6 +118,26 @@ async function main(): Promise<void> {
       rmSync(directory, { recursive: true, force: true });
     }
   }
+}
+
+// The workspace packages that the plugin declares as dev dependencies, which are the packages
+// whose `test-utils` folders its tests import.
+function readDevPackageNames(
+  repo: string,
+  plugin: WorkspacePackage,
+  workspace: readonly WorkspacePackage[],
+): string[] {
+  const text = readFileSync(join(repo, plugin.directory, 'package.json'), 'utf8');
+
+  const manifest = z
+    .object({ devDependencies: z.record(z.string(), z.string()).optional() })
+    .parse(JSON.parse(text));
+
+  return Object.keys(manifest.devDependencies ?? {}).flatMap((name) => {
+    const pkg = workspace.find((candidate) => candidate.packageName === name);
+
+    return pkg === undefined ? [] : [pkg.name];
+  });
 }
 
 function isPlugin(rule: WorkspacePackage): boolean {

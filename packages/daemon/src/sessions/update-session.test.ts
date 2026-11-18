@@ -1,10 +1,12 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStateStore } from '@atc/store';
-import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
-import { buildMockSession } from '../testing/build-mock-session';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockSession } from '../test-utils/build-mock-session';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { buildRecordSubject } from './build-record-subject';
 import { createPublishedRecords } from './create-published-records';
 import { updateSession } from './update-session';

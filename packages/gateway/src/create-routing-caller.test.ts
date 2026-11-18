@@ -2,25 +2,23 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { startTestDaemon } from '@atc/daemon/testing';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { buildMockAgentAdapter } from '@atc/daemon/test-utils/build-mock-agent-adapter';
+import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { openDaemonClient } from '@atc/protocol/client';
-import { seedSweptIdempotencyKeys } from '@atc/store/test-utils';
-import {
-  buildMockAgentAdapter,
-  buildStubChannelOpener,
-  getRecord,
-  registerTestCleanup,
-  setupTempDir,
-  startCutProxy,
-  startStubLegacyDaemon,
-} from '@atc/test-utils';
+import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
+import { seedSweptIdempotencyKeys } from '@atc/store/test-utils/seed-swept-idempotency-keys';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { createDaemonPool } from './create-daemon-pool';
 import { createGatewayStore } from './create-gateway-store';
 import { createRoutingCaller } from './create-routing-caller';
-import { buildMockKeyBindingClaim } from './testing/build-mock-key-binding-claim';
-import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
-import { openTestBindingDatabase } from './testing/open-test-binding-database';
+import { buildMockKeyBindingClaim } from './test-utils/build-mock-key-binding-claim';
+import { buildMockRegistryDaemon } from './test-utils/build-mock-registry-daemon';
+import { buildStubChannelOpener } from './test-utils/build-stub-channel-opener';
+import { openTestBindingDatabase } from './test-utils/open-test-binding-database';
+import { startCutProxy } from './test-utils/start-cut-proxy';
 import type { RegistryDaemon } from './types';
 
 async function setupTest() {

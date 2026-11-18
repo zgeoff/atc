@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createGitFixture } from '@atc/test-utils';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { $ } from 'bun';
 import { readRemoteRefs } from './read-remote-refs';
 

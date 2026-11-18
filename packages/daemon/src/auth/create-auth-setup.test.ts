@@ -1,14 +1,14 @@
 import { expect, mock, test } from 'bun:test';
 import { createStepTimer } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { buildMockAgentAdapter } from '@atc/test-utils';
 import { toDaemonID, toSessionID } from '@atcx/contract';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionRegistry } from '../sessions/create-session-registry';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildStubGuestFilesProvider } from '../testing/build-stub-guest-files-provider';
-import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockAgentAdapter } from '../test-utils/build-mock-agent-adapter';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildStubGuestFilesProvider } from '../test-utils/build-stub-guest-files-provider';
+import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createAuthSetup } from './create-auth-setup';
 
 interface SetupConfig {

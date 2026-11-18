@@ -1,4 +1,4 @@
-import type { MockOverrides } from '@atc/test-utils';
+import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
 import type { SubscriptionRow } from '../events/create-subscription-store';

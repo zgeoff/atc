@@ -4,7 +4,7 @@
   "rules": {
     // Package boundaries. Each workspace package is a zone. An import of a
     // package name is judged as its folder joined with the subpath, such as
-    // packages/store/testing, so each zone covers its folder path itself.
+    // packages/store/test-utils/seed-daemon-id, so each zone covers its folder path itself.
     "zgeoff/import-zones": [
       "error",
       {
@@ -19,7 +19,7 @@
           "store": ["packages/store{,/**}"],
           // the store's seeds, which a front end's tests may use to set up a
           // daemon's state database
-          "store-test-utils": ["packages/store/src/test-utils/**", "packages/store/test-utils"],
+          "store-test-utils": ["packages/store/src/test-utils/**", "packages/store/test-utils/**"],
           "lifecycle": ["packages/lifecycle{,/**}"],
           "daemon": ["packages/daemon{,/**}"],
           "plugins": ["packages/{harnesses,execution,sources}/*{,/**}"],
@@ -27,10 +27,6 @@
           // entry, which its production code may not reach
           "front-ends": ["packages/{tui,mcp,gateway,reporters}{,/**}"],
           "mcp": ["packages/mcp{,/**}"],
-          "test-utils": ["packages/test-utils{,/**}"],
-          "oauth-helper-tests": [
-            "packages/test-utils/src/{run-mcp-authorization,run-mcp-token-grant,run-passkey-*,send-modern-mcp-request}.test.ts"
-          ],
           "app": ["packages/app{,/**}"],
 
           // sessions, auth, transport and fleet import one another, so the
@@ -42,24 +38,22 @@
           "daemon-sources": ["packages/daemon/src/sources/**"],
           "daemon-transport": ["packages/daemon/src/transport/**"],
           "daemon-workspace": ["packages/daemon/src/workspace/**"],
-          "daemon-testing": ["packages/daemon/src/testing/**", "packages/daemon/testing"],
+          "daemon-testing": ["packages/daemon/src/test-utils/**", "packages/daemon/test-utils/**"],
 
           // the MCP tools serve stdio and HTTP alike, so they reach nothing of
           // the authorization server that guards HTTP
           "mcp-tools": ["packages/mcp/src/tools/**"],
           "mcp-auth": ["packages/mcp/src/auth/**"],
 
-          // every test helper, a package's testing and test-utils folders among them
+          // every test helper: a package's src/test-utils folder, and the specifier of
+          // one of its helpers, such as @atc/store/test-utils/seed-daemon-id
           "testing": [
-            "packages/**/testing{,/**}",
             "packages/**/src/test-utils/**",
-            "packages/*/test-utils",
-            "packages/*/*/test-utils"
+            "packages/*/test-utils/**",
+            "packages/*/*/test-utils/**"
           ],
           "tests": [
             "**/*.test.{ts,tsx,js,mjs}",
-            "packages/**/testing/**",
-            "packages/test-utils/**",
             "packages/**/src/test-utils/**",
             "e2e/**",
             "integration/**",
@@ -71,9 +65,9 @@
           // terminal
           "pty-files": [
             "packages/execution/local/src/bun-pty-spawn.ts",
-            "packages/execution/imp/src/testing/{answer-stub-session,stub-imp,try-kill}.ts",
-            "packages/test-utils/src/start-tui-harness.ts",
-            "packages/test-utils/src/create-stub-composer.test.ts",
+            "packages/execution/imp/src/test-utils/{answer-stub-session,stub-imp,try-kill}.ts",
+            "packages/app/src/test-utils/start-tui-harness.ts",
+            "packages/app/src/test-utils/create-stub-composer.test.ts",
             "scripts/write-delete-only-push-mark.test.ts"
           ],
           // the real port calls impd through the client, and the contract
@@ -110,7 +104,6 @@
               "daemon",
               "plugins",
               "front-ends",
-              "test-utils",
               "app"
             ]
           }
@@ -141,59 +134,50 @@
           {
             "name": "package-deps",
             "from": ["core"],
-            "allow": ["contract", "test-utils"],
+            "allow": ["contract"],
             "allowWithin": "packages/*",
             "reason": "@atc/core depends on no workspace package"
           },
           {
             "name": "package-deps",
             "from": ["protocol"],
-            "allow": ["contract", "core", "test-utils"],
+            "allow": ["contract", "core"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["plugin-api"],
-            "allow": ["contract", "core", "protocol", "test-utils"],
+            "allow": ["contract", "core", "protocol"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["config"],
-            "allow": ["contract", "core", "plugin-api", "test-utils"],
+            "allow": ["contract", "core", "plugin-api"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["store"],
-            "allow": ["contract", "core", "protocol", "config", "test-utils"],
+            "allow": ["contract", "core", "protocol", "config"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["lifecycle"],
-            "allow": ["contract", "core", "protocol", "config", "store", "test-utils"],
+            "allow": ["contract", "core", "protocol", "config", "store"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["daemon"],
-            "allow": [
-              "contract",
-              "core",
-              "protocol",
-              "plugin-api",
-              "config",
-              "store",
-              "lifecycle",
-              "test-utils"
-            ],
+            "allow": ["contract", "core", "protocol", "plugin-api", "config", "store", "lifecycle"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["plugins"],
-            "allow": ["contract", "core", "protocol", "plugin-api", "config", "test-utils"],
+            "allow": ["contract", "core", "protocol", "plugin-api", "config"],
             "allowWithin": "packages/*/*"
           },
           {
@@ -204,53 +188,17 @@
               "core",
               "protocol",
               "config",
-              "test-utils",
               "daemon-testing",
               "store-test-utils"
             ],
             "allowWithin": "packages/*"
           },
-          // check-manifests limits the test helpers that reach into the app by path
-          {
-            "name": "package-deps",
-            "from": ["test-utils"],
-            "allow": ["contract", "core", "protocol", "plugin-api", "config", "app"],
-            "allowWithin": "packages/*",
-            "ignore": [
-              "packages/test-utils/src/{run-mcp-authorization,run-mcp-token-grant,run-passkey-*,send-modern-mcp-request}.test.ts"
-            ]
-          },
-          // the tests of the helpers that drive the OAuth flow run them against
-          // the real authorization server
-          {
-            "name": "package-deps",
-            "from": ["oauth-helper-tests"],
-            "allow": ["contract", "core", "protocol", "plugin-api", "config", "app", "mcp"],
-            "allowWithin": "packages/*"
-          },
-          {
-            "name": "test-helpers",
-            "from": ["packages"],
-            "to": ["test-utils"],
-            "ignore": [
-              "**/*.test.{ts,tsx,js,mjs}",
-              "packages/**/testing/**",
-              "packages/test-utils/**",
-              "packages/**/src/test-utils/**"
-            ],
-            "reason": "production code never imports the shared test helpers"
-          },
           {
             "name": "testing-entries",
             "from": ["packages"],
             "to": ["testing"],
-            "ignore": [
-              "**/*.test.{ts,tsx,js,mjs}",
-              "packages/**/testing/**",
-              "packages/test-utils/**",
-              "packages/**/src/test-utils/**"
-            ],
-            "reason": "production code never imports a testing entry or a testing/ folder"
+            "ignore": ["**/*.test.{ts,tsx,js,mjs}", "packages/**/src/test-utils/**"],
+            "reason": "production code never imports a test helper, in a src/test-utils/ folder or through a package's test-utils export"
           },
           {
             "name": "daemon-folders",
@@ -312,7 +260,7 @@
             "modules": ["node:*", "bun:*"],
             "from": ["core"],
             "allow": [],
-            "ignore": ["**/*.test.{ts,tsx,js,mjs}", "packages/core/src/testing/**"],
+            "ignore": ["**/*.test.{ts,tsx,js,mjs}", "packages/core/src/test-utils/**"],
             "reason": "@atc/core runs on any runtime"
           },
           { "name": "confinement", "modules": ["bun-pty"], "allow": ["pty-files"] },

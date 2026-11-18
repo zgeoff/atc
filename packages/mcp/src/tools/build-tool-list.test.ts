@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { getRecord } from '@atc/test-utils';
+import { getRecord } from '@atc/core/test-utils/get-record';
 import invariant from 'tiny-invariant';
 import { buildToolList } from './build-tool-list';
 import { MCP_TOOLS } from './mcp-tools';

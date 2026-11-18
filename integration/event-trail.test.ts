@@ -1,8 +1,11 @@
 import { expect, test } from 'bun:test';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getRecord, getRecords, getString, waitFor } from '@atc/test-utils';
-import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
+import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemon';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getRecords } from '@atc/core/test-utils/get-records';
+import { getString } from '@atc/core/test-utils/get-string';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 
 // A daemon in the test's process whose Claude is the in-process stand-in.
 function setupTest() {

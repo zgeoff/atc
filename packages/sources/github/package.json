@@ -4,7 +4,8 @@
   "description": "The GitHub source: the repositories gh on the daemon's host can see",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
   },
   "dependencies": {
     "@atc/plugin-api": "workspace:*",
@@ -12,7 +13,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@atc/test-utils": "workspace:*",
+    "@atc/core": "workspace:*",
     "@faker-js/faker": "catalog:"
   }
 }
