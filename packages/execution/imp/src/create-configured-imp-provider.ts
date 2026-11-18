@@ -64,6 +64,12 @@ export function createConfiguredImpProvider(
     return { provider: null, problem: sessionEnv };
   }
 
+  const maxMemoryMib = parseMaxMemoryMib(id, options['maxMemoryMib'], options['memoryMib']);
+
+  if (typeof maxMemoryMib === 'string') {
+    return { provider: null, problem: maxMemoryMib };
+  }
+
   const provider = createImpProvider(
     createImpClientPort({ url, readToken: source.readToken }),
     {
@@ -75,6 +81,7 @@ export function createConfiguredImpProvider(
       ...pickString(options, 'guestDir'),
       ...pickString(options, 'guestATC'),
       ...(typeof options['memoryMib'] === 'number' ? { memoryMib: options['memoryMib'] } : {}),
+      ...(maxMemoryMib === null ? {} : { maxMemoryMib }),
     },
     { version },
   );
@@ -181,6 +188,29 @@ function parseSessionEnv(id: string, raw: unknown): Record<string, string> | nul
   }
 
   return env;
+}
+
+// impd refuses an imp of less memory.
+const MIN_IMP_MEMORY_MIB = 128;
+
+// The most memory a new imp may grow to, null when the target sets none, or
+// the problem with the value. impd checks the max against its own limits.
+function parseMaxMemoryMib(id: string, raw: unknown, memoryMib: unknown): number | null | string {
+  if (raw === undefined) {
+    return null;
+  }
+
+  const target = JSON.stringify(id);
+
+  if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < MIN_IMP_MEMORY_MIB) {
+    return `target ${target} must give maxMemoryMib as a whole number of MiB, at least ${MIN_IMP_MEMORY_MIB}`;
+  }
+
+  if (typeof memoryMib === 'number' && raw < memoryMib) {
+    return `target ${target} must give maxMemoryMib at least as large as its memoryMib`;
+  }
+
+  return raw;
 }
 
 function pickString(

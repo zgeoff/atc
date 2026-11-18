@@ -43,6 +43,7 @@ test.each([
   ['image', 'dev', 'ci'],
   ['guestATC', '/usr/bin/atc', '/opt/atc'],
   ['memoryMib', 2048, 4096],
+  ['maxMemoryMib', 2048, 4096],
   ['rebindChangedAuth', false, true],
 ])('it preserves the imp identity when %s changes', (key, before, after) => {
   expect(buildTargetIdentity('imp', { [key]: before }, IMP_PLUGIN.identity)).toBe(

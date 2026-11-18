@@ -32,12 +32,12 @@ unavailable target fails, and a restore lists a session whose target is gone as 
 `no target '<target_id>'` as its last message. Revive it after you add the target back.
 
 A session stays bound to its target's provider and connection options. On an imp target, atc keeps
-existing sessions working after a change to `image`, `memoryMib`, `guestATC`, `rebindChangedAuth`,
-or `sessionEnv`; new imps use the configured image and memory. Changes to the impd URL, token
-source, imp prefix, guest directory, or other options refuse input, resume, and revive with
-`target_changed` for a versioned binding. Restore the target's earlier config to use those sessions
-again. Never put a credential value in a target's options; name an environment variable or a file
-that holds it instead.
+existing sessions working after a change to `image`, `memoryMib`, `maxMemoryMib`, `guestATC`,
+`rebindChangedAuth`, or `sessionEnv`; new imps use the configured image and memory. Changes to the
+impd URL, token source, imp prefix, guest directory, or other options refuse input, resume, and
+revive with `target_changed` for a versioned binding. Restore the target's earlier config to use
+those sessions again. Never put a credential value in a target's options; name an environment
+variable or a file that holds it instead.
 
 During fleet restore, atc checks a session with an unversioned imp identity against impd with the
 current credentials. It accepts the connection identity only when the existing imp is present and
@@ -114,6 +114,7 @@ The target's options:
 | `tokenFile`            | unset    | The file that holds the impd token.                                                                   |
 | `image`                | impd's   | The image a new imp boots.                                                                            |
 | `memoryMib`            | impd's   | The memory a new imp gets.                                                                            |
+| `maxMemoryMib`         | unset    | The most memory a new imp may grow to. impd then boots the imp elastic, on ordinary pages.            |
 | `guestDir`             | impd's   | The folder inside each imp that atc's files go under.                                                 |
 | `guestATC`             | unset    | An atc binary installed in the image, which hooks run when it prints the daemon's version.            |
 | `rebindChangedAuth`    | `false`  | Whether a revive or restore rebinds a host whose agent's auth profiles changed, instead of refusing.  |

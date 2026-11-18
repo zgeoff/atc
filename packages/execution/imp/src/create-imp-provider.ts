@@ -70,6 +70,7 @@ interface ImpTargetOptions {
   readonly dropSysAdmin?: boolean;
   readonly image?: string;
   readonly memoryMib?: number;
+  readonly maxMemoryMib?: number;
   readonly guestDir?: string;
   readonly guestATC?: string;
   readonly sessionEnv?: Readonly<Record<string, string>>;
@@ -651,13 +652,14 @@ function findOwnLinuxBinary(): string | null {
   return isCompiledBinary() && process.platform === 'linux' ? process.execPath : null;
 }
 
-// The imp a target creates: its image and memory when the target sets them,
-// and impd's defaults otherwise.
+// The imp a target creates: its image, memory and memory max when the target
+// sets them, and impd's defaults otherwise.
 function buildCreateImpSpec(name: string, target: ImpTargetOptions): ImpCreateSpec {
   return {
     name,
     ...(target.image === undefined ? {} : { image: target.image }),
     ...(target.memoryMib === undefined ? {} : { memoryMib: target.memoryMib }),
+    ...(target.maxMemoryMib === undefined ? {} : { maxMemoryMib: target.maxMemoryMib }),
   };
 }
 
