@@ -19,9 +19,10 @@ export interface StubPeerRequest {
 }
 
 // What the stand-in sends for one request: an answer, a refusal, an end of
-// the connection with no response, or no response at all.
+// the connection with no response, or no response at all. The answer takes
+// any value, so a test can stand in for a daemon that answers with no record.
 export type StubPeerAnswer =
-  | { readonly ok: Readonly<Record<string, unknown>> }
+  | { readonly ok: unknown }
   | {
       readonly err: {
         readonly code: string;

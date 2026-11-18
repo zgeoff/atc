@@ -18,6 +18,19 @@ test('it keeps the code, message and data of a refusal the daemon sent', () => {
   });
 });
 
+test.each([
+  ['an array', [1]],
+  ['a string', 'text'],
+])('it drops refusal data that is %s, which holds no fields', (_label, data) => {
+  const error = toDaemonError(new ORPCError('target_forbidden', { message: 'out of reach', data }));
+
+  expect({ code: error.code, message: error.message, data: error.data }).toStrictEqual({
+    code: 'target_forbidden',
+    message: 'out of reach',
+    data: undefined,
+  });
+});
+
 test('it reads a code the client does not know as internal', () => {
   const error = toDaemonError(new ORPCError('NOT_FOUND', { message: 'Not Found' }));
 

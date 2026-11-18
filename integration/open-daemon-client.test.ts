@@ -319,6 +319,26 @@ test('it hands the answer handler each method and answer before the request reso
   expect(seen).toStrictEqual([{ method: 'session.list', ok: { sessions: [] }, isResolved: false }]);
 });
 
+test.each([
+  ['an array', [1, 2]],
+  ['a string', 'text'],
+])(
+  'it resolves a request with an empty record when the daemon answers with %s',
+  async (_label, ok) => {
+    const ctx = setupTest();
+
+    startStubPeerDaemon(ctx.socketPath, { answer: () => ({ ok }) });
+
+    const client = await openDaemonClient(ctx.socketPath);
+
+    onTestFinished(() => {
+      client.stop();
+    });
+
+    expect(client.sendRequest('session.list')).resolves.toStrictEqual({});
+  },
+);
+
 test('it rejects a request as internal when the answer handler throws', async () => {
   const ctx = setupTest();
 
