@@ -35,7 +35,7 @@ type IncompleteCheckout = Exclude<
 export async function createWorkspaceClone(
   request: CloneRequest,
 ): Promise<CloneRefusal | CreatedClone | IncompleteCheckout> {
-  const askpass = await createGitAskpass(request.credential);
+  const askpass = await createGitAskpass(request.credential, request.source.url);
 
   if (!askpass.ok) {
     return askpass;
