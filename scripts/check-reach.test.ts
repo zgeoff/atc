@@ -555,6 +555,73 @@ test('it passes reporters whose static imports load only light entry points', as
   });
 });
 
+test("it passes a reporter whose static imports load the contract's client entry", async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.directory, 'packages/daemon/src/index.ts'),
+    'export const DAEMON = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/daemon/src/testing/index.ts'),
+    'export const STUB = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/open-mcp-auth-database.ts'),
+    'export const OPEN = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      exports: { './client': './src/client/index.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/client/index.ts'),
+    "export * from './open-daemon-client';\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/contract/src/client/open-daemon-client.ts'),
+    'export const openDaemonClient = 1;\n',
+  );
+
+  await Bun.write(join(ctx.directory, 'packages/app/src/cli.ts'), 'export const CLI = 1;\n');
+
+  await Bun.write(
+    join(ctx.directory, 'packages/reporters/src/index.ts'),
+    'export const REPORT = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/reporters/src/tap/index.ts'),
+    "import { openDaemonClient } from '@atcx/contract/client';\n\nexport const TAP = openDaemonClient;\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 0,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 0 findings\n',
+    stderr: '',
+  });
+});
+
 test('it fails on a reporter whose static imports load a root entry point', async () => {
   const ctx = setupTest();
 

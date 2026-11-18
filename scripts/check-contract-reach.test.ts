@@ -20,6 +20,22 @@ test('it passes an entry that imports only its own files, zod, @orpc/contract an
   ).toStrictEqual([]);
 });
 
+test.each(['@orpc/client', '@orpc/client/standard', '@orpc/standard-server-peer', 'xstate'])(
+  'it passes a client module that imports %s',
+  (specifier) => {
+    expect(
+      checkContractReach([
+        {
+          entry: 'packages/contract/src/client/index.ts',
+          exists: true,
+          imports: new Map([['packages/contract/src/client/open-daemon-client.ts', [specifier]]]),
+          unresolved: [],
+        },
+      ]),
+    ).toStrictEqual([]);
+  },
+);
+
 test('it reports an entry that does not exist', () => {
   expect(
     checkContractReach([
