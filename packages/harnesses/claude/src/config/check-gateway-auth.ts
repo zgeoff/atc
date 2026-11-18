@@ -1,4 +1,8 @@
-import { collectProfileEnvProblems, resolveAuthProfiles } from '@atc/config';
+import {
+  collectProfileEnvProblems,
+  collectTelemetryEnvProblems,
+  resolveAuthProfiles,
+} from '@atc/config';
 import {
   BROKER_PLACEHOLDER,
   CLAUDE_CREDENTIAL_VARIABLES,
@@ -59,13 +63,16 @@ export function checkGatewayAuth(
   if ('problem' in resolution) {
     problems.push(resolution.problem.message);
   } else {
+    const sources = [
+      ['env', Object.keys(entry.env)],
+      ['settings.env', settingsEnv],
+    ] as const;
+
     problems.push(
-      ...collectProfileEnvProblems(
-        [
-          ['env', Object.keys(entry.env)],
-          ['settings.env', settingsEnv],
-        ],
-        resolution.resolved.envOwners,
+      ...collectProfileEnvProblems(sources, resolution.resolved.envOwners),
+      ...collectTelemetryEnvProblems(
+        [...sources, ['placeholderEnv', Object.keys(auth.placeholderEnv)]],
+        resolution.resolved.telemetry,
       ),
     );
 

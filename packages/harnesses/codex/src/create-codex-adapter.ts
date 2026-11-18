@@ -211,7 +211,7 @@ export function createCodexAdapter(
       args: launch.args,
       files: {
         [`${authDir}/auth.json`]: buildCodexAuthFile(signIn.idClaims, signIn.accountID),
-        [`${authDir}/config.toml`]: buildCodexConfig(),
+        [`${authDir}/config.toml`]: buildCodexConfig(guest.auth.telemetryHost ?? null),
         [`${authDir}/hooks.json`]: buildCodexHookFile([guest.atc]),
       },
       env: { ...env, ...guest.auth.profileEnv, ...guest.auth.env, ...launch.env },

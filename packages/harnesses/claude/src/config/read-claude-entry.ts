@@ -2,6 +2,7 @@ import type { AgentEntry, AgentEntryRead } from '@atc/config';
 import {
   collectProfileEnvProblems,
   collectSignInOverrideProblems,
+  collectTelemetryEnvProblems,
   resolveAuthProfiles,
 } from '@atc/config';
 import { isRecord, isSubscriptionOverrideVariable } from '@atc/core';
@@ -55,7 +56,7 @@ export function readClaudeEntry(args: ClaudeEntryArgs): AgentEntryRead {
   }
 
   problems.push(
-    ...collectEntryProfileEnvProblems(entry, collected.auth.profiles, args.authProfiles),
+    ...collectEntryProfileEnvProblems(entry, collected.auth, args.authProfiles),
     ...collectPlaceholderOverrideProblems(entry, collected.auth.placeholderEnv),
   );
 
@@ -98,13 +99,20 @@ function collectSubscriptionProblems(entry: AgentEntry): string[] {
   return problems;
 }
 
-// The variables a stock entry sets that its selected profiles also set.
+interface EntryAuth {
+  readonly profiles: readonly string[];
+  readonly placeholderEnv: Readonly<Record<string, string>>;
+}
+
+// The variables a stock entry sets that its selected profiles also set. A
+// placeholder outranks the telemetry variables in the launch, so it counts
+// against them too.
 function collectEntryProfileEnvProblems(
   entry: AgentEntry,
-  selected: readonly string[],
+  auth: EntryAuth,
   authProfiles: ReadonlyMap<string, AuthProfile>,
 ): string[] {
-  const resolution = resolveAuthProfiles(authProfiles, selected);
+  const resolution = resolveAuthProfiles(authProfiles, auth.profiles);
 
   if ('problem' in resolution) {
     return [];
@@ -112,16 +120,21 @@ function collectEntryProfileEnvProblems(
 
   const settingsEnv = entry.settings?.['env'];
 
-  return collectProfileEnvProblems(
+  const sources = [
+    ['env', Object.keys(entry.env)],
     [
-      ['env', Object.keys(entry.env)],
-      [
-        'settings.env',
-        isRecord(settingsEnv) && !Array.isArray(settingsEnv) ? Object.keys(settingsEnv) : [],
-      ],
+      'settings.env',
+      isRecord(settingsEnv) && !Array.isArray(settingsEnv) ? Object.keys(settingsEnv) : [],
     ],
-    resolution.resolved.envOwners,
-  );
+  ] as const;
+
+  return [
+    ...collectProfileEnvProblems(sources, resolution.resolved.envOwners),
+    ...collectTelemetryEnvProblems(
+      [...sources, ['auth.placeholderEnv', Object.keys(auth.placeholderEnv)]],
+      resolution.resolved.telemetry,
+    ),
+  ];
 }
 
 // The placeholders a stock entry's env or settings env also sets, whose

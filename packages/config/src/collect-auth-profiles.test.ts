@@ -440,3 +440,105 @@ test('it refuses env on a github profile', () => {
     ],
   });
 });
+
+test('it keeps the telemetry of a profile that names a host', () => {
+  expect(
+    collectAuthProfiles({
+      records: {
+        secret: 'records',
+        host: 'records.example.com',
+        header: 'authorization',
+        scheme: 'bearer',
+        telemetry: { logs: true },
+      },
+    }),
+  ).toStrictEqual({
+    profiles: new Map([
+      [
+        'records',
+        {
+          name: 'records',
+          secret: 'records',
+          kind: 'custom',
+          host: 'records.example.com',
+          header: 'authorization',
+          scheme: 'bearer',
+          env: {},
+          telemetry: { logs: true },
+          dependencies: [],
+        },
+      ],
+    ]),
+    errors: [],
+  });
+});
+
+test.each([
+  [
+    { logs: true, traces: true },
+    'telemetry.traces cannot be set: logs is the only signal atc sends',
+  ],
+  [{ logs: 'yes' }, 'telemetry.logs must be true or false'],
+  [{}, 'telemetry.logs must be true or false'],
+  [true, 'telemetry must be an object with a logs key'],
+])('it refuses the telemetry %j', (telemetry, problem) => {
+  expect(
+    collectAuthProfiles({
+      records: {
+        secret: 'records',
+        host: 'records.example.com',
+        header: 'authorization',
+        scheme: 'bearer',
+        telemetry,
+      },
+    }),
+  ).toStrictEqual({ profiles: new Map(), errors: [`authProfiles.records: ${problem}`] });
+});
+
+test('it refuses telemetry on a github profile', () => {
+  expect(
+    collectAuthProfiles({
+      github: { secret: 'github-agents', kind: 'github', telemetry: { logs: true } },
+    }),
+  ).toStrictEqual({
+    profiles: new Map(),
+    errors: [
+      'authProfiles.github: telemetry cannot be set on a github profile, which names no host to send records to',
+    ],
+  });
+});
+
+test('it refuses a profile whose env sets a variable its telemetry sets', () => {
+  expect(
+    collectAuthProfiles({
+      records: {
+        secret: 'records',
+        host: 'records.example.com',
+        header: 'authorization',
+        scheme: 'bearer',
+        env: { OTEL_EXPORTER_OTLP_ENDPOINT: 'https://records.example.com' },
+        telemetry: { logs: true },
+      },
+    }),
+  ).toStrictEqual({
+    profiles: new Map(),
+    errors: [
+      'authProfiles.records: env.OTEL_EXPORTER_OTLP_ENDPOINT cannot be set together with telemetry, which sets it',
+    ],
+  });
+});
+
+test('it keeps a profile whose env sets the telemetry endpoint and whose telemetry is off', () => {
+  const result = collectAuthProfiles({
+    records: {
+      secret: 'records',
+      host: 'records.example.com',
+      header: 'authorization',
+      scheme: 'bearer',
+      env: { OTEL_EXPORTER_OTLP_ENDPOINT: 'https://records.example.com' },
+      telemetry: { logs: false },
+    },
+  });
+
+  expect(result.errors).toStrictEqual([]);
+});

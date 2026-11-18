@@ -68,6 +68,10 @@ export interface GuestPaths {
     readonly env: Readonly<Record<string, string>>;
     readonly profileEnv: Readonly<Record<string, string>>;
 
+    // the host the session's agents send their log records to, absent when
+    // no selected profile turns telemetry on.
+    readonly telemetryHost?: string;
+
     // the sign-in state the broker lists for each secret of kind `oauth` in the
     // binding, keyed by the secret's name.
     readonly oauth?: Readonly<Record<string, GuestOAuthState>>;

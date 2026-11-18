@@ -1,5 +1,5 @@
 import type { Config } from '@atc/config';
-import { resolveAuthProfiles } from '@atc/config';
+import { buildTelemetryEnv, resolveAuthProfiles } from '@atc/config';
 import {
   BROKER_PLACEHOLDER,
   CLAUDE_CREDENTIAL_VARIABLES,
@@ -357,6 +357,10 @@ export function createGatewayAdapter(
 
       const argv = [guest.atc];
       const revisionFolder = buildAuthRevisionFolder(guest.auth.revision);
+
+      const telemetryEnv =
+        guest.auth.telemetryHost === undefined ? {} : buildTelemetryEnv(guest.auth.telemetryHost);
+
       const settingsPath = `${revisionFolder}/settings.json`;
       const atcArgv = opts.atcMCP === true ? argv : null;
       const mcpPath = `${revisionFolder}/mcp.json`;
@@ -370,6 +374,7 @@ export function createGatewayAdapter(
             ...guest.sessionEnv,
             ANTHROPIC_BASE_URL: gateway.baseURL,
             ...guest.auth.profileEnv,
+            ...telemetryEnv,
             ...guest.auth.env,
             CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
           },
@@ -417,6 +422,7 @@ export function createGatewayAdapter(
           ...launch.env,
           ...(atcArgv === null ? {} : ATC_MCP_ENV),
           ...guest.auth.profileEnv,
+          ...telemetryEnv,
           ...guest.auth.env,
         },
       };

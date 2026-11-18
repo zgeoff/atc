@@ -15,6 +15,7 @@ export function buildMockAuthBinding(
       secrets: [],
       placeholderEnv: {},
       profileEnv: {},
+      telemetryHost: null,
       hash: faker.string.hexadecimal({ length: 64, casing: 'lower', prefix: '' }),
     },
     overrides,

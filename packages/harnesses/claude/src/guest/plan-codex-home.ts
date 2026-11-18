@@ -20,6 +20,7 @@ interface PlanCodexHomeOptions {
   readonly guestDir: string;
   readonly revisionFolder: string;
   readonly states: Readonly<Record<string, GuestOAuthState>>;
+  readonly telemetryHost: string | null;
 }
 
 // the home replaces the image's own Codex home, its settings included; without a ready
@@ -40,7 +41,7 @@ export function planCodexHome(options: PlanCodexHomeOptions): CodexHomePlan {
         content: new TextEncoder().encode(buildCodexAuthFile(signIn.idClaims, signIn.accountID)),
         mode: 0o600,
       },
-      [`${home}/config.toml`]: buildCodexConfig(),
+      [`${home}/config.toml`]: buildCodexConfig(options.telemetryHost),
     },
     env: { CODEX_HOME: `${options.guestDir}/${home}` },
     unsetEnv: CREDENTIAL_VARIABLES,

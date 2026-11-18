@@ -1,5 +1,9 @@
 import type { AgentEntry, AgentEntryRead } from '@atc/config';
-import { collectProfileEnvProblems, collectSignInOverrideProblems } from '@atc/config';
+import {
+  collectProfileEnvProblems,
+  collectSignInOverrideProblems,
+  collectTelemetryEnvProblems,
+} from '@atc/config';
 import { isBrokerVariable } from '@atc/core';
 import type { AuthProfile } from '@atc/plugin-api';
 import { CODEX_CREDENTIAL_VARIABLES } from './codex-credential-variables';
@@ -29,7 +33,10 @@ export function readCodexEntry(args: CodexEntryArgs): AgentEntryRead {
     return { problems: [...collected.errors, ...problems] };
   }
 
-  problems.push(...collectProfileEnvProblems([['env', envKeys]], collected.envOwners));
+  problems.push(
+    ...collectProfileEnvProblems([['env', envKeys]], collected.envOwners),
+    ...collectTelemetryEnvProblems([['env', envKeys]], collected.telemetry),
+  );
 
   if (problems.length > 0) {
     return { problems };

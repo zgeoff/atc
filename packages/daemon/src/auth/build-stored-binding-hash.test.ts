@@ -155,3 +155,47 @@ test('it hashes a stored custom variable apart from the placeholder', () => {
 test('it finds no hash for a stored binding without a list of secrets', () => {
   expect(buildStoredBindingHash(JSON.stringify({ profileEnv: {} }))).toBeNull();
 });
+
+test('it hashes a stored binding with a telemetry host as the current binding of the same profiles', () => {
+  const planned = buildAuthBinding(
+    {
+      id: 'glm',
+      baseURL: 'https://records.example.com/x',
+      auth: { profiles: ['records'], placeholderEnv: {} },
+    },
+    new Map<string, AuthProfile>([
+      [
+        'records',
+        buildMockAuthProfile({
+          name: 'records',
+          secret: 'records',
+          host: 'records.example.com',
+          header: 'authorization',
+          scheme: 'bearer',
+          telemetry: { logs: true },
+        }),
+      ],
+    ]),
+  );
+
+  invariant('binding' in planned);
+
+  expect(buildStoredBindingHash(JSON.stringify(planned.binding))).toBe(planned.binding.hash);
+});
+
+test('it hashes a stored binding with a telemetry host apart from the same binding stored without one', () => {
+  const stored = {
+    secrets: [
+      {
+        secret: 'records',
+        kind: 'custom',
+        rules: [{ host: 'records.example.com', header: 'authorization', scheme: 'bearer' }],
+      },
+    ],
+    profileEnv: {},
+  };
+
+  expect(
+    buildStoredBindingHash(JSON.stringify({ ...stored, telemetryHost: 'records.example.com' })),
+  ).not.toBe(buildStoredBindingHash(JSON.stringify(stored)));
+});

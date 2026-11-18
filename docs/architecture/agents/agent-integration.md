@@ -42,6 +42,11 @@ included. A telemetry consumer joins all of a session's records on the id the sp
 agents' own ids don't join them: Claude Code's `session.id` changes on `/clear`, and a Codex side
 conversation, such as `codex-auto-review`, exports under a `conversation.id` of its own.
 
+atc turns an agent's log exporter on only for a session on an imp target that reaches an auth
+profile with `telemetry`, as
+[profile telemetry](../../guides/configuration/brokered-credentials.md#profile-telemetry) describes.
+In every other session, the agent's own configuration decides whether it exports.
+
 atc appends the attribute to the value the agent inherits, and never replaces that value. The
 inherited value is the one the launch plan sets, else, for a local launch, the daemon's own. A guest
 takes nothing from the daemon's environment, so a guest agent's value holds only the session

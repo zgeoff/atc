@@ -1,4 +1,5 @@
 import type { AuthProfile } from '@atc/plugin-api';
+import { buildTelemetryEnv } from './build-telemetry-env';
 
 interface AuthRule {
   readonly host: string;
@@ -14,12 +15,20 @@ export interface ResolvedAuthSecret {
   readonly rules: readonly AuthRule[];
 }
 
+interface ResolvedTelemetry {
+  readonly profile: string;
+  readonly host: string;
+}
+
 interface ResolvedAuthProfiles {
   readonly profiles: readonly string[];
   readonly hosts: readonly string[];
   readonly secrets: readonly ResolvedAuthSecret[];
   readonly env: Readonly<Record<string, string>>;
   readonly envOwners: Readonly<Record<string, string>>;
+
+  // the profile that turns telemetry on and the host it sends records to.
+  readonly telemetry: ResolvedTelemetry | null;
 }
 
 export interface AuthProfileProblem {
@@ -64,8 +73,22 @@ export function resolveAuthProfiles(
 
   const env: Record<string, string> = {};
   const envOwners: Record<string, string> = {};
+  let telemetry: ResolvedTelemetry | null = null;
 
   for (const profile of ordered) {
+    if (profile.kind !== 'github' && profile.telemetry?.logs === true) {
+      if (telemetry !== null) {
+        return {
+          problem: {
+            code: 'auth_collision',
+            message: `profiles ${telemetry.profile} and ${profile.name} both set telemetry`,
+          },
+        };
+      }
+
+      telemetry = { profile: profile.name, host: profile.host };
+    }
+
     const kindOwner = kinds.get(profile.secret);
 
     if (kindOwner === undefined) {
@@ -111,6 +134,20 @@ export function resolveAuthProfiles(
     }
   }
 
+  const taken =
+    telemetry === null
+      ? undefined
+      : Object.keys(buildTelemetryEnv(telemetry.host)).find((key) => envOwners[key] !== undefined);
+
+  if (telemetry !== null && taken !== undefined) {
+    return {
+      problem: {
+        code: 'auth_collision',
+        message: `profile ${envOwners[taken]} sets ${taken}, which the telemetry of profile ${telemetry.profile} sets`,
+      },
+    };
+  }
+
   return {
     resolved: {
       profiles: ordered.map((profile) => profile.name),
@@ -118,6 +155,7 @@ export function resolveAuthProfiles(
       secrets: buildSecrets(ordered, [...byHost.values()]),
       env,
       envOwners,
+      telemetry,
     },
   };
 }

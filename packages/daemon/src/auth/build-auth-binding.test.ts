@@ -51,6 +51,7 @@ test('it plans a binding of the resolved secrets, the placeholders and the base 
       ],
       placeholderEnv: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
       profileEnv: {},
+      telemetryHost: null,
       hash: planned.binding.hash,
     },
   });
@@ -272,6 +273,7 @@ test('it hashes the secrets alone when the profiles set no variables', () => {
       ],
       placeholderEnv: {},
       profileEnv: {},
+      telemetryHost: null,
       hash: planned.binding.hash,
     },
   });
@@ -355,7 +357,60 @@ test('it carries the merged profile variables in the binding', () => {
       ],
       placeholderEnv: {},
       profileEnv: { OP_CONNECT_TOKEN: 'broker-placeholder' },
+      telemetryHost: null,
       hash: planned.binding.hash,
     },
   });
+});
+
+test('it binds the host of the profile that turns telemetry on, under a hash apart from the same profiles without it', () => {
+  const withTelemetry = buildAuthBinding(
+    {
+      id: 'glm',
+      baseURL: 'https://records.example.com/x',
+      auth: { profiles: ['records'], placeholderEnv: {} },
+    },
+    new Map([
+      [
+        'records',
+        buildMockAuthProfile({
+          name: 'records',
+          secret: 'records',
+          host: 'records.example.com',
+          header: 'authorization',
+          scheme: 'bearer',
+          telemetry: { logs: true },
+        }),
+      ],
+    ]),
+  );
+
+  const without = buildAuthBinding(
+    {
+      id: 'glm',
+      baseURL: 'https://records.example.com/x',
+      auth: { profiles: ['records'], placeholderEnv: {} },
+    },
+    new Map([
+      [
+        'records',
+        buildMockAuthProfile({
+          name: 'records',
+          secret: 'records',
+          host: 'records.example.com',
+          header: 'authorization',
+          scheme: 'bearer',
+          telemetry: { logs: false },
+        }),
+      ],
+    ]),
+  );
+
+  invariant('binding' in withTelemetry && 'binding' in without, 'expected both to resolve');
+
+  expect({
+    host: withTelemetry.binding.telemetryHost,
+    off: without.binding.telemetryHost,
+    isSameHash: withTelemetry.binding.hash === without.binding.hash,
+  }).toStrictEqual({ host: 'records.example.com', off: null, isSameHash: false });
 });

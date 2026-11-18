@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentEntry, Config } from '@atc/config';
+import { buildTelemetryEnv } from '@atc/config';
 import { parseClaudeStatusLine } from '@atc/config/claude-statusline';
 import { resolveAgentHome } from '@atc/config/host';
 import {
@@ -214,7 +215,11 @@ export function createClaudeAdapter(
       guestDir: directory,
       revisionFolder,
       states: auth.oauth ?? {},
+      telemetryHost: auth.telemetryHost ?? null,
     });
+
+    const telemetryEnv =
+      auth.telemetryHost === undefined ? {} : buildTelemetryEnv(auth.telemetryHost);
 
     // the configured arguments drop their permission mode, so the mode the session's own user
     // settings set applies
@@ -256,6 +261,7 @@ export function createClaudeAdapter(
     const settings = buildHookSettings(
       buildSettingsProfile(guest.sessionEnv ?? {}, {
         ...auth.profileEnv,
+        ...telemetryEnv,
         ...auth.env,
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       }),
@@ -287,6 +293,7 @@ export function createClaudeAdapter(
         ...(atcArgv === null ? {} : ATC_MCP_ENV),
         ...codexHome.env,
         ...auth.profileEnv,
+        ...telemetryEnv,
         ...auth.env,
       },
     };

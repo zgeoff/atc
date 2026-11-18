@@ -42,15 +42,16 @@ the daemon prints a deprecation warning when it starts with a config that holds 
 Each profile in `authProfiles` holds a reference to a secret impd holds and the rule impd applies
 with it:
 
-| Key            | What it holds                                                                             |
-| -------------- | ----------------------------------------------------------------------------------------- |
-| `secret`       | The name of the secret in impd, under impd's secret name rule.                            |
-| `host`         | The exact host impd adds the credential for: lowercase, no port, no wildcard, no IP.      |
-| `header`       | The lowercase header impd sets, such as `authorization`.                                  |
-| `scheme`       | How impd renders the value: `bearer`, or `raw` for the value alone. atc binds these two.  |
-| `kind`         | The kind of secret the profile names: `custom`, the default, `oauth`, or `github`.        |
-| `env`          | Variables a `custom` profile sets in a session that reaches it. See below.                |
-| `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's. |
+| Key            | What it holds                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `secret`       | The name of the secret in impd, under impd's secret name rule.                                                         |
+| `host`         | The exact host impd adds the credential for: lowercase, no port, no wildcard, no IP.                                   |
+| `header`       | The lowercase header impd sets, such as `authorization`.                                                               |
+| `scheme`       | How impd renders the value: `bearer`, or `raw` for the value alone. atc binds these two.                               |
+| `kind`         | The kind of secret the profile names: `custom`, the default, `oauth`, or `github`.                                     |
+| `env`          | Variables a `custom` profile sets in a session that reaches it. See [Profile variables](#profile-variables).           |
+| `telemetry`    | `{ "logs": true }` sends the log records of a session's agents to `host`. See [Profile telemetry](#profile-telemetry). |
+| `dependencies` | Profiles a session selecting this one needs beside it, such as a permission classifier's.                              |
 
 An imp target is unusable while any profile's `secret` or `header` breaks impd's name rules, since
 impd refuses that profile. The daemon prints the reason for each imp target when it starts.
@@ -128,3 +129,70 @@ profile, and refuses an entry that selects it, when its `env` sets:
 Two selected profiles that set one variable to different values are refused, and so is an entry
 whose `env` or `settings.env` sets a variable that one of its profiles sets. A change to a profile's
 `env` gives the session's binding a new revision.
+
+## Profile telemetry
+
+To send the OpenTelemetry log records of a session's agents to a service the broker authenticates,
+set `telemetry` on the service's profile. Add the secret to impd as a `custom` secret on the
+service's host. Then select the profile in an agent's `auth.profiles`:
+
+```json
+{
+  "authProfiles": {
+    "records": {
+      "secret": "records",
+      "host": "records.example.com",
+      "header": "authorization",
+      "scheme": "bearer",
+      "telemetry": { "logs": true }
+    }
+  },
+  "agents": {
+    "claude": { "auth": { "profiles": ["claude", "records"] } }
+  }
+}
+```
+
+`telemetry` holds one key, `logs`, set to `true` or `false`. With `logs` set to `false`, or with no
+`telemetry`, atc sets nothing. atc sends log records only, and no traces or metrics. atc builds each
+endpoint from the profile's `host`, over `https`, so the config never holds an endpoint. A `github`
+profile takes no `telemetry`, because it names no host. A session on the local target gets nothing
+from `telemetry`.
+
+On an imp target, atc sets up the agents of each session whose entry reaches the profile, through
+its `auth.profiles` or a dependency:
+
+- A Claude Code session gets four variables, in the settings file atc generates for the session and
+  in the environment of the launch. This holds for an entry with a `baseURL` and for one without.
+  The variables are `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=otlp`,
+  `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`, and
+  `OTEL_EXPORTER_OTLP_ENDPOINT=https://records.example.com`. Claude Code adds `/v1/logs` to that
+  endpoint.
+- Codex gets no variable. Each Codex `config.toml` that atc writes for the session gets the log
+  exporter below. Codex reads its exporter from that file alone, and ignores the four variables. The
+  [Codex subscription guide](./codex-subscription.md) says when atc writes the file, for a Codex
+  session and for the Codex CLI that a Claude Code session runs.
+
+```toml
+[otel]
+log_user_prompt = false
+exporter = { otlp-http = { endpoint = "https://records.example.com/v1/logs", protocol = "json" } }
+```
+
+The daemon starts without an agent entry that has one of these faults, and prints why at startup:
+
+- Two of the profiles the entry reaches set `logs` to `true`.
+- A profile the entry reaches sets `logs` to `true`, and the entry's `env`, `settings.env` or
+  `auth.placeholderEnv` sets one of the four variables.
+- One profile the entry reaches sets `logs` to `true`, and another sets one of the four variables in
+  its `env`.
+- A profile the entry selects sets `logs` to `true` and one of the four variables in its own `env`.
+  The daemon drops that profile and prints why, so the entry has a profile that does not resolve.
+
+Without `telemetry`, you can still set the four variables by hand: `OTEL_EXPORTER_OTLP_ENDPOINT` in
+the profile's `env`, and the other three in the entry's `env`. Claude Code then sends its log
+records, and Codex sends none, because atc writes no exporter into its `config.toml`.
+
+A change to a profile's `telemetry` gives the session's binding a new revision, as a change to its
+`env` does. atc also adds the session's id to every record, as
+[Session telemetry](../../architecture/agents/agent-integration.md#session-telemetry) describes.

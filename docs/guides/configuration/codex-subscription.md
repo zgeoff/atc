@@ -51,6 +51,9 @@ such as
   broker.
 - The entry's `env` sets a variable that a selected profile's `env` sets, as
   [profile variables](./brokered-credentials.md#profile-variables) describes.
+- The entry's `env` sets a variable that a selected profile's `telemetry` sets, or two selected
+  profiles turn telemetry on, as [profile telemetry](./brokered-credentials.md#profile-telemetry)
+  describes.
 
 On an imp target, each session gets a Codex home of its own, `codex-home` in its guest folder,
 passed as `CODEX_HOME`. Before each launch, atc copies three files into it:
@@ -59,8 +62,10 @@ passed as `CODEX_HOME`. Before each launch, atc copies three files into it:
   `broker-placeholder`, and its ID token is an unsigned copy of the email and the
   `https://api.openai.com/auth` claims that impd lists for the secret. Codex sends the account id
   from those claims with each request, so it must be the real one.
-- `config.toml`, which keeps the sign-in in that file and turns off the update check. With
-  [clone trust](./targets.md#clone-trust), it also trusts the clone root.
+- `config.toml`, which keeps the sign-in in that file and turns off the update check. With a
+  selected profile that turns [telemetry](./brokered-credentials.md#profile-telemetry) on, it also
+  holds a log exporter to that profile's host. With [clone trust](./targets.md#clone-trust), it also
+  trusts the clone root.
 - `hooks.json`, the hook entries `atc codex-hooks` prints, run through the atc inside the imp.
 
 Codex starts with `--dangerously-bypass-hook-trust`, the Codex flag for automation that writes its
@@ -95,4 +100,5 @@ launch unsets `OPENAI_API_KEY`, `CODEX_API_KEY`, and `CODEX_ACCESS_TOKEN`, since
 Codex in another way. A variable that the entry's `env` sets reaches the session after that, so
 leave those three out of it. A sign-in that impd lists as `pending` or `needs_login`, or one whose
 ID token holds no ChatGPT account id, does not stop the Claude session: atc writes no Codex home,
-and Codex keeps the sign-in and settings of the host's image.
+and Codex keeps the sign-in and settings of the host's image. Codex then gets no log exporter from a
+profile's telemetry, since atc writes that exporter only into the `config.toml` of this home.
