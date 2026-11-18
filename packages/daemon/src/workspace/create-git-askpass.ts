@@ -25,10 +25,32 @@ interface MissingCredential {
 }
 
 const ASKPASS_SECRET_VAR = 'ATC_GIT_ASKPASS_SECRET';
+const ASKPASS_ORIGIN_VAR = 'ATC_GIT_ASKPASS_ORIGIN';
 
-// Username prompts get a fixed name that GitHub and GitLab both accept
-// alongside a token; password prompts get the token.
+// Answers a prompt only when its URL names the origin in the origin variable, and fails git
+// otherwise. A URL with a character that parsers read differently is refused whole.
+// Username prompts get a name that GitHub and GitLab both accept beside a token.
 export const ASKPASS_SCRIPT = `#!/bin/sh
+q="'"
+case "$1" in
+  "Username for '"*|"Password for '"*) ;;
+  *) exit 1 ;;
+esac
+url=\${1#*"$q"}
+url=\${url%"$q"*}
+case "$url" in
+  *[\\\\]*|*'#'*|*'?'*|*' '*|*"$q"*) exit 1 ;;
+  *://*) ;;
+  *) exit 1 ;;
+esac
+rest=\${url#*://}
+host=\${rest%%/*}
+host=\${host##*@}
+case "$host" in
+  ''|*[!]A-Za-z0-9._:[-]*) exit 1 ;;
+esac
+origin=$(printf '%s' "\${url%%://*}://$host" | tr '[:upper:]' '[:lower:]')
+[ -n "$${ASKPASS_ORIGIN_VAR}" ] && [ "$origin" = "$${ASKPASS_ORIGIN_VAR}" ] || exit 1
 case "$1" in
   Username*) printf '%s\\n' x-access-token ;;
   *) printf '%s\\n' "$${ASKPASS_SECRET_VAR}" ;;
@@ -37,6 +59,7 @@ esac
 
 export async function createGitAskpass(
   credential: GitCredential | undefined,
+  sourceURL: string,
 ): Promise<GitAskpass | MissingCredential> {
   if (credential === undefined) {
     return { ok: true, env: {}, args: [], [Symbol.asyncDispose]: async () => {} };
@@ -69,10 +92,30 @@ export async function createGitAskpass(
   // the host's credential helpers are off so none of them stores it
   return {
     ok: true,
-    env: { GIT_ASKPASS: helper, [ASKPASS_SECRET_VAR]: secret },
-    args: ['-c', 'credential.helper='],
+    env: {
+      GIT_ASKPASS: helper,
+      [ASKPASS_SECRET_VAR]: secret,
+      [ASKPASS_ORIGIN_VAR]: readSourceOrigin(sourceURL),
+    },
+    args: ['-c', 'credential.helper=', '-c', 'http.followRedirects=false'],
     [Symbol.asyncDispose]: async () => {
       await rm(directory, { recursive: true, force: true });
     },
   };
+}
+
+// The scheme and host of the source URL, lowercased, or empty when the URL is not one a token
+// may go to; the helper then refuses every prompt.
+function readSourceOrigin(sourceURL: string): string {
+  try {
+    const url = new URL(sourceURL);
+
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return '';
+    }
+
+    return `${url.protocol}//${url.host}`.toLowerCase();
+  } catch {
+    return '';
+  }
 }

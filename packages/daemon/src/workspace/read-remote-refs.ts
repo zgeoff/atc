@@ -48,7 +48,7 @@ export async function readRemoteRefs(
 ): Promise<RemoteRefListing | RemoteRefRefusal> {
   const timeoutMs = options.timeoutMs ?? REMOTE_TIMEOUT_MS;
 
-  const askpass = await createGitAskpass(options.credential);
+  const askpass = await createGitAskpass(options.credential, url);
 
   if (!askpass.ok) {
     return askpass;
