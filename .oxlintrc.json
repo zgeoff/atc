@@ -57,7 +57,7 @@
     "zgeoff/feature-folders": [
       "error",
       {
-        "pending": ["packages/app", "packages/core", "packages/tui"]
+        "pending": ["packages/app", "packages/tui"]
       }
     ],
     // these packages still hold files that no export is named for
@@ -74,7 +74,7 @@
       // wall clock directly; an override replaces the rule's options, so it
       // repeats the spawn entry
       "files": [
-        "packages/core/src/system-clock.ts",
+        "packages/core/src/time/system-clock.ts",
         "**/*.test.ts",
         "packages/**/src/test-utils/**",
         "e2e/**",
@@ -129,9 +129,9 @@
         "packages/app/src/shared/collect-legacy-agents.test.ts",
         "packages/config/src/targets/collect-targets.test.ts",
         "packages/config/src/config-file/config.test.ts",
-        "packages/core/src/create-step-timer.test.ts",
-        "packages/core/src/get-settled-value.test.ts",
-        "packages/core/src/is-broker-variable.ts",
+        "packages/core/src/time/create-step-timer.test.ts",
+        "packages/core/src/concurrency/get-settled-value.test.ts",
+        "packages/core/src/broker/is-broker-variable.ts",
         "packages/daemon/src/auth/create-runtime-auth-binder.test.ts",
         "packages/daemon/src/fleet/build-config-revision.test.ts",
         "packages/daemon/src/fleet/build-execution-targets.test.ts",
