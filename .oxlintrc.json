@@ -64,7 +64,6 @@
           "packages/core",
           "packages/daemon",
           "packages/execution/imp",
-          "packages/execution/local",
           "packages/gateway",
           "packages/harnesses/claude",
           "packages/harnesses/codex",
@@ -88,7 +87,6 @@
           "packages/execution/imp",
           "packages/lifecycle",
           "packages/protocol",
-          "packages/reporters",
           "packages/tui"
         ]
       }

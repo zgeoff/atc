@@ -11,8 +11,8 @@ import type {
   HarnessSpec,
 } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
-import { bunPTYSpawn } from './bun-pty-spawn';
-import type { SessionScopes } from './create-session-scopes';
+import { bunPTYSpawn } from './pty-library/bun-pty-spawn';
+import type { SessionScopes } from './session-scopes/create-session-scopes';
 
 // `clock` is the clock a harness's exit is waited on. `scopes` are the scopes
 // harnesses start in, or null when they start as the daemon's plain children.

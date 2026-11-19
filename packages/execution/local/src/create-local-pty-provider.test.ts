@@ -8,7 +8,7 @@ import { updateEnv } from '@atc/core/test-utils/update-env';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { createLocalPTYProvider } from './create-local-pty-provider';
-import { createSessionScopes } from './create-session-scopes';
+import { createSessionScopes } from './session-scopes/create-session-scopes';
 import { createStubSystemd } from './test-utils/create-stub-systemd';
 
 function setupTest() {

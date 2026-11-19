@@ -6,7 +6,7 @@ import { updateEnv } from '@atc/core/test-utils/update-env';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
 import { startStubSessionBridge } from '@atc/protocol/test-utils/start-stub-session-bridge';
 import invariant from 'tiny-invariant';
-import { runNote } from './note';
+import { runNote } from './run-note';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-note-');
