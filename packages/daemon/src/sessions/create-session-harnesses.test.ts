@@ -7,9 +7,6 @@ import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provide
 import { createSessionHarnesses } from './create-session-harnesses';
 import { createSessionRegistry } from './create-session-registry';
 
-// The harness bookkeeping over a real registry whose `local` target runs
-// harnesses in memory, with recorders in place of the fleet writer, the
-// killer, and the daemon's callbacks.
 function setupTest() {
   const provider = buildStubMemoryProvider();
   const recorder = buildStubLog();

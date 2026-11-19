@@ -77,7 +77,6 @@ export interface SessionServicesDeps {
   readonly findHookScope: (sessionID: SessionID) => HookScope | null;
   readonly endedProcesses: ReadonlySet<SessionID>;
 
-  // Whether the daemon has begun to release what it holds.
   readonly isStopped: () => boolean;
 }
 
@@ -103,18 +102,10 @@ export interface SessionServices {
   readonly restorer: FleetRestorer;
 }
 
-// How long a started Claude session may go without a tap before a message to
-// it is refused.
 const TAP_GRACE_MS = 15_000;
-
-// How long a confirm token from a forget that destroys a host stays usable.
 const FORGET_CONFIRM_MS = 60_000;
-
-// The principal every request on the local socket acts as.
 const LOCAL_PRINCIPAL = 'local';
 
-// Builds the services around the session manager in dependency order, hands the manager the ones
-// it calls, and starts the reporter socket that hook events arrive on.
 export function startSessionServices(deps: SessionServicesDeps): SessionServices {
   const opts = deps.opts;
   const manager = deps.manager;
@@ -148,8 +139,8 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
 
   manager.authBinder = authBinder;
 
-  // Settled in the background, since it reaches each target's broker: each binding a
-  // stopped daemon left mid-change stays blocked until it is settled.
+  // Reconciling reaches each target's broker, so it runs in the background. A binding a stopped
+  // daemon left mid-change stays blocked until it is settled.
   void tryReconcileAuthBindings(authBinder, store, targetsByID, manager.log);
 
   const ledger = createIdempotencyLedger(
@@ -211,8 +202,6 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     stateDir,
   });
 
-  // The revival notes each write through the hook intake, so the note lands
-  // in the session's events like one the session sent.
   const revival = startBridgeRevival({
     manager,
     taps,

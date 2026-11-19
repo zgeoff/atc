@@ -29,13 +29,9 @@ export interface RecordSubject {
   readonly directory: string;
   readonly workspace: SessionWorkspace | null;
 
-  // The branch atc checked the workspace out on, when atc materialized it;
-  // absent leaves the host to show the directory's branch.
   readonly branch?: string | null;
 }
 
-// What a spawn records once about its session: the session the spawn came
-// from and the session's scratch folder.
 type RecordOrigin = Pick<PublishedRecord, 'spawner' | 'scratch'>;
 
 interface PlacedFile {
@@ -47,10 +43,8 @@ interface PublishedRecordsOptions {
   readonly store: PublishedRecordStore;
   readonly daemonID: string;
 
-  // The directory on the daemon's machine each local copy lands in.
   readonly localDir: string;
 
-  // The gh executable that checks a declared pull request.
   readonly ghBin: string;
   readonly now: () => number;
 }
@@ -59,28 +53,18 @@ const EMPTY_SCOPE: CheckedScope = { worktrees: [], branches: [], pullRequests: [
 const NO_ORIGIN: RecordOrigin = { spawner: null, scratch: null };
 
 export interface PublishedRecords {
-  // Checks a spawn's declared scope on its readied host, records it with
-  // the workspace the session runs in and the spawn's origin, and places
-  // the copy and its scope file. Returns the copy's path on the host.
   readonly createRecord: (
     subject: RecordSubject,
     declared: DeclaredScope | null,
     origin: RecordOrigin,
   ) => Promise<string>;
 
-  // Places the stored copy again before a harness starts on a revived or
-  // restored session, recording a fresh one for a session without one, and
-  // a name or transcript path changed since then as the next revision.
   readonly restoreCopy: (subject: RecordSubject) => Promise<string>;
 
-  // Records a changed name or transcript path as the next revision. The
-  // copy is placed only when placeCopy holds, since a host that sleeps
-  // takes its copy at its next harness start.
+  // A host that sleeps takes its copy at its next harness start, so the copy is not placed
+  // while it sleeps.
   readonly updateIdentity: (subject: RecordSubject, placeCopy: boolean) => Promise<void>;
 
-  // Checks an added scope on the session's host, adds each entry the record
-  // lacks, and places the changed copy. A scope that adds nothing leaves
-  // the record and its revision as they were.
   readonly updateScope: (
     subject: RecordSubject,
     declared: DeclaredScope,
@@ -88,22 +72,14 @@ export interface PublishedRecords {
 
   readonly readRecord: (sessionID: SessionID) => Promise<PublishedRecord | null>;
 
-  // Where the copy of a session on the daemon's own machine lies, the only
-  // machine a headless turn runs on.
   readonly getLocalPath: (sessionID: SessionID) => string;
 
-  // Drops a session's record and its copy on the daemon's machine.
   readonly remove: (sessionID: SessionID) => Promise<void>;
 }
 
-// only the daemon writes the record or its read-only copy, from what it checked itself
 export function createPublishedRecords(options: PublishedRecordsOptions): PublishedRecords {
-  // The change under way for each session, which the next change to the
-  // same record waits on, so two additions never write over each other.
   const withSessionTurn = makeKeyedLock();
 
-  // The sessions whose host holds no guest-folder copy beside its read-only
-  // copy, so a write to the read-only copy skips the refresh.
   const withoutGuestCopy = new Set<SessionID>();
 
   const getLocalPath = (sessionID: SessionID): string =>
@@ -164,7 +140,6 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
     await refreshGuestFile(subject, directory, scope);
   };
 
-  // Replaces each file through a rename, so a reader never sees half of one.
   const writeCopy = async (subject: RecordSubject, record: PublishedRecord): Promise<string> => {
     const name = `${subject.session}.json`;
     const content = formatFile(record);
@@ -179,8 +154,6 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
       return path;
     }
 
-    // A host that keeps read-only files holds the copy where no process
-    // there can write it, root included.
     const protectedPath = await subject.provider.writeReadOnlyFile?.(
       subject.host,
       `atc/records/${name}`,
@@ -207,9 +180,8 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
       return protectedPath;
     }
 
-    // Elsewhere one command writes each file beside its place and renames it
-    // there. A remote host runs it as the user its provider runs commands
-    // as, root on an imp, so the files and their directory belong to that user.
+    // A remote host runs the command as the user its provider runs commands as, root on an imp,
+    // so the files and their directory belong to that user.
     const directory = await readGuestDir(subject);
 
     withoutGuestCopy.delete(subject.session);
@@ -249,8 +221,6 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
     return record;
   };
 
-  // The record a session without one starts from, at revision 0 so its
-  // first change records revision 1.
   const readFirstRecord = async (subject: RecordSubject): Promise<PublishedRecord> => {
     const workspace = await readWorkspace(subject);
 
@@ -361,16 +331,11 @@ async function readGuestDir(subject: RecordSubject): Promise<string> {
   return `${guest.directory}/records`;
 }
 
-// Writes a record copy into a directory on a remote host: the content to a
-// staged file, made read-only, then renamed over the copy.
 export const PLACE_COPY_SCRIPT =
   'umask 022 && mkdir -p "$1" && printf "%s" "$4" > "$1/$3" && chmod 0444 "$1/$3" && mv -f "$1/$3" "$1/$2"';
 
-// The exit code of REFRESH_COPY_SCRIPT when the directory holds no copy to refresh.
 const NO_COPY_CODE = 3;
 
-// Writes a record copy as PLACE_COPY_SCRIPT does, but only over a copy already in
-// place, and exits NO_COPY_CODE when there is none.
 export const REFRESH_COPY_SCRIPT = `[ -e "$1/$2" ] || exit ${NO_COPY_CODE}; ${PLACE_COPY_SCRIPT}`;
 
 async function refreshGuestFile(
@@ -444,8 +409,6 @@ async function readWorkspace(subject: RecordSubject): Promise<RecordedScope['wor
   };
 }
 
-// a remote directory atc did not materialize records no branch, so a spawn there runs no
-// command on the host before its harness starts
 function readBranch(subject: RecordSubject): Promise<string | null> {
   if (subject.branch !== undefined) {
     return Promise.resolve(subject.branch);

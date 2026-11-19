@@ -35,26 +35,18 @@ type TestDaemonOptions = Omit<
   | 'targets'
 > & { readonly targets?: DaemonOptions['targets'] };
 
-// it runs before every boot, so it may also write files the daemon reads at
-// start under the directory.
 type TestDaemonOptionsBuilder = (
   paths: TestDaemonPaths,
 ) => TestDaemonOptions | Promise<TestDaemonOptions>;
 
 export interface TestDaemonConfig {
-  // The temp directory's name prefix.
   readonly prefix?: string;
   readonly options?: TestDaemonOptionsBuilder;
 
-  // Whether each boot opens the main client; it does unless this is false.
   readonly mainClient?: boolean;
 
-  // Builds the targets of a boot whose options name none; one in-memory
-  // local target when absent.
   readonly defaultTargets?: () => DaemonOptions['targets'];
 
-  // The build string the daemon and every client the harness opens send in
-  // their handshake; `atc/test-build` when absent.
   readonly build?: string;
 }
 
@@ -86,8 +78,6 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
   const temporaryDirectory = setupTempDir(config.prefix ?? 'atc-test-daemon-');
   const build = config.build ?? 'atc/test-build';
 
-  // Registered after the directory, so it releases first: the daemon stops
-  // before its directory is removed.
   const stack = new AsyncDisposableStack();
 
   const dispose = registerTestCleanup(() => stack.disposeAsync());
@@ -141,8 +131,8 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
     await stopping?.stop();
   };
 
-  // An event outside the contract fails the test once the daemon stops. A
-  // throw inside the socket's read would drop the lines after the event.
+  // A throw inside the socket's read would drop the lines that follow the event, so errors
+  // are collected and thrown after the daemon stops.
   const contractErrors: string[] = [];
 
   stack.defer(() => {
@@ -156,8 +146,6 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
   const boot = async () => {
     const options = await buildOptions(paths);
 
-    // A database the options wrote stays; any other boot opens a copy of the
-    // run's migrated one.
     if (!existsSync(paths.dbPath)) {
       createMigratedStateDB(paths.dbPath);
     }
@@ -200,8 +188,6 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
     return { daemon, client };
   };
 
-  // A boot that fails stops what it started and removes the directory
-  // before the start rejects.
   let current = await boot().catch(async (error: unknown) => {
     await dispose();
 
@@ -244,9 +230,8 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
       const closed = Promise.withResolvers<void>();
       let sent = 0;
 
-      // A socket write accepts only what fits its buffer, so the rest goes
-      // out as the socket drains, and the connection ends once all of it
-      // has gone.
+      // A socket write accepts only what fits its buffer and drops the rest, so the remainder
+      // must wait for the drain event.
       const sendRemainder = (socket: Socket) => {
         sent += socket.write(payload.subarray(sent));
 

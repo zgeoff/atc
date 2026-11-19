@@ -4,9 +4,6 @@ import type { ErrorCode } from '@atcx/contract/light';
 import type { SessionManager } from '../sessions/create-session-manager';
 import type { AdoptResult } from './types';
 
-// the refusals that leave one session without a terminal: its target is misconfigured,
-// gone, changed, without a provider here, or unable to start one, its agent refuses
-// every start, or its host's runtime auth binding, broker included, refuses the launch
 const REFUSED_ADOPT_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'unsupported_operation',
   'unknown_target',

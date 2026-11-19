@@ -6,7 +6,6 @@ const SO_PEERCRED = 17;
 // `struct ucred` holds the peer's pid, uid and gid, each 32 bits wide.
 const UCRED_FIELDS = 3;
 
-// the kernel records the pid of the process that connected, at the moment it connected
 export function readPeerPID(socket: object): number | null {
   const fd: unknown = Reflect.get(socket, 'fd');
 
@@ -29,8 +28,8 @@ export function readPeerPID(socket: object): number | null {
   return result === 0 && pid > 0 ? pid : null;
 }
 
-// Opened on first use and kept; 'missing' on a Linux whose C library is not
-// glibc's `libc.so.6`, where every read answers null.
+// A Linux system without glibc, such as one built on musl, has no libc.so.6 to open.
+// Peer reads on such a system return null.
 let libc: ReturnType<typeof openLibc> | 'missing' | null = null;
 
 function tryOpenLibc(): ReturnType<typeof openLibc> | 'missing' {

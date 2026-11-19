@@ -26,7 +26,6 @@ import type { SessionRuntime } from './create-session-runtime';
 import { createTapRegistry } from './create-tap-registry';
 
 interface SetupTestConfig {
-  // Whether the one agent takes inbox messages.
   readonly takesMessages: boolean;
 }
 

@@ -3,7 +3,6 @@ import type { SessionID } from '@atcx/contract';
 import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 
-// How long a session's output stays quiet before its screen is judged.
 const DETECT_QUIET_MS = 300;
 const NEEDS_INPUT_MESSAGE = 'waiting at a prompt';
 
@@ -17,13 +16,10 @@ interface ScreenDetectionDeps {
 
   readonly recordNeedsInput: (sessionID: SessionID, message: string) => Promise<boolean>;
 
-  // Called for each output whose session's agent has no screen detector.
   readonly onDetectSkipped?: ((sessionID: SessionID) => void) | undefined;
 }
 
 export interface ScreenDetection {
-  // Each output restarts the wait, so the screen is judged once the
-  // output stops.
   readonly scheduleDetect: (sessionID: SessionID) => void;
   readonly applyAgentStart: (sessionID: SessionID) => void;
 }
@@ -87,8 +83,8 @@ export function createScreenDetection(deps: ScreenDetectionDeps): ScreenDetectio
     }
   };
 
-  // A done session the screen flagged goes back to done with its own message,
-  // since the menu that flagged it started no turn.
+  // A menu that flags a done session starts no turn, so lowering the flag restores done with its
+  // own message instead of running.
   const updateLoweredAttention = (
     sessionID: SessionID,
     runtime: SessionRuntime,

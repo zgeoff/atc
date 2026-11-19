@@ -15,42 +15,28 @@ interface StubAgentSession {
   readonly kind: StubAgentKind;
   readonly harness: StubMemoryHarness;
 
-  // Each line the session read from its terminal, without its line end.
   readonly received: string[];
 
-  // Reports one hook event as the agent's hook command reports it, and
-  // never throws, as the reporter never does.
   readonly report: (payload: Readonly<Record<string, unknown>>) => Promise<boolean>;
 }
 
 interface StubAgentCLIs {
-  // The executables a config names for each agent. They never run: the
-  // daemon's in-memory provider hands each spawn of one to the stand-in.
   readonly bins: Readonly<Record<StubAgentKind, string>>;
 
-  // Every session the stand-in started, in order.
   readonly sessions: StubAgentSession[];
 
-  // Runs the stand-in on a harness the daemon started.
   readonly start: (harness: StubMemoryHarness) => void;
 
-  // The next session of the agent paints its banner and reports nothing,
-  // as an agent that has not started up yet.
   readonly holdStart: (kind: StubAgentKind) => void;
 
-  // The next session of the agent reports these events after its start, in
-  // place of its permission prompt.
   readonly loadEvents: (
     kind: StubAgentKind,
     events: readonly Readonly<Record<string, unknown>>[],
   ) => void;
 
-  // The next Claude session reports the daemon's own session id as its
-  // agent session id, as a session that atc resumes under its own id does.
   readonly useOwnID: () => void;
 }
 
-// Each next session's script, which a start takes and clears.
 interface StubAgentScript {
   held: boolean;
   events: readonly Readonly<Record<string, unknown>>[] | null;
@@ -162,8 +148,6 @@ function createStubAgentSession(kind: StubAgentKind, harness: StubMemoryHarness)
   };
 }
 
-// The agent id the hook command in a Claude launch's settings file passes
-// to its reporter, as the reporter would read it.
 function readClaudeHookAgent(args: readonly string[]): string {
   const settingsPath = args[args.indexOf('--settings') + 1];
 
@@ -183,8 +167,8 @@ function readClaudeHookAgent(args: readonly string[]): string {
   return agent.replaceAll("'", '');
 }
 
-// Sends one line to the reporter socket the way the hook reporter does: a
-// write takes only what fits, and the rest goes out as the socket drains.
+// A socket write takes only what fits in its buffer. The rest must go out on drain, as the
+// real hook reporter does.
 async function writeReportLine(socket: string, line: string): Promise<void> {
   const bytes = Buffer.from(line);
   const closed = Promise.withResolvers<void>();
@@ -216,8 +200,6 @@ async function writeReportLine(socket: string, line: string): Promise<void> {
   await closed.promise;
 }
 
-// Paints the agent's banner after the spawn returns, reports its start, then
-// its prompt or the loaded events, as each stand-in CLI script does.
 function runStubAgent(session: StubAgentSession, script: StubAgentScript, home: string): void {
   const spec = session.harness.spec;
 
@@ -279,8 +261,6 @@ async function reportStart(
     });
   }
 
-  // A report the daemon refused leaves the next one to try, as each hook
-  // runs its own reporter.
   const prompt =
     session.kind === 'claude' && script.ownID && atcID !== undefined
       ? { ...DEFAULT_PROMPTS.claude, session_id: atcID }

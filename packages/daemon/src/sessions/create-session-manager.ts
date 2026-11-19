@@ -69,60 +69,38 @@ export interface SessionManager {
 
   readonly onChange: () => void;
 
-  // Called as a harness starts, before its first output can arrive, with
-  // the terminal size it starts at.
   readonly onBoot: (session: Session, cols: number, rows: number) => void;
 
-  // Takes each connection a harness's processes open through a provider's
-  // own relay, with the binding of the harness start that opened it.
   readonly onRelay: (binding: BridgeBinding, relay: HarnessRelay) => void;
 
   readonly onEvent: (kind: SessionEventKind, session: Session) => void;
 
-  // Called when a session's process is known to have ended: it exited or
-  // it was killed. A host that lost the connection or went to sleep may
-  // still run the process, so neither calls it.
+  // A host that lost the connection or went to sleep may still run the process, so neither
+  // counts as an ended process.
   readonly onProcessEnded: (session: Session) => void;
 
-  // Starts the bridge that takes a local session's messages, when its agent
-  // has one; with none given, every session starts without one.
   readonly startMessageBridge: (launch: MessageBridgeLaunch) => Promise<SpawnPlan | null>;
 
   readonly stopMessageBridge: (session: SessionID) => Promise<void>;
 
-  // Where a background failure is reported, one line at a time: stderr,
-  // like the daemon's other background failures.
   log: (line: string) => void;
 
-  // The clock each remote launch's step timing reads, in milliseconds.
   now: () => number;
 
-  // The clock a session's creation and last attach are stamped with.
   clock: Clock;
 
-  // The socket each session's hooks report to, which the daemon's hook
-  // server listens on.
   reporterSocketPath: string;
 
-  // Binds the runtime auth of each host whose agent takes its credential
-  // from impd's broker; with none, every such start is refused.
   authBinder: RuntimeAuthBinder | null;
 
-  // Publishes each session's record before its harness starts; with none,
-  // sessions start without a record.
   records: PublishedRecords | null;
 
   sessions: Session[];
 
   focusedId: SessionID | null;
 
-  // Whether any registered adapter has a screen detector, decided once at
-  // construction since the registry never changes afterward.
   readonly hasScreenDetector: boolean;
 
-  // How long a failed spawn's rollback waits for the killed process to
-  // exit, in milliseconds, once after its kill and once more after a forced
-  // kill.
   failedSpawnExitWaitMs: number;
 
   readonly requireExecution: (
@@ -155,8 +133,6 @@ export interface SessionManager {
   readonly removeUnrestoredMark: (id: SessionID) => void;
   readonly updateRestoreRefusal: (session: Session, reason: string, code: string | null) => void;
 
-  // Reads whether each sleeping session's host still holds its harness, and lists a session whose
-  // host lost it as ended.
   readonly readHarnessFates: HarnessFates['readFates'];
   readonly updateRestoredIdentity: (session: Session, identity: string) => void;
   readonly requireAgentTarget: (agent: AgentID, target: string) => void;
@@ -180,15 +156,11 @@ export interface SessionManager {
 
   readonly forget: (id: SessionID) => Promise<boolean>;
 
-  // Whether every process that a kill, a forget or a failed spawn's rollback ended has exited, and
-  // the session's last harness ended with an exit of its process.
   readonly probeHarnessEnded: (id: SessionID) => Promise<boolean>;
   readonly pickKillCapability: (session: Session) => ExecutionCapability;
   readonly writeStatus: () => void;
   readonly writeFleet: () => Promise<void>;
 
-  // Hands a live terminal session off to a headless run: the terminal dies,
-  // the record lives on as a headless session and keeps its screen history.
   readonly yankHeadless: (id: SessionID) => Session | null;
 
   readonly updateScope: (
@@ -201,8 +173,6 @@ export interface SessionManager {
     changes: SessionChanges,
   ) => boolean | 'shared_host' | 'agent_named';
 
-  // A result, when given, becomes the session's latest result the way a
-  // terminal turn's final message does.
   readonly updateSurfaceState: (
     id: SessionID,
     state: SessionState,
@@ -210,9 +180,6 @@ export interface SessionManager {
     result?: string,
   ) => void;
 
-  // The detector-stack screen tier reports through here: it moves a running or
-  // done session into needs_you and back out, never between running and done,
-  // and never moves an exited session.
   readonly updateAttention: (
     id: SessionID,
     state: 'needs_you' | 'running' | 'done',
@@ -226,13 +193,10 @@ export interface SessionManager {
   readonly attach: (id: SessionID) => void;
   readonly ack: (id: SessionID) => void;
 
-  // Lets go of every harness as the daemon stops: one on the daemon's own
-  // machine ends with it, and one on a remote host runs on for the next
-  // daemon to attach.
+  // A harness on the daemon's own machine ends with the daemon. One on a remote host keeps
+  // running for the next daemon to attach.
   readonly detachAll: () => void;
 
-  // A harness detaches once, so a disposal after a detach of every harness
-  // lets go of nothing again.
   readonly [Symbol.dispose]: () => void;
 }
 
@@ -246,8 +210,6 @@ interface CreateSessionManagerOptions {
   readonly events?: SessionManagerEvents | undefined;
 }
 
-// events are taken at build time, so no session event arrives before its
-// handler exists
 export function createSessionManager(options: CreateSessionManagerOptions): SessionManager {
   const events = options.events ?? {};
   let log: (line: string) => void = writeStderrLine;
@@ -302,8 +264,6 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
   });
 
   const claims = createHostDirClaims({ registry });
-
-  // The killer reaches the adopter, built after it, only once a kill runs.
   const restarts = { stopRestart: (id: SessionID) => adopter.stopRestart(id) };
 
   const killer = createSessionKiller({
@@ -566,8 +526,7 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
       session.lastAttachedAt = clock.now();
       void fleet.tryWriteFleet(session.id);
 
-      // Attaching answers the attention request: a still-pending prompt
-      // re-flags it via the next notification.
+      // A prompt that is still pending flags the session again on the next notification.
       if (session.state === 'needs_you') {
         session.state = 'running';
         session.lastMsg = 'attached';

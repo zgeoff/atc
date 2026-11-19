@@ -7,17 +7,12 @@ import type {
 } from '@atc/plugin-api';
 import { CredentialBrokerError } from '@atc/plugin-api';
 
-// enforces no authority itself, so the caller's own checks decide what may run
 interface StubCredentialBroker extends CredentialBroker {
   readonly calls: string[];
 
-  // Refuses every version check from now on, as a provider refuses a broker
-  // older than the oldest it supports, until called with false.
   readonly setOutdated: (outdated: boolean) => void;
   readonly setIdentity: (identity: BrokerIdentity) => void;
 
-  // Adds a secret, with the sign-in state the broker lists for an `oauth`
-  // secret when one is given.
   readonly createSecret: (
     name: string,
     kind: BrokerSecretKind,
@@ -34,8 +29,6 @@ interface StubHost {
 }
 
 interface StubFailingCredentialBroker extends StubCredentialBroker {
-  // Fails the next version checks as an unreachable broker, before they
-  // answer.
   readonly setVersionFailures: (count: number) => void;
 }
 
@@ -84,7 +77,6 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
     return secret;
   };
 
-  // A secret that is rebound or removed takes every grant of it with it.
   const removeGrantsOf = (name: string): void => {
     for (const host of hosts.values()) {
       host.grants.delete(name);
@@ -219,8 +211,6 @@ export function buildStubCredentialBroker(hostPrefix = 'atc-'): StubFailingCrede
   };
 }
 
-// A call's result as the broker answers it: resolved, or rejected with
-// what the call threw.
 function answerCall<T>(read: () => T): Promise<T> {
   return new Promise((resolve) => {
     resolve(read());

@@ -39,25 +39,15 @@ interface SpawnServiceDeps {
   readonly ledger: Pick<IdempotencyLedger, 'run'>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
-  // The transports a git workspace source may use, or the invalid list the
-  // config holds, which refuses every git operation.
   readonly gitTransports: readonly string[] | InvalidGitTransports;
 
-  // The target a spawn without one runs on, or null when the config gives
-  // none, which refuses such a spawn.
   readonly defaultTarget: string | null;
 
-  // The root a git workspace without a directory lands under on any target
-  // without its own, and each target's own root, by target id; the default
-  // root under the target user's home when absent.
   readonly workspaceRoots?: Readonly<{
     root: string | null;
     targetRoots: ReadonlyMap<string, string>;
   }>;
 
-  // The home a git workspace without a directory lands under on a target on
-  // the daemon's own machine when no root applies, and the one a plugin
-  // folder starting with ~ is under; the daemon user's home when absent.
   readonly homeDir?: string;
 }
 
@@ -68,17 +58,10 @@ export interface SpawnService {
     access: TargetAccess | null,
   ) => Promise<DaemonAnswer<'session.spawn'>>;
 
-  // The session a spawn under the given session lands under: that session,
-  // or its own parent for a sub-session, so a set stays one level deep.
   readonly resolveSpawnParent: (id: SessionID) => SessionID | 'missing';
 
-  // The target a spawn runs on: the one it names, else the default. Throws
-  // the refusal for a target the spawn cannot run on, and for a spawn
-  // without a target when the config gives no default.
   readonly resolveSpawnTarget: (requested: string | undefined) => string;
 
-  // Throws the refusal for a target that cannot both transfer an archive
-  // and run a command.
   readonly requireWorkspaceTarget: (target: string) => void;
 
   readonly buildDefaultWorkspaceDir: (
@@ -88,8 +71,6 @@ export interface SpawnService {
 
   readonly requireAgentTarget: (agent: AgentID, target: string) => void;
 
-  // returns the requested folders in their normal form, which the session
-  // keeps for every later launch
   readonly requirePluginDirs: (
     target: string,
     configured: readonly string[],
@@ -117,9 +98,6 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
   const homeDir = deps.homeDir;
   const replay = createSpawnReplay({ manager: deps.manager, store: deps.store });
 
-  // Materializes a spawn's workspace on the host its spawn readies once the
-  // source resolves, under the target identity the spawn bound, and every
-  // provider call passes the execution gate against that binding.
   const materializeSpawnWorkspace = async (options: MaterializeSpawnWorkspaceOptions) => {
     const binding = { target: options.params.target, targetIdentity: options.targetIdentity };
     const bound = manager.requireExecution(binding, 'run');
@@ -164,8 +142,6 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
     return descriptor;
   };
 
-  // the answer is built as the spawn's last step, so a failure there takes
-  // the spawn back like any other step's
   const startSpawnedSession = async (
     params: SpawnParams,
     id: SessionID,
@@ -217,9 +193,6 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
     return answered.descriptor;
   };
 
-  // A spawn that fails unwinds its own steps before it throws, so a failed
-  // start leaves nothing running and a keyed retry spawns once. When an
-  // undo fails too, the session may still stand, and the throw says so.
   const startSpawn = async (
     params: SpawnParams,
     id: SessionID,

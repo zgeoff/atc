@@ -21,8 +21,6 @@ interface SetupConfig {
   readonly restarting?: readonly SessionID[];
 }
 
-// the revives the config lists wait on the kill of an outdated harness; with
-// no runtime auth binder, a forget destroys a host through its provider
 async function setupTest(config: SetupConfig) {
   const temporaryDirectory = setupTempDir('atc-session-killer-');
   const dbPath = join(temporaryDirectory.path, 'state.db');

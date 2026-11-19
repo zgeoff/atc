@@ -24,12 +24,11 @@ export interface DaemonContextDeps {
   readonly idempotencyRetentionMs: number;
   readonly emitEvent: (event: EventMsg) => void;
 
-  // Stops the daemon once it is listening; undefined before then.
   readonly stopDaemon: () => Promise<void> | undefined;
 }
 
-// How long a client-requested quit waits before it stops the daemon, so the
-// ok response to the quit request flushes before the sockets close under it.
+// The ok response to a quit request needs time to flush before the sockets close, so the stop
+// waits this long.
 const QUIT_FLUSH_DELAY_MS = 80;
 
 export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {

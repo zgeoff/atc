@@ -35,36 +35,28 @@ interface WorkspacePrunerDeps {
   >;
   readonly store: Pick<StateStore, 'loadFleet' | 'readMaterializations'>;
 
-  // The ids of the targets the config holds.
   readonly targets: readonly string[];
 
-  // The workspaces root of each target, as a spawn picks it.
   readonly workspaceRoots: Readonly<{
     root: string | null;
     targetRoots: ReadonlyMap<string, string>;
   }>;
   readonly homeDir: string;
 
-  // The daemon's state folder, which holds each session's own folder under `sessions/`.
   readonly stateDir: string;
 
-  // The names of the folders directly under a folder on the daemon's host, and of no symlink;
-  // none when the folder is not there.
   readonly readSubdirNames: (directory: string) => Promise<string[]>;
   readonly readDirBytes: (directory: string) => Promise<number | null>;
 
-  // Removes a folder on the daemon's host and everything in it; a folder already gone is no error.
   readonly removeDir: (directory: string) => Promise<void>;
 
   readonly settings: WorkspaceCleanupConfig;
 }
 
 export interface WorkspacePruner {
-  // Without remove, a dry run that reports what a prune with remove would take away.
   readonly prune: (remove: boolean) => Promise<WorkspacePrune>;
 }
 
-// One prune's mode, the stored fleet as it read it, and the listed sessions' resolved directories.
 interface PruneRun {
   readonly remove: boolean;
   readonly fleet: readonly FleetEntry[];
@@ -75,8 +67,6 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
   const manager = deps.manager;
   const sessionsDir = join(deps.stateDir, 'sessions');
 
-  // The sessions the fleet lists now, the ones a kill or forget still holds, and the ones the
-  // fleet listed when the prune read it, which a forget since then may have taken off the list.
   const collectListed = (fleet: readonly FleetEntry[]): ListedSession[] =>
     [
       ...[...manager.sessions, ...manager.collectHeldSessions()].map((session) => ({
@@ -315,7 +305,6 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
       const rootFolders = await Promise.all(permanent.map((target) => readRootFolders(target)));
       const stateFolders = await deps.readSubdirNames(sessionsDir);
 
-      // the listed sessions and the spawns in flight are read in the same turn as the candidates
       const candidates = collectPruneCandidates({
         rows,
         permanentTargets: new Set(permanent),

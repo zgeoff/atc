@@ -1,8 +1,6 @@
 import type { CredentialBroker } from '@atc/plugin-api';
 import { CredentialBrokerError } from '@atc/plugin-api';
 
-// Whether a grant is gone: revoked now, already gone, its host or secret
-// gone, or, when the broker forbids the revoke, absent from the host's grants.
 export async function tryRevokeGrant(
   host: CredentialBroker,
   hostName: string,

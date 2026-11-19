@@ -6,9 +6,6 @@ interface BridgeRoutes {
   readonly openClient: (relay: HarnessRelay) => void;
 }
 
-// The first line of a connection through a session's bridge socket picks its
-// dialect: an oRPC peer message opens the client protocol, and any other line
-// the session bridge. The route that opens sees that first line too.
 export function routeBridgeRelay(relay: HarnessRelay, routes: BridgeRoutes): void {
   const lineListeners: ((line: string) => void)[] = [];
   const endListeners: (() => void)[] = [];

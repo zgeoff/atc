@@ -40,7 +40,6 @@ test('it drops cleared content from the replay', async () => {
 
   model.record('stale screen\r\n');
 
-  // A replay waits for every byte recorded before it.
   await model.captureReplay();
 
   model.record('\u001B[2J\u001B[Hfresh screen');
@@ -60,7 +59,6 @@ test('it includes bytes recorded while a replay is pending', async () => {
 
   model.record('first');
 
-  // A replay waits for every byte recorded before it.
   await model.captureReplay();
 
   const replay = model.captureReplay();
@@ -117,8 +115,6 @@ test('it preserves colors and cursor positioning in the replay', async () => {
 
   const replay = await model.captureReplay();
 
-  // The replay reaches row 5 by four line breaks and column 10 by a
-  // nine-column move, then sets bold red.
   expect(replay).toEndWith('\r\n\r\n\r\n\r\n\u001B[9C\u001B[31;1malert\u001B[0m');
 });
 
@@ -131,7 +127,6 @@ test('it keeps replaying after a resize', async () => {
 
   model.record('before resize\r\n');
 
-  // A replay waits for every byte recorded before it.
   await model.captureReplay();
 
   model.updateDims(30, 8);
@@ -249,7 +244,6 @@ test('it renders only the alternate buffer as text for a session on the alternat
 
   model.record('normal screen\r\n');
 
-  // A replay waits for every byte recorded before it.
   await model.captureReplay();
 
   model.record('\u001B[?1049h\u001B[Halternate screen');

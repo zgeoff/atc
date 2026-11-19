@@ -6,7 +6,6 @@ import type { WorkspaceSource } from './workspace-source';
 interface RemoteRefRequest {
   readonly source: Extract<WorkspaceSource, { readonly kind: 'git' }>;
 
-  // The transports git may fetch over.
   readonly transports: readonly string[];
 }
 
@@ -22,8 +21,6 @@ interface RefRefusal {
   readonly message: string;
 }
 
-// pins the ref before cloning, so the checkout is the commit the ref named when asked,
-// whatever lands on the branch meanwhile
 export async function resolveRemoteRef(
   request: RemoteRefRequest,
   env: Readonly<Record<string, string>>,
@@ -59,8 +56,6 @@ export async function resolveRemoteRef(
 
   const match = findRemoteRef(refs, source.ref);
 
-  // a source already pinned keeps its commit; its ref only decides whether the checkout is on
-  // a branch
   if (pinned !== undefined) {
     return { ok: true, sha: pinned, branch: match?.branch ?? null };
   }

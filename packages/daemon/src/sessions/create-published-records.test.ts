@@ -539,7 +539,6 @@ test('it rewrites the copy on a rename retry after a failed copy write left the 
     workspace: null,
   };
 
-  // A file where the copies' directory stands fails the next copy write.
   rmSync(ctx.localDir, { recursive: true, force: true });
   writeFileSync(ctx.localDir, '');
 
@@ -577,7 +576,6 @@ test('it publishes a renamed record that a reader of the version 1 format before
 
   await ctx.records.updateIdentity({ ...subject, name: 'cart rework' }, true);
 
-  // the reader's schema as the format stood before it gained the two fields
   const nullableString = z.string().nullable();
   const worktree = z.object({ path: z.string(), branch: nullableString });
   const branch = z.object({ name: z.string(), repo: z.string() });
@@ -904,7 +902,6 @@ test('it rewrites the copy on a retry after a failed copy write left the store a
 
   const added = { worktrees: [], branches: [{ name: 'main' }], pullRequests: [] };
 
-  // A file where the copies' directory stands fails the next copy write.
   rmSync(ctx.localDir, { recursive: true, force: true });
   writeFileSync(ctx.localDir, '');
 

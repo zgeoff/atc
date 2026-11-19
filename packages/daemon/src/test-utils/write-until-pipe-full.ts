@@ -5,9 +5,6 @@ import { closeSync, constants, openSync, writeSync } from 'node:fs';
 const CHUNK = Buffer.alloc(4096, 'x');
 const BYTE = Buffer.from('x');
 
-// Fills a named pipe whose read end is open, through a write end of its own, until the pipe takes
-// no more, so a blocking writer to it then waits until something reads. It returns how many bytes
-// it wrote.
 export function writeUntilPipeFull(fifoPath: string): number {
   const fd = openSync(fifoPath, constants.O_WRONLY | constants.O_NONBLOCK);
 

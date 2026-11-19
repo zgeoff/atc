@@ -6,7 +6,6 @@ import { createRefusalLog } from './create-refusal-log';
 import { findTokenFingerprint } from './find-token-fingerprint';
 import type { TCPPeer } from './tcp-peer';
 
-// The slice of an accepted socket a protocol connection writes to and ends.
 interface ListenerSocket {
   readonly write: (data: Uint8Array) => number;
   readonly end: () => void;
@@ -17,27 +16,19 @@ interface TCPListenerOptions {
   readonly port: number;
   readonly tokens: readonly string[];
 
-  // How long a handshake waits once its address has failed too often.
   readonly failureDelayMs: number;
 
-  // How many delayed handshakes may wait at once across every address.
   readonly maxDelayedHandshakes: number;
 
-  // Builds the protocol connection for a newly accepted socket, and
-  // releases it once the socket closes.
   readonly openConnection: (socket: ListenerSocket, peer: TCPPeer) => DaemonConnection;
 
   readonly closeConnection: (connection: DaemonConnection) => void;
 
-  // Where the listener start and each refusal are logged, one line at a
-  // time, and the window that summarizes repeated refusals from one peer.
   readonly log: (line: string) => void;
   readonly refusalLogIntervalMs: number;
 
-  // The clock that times failures, handshake delays, and refusal windows.
   readonly clock: Clock;
 
-  // How many peers and kinds of refusal the refusal log tracks at once.
   readonly maxRefusalWindows: number;
 }
 
@@ -46,14 +37,10 @@ export interface TCPListener {
   // kernel.
   readonly port: number;
 
-  // Replaces the tokens a handshake may present, closing at once every
-  // connection whose handshake token is not among them. Null drops every
-  // token: every connection closes and every handshake is refused.
   readonly setTokens: (tokens: readonly string[] | null) => void;
   readonly stop: () => void;
 }
 
-// a connection acts only as the principals its requests give, never as the daemon's owner
 export function startTCPListener(opts: TCPListenerOptions): TCPListener {
   let tokens: readonly string[] | null = opts.tokens;
   const throttle = createHandshakeThrottle(opts.failureDelayMs);
@@ -69,7 +56,6 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
 
   let delayed = 0;
 
-  // Ends the delayed handshake of each open socket once it closes.
   const closedSockets = new WeakMap<object, (value: 'closed') => void>();
 
   const server = Bun.listen<DaemonConnection>({
@@ -86,8 +72,6 @@ export function startTCPListener(opts: TCPListenerOptions): TCPListener {
           verifyHandshake: async (presented) => {
             const delay = throttle.getDelay(address, opts.clock.now());
 
-            // refused at once and counted as a failure, so a flood across many sockets holds at
-            // most the cap of waits
             if (delay > 0 && delayed >= opts.maxDelayedHandshakes) {
               throttle.recordFailure(address, opts.clock.now());
 

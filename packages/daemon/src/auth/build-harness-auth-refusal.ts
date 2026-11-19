@@ -2,8 +2,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import type { HarnessAuthRefusal } from './decide-harness-auth';
 
-// The refusal of a launch whose agent the host's credentials cannot serve. A guest env conflict
-// names the first key in the agent's own config that would override them.
 export function buildHarnessAuthRefusal(
   agent: string,
   target: string,

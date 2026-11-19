@@ -9,8 +9,6 @@ import { HARNESS_EXIT_TRANSITIONS } from './harness-exit-transitions';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
 
-// what a failed start takes back: the auth attempt that provisioned the
-// host, and the workspace directory the spawn created, as the host resolves it
 export interface SpawnReadied {
   readonly attemptID: string | null;
   readonly root: string | null;
@@ -24,28 +22,20 @@ interface SessionHarnessesDeps {
 }
 
 export interface SessionHarnesses {
-  // The launches readying each host, by host key. A launch counts from its
-  // setup until its harness spawns, which follows the setup with no wait,
-  // so a host with a launch in flight is never idle.
   readonly readying: Map<SessionID, number>;
 
-  // What each listed spawn still waiting on its harness's start readied,
-  // by spawn id, so a start that fails takes it back with the session.
   readonly startingSpawns: Map<SessionID, SpawnReadied>;
 
-  // The runtime auth revision each host's binding held at its latest
-  // launch, so a harness that launched under an older one can show it.
   readonly authRevisions: Map<SessionID, number>;
 
-  // The sessions whose last harness ended without an exit, such as a connection the host gave up
-  // on or a host that went to sleep, so their process may still run there; a new harness clears it.
+  // A harness that ends without an exit, such as a dropped connection or a host that went to
+  // sleep, may leave its process running on the host.
   readonly unconfirmedEnds: ReadonlySet<SessionID>;
 
   readonly attachHarness: (session: Session, pty: HarnessHandle, hostLifecycle: boolean) => void;
 
-  // a harness attached to a process the host still ran keeps the revision
-  // that process launched under; the fleet write lets a restore after a
-  // daemon restart find it
+  // A harness attached to a process the host still ran keeps the revision that process launched
+  // under. The revision is written to the fleet so a restore after a daemon restart finds it.
   readonly updateLaunchRevision: (
     session: Session,
     revision: number,
@@ -59,7 +49,6 @@ export interface SessionHarnesses {
     pty: HarnessHandle,
   ) => Promise<HarnessStart | undefined>;
 
-  // Whether no harness runs on a host and no launch is readying it.
   readonly isHostIdle: (hostKey: SessionID, target: string) => boolean;
 
   readonly trySuspendIdleHost: (
@@ -68,8 +57,6 @@ export interface SessionHarnesses {
     target: string,
   ) => Promise<void>;
 
-  // The binding a harness start or attach opens its bridge under, at a
-  // fresh epoch.
   readonly mintBridgeBinding: (
     sessionID: SessionID,
     target: string,
@@ -77,12 +64,8 @@ export interface SessionHarnesses {
     hostKey: SessionID,
   ) => BridgeBinding;
 
-  // Readies the host a harness is about to start on and plans the harness.
-  // Counts a host as readying while run runs, so it is not idle then.
   readonly withHostReadying: <T>(hostKey: SessionID, run: () => Promise<T>) => Promise<T>;
 
-  // Whether a session's harness launched under an older revision than the
-  // one its host's binding held at the latest launch there.
   readonly isAuthOutdated: (session: Session) => boolean;
 }
 
@@ -92,8 +75,6 @@ export function createSessionHarnesses(deps: SessionHarnessesDeps): SessionHarne
   const authRevisions = new Map<SessionID, number>();
   const unconfirmedEnds = new Set<SessionID>();
 
-  // The epoch the next harness start or attach takes, unique across every
-  // session this manager holds.
   let nextBridgeEpoch = 1;
   const registry = deps.registry;
   const fleet = deps.fleet;

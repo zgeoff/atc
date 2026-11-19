@@ -5,7 +5,6 @@ import { runGit } from './run-git';
 interface PathSourceOptions {
   readonly allowDirty?: 'refuse' | 'warn';
 
-  // The transports git may fetch over when it asks origin for its refs.
   readonly transports: readonly string[];
 }
 
@@ -72,8 +71,6 @@ export async function resolvePathSource(
     return { ok: false, code: 'has_submodules', message: `${root} uses submodules` };
   }
 
-  // Every untracked file is listed on its own, so an untracked directory
-  // counts each file inside it.
   const status = await runGit(['status', '--porcelain', '--untracked-files=all'], { cwd: root });
 
   if (status.exitCode !== 0) {
@@ -97,7 +94,7 @@ export async function resolvePathSource(
   }
 
   if (dirty) {
-    // The commit leads, so a display that cuts the note short keeps it.
+    // A display that cuts the warning short must still show the commit, so the commit comes first.
     warnings.push(
       `cloned commit ${sha.slice(0, 12)}; left ${changed} uncommitted or untracked ${changed === 1 ? 'path' : 'paths'} behind in ${root}`,
     );

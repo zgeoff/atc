@@ -1,6 +1,7 @@
 import type { MessageRefusal } from '../types';
 
-// thrown out of a keyed send's start so the claim drops and the refusal still answers the request
+// A keyed send must throw rather than return, so the claim on its key is dropped.
+// The caller catches this error and still answers the request with the refusal.
 export class MessageRefusedError extends Error {
   readonly refusal: MessageRefusal;
 

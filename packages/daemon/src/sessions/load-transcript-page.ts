@@ -27,7 +27,6 @@ interface TranscriptPageRequest {
   readonly readWindow: ReadTranscriptWindow;
 }
 
-// One read window; a line longer than this is skipped unparsed.
 const WINDOW_BYTES = 1_048_576;
 
 export async function loadTranscriptPage(req: TranscriptPageRequest): Promise<TranscriptPage> {
@@ -62,8 +61,6 @@ export async function loadTranscriptPage(req: TranscriptPageRequest): Promise<Tr
     let newline = chunk.indexOf(0x0a, lineStart);
 
     if (newline === -1) {
-      // A trailing partial line is left for the next read. A short read means the
-      // file shrank underneath us, so it ends the scan rather than skipping a line.
       if (chunk.length < length || offset + chunk.length >= size) {
         break;
       }
@@ -107,7 +104,6 @@ export async function loadTranscriptPage(req: TranscriptPageRequest): Promise<Tr
   return { rows, offset, more: false };
 }
 
-// A cursor past the end of a replaced file starts over from the start.
 async function readFirstWindow(
   req: TranscriptPageRequest,
   resumeAt: number,

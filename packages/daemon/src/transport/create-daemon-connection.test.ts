@@ -525,8 +525,6 @@ test("it delivers a session's bridge with spawn alone no event of the session, i
       collectSubtree: () => new Set([toSessionID('child')]),
       findSessionGrant: () => ({ target: 'box', targetIdentity: 'remote:a' }),
 
-      // The marker session is shown whatever the access, so its event arrives
-      // after every event sent before it.
       canSeeSession: (id, access) =>
         id === toSessionID('marker') || isTreeInReach(tree, id, access),
     }),
@@ -1605,8 +1603,6 @@ test('it holds a peer request back until a pending handshake passes', async () =
     expect(load).toHaveBeenCalledOnce();
   });
 
-  // The second handshake is refused at once, so its answer shows the
-  // request before it was read and held.
   conn.applyChunk(
     buildPeerRequestLine('9', '/session/ack', { session: 's-1' }) +
       buildPeerRequestLine('8', '/daemon/hello', hello),

@@ -1,8 +1,6 @@
 import type { RuntimeAuthBinding, RuntimeAuthBindingState } from '@atc/store';
 import { match } from 'ts-pattern';
 
-// What a starting daemon does with one stored binding, from the binding and
-// whether a fleet entry lists its host and its target's broker is here.
 interface ReconcileFacts {
   readonly isOrphan: boolean;
   readonly hasHost: boolean;

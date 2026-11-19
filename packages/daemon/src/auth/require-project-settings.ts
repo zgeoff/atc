@@ -6,8 +6,6 @@ import type { HostDirClaims } from '../sessions/create-host-dir-claims';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { READ_PROJECT_SETTINGS_SCRIPT } from './read-project-settings-script';
 
-// The launch whose project settings a host holds: the agent and provider,
-// the host and target, and the directory the harness starts in.
 export interface ProjectSettingsLaunch {
   readonly adapter: AgentAdapter;
   readonly provider: ExecutionProvider;
@@ -17,8 +15,6 @@ export interface ProjectSettingsLaunch {
 }
 
 const ABSENT_DIR_EXIT = 3;
-
-// The largest settings file atc reads.
 const MAX_SETTINGS_BYTES = 1_048_576;
 
 export async function requireProjectSettings(
@@ -36,8 +32,8 @@ export async function requireProjectSettings(
     return;
   }
 
-  // The host resolves the directory as given, since a lexical join would
-  // drop a parent step after a symlink that the host follows.
+  // Join the directory without normalizing it. A lexical join drops a parent step after a symlink,
+  // and the host follows the symlink.
   const home = posix.isAbsolute(cwd) ? null : await claims.resolveHostHome(provider, hostKey);
   const directory = home === null ? cwd : `${home}/${cwd}`;
 
@@ -68,8 +64,6 @@ export async function requireProjectSettings(
   for (const [path, read] of collectSettingsReads(found.stdout)) {
     const content = read === null ? null : Buffer.from(read, 'base64');
 
-    // a file the host holds but cannot read as a settings file refuses, since what the agent
-    // would take from it is unknown
     if (content === null || content.byteLength > MAX_SETTINGS_BYTES) {
       throw buildUnreadableSettingsRefusal(adapter.id, target, path);
     }
@@ -90,9 +84,6 @@ function buildUnreadableSettingsRefusal(agent: string, target: string, path: str
   );
 }
 
-// Each path the settings read printed, once and in the order it first
-// printed it, with the file's content in base64, or null for a path it
-// could not read as a settings file.
 function collectSettingsReads(stdout: string): Map<string, string | null> {
   const fields = stdout.split('\0');
 

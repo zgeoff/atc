@@ -1,7 +1,5 @@
 import type { LineInputStep } from '@atc/plugin-api';
 
-// The terminal a line is typed into: a write to it, and whether it is still
-// the one the line started on.
 interface LineTerminal {
   readonly write: (data: string) => void;
   readonly isLive: () => boolean;

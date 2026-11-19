@@ -3,16 +3,12 @@ import type { SessionID } from '@atcx/contract';
 import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 import { tryRevokeGrant } from './try-revoke-grant';
 
-// The rebind attempt whose added grants go: the host, its name on the broker, and the
-// attempt that added them.
 interface RebindGrantsRemoval {
   readonly hostKey: SessionID;
   readonly hostName: string;
   readonly attemptID: string;
 }
 
-// Revokes each grant a rebind attempt added, which only it can have
-// made, and records each it could not confirm gone as pending.
 export async function removeRebindGrants(
   ledger: RuntimeAuthLedger,
   host: CredentialBroker | null,

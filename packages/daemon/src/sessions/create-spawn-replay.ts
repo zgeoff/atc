@@ -15,8 +15,6 @@ interface SpawnReplayDeps {
 }
 
 export interface SpawnReplay {
-  // The tree may change while the fleet is read, so the live check runs
-  // again in the step that answers.
   readonly loadReplay: (
     record: IdempotencyRecord,
     access: TargetAccess | null,
@@ -55,8 +53,6 @@ export function createSpawnReplay(deps: SpawnReplayDeps): SpawnReplay {
   const requireLiveTreeInReach = (record: IdempotencyRecord, access: TargetAccess): void => {
     const bound = record.effectTarget;
 
-    // nothing a key without a recorded target holds shows where its
-    // session ran
     if (bound === null) {
       throw buildTargetForbiddenError(getReplayTarget(record));
     }
@@ -95,7 +91,6 @@ export function createSpawnReplay(deps: SpawnReplayDeps): SpawnReplay {
 
     const own = members.find((member) => member.id === record.effectRef);
 
-    // a session with no fleet row has no tree left to check
     if (own !== undefined && !isTreeInReach(members, own.id, access)) {
       throw buildTargetForbiddenError(record.effectTarget?.target ?? getReplayTarget(record));
     }
@@ -118,8 +113,8 @@ export function createSpawnReplay(deps: SpawnReplayDeps): SpawnReplay {
   };
 }
 
-// The target a held spawn key's stored answer holds its session on, for a
-// refusal of its replay; the answer holds no other target to name.
+// A key with no recorded target keeps the session's target only inside its stored answer.
+// Read it from there to name the target in the refusal.
 function getReplayTarget(record: IdempotencyRecord): string {
   const stored: unknown = record.result === null ? null : JSON.parse(record.result);
   const session = isRecord(stored) ? stored['session'] : null;

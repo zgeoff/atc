@@ -39,7 +39,6 @@ export type SpawnStepRunner = <T>(
   body: (steps: SpawnSteps) => Promise<T>,
 ) => Promise<T>;
 
-// A step that finished, with its undo bound to what the step returned.
 interface FinishedStep {
   readonly name: SpawnStepName;
   readonly undo: (failure: unknown) => unknown;
@@ -81,7 +80,6 @@ export async function runSpawnSteps<T>(
   }
 }
 
-// Runs each undo in order, and stops at the first one that throws.
 async function drainUndos(
   id: SessionID,
   finished: readonly FinishedStep[],

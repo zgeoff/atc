@@ -23,7 +23,6 @@ export function expandScreenMenu(part: ScreenMenu, whole: ScreenMenu): ScreenMen
     return null;
   }
 
-  // the window is the newer read, so its boxes win; options out of view keep the boxes last seen
   const list = known.list.map((option, index) => shown.list[index - offset] ?? option);
 
   const highlighted =
@@ -34,8 +33,8 @@ export function expandScreenMenu(part: ScreenMenu, whole: ScreenMenu): ScreenMen
   return { text: whole.text, options: [...list, ...shown.after], highlighted };
 }
 
-// a window matching in more than one place, as repeated labels allow, has no place, since the
-// screen cannot show which one the cursor is in
+// Repeated labels can match a window in several places. The screen does not show which one
+// the cursor is in, so the match is ambiguous.
 function findListOffset(
   part: ScreenMenu,
   shown: readonly ScreenMenuOption[],
@@ -60,9 +59,6 @@ function findListOffset(
   return found.length === 1 ? (found[0] ?? null) : null;
 }
 
-// Whether one edge of a window agrees with the whole list beyond it: a mark
-// needs options there, and options there need a mark unless the cursor sits
-// on that edge's row.
 function isEdgeConsistent(marked: boolean, beyond: boolean, isCursorOnEdge: boolean): boolean {
   return marked ? beyond : !beyond || isCursorOnEdge;
 }

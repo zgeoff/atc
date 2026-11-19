@@ -7,8 +7,6 @@ import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 import { tryReadHost } from './try-read-host';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
-// Takes back a spawn attempt's host and binding under the host's lock, which
-// the caller holds.
 export async function removeAttemptLocked(
   ledger: RuntimeAuthLedger,
   host: CredentialBroker,
@@ -23,8 +21,6 @@ export async function removeAttemptLocked(
 
   try {
     if (row.hostID === null || !row.hostCreatedByAttempt) {
-      // Nothing this attempt made carries an id, so only an empty name
-      // lets the record go.
       if ((await tryReadHost(host, row.hostName)) !== null) {
         throw new Error(
           `host ${row.hostName} exists, and nothing shows this attempt created it; reconcile it by hand`,

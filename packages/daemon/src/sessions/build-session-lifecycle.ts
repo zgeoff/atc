@@ -1,12 +1,10 @@
 import type { SessionLifecycle } from '@atcx/contract';
 
-// The session facts the layers derive from.
 interface LifecycleFacts {
   readonly desired: SessionLifecycle['desired'];
   readonly vm: SessionLifecycle['vm'];
   readonly attachment: SessionLifecycle['attachment'];
 
-  // Whether the harness is kept inside a sleeping host.
   readonly suspended: boolean;
   readonly hasHarness: boolean;
   readonly kind: 'pty' | 'headless';

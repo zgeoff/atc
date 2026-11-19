@@ -5,8 +5,6 @@ import { toSessionID } from '@atcx/contract';
 import type { TranscriptPosition } from '../sessions/load-transcript-page';
 import type { DaemonContext } from '../types';
 
-// The requests that read what a session left behind: its record, its
-// transcript, the event trail, and the notes and answers in it.
 export interface ReadRequests {
   readonly applySessionGet: (
     data: RequestParams<'session.get'>,
@@ -23,17 +21,11 @@ export interface ReadRequests {
     ctx: DaemonContext,
   ) => Promise<DaemonAnswer<'events.read'>>;
 
-  // A cursor that is not an events cursor, one at a row that holds no
-  // note, and one at a note outside the access all get one refusal, so
-  // the refusal is the same for a note out of reach and a missing one.
   readonly applyNoteGet: (
     data: RequestParams<'note.get'>,
     ctx: DaemonContext,
   ) => Promise<DaemonAnswer<'note.get'>>;
 
-  // A cursor that is not an events cursor, one at a row that holds no
-  // answer, and one at an answer outside the access all get one refusal,
-  // as a note read does.
   readonly applyAnswerGet: (
     data: RequestParams<'answer.get'>,
     ctx: DaemonContext,
@@ -114,15 +106,12 @@ export function buildReadRequests(): ReadRequests {
         access: null,
       });
 
-      // An event of a session that left the view while the read waited is
-      // left out, as the read leaves out every event out of reach.
       const events = page.events.filter((event) =>
         ctx.isSessionVisible(toSessionID(event.session)),
       );
 
       const last = events.at(-1);
 
-      // A cursor always comes back so a client can long-poll from an empty trail.
       return {
         events,
         cursor:

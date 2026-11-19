@@ -1,6 +1,5 @@
 import type { TargetAccess } from './build-target-access-from-grants';
 
-// Each check of the result passes only when both accesses pass it.
 export function intersectTargetAccess(left: TargetAccess, right: TargetAccess): TargetAccess {
   const leftReach = left.canReach;
   const rightReach = right.canReach;

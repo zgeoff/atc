@@ -13,7 +13,6 @@ interface ScopeCheckRequest {
   readonly host: string;
   readonly directory: string;
 
-  // null for a directory that runs as it stands, with no materialized workspace
   readonly repoURL: string | null;
   readonly declared: DeclaredScope;
 }
@@ -132,8 +131,6 @@ async function checkBranch(
   throw buildScopeRefusal(entry, `${repo} has no branch ${name}`);
 }
 
-// The GitHub repository a pull request defaults to: that of the workspace's
-// origin.
 async function readGitHubRepo(request: ScopeCheckRequest, entry: string): Promise<string> {
   let url = request.repoURL;
 
@@ -172,7 +169,6 @@ const PULL_REQUEST_SCHEMA = z.object({
   base: z.object({ repo: BASE_REPO_SCHEMA }),
 });
 
-// How long one gh call may take before the entry it checks is refused.
 const GH_TIMEOUT_MS = 20_000;
 
 async function checkPullRequest(

@@ -480,9 +480,6 @@ test('it keeps a claimed directory on the host when a stale relative directory i
 
   mkdirSync(workspace, { recursive: true });
   writeFileSync(join(workspace, 'keep.txt'), 'kept\n');
-
-  // The link's target was removed inside the guest, so the session listed
-  // in it can no longer enter it.
   symlinkSync(join(workspace, 'inner'), join(home, 'alias'));
 
   const provider = buildStubMemoryProvider({

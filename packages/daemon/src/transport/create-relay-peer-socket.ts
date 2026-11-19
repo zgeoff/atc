@@ -47,7 +47,6 @@ export function createRelayPeerSocket(relay: HarnessRelay, onDrain: () => void) 
       return data.length;
     },
 
-    // The relay closes once every line written before the end has gone.
     end: () => {
       isEnding = true;
 

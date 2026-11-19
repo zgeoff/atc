@@ -3,18 +3,12 @@ import type { MessageID, SessionID } from '@atcx/contract';
 interface TapEntry<TClient> {
   readonly client: TClient;
 
-  // The deliveries the tap took, each keyed by its kind and message id.
   readonly claimed: Set<string>;
 
-  // Whether the tap also takes messages held under the session's agent
-  // session id, as opposed to its atc id alone.
   readonly linked: boolean;
 
-  // Whether the tap also takes the answer notices of the messages its
-  // session sent.
   readonly notices: boolean;
 
-  // Which attach made this tap; every attach makes a new one.
   readonly generation: number;
 }
 
@@ -37,11 +31,8 @@ export interface TapRegistry<TClient> {
   readonly detachAll: (client: TClient) => void;
   readonly removeSession: (sessionID: SessionID) => TClient | null;
 
-  // Hears each session whose tap leaves, with no tap in its place; a tap
-  // that another replaces is no departure.
   readonly subscribeToDetach: (listener: (sessionID: SessionID) => void) => () => void;
 
-  // Hears each session whose tap attaches, a tap that replaces another included.
   readonly subscribeToAttach: (listener: (sessionID: SessionID) => void) => () => void;
 
   readonly findTap: (sessionID: SessionID) => TapGeneration | null;

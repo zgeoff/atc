@@ -11,7 +11,6 @@ interface EjectHandoffParams {
   readonly runtime: SessionRuntime;
   readonly startHeadlessTurn: (sessionID: SessionID, prompt: string) => boolean;
 
-  // Starts the settle timer; the wall clock's timers when unset.
   readonly scheduleSettle?: SettleScheduler | undefined;
 }
 

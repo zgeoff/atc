@@ -15,28 +15,22 @@ export interface Session {
   cwd: string;
   kind: 'pty' | 'headless';
 
-  // The running harness its execution provider handed back, or null when
-  // the session has no terminal.
   pty: HarnessHandle | null;
   state: SessionState;
   unread: boolean;
   lastMsg: string;
   lastDetail?: string;
 
-  // True while the session's agent reported a permission prompt that no
-  // later event has closed. Attaching or a screen judgment leaves it set.
+  // Attaching or a screen judgment leaves it set. Only a later agent event closes the prompt.
   permissionPending?: boolean;
   agentSessionID?: AgentSessionID;
   agent: AgentID;
   transcriptSource?: string;
   pinned: boolean;
 
-  // when the operator last attached, so lists can lead with the sessions
-  // they were just working in; starts at creation time.
   lastAttachedAt: number;
 
-  // the repository this session's directory belongs to (the directory
-  // itself outside any repository), for clustering in the overlay.
+  // Equals the session directory when that directory is outside any repository.
   repoRoot: string;
 
   // who last named this session: the agent's own rename beats everything, a
@@ -53,14 +47,10 @@ export interface Session {
   // session.
   spawner: SessionID | null;
 
-  // The atc scopes the session holds over its own sub-sessions and its
-  // parent; absent for a session that holds no atc access.
   atcAccess?: readonly GrantScope[];
 
-  // the prompt the session was spawned with
   prompt?: string;
 
-  // the agent's final message from its latest finished turn, capped in size
   result?: string;
 
   // the transcript file the agent's hooks last reported. Kept apart from the
@@ -82,22 +72,14 @@ export interface Session {
   target: string;
   targetIdentity: string;
 
-  // what the working directory was materialized from, when the spawn
-  // carried a workspace source
   workspace?: SessionWorkspace;
 
-  // the environment variable names every harness the session starts goes
-  // without: the materialization's credential and askpass context
   withheldEnv: readonly string[];
 
-  // What the operator asked of the harness, the last state seen of its
-  // host, and the daemon's connection to its output.
   desired: SessionLifecycle['desired'];
   vm: SessionLifecycle['vm'];
   attachment: SessionLifecycle['attachment'];
 
-  // Whether the harness is kept inside a sleeping host, for a revive to
-  // find as it was.
   suspended: boolean;
 
   // The session whose host the harness runs on: its own id, or its

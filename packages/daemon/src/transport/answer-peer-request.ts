@@ -19,8 +19,6 @@ const PEER_HANDLER = new StandardRPCHandler(DAEMON_ROUTER, {
   ],
 });
 
-// Answers one request a peer client sends: with the refusal the connection
-// gave it, or with what its procedure answers.
 export async function answerPeerRequest(
   request: StandardRequest,
   admitted: ProcedureContext | DaemonError,

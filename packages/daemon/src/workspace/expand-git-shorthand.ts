@@ -1,7 +1,7 @@
-// A bare `owner/repo`, with or without `.git`.
 const SHORTHAND_PATTERN = /^(?<name>[\w-][\w.-]*\/[\w.-]+?)(?:\.git)?$/u;
 
-// the shorthand is the spawn API's alone: every other path takes full URLs
+// Only the spawn API accepts the shorthand. Every other path takes a full URL, so a local
+// path like `dir/repo` is never read as a GitHub repository.
 export function expandGitShorthand(raw: string): string {
   const name = SHORTHAND_PATTERN.exec(raw.trim())?.groups?.['name'];
 

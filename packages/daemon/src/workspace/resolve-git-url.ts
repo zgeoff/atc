@@ -27,7 +27,6 @@ export async function resolveGitURL(
     return transport;
   }
 
-  // the form and transport checks above run no git, so a refused URL never reaches git
   const plain = await checkURLCredentials(raw, cwd);
 
   if (!plain.ok) {

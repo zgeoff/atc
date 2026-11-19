@@ -35,8 +35,6 @@ async function setupTest() {
   registerTestCleanup(() => store.stop());
 
   const provider = buildStubLocalProvider();
-
-  // a target on another machine whose hosts stay up, and one the config names with no provider
   const far = buildStubMemoryProvider({ remote: true });
 
   const manager = createSessionManager({

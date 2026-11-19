@@ -1,7 +1,5 @@
 import type { CredentialRouter } from '@atc/plugin-api';
 
-// A router that admits every profile and routes each one to a URL named for it, and records the
-// profile names of each verification.
 export function buildStubCredentialRouter() {
   const verified: string[][] = [];
 

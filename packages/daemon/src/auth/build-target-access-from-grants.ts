@@ -9,9 +9,6 @@ export interface TargetGrant {
 export interface TargetAccess {
   readonly canUse: (grant: TargetGrant) => boolean;
 
-  // Whether the access reaches the session by its id, for an access bound to
-  // a set of sessions rather than to whole trees on its targets; null for an
-  // access that reaches a tree when it may use every target in it.
   readonly canReach: ((id: SessionID) => boolean) | null;
   readonly merge: (other: TargetAccess) => TargetAccess;
 }
@@ -34,8 +31,6 @@ export function buildTargetAccessFromGrants(grants: readonly TargetGrant[]): Tar
   return access;
 }
 
-// the identity is part of the key, so a granted name under another identity is
-// outside the grant
 function buildGrantKey(grant: TargetGrant): string {
   return JSON.stringify([grant.target, grant.targetIdentity]);
 }

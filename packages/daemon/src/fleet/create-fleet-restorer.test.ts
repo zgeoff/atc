@@ -18,9 +18,6 @@ import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provide
 import { createFleetRestorer } from './create-fleet-restorer';
 import type { RestoreSettled } from './restore-fleet';
 
-// A session manager on one `local` target over the in-memory provider, a
-// real state store, and the restorer over them. No session holds a
-// runtime, so a stagger waits on no boot.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-fleet-restorer-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
@@ -53,7 +50,6 @@ async function setupTest() {
 
   manager.log = recorder.log;
 
-  // No session gets a runtime.
   const runtimes = new Map<SessionID, SessionRuntime>();
 
   const onRestoreSettled = mock<(settled: RestoreSettled) => void>();

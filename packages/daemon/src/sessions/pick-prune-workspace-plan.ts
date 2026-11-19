@@ -6,8 +6,6 @@ import { isPathWithin } from './is-path-within';
 import { pickWorkspaceCleanup } from './pick-workspace-cleanup';
 import type { WorkspaceCheck } from './run-workspace-check';
 
-// The directory of a listed session on the daemon's machine, as the machine resolves it, or null
-// when it did not resolve.
 export interface ResolvedDir {
   readonly id: SessionID;
   readonly physical: string | null;
@@ -16,18 +14,15 @@ export interface ResolvedDir {
 interface PruneWorkspaceInput {
   readonly check: WorkspaceCleanupCheck;
 
-  // The folder as the row recorded it, and what the check found there.
   readonly directory: string;
   readonly result: WorkspaceCheck;
 
   readonly listed: readonly ListedSession[];
   readonly resolvedDirs: readonly ResolvedDir[];
 
-  // Without remove, a dry run that only reports the folder.
   readonly remove: boolean;
 }
 
-// `skip` drops a folder already gone from the answer; `report` is a dry run's `remove`.
 export type PruneWorkspacePlan =
   | { readonly action: 'skip' }
   | { readonly action: 'keep'; readonly path: string; readonly reasons: readonly string[] }
@@ -41,7 +36,6 @@ export function pickPruneWorkspacePlan(input: PruneWorkspaceInput): PruneWorkspa
     (session) => session.onMachine && forms.some((form) => isPathWithin(session.cwd, form)),
   );
 
-  // a directory that did not resolve may lead anywhere, so it keeps the folder
   const resolvedUser = input.resolvedDirs.find((resolved) => {
     const physical = resolved.physical;
 

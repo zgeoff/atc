@@ -13,8 +13,8 @@ export function startStubSilentServer() {
     port: 0,
     hostname: '127.0.0.1',
 
-    // A held request would otherwise end after Bun's idle timeout, and the
-    // upstream would stop being one that never answers.
+    // Bun ends a request that stays idle past its idle timeout. Setting it to 0 keeps held
+    // requests open, so the stub never answers.
     idleTimeout: 0,
     fetch: answerRequest,
   });

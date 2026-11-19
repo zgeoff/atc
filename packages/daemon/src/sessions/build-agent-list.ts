@@ -3,20 +3,15 @@ import type { SpawnOptionSpec } from '@atcx/contract';
 import { buildHarnessAuthDecision } from '../auth/build-harness-auth-decision';
 
 interface AgentCapabilities {
-  // Whether some target can start a session of the agent.
   readonly spawn: boolean;
   readonly readTranscript: boolean;
 
-  // Whether a session takes inbox messages through a tap.
   readonly message: boolean;
   readonly attach: boolean;
   readonly screen: boolean;
   readonly input: boolean;
 }
 
-// A spawn option as `agents.list` shows it: the agent's own spec, plus
-// whether a spawn can pass it now. Only the supported option of an agent
-// some target can start is available.
 export interface SpawnOptionEntry extends SpawnOptionSpec {
   readonly available: boolean;
 }
@@ -32,35 +27,23 @@ export interface AgentEntry {
   readonly label: string;
   readonly kind: string;
 
-  // Whether the agent's binary resolves, on PATH or at its configured path.
   readonly installed: boolean;
 
-  // Whether the agent takes its credential from impd's broker on a target
-  // whose entry has `brokerAuth`.
   readonly brokerAuth: boolean;
 
-  // Whether it starts only there. False for an agent that starts on any
-  // other target under the sign-in that target's host holds.
   readonly brokerRequired: boolean;
 
-  // The targets a spawn of the agent can start on: none when its starts are
-  // all refused, none whose credentials refuse the agent's default auth
-  // selection, and only a remote target when its binary is missing here.
   readonly spawnTargets: readonly string[];
   readonly capabilities: AgentCapabilities;
   readonly models: Readonly<Record<string, string>> | null;
   readonly spawnOptions: SpawnOptionEntries;
 }
 
-// A target as the agent list weighs it.
 export interface AgentListTarget {
   readonly id: string;
 
-  // Whether its provider runs the agent on a machine other than the
-  // daemon's, so the agent's binary need not resolve here.
   readonly remote: boolean;
 
-  // How its provider's host supplies credentials, which the agent's launch there is decided from.
   readonly credentials: HostCredentials;
 }
 
@@ -125,7 +108,6 @@ export function buildAgentList(
   });
 }
 
-// A stand-in adapter declares no spawn options, so it takes none.
 const NO_SPAWN_OPTION: SpawnOptionSpec = {
   supported: false,
   values: null,

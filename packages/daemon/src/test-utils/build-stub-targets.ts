@@ -4,21 +4,16 @@ import { buildTargetIdentity } from '@atc/store';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 
-// What a target's provider does in place of the in-memory defaults: the
-// capabilities it adds and the host preparation, sleep, and destroy it runs.
 type HostOverride = Pick<
   NonNullable<Parameters<typeof buildStubMemoryProvider>[0]>,
   'capabilities' | 'prepareHost' | 'suspendHost' | 'destroyHost'
 >;
 
 interface StubTargetsConfig {
-  // Each spawn appends its target's id here, in order.
   readonly spawned: string[];
 
-  // Host operations of their own for the targets they name.
   readonly hosts?: Readonly<Record<string, HostOverride>>;
 
-  // Runs a stand-in program on each harness a local-pty target starts.
   readonly onStart?: NonNullable<Parameters<typeof buildStubMemoryProvider>[0]>['onStart'];
 }
 

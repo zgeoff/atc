@@ -9,13 +9,9 @@ import type {
 import { CredentialBrokerError, isHostNameAllowed } from '@atc/plugin-api';
 import { match } from 'ts-pattern';
 
-// refuses grants as impd does behind the imp provider; while calls are held,
-// each is recorded as it arrives but takes effect and answers only on a release
 export interface StubBinderBroker extends CredentialBroker {
   readonly calls: string[];
 
-  // Refuses every version check from now on as the imp provider refuses an
-  // impd older than the oldest it supports, until called with false.
   readonly setOutdated: (outdated: boolean) => void;
   readonly setIdentity: (identity: BrokerIdentity) => void;
   readonly createSecret: (
@@ -26,26 +22,18 @@ export interface StubBinderBroker extends CredentialBroker {
   readonly updateSecret: (name: string, rules: readonly BrokerSecretRule[]) => void;
   readonly removeSecret: (name: string) => void;
 
-  // Fails every grant removal with an impd code, mapped to an atc code as
-  // the imp provider maps it, until called with null.
   readonly setGrantRemovalFailure: (brokerCode: string | null) => void;
 
-  // The names of the hosts the broker holds, in the order it made them.
   readonly collectHostNames: () => string[];
 
-  // The same broker as a provider with another host prefix reaches it.
   readonly buildRenamedBroker: (hostPrefix: string) => CredentialBroker;
 
-  // Holds every call from now until the next release.
   readonly holdCalls: () => void;
 
-  // The calls held since the last release, in the order they arrived.
   readonly collectHeldCalls: () => string[];
 
-  // Resolves to the held calls once at least the count of them are held.
   readonly waitForHeldCalls: (count: number) => Promise<readonly string[]>;
 
-  // Answers every held call in the order they arrived, and holds no more.
   readonly releaseCalls: () => void;
 }
 
@@ -59,8 +47,6 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
 
   const hosts = new Map<string, StubHost>();
   const secrets = new Map<string, BrokerSecret>();
-
-  // Grantable secrets rebound or removed since the identity was set.
   const staleGrantable = new Set<string>();
 
   let outdated = false;
@@ -130,8 +116,6 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
     return null;
   };
 
-  // A secret that is rebound or removed takes every grant of it with it,
-  // and no identity set before lists it as grantable any longer.
   const removeGrantsOf = (name: string): void => {
     for (const host of hosts.values()) {
       host.grants.delete(name);
@@ -140,8 +124,6 @@ export function buildStubBinderBroker(hostPrefix = 'atc-'): StubBinderBroker {
     staleGrantable.add(name);
   };
 
-  // A call's result as the broker answers it: resolved, or rejected with
-  // what the call threw, at once or on the release that answers it.
   const answerCall = <T>(call: string, read: () => T): Promise<T> => {
     calls.push(call);
 
@@ -311,7 +293,6 @@ function buildNotFound(kind: 'host' | 'secret', name: string): CredentialBrokerE
   });
 }
 
-// impd's code for a failure as the imp provider maps it to atc's.
 function toBrokerCode(code: string): CredentialBrokerError['code'] {
   return match(code)
     .returnType<CredentialBrokerError['code']>()

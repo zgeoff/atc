@@ -8,7 +8,6 @@ export async function resolveRestoredTargetIdentity(
 ): Promise<string | undefined> {
   const identity = entry.targetIdentity;
 
-  // only an unversioned binding is confirmed against an existing host
   if (
     target === undefined ||
     identity === undefined ||

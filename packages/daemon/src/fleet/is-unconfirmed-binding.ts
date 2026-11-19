@@ -2,9 +2,8 @@ import type { ExecutionTarget } from './build-execution-targets';
 
 const UNVERSIONED_DIGEST = /^[\da-f]{16}$/u;
 
-// A binding that holds the kind and a bare digest, on a target whose plugin
-// versions its identities. A restore confirms it against the existing host
-// instead of refusing it as a changed target.
+// A bare digest on a target whose plugin versions identities is not a changed target.
+// A restore confirms it against the existing host instead of refusing it.
 export function isUnconfirmedBinding(target: ExecutionTarget, identity: string): boolean {
   const prefix = `${target.kind}:`;
 

@@ -18,18 +18,10 @@ type NoteRead = Awaited<ReturnType<DaemonContext['readNote']>>;
 type AnswerRead = Awaited<ReturnType<DaemonContext['readAnswer']>>;
 
 export interface EventTrail {
-  // A failed write never stops the restart's live event, which still reaches
-  // the readers connected now, so the failure only goes to the daemon's log.
   readonly recordRestart: (result: RestartResult) => Promise<void>;
 
-  // A wake for an event the read leaves out loops back to wait out the rest of the window.
-  // The scope is built again after every await, so a session whose tree left the access
-  // while the read waited matches nothing.
   readonly readEvents: (params: ReadEventsParams) => Promise<EventsPage>;
 
-  // Under an access a note takes no alias, so a session in reach never
-  // names a note whose own session left the access while the query
-  // waited.
   readonly readNote: (id: number, access: TargetAccess | null) => Promise<NoteRead>;
 
   readonly readAnswer: (id: number, access: TargetAccess | null) => Promise<AnswerRead>;
@@ -43,7 +35,6 @@ interface EventTrailDeps {
   >;
   readonly clock: Clock;
 
-  // Wakes a held read once the trail grows.
   readonly eventSignal: Pick<EventSignal, 'generation' | 'disposed' | 'waitForNext' | 'emit'>;
 }
 
@@ -83,8 +74,6 @@ export function createEventTrail(deps: EventTrailDeps): EventTrail {
     return { atcIDs: visible.map((x) => x.id), agentSessionIDs: [] };
   };
 
-  // The sessions that may name a trail row: under an access, only those
-  // whose whole tree is on targets it holds.
   const collectNamingDescriptors = (access: TargetAccess | null): SessionDescriptor[] => {
     const sessions = manager.sessions;
 
@@ -123,8 +112,6 @@ export function createEventTrail(deps: EventTrailDeps): EventTrail {
         const generation = eventSignal.generation;
         const scope = buildEventScope(sessionID, access);
 
-        // A read from a cursor takes one row past the limit to learn whether
-        // more follow; the latest events have nothing after them.
         const rows =
           afterID === null
             ? await store.readLatestEvents(limit, scope)
@@ -134,7 +121,6 @@ export function createEventTrail(deps: EventTrailDeps): EventTrail {
           access !== null &&
           JSON.stringify(buildEventScope(sessionID, access)) !== JSON.stringify(scope)
         ) {
-          // the scope changed under the query, so the read runs again
           continue;
         }
 
@@ -143,8 +129,8 @@ export function createEventTrail(deps: EventTrailDeps): EventTrail {
         if (rows.length > 0 || remaining <= 0 || eventSignal.disposed) {
           const naming = collectNamingDescriptors(access);
 
-          // Under an access an event takes no alias, so each event keeps the
-          // atc id it was recorded under for the check that sends it.
+          // Under an access an alias would replace the atc id the send check reads, so each event keeps
+          // the atc id it was recorded under.
           const aliases = access === null ? naming : [];
 
           return {

@@ -4,16 +4,14 @@ import { LEGACY_BROKER_PLACEHOLDER } from '@atc/config';
 import { BROKER_PLACEHOLDER, sortJSONKeys } from '@atc/core';
 import { GITHUB_SECRET_RULES } from './github-secret-rules';
 
-// The parts of a binding its hash covers.
 interface HashedBinding {
   readonly secrets: readonly { readonly kind: string; readonly rules: readonly unknown[] }[];
   readonly profileEnv: Readonly<Record<string, string>>;
   readonly telemetryHost: string | null;
 }
 
-// An older atc stored a github secret's rules in its binding. They hash as no
-// rules, because the broker's github secret holds the same rules itself, and
-// the old placeholder hashes as the current one, since neither is a credential.
+// A github secret's rules hash as no rules, since the broker's github secret holds the same rules.
+// The legacy placeholder hashes as the current one, so stored bindings keep their hash.
 export function buildBindingHash(binding: HashedBinding): string {
   const secrets = binding.secrets.map((secret) =>
     secret.kind === 'github' && isDeepStrictEqual(secret.rules, GITHUB_SECRET_RULES)
@@ -28,8 +26,8 @@ export function buildBindingHash(binding: HashedBinding): string {
     ]),
   );
 
-  // a part the binding leaves empty is left out, so a binding an older atc
-  // stored without it keeps its hash
+  // An empty part is left out of the hash so a binding stored before that part existed keeps its
+  // hash.
   const hashed = {
     secrets,
     ...(Object.keys(profileEnv).length === 0 ? {} : { profileEnv }),

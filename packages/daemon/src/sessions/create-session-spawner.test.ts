@@ -33,17 +33,12 @@ import { runSpawnSteps } from './run-spawn-steps';
 import type { SpawnStepName, SpawnStepRunner } from './run-spawn-steps';
 import type { SessionCallbacks } from './session-callbacks';
 
-// The agents and execution targets a test runs its sessions under, and the
-// runner of each spawn's steps; the spawner's own when absent.
 interface SetupTestConfig {
   readonly adapters: readonly AgentAdapter[];
   readonly targets: readonly ExecutionTarget[];
   readonly runSteps?: SpawnStepRunner;
 }
 
-// The session modules wired as the session manager wires them, over a real
-// state store that also holds each session's published record, with the
-// test's agents and targets and a recorder for each callback.
 async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-session-spawner-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
@@ -65,7 +60,6 @@ async function setupTest(config: SetupTestConfig) {
   const authBinder = createRuntimeAuthBinder(store);
   const stopMessageBridge = mock(() => Promise.resolve());
 
-  // No agent here takes its messages through a bridge in the daemon.
   const startMessageBridge = mock<SessionCallbacks['startMessageBridge']>(() =>
     Promise.resolve(null),
   );
@@ -443,8 +437,6 @@ test('it boots a session before output its harness writes at once can reach it',
         id: 'local',
         identity: 'local-pty:test',
 
-        // A harness's first read can land in the microtask after its start,
-        // so this records how many boots had run by then.
         provider: buildStubMemoryProvider({
           kind: 'local-pty',
           onSpawn: () => {
@@ -558,7 +550,6 @@ test('it takes clone trust for a brokered agent on a remote target that can trus
       buildMockExecutionTarget({ id: 'far', kind: 'cloud', identity: 'cloud:test', provider }),
     ],
 
-    // the spawn reaches its steps only once it took the trust
     runSteps: () => Promise.reject(new Error('the spawn steps started')),
   });
 
@@ -711,8 +702,6 @@ test('it drops the stored record of a spawn whose record copy fails to land', as
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
 
-  // A file where the copies' folder belongs fails the copy after the
-  // record is stored.
   writeFileSync(ctx.recordsDir, 'in the way');
 
   const spawned = ctx.spawner.spawn({
@@ -928,8 +917,6 @@ test.each([
 ] as const)(
   'it undoes every step before a failed $failing step, last step first, and leaves nothing running',
   async (scenario) => {
-    // Harnesses run in memory; the workspace's directory commands run on
-    // this machine, so the clone's directory resolves and is removed.
     const provider = buildStubMemoryProvider({ kind: 'local-pty', runCommand: runLocalCommand });
     const removeTrust = mock(() => Promise.resolve());
     const ran: SpawnStepName[] = [];
@@ -943,8 +930,6 @@ test.each([
       ],
       targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
 
-      // Fails the first step of the scenario's name before it runs, and
-      // records each undo as it runs.
       runSteps: (id, body) =>
         runSpawnSteps(id, (steps) =>
           body({

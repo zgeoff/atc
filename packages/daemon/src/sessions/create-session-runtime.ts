@@ -4,8 +4,6 @@ import type { ScreenModel } from './create-screen-model';
 import { createSessionInputQueue } from './create-session-input-queue';
 import type { SessionInputQueue } from './create-session-input-queue';
 
-// The daemon's own bookkeeping for one live headless run: enough to stop it
-// on eject, kill, or session removal.
 interface HeadlessRunHandle {
   readonly stop: () => void;
 }
@@ -15,51 +13,36 @@ export interface SessionRuntime {
 
   seq: number;
 
-  // When the session's PTY last printed anything, by the daemon's clock; a
-  // menu choice waits for the screen to go quiet before its first key.
   lastOutputAt: number;
 
-  // The whole menu atc last read through a list that scrolls past the
-  // screen, so a later read of part of that list numbers its options the
-  // same way, or null before any.
   wholeMenu: ScreenMenu | null;
 
   dims: Dims | null;
 
   readonly input: SessionInputQueue;
 
-  // Cancel the pending debounced resize and screen detection, each
-  // undefined while none waits.
   cancelResize: (() => void) | undefined;
 
   cancelDetect: (() => void) | undefined;
 
   headlessRun: HeadlessRunHandle | null;
 
-  // Whether a headless turn has started; the runner reports no exit, and a turn's result or its
-  // stop comes before its process ends, so that process may still run in the session's folders.
+  // The runner reports no exit, and a turn's result or stop arrives before its process ends.
+  // The process may still run in the session's folders.
   headlessStarted: boolean;
 
   pendingEject: (() => void) | null;
 
   bootWaiter: (() => void) | null;
 
-  // Whether a SessionStart hook is still owed for this session before its
-  // agent can be recorded as the last one used; a spawn sets it, the hook
-  // clears it, and a spawn that never reports leaves it stranded harmlessly.
   pendingLastUsed: boolean;
 
-  // When the agent reported SessionStart since its terminal last booted, or
-  // null before it has. A message queues for a grace window after that, and
-  // beyond it only if a tap has attached since the boot.
   startedAt: number | null;
 
   // No hook report closes a needs_you set from the screen, since the agent
   // runs no hook before its start.
   needsYouFromScreen: boolean;
 
-  // The last message of a done session that the screen moved to needs_you,
-  // so the screen moves it back to done rather than running; null otherwise.
   doneMsgUnderScreen: string | null;
 
   needsInputUnrecorded: boolean;
@@ -68,24 +51,14 @@ export interface SessionRuntime {
   // later dropped may be restarting, so it keeps the inbox open.
   tapAttached: boolean;
 
-  // Whether a hook line carrying the session's agent arrived since the
-  // terminal last booted. Once one has, the session's own hooks are known
-  // to carry it, and a line without one comes from another harness.
   hasAgentHookLines: boolean;
 
-  // The state the session's adapter returned for its last hook line, which
-  // goes back to the adapter with the session's next line. A fresh terminal
-  // starts with none.
   harnessState: unknown;
 
-  // every path that boots a new terminal for an existing session runs this,
-  // so a revived session never inherits its previous process's message gate
   readonly resetBoot: (dims: Dims) => void;
 
   readonly dispose: () => void;
 
-  // Ends the live headless run, if there is one, and forgets its handle so
-  // the session is free to start another.
   readonly stopHeadlessRun: () => void;
 }
 

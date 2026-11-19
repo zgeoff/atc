@@ -9,9 +9,8 @@ export interface StderrLog {
   readonly stop: () => Promise<void>;
 }
 
-// LogTape's own diagnostics write nowhere, so the descriptor carries only atc's lines. `stop` gives
-// up after a second, so an unread pipe holds an exiting process back no longer, and every call
-// waits on the one disposal, so a second shutdown path exits no sooner.
+// LogTape's own diagnostics would otherwise reach the descriptor, which must carry only atc's
+// lines.
 export async function startStderrLog(
   fd: number = STDERR_FD,
   clock: Clock = systemClock,
@@ -38,8 +37,7 @@ export async function startStderrLog(
   };
 }
 
-// How long a stopping log waits for the lines it still holds to be written,
-// so an unread stderr delays the exit no longer.
+// An unread stderr pipe blocks writes with no end, so stopping gives up after one second.
 const STOP_TIMEOUT_MS = 1000;
 
 async function stopLog(clock: Clock): Promise<void> {

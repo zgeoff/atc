@@ -9,8 +9,6 @@ export function buildTargetAccess(
   targets: ReadonlyMap<string, ExecutionTarget>,
   principal: string,
 ): TargetAccess {
-  // the implicit grant pins the identity of a `local-pty` target without
-  // options, so a `local` configured with another provider or options is out
   if (principals === null) {
     return buildTargetAccessFromGrants([
       {

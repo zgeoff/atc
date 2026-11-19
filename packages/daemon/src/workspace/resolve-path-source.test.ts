@@ -6,8 +6,6 @@ import { updateEnv } from '@atc/core/test-utils/update-env';
 import { $ } from 'bun';
 import { resolvePathSource } from './resolve-path-source';
 
-// A work clone of a bare upstream, holding one pushed commit, for a test to
-// change before it resolves the checkout.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-path-source-' });
 

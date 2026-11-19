@@ -9,9 +9,6 @@ interface StubGuestFilesProviderConfig {
   readonly harnessStart?: HarnessStart;
 }
 
-// Stands in for a remote host whose files the daemon reaches only through a command, so a guest
-// file is missing at its guest path on the daemon. Its user home sits inside the guest folder,
-// and it sets no agent home variable.
 export function buildStubGuestFilesProvider(config: StubGuestFilesProviderConfig) {
   const guestDirectory = config.guestDirectory;
   const hostDirectory = config.hostDirectory;

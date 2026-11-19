@@ -1,8 +1,6 @@
 import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-// The disk space a folder on the daemon's host and everything in it take, following no symlink,
-// or null when any part of it cannot be read.
 export async function readDirBytes(directory: string): Promise<number | null> {
   try {
     return await readEntryBytes(directory);

@@ -28,15 +28,11 @@ import { createSessionRegistry } from './create-session-registry';
 import { createSpawnRollback } from './create-spawn-rollback';
 import type { SessionCallbacks } from './session-callbacks';
 
-// The agents and execution targets a test runs its sessions under.
 interface SetupTestConfig {
   readonly adapters: readonly AgentAdapter[];
   readonly targets: readonly ExecutionTarget[];
 }
 
-// The session modules wired as the session manager wires them, over a real
-// state store, with the test's agents and targets and a recorder for each
-// callback.
 async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-session-adopter-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
@@ -47,7 +43,6 @@ async function setupTest(config: SetupTestConfig) {
 
   registerTestCleanup(() => store.stop());
 
-  // An agent takes its messages through no bridge unless a test says so.
   const startMessageBridge = mock<SessionCallbacks['startMessageBridge']>(() =>
     Promise.resolve(null),
   );

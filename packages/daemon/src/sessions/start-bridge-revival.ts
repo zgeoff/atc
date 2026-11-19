@@ -17,22 +17,18 @@ interface BridgeRevivalDeps {
   readonly taps: Pick<TapRegistry<TapClient>, 'hasTap' | 'subscribeToDetach' | 'subscribeToAttach'>;
   readonly clock: Clock;
 
-  // Whether the session's agent process has ended, though its terminal
-  // handle may not have closed yet.
+  // The agent process can end before its terminal handle closes, so the handle alone is not enough.
   readonly isProcessEnded: (sessionID: SessionID) => boolean;
 
-  // Lands a note in the session's events.
   readonly applyNote: (hookEvent: HookEvent) => Promise<void>;
 }
 
 export interface BridgeRevival {
-  // Settles once the start's tap attached, or once the mod was written again after none did.
   readonly watchAgentStart: (sessionID: SessionID) => Promise<void>;
 
   readonly stop: () => void;
 }
 
-// What a write of a session's bridge files needs, once its checks pass.
 interface BridgeWrite {
   readonly session: Session;
   readonly provider: ExecutionProvider;
@@ -48,14 +44,13 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
   const findSession = (sessionID: SessionID) =>
     deps.manager.sessions.find((x) => x.id === sessionID);
 
-  // Creates, stores and starts the machine of a session that has none.
   const startSessionActor = (sessionID: SessionID) => {
     const machine = BRIDGE_REVIVAL_MACHINE.provide({
       guards: {
         isGone: () => {
           const session = findSession(sessionID);
 
-          // a sleeping host has no terminal, yet its session is not gone
+          // A sleeping host has no terminal, but its session still exists.
           return (
             session === undefined ||
             deps.isProcessEnded(sessionID) ||
@@ -75,7 +70,6 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
 
     const actor = createActor(machine, { clock });
 
-    // a session that left the fleet or whose agent ended keeps no machine
     actor.subscribe({
       complete: () => {
         actors.delete(sessionID);
@@ -115,7 +109,6 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
     };
   };
 
-  // A target that refuses transfers, or that left the config, takes no write.
   const findTransferProvider = (session: Session): ExecutionProvider | null => {
     try {
       return deps.manager.requireExecution(session, 'transfer').provider;
@@ -187,10 +180,8 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
     actors.get(sessionID)?.send({ type: 'TAP_ATTACHED' });
   });
 
-  // Each start hold that has not ended, so a stop ends them all.
   const holds = new Set<() => void>();
 
-  // Ends once the machine leaves the start wait and any write that ended it.
   const holdStart = (actor: Actor<typeof BRIDGE_REVIVAL_MACHINE>): Promise<void> => {
     if (!isStartHeld(actor.getSnapshot())) {
       return Promise.resolve();

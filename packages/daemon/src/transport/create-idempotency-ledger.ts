@@ -4,9 +4,6 @@ import { EffectRemainsError } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { EffectTarget, IdempotencyRecord, StateStore } from '@atc/store';
 
-// A request's idempotency key, the hash of the payload it came with, the
-// principal the request acts as when it is not the ledger's own, and
-// whether it only replays a key the ledger already holds.
 export interface KeyedRequest {
   readonly key: string;
   readonly payloadHash: string;
@@ -18,24 +15,14 @@ interface IdempotentCall<T> {
   readonly operation: string;
   readonly keyed: KeyedRequest;
 
-  // The id the effect runs under, minted before the claim records it.
   readonly effectRef: string;
 
-  // Starts the effect. A plain throw means nothing took effect, so the claim
-  // is dropped for a retry to run fresh; an EffectRemainsError means the
-  // effect may still stand, so the claim is kept as outcome_unknown.
   readonly start: () => T | Promise<T>;
 
-  // Resolves once the effect is durable; the claim completes only after. A
-  // settle that throws leaves the effect standing, so the answer is
-  // outcome_unknown and the claim stays held.
   readonly settle: () => Promise<void>;
 
-  // The answer to a retry of a completed key.
   readonly replay: (record: IdempotencyRecord) => T | Promise<T>;
 
-  // The target the effect's session is bound to, recorded with the
-  // completed key; absent or null for an effect bound to none.
   readonly findEffectTarget?: (result: T) => EffectTarget | null;
 }
 
@@ -45,21 +32,14 @@ export interface IdempotencyLedger {
   ) => Promise<T>;
 }
 
-// a retry whose effect a stopped daemon may or may not have run answers outcome_unknown with
-// the effect id and never starts the effect again. log is where a failed write to the ledger is
-// reported, one line at a time, and clock gives the time each claim and outcome is stamped with.
 export function createIdempotencyLedger(
   store: StateStore,
   principal: string,
   log: (line: string) => void,
   clock: Clock = systemClock,
 ): IdempotencyLedger {
-  // One promise chain per key, so two requests under the same key never
-  // interleave their claim and completion on one daemon.
   const withKeyLock = makeKeyedLock();
 
-  // The line holds the operation, key, effect id, the step that failed, and
-  // the error, never the request's payload or the effect's result.
   const logFailure = (
     call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
     step: string,
@@ -73,8 +53,6 @@ export function createIdempotencyLedger(
     );
   };
 
-  // A claim this write fails to update stays in progress, which a retry
-  // answers the same way, so the failure is logged and not thrown.
   const tryRecordOutcomeUnknown = async (
     call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
     id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
@@ -137,9 +115,6 @@ export function createIdempotencyLedger(
       throw error;
     }
 
-    // From here the effect stands. A settle or completion that fails keeps
-    // the claim in progress, so a retry answers outcome_unknown rather than
-    // running the effect again.
     try {
       await call.settle();
     } catch (error) {

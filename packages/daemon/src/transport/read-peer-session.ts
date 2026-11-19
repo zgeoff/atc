@@ -5,8 +5,6 @@ import { readParentPID } from './read-parent-pid';
 // could form never loops forever.
 const MAX_DEPTH = 1024;
 
-// a process that leaves the parent chain, such as one that forks twice and lets its parent
-// exit, is found in no session
 export function readPeerSession(
   pid: number,
   harnesses: ReadonlyMap<number, SessionID>,

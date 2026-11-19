@@ -16,8 +16,6 @@ import { buildSeeder } from '../test-utils/build-seeder';
 import { buildStubLog } from '../test-utils/build-stub-log';
 import { createSessionFleetWriter } from './create-session-fleet-writer';
 
-// A real state store, an empty registry the test fills with sessions, a
-// recorder of logged lines, and the writer over all three.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-fleet-writer-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
@@ -146,8 +144,6 @@ test('it stores a sub-session under a sub-session that resumed their parent agen
 
   await ctx.writer.writeFleet();
 
-  // The resumed session takes the place of the parent whose agent session
-  // it resumes, and the sub-session moves under it.
   const resumed = buildMockSession({
     id: toSessionID('s-resumed'),
     name: 'wrangler',
@@ -328,7 +324,6 @@ test('it logs a background fleet write that fails and keeps the change in memory
 
   ctx.registry.sessions.push(session);
 
-  // Another connection drops the table, so the store's write fails in SQLite.
   const db = new Database(ctx.dbPath);
 
   const closeDB = registerTestCleanup(() => {
@@ -354,7 +349,6 @@ test('it logs a background fleet write that fails and keeps the change in memory
 test('it logs a background row update that fails', async () => {
   const ctx = await setupTest();
 
-  // Another connection drops the table, so the store's write fails in SQLite.
   const db = new Database(ctx.dbPath);
 
   const closeDB = registerTestCleanup(() => {
@@ -415,9 +409,6 @@ test('it replaces the status file through a temporary file and a rename', async 
   const ctx = await setupTest();
 
   writeFileSync(ctx.statusPath, '{"needs_you":2}');
-
-  // A second name for the old file stands in for a reader that opened it
-  // before the write: an in-place write would change what it reads.
   linkSync(ctx.statusPath, join(ctx.directory, 'status.before'));
 
   ctx.registry.sessions.push(buildMockSession({ name: 'busy', state: 'running' }));

@@ -1,10 +1,7 @@
-// The most characters of a field a log line keeps; a longer one is cut and
-// ends in `...`.
 const MAX_FIELD_CHARS = 64;
 
-// escapes every character outside printable ASCII, and a space, `"`, `=`, or `\`,
-// so a value from the network can neither move the terminal, start a new line,
-// nor forge another field
+// Values come from the network. Escaping keeps them from moving the terminal, starting a new
+// line, or forging another field.
 export function formatLogField(value: string): string {
   let formatted = '';
   let kept = 0;

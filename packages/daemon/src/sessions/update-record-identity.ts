@@ -8,9 +8,8 @@ interface UpdateRecordIdentityDeps {
   readonly callbacks: Pick<SessionCallbacks, 'findRecords' | 'log'>;
 }
 
-// Records the session's current name and transcript path in its record. A
-// failure is only logged, because the record's next write takes the same
-// values from the session.
+// A failure is only logged because the record's next write takes the same name and transcript
+// path from the session.
 export async function updateRecordIdentity(
   deps: UpdateRecordIdentityDeps,
   session: Readonly<Session>,

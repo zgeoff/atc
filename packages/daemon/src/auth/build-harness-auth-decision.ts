@@ -2,8 +2,6 @@ import type { AgentAdapter, HostCredentials } from '@atc/plugin-api';
 import { decideHarnessAuth } from './decide-harness-auth';
 import type { HarnessAuthDecision } from './decide-harness-auth';
 
-// The decision for an agent on a host's credentials, which every launch, revive and list reads
-// the same way, the agent's own config conflicts included.
 export function buildHarnessAuthDecision(
   adapter: Pick<AgentAdapter, 'findAuthSelection' | 'findGuestEnvConflict' | 'signInFile'>,
   credentials: HostCredentials,

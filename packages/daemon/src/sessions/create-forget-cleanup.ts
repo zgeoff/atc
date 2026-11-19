@@ -27,29 +27,22 @@ interface ForgetCleanupDeps {
   >;
   readonly store: Pick<StateStore, 'readMaterialization'>;
 
-  // The daemon's state folder, which holds each session's own folder under `sessions/`.
   readonly stateDir: string;
 
-  // Removes a folder on the daemon's host and everything in it; a folder already gone is no error.
   readonly removeDir: (directory: string) => Promise<void>;
 
   readonly settings: WorkspaceCleanupConfig;
 }
 
 interface ForgottenSessionState {
-  // The forget destroyed the session's host, and the workspace went with it.
   readonly hostDestroyed: boolean;
 
-  // atc saw every process the session ran exit, so nothing writes in its folders any more.
   readonly harnessEnded: boolean;
 
-  // The hold the kill or forget took on the session, which this cleanup ends.
   readonly hold: SessionHold;
 }
 
 export interface ForgetCleanup {
-  // Runs once the forget took the session off the list, and ends the hold on it once its
-  // processes ended.
   readonly removeSessionFolders: (
     session: Session,
     state: ForgottenSessionState,
@@ -66,8 +59,8 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
     const sessions = join(deps.stateDir, 'sessions');
     const directory = join(sessions, id);
 
-    // join folds `.` and `..` segments, so an id such as `unused/../kept` would name another
-    // session's folder; only an id that join leaves as one segment names its own
+    // Path joining folds `.` and `..` segments, so an id such as `unused/../kept` would name
+    // another session's folder.
     if (id.includes('/') || directory !== `${sessions}/${id}`) {
       manager.log(
         `atc: left the state folder of session ${id}, since its id names no folder of its own under ${sessions}`,
@@ -85,8 +78,6 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
     }
   };
 
-  // A listed or held session on the same host whose directory lies inside the folder, in any of
-  // the forms given; the removal checks again with every directory as the host resolves it.
   const findWorkspaceUser = (session: Session, forms: readonly string[]): SessionID | null => {
     const hosted = manager.hasHostLifecycle(session.target);
 
@@ -113,8 +104,8 @@ export function createForgetCleanup(deps: ForgetCleanupDeps): ForgetCleanup {
       bindingRefusal: manager.findExecutionRefusal(session, 'run')?.message ?? null,
     });
 
-    // the hold starts before the check, since a session that starts in the folder while the
-    // check runs would find its work removed
+    // The hold starts before the check because a session that starts in the folder while the
+    // check runs would have its work removed.
     return match(eligibility)
       .returnType<Promise<WorkspaceCleanup>>()
       .with({ kind: 'none' }, () => Promise.resolve(NO_WORKSPACE))

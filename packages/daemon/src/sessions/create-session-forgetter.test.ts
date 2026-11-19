@@ -30,14 +30,10 @@ import { WORKSPACE_CHECK_SCRIPT } from './run-workspace-check';
 import { startHeadlessTurn } from './start-headless-turn';
 
 interface SetupTestConfig {
-  // Whether the target's provider can destroy a session's host.
   readonly destroy: boolean;
 
-  // Whether the target's provider can put a host to sleep, which gives each
-  // sub-session its parent's host; it can when it can destroy one.
   readonly suspend?: boolean;
 
-  // Whether a forget removes what atc kept for the session; on when absent.
   readonly cleanupEnabled?: boolean;
 }
 
@@ -61,8 +57,6 @@ async function setupTest(config: SetupTestConfig) {
 
   const stopMessageBridge = mock<(id: SessionID) => Promise<void>>(() => Promise.resolve());
   const headless = buildStubHeadlessRunner();
-
-  // Pauses each fleet write once a test starts it, as a slow disk.
   const fleetWrites = buildStubHostHold();
 
   const manager = createSessionManager({
@@ -91,7 +85,6 @@ async function setupTest(config: SetupTestConfig) {
     manager.detachAll();
   });
 
-  // A destroy logs the host it removed.
   const log = buildStubLog();
 
   manager.log = log.log;
@@ -546,8 +539,6 @@ test('it logs a state folder it cannot remove and still forgets the session', as
   });
 
   mkdirSync(ctx.stateDir, { recursive: true });
-
-  // a file where the sessions folder belongs makes the removal fail with ENOTDIR
   writeFileSync(join(ctx.stateDir, 'sessions'), 'not a folder');
 
   await ctx.forgetter.killSession(session.id, false);
@@ -740,7 +731,6 @@ test('it keeps the workspace of a session whose killed process atc never sees ex
 
   invariant(harness !== undefined);
 
-  // a detached harness reports no exit, as a process atc lost track of
   harness.detach();
 
   ctx.manager.failedSpawnExitWaitMs = 1;

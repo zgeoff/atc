@@ -26,9 +26,6 @@ import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
 import { createTapRegistry } from './create-tap-registry';
 
-// A session manager on one `local` target over the in-memory provider with
-// one agent that takes its messages through a bridge in the daemon, a real
-// state store, the message service, and the bridges over them.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-message-bridges-');
   const dbPath = join(temporaryDirectory.path, 'state.db');

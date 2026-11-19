@@ -84,8 +84,6 @@ test('it builds the identities a daemon stored before the providers moved into p
     }),
   );
 
-  // fleet rows hold these identities, so no change to where a provider's
-  // code lives may move them while the target config stays the same
   expect(built.targets.map((target) => [target.id, target.identity])).toStrictEqual([
     ['local', 'local-pty:44136fa355b3678a'],
     ['cloud', 'imp:reach-v1:c97f60aac21db24e'],

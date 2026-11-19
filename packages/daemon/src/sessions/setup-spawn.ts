@@ -20,8 +20,6 @@ interface SpawnSetupDeps extends SpawnWorkspaceDeps {
   readonly callbacks: Pick<SessionCallbacks, 'findRecords'>;
 }
 
-// What a spawn readied before its harness starts: the host's setup, the
-// built workspace and its root, and the path of the published record.
 interface SpawnSetup {
   readonly setup: HarnessSetup;
   readonly materialized: MaterializedSpawn | null;
@@ -54,13 +52,7 @@ export async function setupSpawn(
           targetIdentity: spawn.execution.identity,
         };
 
-  // A spawn that builds its workspace reads the workspace's project
-  // settings once it is built, not when the host is readied before it.
   const startDir = materialize === null ? cwd : null;
-
-  // The host is set up once, when the workspace's source resolves or, for
-  // a directory that runs as it stands, before the harness starts. Its
-  // undo takes back the host when the spawn readied it for itself.
   let hostSetup: Promise<HarnessSetup> | null = null;
   let attemptID: string | null = null;
 
@@ -108,10 +100,7 @@ export async function setupSpawn(
     return hostSetup;
   };
 
-  // Takes back trust a spawn accepted in the user's own agent config.
   let removeTrust: (() => Promise<void>) | null = null;
-
-  // Whether the workspace passed its project-settings check and its trust.
   let checked = false;
 
   const built =
@@ -137,8 +126,6 @@ export async function setupSpawn(
 
   const root = built.root;
 
-  // A launch behind the broker reads the project settings of the clone
-  // it starts in, once the clone is on the host and before it is trusted.
   if (root !== null && auth !== null) {
     await steps.run('project-settings', () =>
       timer.withStep('project-settings', () =>

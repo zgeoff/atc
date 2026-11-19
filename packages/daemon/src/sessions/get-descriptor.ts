@@ -1,7 +1,6 @@
 import type { SessionDescriptor, SessionID } from '@atcx/contract';
 import type { SessionManager } from './create-session-manager';
 
-// The manager as the lookup reads it.
 interface DescriptorSource {
   readonly collectDescriptors: SessionManager['collectDescriptors'];
 }

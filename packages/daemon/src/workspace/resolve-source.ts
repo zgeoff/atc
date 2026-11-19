@@ -10,13 +10,9 @@ import { resolvePathSource } from './resolve-path-source';
 import { runGit } from './run-git';
 
 export interface PinnedSource {
-  // The URL the clone fetches from and the token-free form it is recorded
-  // under.
   readonly cloneURL: string;
   readonly repoURL: string;
 
-  // The ref or commit the clone checks out, the commit it is pinned to when
-  // the ref only names its branch, and the branch or tag recorded.
   readonly checkout: string;
   readonly sha?: string | undefined;
   readonly ref: string | null;
@@ -55,8 +51,6 @@ export async function resolveSource(
     };
   }
 
-  // A credential the clone would refuse is refused here, before any host
-  // is readied for it.
   if (source.credentialRef !== undefined && readCredentialSecret(source) === null) {
     throw new DaemonError(
       'credential_missing',
@@ -65,8 +59,6 @@ export async function resolveSource(
     );
   }
 
-  // The clone fetches the URL it records, so the spawn API's `owner/repo`
-  // shorthand reaches the repository it expands to.
   const resolved = await resolveGitURL(expandGitShorthand(source.url), staging, transports);
 
   if (!resolved.ok) {
@@ -84,8 +76,8 @@ export async function resolveSource(
   };
 }
 
-// a credential the origin itself holds is stripped when the source resolves, so only a
-// rewrite is checked here; a checkout with no readable origin is left to resolution to refuse
+// A credential in the origin URL itself is stripped when the source resolves, so only a rewrite
+// can still carry one.
 async function requireNoOriginRewriteCredentials(path: string): Promise<void> {
   const origin = await runGit(['config', '--get', 'remote.origin.url'], { cwd: path }).catch(
     requireStartFailure,

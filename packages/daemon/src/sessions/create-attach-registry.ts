@@ -84,7 +84,6 @@ export function createAttachRegistry<TClient>(): AttachRegistry<TClient> {
       let cols = Number.POSITIVE_INFINITY;
       let rows = Number.POSITIVE_INFINITY;
 
-      // the smallest across clients, so every attached terminal can render the whole screen
       for (const dims of clients.values()) {
         cols = Math.min(cols, dims.cols);
         rows = Math.min(rows, dims.rows);

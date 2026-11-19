@@ -18,8 +18,6 @@ import { buildStubPregrantedBrokerHost } from '../test-utils/build-stub-pregrant
 import { buildAuthBinding } from './build-auth-binding';
 import { createRuntimeAuthBinder } from './create-runtime-auth-binder';
 
-// a binder over a real state store, a broker that refuses grants as impd does behind the imp
-// provider, and a broker stand-in that enforces no authority for the contract's own guarantees
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-auth-binder-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
@@ -41,9 +39,6 @@ async function setupTest() {
 test('it provisions a host through the gate, a new imp and each grant, in that order, and records the imp and its grants', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -161,9 +156,6 @@ test.each([['github-imp-agents'], ['gh']])(
 test('it provisions a host with two secrets in four round trips to impd', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -235,9 +227,6 @@ test('it provisions a host with two secrets in four round trips to impd', async 
 test('it refuses an outdated impd as an unavailable host and records nothing', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -288,7 +277,6 @@ test('it refuses an outdated impd as an unavailable host and records nothing', a
 test('it refuses a token that reaches every imp and records nothing', async () => {
   const ctx = await setupTest();
 
-  // The token `host-wide` manages every imp, not only `atc-*` ones.
   ctx.host.setIdentity({
     name: 'host-wide',
     scope: 'manage',
@@ -326,7 +314,6 @@ test('it refuses a token that reaches every imp and records nothing', async () =
 test('it refuses a secret whose rules differ from the binding and creates no imp', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it, holding `glm` for a host the binding never approved
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -373,9 +360,6 @@ test('it refuses a secret whose rules differ from the binding and creates no imp
 test('it refuses an imp that already holds the name and grants nothing to it', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -433,9 +417,6 @@ test('it refuses an imp that already holds the name and grants nothing to it', a
 test('it takes back the imp a refused grant left and drops the record', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -501,9 +482,6 @@ test('it takes back the imp a refused grant left and drops the record', async ()
 test('it verifies a bound host without granting anything again', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -570,9 +548,6 @@ test('it verifies a bound host without granting anything again', async () => {
 test('it verifies a bound host in one round trip to impd', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm`, and impd holds `glm` for api.z.ai as a custom
-  // bearer secret.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -639,9 +614,6 @@ test('it verifies a bound host in one round trip to impd', async () => {
 test('it refuses a host whose grant was revoked outside atc and grants it no more', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -712,9 +684,6 @@ test('it refuses a host whose grant was revoked outside atc and grants it no mor
 test('it refuses a host that holds a grant its binding does not', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -779,9 +748,6 @@ test('it refuses a host that holds a grant its binding does not', async () => {
 test('it refuses a host whose used profiles changed before it reaches impd', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -841,9 +807,6 @@ test('it refuses a host whose used profiles changed before it reaches impd', asy
 test('it refuses an imp made again under the recorded name', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -903,9 +866,6 @@ test('it refuses an imp made again under the recorded name', async () => {
 test('it revokes every grant through the identity checks alone, without reading any secret', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -940,7 +900,6 @@ test('it revokes every grant through the identity checks alone, without reading 
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  // A rule change on the host side never stops a revoke.
   ctx.host.createSecret('glm', 'custom', [
     { host: 'api.z.ai', header: 'x-api-key', scheme: 'bearer' },
   ]);
@@ -964,9 +923,6 @@ test('it revokes every grant through the identity checks alone, without reading 
 test('it blocks every launch on a host once its grants are revoked', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1027,9 +983,6 @@ test('it blocks every launch on a host once its grants are revoked', async () =>
 test('it records the block of a revoke and keeps it pending when impd cannot be reached', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1081,9 +1034,6 @@ test('it records the block of a revoke and keeps it pending when impd cannot be 
 test('it counts a grant a secret rebind already dropped as revoked though the token can no longer revoke it', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1130,9 +1080,6 @@ test('it counts a grant a secret rebind already dropped as revoked though the to
 test('it keeps a revoke pending when the token cannot revoke a grant impd still holds', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1188,9 +1135,6 @@ test('it keeps a revoke pending when the token cannot revoke a grant impd still 
 test('it rebinds a host to the next revision, granting the new secret and revoking the dropped one', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1274,9 +1218,6 @@ test('it rebinds a host to the next revision, granting the new secret and revoki
 test('it removes only the grants a failed rebind added and keeps the imp at the old revision', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1391,9 +1332,6 @@ test('it removes only the grants a failed rebind added and keeps the imp at the 
 test('it takes back one attempt without touching the imp or grants of another host', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1470,9 +1408,6 @@ test('it takes back one attempt without touching the imp or grants of another ho
 test('it leaves a host alone when asked to take back an attempt other than the one it holds', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1516,9 +1451,6 @@ test('it leaves a host alone when asked to take back an attempt other than the o
 test('it forgets a bound host by destroying its imp and dropping the record', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1583,9 +1515,6 @@ test('it forgets a bound host by destroying its imp and dropping the record', as
 test('it refuses to forget a host whose imp was made again and leaves that imp alone', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1637,9 +1566,6 @@ test('it refuses to forget a host whose imp was made again and leaves that imp a
 test('it takes back a provisioning attempt no fleet entry lists as a daemon starts, and leaves a listed host alone', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1698,9 +1624,6 @@ test('it takes back a provisioning attempt no fleet entry lists as a daemon star
 test('it fails a rebind a stopped daemon left in flight and revokes only the grants it added', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1774,9 +1697,6 @@ test('it fails a rebind a stopped daemon left in flight and revokes only the gra
 test('it rebinds a provisioned host whose spawn listed but never recorded its start', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1834,9 +1754,6 @@ test('it rebinds a provisioned host whose spawn listed but never recorded its st
 test('it refuses to rebind a host whose spawn is still provisioning before it created the imp', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1887,9 +1804,6 @@ test('it refuses to rebind a host whose spawn is still provisioning before it cr
 test('it refuses to take back an attempt through a target whose imp prefix changed, and destroys no imp', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -1944,9 +1858,6 @@ test('it refuses to take back an attempt through a target whose imp prefix chang
 test('it keeps the grants a failed rebind added while impd cannot be reached', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2018,9 +1929,6 @@ test('it keeps the grants a failed rebind added while impd cannot be reached', a
 test('it retries the removal of the grants a failed rebind added on a later start once impd is reachable', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2103,9 +2011,6 @@ test('it retries the removal of the grants a failed rebind added on a later star
 test('it hands a launch over before a revoke that arrives during its admission, which then completes', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2171,9 +2076,6 @@ test('it hands a launch over before a revoke that arrives during its admission, 
 test('it refuses a launch whose admission waits behind a revoke, handing nothing over', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2229,9 +2131,6 @@ test('it refuses a launch whose admission waits behind a revoke, handing nothing
 test('it refuses a start planned under another binding hash than the ready one', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2284,9 +2183,6 @@ test('it refuses a start planned under another binding hash than the ready one',
 test('it holds a launch admission until its ticket is checked and lets the request go at the check', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2321,7 +2217,6 @@ test('it holds a launch admission until its ticket is checked and lets the reque
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  // The harness keeps the ticket while its connection to impd opens.
   const tickets: LaunchTicket[] = [];
 
   await ctx.binder.withLaunchAdmission(
@@ -2348,9 +2243,6 @@ test('it holds a launch admission until its ticket is checked and lets the reque
 test('it returns the launch admission of each ticket released unchecked', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2385,8 +2277,6 @@ test('it returns the launch admission of each ticket released unchecked', async 
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  // Three connections, each of which ends before it opens and releases
-  // its ticket unchecked.
   const tickets: LaunchTicket[] = [];
 
   await Promise.all(
@@ -2485,9 +2375,6 @@ test('it refuses to rebind a host with no binding', async () => {
 test('it refuses to rebind a host revoked before its spawn recorded the imp', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm`, and impd holds `glm` for api.z.ai, a custom
-  // bearer secret.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2539,9 +2426,6 @@ test('it refuses to rebind a host revoked before its spawn recorded the imp', as
 test('it refuses a new imp that already holds a grant, grants it nothing and takes it back', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2581,8 +2465,6 @@ test('it refuses a new imp that already holds a grant, grants it nothing and tak
 
   const calls = [...ctx.host.calls];
 
-  // The stand-in's own grant of judge is the only one; the binder never
-  // asks for glm.
   expect(calls).toStrictEqual([
     'verifyVersion',
     'readIdentity',
@@ -2601,9 +2483,6 @@ test('it refuses a new imp that already holds a grant, grants it nothing and tak
 test('it fails a rebind that cannot revoke a secret the new binding drops as revocation pending', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2866,9 +2745,6 @@ test('it refuses to forget a host the broker made again under the recorded name 
 test('it rebinds a changed selection at a verify given a rebind, granting the added secret at the next revision', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2934,9 +2810,6 @@ test('it rebinds a changed selection at a verify given a rebind, granting the ad
 test('it logs one line for each rebind at a verify with the host, the revisions, and the profiles it adds and drops', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -2998,9 +2871,6 @@ test('it logs one line for each rebind at a verify with the host, the revisions,
 test('it revokes the grant of a dropped profile at a verify given a rebind', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -3066,9 +2936,6 @@ test('it revokes the grant of a dropped profile at a verify given a rebind', asy
 test('it refuses a changed selection at a verify given a rebind when the imp lost a grant both bindings keep, granting nothing', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -3138,9 +3005,6 @@ test('it refuses a changed selection at a verify given a rebind when the imp los
 test('it refuses a changed selection at a verify given a rebind when the imp was made again under the recorded name', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -3210,9 +3074,6 @@ test('it refuses a changed selection at a verify given a rebind when the imp was
 test('it leaves a rebind that fails at a verify blocked as a failed rebind at the old revision', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -3281,9 +3142,6 @@ test('it leaves a rebind that fails at a verify blocked as a failed rebind at th
 test('it retries a failed rebind at the next verify given a rebind and moves the binding to the next revision', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -3372,9 +3230,6 @@ test('it retries a failed rebind at the next verify given a rebind and moves the
 test('it retries a failed rebind at the next verify given a rebind after taking back a grant whose removal failed', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm`, `judge` and `zeta`, and impd holds each as a
-  // custom bearer secret for its own host.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -3418,8 +3273,6 @@ test('it retries a failed rebind at the next verify given a rebind after taking 
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  // impd removes no grant, so the rebind fails on the dropped judge and
-  // leaves the zeta grant it added behind.
   ctx.host.setGrantRemovalFailure('INTERNAL');
 
   const failed = ctx.binder.verifyBinding(
@@ -3482,9 +3335,6 @@ test('it retries a failed rebind at the next verify given a rebind after taking 
 test('it keeps the pending admission of another harness on the host through a rebind at a verify', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `glm` and `judge`, and impd holds `glm` for api.z.ai
-  // and `judge` for judge.example, both custom bearer secrets.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -3519,7 +3369,6 @@ test('it keeps the pending admission of another harness on the host through a re
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  // A sibling's reconnect, admitted while its connection to impd opens.
   const tickets: LaunchTicket[] = [];
 
   await ctx.binder.withLaunchAdmission(
@@ -3563,8 +3412,6 @@ test('it keeps the pending admission of another harness on the host through a re
 test('it verifies a host bound under an older form of the same grants and moves the binding to the current form at its revision', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `gh`, and impd holds `gh` as a github secret.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -3606,8 +3453,6 @@ test('it verifies a host bound under an older form of the same grants and moves 
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  // the row as an older atc wrote it: the old placeholder, and the rules
-  // atc held for a github secret before the broker held them
   await ctx.store.updateAuthBinding(
     toSessionID('s1'),
     {
@@ -3663,8 +3508,6 @@ test('it verifies a host bound under an older form of the same grants and moves 
 test('it admits a start planned under the current form once a host bound under an older form of the same grants verifies', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `gh`, and impd holds `gh` as a github secret.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -3706,8 +3549,6 @@ test('it admits a start planned under the current form once a host bound under a
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  // the row as an older atc wrote it: the old placeholder, and the rules
-  // atc held for a github secret before the broker held them
   await ctx.store.updateAuthBinding(
     toSessionID('s1'),
     {
@@ -3759,9 +3600,6 @@ test('it admits a start planned under the current form once a host bound under a
 test('it refuses a host bound under an older form whose grants changed since, with the rebind message, before it reaches impd', async () => {
   const ctx = await setupTest();
 
-  // impd as an operator prepared it: the token `atc-runtime` manages `atc-*`
-  // imps and may grant `gh` and `glm`, and impd holds `gh` as a github
-  // secret and `glm` for api.z.ai as a custom bearer secret.
   ctx.host.setIdentity({
     name: 'atc-runtime',
     scope: 'manage',
@@ -3824,8 +3662,6 @@ test('it refuses a host bound under an older form whose grants changed since, wi
 
   await ctx.binder.updateReady(toSessionID('s1'), attemptID);
 
-  // the row as an older atc wrote it: the old placeholder, and the rules
-  // atc held for a github secret before the broker held them
   await ctx.store.updateAuthBinding(
     toSessionID('s1'),
     {

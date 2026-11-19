@@ -14,15 +14,11 @@ import { createSessionManager } from './create-session-manager';
 import { hasResumableTranscript } from './has-resumable-transcript';
 
 interface SetupTestConfig {
-  // The one agent the sessions run.
   readonly adapter: AgentAdapter;
 
-  // Whether the target's host runs away from the daemon's machine.
   readonly remote: boolean;
 }
 
-// A session manager on one `local` target over the in-memory provider and
-// a real state store.
 async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-resumable-transcript-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
@@ -55,7 +51,6 @@ async function setupTest(config: SetupTestConfig) {
     manager.detachAll();
   });
 
-  // A remote spawn logs its step times.
   manager.log = buildStubLog().log;
 
   return { directory: temporaryDirectory.path, manager };

@@ -12,8 +12,6 @@ export interface ScreenText {
 // tracking, bracketed paste, focus events); these are the ones it drops.
 const REPLAYED_DEC_MODES = new Set([1006, 1007, 2031]);
 
-// A full replay with the size it is laid out at, which trails a client's
-// resize until the resize debounce applies it.
 interface FullReplay<T> {
   readonly replay: string;
   readonly cols: number;
@@ -24,19 +22,10 @@ interface FullReplay<T> {
 export interface ScreenModel {
   readonly record: (data: string) => void;
 
-  // Serializing before the flush drains would omit bytes already streamed
-  // live to clients, and the replay's leading clear would erase them from
-  // the client's screen for good.
   readonly captureReplay: () => Promise<string>;
 
-  // A replay of the normal buffer, then the alternate one when it is active,
-  // for a client on a fresh terminal: the agent's later switch back to the
-  // normal buffer then shows the normal screen, not the replayed one.
   readonly captureFullReplay: <T>(readMark: () => T) => Promise<FullReplay<T>>;
 
-  // Whether the TUI has turned bracketed paste on, as of the output parsed
-  // so far. It reads the mode without waiting, so output still queued for
-  // parsing never delays the caller; a TUI turns the mode on once, at start.
   readonly hasBracketedPaste: () => boolean;
 
   readonly captureText: () => Promise<ScreenText>;
@@ -52,8 +41,6 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
   const kittyFlags: number[] = [];
   let modifyOtherKeys = 0;
 
-  // scrollback stays small: the model serves the current screen, and the
-  // transcripts on disk are the durable copy
   const term = new Terminal({ cols, rows, allowProposedApi: true, scrollback: 300 });
   const serializer = new SerializeAddon();
 
@@ -97,8 +84,6 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
     return false;
   });
 
-  // The terminal parses asynchronously, and bytes recorded while a flush is
-  // awaited re-arm it — so this drains until no newer write is pending.
   const waitForFlush = async (): Promise<void> => {
     let pending: Promise<void>;
 

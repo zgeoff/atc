@@ -82,11 +82,8 @@ interface SessionSpawnerDeps {
     | 'stopMessageBridge'
   >;
 
-  // Reads the fates of the sleeping sessions on a shared host once a spawn readies it.
   readonly fates?: Pick<HarnessFates, 'readFates'>;
 
-  // Runs each spawn's steps and unwinds them on a failure; the spawn steps
-  // runner when unset.
   readonly runSteps?: SpawnStepRunner;
 }
 
@@ -113,12 +110,8 @@ export interface SpawnSessionOptions {
 }
 
 export interface SessionSpawner {
-  // resume: true opens the agent's session picker, an id resumes that session;
-  // the session keeps overrides for every revive; a materialize failure takes
-  // back the host the spawn readied, unless it is a parent's
   readonly spawn: (options: SpawnSessionOptions) => Promise<Session>;
 
-  // The ids of the spawns that started their steps and have not yet listed or ended their unwind.
   readonly spawning: ReadonlySet<SessionID>;
 }
 
@@ -146,9 +139,6 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
     const timer = spawn.timer;
     const materialize = spawn.materialize;
 
-    // a directory the daemon picked is reserved once per attempt, so a held
-    // one moves the spawn to the next attempt; a failure whose effects may
-    // still stand keeps the reservation, so no workspace lands around them
     await steps.run(
       'claim',
       () => {
@@ -169,8 +159,6 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       },
     );
 
-    // The host stays readying until the record is published, so nothing
-    // gives its lease back or puts it to sleep before the harness starts.
     const prepared = await harnesses.withHostReadying(hostKey, () =>
       setupSpawn(
         {
@@ -189,13 +177,10 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       void fates?.readFates({ hostKey, except: id });
     }
 
-    // A spawn whose directory the daemon picked runs in the one it claimed,
-    // as the host resolves it.
     const directory = spawn.autoDir && prepared.root !== null ? prepared.root : cwd;
 
-    // The repository is read once the workspace is in place, so a clone
-    // inside another work tree is its own. A remote directory is not on
-    // the daemon's machine, so it is its own root.
+    // Read the repository after the workspace exists, so a clone inside another work tree is its
+    // own root.
     const repoRoot = provider.remote ? directory : resolveRepoRoot(directory);
     const materialized = prepared.materialized;
     const readied: SpawnReadied = { attemptID: prepared.setup.attemptID, root: prepared.root };
@@ -212,8 +197,6 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       { daemonEnv: provider.remote ? {} : process.env, withheldEnv },
     );
 
-    // the caller's check runs again once the host is ready, before the
-    // harness starts
     await steps.run('reach', spawn.requireInReach);
 
     const bridged = await steps.run(
@@ -247,9 +230,8 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       initialMsg = spawn.resume === false ? 'started' : 'adopting…';
     }
 
-    // the session lists and boots in the same turn as the harness starts,
-    // since the harness's first output can arrive in the next microtask and
-    // is kept only once the session has booted
+    // The harness's first output can arrive in the next microtask and is kept only once the session
+    // has booted, so the session lists and boots in the same turn as the start.
     const session = steps.runNow(
       'harness',
       () => {
@@ -328,9 +310,6 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       callbacks.onBoot(session, spawn.cols, spawn.rows);
     });
 
-    // a start the host refuses throws here, after the session listed, and the
-    // unwind takes the session back; a shared host nothing else runs on
-    // sleeps first, and a host of its own goes with the take-back
     await steps.run('harness-start', () =>
       timer.withStep('harness-start', async () => {
         if (auth?.kind === 'broker' && hostKey === id) {
@@ -370,8 +349,6 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
     return session;
   };
 
-  // one host serves a top-level session and every sub-session bound to the
-  // same target name and identity, when that target's hosts have a lifecycle
   const pickHostKey = (
     id: SessionID,
     owner: Session | undefined,
@@ -474,9 +451,6 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
         throw refusal;
       }
 
-      // A spawn whose steps fail takes back what the steps before the failure
-      // did, last step first; the session counts as rolling back until the
-      // unwind ends, so no revive starts it in between.
       spawning.add(id);
 
       try {

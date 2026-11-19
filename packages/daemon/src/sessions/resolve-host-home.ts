@@ -3,8 +3,6 @@ import type { ExecutionProvider } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 
-// Prints the home directory of the user it runs as, with every symlink in
-// it resolved.
 export const RESOLVE_HOME_SCRIPT = 'cd && pwd -P';
 
 export async function resolveHostHome(

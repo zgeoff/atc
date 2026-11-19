@@ -4,8 +4,6 @@ import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
-// The listener daemon started in a temp directory that is also its home.
-// Cleanup kills it.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-listener-');
 

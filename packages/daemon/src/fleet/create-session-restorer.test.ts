@@ -17,8 +17,6 @@ interface SetupConfig {
   readonly targets: readonly ExecutionTarget[];
 }
 
-// A restorer over a real registry of the adapters and targets the test
-// gives, with the fleet writer and the daemon's callbacks as recorders.
 function setupTest(config: SetupConfig) {
   const callbacks = { onEvent: mock<() => void>(), getClock: () => systemClock };
   const fleet = { emitChange: mock<() => void>(), writeStatus: mock<() => void>() };

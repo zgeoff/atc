@@ -4,7 +4,6 @@ import { NODE_TOKEN_FILE_ACCESS } from '@atc/config';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { requireListenTokens } from './require-listen-tokens';
 
-// A temporary folder for the token file.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-listen-tokens-');
 

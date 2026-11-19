@@ -12,7 +12,6 @@ export interface EventSignal {
   readonly dispose: () => void;
 }
 
-// The clock that times each wait's timeout.
 export function createEventSignal(clock: Clock = systemClock): EventSignal {
   const waiters = new Set<() => void>();
 
@@ -41,8 +40,6 @@ export function createEventSignal(clock: Clock = systemClock): EventSignal {
       }
 
       const deferred = Promise.withResolvers<void>();
-
-      // Holds the timer's cancel once it is scheduled.
       let cancel: (() => void) | null = null;
 
       const onWake = () => {

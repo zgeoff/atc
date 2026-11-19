@@ -4,16 +4,11 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { ExecutionTarget } from './build-execution-targets';
 import { isUnconfirmedBinding } from './is-unconfirmed-binding';
 
-// a null identity is a session not yet bound, which binds to the target as it
-// stands now; a null target is a spawn that names none when the config gives
-// no default
 interface TargetBinding {
   readonly target: string | null;
   readonly targetIdentity: string | null;
 }
 
-// every path that starts a harness, writes to one, or runs a headless turn asks this
-// first, so no path runs a session anywhere but the target it is bound to
 export function findExecutionRefusal(
   targets: ReadonlyMap<string, ExecutionTarget>,
   errors: readonly TargetConfigError[],

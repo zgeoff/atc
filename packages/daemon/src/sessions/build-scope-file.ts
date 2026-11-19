@@ -29,8 +29,8 @@ export interface ScopeFile {
   readonly replyChannels: readonly ScopeReplyChannel[];
 }
 
-// the tool name Claude Code gives atc_message_send under the server name `atc`,
-// which the setup guide registers the MCP server as
+// Claude Code names an MCP tool mcp__<server>__<tool>, and the server is registered under the
+// name atc.
 const MESSAGE_SEND_TOOL = 'mcp__atc__atc_message_send';
 
 export function buildScopeFile(record: PublishedRecord): ScopeFile {

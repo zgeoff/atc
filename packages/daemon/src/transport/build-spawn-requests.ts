@@ -18,43 +18,32 @@ interface SourceParams {
   readonly clientCwd?: string | undefined;
 }
 
-// The source a request asks for, and the request the source serves.
 interface ResolvedSourceRequest {
   readonly source: SourceProvider;
   readonly request: SourceInputRequest;
 }
 
-// The requests that spawn a session and the source and git requests that
-// prepare a spawn.
 export interface SpawnRequests {
   readonly applySpawn: (
     data: RequestParams<'session.spawn'>,
     ctx: DaemonContext,
   ) => Promise<DaemonAnswer<'session.spawn'>>;
 
-  // Lists one source's candidates for a spawn to the request's target.
   readonly applySourcesList: (
     data: RequestParams<'sources.list'>,
     ctx: DaemonContext,
   ) => Promise<DaemonAnswer<'sources.list'>>;
 
-  // Reads typed input through one source for a spawn to the request's
-  // target.
   readonly applySourcesInterpret: (
     data: RequestParams<'sources.interpret'>,
     ctx: DaemonContext,
   ) => Promise<DaemonAnswer<'sources.interpret'>>;
 
-  // Completes typed input through one source for a spawn to the request's
-  // target.
   readonly applySourcesComplete: (
     data: RequestParams<'sources.complete'>,
     ctx: DaemonContext,
   ) => Promise<DaemonAnswer<'sources.complete'>>;
 
-  // Probes a git workspace source for a spawn to the request's target, so
-  // a principal probes only for a target it may spawn a workspace on. A
-  // refusal holds the repository's other URLs that the offered sources know.
   readonly applyGitProbe: (
     data: RequestParams<'git.probe'>,
     ctx: DaemonContext,
@@ -64,9 +53,6 @@ export interface SpawnRequests {
 export function buildSpawnRequests(deps: RequestDeps): SpawnRequests {
   const daemonContext = deps.ctx;
 
-  // The source a request asks for and the request it serves, so a principal
-  // reaches a source only for a target it may spawn on, and a git source
-  // only for a target it may spawn a workspace on.
   const resolveSourceRequest = (
     params: SourceParams,
     ctx: DaemonContext,
@@ -83,8 +69,6 @@ export function buildSpawnRequests(deps: RequestDeps): SpawnRequests {
       daemonContext.requireWorkspaceTarget(target);
     }
 
-    // The spawn history is read through the request's own view, so a
-    // principal lists only directories spawned on targets it may use.
     return {
       source,
       request: {
@@ -175,9 +159,6 @@ async function applySpawn(
       throw new DaemonError('unsupported', `no adapter for agent '${agent}'`);
     }
 
-    // A stand-in adapter declares no binary to check, so only a profiled
-    // agent's missing binary refuses the spawn, and only on a target whose
-    // provider runs the agent on the daemon's machine.
     const remote = ctx
       .collectAgents()
       .targets.some((candidate) => candidate.id === target && candidate.remote);
@@ -189,7 +170,6 @@ async function applySpawn(
       );
     }
 
-    // Checked before any workspace is materialized for the spawn.
     const refusal = adapter.findSpawnRefusal?.() ?? null;
 
     if (refusal !== null) {
@@ -214,14 +194,10 @@ async function applySpawn(
       overrides.overrides.pluginDirs ?? [],
     );
 
-    // Checked before the spawn starts, so a target that cannot take a
-    // workspace refuses it before any git command runs.
     if (data.workspace !== undefined) {
       ctx.requireWorkspaceTarget(target);
     }
 
-    // A git workspace without a cwd lands where the daemon picks on the
-    // target.
     const directory =
       cwd === undefined && data.workspace?.kind === 'git'
         ? ctx.buildDefaultWorkspaceDir(target, data.workspace)
@@ -322,8 +298,6 @@ function isPlainWorkspaceDir(directory: string): boolean {
   );
 }
 
-// A spawn without a scope declares none; one whose scope does not read
-// refuses before anything starts, with the entry at fault.
 function requireDeclaredScope(raw: unknown): DeclaredScope | null {
   if (raw === undefined) {
     return null;

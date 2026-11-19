@@ -16,9 +16,6 @@ import { createSessionHarnesses } from './create-session-harnesses';
 import { createSessionRegistry } from './create-session-registry';
 import { createSpawnRollback } from './create-spawn-rollback';
 
-// A rollback over the real session modules: a registry whose `local` target
-// runs harnesses in memory, a fleet writer on a real state store, real
-// directory claims and harness bookkeeping, and a recorder of logged lines.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-spawn-rollback-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
@@ -167,8 +164,6 @@ test('it rejects, keeps the session listed, and keeps the rollback unsettled whe
     'session s-stuck did not exit after its kill',
   );
 
-  // The spawn's caller ends the rollback once its unwind stops, so the
-  // settlement check then reads the recorded kill.
   ctx.rollback.rollingBack.delete(toSessionID('s-stuck'));
 
   const settled = await ctx.rollback.probeRollbackSettled(toSessionID('s-stuck'));

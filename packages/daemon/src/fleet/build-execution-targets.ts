@@ -8,13 +8,10 @@ export interface ExecutionTarget {
   readonly kind: string;
   readonly options: Readonly<Record<string, unknown>>;
 
-  // The identity a session spawned here binds to.
   readonly identity: string;
 
   readonly identityRule?: TargetIdentityRule;
 
-  // null when this daemon has no provider of the kind: the target still lists, and a
-  // spawn to it fails rather than running anywhere else
   readonly provider: ExecutionProvider | null;
 }
 
@@ -22,7 +19,7 @@ export interface ProviderBuild {
   readonly provider: ExecutionProvider | null;
   readonly problem: string | null;
 
-  // the plugin's identity rule, which holds even when the provider fails to build
+  // The plugin defines this rule, so it is known even when the provider fails to build.
   readonly identityRule?: TargetIdentityRule | undefined;
 }
 

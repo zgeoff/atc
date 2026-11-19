@@ -1,6 +1,5 @@
 import { DAEMON_EVENT_SCHEMA } from '@atcx/contract';
 
-// An event as a client received it, before its contract parsed it.
 interface ReceivedEvent {
   readonly ev: string;
   readonly [field: string]: unknown;

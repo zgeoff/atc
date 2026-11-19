@@ -1,7 +1,5 @@
 import { DaemonError } from '@atc/protocol/wire';
 
-// An agent that plans no remote spawn: for want of an atc inside the host
-// when the host has none, or because the agent never runs remotely.
 export function buildGuestRefusal(
   provider: string,
   agent: string,

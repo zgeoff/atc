@@ -4,8 +4,6 @@ import type { PeerSession } from './create-daemon-connection';
 import { readPeerPID } from './read-peer-pid';
 import { readPeerSession } from './read-peer-session';
 
-// From the pid the kernel holds for the socket's peer and the live harness processes of the
-// sessions; null outside every session and where the kernel cannot be asked.
 export function readSocketSession(
   socket: object,
   sessions: readonly Session[],

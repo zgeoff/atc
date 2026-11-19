@@ -275,7 +275,6 @@ test('it returns when the file shrinks while it is being read', async () => {
   // shrink.
   writeFileSync(path, 'a row\n'.repeat(200_000));
 
-  // The first line parsed empties the file; every later line parses as is.
   const parseLine = mock((line: string): TranscriptRow => ({
     role: 'user',
     text: line,
@@ -296,8 +295,6 @@ test('it returns when the file shrinks while it is being read', async () => {
     readWindow: readLocalTranscriptWindow,
   });
 
-  // The page holds the rows of the first window: the whole lines that fit
-  // in 1 MiB.
   expect(page).toStrictEqual({
     rows: Array.from({ length: 174_762 }, () => ({
       role: 'user',

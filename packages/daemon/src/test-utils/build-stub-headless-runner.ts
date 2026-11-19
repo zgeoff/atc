@@ -3,7 +3,6 @@ import type { HeadlessRunEvents, HeadlessRunRequest, HeadlessRunner } from '@atc
 interface StubHeadlessRun {
   readonly request: HeadlessRunRequest;
 
-  // The events the daemon listens on, which the test calls to play the run.
   readonly events: HeadlessRunEvents;
   stopped: boolean;
 }
@@ -11,11 +10,8 @@ interface StubHeadlessRun {
 interface StubHeadlessRunner {
   readonly runner: HeadlessRunner;
 
-  // Every run the daemon started, in order, and whether it stopped it.
   readonly runs: readonly StubHeadlessRun[];
 
-  // Resolves with the run at the index, counting from zero, once the
-  // daemon starts it.
   readonly waitForRun: (index: number) => Promise<StubHeadlessRun>;
 }
 

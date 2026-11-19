@@ -10,9 +10,6 @@ export interface GitCredential {
 interface GitAskpass {
   readonly ok: true;
 
-  // What each network git command takes: the variables that point it at
-  // the helper, and the arguments that switch the host's credential
-  // helpers off.
   readonly env: Readonly<Record<string, string>>;
   readonly args: readonly string[];
   [Symbol.asyncDispose]: () => Promise<void>;
@@ -27,9 +24,8 @@ interface MissingCredential {
 const ASKPASS_SECRET_VAR = 'ATC_GIT_ASKPASS_SECRET';
 const ASKPASS_ORIGIN_VAR = 'ATC_GIT_ASKPASS_ORIGIN';
 
-// Answers a prompt only when its URL names the origin in the origin variable, and fails git
-// otherwise. A truncated prompt or a URL that parsers read differently is refused whole, and a
-// default port counts as no port. Username prompts get a name GitHub and GitLab both accept.
+// Git and this script can read the same URL differently, so any odd URL is refused whole.
+// GitHub and GitLab both accept x-access-token as the username.
 export const ASKPASS_SCRIPT = `#!/bin/sh
 q="'"
 case "$1" in
@@ -83,7 +79,6 @@ export async function createGitAskpass(
 
   const helper = join(directory, 'askpass');
 
-  // A helper that cannot be written leaves no directory behind.
   try {
     await writeFile(helper, ASKPASS_SCRIPT, { mode: 0o700 });
   } catch (error) {
@@ -92,9 +87,8 @@ export async function createGitAskpass(
     throw error;
   }
 
-  // the token reaches git only through the helper, never the command line or the URL, and the
-  // host's credential helpers are off so none stores it. The helper's origin check is the guard:
-  // a URL-scoped http.<url>.followRedirects in the host's git config overrides the flag.
+  // A URL-scoped http.<url>.followRedirects in the host's git config overrides the flag below,
+  // so the helper's origin check is what actually stops a redirect from leaking the token.
   return {
     ok: true,
     env: {
@@ -109,8 +103,6 @@ export async function createGitAskpass(
   };
 }
 
-// The scheme and host of the source URL, lowercased, or empty when the URL is not one a token
-// may go to; the helper then refuses every prompt.
 function readSourceOrigin(sourceURL: string): string {
   try {
     const url = new URL(sourceURL);

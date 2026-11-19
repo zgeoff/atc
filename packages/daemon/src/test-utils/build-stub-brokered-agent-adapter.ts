@@ -4,23 +4,18 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 interface StubBrokeredAgentAdapterConfig {
   readonly id: string;
 
-  // Whether the agent starts only behind the broker; false lets it start
-  // on a target that reaches no broker.
   readonly brokerRequired: boolean;
 
-  // Whether the agent takes its credential from the broker at the moment
-  // of the call, as a config change can turn it on or off for an agent
+  // Read at each call, not once, because a config change can turn it on or off for an agent
   // whose sessions already exist.
   readonly isSelected: () => boolean;
 
-  // Whether the gateway's selection also reaches the profile `judge` at
-  // the moment of the call, as a config change can add or drop a profile
-  // for an agent whose sessions already exist. Absent reaches only `glm`.
+  // Read at each call, not once, because a config change can add or drop the judge profile for an
+  // agent whose sessions already exist. Absent selects only glm.
   readonly isJudgeSelected?: () => boolean;
 
-  // Whether a guest spawn under a binding planned at the moment of the call
-  // ignores the hangup signal a kill sends, so its kill never confirms an
-  // exit. Absent plans a shell that exits on it.
+  // Read at each spawn, not once. A guest that ignores hangup never confirms an exit after a kill.
+  // Absent plans a shell that exits on it.
   readonly ignoresHangup?: () => boolean;
 }
 

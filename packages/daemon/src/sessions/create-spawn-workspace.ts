@@ -15,9 +15,6 @@ export interface SpawnWorkspaceDeps {
   readonly rollback: Pick<SpawnRollback, 'removeSpawnWorkspace' | 'shouldTakeHost'>;
 }
 
-// What the workspace's undo reads from the steps after it: the auth
-// attempt the host was set up with, and whether the workspace passed its
-// project-settings check and its trust.
 interface SpawnWorkspaceState {
   readonly findAttemptID: () => string | null;
   readonly isChecked: () => boolean;
@@ -106,9 +103,6 @@ export async function createSpawnWorkspace(
         attemptID: state.findAttemptID(),
       });
 
-      // when the host's undo takes the host back, the directory goes with
-      // it: a checked workspace is skipped, and a failed removal of an
-      // unchecked one does not stop the unwind
       if (built === null || root === null || (takesHost && state.isChecked())) {
         return;
       }

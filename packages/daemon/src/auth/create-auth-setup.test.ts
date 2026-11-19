@@ -32,7 +32,6 @@ function setupTest(config: SetupConfig) {
     harnesses: { authRevisions: new Map(), isAuthOutdated: mock(), isHostIdle: mock() },
     rollback: { destroyFailedSpawnHost: mock() },
 
-    // Every host the setup readies is stamped with the daemon's id.
     store: { daemonID: toDaemonID('d-1') },
     callbacks: {
       onEvent: mock<() => void>(),

@@ -7,7 +7,6 @@ import { implement } from '@orpc/server';
 import type { DaemonContext } from '../types';
 import type { ProcedureContext } from './procedure-context';
 
-// Answers each procedure a connection admits.
 export const DAEMON_ROUTER = createDaemonRouter();
 
 function createDaemonRouter() {
@@ -285,9 +284,6 @@ function applyUpdate(
   return {};
 }
 
-// A client inside a session never adds to the record of that session or
-// of a session it is a sub-session of: only a caller outside the tree
-// vouches for what the session may touch.
 async function applyScopeAdd(
   input: RequestParams<'session.scope.add'>,
   ctx: DaemonContext,
@@ -340,7 +336,6 @@ function applyEject(
   );
 }
 
-// A resume or adopt of a session whose agent saved no transcript yet.
 function buildNoTranscriptError(): DaemonError {
   return new DaemonError(
     'session_dead',

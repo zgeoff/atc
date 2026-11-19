@@ -42,11 +42,9 @@ import type { TCPPeer } from './tcp-peer';
 import { toPeerMethod } from './to-peer-method';
 import type { BridgeGrant } from './types';
 
-// One client connection, which speaks oRPC peer messages, one per line.
 export interface DaemonConnection {
   readonly tokenFingerprint: string | null;
 
-  // safe to call more than once
   readonly dispose: () => void;
 
   readonly sendEvent: (event: EventMsg) => void;
@@ -61,8 +59,6 @@ export interface DaemonConnection {
 
   readonly drain: () => void;
 
-  // The peer wrote its last line: the connection ends once every request it
-  // sent has its answer written.
   readonly endInput: () => void;
 }
 
@@ -70,18 +66,12 @@ interface PeerSocket extends SocketWriter {
   readonly end: () => void;
 }
 
-// The session the connecting process runs inside: the kernel's answer on the
-// local socket, or the session whose bridge socket a remote host connected
-// through, which acts with that session's atc access alone.
 export interface PeerSession {
   readonly id: SessionID;
 
-  // Whether the bridge's binding still matches the live session; absent on
-  // the local socket.
   readonly isBridgeCurrent?: () => boolean;
 }
 
-// tcp is the listener of a connection accepted over TCP, null on the local socket.
 export function createDaemonConnection(
   peer: PeerSocket,
   ctx: DaemonContext,
@@ -97,24 +87,14 @@ export function createDaemonConnection(
       ? null
       : { holder: peerSession, isCurrent: isBridgeCurrent };
 
-  // The targets the connection's principal may use; null for the daemon's
-  // owner, whose reach has no limit.
   let connectionAccess: TargetAccess | null = null;
-
-  // The fingerprint of the token a TCP handshake presented, set once the
-  // handshake passes; null before then and on the local socket.
   let fingerprint: string | null = null;
-
-  // Whether this TCP connection has sent its one handshake.
   let tcpHelloSent = false;
 
-  // The TCP handshake whose token checked out, which its procedure applies.
   let acceptedTCPHello: Extract<Awaited<ReturnType<typeof checkTCPHello>>, { ok: true }> | null =
     null;
 
   let serverPeer: ServerPeer | null = null;
-
-  // Sends waiting for the outbound queue to drain.
   let drainWaiters: (() => void)[] = [];
 
   const releaseDrainWaiters = (): void => {
@@ -139,11 +119,8 @@ export function createDaemonConnection(
     },
   });
 
-  // Where the connection stands, from its handshake to its close; its
-  // events and requests flow only while it is open.
   const lifecycle = createActor(machine).start();
 
-  // Who the connection acts as, from its handshake and the kernel.
   const identity: ConnectionIdentity = {
     principal: null,
     callerSession: null,
@@ -151,11 +128,9 @@ export function createDaemonConnection(
     helloClient: 'unknown client',
   };
 
-  // What this connection sees of the fleet while its access is limited.
   const connectionView = createConnectionView(ctx);
   const queue = createOutboundQueue(peer, ctx.queueBytes);
 
-  // A closed connection's machine has stopped, and takes no event.
   const sendLifecycleEvent = (event: EventFromLogic<typeof PEER_CONNECTION_MACHINE>): void => {
     if (lifecycle.getSnapshot().status === 'active') {
       lifecycle.send(event);
@@ -169,13 +144,9 @@ export function createDaemonConnection(
   const isIn = (state: 'awaiting' | 'checking' | 'open' | 'refusing' | 'closed'): boolean =>
     lifecycle.getSnapshot().matches(state);
 
-  // Whether this connection may receive the session's output: always for
-  // the daemon's owner, and otherwise only while its view holds the
-  // session's whole tree.
   const canSeeOutput = (sessionID: SessionID): boolean =>
     connectionAccess === null || ctx.canSeeSession(sessionID, connectionAccess);
 
-  // Whether this is a TCP connection whose handshake has not passed.
   const isUnauthenticatedTCP = (): boolean => tcp !== null && fingerprint === null;
 
   const buildGrantedView = (bridge: BridgeGrant): TargetAccess =>
@@ -183,9 +154,6 @@ export function createDaemonConnection(
       ctx.collectSubtree(bridge.holder).has(id),
     );
 
-  // Makes the connection act as the principal, its view starting as the
-  // sessions the principal, and the viewer when one is given, may both see
-  // now, so one that leaves that reach later is pushed as removed.
   const setPrincipal = (principal: string, viewer: string | null): void => {
     const entry = ctx.buildTargetAccess(principal);
     const access = viewer === null ? entry : entry.merge(ctx.buildTargetAccess(viewer));
@@ -208,9 +176,6 @@ export function createDaemonConnection(
     await drained.promise;
   };
 
-  // A full outbound queue ends the connection, as it does for an event; a
-  // send waits for the queue to drain, so a slow client holds back its
-  // subscription's events instead of the socket's buffer.
   const sendPeerMessage = async (message: EncodedMessage): Promise<void> => {
     if (typeof message !== 'string' || !queue.send(`${message}\n`)) {
       stopConnection();
@@ -222,8 +187,6 @@ export function createDaemonConnection(
 
     await waitForDrain();
 
-    // A refusal ends the connection only once its bytes have left the
-    // queue, so the client reads the refusal whole.
     if (isRefusal) {
       sendLifecycleEvent({ type: 'DRAINED' });
     }
@@ -234,7 +197,6 @@ export function createDaemonConnection(
   ): Promise<DaemonAnswer<'daemon.hello'>> => {
     const tcpHello = acceptedTCPHello;
 
-    // A refused handshake leaves the connection's identity as it was.
     if (tcpHello === null) {
       if (input.protocol !== PROTOCOL_V) {
         throw new DaemonError(
@@ -288,8 +250,6 @@ export function createDaemonConnection(
     subscribeEvents: (signal) => feed.subscribe(signal),
   });
 
-  // A TCP handshake checks its token before anything else, so a peer
-  // without one learns nothing about the daemon.
   const checkPeerHello = async (
     request: StandardRequest,
   ): Promise<ProcedureContext | DaemonError> => {
@@ -352,8 +312,6 @@ export function createDaemonConnection(
         );
       }
 
-      // A subscription delivers only what the connection's own view admits,
-      // so over TCP it needs no principal of its own.
       if (tcp !== null && method === 'events.subscribe' && as === null) {
         const access = connectionAccess ?? buildTargetAccessFromGrants([]);
         const eventsCtx = buildScopedContext(ctx, access, 'client:events');
@@ -391,8 +349,6 @@ export function createDaemonConnection(
     }
   };
 
-  // A second handshake could change the principal under kept attachments,
-  // so a connection takes one.
   const answerPeerHandshake = async (request: StandardRequest): Promise<StandardResponse> => {
     if (!isIn('awaiting')) {
       return answerPeerRequest(
@@ -406,8 +362,6 @@ export function createDaemonConnection(
     const admitted = await checkPeerHello(request);
     const response = await answerPeerRequest(request, admitted);
 
-    // The handshake procedure accepts the connection; anything else it
-    // answers refuses it.
     if (isIn('checking')) {
       sendLifecycleEvent({ type: 'REFUSE' });
     }
@@ -415,13 +369,9 @@ export function createDaemonConnection(
     return response;
   };
 
-  // The handshake settles before any other request is admitted; one that
-  // fails ends the connection once its refusal is written.
   const answerPeer = async (request: StandardRequest): Promise<StandardResponse> => {
     const method = toPeerMethod(request.url.pathname);
 
-    // A path in any form but the procedure's own names no procedure, and
-    // before the handshake it ends the connection as any other request does.
     if (method === null) {
       if (isIn('awaiting')) {
         sendLifecycleEvent({ type: 'REFUSE' });
@@ -442,9 +392,6 @@ export function createDaemonConnection(
     return answerPeerRequest(request, admitted);
   };
 
-  // false: the connection is beyond recovery and gets closed. A line goes to
-  // the connection's oRPC peer. Until its token checks out, a TCP connection
-  // takes one handshake line and nothing else.
   const applyLine = (line: string): boolean => {
     const isPeer = isPeerMessage(line);
 
@@ -465,16 +412,12 @@ export function createDaemonConnection(
     serverPeer ??= new ServerPeer((message) => sendPeerMessage(message));
 
     const openPeer = serverPeer;
-
-    // An event subscription answers until the connection ends, so the end of
-    // input waits on every other request alone.
     const isAwaited = findPeerMethod(line) !== 'events.subscribe';
 
     if (isAwaited) {
       inFlight += 1;
     }
 
-    // A line the peer cannot decode ends the connection.
     void (async () => {
       try {
         await openPeer.message(line, (request) => answerPeer(request));
@@ -492,8 +435,6 @@ export function createDaemonConnection(
     return true;
   };
 
-  // Requests read but not yet answered, and whether the peer has written
-  // its last line.
   let inFlight = 0;
   let isInputEnded = false;
 
@@ -522,8 +463,6 @@ export function createDaemonConnection(
           ? { events: [event], withdrawn: [] }
           : connectionView.updateView(event, connectionAccess);
 
-      // What the feed still holds of a session that left the view goes
-      // before the removal does, so nothing of it follows the removal.
       for (const id of view.withdrawn) {
         feed.forgetSession(id);
       }
@@ -532,9 +471,7 @@ export function createDaemonConnection(
         feed.emit(visible);
       }
 
-      // Output and inbox messages of a session that left the view stop with
-      // it. The detach runs once the view is settled, since it emits an event
-      // of its own.
+      // Detaching a session emits an event of its own, so it must run after the view has settled.
       for (const id of view.withdrawn) {
         ctx.detachSession(self, id);
         ctx.detachTap(self, id);
@@ -593,7 +530,6 @@ export function createDaemonConnection(
 
   const requests = buildConnectionRequests({ client: self, ctx, identity });
 
-  // The connection's events, delivered through its subscription.
   const feed = createEventFeed({
     capacity: ctx.queueBytes ?? DEFAULT_QUEUE_BYTES,
     canSeeOutput: (sessionID) => canSeeOutput(sessionID),
@@ -605,8 +541,6 @@ export function createDaemonConnection(
     },
   });
 
-  // A TCP connection acts only as the principals its requests give, so
-  // the events pushed to it are limited from the first byte.
   if (tcp !== null) {
     connectionAccess = buildTargetAccessFromGrants([]);
   }

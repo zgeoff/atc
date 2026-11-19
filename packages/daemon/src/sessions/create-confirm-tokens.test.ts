@@ -4,7 +4,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
 import { createConfirmTokens } from './create-confirm-tokens';
 
-// The tokens on a clock the test steps, each usable for a minute.
 function setupTest() {
   const clock = buildStubClock(1_000_000);
   const tokens = createConfirmTokens({ now: () => clock.now(), lifetimeMs: 60_000 });

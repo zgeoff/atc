@@ -10,32 +10,24 @@ import { resolveGitURL } from './resolve-git-url';
 interface AccessRequest {
   readonly url: string;
 
-  // At most one: a branch or tag to resolve to its commit, or a full
-  // commit id taken as it is.
   readonly ref?: string | undefined;
   readonly sha?: string | undefined;
   readonly credential?: GitCredential | undefined;
 
-  // How long the listing may take; 20 s when unset.
   readonly timeoutMs?: number | undefined;
 
-  // The transports the URL may use and git may fetch over.
   readonly transports: readonly string[];
 
-  // Called with the pid of the listing's git as it starts.
   readonly onSpawn?: ((pid: number) => void) | undefined;
 }
 
 interface RepositoryAccess {
   readonly ok: true;
 
-  // The URL a workspace spawn from this source clones.
   readonly url: string;
   readonly head: string | null;
   readonly refs: readonly RemoteRef[];
 
-  // The commit the requested ref or sha selects, and the branch it is on;
-  // null when the request holds neither.
   readonly resolved: {
     readonly sha: string;
     readonly branch: string | null;
@@ -53,8 +45,6 @@ interface AccessRefusal {
   readonly message: string;
 }
 
-// reads the source exactly as a workspace spawn from it would, without cloning: the URL
-// resolves as the materializer resolves it, and the listing authenticates as the clone does
 export async function checkRepositoryAccess(
   request: AccessRequest,
 ): Promise<AccessRefusal | RepositoryAccess> {
@@ -80,7 +70,8 @@ export async function checkRepositoryAccess(
 
     const access = { ok: true, url: resolved.url, head: listing.head, refs: listing.refs } as const;
 
-    // a listing holds refs, not objects, so only the clone can tell that the upstream lacks it
+    // A ref listing holds refs, not objects, so it cannot show whether the upstream has this commit.
+    // Only a clone can tell, so the sha is taken as given.
     if (request.sha !== undefined) {
       return { ...access, resolved: { sha: request.sha, branch: null } };
     }

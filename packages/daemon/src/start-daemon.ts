@@ -48,49 +48,24 @@ import { tryRemoveExpiredIdempotencyKeys } from './transport/try-remove-expired-
 import { withOwnerOnlySocket } from './transport/with-owner-only-socket';
 import type { DaemonOptions, TapClient } from './types';
 
-// A completed idempotency key is kept this long after it completed, and the
-// sweep that drops older ones runs this often.
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 const IDEMPOTENCY_SWEEP_MS = 60 * 60 * 1000;
-
-// How long a TCP handshake waits once its address has failed too often.
 const HANDSHAKE_FAILURE_DELAY_MS = 10_000;
-
-// How many delayed handshakes may wait at once; a handshake over the cap is
-// refused at once.
 const MAX_DELAYED_HANDSHAKES = 64;
-
-// How long the TCP listener folds repeated refusals from one peer into one
-// log line.
 const REFUSAL_LOG_INTERVAL_MS = 60_000;
-
-// How many peers and kinds of refusal the TCP listener's refusal log tracks
-// at once.
 const MAX_REFUSAL_WINDOWS = 1024;
-
-// How long startup waits for a daemon that is shutting down to release the
-// state lock before refusing to start.
 const LOCK_WAIT_MS = 2000;
 
 export type { DaemonHandle } from './daemon-handle';
 
-// The first request on a connection must be `daemon.hello`. An unknown method is an error, never
-// a disconnect; a malformed or oversized line disconnects, because the transport guarantees byte
-// integrity and such a line means a buggy or hostile peer.
 export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   let stopDaemon: (() => Promise<void>) | null = null;
   const clock = opts.clock ?? systemClock;
-
-  // Set once the daemon begins to release what it holds.
   let released = false;
 
-  // The listener's address and tokens are checked before the daemon takes
-  // anything, so a refused listener leaves no state behind.
   const listenTokens =
     opts.listen === undefined ? null : requireListenTokens(opts.listen, NODE_TOKEN_FILE_ACCESS);
 
-  // One daemon per state directory: the lock comes before the store, the
-  // sockets, or the fleet, so a second daemon touches none of them.
   const stateDir = dirname(opts.dbPath);
   const statePaths = buildDaemonStatePaths(stateDir);
   const recordPath = statePaths.recordFile;
@@ -113,9 +88,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const store = await createStateStore(opts.dbPath);
 
-  // Before any request is served: a workspace a stopped daemon left short
-  // of ready fails as interrupted, and a key left in progress by a daemon
-  // that stopped mid-effect is settled, so no retry can race either.
   await store.reconcileMaterializations(clock.now());
   await store.reconcileIdempotencyKeys(clock.now());
   await store.reconcileAuthBindings(clock.now());
@@ -185,19 +157,13 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const permissions = createPermissionPrompts({ clock, emitEvent, findHookScope });
   const eventSignal = createEventSignal(clock);
 
-  // One runtime per live session, created when the session manager announces it and disposed the
-  // moment it is removed, so removal is a single lookup plus dispose.
   const runtimes = new Map<SessionID, SessionRuntime>();
 
   const findRuntime = (sessionID: SessionID) => runtimes.get(sessionID);
   const taps = createTapRegistry<TapClient>();
 
-  // The sessions whose process end the daemon saw, until a harness starts
-  // for them again.
   const endedProcesses = new Set<SessionID>();
 
-  // A spawned terminal starts on a fresh screen; a revived one keeps the
-  // screen its session already had.
   const onBoot: SessionManager['onBoot'] = (session, cols, rows) => {
     endedProcesses.delete(session.id);
 
@@ -211,7 +177,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
     runtime.screen ??= createScreenModel(cols, rows);
 
-    // A bridge delivers only once its session lists and its terminal boots.
     bridges.startDelivery(session.id);
   };
 
@@ -257,8 +222,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     }
   };
 
-  // The manager takes every callback above when it is built, so no session
-  // event arrives before its handler exists.
   const manager = createSessionManager({
     fallback: opts.adapter,
     store,
@@ -342,8 +305,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     stopDaemon: () => stopDaemon?.(),
   });
 
-  // Releases everything the daemon holds except its listeners, on a stop
-  // and on a start that fails once it holds the lock.
   const releaseResources = async () => {
     released = true;
 
@@ -399,9 +360,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       manager.sessions.find((x) => x.id === binding.sessionID),
     );
 
-  // A client connection through a session's bridge socket acts with the
-  // session's atc access; a session that holds none gets the connection
-  // closed unanswered.
   const openGrantedConnection = (binding: BridgeBinding, relay: HarnessRelay): void => {
     if (!isBridgeCurrent(binding) || ctx.findHeldAtcAccess(binding.sessionID) === null) {
       relay.close();
@@ -424,8 +382,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       connection.applyChunk(`${line}\n`);
     });
 
-    // A host holds a relayed connection open until the daemon closes it, and
-    // takes no new one once it holds its most.
     relay.onEnd(() => {
       connection.endInput();
     });
@@ -437,14 +393,9 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     });
   };
 
-  // The TCP listener binds before the unix socket, so a bind that fails
-  // refuses the start before any client can connect, and releases what the
-  // daemon holds, the lock included.
   let tcpListener: TCPListener | null = null;
 
   if (opts.listen !== undefined && listenTokens !== null) {
-    // A daemon given no log writes the listener's lines through LogTape,
-    // which the process configures.
     const tcpLogger = getLogger(['atc', 'tcp']);
 
     const listenerLog =
@@ -532,9 +483,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
-  // The stop under way or done, which a quit, a second stop, and a disposal
-  // all wait on instead of releasing anything twice; a stop that fails is
-  // forgotten, so the next one retries the release.
   let stopping: Promise<void> | null = null;
 
   stopDaemon = async () => {

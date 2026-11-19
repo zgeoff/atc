@@ -5,7 +5,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStderrSink } from './create-stderr-sink';
 
-// Faked timers let a test decide when the sink reports the records it dropped.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stderr-sink-');
   const outputPath = join(temporaryDirectory.path, 'stderr');
@@ -53,9 +52,6 @@ test('it writes each record as one line and leaves the descriptor open when it i
   );
 });
 
-// The sink starts to write once it holds 512 records and then holds 1024
-// more at most, so a burst of 1541 records drops the 5 oldest it holds,
-// the 513th to the 517th, before any write finishes.
 test('it starts the next write with one dropped line that counts the records it dropped', async () => {
   const ctx = setupTest();
 
@@ -72,8 +68,7 @@ test('it starts the next write with one dropped line that counts the records it 
     });
   }
 
-  // The sink writes its first batch and holds the rest until the interval
-  // ends. Fake timers stop Bun.sleep, so the wait turns the loop instead.
+  // Fake timers stop Bun.sleep, so the wait yields to the event loop instead.
   await waitFor(
     () => {
       expect(readFileSync(ctx.outputPath, 'utf8').split('\n')).toHaveLength(513);
@@ -124,8 +119,6 @@ test('it writes the dropped line last when it drops records that no later write 
     });
   }
 
-  // Every record it kept is written before the interval ends, so only the
-  // disposal reports the drops.
   await ctx.sink.drain();
   await ctx.sink[Symbol.asyncDispose]();
 
@@ -146,8 +139,6 @@ test('it writes the dropped line last when it drops records that no later write 
   );
 });
 
-// Given a batch of 4, the sink starts to write once it holds 4 records and
-// then holds 8 more at most, so a burst of 13 records drops the 5th.
 test('it holds a batch it is given in place of the default one', async () => {
   const ctx = setupTest();
   const sink = createStderrSink(ctx.fd, 4);

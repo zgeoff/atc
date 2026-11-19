@@ -22,39 +22,28 @@ interface SessionInputDeps {
   readonly clock: Clock;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
-  // How long a menu choice waits on a session's screen.
   readonly menuTiming: MenuTiming;
 
-  // Starts a headless turn with the prompt given, and returns whether one
-  // started.
   readonly startHeadlessTurn: (sessionID: SessionID, prompt: string) => boolean;
 }
 
 export interface SessionInput {
-  // A headless turn runs only through the session's own target, never
-  // anywhere else, and a dead session takes no input.
   readonly writeSessionInput: (
     sessionID: SessionID,
     data: string,
   ) => 'busy' | 'ok' | 'missing' | 'dead';
 
-  // A headless turn takes the line as its prompt, and a missing or dead
-  // session refuses a line as it refuses raw input.
   readonly writeSessionLine: (
     sessionID: SessionID,
     text: string,
   ) => Promise<'busy' | 'ok' | 'missing' | 'dead' | 'permission_pending'>;
 
-  // A killed session keeps its last screen until a second kill removes it,
-  // so a reader can still see what the agent printed before it died.
   readonly readSessionScreen: (id: SessionID) => Promise<ScreenText | 'missing' | 'no_screen'>;
 
   readonly readSessionMenu: (
     id: SessionID,
   ) => Promise<MenuView | null | 'missing' | 'no_screen' | 'unsupported'>;
 
-  // The choice holds the session's input queue from its first read to its
-  // last, so no other input lands between the keys it presses.
   readonly applySessionMenuChoice: (
     id: SessionID,
     choice: MenuChoice,
@@ -68,7 +57,6 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
   const menuTiming = deps.menuTiming;
   const startHeadlessTurn = deps.startHeadlessTurn;
 
-  // A session the manager holds has had its runtime since it was announced.
   const getRuntime = (sessionID: SessionID): SessionRuntime => {
     const runtime = findRuntime(sessionID);
 
@@ -79,9 +67,6 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
     return runtime;
   };
 
-  // The session's terminal as a menu read or choice drives it. The PTY it
-  // writes to is the one the session runs when the read or choice starts,
-  // so a restarted session counts as gone.
   const buildMenuTerminal = (
     id: SessionID,
     findMenu: (text: string, rows?: number) => ScreenMenu | null,
@@ -150,8 +135,6 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
     // reads like the kept whole menu, so the kept menu is dropped.
     runtime.wholeMenu = null;
 
-    // Input goes out at once unless a line is still being typed into the
-    // session, and then waits behind it.
     runtime.input.schedule(() => {
       pty.write(data);
     });
@@ -198,9 +181,6 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
 
       const typed = Promise.withResolvers<'ok' | 'dead'>();
 
-      // the queue holds any other input until the last write, so none lands
-      // between the text and its submit key; a terminal that ends or is
-      // replaced mid-line gets none of the rest
       runtime.input.schedule(() => {
         const result = writeLineSteps(steps, terminal, (delayMs) => Bun.sleep(delayMs));
 
@@ -246,9 +226,6 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
 
       const known = await readKnownMenu(terminal);
 
-      // A list that scrolls past the screen is read with arrow keys, so the
-      // read holds the session's input queue as a choice does. A target that
-      // takes no input reads the list as its screen shows it.
       if (known?.scroll === undefined || manager.findExecutionRefusal(session, 'input') !== null) {
         return known === null ? null : buildMenuView(known);
       }

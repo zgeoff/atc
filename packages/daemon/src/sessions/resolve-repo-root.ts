@@ -41,8 +41,6 @@ export function resolveRepoRoot(cwd: string): string {
   }
 }
 
-// The stat of a path: undefined when nothing is there, null when the path
-// cannot be read at all.
 function tryStat(path: string): Stats | undefined | null {
   try {
     return statSync(path, { throwIfNoEntry: false });
@@ -51,7 +49,6 @@ function tryStat(path: string): Stats | undefined | null {
   }
 }
 
-// A linked worktree's `.git` file reads `gitdir: <main>/.git/worktrees/<name>`.
 function readMainRoot(gitFile: string): string | null {
   try {
     const gitdir = /^gitdir:\s*(?<dir>.+)$/mu

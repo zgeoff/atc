@@ -7,12 +7,8 @@ import { restoreFleet } from './restore-fleet';
 import type { RestoreSettled } from './restore-fleet';
 
 export interface FleetRestorer {
-  // Resolves with the count of sessions the restore registered, before
-  // their terminals finish booting.
   readonly runFleetRestore: (cols: number, rows: number) => Promise<number>;
 
-  // the stored fleet restores once per start, at the size a restored terminal takes
-  // until its first attach resizes it; a failure is logged and never stops the daemon
   readonly startBootRestore: (enabled: boolean) => Promise<void>;
 }
 
@@ -22,20 +18,14 @@ interface FleetRestorerDeps {
   readonly clock: Clock;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
-  // The longest a restored session's boot holds up the next one.
   readonly capMs: number;
 
-  // The waits before each retry of a refused restore; the restore's own
-  // when unset.
   readonly retryDelaysMs?: readonly number[] | undefined;
 
-  // Whether the daemon has stopped, so a restore starts nothing more.
   readonly isStopped: () => boolean;
 
-  // Called once each restore's staggered terminal adoption settles.
   readonly onRestoreSettled?: ((settled: RestoreSettled) => void) | undefined;
 
-  // Called when the daemon starts without restoring the stored fleet.
   readonly onRestoreSkipped?: ((reason: 'disabled' | 'empty') => void) | undefined;
 }
 
@@ -43,8 +33,6 @@ export function createFleetRestorer(deps: FleetRestorerDeps): FleetRestorer {
   let inFlight: Promise<number> | null = null;
 
   const runFleetRestore = (cols: number, rows: number): Promise<number> => {
-    // a restore runs until its staggered terminal adoption settles, and one requested
-    // meanwhile joins it, so the fleet never registers twice at once
     if (inFlight !== null) {
       return inFlight;
     }

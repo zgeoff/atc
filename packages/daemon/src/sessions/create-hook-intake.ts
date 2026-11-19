@@ -47,36 +47,22 @@ interface HookIntakeDeps {
   readonly taps: Pick<TapRegistry<TapClient>, 'detachAll'>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
-  // Wakes the reads that wait for the trail to grow.
   readonly eventSignal: Pick<EventSignal, 'emit'>;
   readonly emitEvent: (event: EventMsg, scope: HookScope | null) => void;
   readonly findHookScope: (sessionID: SessionID) => HookScope | null;
 
-  // Moves the session's message bridge to the conversation its terminal
-  // shows.
   readonly updateBridgeThread: (sessionID: SessionID, agentSessionID: string) => void;
 
-  // Settles once the start may go on: at once, or once the session's start hold ends.
   readonly onAgentStarted: (sessionID: SessionID) => Promise<void>;
 
-  // Called when a Note line changes nothing: a note from a session the
-  // fleet does not list, or an answer or unanswered report that matches no
-  // unsettled message the reporting session owns.
   readonly onNoteIgnored?: (sessionID: string, kind: 'note' | 'answered' | 'unanswered') => void;
 
-  // Called with a session's id when it reports its start and the daemon
-  // leaves the last-used agent as it is, because no spawn is waiting on
-  // that start.
   readonly onLastUsedUnchanged?: (sessionID: SessionID) => void;
 }
 
 export interface HookIntake {
-  // Settles once the report is applied, and a report that starts the agent once its hold ends.
   readonly applyHookEvent: (hookEvent: HookEvent) => Promise<void>;
 
-  // A note id, which a remote session's reporter gives each note, makes a
-  // resent note land once; a resent answer changes nothing, since only an
-  // unanswered message takes one.
   readonly applyNote: (hookEvent: HookEvent, noteID?: string) => Promise<void>;
 
   // A headless turn has no terminal hooks of its own, so the daemon writes
@@ -84,8 +70,6 @@ export interface HookIntake {
   readonly recordHeadlessTurnEvent: (sessionID: SessionID, ev: Readonly<AdapterEvent>) => void;
   readonly recordScreenNeedsInput: (sessionID: SessionID, message: string) => Promise<boolean>;
 
-  // A remote harness reports through a socket that serves it alone, so a
-  // line that names any other session is dropped.
   readonly startRelay: (binding: BridgeBinding, relay: HarnessRelay) => void;
 }
 
@@ -189,9 +173,8 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
     const before = manager.sessions.find((session) => session.id === hookEvent.atcId);
     const runtime = findRuntime(hookEvent.atcId);
 
-    // A harness nested inside a session inherits its environment and
-    // reports under its id; only the harness atc started may change the
-    // session, and a line from any other is logged and dropped.
+    // A harness nested inside a session inherits its environment and reports under the session's id.
+    // Only the harness atc started may change the session.
     if (
       before !== undefined &&
       runtime !== undefined &&
@@ -221,8 +204,8 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
 
     const events = plan?.events ?? [];
 
-    // a headless session's trail comes from its runs alone: hook reports from its dying terminal
-    // or a run's own CLI stay out; a line records the last event it planned, as the state does
+    // A headless session's trail comes from its runs alone. Hook reports from its dying terminal or
+    // a run's own CLI would add events that no run produced.
     const trailEvent = before?.kind === 'headless' ? null : (events.at(-1) ?? null);
 
     if (hookEvent.event !== 'Statusline') {
@@ -238,8 +221,8 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
       void store.updateTrailOwner(hookEvent.atcId, currentAgentSessionID);
     }
 
-    // only a session start shows the terminal on a conversation: a turn of an older one can still
-    // end after the terminal moves on, and the bridge must not follow it back
+    // Only a session start shows the terminal on a conversation. A turn of an older conversation can
+    // still end after the terminal moves on, and the bridge must not follow it back.
     if (currentAgentSessionID !== undefined && events.some((ev) => ev.kind === 'started')) {
       updateBridgeThread(hookEvent.atcId, currentAgentSessionID);
     }
@@ -251,8 +234,6 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
         runtime?.pendingEject?.();
       }
 
-      // A revived session announcing itself is the cue a staggered restore
-      // waits on before booting the next one.
       if (ev.kind === 'started') {
         if (runtime !== undefined) {
           runtime.startedAt = clock.now();

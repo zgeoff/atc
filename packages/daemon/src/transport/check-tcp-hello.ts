@@ -10,12 +10,9 @@ interface TCPHelloChecks {
   readonly tcp: Pick<TCPPeer, 'verifyHandshake' | 'recordRefusedPrincipal'>;
   readonly hasListedPrincipal: (principal: string) => boolean;
 
-  // The daemon's build, which a protocol mismatch names.
   readonly build: string;
 }
 
-// A TCP handshake that passed: the fingerprint of the token it presented,
-// the principals and session it gives, and its client's name.
 interface AcceptedTCPHello {
   readonly ok: true;
   readonly fingerprint: string;
@@ -35,8 +32,8 @@ export async function checkTCPHello(
   req: RequestMsg,
   checks: TCPHelloChecks,
 ): Promise<AcceptedTCPHello | RefusedTCPHello> {
-  // the token is checked before anything else, so a peer without one learns nothing about
-  // the daemon
+  // A peer without a valid token must learn nothing about the daemon, so the token check runs
+  // before any parsing or other refusal.
   const fingerprint = await checks.tcp.verifyHandshake(findBearerToken(req.params));
 
   if (fingerprint === null) {
