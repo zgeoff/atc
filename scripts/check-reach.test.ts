@@ -1117,13 +1117,13 @@ test('it fails on a daemon test helper that reads the config path of mcp-auth.db
   await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
 
   await Bun.write(
-    join(ctx.directory, 'packages/config/src/host/config-file.ts'),
+    join(ctx.directory, 'packages/config/src/host/constants.ts'),
     "export const mcpAuthDBFile = '/state/mcp-auth.db';\n",
   );
 
   await Bun.write(
     join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
-    "import { mcpAuthDBFile } from '../../../config/src/host/config-file';\n\nexport const STUB = mcpAuthDBFile;\n",
+    "import { mcpAuthDBFile } from '../../../config/src/host/constants';\n\nexport const STUB = mcpAuthDBFile;\n",
   );
 
   const checked = await runCommand([
@@ -1155,13 +1155,13 @@ test('it passes a daemon entry that reaches the config modules that define the m
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/config/src/host/config-file.ts'),
+    join(ctx.directory, 'packages/config/src/host/constants.ts'),
     "import { resolvePaths } from './resolve-paths';\n\nexport const { mcpAuthDBFile } = resolvePaths('/state');\n",
   );
 
   await Bun.write(
     join(ctx.directory, 'packages/daemon/src/index.ts'),
-    "export * from '../../config/src/host/config-file';\n",
+    "export * from '../../config/src/host/constants';\n",
   );
 
   const checked = await runCommand([

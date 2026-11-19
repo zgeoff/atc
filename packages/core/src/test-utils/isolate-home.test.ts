@@ -21,7 +21,7 @@ test("it resolves every atc config and state path inside the run's own home", as
     fixture,
     `import { expect, test } from 'bun:test';
 import { join, sep } from 'node:path';
-import { configFile, dbFile, mcpAuthDBFile, stateDir, statusFile } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'config-file')}';
+import { configFile, dbFile, mcpAuthDBFile, stateDir, statusFile } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'constants')}';
 
 const home = join(process.env['ATC_TEST_HOME'] ?? '', 'home') + sep;
 
@@ -54,7 +54,7 @@ test("it resolves every atc socket and the daemon record inside the run's own ru
     fixture,
     `import { expect, test } from 'bun:test';
 import { join, sep } from 'node:path';
-import { daemonPidFile, daemonSocketPath, eventsSocketPath, socketPath } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'config-file')}';
+import { daemonPidFile, daemonSocketPath, eventsSocketPath, socketPath } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'constants')}';
 
 const runtime = join(process.env['ATC_TEST_HOME'] ?? '', 'runtime') + sep;
 
@@ -269,7 +269,7 @@ import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { createGatewayAdapter } from '${join(ctx.repo, 'packages', 'harnesses', 'claude', 'src', 'gateway', 'create-gateway-adapter')}';
 import { parseConfig } from '${join(ctx.repo, 'packages', 'config', 'src', 'config-file', 'config')}';
-import { stateDir } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'config-file')}';
+import { stateDir } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'constants')}';
 
 test('it writes the settings file under the home', () => {
   const adapter = createGatewayAdapter(

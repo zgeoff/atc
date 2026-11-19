@@ -15,7 +15,7 @@ import { collectAuthProfiles } from '../auth/collect-auth-profiles';
 import { collectPrincipals } from '../auth/collect-principals';
 import { collectHooks } from '../hooks/collect-hooks';
 import type { HooksConfig } from '../hooks/collect-hooks';
-import { configFile, stateDir } from '../host/config-file';
+import { configFile, stateDir } from '../host/constants';
 import { buildLegacySources } from '../sources/build-legacy-sources';
 import { collectSources } from '../sources/collect-sources';
 import type { SourceEntry } from '../sources/collect-sources';
