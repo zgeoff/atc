@@ -39,3 +39,24 @@ test('it refuses a catalog dependency the catalog has no version of', () => {
     ),
   ).toThrowWithMessage(Error, 'the catalog has no version of zod');
 });
+
+test('it publishes a workspace dependency at a caret range of the package version and drops dev dependencies', () => {
+  expect(
+    buildPublishedManifest(
+      {
+        name: '@atcx/client',
+        version: '7.1.0',
+        exports: { '.': './src/index.ts', './test-utils/*': './src/test-utils/*.ts' },
+        dependencies: { '@atcx/contract': 'workspace:*', '@orpc/client': 'catalog:' },
+        devDependencies: { '@orpc/standard-server': 'catalog:' },
+      },
+      { '@orpc/client': '1.15.6' },
+    ),
+  ).toStrictEqual({
+    name: '@atcx/client',
+    version: '7.1.0',
+    exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } },
+    files: ['dist'],
+    dependencies: { '@atcx/contract': '^7.1.0', '@orpc/client': '1.15.6' },
+  });
+});

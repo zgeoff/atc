@@ -22,6 +22,11 @@
           "jsonpath": "$.version"
         },
         {
+          "type": "json",
+          "path": "packages/client/package.json",
+          "jsonpath": "$.version"
+        },
+        {
           "type": "generic",
           "path": "packages/contract/src/light/contract-version.ts"
         }

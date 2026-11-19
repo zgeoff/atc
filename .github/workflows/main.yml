@@ -130,8 +130,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
-      # npm's trusted publishing of @atcx/contract takes the job's OIDC token,
-      # so no npm token exists anywhere in this repository
+      # npm's trusted publishing of @atcx/contract and @atcx/client takes the
+      # job's OIDC token, so no npm token exists anywhere in this repository
       id-token: write
     steps:
       - name: Check out the release
@@ -180,7 +180,7 @@ jobs:
 
       # a version npm holds already is skipped, so a re-run after a failed
       # step publishes nothing twice
-      - name: Publish @atcx/contract
+      - name: Publish @atcx/contract and @atcx/client
         run: bash scripts/publish-contract.sh
 
   # The run at the tag checks and ships it. A dispatch is the one GITHUB_TOKEN

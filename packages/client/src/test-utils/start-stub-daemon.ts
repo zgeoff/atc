@@ -45,7 +45,9 @@ const SERIALIZER = new StandardRPCSerializer(new StandardRPCJsonSerializer());
 // A daemon that speaks the oRPC peer protocol over a unix socket, one JSON message per line.
 // It listens for as long as the test runs, and `stop` ends it.
 export async function startStubDaemon(options: StubDaemonOptions = {}) {
-  const folder = mkdtempSync(join(tmpdir(), 'atcx-client-'));
+  // a unix socket path holds about 100 bytes, which a deep temp folder passes
+  const base = tmpdir().length > 50 ? '/tmp' : tmpdir();
+  const folder = mkdtempSync(join(base, 'atcx-client-'));
   const path = join(folder, 'daemon.sock');
 
   const sockets = new Set<Socket>();

@@ -13,7 +13,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./connection": "./src/connection/index.ts"
+    "./connection": "./src/connection/index.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
   },
   "publishConfig": {
     "access": "public"
@@ -24,7 +25,6 @@
     "@orpc/standard-server-peer": "catalog:"
   },
   "devDependencies": {
-    "@orpc/server": "catalog:",
     "@orpc/standard-server": "catalog:"
   }
 }

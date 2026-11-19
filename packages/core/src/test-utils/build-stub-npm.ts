@@ -13,7 +13,7 @@ export function buildStubNpm(
   const install =
     options.installWith === undefined
       ? ''
-      : `if [ "$1" = install ]; then\n  exec '${options.installWith}' "$@"\nfi\n`;
+      : `if [ "$1" = install ] || [ "$1" = pack ]; then\n  exec '${options.installWith}' "$@"\nfi\n`;
 
   return `#!/bin/sh\necho "$@" >> '${record}'\n${install}if [ "$1" = view ]; then\n${view}fi\n`;
 }

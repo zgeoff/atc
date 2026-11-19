@@ -7,252 +7,232 @@ import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 
+// The real repository packs and checks the real packages. The stand-in npm records every call and
+// passes the installs and the packs on to the real npm, so the registry never sees a publish.
 function setupTest() {
   const temporaryDirectory = setupTempDir('publish-contract-toolchain-');
   const npm = Bun.which('npm');
+  const directory = temporaryDirectory.path;
+  const root = join(import.meta.dir, '..');
 
   invariant(npm !== null, 'the toolchain lane needs npm on PATH');
-  mkdirSync(join(temporaryDirectory.path, 'scripts'));
+  mkdirSync(join(directory, 'scripts'));
 
-  for (const script of ['publish-contract.sh', 'publish-tarball.sh']) {
-    symlinkSync(join(import.meta.dir, script), join(temporaryDirectory.path, 'scripts', script));
+  for (const script of [
+    'publish-contract.sh',
+    'publish-tarball.sh',
+    'check-tarball-imports.mjs',
+    'smoke-client.mjs',
+    'serve-stub-daemon.ts',
+  ]) {
+    symlinkSync(join(root, 'scripts', script), join(directory, 'scripts', script));
   }
 
-  symlinkSync(
-    join(import.meta.dir, '..', 'package.json'),
-    join(temporaryDirectory.path, 'package.json'),
+  symlinkSync(join(root, 'package.json'), join(directory, 'package.json'));
+
+  const manifest: unknown = JSON.parse(
+    readFileSync(join(root, 'packages/contract/package.json'), 'utf8'),
   );
 
-  return { directory: temporaryDirectory.path, npm };
+  invariant(
+    typeof manifest === 'object' && manifest !== null && 'version' in manifest,
+    'the contract manifest holds a version',
+  );
+
+  const version = String(manifest.version);
+
+  const writeNpm = (heldVersion: string | null) =>
+    createStubBin(
+      join(directory, 'bin'),
+      'npm',
+      buildStubNpm(join(directory, 'npm.log'), heldVersion, { installWith: npm }),
+    );
+
+  return {
+    directory,
+    root,
+    version,
+    writeNpm,
+    env: { ...process.env, PATH: `${join(directory, 'bin')}:${process.env['PATH']}` },
+
+    // packs one package as a stand-in tarball, and the other through the real packer
+    packerScript: (fake: 'contract' | 'client' | 'neither') => `const args = process.argv.slice(2);
+const name = args[args.indexOf('--package') + 1];
+if (name === ${JSON.stringify(fake)}) {
+  console.log(${JSON.stringify(directory)} + '/tarball/' + name + '/' + name + '.tgz');
+} else {
+  const real = Bun.spawnSync(
+    ['bun', ${JSON.stringify(join(root, 'scripts/pack-contract.ts'))}, '--out', args[args.indexOf('--out') + 1], '--package', name, ${JSON.stringify(root)}],
+    { stdout: 'inherit', stderr: 'inherit' },
+  );
+  process.exit(real.exitCode);
+}
+`,
+  };
 }
 
-test('it checks a tarball npm does not hold, then runs npm publish as a dry run', async () => {
+test('it packs both packages, installs the tarballs, connects from Node and from Bun, and runs npm publish as a dry run', async () => {
   const ctx = setupTest();
 
-  await Bun.write(
-    join(ctx.directory, 'tarball/package/package.json'),
-    JSON.stringify({
-      name: '@atcx/contract',
-      version: '7.3.0',
-      type: 'module',
-      exports: { '.': './index.js', './light': './index.js' },
-    }),
-  );
+  ctx.writeNpm(null);
 
-  await Bun.write(
-    join(ctx.directory, 'tarball/package/index.js'),
-    `export const DAEMON_FEATURES = ['sessions'];
-export const DAEMON_CONTRACT = { daemon: { hello: {} } };
-export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
-export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
-export function checkDaemon() { return { verdict: 'match' }; }
-export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
-`,
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'tarball/package/index.d.ts'),
-    `export declare const DAEMON_FEATURES: string[];
-export declare const DAEMON_CONTRACT: { daemon: { hello: object } };
-export declare const HELLO_RESULT_SCHEMA: { parse(value: unknown): { daemon: string; features: string[] } };
-export declare const SESSION_ENV_NAMES: { sessionID: string };
-export declare function checkDaemon(hello: { daemon: string; features: string[] }): { verdict: string };
-export declare function resolveAtcPaths(env: object): { socketPath: string };
-export type DaemonEvent = { kind: string };
-export type PublishedRecord = { id: string };
-export type SessionID = string;
-`,
-  );
-
-  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
-    cwd: join(ctx.directory, 'tarball'),
-  });
-
-  await Bun.write(
-    join(ctx.directory, 'scripts/pack-contract.ts'),
-    `console.log(${JSON.stringify(join(ctx.directory, 'tarball/contract.tgz'))});\n`,
-  );
-
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null, { installWith: ctx.npm }),
-  );
+  await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript('neither'));
 
   const published = await runCommand(
     ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), '--dry-run'],
-    { env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` } },
+    { env: ctx.env },
   );
 
-  expect(published.exitCode).toBe(0);
+  const calls = readFileSync(join(ctx.directory, 'npm.log'), 'utf8').split('\n');
 
-  expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8').split('\n')).toStrictEqual([
+  expect(published.exitCode).toBe(0);
+  expect(published.stdout).toInclude('connects to the daemon, sends, and reads an event');
+  expect(published.stdout).toMatch(/^node \d+\.\d+\.\d+ connects/mu);
+  expect(published.stdout).toMatch(/^bun \d+\.\d+\.\d+ connects/mu);
+
+  expect(calls).toStrictEqual([
+    expect.toStartWith('pack --pack-destination '),
+    expect.toStartWith('pack --pack-destination '),
     expect.toStartWith('install --prefix '),
-    'view @atcx/contract@7.3.0 version',
-    `publish ${join(ctx.directory, 'tarball/contract.tgz')} --access public --dry-run`,
+    `view @atcx/contract@${ctx.version} version`,
+    expect.stringMatching(/^publish .*atcx-contract-.*\.tgz --access public --dry-run$/u),
+    `view @atcx/client@${ctx.version} version`,
+    expect.stringMatching(/^publish .*atcx-client-.*\.tgz --access public --dry-run$/u),
     '',
   ]);
 });
 
-test('it checks a tarball npm holds already, then skips npm publish', async () => {
+test('it checks both packages, then skips npm publish for the versions npm holds already', async () => {
   const ctx = setupTest();
 
-  await Bun.write(
-    join(ctx.directory, 'tarball/package/package.json'),
-    JSON.stringify({
-      name: '@atcx/contract',
-      version: '7.3.0',
-      type: 'module',
-      exports: { '.': './index.js', './light': './index.js' },
-    }),
-  );
+  ctx.writeNpm(ctx.version);
 
-  await Bun.write(
-    join(ctx.directory, 'tarball/package/index.js'),
-    `export const DAEMON_FEATURES = ['sessions'];
-export const DAEMON_CONTRACT = { daemon: { hello: {} } };
-export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
-export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
-export function checkDaemon() { return { verdict: 'match' }; }
-export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
-`,
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'tarball/package/index.d.ts'),
-    `export declare const DAEMON_FEATURES: string[];
-export declare const DAEMON_CONTRACT: { daemon: { hello: object } };
-export declare const HELLO_RESULT_SCHEMA: { parse(value: unknown): { daemon: string; features: string[] } };
-export declare const SESSION_ENV_NAMES: { sessionID: string };
-export declare function checkDaemon(hello: { daemon: string; features: string[] }): { verdict: string };
-export declare function resolveAtcPaths(env: object): { socketPath: string };
-export type DaemonEvent = { kind: string };
-export type PublishedRecord = { id: string };
-export type SessionID = string;
-`,
-  );
-
-  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
-    cwd: join(ctx.directory, 'tarball'),
-  });
-
-  await Bun.write(
-    join(ctx.directory, 'scripts/pack-contract.ts'),
-    `console.log(${JSON.stringify(join(ctx.directory, 'tarball/contract.tgz'))});\n`,
-  );
-
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), '7.3.0', { installWith: ctx.npm }),
-  );
+  await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript('neither'));
 
   const published = await runCommand(
     ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), '--dry-run'],
-    { env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` } },
+    { env: ctx.env },
   );
 
   expect({ exitCode: published.exitCode, stdout: published.stdout }).toStrictEqual({
     exitCode: 0,
     stdout: expect.toEndWith(
-      'typechecks a program that imports @atcx/contract\n@atcx/contract@7.3.0 is on npm already\n',
+      `@atcx/contract@${ctx.version} is on npm already\n@atcx/client@${ctx.version} is on npm already\n`,
     ),
   });
 
-  expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8').split('\n')).toStrictEqual([
-    expect.toStartWith('install --prefix '),
-    'view @atcx/contract@7.3.0 version',
-    '',
-  ]);
+  expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8')).not.toInclude('publish ');
 });
 
-test.each([
-  [
-    'a JavaScript entry that lacks checkDaemon',
+test('it fails a contract tarball whose JavaScript entry lacks checkDaemon before npm publish', async () => {
+  const ctx = setupTest();
+
+  ctx.writeNpm(null);
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/contract/package/package.json'),
+    JSON.stringify({
+      name: '@atcx/contract',
+      version: ctx.version,
+      type: 'module',
+      files: ['dist'],
+      exports: { '.': './dist/index.js', './light': './dist/index.js' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/contract/package/dist/index.js'),
     `export const DAEMON_FEATURES = ['sessions'];
-export const DAEMON_CONTRACT = { daemon: { hello: {} } };
-export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
-export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
 export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
 `,
-    `export declare const DAEMON_FEATURES: string[];
-export declare const DAEMON_CONTRACT: { daemon: { hello: object } };
-export declare const HELLO_RESULT_SCHEMA: { parse(value: unknown): { daemon: string; features: string[] } };
-export declare const SESSION_ENV_NAMES: { sessionID: string };
-export declare function checkDaemon(hello: { daemon: string; features: string[] }): { verdict: string };
-export declare function resolveAtcPaths(env: object): { socketPath: string };
-export type DaemonEvent = { kind: string };
-export type PublishedRecord = { id: string };
-export type SessionID = string;
+  );
+
+  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
+    cwd: join(ctx.directory, 'tarball/contract'),
+  });
+
+  await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript('contract'));
+
+  const published = await runCommand(
+    ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), '--dry-run'],
+    { env: ctx.env },
+  );
+
+  expect({
+    exitCode: published.exitCode,
+    output: `${published.stdout}${published.stderr}`,
+  }).toStrictEqual({
+    exitCode: 1,
+    output: expect.stringContaining('contract.checkDaemon is not a function'),
+  });
+
+  expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8')).not.toInclude('publish ');
+});
+
+test('it fails a client tarball whose declarations lack AtcError before npm publish', async () => {
+  const ctx = setupTest();
+
+  ctx.writeNpm(null);
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/client/package/package.json'),
+    JSON.stringify({
+      name: '@atcx/client',
+      version: ctx.version,
+      type: 'module',
+      files: ['dist'],
+      exports: {
+        '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+        './connection': { types: './dist/connection.d.ts', default: './dist/connection.js' },
+      },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/client/package/dist/index.js'),
+    `export class AtcError extends Error { constructor(code) { super(code); this.code = code; } }
+export async function connect() { return {}; }
+export async function readDaemonSocketPaths() { return []; }
 `,
-    'contract.checkDaemon is not a function',
-  ],
-  [
-    'a declaration file that lacks SessionID',
-    `export const DAEMON_FEATURES = ['sessions'];
-export const DAEMON_CONTRACT = { daemon: { hello: {} } };
-export const HELLO_RESULT_SCHEMA = { parse: (value) => value };
-export const SESSION_ENV_NAMES = { sessionID: 'ATC_SESSION_ID' };
-export function checkDaemon() { return { verdict: 'match' }; }
-export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/client/package/dist/index.d.ts'),
+    `export declare function connect(options?: object): Promise<object>;
+export declare function readDaemonSocketPaths(paths: object): Promise<string[]>;
 `,
-    `export declare const DAEMON_FEATURES: string[];
-export declare const DAEMON_CONTRACT: { daemon: { hello: object } };
-export declare const HELLO_RESULT_SCHEMA: { parse(value: unknown): { daemon: string; features: string[] } };
-export declare const SESSION_ENV_NAMES: { sessionID: string };
-export declare function checkDaemon(hello: { daemon: string; features: string[] }): { verdict: string };
-export declare function resolveAtcPaths(env: object): { socketPath: string };
-export type DaemonEvent = { kind: string };
-export type PublishedRecord = { id: string };
-`,
-    `error TS2305: Module '"@atcx/contract"' has no exported member 'SessionID'.`,
-  ],
-])(
-  'it fails a tarball with %s before npm publish, though npm holds its version',
-  async (_label, entry, declarations, failure) => {
-    const ctx = setupTest();
+  );
 
-    await Bun.write(
-      join(ctx.directory, 'tarball/package/package.json'),
-      JSON.stringify({
-        name: '@atcx/contract',
-        version: '7.3.0',
-        type: 'module',
-        exports: { '.': './index.js', './light': './index.js' },
-      }),
-    );
+  await Bun.write(
+    join(ctx.directory, 'tarball/client/package/dist/connection.js'),
+    'export async function openDaemonConnection() { return {}; }\n',
+  );
 
-    await Bun.write(join(ctx.directory, 'tarball/package/index.js'), entry);
-    await Bun.write(join(ctx.directory, 'tarball/package/index.d.ts'), declarations);
+  await Bun.write(
+    join(ctx.directory, 'tarball/client/package/dist/connection.d.ts'),
+    'export declare function openDaemonConnection(): Promise<object>;\n',
+  );
 
-    await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
-      cwd: join(ctx.directory, 'tarball'),
-    });
+  await runCommand(['tar', '-czf', 'client.tgz', 'package'], {
+    cwd: join(ctx.directory, 'tarball/client'),
+  });
 
-    await Bun.write(
-      join(ctx.directory, 'scripts/pack-contract.ts'),
-      `console.log(${JSON.stringify(join(ctx.directory, 'tarball/contract.tgz'))});\n`,
-    );
+  await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript('client'));
 
-    createStubBin(
-      join(ctx.directory, 'bin'),
-      'npm',
-      buildStubNpm(join(ctx.directory, 'npm.log'), '7.3.0', { installWith: ctx.npm }),
-    );
+  const published = await runCommand(
+    ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), '--dry-run'],
+    { env: ctx.env },
+  );
 
-    const published = await runCommand(
-      ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), '--dry-run'],
-      { env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` } },
-    );
+  expect({
+    exitCode: published.exitCode,
+    output: `${published.stdout}${published.stderr}`,
+  }).toStrictEqual({
+    exitCode: 1,
+    output: expect.stringContaining(
+      `error TS2305: Module '"@atcx/client"' has no exported member 'AtcError'.`,
+    ),
+  });
 
-    expect({
-      exitCode: published.exitCode,
-      output: `${published.stdout}${published.stderr}`,
-    }).toStrictEqual({ exitCode: 1, output: expect.stringContaining(failure) });
-
-    expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8').split('\n')).toStrictEqual([
-      expect.toStartWith('install --prefix '),
-      '',
-    ]);
-  },
-);
+  expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8')).not.toInclude('publish ');
+});

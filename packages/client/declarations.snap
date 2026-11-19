@@ -1,0 +1,133 @@
+// connect.d.ts
+import type { DaemonEvent, DaemonFeature, DaemonProcedures, HelloResult, SessionID } from '@atcx/contract';
+export interface ConnectOptions {
+    client?: string;
+    socketPath?: string;
+    address?: {
+        hostname: string;
+        port: number;
+    };
+    token?: string;
+    principal?: string;
+    viewer?: string;
+    session?: SessionID;
+    timeoutMs?: number;
+    signal?: AbortSignal;
+}
+interface EventsOptions {
+    signal?: AbortSignal;
+}
+export type AtcClient = Omit<DaemonProcedures, 'events'> & {
+    events: ((options?: EventsOptions) => AsyncIterable<DaemonEvent>) & Pick<DaemonProcedures['events'], 'read'>;
+    readonly hello: HelloResult;
+    has: (feature: DaemonFeature) => boolean;
+    readonly closed: Promise<void>;
+    close: () => Promise<void>;
+    [Symbol.asyncDispose]: () => Promise<void>;
+};
+export declare function connect(options?: ConnectOptions): Promise<AtcClient>;
+export {};
+
+// connection/create-event-fan-out.d.ts
+export declare const MAX_UNREAD_EVENTS = 10000;
+export interface EventFanOut<T> {
+    readonly subscribe: (signal?: AbortSignal) => AsyncIterable<T>;
+    readonly push: (event: T) => void;
+    readonly end: () => void;
+}
+export declare function createEventFanOut<T>(): EventFanOut<T>;
+
+// connection/create-line-decoder.d.ts
+export interface LineDecoder {
+    readonly splitChunk: (bytes: Uint8Array) => string[];
+}
+export declare function createLineDecoder(): LineDecoder;
+
+// connection/daemon-connection.d.ts
+import type { DaemonEvent, DaemonProcedures, HelloResult, SessionID } from '@atcx/contract';
+export interface CallContext {
+    readonly as?: string | undefined;
+    readonly asName?: string | undefined;
+}
+export type DaemonTarget = {
+    readonly path: string;
+} | {
+    readonly hostname: string;
+    readonly port: number;
+};
+export interface DaemonHello {
+    readonly client: string;
+    readonly token?: string | undefined;
+    readonly principal?: string | undefined;
+    readonly viewer?: string | undefined;
+    readonly session?: SessionID | undefined;
+}
+export interface DaemonConnectionOptions {
+    readonly timeoutMs?: number | undefined;
+    readonly signal?: AbortSignal | undefined;
+    readonly onAnswer?: ((method: string, answer: Readonly<Record<string, unknown>>) => void) | undefined;
+}
+export interface EventsOptions {
+    readonly signal?: AbortSignal | undefined;
+}
+export interface DaemonConnection {
+    readonly hello: HelloResult;
+    readonly procedures: DaemonProcedures<CallContext>;
+    readonly request: (method: string, params?: Readonly<Record<string, unknown>>, context?: CallContext) => Promise<unknown>;
+    readonly events: (options?: EventsOptions) => AsyncIterable<DaemonEvent>;
+    readonly closed: Promise<void>;
+    readonly close: () => Promise<void>;
+}
+
+// connection/find-missing-feature.d.ts
+interface MissingFeature {
+    readonly field: string;
+    readonly feature: string;
+}
+export declare function findMissingFeature(method: string, input: unknown, features: readonly string[]): MissingFeature | null;
+export {};
+
+// connection/index.d.ts
+export type { CallContext, DaemonConnection, DaemonConnectionOptions, DaemonHello, DaemonTarget, } from './daemon-connection.js';
+export { openDaemonConnection } from './open-daemon-connection.js';
+
+// connection/open-daemon-connection.d.ts
+import type { DaemonConnection, DaemonConnectionOptions, DaemonHello, DaemonTarget } from './daemon-connection.js';
+export declare function openDaemonConnection(target: DaemonTarget, hello: DaemonHello, options?: DaemonConnectionOptions): Promise<DaemonConnection>;
+
+// connection/start-connection.d.ts
+import type { Socket } from 'node:net';
+import type { DAEMON_CONTRACT, DAEMON_EVENT_SCHEMA, HELLO_RESULT_SCHEMA, PROCEDURE_META_SCHEMA } from '@atcx/contract';
+import type { DaemonConnection, DaemonConnectionOptions, DaemonHello, DaemonTarget } from './daemon-connection.js';
+export interface ContractParts {
+    readonly DAEMON_CONTRACT: typeof DAEMON_CONTRACT;
+    readonly DAEMON_EVENT_SCHEMA: typeof DAEMON_EVENT_SCHEMA;
+    readonly HELLO_RESULT_SCHEMA: typeof HELLO_RESULT_SCHEMA;
+    readonly PROCEDURE_META_SCHEMA: typeof PROCEDURE_META_SCHEMA;
+}
+export declare function waitForConnect(socket: Socket, target: DaemonTarget): Promise<void>;
+export declare function startConnection(socket: Socket, contract: ContractParts, greeting: DaemonHello, options: DaemonConnectionOptions): Promise<DaemonConnection>;
+
+// connection/to-atc-error.d.ts
+import { AtcError } from '@atcx/contract/light';
+export interface ProcedureTraits {
+    readonly readOnly: boolean;
+    readonly keyed: boolean;
+}
+export declare function toAtcError(error: unknown, procedure: string, traits: ProcedureTraits | undefined): AtcError;
+
+// index.d.ts
+export { AtcError } from '@atcx/contract/light';
+export type { ErrorCode } from '@atcx/contract/light';
+export type { DaemonEvent, DaemonFeature, DaemonProcedures, HelloResult, SessionID, } from '@atcx/contract';
+export { connect } from './connect.js';
+export type { AtcClient, ConnectOptions } from './connect.js';
+export { readDaemonSocketPaths } from './read-daemon-socket-paths.js';
+
+// read-daemon-socket-paths.d.ts
+interface DaemonSocketLocation {
+    readonly daemonSocketPath: string;
+    readonly daemonRecordFile: string;
+}
+export declare function readDaemonSocketPaths(paths: DaemonSocketLocation): Promise<string[]>;
+export {};
