@@ -1,6 +1,29 @@
-# Records docs/assets/demo.gif. Run `bun run demo:record` from the repo root: it
-# starts an isolated daemon with staged sessions and a curated directory list, then
-# plays this tape against it.
+# Records docs/assets/demo.gif. Run `bun run demo:record` from the repo root:
+# scripts/record-demo.sh starts two throwaway daemons, a local one and "cloud",
+# whose agents are the stand-in in scripts/demo-agent.ts, and
+# scripts/drive-demo.ts runs this tape while it drives the fleet.
+#
+# No step rests on a guessed delay. The tape waits with Wait+Screen for the
+# text that proves a beat is on screen, and the drive script moves the fleet
+# only on a daemon event that proves the last move landed:
+#
+# 1. The drive script stages two sessions on each daemon, and starts vhs once
+#    every stand-in has reported SessionStart through the hook reporter.
+# 2. The tape attaches the orchestrator, then opens the list over it. Leaving
+#    the session detaches it, and that SessionDetached event is the only sign
+#    of the tape's keys that reaches a daemon, so it starts the next beat.
+# 3. After a hold, the drive script sends the orchestrator
+#    "start builders: api, ui" with `atc send`. The stand-in reads it through
+#    `atc tap` and calls atc_session_spawn through `atc mcp` once per part,
+#    so each builder is a sub-session. The beat ends when both builders have
+#    reported SessionStart.
+# 4. After another hold, the drive script sends builder-ui "ask: ..." with
+#    `atc send`, and that stand-in posts a Notification hook, a permission
+#    prompt. The beat ends on the SessionState event that shows builder-ui
+#    needs you.
+#
+# Each Sleep here, and each hold, is reading time for the viewer. A Wait or a
+# drive step that times out fails `bun run demo:record`.
 
 Output docs/assets/demo.gif
 
@@ -11,49 +34,31 @@ Set Height 660
 Set Padding 16
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 60ms
+Set WaitTimeout 30s
 
 Type "atc"
-Sleep 400ms
 Enter
 Wait+Screen /session list/
-Sleep 1s
 
-# spawn: agent, directory, name, first prompt
-Type "n"
-Sleep 900ms
-Enter
-Sleep 900ms
-Type "atc"
-Sleep 900ms
-Enter
-Sleep 700ms
-Type "miracles"
-Sleep 500ms
-Enter
-Sleep 700ms
-Type "magnets how do they work??"
-Sleep 500ms
-Enter
-Sleep 5s
-
-# the session list over the running session; filter to a staged session and attach it
+# one list over both daemons: the local sessions and the cloud ones
 Ctrl+Space
-Sleep 2s
-Type "/dinner"
-Sleep 700ms
-Enter
-Sleep 3s
+Wait+Screen /cloud\s+flaky-test/
+Wait+Screen /cloud\s+bench/
+Wait+Screen /orchestrator/
+Sleep 4s
 
-# and back to the one we spawned
-Ctrl+Space
-Sleep 1.2s
-Type "/miracles"
-Sleep 700ms
+# attach the orchestrator, then open the list over it
+Type "/orchestrator"
+Wait+Screen /\/ orchestrator/
 Enter
-Sleep 2s
-
-# leave the client; every session keeps running in the daemon
-Ctrl+Space
-Sleep 800ms
-Type "q"
+Wait+Screen /demo agent[\s\S]*plan the 2\.0 release/
 Sleep 1.5s
+Ctrl+Space
+
+# the orchestrator starts two builders, listed under it as they start
+Wait+Screen /↳ builder-api/
+Wait+Screen /↳ builder-ui/
+
+# one builder asks a question, and needs you
+Wait+Screen /1 need you/
+Sleep 5s
