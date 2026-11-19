@@ -15,7 +15,6 @@ import { findHostBroker, getHostCredentials } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { FleetStore, RuntimeAuthBinding } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
-import invariant from 'tiny-invariant';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildGuestSessionDirectory } from '../sessions/build-guest-session-directory';
 import type { HostDirClaims } from '../sessions/create-host-dir-claims';
@@ -255,7 +254,9 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 
     const selection = adapter.findAuthSelection?.() ?? null;
 
-    invariant(selection !== null, 'a decision that takes a credential came from an auth selection');
+    if (selection === null) {
+      throw new Error(`agent '${adapter.id}' decided on a credential without an auth selection`);
+    }
 
     const planned = buildAuthBinding(selection.gateway, selection.profiles);
 
