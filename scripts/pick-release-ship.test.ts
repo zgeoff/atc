@@ -18,7 +18,7 @@ test.each([
     expected: 'here',
   },
   {
-    label: 'a tag whose checks a newer push cancelled',
+    label: 'a tag whose checks were cancelled',
     run: {
       event: 'push',
       releasesCreated: 'true',

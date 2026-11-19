@@ -13,30 +13,29 @@ permissions:
   actions: read
   contents: read
 
-# A newer push makes this run's checks worthless, so ci, binaries and checks
-# each cancel their older run through a job-level group. The release jobs never
-# cancel: a release cut off mid-way can leave a tag without its binaries or
-# formula. A workflow-level group would reach the release jobs too, so every
-# group here is set per job. The groups of ci, binaries and checks hold the
-# run's ref, so a push to main never cancels a run dispatched at a tag.
+# No run here cancels another. The groups of ci, binaries and checks hold the
+# commit, so every push to main is tested, and a run dispatched at a tag waits
+# for the push run of the same commit. The release jobs queue: a release cut
+# off mid-way can leave a tag without its binaries or formula. Every group is
+# set per job, as each job needs its own key.
 jobs:
   ci:
     concurrency:
-      group: main-ci-${{ github.ref }}
-      cancel-in-progress: true
+      group: main-ci-${{ github.sha }}
+      cancel-in-progress: false
     uses: ./.github/workflows/checks.yml
 
   # the one status the main ruleset requires: it runs even when a job it needs
   # failed or was skipped, and passes only when every one of them succeeded
   #
-  # A ci job that a newer push cancelled skips this job instead of failing it,
-  # and the ship-release job skips with it.
+  # A ci job cancelled by hand skips this job instead of failing it, and the
+  # ship-release job skips with it.
   checks:
     needs: [ci]
     if: ${{ !cancelled() && !contains(needs.*.result, 'cancelled') }}
     concurrency:
-      group: main-checks-${{ github.ref }}
-      cancel-in-progress: true
+      group: main-checks-${{ github.sha }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -51,8 +50,8 @@ jobs:
 
   binaries:
     concurrency:
-      group: main-binaries-${{ github.ref }}
-      cancel-in-progress: true
+      group: main-binaries-${{ github.sha }}
+      cancel-in-progress: false
     uses: ./.github/workflows/binaries.yml
 
   # A release takes two runs of the release job, through the shared
@@ -92,7 +91,7 @@ jobs:
 
   # Picks whether this run ships a release, dispatches a run at its tag, or
   # ships nothing. It runs after a failed or skipped need too, since a tag
-  # whose checks a newer push cancelled still needs its dispatch.
+  # whose checks failed or were cancelled still needs its dispatch.
   pick-release-ship:
     needs: [checks, binaries, release]
     if: ${{ !cancelled() }}
