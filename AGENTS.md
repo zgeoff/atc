@@ -116,6 +116,10 @@ prints its own reason, and the rules live where each bullet points.
   may reach, in `scripts/check-reach.ts`.
 - `bun run check:contract`: the contract's declarations against the committed snapshot, in
   `scripts/check-contract.ts`. Pass `--update` after a change to the published types.
+- `bun run check:contract-compat`: each procedure's input and answer schemas and the event schema
+  against the latest `@zgeoff/atc@*` tag, in `scripts/check-contract-compat.ts`. It fails a change
+  that is not additive, and a new input field with no entry in `FEATURE_INPUT_FIELDS` or in
+  `scripts/harmless-input-fields.ts`.
 - `bun run check:bundle`: the execution providers the atc bundle carries, in
   `scripts/check-bundle.ts`.
 - `bun run check:disable-baseline`: the count of directives that switch off an import rule, against
