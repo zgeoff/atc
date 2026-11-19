@@ -1,9 +1,7 @@
 import type { Clock } from '@atc/core';
 import type { DaemonAnswer } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type {
-  IdempotencyRecord,
   MessageOwner,
   MessageRecord,
   MessageStatus,
@@ -11,12 +9,11 @@ import type {
   TrailEntry,
 } from '@atc/store';
 import type { MessageID, SessionID } from '@atcx/contract';
-import { MESSAGE_ANSWER_SCHEMA, toMessageID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { EventSignal } from '../transport/create-event-signal';
 import type { IdempotencyLedger } from '../transport/create-idempotency-ledger';
-import type { DaemonContext, MessageRefusal, TapClient, WriteSessionMessageParams } from '../types';
+import type { MessageRefusal, TapClient, WriteSessionMessageParams } from '../types';
 import { buildMessageOwner } from './build-message-owner';
 import { buildMessageSender } from './build-message-sender';
 import { buildMessageTrailEntry } from './build-message-trail-entry';
@@ -28,11 +25,14 @@ import type { TapRegistry } from './create-tap-registry';
 import { drainInbox } from './drain-inbox';
 import type { InboxSource } from './drain-inbox';
 import { emitInboxClosed } from './emit-inbox-closed';
+import { loadMessageReplay } from './load-message-replay';
 import type { HookScope } from './make-hook-runner';
 import type { MessageCaller } from './message-caller';
 import { MessageRefusedError } from './message-refused-error';
 import { mintMessageID } from './mint-message-id';
+import { readMessageView } from './read-message-view';
 import type { Session } from './session';
+import type { MessageView } from './types';
 
 interface MessageServiceDeps {
   readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'isLocalTarget'>;
@@ -68,8 +68,6 @@ interface MessageServiceDeps {
   // is refused.
   readonly tapGraceMs: number;
 }
-
-type MessageView = NonNullable<Awaited<ReturnType<DaemonContext['readMessage']>>>;
 
 // every status change lands in the trail before it is broadcast; a keyed send writes at most
 // once per key, and a retry answers with the message's current status
@@ -397,53 +395,6 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
     return record;
   };
 
-  // A retried send answers with the message's current status, so a caller
-  // that lost the first answer learns where its message stands now.
-  const loadMessageReplay = async (
-    record: IdempotencyRecord,
-  ): Promise<DaemonAnswer<'session.message'>> => {
-    const current = await store.readMessageByID(toMessageID(record.effectRef));
-
-    if (current !== null) {
-      return { message: current.id, status: current.status };
-    }
-
-    const result: unknown = record.result === null ? null : JSON.parse(record.result);
-    const stored = MESSAGE_ANSWER_SCHEMA.safeParse(result);
-
-    if (stored.success) {
-      return stored.data;
-    }
-
-    throw new DaemonError(
-      'internal',
-      `the message under idempotency key '${record.key}' has no stored row`,
-      { effectRef: record.effectRef },
-    );
-  };
-
-  // A message belongs to the live session holding its atc id, else to the
-  // one holding its agent session id, else to the atc id it was sent to.
-  const readMessageView = async (messageID: MessageID): Promise<MessageView | null> => {
-    const record = await store.readMessageByID(messageID);
-
-    if (record === null) {
-      return null;
-    }
-
-    const owner =
-      manager.sessions.find((x) => x.id === record.atcID) ??
-      manager.sessions.find(
-        (x) => record.agentSessionID !== undefined && x.agentSessionID === record.agentSessionID,
-      );
-
-    return {
-      session: owner?.id ?? record.atcID,
-      record,
-      answeredWith: await store.readTurnSiblings(record),
-    };
-  };
-
   return {
     recordTrailEntry,
 
@@ -522,7 +473,7 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
 
           // The message row is the effect, and the start already wrote it.
           settle: () => Promise.resolve(),
-          replay: (record) => loadMessageReplay(record),
+          replay: (record) => loadMessageReplay(store, record),
         });
       } catch (error) {
         if (error instanceof MessageRefusedError) {
@@ -540,7 +491,7 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
       for (;;) {
         const generation = eventSignal.generation;
 
-        const view = await readMessageView(messageID);
+        const view = await readMessageView({ manager, store }, messageID);
 
         if (view === null) {
           return null;

@@ -1,5 +1,5 @@
 import { createStepTimer } from '@atc/core';
-import type { ExecutionProvider, HarnessHandle, HarnessStart } from '@atc/plugin-api';
+import type { HarnessHandle, HarnessStart } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import type { AuthSetup, HarnessAuthSetup, HarnessPlan } from '../auth/create-auth-setup';
@@ -12,9 +12,10 @@ import type { SessionRegistry } from './create-session-registry';
 import type { SpawnRollback } from './create-spawn-rollback';
 import { pickAdoptedAgentHome } from './pick-adopted-agent-home';
 import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
-import { resolveRepoRoot } from './resolve-repo-root';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
+import { startReviveHarness } from './start-revive-harness';
+import type { HarnessLaunch } from './types';
 
 interface SessionAdopterDeps {
   readonly registry: Pick<
@@ -50,15 +51,6 @@ interface SessionAdopterDeps {
     | 'startMessageBridge'
     | 'stopMessageBridge'
   >;
-}
-
-// What a revive starts its harness with on the session's host.
-interface HarnessLaunch {
-  readonly provider: ExecutionProvider;
-  readonly plan: Omit<HarnessPlan, 'args'> & { readonly args: readonly string[] };
-  readonly recordPath: string | null;
-  readonly cols: number;
-  readonly rows: number;
 }
 
 // A restart whose outdated harness waits on its kill.
@@ -101,73 +93,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
   const auth = deps.auth;
   const fates = deps.fates;
   const callbacks = deps.callbacks;
-
-  // Starts the harness that revives a session, or attaches the one its
-  // host still runs, and follows it as the session's terminal.
-  const startHarness = (session: Session, launch: HarnessLaunch): HarnessHandle => {
-    const plan = launch.plan;
-    const provider = launch.provider;
-
-    const binding = harnesses.mintBridgeBinding(
-      session.id,
-      session.target,
-      session.targetIdentity,
-      session.hostKey,
-    );
-
-    const pty = provider.spawnHarness({
-      session: session.id,
-      host: session.hostKey,
-      bin: plan.bin,
-      args: plan.args,
-      cwd: session.cwd,
-      env: buildHarnessEnv(
-        plan.env,
-        {
-          sessionID: session.id,
-          socket: callbacks.getReporterSocketPath(),
-          ...(launch.recordPath === null ? {} : { sessionRecord: launch.recordPath }),
-        },
-        { daemonEnv: provider.remote ? {} : process.env, withheldEnv: session.withheldEnv },
-      ),
-      withheldEnv: session.withheldEnv,
-      cols: launch.cols,
-      rows: launch.rows,
-      ...auth.buildBrokerSpec(session.hostKey, plan.admission),
-      onRelay: (relay) => {
-        callbacks.onRelay(binding, relay);
-      },
-    });
-
-    session.bridgeEpoch = binding.epoch;
-    session.pty = pty;
-    session.kind = 'pty';
-    session.lastMsg = 'revived';
-
-    // a revive starts no turn, so a restored session keeps the state its agent last reported
-    // before the daemon restarted; a stop before its first terminal leaves the mark in place
-    const isRestored = registry.unrestored.delete(session.id);
-
-    if (!isRestored || session.state === 'exited') {
-      session.state = 'running';
-    }
-
-    if (plan.admission === null) {
-      delete session.authRevision;
-    }
-
-    session.repoRoot = provider.remote ? session.cwd : resolveRepoRoot(session.cwd);
-    session.desired = 'run';
-    session.suspended = false;
-
-    harnesses.attachHarness(session, pty, registry.hasHostLifecycle(session.target));
-    callbacks.onBoot(session, launch.cols, launch.rows);
-    void fleet.tryWriteFleet(session.id);
-    callbacks.onEvent('state', session);
-    fleet.emitChange();
-
-    return pty;
-  };
 
   // the harness is still the session's terminal, or ended on its own with
   // an exit its host reported, as one that ended while its host slept does;
@@ -227,7 +152,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
         registry.sessions.includes(session) &&
         !rollback.rollingBack.has(session.id)
       ) {
-        return startHarness(session, launch);
+        return startReviveHarness(deps, session, launch);
       }
     } finally {
       // every path that starts no harness, a throwing kill included, writes
@@ -454,7 +379,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       // A terminal that fails to start leaves no message bridge running
       // without it.
       try {
-        pty = startHarness(session, launch);
+        pty = startReviveHarness(deps, session, launch);
       } catch (error) {
         await callbacks.stopMessageBridge(session.id);
 
