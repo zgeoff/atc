@@ -99,12 +99,14 @@ function setupTest() {
 
       return {
         ...connection,
-        endInput: async () => {
-          await gate;
+        endInput: () => {
+          void (async () => {
+            await gate;
 
-          afterBootHold.length = 0;
+            afterBootHold.length = 0;
 
-          connection.endInput();
+            connection.endInput();
+          })();
         },
       };
     },
