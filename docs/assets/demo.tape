@@ -51,7 +51,7 @@ Wait+Screen /cloud\s+docs/
 Show
 
 # the list: the orchestrator here, two sessions on the cloud box
-Sleep 1s
+Sleep 1.5s
 
 # open the orchestrator and ask it for a builder
 Type "/orc"
@@ -60,22 +60,22 @@ Wait+Screen /builder-api has the API/
 Type@25ms "start a builder for the UI on the cloud box and tell builder-api to coordinate with it"
 Enter
 Wait+Screen /Messaged builder-api/
-Sleep 1.2s
+Sleep 2.5s
 
 # builder-api: the orchestrator's message is the newest thing in its pane
 Ctrl+Space
 Wait+Screen /cloud\s+builder-ui/
-Sleep 0.8s
+Sleep 1.5s
 Down
 Enter
 Wait+Screen /Agree the orders endpoint with it/
-Sleep 2.5s
+Sleep 2.8s
 
 # builder-ui: new on the cloud box, it has just asked builder-api
 Ctrl+Space
 Wait+Screen /cloud\s+builder-ui/
-Sleep 0.8s
+Sleep 1.2s
 Down 2
 Enter
 Wait+Screen /Messaged builder-api: What does/
-Sleep 2.5s
+Sleep 3.5s
