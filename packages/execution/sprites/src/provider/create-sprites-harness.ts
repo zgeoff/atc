@@ -232,7 +232,17 @@ export function createSpritesHarness(options: SpritesHarnessOptions): SpritesHar
       }
 
       const boot = await options.records.readBootID(options.sprite);
+
+      if (isFinished) {
+        return;
+      }
+
       const record = await options.records.readSessionRecord(options.sprite, options.session);
+
+      if (isFinished) {
+        return;
+      }
+
       const execs = await api.listExecs(options.sprite);
 
       if (isFinished) {

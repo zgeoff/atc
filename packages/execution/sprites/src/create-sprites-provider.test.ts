@@ -13,6 +13,7 @@ import type { SpritesTarget } from './config/parse-sprites-target';
 import { createSpritesProvider } from './create-sprites-provider';
 import { UNPACK_ARCHIVE_SCRIPT } from './guest-scripts/unpack-archive-script';
 import type { SpritesPort } from './port/types';
+import { BOOT_ID_PATH } from './provider/boot-id-path';
 import { createInMemorySprites } from './test-utils/create-in-memory-sprites';
 
 interface WelcomeAnswer {
@@ -58,9 +59,42 @@ function setupTest() {
   let held: Promise<void> | null = null;
   let listCalls = 0;
 
+  // holds the second boot-id read after holdBootRead() until the returned release runs, and lists
+  // the reads and exec lists that follow the hold: the relay's mux link reads first, and the
+  // harness reads next
+  let bootReads = 0;
+  let heldBoot: Promise<void> | null = null;
+  let isBootHeld = false;
+  const afterBootHold: string[] = [];
+
   const heldSprites: SpritesPort = {
     ...sprites,
+    readFile: async (name, path) => {
+      if (isBootHeld) {
+        afterBootHold.push(`readFile ${path}`);
+      }
+
+      if (heldBoot !== null && path === BOOT_ID_PATH && !isBootHeld) {
+        bootReads += 1;
+
+        if (bootReads < 2) {
+          return sprites.readFile(name, path);
+        }
+
+        isBootHeld = true;
+
+        await heldBoot;
+
+        afterBootHold.length = 0;
+      }
+
+      return sprites.readFile(name, path);
+    },
     listExecs: async (name) => {
+      if (isBootHeld) {
+        afterBootHold.push('listExecs');
+      }
+
       if (held !== null) {
         listCalls += 1;
 
@@ -145,6 +179,15 @@ function setupTest() {
       return gate.resolve;
     },
     countExecLists: () => listCalls,
+    holdBootRead: () => {
+      const gate = Promise.withResolvers<void>();
+
+      heldBoot = gate.promise;
+
+      return gate.resolve;
+    },
+    isBootHeld: () => isBootHeld,
+    readsAfterBootHold: () => [...afterBootHold],
 
     // the stand-in for the mux: answers the daemon's latest hello once it is on the mux's stdin
     guest: {
@@ -591,6 +634,31 @@ test('it opens no harness exec when it is detached while the sprite still lists 
   // one macrotask turn lets every in-memory call the start would make settle
   await setImmediate();
 
+  expect(ctx.sprites.requests.filter((entry) => entry.request.tty)).toStrictEqual([]);
+});
+
+test('it stops its setup at once when it is detached while the boot read is held', async () => {
+  const ctx = setupTest();
+
+  await ctx.provider.prepareHost(ctx.request);
+
+  const release = ctx.holdBootRead();
+  const harness = ctx.provider.spawnHarness(ctx.spec);
+
+  await ctx.guest.welcome('s1', { ack: 0, reset: true });
+
+  await waitFor(() => {
+    expect(ctx.isBootHeld()).toBe(true);
+  });
+
+  harness.detach();
+
+  release();
+
+  // one macrotask turn lets every in-memory call the start would make settle
+  await setImmediate();
+
+  expect(ctx.readsAfterBootHold()).toStrictEqual([]);
   expect(ctx.sprites.requests.filter((entry) => entry.request.tty)).toStrictEqual([]);
 });
 
