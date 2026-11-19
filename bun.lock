@@ -450,7 +450,7 @@
     "@zgeoff/mcp-auth": "0.2.3",
     "@zgeoff/oxlint-config": "0.10.7",
     "@zgeoff/rig": "0.2.6",
-    "@zgeoff/std": "0.4.3",
+    "@zgeoff/std": "0.4.4",
     "bun-pty": "0.6.0",
     "elysia": "2.0.0-rc.3",
     "exact-mirror": "1.2.7",
@@ -1010,7 +1010,7 @@
 
     "@zgeoff/rig": ["@zgeoff/rig@0.2.6", "", { "dependencies": { "@zgeoff/diet": "0.2.3", "@zgeoff/std": "0.4.4", "gunshi": "1.0.0-rc.1", "ts-pattern": "5.9.2", "zod": "4.6.7" }, "bin": { "rig": "src/cli.ts" } }, "sha512-pV/SNB7OV+w8KoI2ZPwTRYAi4xHyuZQGhGty51mzYFd+FL/9AXKMHBJPXBALxu6gcjh4icnYuTnJrHbv2jj62Q=="],
 
-    "@zgeoff/std": ["@zgeoff/std@0.4.3", "", {}, "sha512-wCaqH8+vrkR+6R/grWUUDraryyFY1NW0Gjbhg85bXX38k9Q+N3aHFu+Yc+EjzZ/Sp9n5aJnCvZqbO5F2mUjWAg=="],
+    "@zgeoff/std": ["@zgeoff/std@0.4.4", "", {}, "sha512-AlT4lgjyC0ZhLUxxG0Sg9pxQG/+MIziC7BA9k29QDNt/ubGvB1+RCpTr/LaYkjFxiZnKG42psa4f2cp5BHGyzQ=="],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 
@@ -1526,11 +1526,11 @@
 
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
+    "@wringer/core/@zgeoff/std": ["@zgeoff/std@0.4.3", "", {}, "sha512-wCaqH8+vrkR+6R/grWUUDraryyFY1NW0Gjbhg85bXX38k9Q+N3aHFu+Yc+EjzZ/Sp9n5aJnCvZqbO5F2mUjWAg=="],
+
     "@wringer/gunshi/gunshi": ["gunshi@0.37.3", "", {}, "sha512-uwm23bguqDcleEetknuQnF5okLcgmQPM3iv4aWVHTPDbiSs9shh02F079NCY0mWkrIRjHqNhgmzW6k0FCXhy1g=="],
 
-    "@zgeoff/mcp-auth/@zgeoff/std": ["@zgeoff/std@0.4.4", "", {}, "sha512-AlT4lgjyC0ZhLUxxG0Sg9pxQG/+MIziC7BA9k29QDNt/ubGvB1+RCpTr/LaYkjFxiZnKG42psa4f2cp5BHGyzQ=="],
-
-    "@zgeoff/rig/@zgeoff/std": ["@zgeoff/std@0.4.4", "", {}, "sha512-AlT4lgjyC0ZhLUxxG0Sg9pxQG/+MIziC7BA9k29QDNt/ubGvB1+RCpTr/LaYkjFxiZnKG42psa4f2cp5BHGyzQ=="],
+    "@zgeoff/chex/@zgeoff/std": ["@zgeoff/std@0.4.3", "", {}, "sha512-wCaqH8+vrkR+6R/grWUUDraryyFY1NW0Gjbhg85bXX38k9Q+N3aHFu+Yc+EjzZ/Sp9n5aJnCvZqbO5F2mUjWAg=="],
 
     "body-parser/content-type": ["content-type@2.1.0", "", {}, "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="],
 

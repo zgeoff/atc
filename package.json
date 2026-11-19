@@ -53,7 +53,7 @@
       "@zgeoff/mcp-auth": "0.2.3",
       "@zgeoff/oxlint-config": "0.10.7",
       "@zgeoff/rig": "0.2.6",
-      "@zgeoff/std": "0.4.3",
+      "@zgeoff/std": "0.4.4",
       "bun-pty": "0.6.0",
       "elysia": "2.0.0-rc.3",
       "exact-mirror": "1.2.7",
