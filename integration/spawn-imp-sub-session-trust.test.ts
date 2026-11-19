@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
@@ -135,7 +135,10 @@ test('it trusts a sub-session in the clone root its parent trusts', async () => 
   expect(JSON.parse(readFileSync(config, 'utf8'))).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
-    projects: { [root]: { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true } },
+    projects: {
+      [join(dirname(config), '..', 'scratch')]: { hasTrustDialogAccepted: true },
+      [root]: { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true },
+    },
   });
 });
 
@@ -185,6 +188,7 @@ test('it leaves a sub-session untrusted in a folder its parent does not trust', 
   expect(JSON.parse(readFileSync(config, 'utf8'))).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { [join(dirname(config), '..', 'scratch')]: { hasTrustDialogAccepted: true } },
   });
 });
 
@@ -235,6 +239,7 @@ test('it leaves a sub-session untrusted in the clone of a parent that took no tr
   expect(JSON.parse(readFileSync(config, 'utf8'))).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { [join(dirname(config), '..', 'scratch')]: { hasTrustDialogAccepted: true } },
   });
 });
 
@@ -286,5 +291,6 @@ test('it leaves a sub-session untrusted on another target at its parent trusted 
   expect(JSON.parse(readFileSync(config, 'utf8'))).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { [join(dirname(config), '..', 'scratch')]: { hasTrustDialogAccepted: true } },
   });
 });

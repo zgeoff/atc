@@ -99,11 +99,19 @@ export interface ClaudeAdapter extends AgentAdapter {
   // Seeds the config folder of a session that signs in through the target's
   // broker with trust for the clone; any other remote session reads the
   // config of the host's image, which atc never writes.
-  readonly planGuestWorkspaceTrust: (root: string) => Readonly<Record<string, string>> | null;
+  readonly planGuestWorkspaceTrust: (
+    root: string,
+    guestDirectory: string,
+  ) => Readonly<Record<string, string>> | null;
 
   // The repository's own settings files outrank what the session's user
   // settings hold, so a launch behind the target's broker reads them first.
   readonly planProjectSettingsCheck: () => ProjectSettingsCheck;
+
+  // Claude 2.1.328 asks for trust on each `--add-dir` folder, so a local
+  // session's scratch folder is trusted in the user's own Claude config for
+  // the session's life.
+  readonly trustLocalScratch: (scratch: string) => Promise<void>;
 
   // A session on the daemon's machine reads the user's own Claude config,
   // so trust for the clone is that config's entry for the clone alone.
@@ -278,7 +286,7 @@ export function createClaudeAdapter(
         ...(takesMCP
           ? { [mcpPath]: JSON.stringify(buildClaudeMCPConfig(mcpServers, atcArgv), null, 2) }
           : {}),
-        ...buildClaudeConfigSeed(null),
+        ...buildClaudeConfigSeed(null, null, scratch),
         ...Object.fromEntries(
           Object.entries(bundle).map(([path, content]) => [
             `${CLAUDE_CONFIG_BUNDLE_FOLDER}/${bundleKey}/${path}`,
@@ -417,15 +425,19 @@ export function createClaudeAdapter(
 
     planGuestBridgeFiles: (atc, writtenAt) => buildGuestBridgeFiles([atc], writtenAt),
 
-    planGuestWorkspaceTrust: (root) => {
+    planGuestWorkspaceTrust: (root, guestDirectory) => {
       if (entry.auth === undefined) {
         return null;
       }
 
-      return buildClaudeConfigSeed(root);
+      return buildClaudeConfigSeed(root, null, `${guestDirectory}/${SESSION_SCRATCH_FOLDER}`);
     },
 
     planProjectSettingsCheck: () => buildClaudeProjectSettingsCheck(entry.id),
+
+    trustLocalScratch: async (scratch) => {
+      await updateClaudeProjectTrust(resolveClaudeGlobalConfigPath(options.homeDir), scratch);
+    },
 
     updateLocalWorkspaceTrust: (root) =>
       updateClaudeProjectTrust(resolveClaudeGlobalConfigPath(options.homeDir), root),

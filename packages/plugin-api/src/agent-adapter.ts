@@ -336,8 +336,17 @@ export interface AgentAdapter {
   ) => Readonly<Record<string, string>>;
 
   // Guest-relative seed files for the exact root of a verified clone.
-  // Absent or null means the adapter cannot accept workspace trust.
-  readonly planGuestWorkspaceTrust?: (root: string) => Readonly<Record<string, string>> | null;
+  // Absent or null means the adapter cannot accept workspace trust. The seed
+  // replaces the launch's own, so it keeps the session's scratch trust.
+  readonly planGuestWorkspaceTrust?: (
+    root: string,
+    guestDirectory: string,
+  ) => Readonly<Record<string, string>> | null;
+
+  // Trusts a session's own scratch folder in the agent's config on the
+  // daemon's machine, for the life of the session. Absent: the agent needs
+  // none.
+  readonly trustLocalScratch?: (scratch: string) => Promise<void>;
 
   // Accepts folder trust for a verified clone's exact root in the agent's own
   // config, resolving to a function that takes it back for a launch that fails

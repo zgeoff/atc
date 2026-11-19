@@ -153,7 +153,10 @@ test('it trusts only the resolved cloned root after an opted-in brokered launch'
   expect(config).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
-    projects: { [root]: { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true } },
+    projects: {
+      [join(ctx.guestDir, 'sessions', id, 'scratch')]: { hasTrustDialogAccepted: true },
+      [root]: { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true },
+    },
   });
 
   expect(start.argv).toIncludeAllMembers(['--permission-mode', 'default']);
@@ -244,6 +247,7 @@ test.each([
   expect(config).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { [join(ctx.guestDir, 'sessions', id, 'scratch')]: { hasTrustDialogAccepted: true } },
   });
 });
 
@@ -412,6 +416,9 @@ test.each([
     expect(seed).toStrictEqual({
       hasCompletedOnboarding: true,
       hasSeenAutoModeOutsideReadPrompt: true,
+      projects: {
+        [join(ctx.guestDir, 'sessions', id, 'scratch')]: { hasTrustDialogAccepted: true },
+      },
     });
   },
 );
@@ -1107,6 +1114,9 @@ test.each([
     expect(config).toStrictEqual({
       hasCompletedOnboarding: true,
       hasSeenAutoModeOutsideReadPrompt: true,
+      projects: {
+        [join(ctx.guestDir, 'sessions', id, 'scratch')]: { hasTrustDialogAccepted: true },
+      },
     });
   },
 );
@@ -1203,7 +1213,10 @@ test.each([
     expect(config).toStrictEqual({
       hasCompletedOnboarding: true,
       hasSeenAutoModeOutsideReadPrompt: true,
-      projects: { [root]: { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true } },
+      projects: {
+        [join(ctx.guestDir, 'sessions', id, 'scratch')]: { hasTrustDialogAccepted: true },
+        [root]: { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true },
+      },
     });
   },
 );
@@ -1435,5 +1448,6 @@ test('it permits an ordinary folder launch when false overrides inherited trust'
   expect(config).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { [join(ctx.guestDir, 'sessions', id, 'scratch')]: { hasTrustDialogAccepted: true } },
   });
 });

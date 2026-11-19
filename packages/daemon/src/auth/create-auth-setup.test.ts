@@ -266,6 +266,100 @@ test("it keeps the scratch folder of an agent's local plan in the plan it return
   expect(setup.plan.scratch).toBe('/srv/scratch/session');
 });
 
+test('it trusts the planned scratch folder before it returns a local plan', async () => {
+  const trustLocalScratch = mock<(scratch: string) => Promise<void>>(() => Promise.resolve());
+
+  const adapter = buildMockAgentAdapter({
+    id: 'claude',
+    planSpawn: () => ({ bin: 'claude', args: [], scratch: '/srv/scratch/session' }),
+    trustLocalScratch,
+  });
+
+  const provider = buildStubMemoryProvider({ remote: false });
+
+  const ctx = setupTest({
+    adapters: [adapter],
+    targets: [buildMockExecutionTarget({ id: 'local', provider })],
+  });
+
+  await ctx.auth.setupHarnessOnHost({
+    adapter,
+    provider,
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'local',
+    spawnOptions: { prompt: '', resume: false },
+    auth: null,
+    cwd: null,
+    isNewHost: false,
+    timer: createStepTimer(),
+  });
+
+  expect(trustLocalScratch.mock.calls).toStrictEqual([['/srv/scratch/session']]);
+});
+
+test('it trusts no scratch folder for a local plan that holds none', async () => {
+  const trustLocalScratch = mock<(scratch: string) => Promise<void>>(() => Promise.resolve());
+
+  const adapter = buildMockAgentAdapter({
+    id: 'claude',
+    planSpawn: () => ({ bin: 'claude', args: [] }),
+    trustLocalScratch,
+  });
+
+  const provider = buildStubMemoryProvider({ remote: false });
+
+  const ctx = setupTest({
+    adapters: [adapter],
+    targets: [buildMockExecutionTarget({ id: 'local', provider })],
+  });
+
+  await ctx.auth.setupHarnessOnHost({
+    adapter,
+    provider,
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'local',
+    spawnOptions: { prompt: '', resume: false },
+    auth: null,
+    cwd: null,
+    isNewHost: false,
+    timer: createStepTimer(),
+  });
+
+  expect(trustLocalScratch).not.toHaveBeenCalled();
+});
+
+test('it refuses the launch when the scratch folder cannot be trusted', () => {
+  const adapter = buildMockAgentAdapter({
+    id: 'claude',
+    planSpawn: () => ({ bin: 'claude', args: [], scratch: '/srv/scratch/session' }),
+    trustLocalScratch: () => Promise.reject(new Error('config is locked')),
+  });
+
+  const provider = buildStubMemoryProvider({ remote: false });
+
+  const ctx = setupTest({
+    adapters: [adapter],
+    targets: [buildMockExecutionTarget({ id: 'local', provider })],
+  });
+
+  const setup = ctx.auth.setupHarnessOnHost({
+    adapter,
+    provider,
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'local',
+    spawnOptions: { prompt: '', resume: false },
+    auth: null,
+    cwd: null,
+    isNewHost: false,
+    timer: createStepTimer(),
+  });
+
+  expect(setup).rejects.toThrow(/could not trust the session's scratch folder .*config is locked/u);
+});
+
 test('it refuses to hand out an auth binder when the daemon binds no runtime auth', () => {
   const ctx = setupTest({ adapters: [], targets: [] });
 

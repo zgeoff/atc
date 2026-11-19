@@ -8,6 +8,7 @@ import { isRecord } from '@atc/core';
 import { KEYS } from '@atc/core/test-utils/keys';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
@@ -921,7 +922,7 @@ test('it seeds no clone trust when the config holds no Claude auth', () => {
     buildMockHostServices(),
   );
 
-  expect(adapter.planGuestWorkspaceTrust('/work/repo')).toBeNull();
+  expect(adapter.planGuestWorkspaceTrust('/work/repo', '/guest/s1')).toBeNull();
 });
 
 test('it selects the subscription token on the Anthropic API with the placeholder, and still starts where no broker is', () => {
@@ -1225,6 +1226,7 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
   expect(JSON.parse(seed)).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { '/tmp/atc/sessions/s1/scratch': { hasTrustDialogAccepted: true } },
   });
 });
 
@@ -2109,6 +2111,7 @@ test('it starts a subscription session with a seeded config folder in a host who
   expect(JSON.parse(seeded)).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { [join(ctx.directory, 'scratch')]: { hasTrustDialogAccepted: true } },
   });
 });
 
@@ -2131,14 +2134,19 @@ test("it seeds folder trust and approval of the clone's own MCP servers for the 
     buildMockHostServices(),
   );
 
-  const seed = adapter.planGuestWorkspaceTrust('/work/repo')?.['claude-config-seed.json'];
+  const seed = adapter.planGuestWorkspaceTrust('/work/repo', '/guest/s1')?.[
+    'claude-config-seed.json'
+  ];
 
   invariant(typeof seed === 'string', 'expected a seed file');
 
   expect(JSON.parse(seed)).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
-    projects: { '/work/repo': { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true } },
+    projects: {
+      '/guest/s1/scratch': { hasTrustDialogAccepted: true },
+      '/work/repo': { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true },
+    },
   });
 });
 
@@ -2766,4 +2774,106 @@ test("it writes a log exporter to the binding's telemetry host into the Codex ho
       '',
     ].join('\n'),
   );
+});
+
+test("it trusts a local session's scratch folder in the user's Claude config", async () => {
+  const ctx = setupTest();
+  const homeDir = join(ctx.directory, 'home');
+  const scratch = join(ctx.directory, 'state', 'sessions', 's1', 'scratch');
+  const config = parseConfig([CLAUDE_PLUGIN], {});
+
+  updateEnv('CLAUDE_CONFIG_DIR', undefined);
+  mkdirSync(homeDir, { recursive: true });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { stateDir: join(ctx.directory, 'state'), homeDir },
+  );
+
+  await adapter.trustLocalScratch(scratch);
+
+  const written: unknown = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8'));
+
+  expect(written).toStrictEqual({ projects: { [scratch]: { hasTrustDialogAccepted: true } } });
+});
+
+test("it seeds trust for a brokered guest's scratch folder in its own config", () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { auth: { profiles: ['claude'] } } },
+  });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+    { homeDir: '/nowhere' },
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: 'hi', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 2,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
+        profileEnv: {},
+      },
+    },
+  );
+
+  const seed = plan?.files['claude-config-seed.json'];
+
+  invariant(typeof seed === 'string', 'expected the seed file');
+
+  expect(JSON.parse(seed)).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { '/tmp/atc/sessions/s1/scratch': { hasTrustDialogAccepted: true } },
+  });
+});
+
+test('it keeps the scratch trust in the seed a clone trust transfer replaces', () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { auth: { profiles: ['claude'] } } },
+  });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  const seed = adapter.planGuestWorkspaceTrust('/work/repo', '/guest/s1')?.[
+    'claude-config-seed.json'
+  ];
+
+  invariant(typeof seed === 'string', 'expected a seed file');
+
+  expect(JSON.parse(seed)).toStrictEqual({
+    hasCompletedOnboarding: true,
+    hasSeenAutoModeOutsideReadPrompt: true,
+    projects: {
+      '/guest/s1/scratch': { hasTrustDialogAccepted: true },
+      '/work/repo': { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true },
+    },
+  });
 });

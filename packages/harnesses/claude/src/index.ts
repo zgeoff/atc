@@ -9,4 +9,5 @@ export * from './gateway/create-gateway-adapter';
 export * from './guest/build-guest-settings-path';
 export * from './headless/make-claude-headless-runner';
 export * from './headless/start-claude-headless-run';
+export * from './scratch/build-local-scratch-path';
 export * from './transcript/parse-claude-transcript-line';

@@ -1,23 +1,40 @@
 import { expect, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubPTYProvider } from '@atc/execution-local/test-utils/create-stub-pty-provider';
-import { createClaudeAdapter, createGatewayAdapter } from '@atc/harness-claude';
+import {
+  buildLocalScratchPath,
+  createClaudeAdapter,
+  createGatewayAdapter,
+} from '@atc/harness-claude';
+import { buildTrustedClaudeConfig } from '@atc/harness-claude/test-utils/build-trusted-claude-config';
 import { createStubRecordingClaude } from '@atc/harness-claude/test-utils/create-stub-recording-claude';
 import { getGatewayConfig } from '@atc/harness-claude/test-utils/get-gateway-config';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { toSessionID } from '@atcx/contract';
+import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-local-workspace-trust-' });
 
   const homeDir = join(git.directory, 'home');
+  const stateDir = join(git.directory, 'state');
   const fakeClaude = createStubRecordingClaude(join(git.directory, 'bin'));
 
   // The adapter reads and writes the user's Claude config under this home.
@@ -28,6 +45,7 @@ async function setupTest() {
     upstream: git.upstream,
     work: git.work,
     homeDir,
+    stateDir,
     fakeClaude,
     starts: join(git.directory, 'bin', 'claude-starts.log'),
     claudeConfig: join(homeDir, '.claude.json'),
@@ -40,7 +58,11 @@ test('it trusts only the resolved clone root in the user config after an opted-i
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -53,6 +75,7 @@ test('it trusts only the resolved clone root in the user config after an opted-i
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -82,22 +105,17 @@ test('it trusts only the resolved clone root in the user config after an opted-i
   symlinkSync(parent, alias);
   mkdirSync(join(parent, 'sibling'));
 
-  writeFileSync(
-    ctx.claudeConfig,
-    JSON.stringify(
-      {
-        numStartups: 4,
-        projects: {
-          '/home/me/projects': { hasTrustDialogAccepted: true, allowedTools: [] },
-          '/home/me/scratch': { hasTrustDialogAccepted: false },
-        },
-      },
-      null,
-      2,
-    ),
-  );
+  const original = {
+    numStartups: 4,
+    projects: {
+      '/home/me/projects': { hasTrustDialogAccepted: true, allowedTools: [] },
+      '/home/me/scratch': { hasTrustDialogAccepted: false },
+    },
+  };
 
-  await daemon.client.sendRequest('session.spawn', {
+  writeFileSync(ctx.claudeConfig, JSON.stringify(original, null, 2));
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     trustClonedWorkspace: true,
     cwd: join(alias, 'clone'),
     agent: 'claude',
@@ -110,29 +128,31 @@ test('it trusts only the resolved clone root in the user config after an opted-i
     expect(readFileSync(ctx.starts, 'utf8').trimEnd().split('\n').at(-1)).toBe('start the task');
   });
 
-  const config: unknown = JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'));
+  const session = toSessionID(getString(getRecord(spawned, 'session'), 'id'));
 
-  expect(config).toStrictEqual({
-    numStartups: 4,
-    projects: {
-      '/home/me/projects': { hasTrustDialogAccepted: true, allowedTools: [] },
-      '/home/me/scratch': { hasTrustDialogAccepted: false },
-      [join(parent, 'clone')]: { hasTrustDialogAccepted: true },
-    },
-  });
+  expect(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'))).toStrictEqual(
+    buildTrustedClaudeConfig(original, [
+      buildLocalScratchPath(session, ctx.stateDir),
+      join(parent, 'clone'),
+    ]),
+  );
 
   expect(readFileSync(join(parent, 'clone', 'README.md'), 'utf8')).toBe(
     readFileSync(join(ctx.work, 'README.md'), 'utf8'),
   );
 });
 
-test('it leaves the user config byte for byte after a local clone launch with no opt-in', async () => {
+test('it adds no clone trust to the user config after a local clone launch with no opt-in', async () => {
   const ctx = await setupTest();
 
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -145,6 +165,7 @@ test('it leaves the user config byte for byte after a local clone launch with no
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -167,12 +188,13 @@ test('it leaves the user config byte for byte after a local clone launch with no
     }),
   });
 
-  writeFileSync(
-    ctx.claudeConfig,
-    JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } }),
-  );
+  const original = {
+    projects: { '/home/me': { hasTrustDialogAccepted: true } },
+  };
 
-  await daemon.client.sendRequest('session.spawn', {
+  writeFileSync(ctx.claudeConfig, JSON.stringify(original));
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.directory, 'clone'),
     agent: 'claude',
     target: 'local',
@@ -183,18 +205,24 @@ test('it leaves the user config byte for byte after a local clone launch with no
     expect(existsSync(ctx.starts)).toBeTrue();
   });
 
-  expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe(
-    JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } }),
+  const session = toSessionID(getString(getRecord(spawned, 'session'), 'id'));
+
+  expect(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'))).toStrictEqual(
+    buildTrustedClaudeConfig(original, [buildLocalScratchPath(session, ctx.stateDir)]),
   );
 });
 
-test('it leaves the user config byte for byte after a local clone launch that opts out', async () => {
+test('it adds no clone trust to the user config after a local clone launch that opts out', async () => {
   const ctx = await setupTest();
 
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -207,6 +235,7 @@ test('it leaves the user config byte for byte after a local clone launch that op
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -229,12 +258,13 @@ test('it leaves the user config byte for byte after a local clone launch that op
     }),
   });
 
-  writeFileSync(
-    ctx.claudeConfig,
-    JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } }),
-  );
+  const original = {
+    projects: { '/home/me': { hasTrustDialogAccepted: true } },
+  };
 
-  await daemon.client.sendRequest('session.spawn', {
+  writeFileSync(ctx.claudeConfig, JSON.stringify(original));
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     trustClonedWorkspace: false,
     cwd: join(ctx.directory, 'clone'),
     agent: 'claude',
@@ -246,8 +276,10 @@ test('it leaves the user config byte for byte after a local clone launch that op
     expect(existsSync(ctx.starts)).toBeTrue();
   });
 
-  expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe(
-    JSON.stringify({ projects: { '/home/me': { hasTrustDialogAccepted: true } } }),
+  const session = toSessionID(getString(getRecord(spawned, 'session'), 'id'));
+
+  expect(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'))).toStrictEqual(
+    buildTrustedClaudeConfig(original, [buildLocalScratchPath(session, ctx.stateDir)]),
   );
 });
 
@@ -257,7 +289,11 @@ test('it trusts a local clone when the target defaults trust on', async () => {
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -270,6 +306,7 @@ test('it trusts a local clone when the target defaults trust on', async () => {
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -294,7 +331,7 @@ test('it trusts a local clone when the target defaults trust on', async () => {
 
   writeFileSync(ctx.claudeConfig, '{}');
 
-  await daemon.client.sendRequest('session.spawn', {
+  const spawned = await daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.directory, 'clone'),
     agent: 'claude',
     target: 'local',
@@ -305,9 +342,14 @@ test('it trusts a local clone when the target defaults trust on', async () => {
     expect(existsSync(ctx.starts)).toBeTrue();
   });
 
-  expect(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'))).toStrictEqual({
-    projects: { [join(ctx.directory, 'clone')]: { hasTrustDialogAccepted: true } },
-  });
+  const session = toSessionID(getString(getRecord(spawned, 'session'), 'id'));
+
+  expect(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'))).toStrictEqual(
+    buildTrustedClaudeConfig({}, [
+      buildLocalScratchPath(session, ctx.stateDir),
+      join(ctx.directory, 'clone'),
+    ]),
+  );
 });
 
 test('it refuses local trust for an existing folder', async () => {
@@ -316,7 +358,11 @@ test('it refuses local trust for an existing folder', async () => {
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -329,6 +375,7 @@ test('it refuses local trust for an existing folder', async () => {
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -364,13 +411,67 @@ test('it refuses local trust for an existing folder', async () => {
   ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
+test("it trusts a local session's own scratch folder in the user config before the harness starts", async () => {
+  const ctx = await setupTest();
+
+  const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
+    agents: { claude: { bin: ctx.fakeClaude } },
+  });
+
+  const daemon = await startTestDaemon({
+    options: () => ({
+      adapters: [
+        createClaudeAdapter(
+          getAgentEntry(atcConfig, 'claude'),
+          atcConfig,
+          buildMockHostServices(),
+          {
+            homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
+          },
+        ),
+      ],
+      targets: [
+        {
+          id: 'local',
+          kind: 'local-pty',
+          options: {},
+          identity: 'local:test',
+          provider: createLocalPTYProvider(),
+        },
+      ],
+      defaultTarget: 'local',
+    }),
+  });
+
+  const spawned = await daemon.client.sendRequest('session.spawn', {
+    cwd: ctx.work,
+    agent: 'claude',
+    target: 'local',
+  });
+
+  await waitFor(() => {
+    expect(existsSync(ctx.starts)).toBeTrue();
+  });
+
+  const session = toSessionID(getString(getRecord(spawned, 'session'), 'id'));
+
+  expect(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'))).toStrictEqual(
+    buildTrustedClaudeConfig({}, [buildLocalScratchPath(session, ctx.stateDir)]),
+  );
+});
+
 test('it leaves the user config and starts nothing when it refuses local trust for an existing folder', async () => {
   const ctx = await setupTest();
 
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -383,6 +484,7 @@ test('it leaves the user config and starts nothing when it refuses local trust f
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -427,7 +529,11 @@ test('it refuses a local launch whose harness fails to start after the trust wri
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -440,6 +546,7 @@ test('it refuses a local launch whose harness fails to start after the trust wri
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -488,7 +595,11 @@ test('it takes the local trust back and removes the clone when the harness fails
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -503,6 +614,7 @@ test('it takes the local trust back and removes the clone when the harness fails
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -530,13 +642,11 @@ test('it takes the local trust back and removes the clone when the harness fails
     }),
   });
 
-  const original = JSON.stringify(
-    { projects: { '/home/me': { hasTrustDialogAccepted: true } } },
-    null,
-    2,
-  );
+  const original = {
+    projects: { '/home/me': { hasTrustDialogAccepted: true } },
+  };
 
-  writeFileSync(ctx.claudeConfig, original);
+  writeFileSync(ctx.claudeConfig, JSON.stringify(original, null, 2));
 
   await Promise.allSettled([
     daemon.client.sendRequest('session.spawn', {
@@ -548,16 +658,20 @@ test('it takes the local trust back and removes the clone when the harness fails
     }),
   ]);
 
+  const [session, ...others] = readdirSync(join(ctx.stateDir, 'sessions'));
+
+  invariant(session !== undefined && others.length === 0, 'expected one session folder');
+
+  const scratch = buildLocalScratchPath(toSessionID(session), ctx.stateDir);
+
   expect(atSpawn).toStrictEqual([
-    {
-      projects: {
-        '/home/me': { hasTrustDialogAccepted: true },
-        [join(ctx.directory, 'clone')]: { hasTrustDialogAccepted: true },
-      },
-    },
+    buildTrustedClaudeConfig(original, [scratch, join(ctx.directory, 'clone')]),
   ]);
 
-  expect(readFileSync(ctx.claudeConfig, 'utf8')).toBe(original);
+  expect(JSON.parse(readFileSync(ctx.claudeConfig, 'utf8'))).toStrictEqual(
+    buildTrustedClaudeConfig(original, [scratch]),
+  );
+
   expect(existsSync(join(ctx.directory, 'clone'))).toBe(false);
 });
 
@@ -567,7 +681,11 @@ test('it refuses a local launch whose trust write fails', async () => {
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -580,6 +698,7 @@ test('it refuses a local launch whose trust write fails', async () => {
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -621,7 +740,11 @@ test('it removes the clone, keeps the user config, and starts nothing when the t
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -634,6 +757,7 @@ test('it removes the clone, keeps the user config, and starts nothing when the t
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -679,7 +803,11 @@ test('it refuses local trust for a gateway', async () => {
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -692,6 +820,7 @@ test('it refuses local trust for a gateway', async () => {
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(
@@ -737,7 +866,11 @@ test('it refuses local trust for a gateway before cloning or touching the user c
   const atcConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: {
       claude: { bin: ctx.fakeClaude },
-      plain: { kind: 'claude', baseURL: 'https://gateway.example.com', bin: ctx.fakeClaude },
+      plain: {
+        kind: 'claude',
+        baseURL: 'https://gateway.example.com',
+        bin: ctx.fakeClaude,
+      },
     },
   });
 
@@ -750,6 +883,7 @@ test('it refuses local trust for a gateway before cloning or touching the user c
           buildMockHostServices(),
           {
             homeDir: ctx.homeDir,
+            stateDir: ctx.stateDir,
           },
         ),
         createGatewayAdapter(

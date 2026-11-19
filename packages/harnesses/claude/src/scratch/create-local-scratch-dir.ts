@@ -1,11 +1,10 @@
 import { chmodSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { stateDir } from '@atc/config';
 import type { SessionID } from '@atcx/contract';
-import { SESSION_SCRATCH_FOLDER } from './session-scratch-folder';
+import { buildLocalScratchPath } from './build-local-scratch-path';
 
 export function createLocalScratchDir(session: SessionID, directory: string = stateDir): string {
-  const path = join(directory, 'sessions', session, SESSION_SCRATCH_FOLDER);
+  const path = buildLocalScratchPath(session, directory);
 
   mkdirSync(path, { recursive: true });
   chmodSync(path, 0o700);

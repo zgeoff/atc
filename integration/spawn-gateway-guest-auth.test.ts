@@ -135,6 +135,7 @@ test('it starts a brokered gateway on an imp under the settings file of its bind
   expect(seeded).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { [join(session, 'scratch')]: { hasTrustDialogAccepted: true } },
   });
 });
 
