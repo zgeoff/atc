@@ -1,6 +1,7 @@
 // Stages the demo fleet, runs vhs on the tape, and moves the fleet on at each
 // beat, once a daemon event proves the last one landed. The header of
 // docs/assets/demo.tape gives the design. `kill-all <socket>` ends a daemon's sessions.
+import { join } from 'node:path';
 import { isRecord } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
 import { DAEMON_EVENT_SCHEMA, SESSION_DESCRIPTOR_SCHEMA } from '@atcx/contract';
@@ -25,9 +26,14 @@ interface Watch {
 interface RecordingOptions {
   readonly localSocket: string;
   readonly cloudSocket: string;
-  readonly localProject: string;
-  readonly cloudProject: string;
+  readonly project: string;
+  readonly cues: string;
   readonly tape: string;
+}
+
+interface StagedFleet {
+  readonly orchestrator: string;
+  readonly builderAPI: string;
 }
 
 const SESSION_LIST_SCHEMA = z.object({ sessions: z.array(SESSION_DESCRIPTOR_SCHEMA) });
@@ -36,29 +42,17 @@ const SESSION_LIST_SCHEMA = z.object({ sessions: z.array(SESSION_DESCRIPTOR_SCHE
 // tape gets longer than a step the daemons answer.
 const STEP_TIMEOUT_MS = 30_000;
 const TAPE_TIMEOUT_MS = 120_000;
-
-// The viewer's time to read the list before the builders join it, and to
-// read the two builders before one of them needs you.
-const LIST_HOLD_MS = 1000;
-const BUILDERS_HOLD_MS = 3000;
 const [mode = '', ...args] = process.argv.slice(2);
 
 if (mode === 'record' && args.length === 5) {
-  const [localSocket = '', cloudSocket = '', localProject = '', cloudProject = '', tape = ''] =
-    args;
+  const [localSocket = '', cloudSocket = '', project = '', cues = '', tape = ''] = args;
 
-  process.exitCode = await runRecording({
-    localSocket,
-    cloudSocket,
-    localProject,
-    cloudProject,
-    tape,
-  });
+  process.exitCode = await runRecording({ localSocket, cloudSocket, project, cues, tape });
 } else if (mode === 'kill-all' && args.length === 1) {
   await removeSessions(args[0] ?? '');
 } else {
   console.error(
-    'usage: run-demo-recording.ts record <local socket> <cloud socket> <local project> <cloud project> <tape> | kill-all <socket>',
+    'usage: run-demo-recording.ts record <local socket> <cloud socket> <project> <cues folder> <tape> | kill-all <socket>',
   );
 
   process.exitCode = 2;
@@ -71,10 +65,10 @@ async function runRecording(options: RecordingOptions): Promise<number> {
   const cloud = await openWatchedClient(options.cloudSocket, watch);
 
   try {
-    const orchestrator = await runStaging(local, cloud, options, watch);
+    const staged = await runStaging(local, cloud, options.project, watch);
 
     return await runTape(options.tape, watch, async () => {
-      await runBeats(local, orchestrator, watch);
+      await runBeats(cloud, staged, options.cues, watch);
     });
   } finally {
     local.stop();
@@ -99,37 +93,45 @@ async function openWatchedClient(socket: string, watch: Watch): Promise<DaemonCl
   return client;
 }
 
-// Two sessions on each daemon, staged before vhs starts, so the first frame
-// of the list already holds them.
+// Staged before vhs starts, so the first list frame holds them. One pin per
+// daemon keeps every row in place: pinned rows sort by last attach, and the
+// rest by state, so docs (done) stays above builder-ui (running).
 async function runStaging(
   local: DaemonClient,
   cloud: DaemonClient,
-  options: RecordingOptions,
+  project: string,
   watch: Watch,
-): Promise<string> {
-  const localProject = options.localProject;
-  const cloudProject = options.cloudProject;
+): Promise<StagedFleet> {
+  const orchestrator = await spawnSession(
+    local,
+    project,
+    'orchestrator',
+    'Plan the orders release, and start a builder for each part.',
+  );
 
-  const staged = [
-    await spawnSession(
-      local,
-      localProject,
-      'orchestrator',
-      'plan the 2.0 release and start a builder for each part',
-    ),
-    await spawnSession(local, localProject, 'docs', 'write the 2.0 upgrade notes'),
-    await spawnSession(cloud, cloudProject, 'flaky-test', 'find why the checkout test flakes'),
-    await spawnSession(cloud, cloudProject, 'bench', 'profile the search endpoint'),
-  ];
+  const docs = await spawnSession(cloud, project, 'docs', 'Write the upgrade notes for 2.0.');
 
-  await waitUntil(watch, 'every staged agent reports SessionStart', async () => {
-    const localSessions = await readSessions(local);
-    const cloudSessions = await readSessions(cloud);
+  const builderAPI = await spawnSession(
+    cloud,
+    project,
+    'builder-api',
+    'Build the orders API: the orders table, its routes and the status endpoint.',
+  );
 
-    return isEveryAgentStarted([...localSessions, ...cloudSessions], staged);
+  await local.sendRequest('session.update', { session: orchestrator, pinned: true });
+  await cloud.sendRequest('session.update', { session: builderAPI, pinned: true });
+
+  await waitUntil(watch, 'every staged agent settles', async () => {
+    const sessions = [...(await readSessions(local)), ...(await readSessions(cloud))];
+
+    return (
+      isSettled(sessions, orchestrator, 'done') &&
+      isSettled(sessions, docs, 'done') &&
+      isSettled(sessions, builderAPI, 'running')
+    );
   });
 
-  return staged[0] ?? '';
+  return { orchestrator, builderAPI };
 }
 
 // vhs runs in a process group of its own, so a stop takes its terminal
@@ -171,48 +173,39 @@ async function watchExit(vhs: Bun.Subprocess, watch: Watch): Promise<void> {
   watch.wake();
 }
 
-async function runBeats(local: DaemonClient, orchestrator: string, watch: Watch): Promise<void> {
+// The orchestrator spawns builder-ui and messages builder-api by itself. The
+// drive script cues builder-ui's question only once the tape has left
+// builder-api, and waits for it to reach builder-api.
+async function runBeats(
+  cloud: DaemonClient,
+  staged: StagedFleet,
+  cues: string,
+  watch: Watch,
+): Promise<void> {
   await waitForTape(watch, 'the tape attaches the orchestrator', () =>
-    hasEvent(watch.events, 'SessionAttached', orchestrator),
+    hasEvent(watch.events, 'SessionAttached', staged.orchestrator),
   );
 
-  await waitForTape(watch, 'the tape opens the list over the orchestrator', () =>
-    hasEvent(watch.events, 'SessionDetached', orchestrator),
+  await waitForTape(watch, 'the tape leaves builder-api', () =>
+    hasEvent(watch.events, 'SessionDetached', staged.builderAPI),
   );
 
-  await Bun.sleep(LIST_HOLD_MS);
+  const cloudSessions = await readSessions(cloud);
 
-  await runSend(orchestrator, 'start builders: api, ui');
+  const builderUI = cloudSessions.find((x) => x.name === 'builder-ui');
 
-  let builders: SessionDescriptor[] = [];
-
-  await waitForDaemon(
-    watch,
-    'both builders report SessionStart under the orchestrator',
-    async () => {
-      const sessions = await readSessions(local);
-
-      builders = collectStartedChildren(sessions, orchestrator);
-
-      return builders.length === 2;
-    },
-  );
-
-  await Bun.sleep(BUILDERS_HOLD_MS);
-
-  const asked = builders.find((x) => x.name === 'builder-ui');
-
-  if (asked === undefined) {
-    throw new Error('the orchestrator started no builder-ui');
+  if (builderUI === undefined) {
+    throw new Error('the orchestrator started no builder-ui on cloud');
   }
 
-  await runSend(asked.id, 'ask: Allow bun run migrate against the staging database?');
+  await Bun.write(join(cues, builderUI.id), '');
 
-  await waitForDaemon(watch, 'builder-ui needs you', async () => {
-    const sessions = await readSessions(local);
-
-    return sessions.some((x) => x.id === asked.id && x.state === 'needs_you');
-  });
+  await waitForDaemon(watch, 'builder-ui messages builder-api', () =>
+    watch.events.some(
+      (x) =>
+        x.ev === 'SessionMessage' && x.sessionID === staged.builderAPI && x.from === 'builder-ui',
+    ),
+  );
 }
 
 async function waitForTape(watch: Watch, what: string, check: Check): Promise<void> {
@@ -271,18 +264,12 @@ async function waitUntil(
   }
 }
 
-function isEveryAgentStarted(
+function isSettled(
   sessions: readonly SessionDescriptor[],
-  ids: readonly string[],
+  id: string,
+  state: SessionDescriptor['state'],
 ): boolean {
-  return ids.every((id) => sessions.some((x) => x.id === id && x.agentSessionID !== undefined));
-}
-
-function collectStartedChildren(
-  sessions: readonly SessionDescriptor[],
-  parent: string,
-): SessionDescriptor[] {
-  return sessions.filter((x) => x.parent === parent && x.agentSessionID !== undefined);
+  return sessions.some((x) => x.id === id && x.agentSessionID !== undefined && x.state === state);
 }
 
 function hasEvent(
@@ -324,19 +311,6 @@ async function readSessions(client: DaemonClient): Promise<SessionDescriptor[]> 
   const listed = await client.sendRequest('session.list');
 
   return SESSION_LIST_SCHEMA.parse(listed).sessions;
-}
-
-// The message goes out through `atc send`, the command a script runs.
-async function runSend(session: string, text: string): Promise<void> {
-  const send = Bun.spawn(['atc', 'send', session, text], { stdout: 'ignore', stderr: 'pipe' });
-
-  const code = await send.exited;
-
-  if (code !== 0) {
-    const reason = await send.stderr.text();
-
-    throw new Error(`atc send to ${session} exited ${code}: ${reason}`);
-  }
 }
 
 async function removeSessions(socket: string): Promise<void> {

@@ -46,15 +46,19 @@ teardown() {
 }
 trap teardown EXIT INT TERM
 
-# Both daemons run on this machine, so the cloud sessions work in a folder of
-# the local home: the list shows each path from that home, as ~/projects/...
+# Both daemons run on this machine, so every session works in one folder of
+# the local home, as if each box had the repo checked out at the same path:
+# the list shows it from that home, as ~/projects/shop.
 mkdir -p "$DEMO/bin" "$DEMO/run" "$DEMO/cloud-run" "$DEMO/cloud/.config/atc" \
-  "$DEMO/home/.config/atc" "$DEMO/home/projects/shop" "$DEMO/home/projects/search"
+  "$DEMO/home/.config/atc" "$DEMO/home/projects/shop" "$DEMO/cues"
 printf '#!/bin/sh\nexec bun "%s/packages/app/src/cli.ts" "$@"\n' "$ROOT" > "$DEMO/bin/atc"
 printf '#!/bin/sh\nexec bun "%s/scripts/run-demo-agent.ts" "$@"\n' "$ROOT" > "$DEMO/bin/demo-agent"
 chmod +x "$DEMO/bin/atc" "$DEMO/bin/demo-agent"
 export PATH="$DEMO/bin:$PATH"
 export DEMO_HOME="$DEMO/home"
+# The drive script drops a file named for a session here to cue that
+# session's stand-in; the stand-ins inherit it from their daemon.
+export DEMO_CUES="$DEMO/cues"
 
 wait_for_file() {
   for _ in $(seq 1 100); do
@@ -98,7 +102,7 @@ wait_for_file "$XDG_RUNTIME_DIR/atc-daemon.sock"
 # failing, so the GIF replaces the committed one only once it decodes.
 cd "$DEMO"
 bun "$ROOT/scripts/run-demo-recording.ts" record "$DEMO/run/atc-daemon.sock" "$DEMO/cloud-run/atc-daemon.sock" \
-  "$DEMO/home/projects/shop" "$DEMO/home/projects/search" "$ROOT/docs/assets/demo.tape"
+  "$DEMO/home/projects/shop" "$DEMO/cues" "$ROOT/docs/assets/demo.tape"
 FRAMES=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 demo.gif)
 # ffprobe prints N/A for a GIF with a header and no frames.
 if ! [[ "$FRAMES" =~ ^[0-9]+$ ]] || [ "$FRAMES" -lt 1 ]; then

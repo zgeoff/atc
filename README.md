@@ -16,7 +16,7 @@
   </p>
 </div>
 
-<img src="./docs/assets/demo.gif" alt="atc: one session list over a local and a cloud daemon, an orchestrator that starts two builders under it, and a builder that needs you" width="1100">
+<img src="./docs/assets/demo.gif" alt="atc: one session list over a local and a cloud daemon. The orchestrator starts a UI builder on the cloud box and messages the API builder, and the new builder asks the API builder a question." width="1100">
 
 atc runs your coding agents in a daemon, on as many machines as you like. The TUI is a multiplexer
 over all of them, your scripts drive them from the shell, and the agents drive each other over MCP.
