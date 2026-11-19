@@ -1,6 +1,6 @@
 # @atcx/client
 
-- **Status:** draft
+- **Status:** agreed
 
 `@atcx/client` is an npm package beside `@atcx/contract`. Its `connect()` finds the local daemon,
 opens the daemon socket, sends the hello, and returns every daemon procedure, typed by the request

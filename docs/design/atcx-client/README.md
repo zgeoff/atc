@@ -1,6 +1,6 @@
 # A published daemon client and minor-version compatibility
 
-- **Status:** draft
+- **Status:** agreed
 - **Decision records:**
   [0002](../../decisions/0002-clients-and-daemons-talk-across-minor-versions.md)
 
