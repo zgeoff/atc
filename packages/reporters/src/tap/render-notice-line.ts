@@ -8,7 +8,6 @@ interface NoticeLineFields {
 
 export function renderNoticeLine(notice: NoticeLineFields): string {
   return `${JSON.stringify({
-    // no `text` field, so a reader that takes only message lines skips it
     kind: 'answer',
     id: notice.message,
     from: notice.from,

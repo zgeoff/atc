@@ -47,7 +47,6 @@ test('it waits past 2 s for the daemon to close a session start report', async (
   const sock = join(temporaryDirectory.path, 'reporter.sock');
   const order: string[] = [];
 
-  // a remote host's relay keeps a guest's connection open after the guest closes its writing side
   const server = Bun.listen({
     unix: sock,
     allowHalfOpen: true,

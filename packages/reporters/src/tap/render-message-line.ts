@@ -13,8 +13,6 @@ export function renderMessageLine(message: MessageLineFields): string {
     id: message.message,
     from: message.from,
 
-    // the sender's kind stays inside `sender`: a reader takes a line with a
-    // top-level `kind` for an answer notice
     ...(message.sender === undefined ? {} : { sender: message.sender }),
     text: message.text,
     sentAt: message.sentAt,

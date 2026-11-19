@@ -11,7 +11,6 @@ function setupTest() {
   const temporaryDirectory = setupTempDir('atc-bridge-tap-');
   const outbox = join(temporaryDirectory.path, 'outbox');
 
-  // The tap reads its notes from here, and each test writes one into it.
   mkdirSync(outbox);
 
   return {
@@ -160,8 +159,6 @@ test('it removes no file for an answer to a note id it never sent', async () => 
 test('it prints and acks an answer notice when the tap takes notices', async () => {
   const ctx = setupTest();
 
-  // The bridge sends the notice once it answers the note the tap sends,
-  // and closes the inbox once the tap acks the notice.
   const bridge = startStubSessionBridge(ctx.sock, (request) =>
     request['op'] === 'note'
       ? [
@@ -261,8 +258,6 @@ test('it prints no answer notice when the tap takes none', async () => {
 test('it prints a message with the sender the daemon gave it', async () => {
   const ctx = setupTest();
 
-  // The bridge sends the message once it answers the note the tap sends,
-  // and closes the inbox once the tap acks the message.
   startStubSessionBridge(ctx.sock, (request) =>
     request['op'] === 'note'
       ? [
