@@ -2,6 +2,7 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { inspect } from 'node:util';
 import { buildMockExecutionHostServices } from '@atc/plugin-api/test-utils/build-mock-execution-host-services';
 import { SPRITES_PLUGIN } from './sprites-plugin';
 
@@ -69,10 +70,16 @@ test('it lists the target as unavailable, naming the file, when the token file i
 
 test('it never puts the token in the problem of an unavailable target', () => {
   const ctx = setupTest();
+  const thrown: unknown[] = [];
 
-  expect(() =>
-    ctx.create({ tokenEnv: 'SPRITES_TOKEN' }, { SPRITES_TOKEN: 'org/id/secret' }),
-  ).toThrow(expect.objectContaining({ problem: expect.not.stringContaining('org/id/secret') }));
+  try {
+    ctx.create({ tokenEnv: 'SPRITES_TOKEN' }, { SPRITES_TOKEN: 'org/id/secret' });
+  } catch (error) {
+    thrown.push(error);
+  }
+
+  expect(thrown).toHaveLength(1);
+  expect(inspect(thrown[0])).not.toContain('org/id/secret');
 });
 
 test('it lists the target as unavailable when both token keys are set', () => {
