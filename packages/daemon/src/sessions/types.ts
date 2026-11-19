@@ -1,5 +1,5 @@
 import type { ExecutionProvider } from '@atc/plugin-api';
-import type { HarnessPlan } from '../auth/create-auth-setup';
+import type { HarnessPlan } from '../auth/types';
 import type { DaemonContext } from '../types';
 
 export interface TranscriptWindow {

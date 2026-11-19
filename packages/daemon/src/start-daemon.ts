@@ -18,6 +18,7 @@ import { getLogger } from '@logtape/logtape';
 import { isBindingCurrent } from './auth/is-binding-current';
 import type { BridgeBinding } from './auth/is-binding-current';
 import { buildDaemonContext } from './build-daemon-context';
+import type { DaemonHandle } from './daemon-handle';
 import { updateEndedFleetMessages } from './fleet/update-ended-fleet-messages';
 import { buildSessionEvent } from './sessions/build-session-event';
 import { createPermissionPrompts } from './sessions/create-permission-prompts';
@@ -33,11 +34,10 @@ import type { HookScope } from './sessions/make-hook-runner';
 import { startSessionServices } from './start-session-services';
 import { buildBindRefusal } from './transport/build-bind-refusal';
 import { createDaemonConnection } from './transport/create-daemon-connection';
-import type { DaemonConnection, PeerSession } from './transport/create-daemon-connection';
+import type { DaemonConnection } from './transport/create-daemon-connection';
 import { createEventSignal } from './transport/create-event-signal';
 import { createRelayPeerSocket } from './transport/create-relay-peer-socket';
-import { readPeerPID } from './transport/read-peer-pid';
-import { readPeerSession } from './transport/read-peer-session';
+import { readSocketSession } from './transport/read-socket-session';
 import { requireListenTokens } from './transport/require-listen-tokens';
 import { routeBridgeRelay } from './transport/route-bridge-relay';
 import { startEventSweep } from './transport/start-event-sweep';
@@ -47,28 +47,6 @@ import type { TCPListener } from './transport/start-tcp-listener';
 import { tryRemoveExpiredIdempotencyKeys } from './transport/try-remove-expired-idempotency-keys';
 import { withOwnerOnlySocket } from './transport/with-owner-only-socket';
 import type { DaemonOptions, TapClient } from './types';
-
-export interface DaemonHandle {
-  // A second stop, or a disposal after one, waits on the first and stops
-  // nothing again.
-  readonly stop: () => Promise<void>;
-
-  readonly [Symbol.asyncDispose]: () => Promise<void>;
-
-  // How many client-protocol connections are open right now.
-  readonly countClients: () => number;
-
-  // How many event reads are waiting right now for the trail to grow.
-  readonly countEventWaiters: () => number;
-
-  // The port the TCP listener bound, or null without one.
-  readonly listenPort: number | null;
-
-  // Reads the token file again and closes every TCP connection whose
-  // handshake token it no longer holds. A file that fails to load drops
-  // every token and closes every TCP connection until a load succeeds.
-  readonly refreshTokens: () => void;
-}
 
 // A completed idempotency key is kept this long after it completed, and the
 // sweep that drops older ones runs this often.
@@ -169,28 +147,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
   const clients = new Set<DaemonConnection>();
 
   const runHooks = makeHookRunner(opts.hooks ?? {}, { clock });
-
-  // From the pid the kernel holds for the socket's peer and the live harness processes of the
-  // sessions; null outside every session and where the kernel cannot be asked.
-  const readSocketSession = (socket: object): PeerSession | null => {
-    const pid = readPeerPID(socket);
-
-    if (pid === null) {
-      return null;
-    }
-
-    const harnesses = new Map<number, SessionID>();
-
-    for (const session of manager.sessions) {
-      if (session.pty?.pid !== undefined) {
-        harnesses.set(session.pty.pid, session.id);
-      }
-    }
-
-    const id = readPeerSession(pid, harnesses);
-
-    return id === null ? null : { id };
-  };
 
   // Any local process reads the events socket, a process inside a session
   // too: the socket only streams, so the session a peer runs inside binds
@@ -531,7 +487,12 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
       unix: opts.socketPath,
       socket: {
         open(socket) {
-          socket.data = createDaemonConnection(socket, ctx, null, readSocketSession(socket));
+          socket.data = createDaemonConnection(
+            socket,
+            ctx,
+            null,
+            readSocketSession(socket, manager.sessions),
+          );
 
           clients.add(socket.data);
         },

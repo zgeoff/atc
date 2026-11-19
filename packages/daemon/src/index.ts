@@ -1,5 +1,6 @@
 export * from './auth/create-runtime-auth-binder';
 export * from './start-daemon';
+export type * from './daemon-handle';
 export type * from './types';
 export type * from './types';
 export * from './fleet/build-execution-targets';
