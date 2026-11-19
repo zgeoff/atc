@@ -213,6 +213,10 @@ export const DAEMON_RECORD_SOCKET_SCHEMA = z.object({ socketPath: z.string().min
   `DaemonConnection.request`.
 - atc code throws and matches `AtcError` for every daemon error. Code that handles a dropped
   connection matches `connection_lost`.
+- `atc mcp` returns `connection_lost` for a call whose daemon connection dropped, and `timeout` for
+  a hello that ran out of time. Each tool description that names either case follows the
+  tool-contract rules. `outcome_unknown` keeps its meaning: a keyed call that the daemon or the
+  gateway cannot say ran or not.
 - The TUI and the other atc callers start the event stream through `events()`.
 - `atc send` calls `connect()`, with the local socket path or with the remote address, token and
   principal, and keeps its own timeout and exit codes.
