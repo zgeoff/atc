@@ -610,7 +610,12 @@ export function createDockerProvider(
         try {
           const containers = await listHostContainers(host);
 
-          const running = containers.filter((container) => container.status === 'running');
+          // a throwaway container of a command in flight ends on its own
+          const running = containers.filter(
+            (container) =>
+              container.status === 'running' &&
+              !container.name.startsWith(`${target.namePrefix}run-`),
+          );
 
           // harnesses first, so a sidecar never waits on a frame a paused harness would send
           const ordered = [
