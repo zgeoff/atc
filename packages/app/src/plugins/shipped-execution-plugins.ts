@@ -15,6 +15,14 @@ export const SHIPPED_EXECUTION_PLUGINS: ReadonlyMap<string, () => Promise<Execut
       },
     ],
     [
+      'docker',
+      async () => {
+        const docker = await import('@atc/execution-docker');
+
+        return docker.DOCKER_PLUGIN;
+      },
+    ],
+    [
       'imp',
       async () => {
         const imp = await import('@atc/execution-imp');
