@@ -1,5 +1,6 @@
 import { isRecord } from '@atc/core';
 import { formatJSONKind } from '../config-file/format-json-kind';
+import { collectSpritePrefixOverlaps } from './collect-sprite-prefix-overlaps';
 import { LOCAL_TARGET } from './local-target';
 
 export interface TargetConfig {
@@ -124,5 +125,32 @@ function collectTargetEntries(raw: unknown): TargetEntries {
     targets.push({ id, provider, options });
   }
 
-  return { targets, errors };
+  return refuseOverlappingSpritePrefixes(targets, errors);
+}
+
+// Neither target of an overlapping pair stays: each one's sprites would use the connectors of the
+// other's access policy.
+function refuseOverlappingSpritePrefixes(
+  targets: readonly TargetConfig[],
+  errors: readonly TargetSectionError[],
+): TargetEntries {
+  const overlaps = collectSpritePrefixOverlaps(targets);
+
+  if (overlaps.length === 0) {
+    return { targets, errors };
+  }
+
+  const refused = new Set(overlaps.flatMap((overlap) => [overlap.shorter, overlap.longer]));
+
+  return {
+    targets: targets.filter((target) => !refused.has(target.id)),
+    errors: [
+      ...errors,
+      ...overlaps.map((overlap): TargetSectionError => ({
+        scope: 'target',
+        target: overlap.longer,
+        problem: `targets ${JSON.stringify(overlap.shorter)} and ${JSON.stringify(overlap.longer)} are both sprites targets, and the spritePrefix of ${JSON.stringify(overlap.longer)} starts with the spritePrefix of ${JSON.stringify(overlap.shorter)}; give each target a prefix that no other starts with, so a connector's access policy admits one target alone`,
+      })),
+    ],
+  };
 }

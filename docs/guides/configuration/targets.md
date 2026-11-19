@@ -14,8 +14,9 @@ your own:
 }
 ```
 
-- `provider` selects the provider kind: `local-pty`, `imp` or `docker`. The
-  [docker targets guide](./docker-targets.md) covers `docker`. Every other key in the entry is an
+- `provider` selects the provider kind: `local-pty`, `imp`, `docker` or `sprites`. The
+  [docker targets guide](./docker-targets.md) covers `docker`, and the
+  [sprites targets guide](./sprites-targets.md) covers `sprites`. Every other key in the entry is an
   option for that provider.
 - A target whose provider kind this atc does not have still lists, as unavailable, and a spawn to it
   fails with `target_unavailable`.

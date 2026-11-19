@@ -12,6 +12,7 @@
         "@atc/execution-docker": "workspace:*",
         "@atc/execution-imp": "workspace:*",
         "@atc/execution-local": "workspace:*",
+        "@atc/execution-sprites": "workspace:*",
         "@atc/gateway": "workspace:*",
         "@atc/harness-claude": "workspace:*",
         "@atc/harness-codex": "workspace:*",
@@ -69,6 +70,7 @@
         "@atc/execution-docker": "workspace:*",
         "@atc/execution-imp": "workspace:*",
         "@atc/execution-local": "workspace:*",
+        "@atc/execution-sprites": "workspace:*",
         "@atc/gateway": "workspace:*",
         "@atc/harness-claude": "workspace:*",
         "@atc/harness-codex": "workspace:*",
@@ -198,6 +200,18 @@
       },
       "devDependencies": {
         "tiny-invariant": "catalog:",
+      },
+    },
+    "packages/execution/sprites": {
+      "name": "@atc/execution-sprites",
+      "dependencies": {
+        "@atc/config": "workspace:*",
+        "@atc/core": "workspace:*",
+        "@atc/plugin-api": "workspace:*",
+        "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
+        "@fly/sprites": "catalog:",
+        "zod": "catalog:",
       },
     },
     "packages/gateway": {
@@ -432,6 +446,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.3.316",
     "@commitlint/cli": "21.2.4",
     "@faker-js/faker": "10.6.0",
+    "@fly/sprites": "0.2.4",
     "@impz/client": "7.0.1",
     "@logtape/logtape": "2.4.2",
     "@modelcontextprotocol/sdk": "1.32.2",
@@ -521,6 +536,8 @@
     "@atc/execution-imp": ["@atc/execution-imp@workspace:packages/execution/imp"],
 
     "@atc/execution-local": ["@atc/execution-local@workspace:packages/execution/local"],
+
+    "@atc/execution-sprites": ["@atc/execution-sprites@workspace:packages/execution/sprites"],
 
     "@atc/gateway": ["@atc/gateway@workspace:packages/gateway"],
 
@@ -643,6 +660,8 @@
     "@eslint/plugin-kit": ["@eslint/plugin-kit@0.7.3", "", { "dependencies": { "@eslint/core": "^1.2.1", "levn": "^0.4.1" } }, "sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q=="],
 
     "@faker-js/faker": ["@faker-js/faker@10.6.0", "", {}, "sha512-3RQHgEtvL1Frl/d1cSreo7qhJ3Gk1OdNUai/CtZ8G+wYeRQnJih3s9xJ9/kgYekPQRdwgh0HXRPqMlzWGwivIQ=="],
+
+    "@fly/sprites": ["@fly/sprites@0.2.4", "", { "dependencies": { "@fly/client-signals": "file:vendor/client-signals" } }, "sha512-L72IKlZSIHMr6GnSu1ED7sBJjzcdLsO5oEX6aiDxH71fKj4q4m0BQ2PefBlGaybSvvKnLciz2hDy0qHnno0ezQ=="],
 
     "@hexagon/base64": ["@hexagon/base64@1.1.28", "", {}, "sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw=="],
 
@@ -1541,6 +1560,8 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
+
+    "@fly/sprites/@fly/client-signals": ["@fly/client-signals@file:vendor/client-signals", { "bundled": true }],
 
     "@wringer/core/@zgeoff/std": ["@zgeoff/std@0.4.3", "", {}, "sha512-wCaqH8+vrkR+6R/grWUUDraryyFY1NW0Gjbhg85bXX38k9Q+N3aHFu+Yc+EjzZ/Sp9n5aJnCvZqbO5F2mUjWAg=="],
 

@@ -1,0 +1,20 @@
+{
+  "name": "@atc/execution-sprites",
+  "private": true,
+  "description": "The Sprites execution provider: Claude sessions run in fly.io sprites, each harness in a terminal exec and the session bridge over a relay exec, with credentials added by a Sprites connector",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./guest-scripts": "./src/guest-scripts/index.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
+  },
+  "dependencies": {
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
+    "@fly/sprites": "catalog:",
+    "zod": "catalog:"
+  }
+}

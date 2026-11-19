@@ -3,7 +3,7 @@ import { IMP_PLUGIN } from '@atc/execution-imp';
 import { buildTargetIdentity } from '@atc/store';
 import { SHIPPED_EXECUTION_PLUGINS } from './shipped-execution-plugins';
 
-test('it ships the local PTY, docker and imp execution plugins, each under its own id', async () => {
+test('it ships the local PTY, docker, sprites and imp execution plugins, each under its own id', async () => {
   const loaded = await Promise.all(
     [...SHIPPED_EXECUTION_PLUGINS].map(async ([id, loadPlugin]) => {
       const plugin = await loadPlugin();
@@ -15,6 +15,7 @@ test('it ships the local PTY, docker and imp execution plugins, each under its o
   expect(loaded).toStrictEqual([
     ['local-pty', 'local-pty'],
     ['docker', 'docker'],
+    ['sprites', 'sprites'],
     ['imp', 'imp'],
   ]);
 });
