@@ -213,6 +213,36 @@ test.each([
     stderr: [],
   },
   {
+    title: 'outcome_unknown with an effectRef that message.get finds answered, without --wait',
+    script: { send: { error: 'outcome_unknown', effectRef: 'm-9' }, gets: [{ view: 'answered' }] },
+    request: {},
+    exit: 0,
+    stdout: ['yes'],
+    stderr: [],
+  },
+  {
+    title: 'outcome_unknown with an effectRef that message.get finds unanswered, without --wait',
+    script: {
+      send: { error: 'outcome_unknown', effectRef: 'm-9' },
+      gets: [{ view: 'unanswered' }],
+    },
+    request: {},
+    exit: 7,
+    stdout: [],
+    stderr: ['atc send: unanswered: session_ended (key k-1, message m-9)'],
+  },
+  {
+    title: 'outcome_unknown with an effectRef whose recovery read is refused',
+    script: {
+      send: { error: 'outcome_unknown', effectRef: 'm-9' },
+      gets: [{ error: 'unauthorized' }],
+    },
+    request: {},
+    exit: 6,
+    stdout: [],
+    stderr: [expect.toEndWith('(key k-1, message m-9)')],
+  },
+  {
     title: 'outcome_unknown on the local socket with no effectRef',
     script: { send: { error: 'outcome_unknown' } },
     request: {},
@@ -372,6 +402,25 @@ test('it prints the error with the key as one JSON line for a refused send with 
   expect({ exit, stdout: ctx.out, stderr: ctx.err }).toStrictEqual({
     exit: 6,
     stdout: ['{"key":"k-1","error":{"code":"idempotency_conflict","message":"daemon said no"}}'],
+    stderr: [],
+  });
+});
+
+test('it prints the message id in the JSON error when the recovery read is refused', async () => {
+  const ctx = setupTest();
+
+  ctx.setScript({
+    send: { error: 'outcome_unknown', effectRef: 'm-9' },
+    gets: [{ error: 'unauthorized' }],
+  });
+
+  const exit = await ctx.run({ ...ctx.baseRequest, json: true });
+
+  expect({ exit, stdout: ctx.out, stderr: ctx.err }).toStrictEqual({
+    exit: 6,
+    stdout: [
+      '{"key":"k-1","message":"m-9","error":{"code":"outcome_unknown","message":"the daemon did not say whether the message was delivered: read refused"}}',
+    ],
     stderr: [],
   });
 });

@@ -14,6 +14,7 @@ import type {
   CommandOutcome,
   ConnectResult,
   ConnectTarget,
+  MessageView,
   SendConnection,
   SendRequest,
 } from './send-types';
@@ -193,6 +194,10 @@ async function sendMessage(
     base = { ...base, message: sent.message };
     stage = 'wait';
 
+    if (sent.view !== null && (isSettled(sent.view.status) || !job.request.wait)) {
+      return buildReadOutcome(base, sent.view, false);
+    }
+
     if (!job.request.wait) {
       return { ...base, exitCode: 0, progress: { status: sent.status }, view: null, error: null };
     }
@@ -223,6 +228,9 @@ type SentMessage =
       readonly kind: 'sent';
       readonly message: string;
       readonly status: z.output<typeof MESSAGE_ANSWER_SCHEMA>['status'];
+
+      // The message the recovery read returned, or null for a normal send.
+      readonly view: MessageView | null;
     }
   | { readonly kind: 'failed'; readonly outcome: CommandOutcome };
 
@@ -250,7 +258,7 @@ async function sendOnce(
 
     const sent = MESSAGE_ANSWER_SCHEMA.parse(answer);
 
-    return { kind: 'sent', message: sent.message, status: sent.status };
+    return { kind: 'sent', message: sent.message, status: sent.status, view: null };
   } catch (error) {
     const picked = pickSendFailure(error, {
       stage: 'send',
@@ -272,6 +280,8 @@ async function settleUnknownSend(
   effectRef: string,
   dependencies: Readonly<SendDependencies>,
 ): Promise<SentMessage> {
+  const known: OutcomeBase = { ...base, message: effectRef };
+
   try {
     const read = await waitForMessage({
       connection: job.connection,
@@ -280,7 +290,7 @@ async function settleUnknownSend(
       timeoutSeconds: null,
     });
 
-    return { kind: 'sent', message: effectRef, status: read.view.status };
+    return { kind: 'sent', message: effectRef, status: read.view.status, view: read.view };
   } catch (error) {
     const picked = pickSendFailure(error, {
       stage: 'recover',
@@ -290,6 +300,10 @@ async function settleUnknownSend(
 
     invariant(picked.kind === 'ended');
 
-    return { kind: 'failed', outcome: buildFailureOutcome(base, picked.exitCode, picked.error) };
+    return { kind: 'failed', outcome: buildFailureOutcome(known, picked.exitCode, picked.error) };
   }
+}
+
+function isSettled(status: MessageView['status']): boolean {
+  return status === 'answered' || status === 'unanswered';
 }
