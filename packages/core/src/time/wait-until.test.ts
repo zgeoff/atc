@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { buildStubClock } from './test-utils/build-stub-clock';
-import { waitFor } from './test-utils/wait-for';
+import { buildStubClock } from '../test-utils/build-stub-clock';
+import { waitFor } from '../test-utils/wait-for';
 import { waitUntil } from './wait-until';
 
 test('it resolves true without pausing when the condition holds at once', async () => {
