@@ -7,6 +7,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { readDaemonRecord } from '../daemon-files/read-daemon-record';
 import { probeProcessAlive } from '../daemon-process/probe-process-alive';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
@@ -43,7 +44,8 @@ test('it keeps the daemon state in the home and records the daemon process there
     reporterSocketPath: paths.socketPath,
     eventsSocketPath: paths.eventsSocketPath,
     listenPort: null,
-    protocol: 14,
+    protocol: 15,
+    major: CONTRACT_MAJOR,
   });
 });
 
@@ -216,7 +218,8 @@ test('it lays the config variables over the environment of the daemon', async ()
     reporterSocketPath: paths.socketPath,
     eventsSocketPath: paths.eventsSocketPath,
     listenPort: null,
-    protocol: 14,
+    protocol: 15,
+    major: CONTRACT_MAJOR,
   });
 });
 
@@ -259,7 +262,8 @@ test('it removes a variable the config sets to undefined from the environment of
     reporterSocketPath: paths.socketPath,
     eventsSocketPath: paths.eventsSocketPath,
     listenPort: null,
-    protocol: 14,
+    protocol: 15,
+    major: CONTRACT_MAJOR,
   });
 });
 

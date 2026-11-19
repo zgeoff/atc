@@ -17,7 +17,7 @@ export async function waitForRestartConsent(
   }
 
   const lines = [
-    `atc: the daemon (pid ${mismatch.daemonPID}) speaks another protocol than this client, ${mismatch.clientBuild} on protocol v${mismatch.clientProtocol}.`,
+    `atc: the daemon (pid ${mismatch.daemonPID}) speaks another major version than this client, ${mismatch.clientBuild} on major version ${mismatch.clientMajor}.`,
     `The daemon answered: ${mismatch.daemonMessage}`,
     'Restart it now? Every session it hosts ends, then the fleet is restored on the new daemon. [y/N] ',
   ];

@@ -20,5 +20,4 @@ export * from './session-views/sort-session-views';
 export type * from './session-views/sortable-session-view';
 export * from './version-mismatch/format-protocol-mismatch';
 export * from './version-mismatch/is-client-behind';
-export * from './version-mismatch/mismatch-refusal-data';
 export * from './wire';

@@ -32,7 +32,7 @@ function formatTarget(plan: RestartPlan): string[] {
   }
 
   return [
-    `daemon: ${pid}, build ${plan.answer.build}, protocol v${plan.answer.protocol}`,
+    `daemon: ${pid}, build ${plan.answer.build}, protocol v${plan.answer.protocol}, major ${plan.answer.major}`,
     ...formatSessions(plan),
   ];
 }

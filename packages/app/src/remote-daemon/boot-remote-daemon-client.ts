@@ -4,7 +4,8 @@ import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
+import { DaemonError } from '@atc/protocol/wire';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
 import { RemoteTokenError } from './remote-token-error';
 
@@ -245,9 +246,9 @@ function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown):
     return new DaemonError(
       'protocol_mismatch',
       [
-        `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} speaks another protocol than this client, ${build} on protocol v${PROTOCOL_V}.`,
+        `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} speaks another major version than this client, ${build} on major version ${CONTRACT_MAJOR}.`,
         `The daemon answered: ${error.message}`,
-        `${NO_FALLBACK} Run an atc build on the daemon's protocol here, or update the daemon on its host.`,
+        `${NO_FALLBACK} Run an atc build on the daemon's major version here, or update the daemon on its host.`,
       ].join('\n'),
     );
   }

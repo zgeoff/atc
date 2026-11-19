@@ -2,7 +2,8 @@ import { isRecord } from '@atc/core';
 import { ERROR_CODES } from '@atcx/contract/light';
 import type { ErrorCode } from '@atcx/contract/light';
 
-export const PROTOCOL_V = 14;
+// Stays 15 until the next major release drops the protocol number from the hello.
+export const PROTOCOL_V = 15;
 export const MAX_LINE = 1_048_576;
 export const MAX_CHUNK = 65_536;
 

@@ -2,15 +2,13 @@ import type { ChildProcess } from 'node:child_process';
 import { makeSingleFlight, toAgentID } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths, ProtocolMismatch } from '@atc/protocol';
-import {
-  MISMATCH_REFUSAL_DATA_SCHEMA,
-  formatProtocolMismatch,
-  isClientBehind,
-} from '@atc/protocol';
+import { formatProtocolMismatch, isClientBehind } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
+import { MISMATCH_REFUSAL_DATA_SCHEMA } from '@atcx/contract';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { buildHostDaemonPaths } from '../daemon-files/build-host-daemon-paths';
 import { readDaemonPID } from '../daemon-files/read-daemon-pid';
 import { readDaemonRecord } from '../daemon-files/read-daemon-record';
@@ -121,6 +119,8 @@ export async function bootDaemonClient(
         clientBuild: build,
         clientProtocol: PROTOCOL_V,
         daemonProtocol: refusal.data?.daemonProtocol ?? null,
+        clientMajor: CONTRACT_MAJOR,
+        daemonMajor: refusal.data?.daemonMajor ?? null,
         daemonMessage: error.message,
       };
 

@@ -6,6 +6,7 @@ import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openDaemonClient } from '@atc/protocol/client';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 
 function setupTest() {
@@ -127,7 +128,8 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     reporterSocketPath: ctx.paths.socketPath,
     eventsSocketPath: ctx.paths.eventsSocketPath,
     listenPort: null,
-    protocol: 14,
+    protocol: 15,
+    major: CONTRACT_MAJOR,
   });
 
   expect(Bun.peek.status(daemon.exited)).toBe('pending');

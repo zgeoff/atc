@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { buildDaemonStatePaths } from '@atc/config';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 
 function main() {
   const socketPath = process.argv.at(2);
@@ -16,6 +17,7 @@ function main() {
   startStubLegacyDaemon(socketPath, {
     protocol: build === 'current' ? PROTOCOL_V : PROTOCOL_V + 1,
     refusalHoldsProtocol: build === 'newer',
+    ...(build === 'newer' ? { major: CONTRACT_MAJOR + 1 } : {}),
     replies: { 'session.list': { sessions: [] }, 'fleet.list': { fleet: [] } },
     owner: 'caller',
   });

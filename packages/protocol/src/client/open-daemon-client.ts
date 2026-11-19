@@ -1,4 +1,5 @@
 import { isRecord } from '@atc/core';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { createORPCClient } from '@orpc/client';
 import { StandardRPCLink } from '@orpc/client/standard';
 import { ClientPeer } from '@orpc/standard-server-peer';
@@ -14,6 +15,7 @@ import { PROTOCOL_V } from '../wire/decode-message';
 import { PRINCIPAL_HEADERS } from '../wire/principal-headers';
 import { CLIENT_MACHINE } from './client-machine';
 import type { CallContext, DaemonClient, DaemonProcedures } from './daemon-client';
+import { findMissingFeature } from './find-missing-feature';
 import { toDaemonError } from './to-daemon-error';
 
 const QUEUE_BYTES = 8 * 1024 * 1024;
@@ -53,6 +55,9 @@ interface ClientConnection {
 
   inbound: Promise<void>;
 
+  // The features the hello answer listed; null until a hello is answered.
+  features: readonly string[] | null;
+
   findDefaultPrincipal: () => string | null;
 }
 
@@ -82,6 +87,18 @@ function createClientConnection(): ClientConnection {
         }),
       interceptors: [
         async (options) => {
+          const missing =
+            conn.features === null
+              ? null
+              : findMissingFeature(options.path.join('.'), options.input, conn.features);
+
+          if (missing !== null) {
+            throw new DaemonError(
+              'feature_missing',
+              `${options.path.join('.')} input ${missing.field} needs the daemon feature ${missing.feature}; restart the daemon on a newer atc`,
+            );
+          }
+
           try {
             return await options.next();
           } catch (error) {
@@ -102,6 +119,7 @@ function createClientConnection(): ClientConnection {
     socket: null,
     events: null,
     inbound: Promise.resolve(),
+    features: null,
     findDefaultPrincipal: () => null,
   };
 
@@ -186,11 +204,21 @@ async function sendClientRequest(
     asName: principal === undefined ? undefined : request.asName,
   };
 
-  const params = hello ? { protocol: PROTOCOL_V, ...request.params } : (request.params ?? {});
+  const params = hello
+    ? { protocol: PROTOCOL_V, major: CONTRACT_MAJOR, ...request.params }
+    : (request.params ?? {});
 
   const answer: unknown = await conn.link.call(method.split('.'), params, { context });
 
   const ok = isRecord(answer) ? answer : {};
+
+  if (hello) {
+    const features = ok['features'];
+
+    conn.features = Array.isArray(features)
+      ? features.filter((feature) => typeof feature === 'string')
+      : [];
+  }
 
   try {
     client.onAnswer(method, ok);

@@ -10,7 +10,7 @@ test('it builds a note event carrying the note label as its kind', () => {
   );
 
   expect(event).toStrictEqual({
-    version: 14,
+    version: 15,
     ev: 'SessionNote',
     sessionID: 's1',
     kind: 'blocked',

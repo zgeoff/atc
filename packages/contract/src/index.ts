@@ -19,6 +19,7 @@ export * from './workspaces/git-probe-result';
 export * from './workspaces/git-ref';
 export * from './sessions/grant-scope';
 export * from './hello/hello-result';
+export * from './hello/mismatch-refusal-data';
 export * from './light';
 export * from './daemon-events/max-events-cursor-bytes';
 export * from './gateway/max-registry-daemons';

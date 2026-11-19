@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { openDaemonClient } from '../client/index';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
@@ -33,7 +34,12 @@ test('it drops a connection on the selected request after answering the handshak
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/test-build', protocol: 14, auth: { scheme: 'none' } },
+      params: {
+        client: 'atc/test-build',
+        protocol: 15,
+        major: CONTRACT_MAJOR,
+        auth: { scheme: 'none' },
+      },
     },
     { method: 'session.list', params: {} },
   ]);
@@ -82,7 +88,12 @@ test('it answers a method with the reply it was given and records the request', 
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/test-build', protocol: 14, auth: { scheme: 'none' } },
+      params: {
+        client: 'atc/test-build',
+        protocol: 15,
+        major: CONTRACT_MAJOR,
+        auth: { scheme: 'none' },
+      },
     },
     { method: 'message.get', params: { message: 'm-1', waitMs: 5000 } },
   ]);
@@ -138,7 +149,7 @@ test('it refuses a hello on another protocol version with protocol_mismatch', as
   expect(client.sendHello('atc/test-build')).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message:
-      'atc/test-build speaks protocol v14, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
+      'atc/test-build speaks protocol v15, daemon atc/legacy-build speaks v3; restart the daemon so both run the same build',
     data: undefined,
   });
 });
