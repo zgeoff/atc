@@ -17,7 +17,9 @@ function main() {
   startStubLegacyDaemon(socketPath, {
     protocol: build === 'current' ? PROTOCOL_V : PROTOCOL_V + 1,
     refusalHoldsProtocol: build === 'newer',
-    ...(build === 'newer' ? { major: CONTRACT_MAJOR + 1 } : {}),
+    ...(build === 'newer' || build === 'current'
+      ? { major: build === 'newer' ? CONTRACT_MAJOR + 1 : CONTRACT_MAJOR }
+      : {}),
     replies: { 'session.list': { sessions: [] }, 'fleet.list': { fleet: [] } },
     owner: 'caller',
   });

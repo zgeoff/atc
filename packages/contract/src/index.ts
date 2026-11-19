@@ -4,7 +4,6 @@ export * from './messages/answer-view-schema';
 export * from './hello/check-daemon';
 export * from './workspaces/commit-id-pattern';
 export * from './config/config-file-schema';
-export * from './daemon-contract/contract-version';
 export * from './daemon-contract/daemon-contract';
 export * from './daemon-contract/daemon-error-map';
 export * from './daemon-events/daemon-event';

@@ -1,4 +1,5 @@
 export * from './contract-major';
+export * from './contract-version';
 export * from './error-codes';
 export * from './feature-input-fields';
 export * from './message-sender';

@@ -1,4 +1,4 @@
-import { CONTRACT_VERSION } from '../daemon-contract/contract-version';
+import { CONTRACT_VERSION } from './contract-version';
 
 // The major version of atc, which is the first number of CONTRACT_VERSION. A client sends it in its
 // hello, and a daemon accepts a hello whose major equals its own.

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { CONTRACT_VERSION } from '../daemon-contract/contract-version';
+import { CONTRACT_VERSION } from '../light/contract-version';
 import { checkDaemon } from './check-daemon';
 import type { DaemonCheck } from './check-daemon';
 
