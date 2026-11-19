@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { buildMockExecutionHostServices } from '@atc/plugin-api/test-utils/build-mock-execution-host-services';
 import { LOCAL_PTY_PLUGIN } from './local-pty-plugin';
 
 test('it reads a target slice with its id, options, and environment', () => {
@@ -17,7 +17,7 @@ test('it reads a target slice with its id, options, and environment', () => {
 test('it creates a local PTY provider for a target', () => {
   const provider = LOCAL_PTY_PLUGIN.create(
     { id: 'local', options: {}, env: {} },
-    buildMockHostServices(),
+    buildMockExecutionHostServices(),
     { authProfiles: new Map() },
   );
 

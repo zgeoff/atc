@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { TargetUnavailableError } from '@atc/plugin-api';
-import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { buildMockExecutionHostServices } from '@atc/plugin-api/test-utils/build-mock-execution-host-services';
 import { IMP_PLUGIN } from './imp-plugin';
 
 test('it creates an imp provider for a target with a url and a set token variable', () => {
@@ -10,7 +10,7 @@ test('it creates an imp provider for a target with a url and a set token variabl
       options: { url: 'http://127.0.0.1:9', tokenEnv: 'ATC_TEST_IMP_TOKEN' },
       env: { ATC_TEST_IMP_TOKEN: 'token-value' },
     },
-    buildMockHostServices({ version: '1.0.0' }),
+    buildMockExecutionHostServices({ version: '1.0.0' }),
     { authProfiles: new Map() },
   );
 
@@ -24,7 +24,7 @@ test('it creates a provider that clones on its host, takes the daemon git identi
       options: { url: 'http://127.0.0.1:9', tokenEnv: 'ATC_TEST_IMP_TOKEN' },
       env: { ATC_TEST_IMP_TOKEN: 'token-value' },
     },
-    buildMockHostServices({ version: '1.0.0' }),
+    buildMockExecutionHostServices({ version: '1.0.0' }),
     { authProfiles: new Map() },
   );
 
@@ -61,7 +61,7 @@ test('it refuses a target whose token variable is unset with the problem it hold
         options: { url: 'http://127.0.0.1:9', tokenEnv: 'ATC_TEST_IMP_TOKEN' },
         env: {},
       },
-      buildMockHostServices({ version: '1.0.0' }),
+      buildMockExecutionHostServices({ version: '1.0.0' }),
       { authProfiles: new Map() },
     ),
   ).toThrowWithMessage(
@@ -72,7 +72,7 @@ test('it refuses a target whose token variable is unset with the problem it hold
 
 test('it refuses a target without a url as one with no provider configured', () => {
   expect(() =>
-    IMP_PLUGIN.create({ id: 'box', options: {}, env: {} }, buildMockHostServices(), {
+    IMP_PLUGIN.create({ id: 'box', options: {}, env: {} }, buildMockExecutionHostServices(), {
       authProfiles: new Map(),
     }),
   ).toThrowWithMessage(TargetUnavailableError, 'target "box" has no provider configured');

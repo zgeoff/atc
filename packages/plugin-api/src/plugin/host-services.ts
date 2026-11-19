@@ -27,6 +27,12 @@ export interface HostServices {
   readonly log: (line: string) => void;
 }
 
+// What an execution plugin's host adds: a folder of its own under the daemon's state, which the
+// daemon creates, owner-only, before the plugin's create runs.
+export interface ExecutionHostServices extends HostServices {
+  readonly stateDir: string;
+}
+
 export interface HostCommandOptions {
   // set over the daemon's own environment.
   readonly env?: Readonly<Record<string, string>>;

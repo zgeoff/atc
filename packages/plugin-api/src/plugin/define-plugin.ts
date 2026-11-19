@@ -4,7 +4,7 @@ import type { AgentAdapter } from '../agent-adapter';
 import type { AuthProfile } from '../credentials/auth-profile';
 import type { ExecutionProvider } from '../execution/execution-provider';
 import type { SourceProvider } from '../types';
-import type { HostServices } from './host-services';
+import type { ExecutionHostServices, HostServices } from './host-services';
 
 // The contract each kind of plugin creates.
 interface PluginContracts {
@@ -14,6 +14,13 @@ interface PluginContracts {
 }
 
 export type PluginKind = keyof PluginContracts;
+
+// The services each kind of plugin's create receives.
+interface PluginHosts {
+  readonly harness: HostServices;
+  readonly execution: ExecutionHostServices;
+  readonly source: HostServices;
+}
 
 export interface PluginContext {
   // every profile the whole config defines, which a slice selects by name.
@@ -41,7 +48,7 @@ export interface PluginDefinition<K extends PluginKind, C> {
   // sits on the definition, so a target whose provider fails to build still
   // has its identity. Absent writes the kind and a digest of every option.
   readonly identity?: TargetIdentityRule;
-  readonly create: (config: C, host: HostServices, context: PluginContext) => PluginContracts[K];
+  readonly create: (config: C, host: PluginHosts[K], context: PluginContext) => PluginContracts[K];
 }
 
 export function definePlugin<K extends PluginKind, C>(
