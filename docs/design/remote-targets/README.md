@@ -1,6 +1,6 @@
 # Remote targets: Sprites and Docker
 
-- **Status:** draft
+- **Status:** agreed
 - **Decision records:** [0001](../../decisions/0001-sprites-credentials-through-connectors.md)
 
 atc gains two execution providers for Claude sessions. [Terms](#terms) defines the words in bold.

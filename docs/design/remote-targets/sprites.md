@@ -1,6 +1,6 @@
 # Remote targets: Sprites
 
-- **Status:** draft
+- **Status:** agreed
 - **Decision records:** [0001](../../decisions/0001-sprites-credentials-through-connectors.md)
 
 The `sprites` provider runs each top-level session in a sprite of its own.

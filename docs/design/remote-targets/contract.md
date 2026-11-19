@@ -1,8 +1,8 @@
 # Remote targets: the contract
 
-- **Status:** draft
+- **Status:** agreed
 
-The execution provider contract changes in four places, so that a host without impd fits it.
+The execution provider contract changes so that a host without impd fits it.
 [The README](./README.md#terms) defines the terms this doc uses, impd's forward and broker among
 them.
 
@@ -183,8 +183,8 @@ declare function decideHarnessAuth(
 interface AgentAdapter {
   // …existing fields
   // The first key in the agent's own config that would replace the credentials of this kind, or send
-  // the agent's requests around them. It looks in three places: the agent's env, the env in its
-  // settings, and settings passed in its args. A key is a credential or endpoint variable, or a
+  // the agent's requests around them. It looks in the agent's env, the env in its settings,
+  // and settings passed in its args. A key is a credential or endpoint variable, or a
   // credential helper such as settings.apiKeyHelper. A gateway agent, whose config sets its own
   // baseURL, also returns 'baseURL' for routed and stored-token, because its requests would go to that
   // URL in place of the route or the token's API. Absent finds none.

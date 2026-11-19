@@ -1,6 +1,6 @@
 # Remote targets: Docker
 
-- **Status:** draft
+- **Status:** agreed
 
 The `docker` provider runs Claude sessions in containers on the Docker Engine of the daemon's own
 Linux machine. [The README](./README.md#terms) defines the terms this doc uses: host, host key,
@@ -168,8 +168,8 @@ sub-session's sidecar ends with its harness.
   `prepareHost` refuses with `host_unavailable`, problem `host_exists`. An object with both labels
   is the host, so a retried spawn finds its own host.
 - The provider never puts the token in a container's `Env`, so `docker inspect` never shows it. The
-  launch reads the token file inside the container, as
-  [the stored-token rule](./contract.md#credentials-1) says.
+  launch reads the token file inside the container, under
+  [the stored-token rule](./contract.md#credentials-1).
 - Each Claude session runs with a `CLAUDE_CONFIG_DIR` of its own on the host volume. The launch
   seeds that folder as Claude's launch on imp does, so the session's transcripts never reach another
   session, and a forget removes them.
@@ -179,7 +179,7 @@ sub-session's sidecar ends with its harness.
     current `boot_id`;
   - nothing for an exited container whose `atc.boot` matches, because its harness exited by itself.
 - `spawnHarness` removes an exited harness container and starts the resume command in a new one, and
-  reports that it started the harness, not attached to it.
+  reports that it started the harness.
 - When a sidecar has stopped and its harness container runs, the next `open` creates a new sidecar
   with `replace: true`. The relay then follows [the reset rules](./contract.md#the-relay-1).
 - Each sidecar runs with stdin open and `StdinOnce` false, so a dropped attach never ends the mux.

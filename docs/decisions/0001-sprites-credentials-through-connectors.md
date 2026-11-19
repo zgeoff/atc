@@ -30,9 +30,9 @@ it, and Sprites adds it to each request outside the sprite.
 - A sprite keeps its disk across sleeps, and any process in the sprite can read a file or an
   environment variable that holds a token.
 - A check by hand on 2026-11-19 ran Claude Code 2.1.319 in a sprite through a Custom API connector,
-  with `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` set as the Decision says. Claude answered,
-  and the reply streamed as server-sent events. A sprite whose name the connector's policy did not
-  admit got HTTP 403.
+  with `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` set as in the Decision. Claude answered, and
+  the reply streamed as server-sent events. A sprite whose name the connector's policy did not admit
+  got HTTP 403.
 
 ## Rejected alternatives
 
