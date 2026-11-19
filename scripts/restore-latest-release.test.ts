@@ -5,7 +5,6 @@ import { createStubGHReleases } from '@atc/core/test-utils/create-stub-gh-releas
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
-// A temp directory for the stub gh and its release state.
 function setupTest() {
   const temporaryDirectory = setupTempDir('restore-latest-release-');
 

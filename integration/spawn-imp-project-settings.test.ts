@@ -24,9 +24,6 @@ async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-project-settings-git-' });
 
   const fakeClaude = createStubRecordingClaude(temporaryDirectory.path);
-
-  // The guest's atc prints the daemon's version, so the guest's hooks run
-  // it.
   const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
   const port = createStubImpPort();
 
@@ -84,8 +81,6 @@ test.each([
   async (file, setting, content) => {
     const ctx = await setupTest();
 
-    // A brokered spawn needs a token that may grant each agent's secret, and
-    // the secrets themselves.
     ctx.port.setIdentity({
       kind: 'token',
       name: 'atc-runtime',
@@ -102,8 +97,6 @@ test.each([
       { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     ]);
 
-    // Both agents sign in through impd's broker: `claude` on a subscription
-    // and the gateway `glm`, each running the fake Claude.
     const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
       authProfiles: {
         claude: {
@@ -183,8 +176,6 @@ test.each([
 test('it refuses an untrusted subscription clone whose settings set apiKeyHelper', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -201,8 +192,6 @@ test('it refuses an untrusted subscription clone whose settings set apiKeyHelper
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -277,8 +266,6 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
   async (content) => {
     const ctx = await setupTest();
 
-    // A brokered spawn needs a token that may grant each agent's secret, and
-    // the secrets themselves.
     ctx.port.setIdentity({
       kind: 'token',
       name: 'atc-runtime',
@@ -295,8 +282,6 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
       { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
     ]);
 
-    // Both agents sign in through impd's broker: `claude` on a subscription
-    // and the gateway `glm`, each running the fake Claude.
     const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
       authProfiles: {
         claude: {
@@ -371,8 +356,6 @@ test.each(['{"env": {', '[]', '[{"env":{"ANTHROPIC_API_KEY":"x"}}]'])(
 test('it refuses a subscription clone whose settings file is a dangling symlink', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -389,8 +372,6 @@ test('it refuses a subscription clone whose settings file is a dangling symlink'
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -467,8 +448,6 @@ test('it refuses a subscription clone whose settings file is a dangling symlink'
 test('it starts a trusted subscription clone whose settings set neither a credential nor a provider', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -485,8 +464,6 @@ test('it starts a trusted subscription clone whose settings set neither a creden
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -553,8 +530,6 @@ test('it starts a trusted subscription clone whose settings set neither a creden
 test('it starts a trusted subscription clone with no project settings files', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -571,8 +546,6 @@ test('it starts a trusted subscription clone with no project settings files', as
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -628,8 +601,6 @@ test('it starts a trusted subscription clone with no project settings files', as
 test('it refuses a subscription launch in an existing folder whose local settings set a credential', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -646,8 +617,6 @@ test('it refuses a subscription launch in an existing folder whose local setting
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -720,8 +689,6 @@ test('it refuses a subscription launch in an existing folder whose local setting
 test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -738,8 +705,6 @@ test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -813,8 +778,6 @@ test('it refuses a trusted gateway clone whose settings set apiKeyHelper', async
 test('it refuses a subscription clone whose settings file is a symlink to an endless device', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -831,8 +794,6 @@ test('it refuses a subscription clone whose settings file is a symlink to an end
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -905,8 +866,6 @@ test('it refuses a subscription clone whose settings file is a symlink to an end
 test('it refuses a subscription launch in a subfolder whose repository root holds local settings with a credential', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -923,8 +882,6 @@ test('it refuses a subscription launch in a subfolder whose repository root hold
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -993,8 +950,6 @@ test('it refuses a subscription launch in a subfolder whose repository root hold
 test('it refuses a subscription launch in a subfolder whose own local settings set nothing and whose repository root holds local settings with a credential', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1011,8 +966,6 @@ test('it refuses a subscription launch in a subfolder whose own local settings s
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -1082,8 +1035,6 @@ test('it refuses a subscription launch in a subfolder whose own local settings s
 test('it refuses a subscription launch in a worktree whose main checkout holds local settings with a credential', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1100,8 +1051,6 @@ test('it refuses a subscription launch in a worktree whose main checkout holds l
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -1177,8 +1126,6 @@ test('it refuses a subscription launch in a worktree whose main checkout holds l
 test('it refuses a launch path whose symlink and parent step resolve to a folder with conflicting settings', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant each agent's secret, and
-  // the secrets themselves.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1195,8 +1142,6 @@ test('it refuses a launch path whose symlink and parent step resolve to a folder
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // Both agents sign in through impd's broker: `claude` on a subscription
-  // and the gateway `glm`, each running the fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -1267,8 +1212,6 @@ test('it refuses a launch path whose symlink and parent step resolve to a folder
 test('it refuses a subscription launch in an existing folder whose settings file is larger than any settings file', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant the agent's secret, and
-  // the secret itself.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1281,8 +1224,6 @@ test('it refuses a subscription launch in an existing folder whose settings file
     { host: 'api.anthropic.com', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `claude` signs in through impd's broker on a subscription and runs the
-  // fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {
@@ -1310,7 +1251,7 @@ test('it refuses a subscription launch in an existing folder whose settings file
 
   mkdirSync(join(ctx.work, '.claude'));
 
-  // One byte past the 1 MiB that atc reads of a settings file.
+  // The file is one byte past the 1 MiB that atc reads of a settings file.
   writeFileSync(join(ctx.work, '.claude/settings.json'), `{}${' '.repeat(1_048_575)}`);
 
   const spawn = daemon.client.sendRequest('session.spawn', {
@@ -1340,8 +1281,6 @@ test.skipIf(process.getuid?.() === 0)(
   async () => {
     const ctx = await setupTest();
 
-    // A brokered spawn needs a token that may grant the agent's secret, and
-    // the secret itself.
     ctx.port.setIdentity({
       kind: 'token',
       name: 'atc-runtime',
@@ -1354,8 +1293,6 @@ test.skipIf(process.getuid?.() === 0)(
       { host: 'api.anthropic.com', header: 'authorization', scheme: 'bearer' },
     ]);
 
-    // `claude` signs in through impd's broker on a subscription and runs the
-    // fake Claude.
     const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
       authProfiles: {
         claude: {
@@ -1413,8 +1350,6 @@ test.skipIf(process.getuid?.() === 0)(
 test('it reads every project settings file of a subscription launch in one command on the host', async () => {
   const ctx = await setupTest();
 
-  // A brokered spawn needs a token that may grant the agent's secret, and
-  // the secret itself.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1427,8 +1362,6 @@ test('it reads every project settings file of a subscription launch in one comma
     { host: 'api.anthropic.com', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `claude` signs in through impd's broker on a subscription and runs the
-  // fake Claude.
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     authProfiles: {
       claude: {

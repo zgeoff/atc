@@ -22,8 +22,6 @@ import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
-// The subscriber's endpoint is the receiver each test passes, because a test
-// cannot reach an endpoint across the internet.
 async function setupTest() {
   const planHookEvents = mock<AgentAdapter['planHookEvents']>();
 
@@ -125,8 +123,6 @@ test('it lets a subscriber that lost a notification find its event by reading th
   await ctx.daemon.sendHookLines({ atcId: sessionID, event: 'Stop', payload: {} });
   await ctx.daemon.sendHookLines({ atcId: sessionID, event: 'Stop', payload: {} });
 
-  // The verification challenge and both deliveries; the subscriber never saw
-  // the first delivery, and acts on the second alone.
   await waitFor(() => {
     expect(receiver.received).toHaveLength(3);
   });
@@ -220,7 +216,6 @@ test('it repeats a notification whose answer was lost with its eventId, after wh
 
   invariant(first && repeat, 'the endpoint received fewer than two deliveries');
 
-  // The subscriber acted on the first copy and saved the cursor it carried.
   const savedCursor = z.object({ cursor: z.string() }).parse(JSON.parse(first.body)).cursor;
 
   const read = await sendModernMCPRequest(started.server.url, grant.accessToken, 'tools/call', {

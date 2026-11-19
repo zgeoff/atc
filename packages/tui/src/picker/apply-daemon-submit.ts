@@ -2,8 +2,6 @@ import { openAgentMenu } from './open-agent-menu';
 import { quitFlow, renderFlow } from './open-list';
 import type { PickerFlow } from './picker-flow';
 
-// The picker opens on the primary daemon, and asks which daemon to spawn on only when another
-// daemon is up beside it.
 export function openFirstStep(flow: PickerFlow) {
   const ctx = flow.ctx;
   const deps = flow.deps;
@@ -73,7 +71,6 @@ function openDaemonStep(flow: PickerFlow) {
   renderFlow(flow, true);
 }
 
-// A link changed while the daemon step is open: the step offers the daemons that are up now.
 export function applyLinksChanged(flow: PickerFlow) {
   const ctx = flow.ctx;
 
@@ -100,7 +97,6 @@ export function applyDaemonCancel(flow: PickerFlow) {
   quitFlow(flow);
 }
 
-// The agent step goes back to the daemon step when the picker showed one, and leaves otherwise.
 export function applyAgentCancel(flow: PickerFlow) {
   if (flow.ctx.daemons.length > 0) {
     openDaemonStep(flow);

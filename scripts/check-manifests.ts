@@ -1,5 +1,3 @@
-// Checks that every workspace package's manifest declares what its files
-// import, and that no file reaches into another package by a relative path.
 // Bun links every workspace package everywhere, so only the manifest proves a dependency.
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
@@ -46,8 +44,7 @@ function main(): void {
 
   findings.push(...checkPreloads(root, packages), ...checkDependencyZones(root, packages));
 
-  // the mods belong to no workspace package, but the confinement rules that
-  // lint:mods applies read only quoted specifiers too
+  // the mods belong to no workspace package, but the confinement rules still apply to them
   const mods = readSourceFiles(root, 'mods');
 
   fileCount += mods.length;
@@ -71,7 +68,6 @@ function main(): void {
   }
 }
 
-// The root package's own source directories.
 const ROOT_DIRS = ['e2e', 'integration', 'scripts'];
 const DEPENDENCIES_SCHEMA = z.record(z.string(), z.string()).optional();
 
@@ -130,14 +126,9 @@ function readManifest(root: string, directory: string): Manifest {
   return MANIFEST_SCHEMA.parse(JSON.parse(text));
 }
 
-// A full semver version with an optional prerelease and build part, such as
-// `1.7.6` or `0.3.0-beta.1`, bare or as an npm alias such as
-// `npm:@scope/name@1.7.6`; a range, a tag, or a wildcard matches none.
 const EXACT_VERSION =
   /^(?:npm:(?:@[^/@]+\/)?[^/@]+@)?\d+\.\d+\.\d+(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/u;
 
-// A workspace package is private in the @atc/ scope, or published to npm in
-// the @atcx/ scope.
 const PRIVATE_SCOPE = '@atc/';
 const PUBLISHED_SCOPE = '@atcx/';
 
@@ -200,7 +191,6 @@ function checkManifest(pkg: WorkspacePackage): string[] {
     findings.push(`no exports: ${manifestPath} holds no exports map`);
   }
 
-  // a package shares its test helpers through one wildcard, which no production file reaches
   for (const [entry, target] of Object.entries(pkg.manifest.exports ?? {}).filter(([key]) =>
     key.includes('*'),
   )) {
@@ -245,7 +235,6 @@ function checkPreloads(root: string, packages: readonly WorkspacePackage[]): str
       const isWildcard = reached.isWildcard;
       const entryPreload = preloads.find((candidate) => candidate.file === entry);
 
-      // a wildcard lists no file on purpose, so a preload among the files it matches is no entry
       if (entryPreload !== undefined && !isWildcard) {
         findings.push(
           `preloaded entry: ${entry}, an entry point of ${pkg.directory}, is ${entryPreload.preload}, which bunfig.toml preloads; drop it from the exports map`,
@@ -271,8 +260,6 @@ function checkPreloads(root: string, packages: readonly WorkspacePackage[]): str
   return findings;
 }
 
-// A preload as bunfig.toml lists it, and the root-relative file a relative
-// preload loads.
 interface Preload {
   readonly preload: string;
   readonly file: string | undefined;
@@ -282,7 +269,6 @@ function resolvePreloadFile(root: string, preload: string): string {
   return resolveModule(root, '.', preload) ?? normalize(preload);
 }
 
-// The preload a specifier in the file loads, if any.
 function findPreload(
   root: string,
   preloads: readonly Preload[],
@@ -301,8 +287,6 @@ interface EntryFile {
   readonly isWildcard: boolean;
 }
 
-// Every path an exports map lists, conditional entries included, and every file that a wildcard
-// target matches.
 function collectEntryFiles(root: string, pkg: WorkspacePackage): EntryFile[] {
   const targets: EntryFile[] = [];
   const pending: unknown[] = Object.values(pkg.manifest.exports ?? {});
@@ -313,7 +297,6 @@ function collectEntryFiles(root: string, pkg: WorkspacePackage): EntryFile[] {
         cwd: join(root, pkg.directory),
       });
 
-      // a test beside a helper is no entry, though the pattern matches it
       targets.push(
         ...[...matches]
           .filter((match) => !match.endsWith('.test.ts'))
@@ -371,7 +354,6 @@ function readStaticLoads(root: string, entry: string): Map<string, readonly stri
   return reached;
 }
 
-// Undefined when no source file matches, as for a text import of a shell script
 function resolveModule(root: string, directory: string, specifier: string): string | undefined {
   const base = normalize(join(directory, specifier));
 
@@ -394,8 +376,7 @@ const ZONES_CONFIG_SCHEMA = z.object({
 });
 
 // The lint rule judges only the imports a file holds, so a production
-// dependency that no file imports yet would pass it. Each one must pass every
-// edge that a runtime import of its root from the package's src/ meets.
+// dependency that no file imports would pass it.
 function checkDependencyZones(root: string, packages: readonly WorkspacePackage[]): string[] {
   const configPath = join(root, '.oxlintrc.zones.json');
 
@@ -428,8 +409,7 @@ function checkDependencyZones(root: string, packages: readonly WorkspacePackage[
 }
 
 // z.fromJSONSchema drops `additionalProperties` and the required keys of an
-// object that also holds an `anyOf`, as an edge entry does, so each branch
-// becomes a whole object that requires its own keys.
+// object that also holds an `anyOf`.
 function buildBranchedSchema(schema: Readonly<Record<string, unknown>>): Record<string, unknown> {
   return buildBranchedNode(schema);
 }
@@ -531,9 +511,7 @@ function checkDeclared(pkg: WorkspacePackage, file: string, name: string): strin
   ];
 }
 
-// The root package's e2e journeys, integration flows, and scripts reach into
-// the app by path, for the app modules and test helpers that no package
-// exports yet.
+// The root package reaches into the app by path because no package exports those app modules and test helpers.
 const ROOT_REACHES = ['packages/app'];
 
 function getOwner(packages: readonly WorkspacePackage[], path: string): WorkspacePackage {
@@ -552,14 +530,12 @@ function getOwner(packages: readonly WorkspacePackage[], path: string): Workspac
   );
 }
 
-// `@scope/name/sub` and `name/sub` both import from one package.
 function getPackageName(specifier: string): string {
   const parts = specifier.split('/');
 
   return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : (parts[0] ?? specifier);
 }
 
-// Test files and the test helpers of every package.
 function isTestFile(file: string): boolean {
   return file.endsWith('.test.ts') || file.includes('/src/test-utils/');
 }

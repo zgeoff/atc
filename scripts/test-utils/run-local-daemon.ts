@@ -19,9 +19,6 @@ import { runListeningServer } from '../verify/run-listening-server.ts';
 
 type Env = Readonly<Record<string, string | undefined>>;
 
-// The `local` target's app, which `with-test-home.sh` starts in a new temp home: the daemon with a
-// loopback TCP listener, then `atc mcp --http` and two gateways, one with the daemon's token and one
-// with a wrong token. It prints one JSON line once all of them answer.
 export async function runLocalDaemon(env: Env) {
   const home = readRunHome(env);
   const paths = resolvePaths(env);
@@ -30,18 +27,13 @@ export async function runLocalDaemon(env: Env) {
 
   mkdirSync(join(home.home, '.config', 'atc'), { recursive: true });
   writeFileSync(paths.configFile, JSON.stringify(buildLocalConfig(home.home, stub)));
-
-  // The stand-in claude starts a message tap while this file exists, so a message reaches its
-  // screen.
   writeFileSync(join(home.home, 'fake-claude-tap'), '');
 
   const daemonToken = randomBytes(32).toString('base64url');
   const tokenFile = writeOwnerOnlyFile(join(home.root, 'daemon-token'), `${daemonToken}\n`);
   const daemonLog = join(home.root, 'daemon.log');
 
-  // with-test-home.sh made the run's folder; it removes it and every process holding the run's
-  // ATC_TEST_HOME once this process exits. The daemon's stderr goes to a file, which the stream
-  // driver follows, because the listener logs each refused handshake there.
+  // The daemon's stderr goes to a file because the listener logs each refused handshake there.
   const daemon = Bun.spawn(
     [process.execPath, home.cli, 'daemon', '--listen', '127.0.0.1:0', '--token-file', tokenFile],
     { env: { ...env }, stdout: 'inherit', stderr: Bun.file(daemonLog) },
@@ -177,7 +169,6 @@ interface GatewayStart {
   readonly registry: string;
   readonly digest: string;
 
-  // the token the gateway presents to the run's daemon
   readonly daemonToken: string;
 }
 

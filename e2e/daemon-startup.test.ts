@@ -17,8 +17,6 @@ import { openDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import invariant from 'tiny-invariant';
 
-// The lock cases start their daemons in the test's process, each on sockets
-// of its own name over one state directory, and on one stub clock.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-startup-');
   const home = temporaryDirectory.path;
@@ -62,7 +60,6 @@ test('it lets exactly one of two daemons started at once serve a state directory
     }),
   );
 
-  // The daemon that lost the lock retries until its wait for the lock ends.
   await waitFor(() => {
     expect(ctx.clock.collectPending()).toContain(50);
   });
@@ -212,9 +209,7 @@ test('it refuses to start a daemon whose --listen port another socket holds, lea
   expect(existsSync(ctx.paths.daemonRecordFile)).toBeFalse();
 });
 
-// The source entry keeps Bun's .env autoload, so these run on the compiled binary only. With no
-// daemon running, `daemon id` prints the socket path it tried, which follows XDG_RUNTIME_DIR and
-// so shows whether a variable reached the process.
+// The source entry keeps Bun's .env autoload, so these run on the compiled binary only.
 test.skipIf(process.env['ATC_BIN'] === undefined)(
   'it ignores a .env file in the working directory of the compiled binary',
   async () => {
@@ -300,8 +295,7 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
       }
     }
 
-    // A bare start costs relatively more on macOS. Each multiple sits about halfway between a
-    // healthy start and one that parses the whole bundle.
+    // A bare start costs relatively more on macOS.
     const multiples: Partial<Record<string, number>> = { linux: 16, darwin: 8 };
     const multiple = multiples[process.platform];
     const reporterMedian = reporterCPUMs.toSorted((left, right) => left - right).at(4);
@@ -310,7 +304,6 @@ test.skipIf(process.env['ATC_BIN'] === undefined)(
     invariant(multiple !== undefined, `no startup budget for ${process.platform}`);
     invariant(reporterMedian !== undefined && bareMedian !== undefined);
 
-    // A start that fails before its work counts as a failure, not as a cheap start.
     expect(exitCodes).toStrictEqual(Array.from({ length: 18 }, () => 0));
     expect(reporterMedian).toBeLessThan(multiple * bareMedian);
   },

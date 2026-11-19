@@ -471,7 +471,6 @@ test('it lists for a TCP principal only the sessions on the targets it may use',
     options: (paths) => {
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-      // The targets `local` and `box` share one real pseudo-terminal provider.
       const local = createLocalPTYProvider();
 
       const targets = collectTargets(
@@ -524,7 +523,6 @@ test('it reads for a TCP principal a session on a target it may use', async () =
     options: (paths) => {
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-      // The targets `local` and `box` share one real pseudo-terminal provider.
       const local = createLocalPTYProvider();
 
       const targets = collectTargets(
@@ -571,7 +569,6 @@ test('it answers a TCP principal reading a session on a target it may not use as
     options: (paths) => {
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-      // The targets `local` and `box` share one real pseudo-terminal provider.
       const local = createLocalPTYProvider();
 
       const targets = collectTargets(
@@ -638,7 +635,6 @@ test('it pushes a TCP connection no event of a session it did not act on', async
   await client.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
   await daemon.client.sendRequest('session.spawn', { cwd: daemon.directory, resume: 'a-1' });
 
-  // The owner's event shows the daemon has broadcast the spawn.
   await waitFor(() => {
     expect(daemon.events).toPartiallyContain({ ev: 'SessionAdded' });
   });
@@ -907,7 +903,6 @@ test('it answers a delayed handshake once the failure delay passes', async () =>
 
   const hello = client.sendHello('atc/test-gateway', { token: 'a'.repeat(32) });
 
-  // The listener has begun the delay once it schedules its timer.
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([600]);
   });
@@ -1346,7 +1341,6 @@ test('it logs a refusal after the window as a new line after the count of the fo
 
 // These peers dial from loopback aliases past 127.0.0.1, which Linux routes
 // on its own and stock macOS lacks, so a host without them skips the test.
-// The refusal log's unit tests cover the same windows with any peer.
 test.skipIf(!tryCreateListeners(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']))(
   'it logs a line for each new peer while the cap of refusal windows has room',
   async () => {
@@ -1406,7 +1400,6 @@ test.skipIf(!tryCreateListeners(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0
 
 // These peers dial from loopback aliases past 127.0.0.1, which Linux routes
 // on its own and stock macOS lacks, so a host without them skips the test.
-// The refusal log's unit tests cover the same windows with any peer.
 test.skipIf(!tryCreateListeners(['127.0.0.2', '127.0.0.3', '127.0.0.4', '127.0.0.5']))(
   'it folds refusals from peers past the cap of refusal windows into one overflow line',
   async () => {
@@ -1955,7 +1948,6 @@ test('it delays a new handshake in the place in the cap that a closed delayed ha
 
   await abandonedHellos;
 
-  // The closed sockets have cancelled their timers and left the cap.
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([]);
   });
@@ -2011,7 +2003,6 @@ test('it answers a local ping while many TCP sockets each send a handshake durin
 
   onTestFinished(() => floodHellos);
 
-  // The default cap holds 64 handshakes in the delay and refuses the rest.
   await waitFor(() => {
     expect(clock.collectPending()).toHaveLength(64);
   });
@@ -2080,7 +2071,6 @@ test('it pushes a TCP connection whose handshake gives a principal the removal o
     options: (paths) => {
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-      // The targets `local` and `box` share one real pseudo-terminal provider.
       const local = createLocalPTYProvider();
 
       const targets = collectTargets(

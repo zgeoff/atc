@@ -29,24 +29,19 @@ async function setupTest() {
 
   const auth = await openTestAuthAdmin(authDBPath);
 
-  // The redirect URI the client registers and its code flow uses.
   const redirectURI = 'https://claude.ai/api/mcp/auth_callback';
 
   const claude = await auth.admin.clients.add('Claude', [redirectURI]);
 
-  // The token both listeners take, which the gateway presents. Each daemon
-  // reads it from a file of its own, so a test can change one daemon's.
   const token = randomBytes(16).toString('hex');
 
   writeFileSync(join(temporaryDirectory.path, 'cloud-token'), `${token}\n`);
   writeFileSync(join(temporaryDirectory.path, 'pc-token'), `${token}\n`);
 
-  // The two daemons boot at once, since neither waits on the other.
   const [cloud, pc] = await Promise.all([
     startTestDaemon({
       prefix: 'atc-gateway-cloud-',
       options: () => ({
-        // Session messages need an adapter that takes them.
         adapter: buildMockAgentAdapter({ takesMessages: true }),
         principals: new Map([[claude.clientID, ['local']]]),
         listen: {
@@ -59,7 +54,6 @@ async function setupTest() {
     startTestDaemon({
       prefix: 'atc-gateway-pc-',
       options: () => ({
-        // Session messages need an adapter that takes them.
         adapter: buildMockAgentAdapter({ takesMessages: true }),
         principals: new Map([[claude.clientID, ['local']]]),
         listen: {
@@ -90,9 +84,6 @@ async function setupTest() {
 
   const cloudID = String(cloudHello['daemonID']);
   const pcID = String(pcHello['daemonID']);
-
-  // runs every timer of the daemon connections and fan-out waits, so none fires unless a
-  // test advances it
   const clock = buildStubClock(Date.now());
 
   const cloudDaemon = buildMockRegistryDaemon({
@@ -122,9 +113,7 @@ async function setupTest() {
     bindings: openTestBindingDatabase(join(temporaryDirectory.path, 'gateway.db')),
     onWarning: () => {},
 
-    // Bounds a call asked of every daemon, so a daemon that never answers
-    // cannot hold a test for the 5 s default. No test waits it out: a
-    // stopped daemon refuses the connection at once.
+    // A daemon that never answers cannot hold a test for the 5 s default.
     fanOutTimeoutMs: 1000,
     clock,
   });
@@ -645,9 +634,6 @@ test('it holds a waiting events read open until one daemon has an event and retu
     arguments: { cursor: getRecord(caughtUp, 'structuredContent')['cursor'], waitMs: 10_000 },
   });
 
-  // Each daemon holds a waiting read, timed at its wait on top of the
-  // response time and of the fan-out time, before the message that ends the
-  // wait goes out.
   await waitFor(() => {
     expect(ctx.clock.collectPending()).toStrictEqual([11_000, 11_000, 40_000, 40_000]);
   });

@@ -483,7 +483,6 @@ test('it answers outcome_unknown when a failed spawn cannot be removed from the 
     options: () => ({ adapter: stub.adapter }),
   });
 
-  // Another connection drops the fleet table, so no fleet write can land.
   const db = new Database(daemon.dbPath);
 
   const closeDB = registerTestCleanup(() => {
@@ -519,7 +518,6 @@ test('it keeps the key as outcome_unknown when a failed spawn cannot be removed 
 
   const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  // Another connection drops the fleet table, so no fleet write can land.
   const db = new Database(daemon.dbPath);
 
   const closeDB = registerTestCleanup(() => {
@@ -549,8 +547,6 @@ test('it answers outcome_unknown with the session id when the fleet write after 
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  // Another connection drops the fleet table, so the spawn starts but its
-  // fleet write cannot land.
   const store = await createStateStore(daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
@@ -593,8 +589,6 @@ test('it keeps the key as outcome_unknown when the fleet write after a successfu
 
   const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  // Another connection drops the fleet table, so the spawn starts but its
-  // fleet write cannot land.
   const store = await createStateStore(daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
@@ -636,8 +630,6 @@ test('it answers outcome_unknown with the session id when completing the key fai
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  // Another connection makes every update of a key fail, so the claim lands
-  // but neither its completion nor its outcome can.
   const store = await createStateStore(daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
@@ -682,8 +674,6 @@ test('it keeps the key in progress when completing it fails, so a retry spawns n
 
   const params = { cwd: daemon.directory, cols: 80, rows: 24, idempotencyKey: 'k-1' };
 
-  // Another connection makes every update of a key fail, so the claim lands
-  // but neither its completion nor its outcome can.
   const store = await createStateStore(daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
@@ -914,8 +904,6 @@ test('it ends a failed spawn that ignores its kill with a forced kill before it 
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
-  // The child ignores SIGHUP before it writes its pid, and the start fails
-  // only once that pid is written.
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -955,8 +943,6 @@ test('it completes the rollback of a failed spawn that ignores its kill, so a re
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
-  // The child ignores SIGHUP before it writes its pid, and the start fails
-  // only once that pid is written.
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1009,7 +995,7 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
     options: () => ({
       adapter: stub.adapter,
 
-      // With no forced kill to send, the wait only has to run out.
+      // No forced kill to send, so the wait only has to run out.
       failedSpawnExitWaitMs: 100,
       targets: [
         {
@@ -1057,9 +1043,7 @@ test('it answers outcome_unknown for a failed spawn whose killed process outlast
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
-  // The child takes a second to exit after SIGHUP, longer than the given wait and shorter than the
-  // default one, and the start fails only once it has set that trap and written its pid. It ends
-  // by itself after the rollback's kill, so nothing outlives the test.
+  // The child takes a second to exit after SIGHUP, longer than the given wait and shorter than the default one. It ends by itself after the rollback's kill, so nothing outlives the test.
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1174,8 +1158,7 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
-  // The child ignores SIGHUP before it writes its pid, and the start fails
-  // only once that pid is written, so the rollback's kill cannot end it.
+  // The child ignores SIGHUP, so a kill sent on a failed start cannot end it.
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1245,8 +1228,7 @@ test('it answers a failed spawn only once its killed process has exited', async 
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
-  // The child takes 300ms to exit after SIGHUP, and the start fails only
-  // once it has set that trap and written its pid.
+  // The child takes 300ms to exit after SIGHUP.
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1284,8 +1266,7 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
-  // The child takes 300ms to exit after SIGHUP, and the start fails only
-  // once it has set that trap and written its pid.
+  // The child takes 300ms to exit after SIGHUP.
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1319,8 +1300,7 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
-  // The child takes 300ms to exit after SIGHUP, and the start fails only
-  // once it has set that trap and written its pid.
+  // The child takes 300ms to exit after SIGHUP.
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1374,8 +1354,7 @@ test('it leaves no session behind from a failed spawn whose revive was refused d
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
-  // The child takes 300ms to exit after SIGHUP, and the start fails only
-  // once it has set that trap and written its pid.
+  // The child takes 300ms to exit after SIGHUP.
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',

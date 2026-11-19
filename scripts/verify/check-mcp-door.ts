@@ -3,8 +3,6 @@ import type { HttpClient } from '@wringer/http';
 import { resourceMetadataPath } from './constants.ts';
 import { parseResourceMetadata } from './parse-resource-metadata.ts';
 
-// The doctor's check that the gateway at `origin` answers, and names `<origin>/mcp` as its
-// resource. The http driver sends the GET to that origin.
 export async function checkMCPDoor(
   http: Pick<HttpClient, 'request'>,
   origin: string,

@@ -505,7 +505,6 @@ test('it refuses to adopt a restored local session of a gateway with auth and st
     }),
   });
 
-  // A transcript that exists makes the session resumable.
   const transcriptPath = join(ctx.directory, 'transcript.jsonl');
 
   writeFileSync(transcriptPath, '');
@@ -582,7 +581,6 @@ test('it restores a local session of a gateway with auth without starting its ha
     }),
   });
 
-  // A transcript that exists makes the session resumable.
   const transcriptPath = join(ctx.directory, 'transcript.jsonl');
 
   writeFileSync(transcriptPath, '');

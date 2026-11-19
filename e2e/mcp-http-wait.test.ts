@@ -57,8 +57,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     })(),
   ]);
 
-  // The server prints its wait line once it has found no daemon and begun
-  // to wait, so the daemon below starts after the wait has begun.
+  // The server prints its wait line once it has found no daemon and begun to wait, so the daemon must start after that.
   await waitFor(() => {
     expect(stderr).toEndWith('\n');
   });
@@ -76,8 +75,6 @@ test('it waits for a daemon started after it, starting none of its own, and serv
     await daemon.exited;
   });
 
-  // The server prints its serving line on stdout once it serves, with the
-  // port the kernel bound for port 0.
   const port = await waitFor(() => {
     const bound = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)\n/u.exec(stdout)?.groups?.[
       'port'
@@ -105,8 +102,6 @@ test('it waits for a daemon started after it, starting none of its own, and serv
   await mcp.exited;
   await drained;
 
-  // A handshake answered after the server stopped proves the daemon still
-  // serves.
   const client = await openDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {

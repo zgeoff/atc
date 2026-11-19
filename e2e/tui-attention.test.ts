@@ -52,7 +52,7 @@ test('it attaches and acks the session that needs you on tab', async () => {
   await ctx.waitFor('need you: needy');
   await ctx.waitFor('┌ sessions ');
 
-  // Attaching needy clears its need; the attach jiggle repaints the fake.
+  // The attach jiggle repaints the fake.
   ctx.reset();
   ctx.write(KEYS.enter);
 
@@ -65,8 +65,6 @@ test('it attaches and acks the session that needs you on tab', async () => {
 
   await spawnClaudeSession(ctx, 'urgent');
 
-  // The freshly spawned session goes needs-you on its own notification,
-  // observable through the statusline contract file while attached.
   await waitFor(() => {
     expect(readFileSync(statusPath, 'utf8')).toInclude('"needs_you":1');
   });
@@ -94,8 +92,6 @@ test('it attaches and acks the session that needs you on tab', async () => {
 test('it tab-jumps to a finished session when none need you', async () => {
   const ctx = setupTest();
 
-  // The fake reports a finished turn instead of a notification, so its
-  // session lands done with nothing needing you.
   writeFileSync(
     join(ctx.home, 'fake-claude-events.jsonl'),
     `${JSON.stringify({ hook_event_name: 'Stop', session_id: 'fake-1' })}\n`,
@@ -122,7 +118,6 @@ test('it tab-jumps to a finished session when none need you', async () => {
   ctx.reset();
   ctx.write(KEYS.tab);
 
-  // Tab attaches the finished session: the attach jiggle repaints the fake,
-  // whose marker only reaches the screen while attached.
+  // The fake's marker only reaches the screen while attached; the attach jiggle repaints it.
   await ctx.waitFor('FAKE_CLAUDE_UP');
 }, 15_000);

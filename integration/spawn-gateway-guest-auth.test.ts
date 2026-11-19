@@ -24,9 +24,6 @@ function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-guest-auth-');
   const port = createStubImpPort();
   const fakeClaude = createStubRecordingClaude(temporaryDirectory.path);
-
-  // The imp provider hands the guest this atc binary, which prints the
-  // daemon's version, so the guest's hooks run it.
   const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = createImpProvider(
@@ -195,8 +192,6 @@ test('it revives a suspended session after a rebind as a fresh guest process und
   await daemon.client.sendRequest('session.auth.rebind', { session: id });
   await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  // The adopt attaches the harness the imp kept asleep, which launched
-  // under the first revision, ends it, and starts a fresh one.
   await waitFor(() => {
     expect(ctx.port.sessionRequests).toHaveLength(3);
   });
@@ -268,8 +263,6 @@ test('it revives a suspended session after a rebind as a fresh guest process whe
 
   invariant(first !== undefined, 'expected the first harness start');
 
-  // The process ends inside the sleeping imp, so the revive attaches an
-  // exit nobody has received yet.
   ctx.port.killProcess(first.name, first.session);
 
   await waitFor(() => {
@@ -280,7 +273,6 @@ test('it revives a suspended session after a rebind as a fresh guest process whe
   await daemon.client.sendRequest('session.auth.rebind', { session: id });
   await daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  // The adopt attaches the ended harness and starts a fresh one in its place.
   await waitFor(() => {
     expect(ctx.port.sessionRequests).toHaveLength(3);
   });
@@ -400,7 +392,6 @@ test('it starts a brokered gateway with the placeholder and its own Claude confi
     }),
   });
 
-  // The canary stands in for a credential held on the daemon's side.
   const canary = 'canary-sk-5d1c0a9e7b3f42';
 
   updateEnv('ANTHROPIC_API_KEY', canary);

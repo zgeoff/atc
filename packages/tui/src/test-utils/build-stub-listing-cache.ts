@@ -2,8 +2,6 @@ import { LISTING_CACHE_LIFETIME_MS } from '../client/listing-cache';
 import type { CachedListing, ListingCache } from '../client/listing-cache';
 import type { DaemonName } from '../fleet/session-key';
 
-// The listing cache contract in memory: a read past the lifetime finds
-// nothing, and a write for an older request never replaces a newer one.
 export function buildStubListingCache(): ListingCache {
   const listings = new Map<string, CachedListing>();
 
@@ -27,7 +25,6 @@ export function buildStubListingCache(): ListingCache {
   };
 }
 
-// One in-memory cache that every daemon shares, for a test that holds no daemon apart.
 export function buildStubListingCacheOf(): (daemon: DaemonName) => ListingCache {
   const cache = buildStubListingCache();
 

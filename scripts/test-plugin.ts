@@ -9,16 +9,11 @@ import { loadWorkspacePackages } from './load-workspace-packages';
 import { readOptionalText } from './read-optional-text';
 import { readWorkerCount } from './read-worker-count';
 
-// Tests one plugin package in a workspace holding only it, the packages its
-// rule reaches and the packages whose test helpers its tests import, so a plugin that reaches past its rule
-// fails. Usage: bun scripts/test-plugin.ts <plugin> [root] [--keep], such as harness-claude
+// A plugin that reaches past its rule must fail, so its tests run in a workspace holding only what it needs.
 
-// The root files the test setup reads: the install and test config, the
-// compiler config, the script that gives each run its own home, and the
-// atc-bridge mod, which the Claude harness embeds and checks against.
+// The Claude harness embeds the atc-bridge mod and checks against it.
 const SETUP_PATHS = ['bunfig.toml', 'tsconfig.base.json', 'scripts/with-test-home.sh', 'mods'];
 
-// The root development tools that only lint, format, or hook commits.
 const TOOLING = new Set([
   '@commitlint/cli',
   '@stylistic/eslint-plugin',
@@ -64,7 +59,6 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  // the plugin, and the packages whose test helpers its tests import
   const packages = collectPackageClosure(workspace, [
     plugin.name,
     ...readDevPackageNames(repo, plugin, workspace),
@@ -99,7 +93,6 @@ async function main(): Promise<void> {
         break;
       }
 
-      // each step needs the one before it
       const stepPassed = await runStep(directory, argv);
 
       passed = stepPassed;
@@ -119,8 +112,6 @@ async function main(): Promise<void> {
   }
 }
 
-// The workspace packages that the plugin declares as dev dependencies, which are the packages
-// whose `test-utils` folders its tests import.
 function readDevPackageNames(
   repo: string,
   plugin: WorkspacePackage,
@@ -149,9 +140,6 @@ function printUsage(plugins: readonly WorkspacePackage[]): void {
   );
 }
 
-// The workspace's type check covers the plugin and the production files of
-// the packages it reaches. The other packages' own tests may import the
-// app, which the workspace leaves out.
 interface CreatePluginWorkspaceOptions {
   readonly repo: string;
   readonly directory: string;
@@ -191,9 +179,6 @@ function createPluginWorkspace(options: CreatePluginWorkspaceOptions): void {
   );
 }
 
-// The root manifest without the scripts, the commit and lint tooling, the
-// patches that only that tooling needs, and the internal packages the
-// workspace leaves out.
 function writeWorkspaceManifest(
   repo: string,
   directory: string,
@@ -236,8 +221,6 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   );
 }
 
-// Runs one step in the workspace with its output on this process's, and
-// whether it exited 0.
 async function runStep(directory: string, argv: readonly string[]): Promise<boolean> {
   console.log(`test-plugin: ${argv.join(' ')}`);
 

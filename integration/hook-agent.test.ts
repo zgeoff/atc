@@ -14,8 +14,6 @@ test("it passes each session's hook state back for that session alone, starting 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-hook-agent-',
     options: () => ({
-      // A harness whose state for a session is the hook events it has read
-      // for that session, in order.
       adapter: buildMockAgentAdapter({
         planHookEvents: (event, previous) => {
           seen.push({ session: event.atcId, previous });

@@ -250,7 +250,6 @@ export const register: Register = (on) => {
   });
 };
 
-// A step that continues a paused response keeps the hold the paused step left.
 function updateStepStarted(state: BridgeState): void {
   if (state.stepHold !== null) {
     return;
@@ -279,8 +278,7 @@ function removeCarriedMessage(carried: TapMessage[], msg: TapMessage): void {
   carried.splice(carried.indexOf(msg), 1);
 }
 
-// Why atc did not take the answer, or null once it did. The reporter always
-// exits 0, so its printed delivery result shows whether atc took the answer.
+// The reporter always exits 0, so its printed delivery result shows whether atc took the answer.
 async function tryRunAnswer(
   $: EngineInterface,
   messageID: string,

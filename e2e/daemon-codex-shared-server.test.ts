@@ -156,7 +156,6 @@ test('it keeps two restored codex terminals that share a server on their own thr
     JSON.stringify({
       agents: { codex: { bin: ctx.codex } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );

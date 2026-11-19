@@ -12,16 +12,12 @@ import { runTap } from '@atc/reporters/tap';
 import { createStateStore } from '@atc/store';
 import { z } from 'zod';
 
-// A daemon in the test's process whose agents are the in-process stand-ins,
-// which report their hooks over the daemon's real reporter socket. A test
-// that reports a hook itself runs the real hook reporter in its own process.
 function setupTest() {
   return startStubAgentDaemon({
     agents: (bins) => ({
       claude: { bin: bins.claude },
       grok: { bin: bins.grok },
 
-      // The gateway runs the stand-in Claude against an address nothing serves.
       zai: { kind: 'claude', bin: bins.claude, baseURL: 'http://127.0.0.1:9' },
     }),
   });
@@ -270,7 +266,6 @@ test('it keeps a nested codex harness from rebinding or answering for the claude
 
   await waitForEvent(ctx.daemon.events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
-  // The test runs the session's message tap, as the agent's `atc tap` would.
   void runTap(id, ctx.daemon.build, {
     socketPath: ctx.daemon.socketPath,
     io: {
@@ -438,8 +433,7 @@ test('it binds a gateway session through the hook command atc wrote for it', asy
     .object({ hooks: z.object({ SessionStart: z.tuple([matcher], matcher) }) })
     .parse(settings);
 
-  // The shell execs the command, so a kill of this process reaches the
-  // reporter, which dash would otherwise run as a child.
+  // exec makes a kill of this process reach the command, which dash would otherwise run as a child.
   const hookCommand = `exec ${hooks.hooks.SessionStart[0].hooks[0].command}`;
 
   const reported = Bun.spawn(['/bin/sh', '-c', hookCommand], {

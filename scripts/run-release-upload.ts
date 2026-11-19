@@ -3,17 +3,14 @@ import { $ } from 'bun';
 import { z } from 'zod';
 
 interface ReleaseUpload {
-  // The checkout of the release, whose `dist/` holds the binaries and their SHA256SUMS.
   readonly root: string;
 
-  // The repository the release belongs to, as `owner/name`.
   readonly repository: string;
   readonly env: Readonly<Record<string, string | undefined>>;
 }
 
 const MANIFEST_SCHEMA = z.object({ version: z.string().min(1) });
 
-// --clobber makes a re-run replace the assets a failed run left behind.
 export async function runReleaseUpload(upload: ReleaseUpload): Promise<void> {
   const manifestJSON: unknown = await Bun.file(join(upload.root, 'package.json')).json();
 

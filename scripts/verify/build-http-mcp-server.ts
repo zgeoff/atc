@@ -4,9 +4,6 @@ interface MCPClientConfig {
   readonly scope: string;
 }
 
-// One HTTP server of the mcp driver: the `/mcp` at `origin`, signed in through the
-// client_credentials grant as `client`, whose secret the driver reads from `client.secretEnv`.
-// The credentials go only to the authorization server at `origin`.
 export function buildHTTPMCPServer(
   origin: string,
   client: MCPClientConfig,

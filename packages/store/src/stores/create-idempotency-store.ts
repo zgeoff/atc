@@ -7,16 +7,9 @@ import type {
 } from '../idempotency/idempotency-record';
 import type { StateStoreSchema } from '../sqlite/state-store-schema';
 
-// The idempotency ledger: one key per principal and operation, and the
-// outcome of the effect it guards.
 export interface IdempotencyStore {
-  // Records a key in progress unless one is already held under the same
-  // principal and operation. Returns null when this call claimed the key,
-  // else the record the key already holds.
   readonly claimIdempotencyKey: (claim: IdempotencyClaim) => Promise<IdempotencyRecord | null>;
 
-  // The record a key holds under its principal and operation, or null when
-  // the ledger holds none.
   readonly readIdempotencyKey: (
     id: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
   ) => Promise<IdempotencyRecord | null>;
@@ -28,25 +21,19 @@ export interface IdempotencyStore {
     effectTarget: EffectTarget | null,
   ) => Promise<void>;
 
-  // Keeps a claim whose effect may still stand as outcome_unknown, so a
-  // retry answers from it and never runs the effect again.
   readonly updateIdempotencyOutcomeUnknown: (
     record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
     at: number,
   ) => Promise<void>;
 
-  // Drops a claim whose effect never started, so a retry runs it fresh.
   readonly removeIdempotencyKey: (
     record: Pick<IdempotencyRecord, 'principal' | 'operation' | 'key'>,
   ) => Promise<void>;
 
-  // Runs as a daemon starts, before it serves a request: a key still in
-  // progress belonged to a daemon that stopped mid-effect. One whose effect
-  // left its row behind completes; one that left no trace stays unknown.
+  // Runs as a daemon starts, before it serves a request: a key still in progress belonged to a daemon that stopped mid-effect.
   readonly reconcileIdempotencyKeys: (at: number) => Promise<void>;
 
-  // Only completed keys expire: a key whose outcome is unknown stays, so a
-  // retry of it keeps answering outcome_unknown instead of running anew.
+  // A key whose outcome is unknown is kept, so a retry keeps answering outcome_unknown instead of running anew.
   readonly removeExpiredIdempotencyKeys: (before: number) => Promise<void>;
 }
 
@@ -152,8 +139,6 @@ export function createIdempotencyStore(db: Kysely<StateStoreSchema>): Idempotenc
           .where('state', '=', 'in_progress')
           .execute();
 
-        // A spawn that completes here records the target its fleet row holds,
-        // as a spawn that completes as it runs does.
         await trx
           .updateTable('idempotency')
           .set((eb) => ({

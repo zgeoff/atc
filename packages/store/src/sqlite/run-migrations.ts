@@ -10,8 +10,6 @@ const PROVIDER: MigrationProvider = {
   getMigrations: () => Promise.resolve(MIGRATIONS),
 };
 
-// A database without a migration ledger is new when it holds no fleet table,
-// and is refused when it holds one, since no step can tell its shape.
 export async function runMigrations(db: Kysely<StateStoreSchema>): Promise<void> {
   const hasLedger = await probeTable(db, DEFAULT_MIGRATION_TABLE);
   const hasFleet = await probeTable(db, 'fleet');

@@ -46,7 +46,6 @@ test('it restores the fleet cold after a daemon crash', async () => {
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -94,7 +93,6 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -137,7 +135,6 @@ test('it restores a killed session as exited across a daemon restart', async () 
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -203,7 +200,6 @@ test('it restores a stored exited row once and nothing on a second restore', asy
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -243,7 +239,6 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -252,8 +247,7 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
     command: ctx.atc,
     home: ctx.home,
 
-    // A boot wait far longer than any test, so a revive that boots shows
-    // that the start or death of the one before it released the wait.
+    // A boot wait far longer than any test, so a revive that boots shows the start or death of the one before it released the wait.
     env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
   });
 
@@ -283,16 +277,13 @@ test('it revives the fleet one boot at a time, gated on SessionStart', async () 
   const restored = await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
   const immediate = await client.sendRequest('session.list');
 
-  // The first revive holds its start until a line arrives, so the rest stay
-  // queued behind it until the test lets it go.
   const booting = getRecords(immediate, 'sessions').find((session) => session['kind'] === 'pty');
 
   invariant(booting !== undefined, 'no restored session has a terminal');
 
   await client.sendRequest('session.input', { session: booting['id'], data: KEYS.enter });
 
-  // The three boots run one after another, so the wait lasts while each new
-  // event shows the next boot under way.
+  // The three boots run one after another, so the wait must last while each new event shows the next boot under way.
   await waitForEvent(
     events,
     { ev: 'SessionState', session: { id: 's-three', kind: 'pty', agentSessionID: 's-three' } },
@@ -328,7 +319,6 @@ test('it moves on to the next revive when one dies before announcing itself', as
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -396,7 +386,6 @@ test('it revives the fleet most recently active first', async () => {
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -436,8 +425,6 @@ test('it revives the fleet most recently active first', async () => {
     }),
   ]);
 
-  // The event trail dates 'three' most recent and 'one' oldest, inverting
-  // the stored fleet order.
   await seed.recordEvent(
     { atcId: toSessionID('s1'), event: 'Stop', payload: { session_id: 'fake-a' } },
     null,
@@ -477,7 +464,6 @@ test('it restores a grok session via grok --resume, not claude --resume', async 
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -557,7 +543,6 @@ test('it keeps the spawn prompt and latest result across a daemon restart', asyn
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -599,8 +584,6 @@ test('it keeps the spawn prompt and latest result across a daemon restart', asyn
 
   const id = getString(getRecord(ok, 'session'), 'id');
 
-  // The turn's end reaching the daemon is waited for on its own, so a slow
-  // hook delivery and a lost fleet write fail at different lines.
   await waitForEvent(events, { ev: 'SessionState', session: { state: 'done' } });
 
   await waitFor(async () => {
@@ -637,7 +620,6 @@ test("it revives a restored session with the spawn's model and effort", async ()
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -706,7 +688,6 @@ test("it revives a restored session with the config's plugin folders and the spa
         grok: { bin: ctx.grok },
       },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -715,8 +696,7 @@ test("it revives a restored session with the config's plugin folders and the spa
     command: ctx.atc,
     home: ctx.home,
 
-    // A boot wait far longer than any test, so a revive that boots shows
-    // that the start or death of the one before it released the wait.
+    // A boot wait far longer than any test, so a revive that boots shows the wait was released by the start or death of the one before it.
     env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
   });
 
@@ -776,7 +756,6 @@ test("it revives a restored session with the config's plugin folders as they sta
         grok: { bin: ctx.grok },
       },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -849,7 +828,6 @@ test('it lists a restored session whose plugin folder is gone as refused, naming
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -901,7 +879,6 @@ test('it revives a restored session that has no model or effort without either f
     JSON.stringify({
       agents: { claude: { bin: ctx.claude }, grok: { bin: ctx.grok } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -910,8 +887,7 @@ test('it revives a restored session that has no model or effort without either f
     command: ctx.atc,
     home: ctx.home,
 
-    // A boot wait far longer than any test, so a revive that boots shows
-    // that the start or death of the one before it released the wait.
+    // A boot wait far longer than any test, so a revive that boots shows that the start or death of the one before it released the wait.
     env: { ATC_RESTORE_BOOT_TIMEOUT_MS: '60000' },
   });
 

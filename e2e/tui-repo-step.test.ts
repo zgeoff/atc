@@ -399,8 +399,7 @@ test('it leaves a destination under a ~ root to a remote target and refuses a ty
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  // An imp target with a url and no token takes a workspace; nothing here
-  // reaches impd, since no spawn is sent.
+  // the imp target url is unreachable, which is fine because no spawn is sent.
   ctx.writeConfig({
     targets: {
       local: { provider: 'local-pty' },
@@ -462,9 +461,7 @@ test('it offers the other URL form after a failed probe and checks that form on 
     .env(fixture.env)
     .quiet();
 
-  // The daemon reads the home's git config: the ssh form of acme/app reads
-  // the mirror, and the https form reads a path that does not exist, so no
-  // request reaches GitHub.
+  // The daemon reads the home's git config: the https form reads a path that does not exist, so no request reaches GitHub.
   writeFileSync(
     join(ctx.home, '.gitconfig'),
     `[url "file://${join(ctx.home, 'mirror')}/"]\n\tinsteadOf = git@github.com:\n[url "file://${join(ctx.home, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,

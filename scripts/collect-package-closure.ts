@@ -1,7 +1,5 @@
 import type { WorkspacePackage } from './load-workspace-packages';
 
-// The named packages and every workspace package their manifests depend on,
-// directly or through another package, in the order the walk finds them.
 export function collectPackageClosure(
   workspace: readonly WorkspacePackage[],
   names: readonly string[],

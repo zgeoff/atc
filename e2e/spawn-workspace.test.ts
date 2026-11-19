@@ -46,8 +46,6 @@ async function setupTest() {
 
 test('it materializes a path source at its pushed HEAD on the target and verifies it there', async () => {
   const ctx = await setupTest();
-
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const box = createStubDirProvider();
@@ -100,9 +98,6 @@ test('it materializes a path source at its pushed HEAD on the target and verifie
   expect(readFileSync(join(destination, 'README.md'), 'utf8')).toBe(committed);
   expect(spawned).not.toContainKey('warnings');
 
-  // The claim creates the parent and the directory in one command, and the
-  // verify unsets every variable that could point git at another
-  // repository before it reads the checkout's HEAD and status in one more.
   expect(box.calls).toStrictEqual([
     { op: 'run', argv: ['sh', '-c', expect.any(String), 'sh', destination], cwd: '/' },
     {
@@ -216,7 +211,6 @@ test('it verifies the target checkout itself when the daemon env points git at a
 test('it fails the spawn when the target checkout has no commit at HEAD, and removes it', async () => {
   const ctx = await setupTest();
 
-  // The unpack on the host leaves HEAD on a branch that holds no commit.
   const box = createStubDirProvider({
     afterTransfer: async (directory) => {
       await writeFile(join(directory, '.git', 'HEAD'), 'ref: refs/heads/missing\n');
@@ -269,7 +263,6 @@ test('it fails the spawn when the target checkout has no commit at HEAD, and rem
 test('it fails the spawn when the target checkout lacks a tracked file, and removes it', async () => {
   const ctx = await setupTest();
 
-  // The unpack on the host leaves one tracked file out.
   const box = createStubDirProvider({
     afterTransfer: async (directory) => {
       await rm(join(directory, 'README.md'));
@@ -334,8 +327,6 @@ test('it removes only the directory it created when a symlink in the requested p
   writeFileSync(join(busy, 'ws', 'inner', 'keep.txt'), 'kept\n');
   symlinkSync(safe, alias);
 
-  // The unpack leaves a tracked file out, and the requested path's symlink
-  // moves to another directory before the rollback removes the checkout.
   const box = createStubDirProvider({
     afterTransfer: async (directory) => {
       await rm(join(directory, 'README.md'));
@@ -530,8 +521,6 @@ test('it refuses a path source with uncommitted changes as workspace_dirty when 
 
 test('it materializes the committed HEAD of a dirty path source and leaves its changes behind', async () => {
   const ctx = await setupTest();
-
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const daemon = await startTestDaemon({
@@ -976,8 +965,6 @@ test('it clones with the workspace credential and starts the harness without it 
 
   const server = startGitHTTPServer(ctx.directory, ctx.env);
 
-  // The askpass variables stand in for a daemon whose own environment holds
-  // them; the credential variable is the one the spawn names.
   updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
   updateEnv('GIT_ASKPASS', '/fixture/askpass');
   updateEnv('ATC_GIT_ASKPASS_SECRET', 'fixture-not-a-secret');
@@ -1058,8 +1045,6 @@ test('it starts a revived harness after a restart without the workspace credenti
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: async (paths) => {
-      // The fleet holds a ready git workspace on box, as a spawn under a
-      // workspace credential leaves it.
       const store = await createStateStore(paths.dbPath);
 
       const stopStore = registerTestCleanup(() => store.stop());
@@ -1139,7 +1124,6 @@ test('it fails the spawn when the target checkout is not at the pinned commit, a
 
   const pinned = await $`git rev-parse HEAD`.env(ctx.env).cwd(ctx.work).text();
 
-  // The host's checkout lands on another commit than the one sent.
   const box = createStubDirProvider({
     afterTransfer: async (directory) => {
       await Bun.write(join(directory, '.git', 'HEAD'), parent);
@@ -1233,8 +1217,6 @@ test.each([['transfer'], ['run']] as const)(
       }),
     });
 
-    // A dirty tree whose dirt is refused fails as workspace_dirty once
-    // resolution runs.
     writeFileSync(join(ctx.work, 'README.md'), 'edited\n');
 
     const spawn = daemon.client.sendRequest('session.spawn', {
@@ -1289,8 +1271,6 @@ test('it fails a materialization that a restart interrupts and lists no session 
     }),
   });
 
-  // The held transfer is released before the daemon stops and its
-  // directories go.
   registerTestCleanup(() => {
     held.resolve(undefined);
   });
@@ -1370,8 +1350,6 @@ test("it logs the failure of an interrupted materialization that resumes into th
     }),
   });
 
-  // The held transfer is released before the daemon stops and its
-  // directories go.
   const releaseTransfer = registerTestCleanup(() => {
     held.resolve(undefined);
   });
@@ -1444,7 +1422,6 @@ test('it refuses to materialize under a parent it cannot create, with the cause'
     }),
   });
 
-  // A file stands where the parent's own parent would be.
   writeFileSync(join(ctx.directory, 'blocked'), 'a file\n');
 
   const parent = join(ctx.directory, 'blocked', 'box');
@@ -1568,7 +1545,6 @@ test('it refuses to materialize into a directory that already exists and leaves 
 test('it removes the checkout it created and keeps the files beside it when its harness fails to start', async () => {
   const ctx = await setupTest();
 
-  // A provider whose harness start throws, as a refused launch does.
   const box = createStubExecutionProvider({
     kind: 'fixture-dir',
     onSpawn: () => {
@@ -1616,11 +1592,8 @@ test('it removes the checkout it created and keeps the files beside it when its 
 
 test('it spawns a retry into the directory a harness that failed to start left', async () => {
   const ctx = await setupTest();
-
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
-  // A provider whose first harness start throws, as a refused launch does.
   const box = createStubExecutionProvider({
     kind: 'fixture-dir',
     onSpawn: mock(() => {}).mockImplementationOnce(() => {
@@ -1769,8 +1742,6 @@ test.each([
       },
     });
 
-    // The fixture-dir provider, with its directory removal held until the
-    // test releases it.
     const box: ExecutionProvider = {
       kind: host.kind,
       remote: host.remote,
@@ -1814,8 +1785,7 @@ test.each([
       }),
     });
 
-    // The held removal is released before the daemon stops and its
-    // directories go.
+    // The held removal must be released before the daemon stops and its directories go.
     const releaseRemoval = registerTestCleanup(() => {
       released.resolve();
     });
@@ -1864,8 +1834,6 @@ test('it refuses a local spawn through a symlink into a checkout that a failed w
     },
   });
 
-  // The fixture-dir provider, with its directory removal held until the
-  // test releases it.
   const box: ExecutionProvider = {
     kind: host.kind,
     remote: host.remote,
@@ -1909,8 +1877,6 @@ test('it refuses a local spawn through a symlink into a checkout that a failed w
     }),
   });
 
-  // The held removal is released before the daemon stops and its
-  // directories go.
   const releaseRemoval = registerTestCleanup(() => {
     released.resolve();
   });
@@ -1962,8 +1928,6 @@ test('it starts a local spawn beside a checkout that a failed workspace spawn re
     },
   });
 
-  // The fixture-dir provider, with its directory removal held until the
-  // test releases it.
   const box: ExecutionProvider = {
     kind: host.kind,
     remote: host.remote,
@@ -2007,8 +1971,6 @@ test('it starts a local spawn beside a checkout that a failed workspace spawn re
     }),
   });
 
-  // The held removal is released before the daemon stops and its
-  // directories go.
   const releaseRemoval = registerTestCleanup(() => {
     released.resolve();
   });
@@ -2057,8 +2019,6 @@ test('it keeps a checkout that a local spawn still starting runs inside when its
     },
   });
 
-  // The workspace spawn readies its host first, and the plain spawn's
-  // readying is held until the test releases it.
   const prepareHost = mock<ExecutionProvider['prepareHost']>(host.prepareHost)
     .mockImplementationOnce(host.prepareHost)
     .mockImplementationOnce(async () => {
@@ -2102,8 +2062,7 @@ test('it keeps a checkout that a local spawn still starting runs inside when its
     }),
   });
 
-  // The held transfer and readying are released before the daemon stops
-  // and its directories go.
+  // Released before the daemon stops and its directories go, so the held requests do not outlive them.
   const releaseTransfer = registerTestCleanup(() => {
     releasedTransfer.resolve();
   });
@@ -2167,8 +2126,6 @@ test('it keeps a checkout that a local spawn starts inside while its failed work
     },
   });
 
-  // The workspace spawn readies its host first, and the plain spawn's
-  // readying is held until the test releases it.
   const prepareHost = mock<ExecutionProvider['prepareHost']>(host.prepareHost)
     .mockImplementationOnce(host.prepareHost)
     .mockImplementationOnce(async () => {
@@ -2177,8 +2134,6 @@ test('it keeps a checkout that a local spawn starts inside while its failed work
       await releasedPrepare.promise;
     });
 
-  // The rollback's first resolve of the listed session's directory is held
-  // until the test releases it.
   const box: ExecutionProvider = {
     kind: host.kind,
     remote: host.remote,
@@ -2222,8 +2177,6 @@ test('it keeps a checkout that a local spawn starts inside while its failed work
     }),
   });
 
-  // The held resolve and readying are released before the daemon stops
-  // and its directories go.
   const releaseResolve = registerTestCleanup(() => {
     releasedResolve.resolve();
   });
@@ -2292,8 +2245,6 @@ test('it refuses a local spawn in a relative directory while a failed workspace 
     },
   });
 
-  // The fixture-dir provider, with its directory removal held until the
-  // test releases it.
   const box: ExecutionProvider = {
     kind: host.kind,
     remote: host.remote,
@@ -2337,8 +2288,7 @@ test('it refuses a local spawn in a relative directory while a failed workspace 
     }),
   });
 
-  // The held removal is released before the daemon stops and its
-  // directories go.
+  // The held removal must be released before the daemon stops, or teardown blocks on it.
   const releaseRemoval = registerTestCleanup(() => {
     released.resolve();
   });
@@ -2554,9 +2504,7 @@ test('it refuses to run a local repository in place when git does not trust its 
     }),
   });
 
-  // git's own switch for treating every repository as another user's, with
-  // the host's system and global config kept out, since a host that lists
-  // the repository under safe.directory trusts it whatever its owner.
+  // host system and global config are kept out, since a host that lists the repository under safe.directory trusts it whatever its owner.
   updateEnv('GIT_TEST_ASSUME_DIFFERENT_OWNER', '1');
   updateEnv('GIT_CONFIG_NOSYSTEM', '1');
   updateEnv('GIT_CONFIG_GLOBAL', '/dev/null');
@@ -2690,8 +2638,6 @@ test('it materializes a git source on the local target like on any other', async
 
 test('it materializes a git source without a cwd under the home on the local target and answers with its directory', async () => {
   const ctx = await setupTest();
-
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const home = join(ctx.directory, 'home');
@@ -2779,8 +2725,6 @@ test('it groups a git source without a cwd that lands at the base of a root insi
 
 test('it lands concurrent spawns of one repository without a cwd beside a directory that exists and leaves that directory as it was', async () => {
   const ctx = await setupTest();
-
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const home = join(ctx.directory, 'home');
@@ -2821,9 +2765,6 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
 
   const sessions = spawned.map((answer) => getRecord(answer, 'session'));
 
-  // A failure prints the whole received value, so the listing, the folder
-  // and the daemon's log show whether the two answers share a session or
-  // two sessions share a directory.
   expect({
     distinctIDs: new Set(sessions.map((session) => session['id'])).size,
     landed: sessions
@@ -2851,8 +2792,6 @@ test('it lands concurrent spawns of one repository without a cwd beside a direct
 
 test('it lands a git source without a cwd under the root the config sets for its target', async () => {
   const ctx = await setupTest();
-
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const root = join(ctx.directory, 'roots', 'box');
@@ -2892,7 +2831,7 @@ test('it lands a git source without a cwd under the root the config sets for its
   expect(readFileSync(join(root, 'upstream-main', 'README.md'), 'utf8')).toBe(committed);
 });
 
-// Root writes past directory modes, so the root stays writable.
+// Root writes past directory modes, so a 0o555 root is still writable.
 test.skipIf(process.getuid?.() === 0)(
   'it refuses a git source without a cwd whose root it cannot write after one attempt, with the cause',
   async () => {
@@ -3155,7 +3094,6 @@ test("it runs git from the daemon's PATH for a git spawn on an allowed transport
     }),
   });
 
-  // A git first on the PATH records each run.
   createStubBin(
     daemon.directory,
     'git',
@@ -3201,8 +3139,6 @@ test('it refuses a git source on a local transport before it runs git, transferr
     }),
   });
 
-  // A git first on the PATH records each run, so a refusal that runs git
-  // leaves the record behind.
   createStubBin(
     ctx.directory,
     'git',
@@ -3440,8 +3376,6 @@ test('it holds git to the configured transports whatever the daemon environment 
 test('it materializes a spawn from the owner/repo shorthand at its GitHub https URL', async () => {
   const ctx = await setupTest();
 
-  // The rewrite sends the expanded URL to the fixture upstream, so no
-  // request reaches GitHub.
   writeFileSync(
     join(ctx.directory, 'gitconfig'),
     `[url "file://${ctx.directory}/"]\n\tinsteadOf = https://github.com/acme/\n`,
@@ -3508,7 +3442,6 @@ test("it runs git from the daemon's PATH for a probe under a valid transport lis
     }),
   });
 
-  // A git first on the PATH records each run.
   createStubBin(
     daemon.directory,
     'git',
@@ -3552,8 +3485,6 @@ test('it refuses a probe under an invalid transport list before any git runs', a
     }),
   });
 
-  // A git first on the PATH records each run, so a refusal that runs git
-  // leaves the record behind.
   createStubBin(
     daemon.directory,
     'git',
@@ -3607,8 +3538,6 @@ test('it refuses a git spawn under an invalid transport list before any git runs
     }),
   });
 
-  // A git first on the PATH records each run, so a refusal that runs git
-  // leaves the record behind.
   createStubBin(
     daemon.directory,
     'git',
@@ -3661,7 +3590,6 @@ test("it runs git from the daemon's PATH for a checkout spawn under a valid tran
     }),
   });
 
-  // A git first on the PATH records each run.
   createStubBin(
     ctx.directory,
     'git',
@@ -3711,8 +3639,6 @@ test('it refuses a checkout spawn under an invalid transport list before any git
     }),
   });
 
-  // A git first on the PATH records each run, so a refusal that runs git
-  // leaves the record behind.
   createStubBin(
     ctx.directory,
     'git',

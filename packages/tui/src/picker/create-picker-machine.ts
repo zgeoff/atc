@@ -173,8 +173,7 @@ export function createPickerMachine<TMirror extends { readonly id: string }>(
           COMPLETED: { actions: 'step' },
         },
         states: {
-          // Each region's transitions sit on its child states: one that
-          // re-enters the region itself takes the machine root as its domain,
+          // A transition that re-enters the region itself takes the machine root as its domain,
           // since SCXML skips a parallel state, and stops every region.
           request: {
             initial: 'idle',
@@ -305,8 +304,6 @@ function settleFlow(flow: PickerFlow) {
   ctx.selected = getSelectedIndex(ctx);
 }
 
-// Each source lists in a child of its own, so a listing of one source never
-// stops another's, and a second listing of a source replaces its first.
 function toListingChildID(sourceID: string) {
   return `listing.${sourceID}`;
 }

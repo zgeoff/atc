@@ -16,7 +16,6 @@ function setupTest({ on }: { readonly on: On }) {
   on('process.run', ($, e) => {
     ran.push({ argv: [...e.argv], stdin: e.init?.stdin });
 
-    // Every atc call the hook makes needs an exit status to finish.
     return {
       value: {
         exitCode: 0,
@@ -600,7 +599,6 @@ async function startNoteSession(
 
   on('tool.register', () => ({ value: { tool: 'mcp__atc-bridge__note' } }));
 
-  // The hook starts its tap at session start; this one never yields a line.
   on('process.spawn', async function* () {
     return { value: { code: 0, signal: null } };
   });
@@ -1095,7 +1093,6 @@ test('it reports a message unanswered when its answer fails after its turn ended
 
   mock.env(on, { ATC_SESSION_ID: 's-1' });
 
-  // The turn is interrupted while atc runs the answer, which then fails.
   on('process.run', async ($, e) => {
     ran.push([...e.argv]);
 
@@ -1764,8 +1761,6 @@ test('it delivers a message sent during a server tool call only after the call h
 
   const submitted: string[] = [];
 
-  // A refused append sends the message as a prompt at once, so the prompt
-  // shows when the mod tried the append.
   on('session.append', () => ({ deny: 'not now' }));
 
   on('prompt.submit', ($, e) => {
@@ -1839,8 +1834,6 @@ test('it holds a message across a paused response until its server tool call has
 
   const submitted: string[] = [];
 
-  // A refused append sends the message as a prompt at once, so the prompt
-  // shows when the mod tried the append.
   on('session.append', () => ({ deny: 'not now' }));
 
   on('prompt.submit', ($, e) => {
@@ -2001,8 +1994,6 @@ test('it delivers a message at once while the turn runs a tool between steps', a
 
   const submitted: string[] = [];
 
-  // A refused append sends the message as a prompt at once, so the prompt
-  // shows when the mod tried the append.
   on('session.append', () => ({ deny: 'not now' }));
 
   on('prompt.submit', ($, e) => {
@@ -2044,8 +2035,6 @@ test('it delivers a message at once while the turn runs a tool between steps', a
   expect(submitted).toStrictEqual(['<atc-message id="m-1" from="alice">\nhi\n</atc-message>']);
 });
 
-// A tapped session whose tap prints the given lines once they resolve, and
-// whose conversation keeps every row the mod appends or submits.
 function setupConversationTest(
   { on }: { readonly on: On },
   tapLines: Promise<string[]>,
@@ -2132,7 +2121,6 @@ test('it tells the sender to send again a message whose session ended before it 
 test('it shows an answer notice once when its append resolves after the turn ended', async (engine, on) => {
   const tapLines = Promise.withResolvers<string[]>();
   const appended = Promise.withResolvers<void>();
-  // The row lands only once the turn has ended.
   const ctx = setupConversationTest({ on }, tapLines.promise, appended.promise);
 
   await engine.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true });

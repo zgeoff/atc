@@ -10,9 +10,7 @@ import { createLocalPTYProvider } from '@atc/execution-local';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { $ } from 'bun';
 
-// Each session runs `sleep` in a real terminal on the daemon's machine, in a workspace the daemon
-// clones from the fixture's upstream; a git command a test runs there passes an identity, since
-// the clone holds none under the test home.
+// A git command a test runs in a workspace the daemon clones passes an identity, since the clone holds none under the test home.
 
 test('it removes a workspace whose work is pushed, and the state folder, and reports removed', async () => {
   const git = await createGitFixture({ prefix: 'atc-forget-workspace-' });

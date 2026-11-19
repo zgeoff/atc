@@ -14,9 +14,7 @@ export function seedDaemonID(
   const db = new Database(deps.dbPath);
 
   try {
-    // A copy of the run's migrated template with a daemon id of its own: the
-    // migration draws the id only on a database's first open, so no code in
-    // the repo draws one for a copy.
+    // The migration draws the id only on a database's first open.
     db.run("UPDATE prefs SET value = ? WHERE key = 'daemon_id'", [daemonID]);
   } finally {
     db.close();

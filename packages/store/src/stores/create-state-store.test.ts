@@ -329,9 +329,6 @@ test('it relinks a stored sub-session to the session that replaced its parent', 
 test('it answers a read issued between two unawaited writes, and one after them, with whole fleets', async () => {
   const ctx = await setupTest();
 
-  // With rows already stored, an empty or mixed result would mean a read saw
-  // a write half done. The calls only overlap in when they are issued: the
-  // test does not hold a write open while the read runs.
   const seed = buildMockFleetEntry();
   const first = buildMockFleetEntry({ sessionID: seed.sessionID });
   const second = buildMockFleetEntry({ sessionID: seed.sessionID });
@@ -1087,7 +1084,7 @@ test('it adds agent to a fleet row that predates it', async () => {
 
   const older = new Database(dbPath);
 
-  // A synced commit per migration step takes up to 2 s for the ladder.
+  // A synced commit per migration step takes up to 2 s for the ladder, so syncing is turned off.
   older.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
@@ -1246,7 +1243,7 @@ test('it adds the restart results table and leaves every row of an older databas
 
   const older = new Database(dbPath);
 
-  // A synced commit per migration step takes up to 2 s for the ladder.
+  // A synced commit per migration step takes up to 2 s.
   older.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
@@ -1407,7 +1404,7 @@ test('it reads a runtime auth binding bound before the host column rename as the
 
   const older = new Database(dbPath);
 
-  // A synced commit per migration step takes up to 2 s for the ladder.
+  // A synced commit per migration step takes up to 2 s for the ladder, so syncing is turned off.
   older.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
@@ -1678,7 +1675,7 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
 
   const old = new Database(oldPath);
 
-  // A synced commit per migration step takes up to 2 s for the ladder.
+  // A synced commit per migration step takes up to 2 s for the ladder, so syncing is turned off.
   old.run('PRAGMA synchronous = OFF');
 
   registerTestCleanup(() => {
@@ -4424,7 +4421,6 @@ test('it rebuilds a fleet at the model-and-effort shape keyed by a minted sessio
 test('it keeps a fleet row that has no agent session id', async () => {
   const ctx = await setupTest();
 
-  // The factory always sets an agent session id, so this row is written out.
   await ctx.store.writeFleet([
     { sessionID: toSessionID('s-new'), name: 'booting', cwd: '/x', agent: 'claude' },
   ]);
@@ -4902,8 +4898,6 @@ test('it moves the sub-sessions of a replaced row up to the parent of the sub-se
 test('it breaks the cycle two crossed resumes make by keeping the earlier row top-level', async () => {
   const ctx = await setupTest();
 
-  // R resumes P's agent session under Q, and S resumes Q's under P: replacing
-  // P with R and Q with S links R under S and S under R.
   const rowP = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
   const rowQ = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
   const rowR = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
@@ -4937,8 +4931,6 @@ test('it moves a worker under a row that a resume of its own parent replaced', a
 test('it writes three resumes crossed in a ring as one top-level row with every other row under it', async () => {
   const ctx = await setupTest();
 
-  // R resumes P under Q, S resumes Q under T, and U resumes T under P, and
-  // each replaced row has a worker of its own.
   const rowP = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-p') });
   const rowQ = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-q') });
   const rowT = buildMockFleetEntry({ agentSessionID: toAgentSessionID('c-t') });
@@ -6315,20 +6307,16 @@ test('it writes a consistent backup while another connection commits writes', as
   seed.run('CREATE TABLE probe (generation INTEGER NOT NULL, slot INTEGER NOT NULL)');
   seed.run('CREATE TABLE probe_head (generation INTEGER NOT NULL)');
   seed.run('INSERT INTO probe_head VALUES (0)');
-
-  // About 8 MB of pages, so the copy runs long enough for the writer's
-  // commits to land while it reads.
   seed.run('CREATE TABLE bulk (data BLOB NOT NULL)');
 
+  // About 8 MB of pages, so the copy runs long enough for the writer's commits to land while it reads.
   seed.run(
     'WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1024) INSERT INTO bulk SELECT randomblob(8192) FROM n',
   );
 
   const commitLog = join(ctx.directory, 'commits.log');
 
-  // Each transaction adds 20 rows of one generation and moves the head to
-  // it, then logs its commit time. It rests after each commit: one that never
-  // paused stretched the copy from a tenth of a second to over three.
+  // A writer that never paused stretched the copy from a tenth of a second to over three.
   const writer = Bun.spawn(
     [
       process.execPath,

@@ -1,7 +1,5 @@
 import { isBuiltin } from 'node:module';
 
-// One entry of @atcx/contract: whether its file exists, each file it reaches
-// with the specifiers that file imports, and its unresolved imports.
 export interface ContractEntry {
   readonly entry: string;
   readonly exists: boolean;

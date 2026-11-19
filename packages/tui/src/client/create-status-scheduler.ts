@@ -16,15 +16,11 @@ export interface StatusSchedulerDeps {
   readonly isDaemonRestarting: () => boolean;
   readonly isDaemonWaiting: () => boolean;
 
-  // Why the last action on a daemon sent nothing or was refused, until it times out.
   readonly findNotice: () => string | null;
 }
 
-// The status bar draws at most once per 50 ms, however often the client asks for it.
 export function createStatusScheduler(deps: StatusSchedulerDeps): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
-
-  // A notice drawn over an attached session stays on the bar's row until the bar draws again.
   let isNoticeOverAttached = false;
 
   return () => {

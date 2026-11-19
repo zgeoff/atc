@@ -57,22 +57,17 @@ import type {
 } from './create-message-store';
 import { createPublishedRecordStore } from './create-published-record-store';
 
-// The target a spawn ran on: its name and the identity the spawned session
-// was bound to there.
 interface SpawnTarget {
   readonly target: string;
   readonly targetIdentity: string;
 }
 
-// A directory a spawn ran in and the target it ran on.
 export interface SpawnDir {
   readonly cwd: string;
   readonly grant: SpawnTarget;
 }
 
 export interface StateStore {
-  // The daemon this store's fleet rows belong to, minted once by the
-  // migration that created session ownership.
   readonly daemonID: DaemonID;
   readonly loadFleet: () => Promise<FleetEntry[]>;
   readonly readFleetRecency: () => Promise<Map<AgentSessionID, string>>;
@@ -119,8 +114,6 @@ export interface StateStore {
   readonly readMessageByID: (id: MessageID) => Promise<MessageRecord | null>;
   readonly readTurnSiblings: (record: MessageRecord) => Promise<TurnSibling[]>;
 
-  // Marks the message delivered and writes the trail entry built from the marked record in one
-  // transaction, so both commit or neither does. A missed mark writes nothing.
   readonly updateMessageDelivered: (
     id: MessageID,
     owner: MessageOwner,
@@ -221,14 +214,10 @@ export interface StateStore {
   readonly reconcileAuthBindings: (at: number) => Promise<void>;
   readonly writeBackup: (path: string) => Promise<number>;
 
-  // A second close, or a disposal after one, waits on the first and closes
-  // nothing again; a close that fails is forgotten, so the next one retries.
   readonly stop: () => Promise<void>;
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 }
 
-// Opening a store runs the migrations before it returns. A caller that
-// passes a query listener receives each statement the store runs once it ran.
 export async function createStateStore(
   dbPath: string,
   onQuery?: (query: CompiledQuery) => void,
@@ -264,8 +253,6 @@ export async function createStateStore(
     .executeTakeFirstOrThrow();
 
   const daemonID = toDaemonID(daemonIDRow.value);
-
-  // The close under way or done, which every later close waits on.
   let stopping: Promise<void> | null = null;
   const fleet = createFleetStore(db, daemonID);
   const trail = createEventTrailStore(db);
@@ -421,7 +408,6 @@ export async function createStateStore(
     removeAuthBinding: (hostKey) => authBindings.removeAuthBinding(hostKey),
     reconcileAuthBindings: (at) => authBindings.reconcileAuthBindings(at),
 
-    // The database file this store opened, which a backup must never replace.
     writeBackup: (path) => writeBackup(db, dbPath, path),
 
     stop,

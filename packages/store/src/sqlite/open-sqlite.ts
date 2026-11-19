@@ -2,13 +2,11 @@ import { Database } from 'bun:sqlite';
 import { requireOpenableSQLitePath } from './register-refused-sqlite-name';
 
 interface SQLiteOptions {
-  // Binds a named parameter without its prefix.
   readonly strict?: boolean;
 
-  // How long a write waits for another process's lock before it fails.
   readonly busyTimeoutMs?: number;
 
-  // Enforces foreign keys, cascades included, which SQLite leaves off by default.
+  // SQLite leaves foreign keys off by default.
   readonly foreignKeys?: boolean;
 }
 

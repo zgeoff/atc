@@ -24,7 +24,6 @@ function setupTest() {
   return startTestDaemon({
     prefix: 'atc-daemon-',
 
-    // Every spawn needs a Claude adapter; this one runs a sleep.
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 }
@@ -648,8 +647,7 @@ test('it broadcasts no SessionDetached for a detach without an attach', async ()
   await actor.sendRequest('session.detach', { session: sessionID });
   await actor.sendRequest('session.attach', { session: sessionID, cols: 80, rows: 24 });
 
-  // The attach follows the detach, so its event arriving shows the daemon
-  // has already handled the detach.
+  // The attach follows the detach, so its event arriving shows the daemon has already handled the detach.
   await waitFor(() => {
     expect(ctx.events).toPartiallyContain({ ev: 'SessionAttached' });
   });

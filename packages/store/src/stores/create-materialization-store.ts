@@ -10,9 +10,7 @@ import type {
 import type { StateStoreSchema } from '../sqlite/state-store-schema';
 import { parseWithheldEnv } from '../utils/parse-withheld-env';
 
-// Each spawn's workspace on its way to the execution target.
 export interface MaterializationStore {
-  // Records a materialization as it starts, in the resolving phase.
   readonly createMaterialization: (row: NewMaterialization, at: number) => Promise<void>;
   readonly updateMaterialization: (
     sessionID: SessionID,
@@ -22,9 +20,7 @@ export interface MaterializationStore {
   readonly readMaterialization: (sessionID: SessionID) => Promise<WorkspaceMaterialization | null>;
   readonly readMaterializations: () => Promise<WorkspaceMaterialization[]>;
 
-  // Runs as a daemon starts, before it serves a request: a materialization
-  // short of ready or failed was cut off by a stopped daemon before its
-  // workspace was verified.
+  // A materialization short of ready or failed was cut off by a stopped daemon before its workspace was verified.
   readonly reconcileMaterializations: (at: number) => Promise<void>;
 }
 

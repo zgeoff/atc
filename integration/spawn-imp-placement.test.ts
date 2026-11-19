@@ -65,8 +65,6 @@ test("it runs a sub-session on its parent's target as another session in its par
 
   const imps = ctx.port.collectImpNames();
   const names = ctx.port.sessionRequests.map((request) => request.name);
-
-  // Each distinct session the imp was asked to start, once.
   const sessions = [...new Set(ctx.port.sessionRequests.map((request) => request.session))];
 
   expect<readonly unknown[]>(imps).toStrictEqual([expect.any(String)]);

@@ -21,9 +21,6 @@ import invariant from 'tiny-invariant';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
-// A real daemon whose default target `box` runs on the imp provider over the
-// stub imp port, beside the local target; each session's MCP server reaches
-// the daemon through that session's own bridge socket, as one in the guest does.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-access-');
   const clis = createStubGuestCLIs(join(temporaryDirectory.path, 'bin'));

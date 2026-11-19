@@ -13,8 +13,6 @@ import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-proce
 import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 import type { DaemonEvent } from '@atcx/contract';
 
-// Runs the compiled daemon against the real Docker Engine of the machine, with a stand-in for
-// the Claude CLI baked into an image. It needs the compiled binary (ATC_BIN) and a running Engine.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-docker-');
   const atc = resolveATCCommand();
@@ -46,7 +44,6 @@ async function setupTest() {
   await createStandInImage(temporaryDirectory.path, image);
   await runDocker('volume', 'create', signIn);
 
-  // the sign-in volume, as `claude setup-token` leaves it
   await runDocker(
     'run',
     '--rm',
@@ -112,7 +109,7 @@ async function setupTest() {
         `name=${prefix}`,
       );
 
-      // a throwaway container of the daemon's own may exist for a moment
+      // the daemon's own throwaway containers may exist for a moment and must not be listed
       return names.filter((name) => !name.startsWith(`${prefix}run-`)).toSorted();
     },
     listVolumes: async () => {
@@ -137,7 +134,6 @@ test('it runs a session in containers, wakes it after a kill, and forgets it wit
 
   const sessionID = getString(getRecord(spawned, 'session'), 'id');
 
-  // the stand-in's hooks cross the relay and the real reporter to reach the daemon
   await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
   const [harness = ''] = await ctx.listHarnesses();

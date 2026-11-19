@@ -900,8 +900,6 @@ test('it keeps a headless run going when the forget of its session fails to dest
       adapter: buildMockAgentAdapter({
         headlessRunner: headless.runner,
 
-        // Every hook reads as the terminal's end, so one fires the pending
-        // eject.
         planHookEvents: () => ({ events: [{ kind: 'ended' }] }),
       }),
       targets: [

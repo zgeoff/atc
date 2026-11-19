@@ -8,7 +8,6 @@ interface StaleOwnership {
   readonly writerEpoch: number;
 }
 
-// The store wrote nothing, and the daemon answers its caller with stale_epoch.
 export class StaleOwnershipError extends Error {
   readonly sessionID: SessionID;
 

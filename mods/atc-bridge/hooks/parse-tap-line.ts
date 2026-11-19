@@ -1,7 +1,5 @@
 const SENDER_KINDS = ['connector', 'session', 'local', 'owner'] as const;
 
-// Who sent a message, as atc built it from the caller: its kind, and the atc
-// id of a session that sent it.
 export interface TapSender {
   readonly kind: (typeof SENDER_KINDS)[number];
   readonly session: string | undefined;
@@ -41,7 +39,6 @@ export function parseTapLine(line: string): TapItem | null {
     return null;
   }
 
-  // A line that declares a kind is never a message, whatever else it holds.
   if ('kind' in parsed) {
     const notice = parsed.kind === 'answer' ? parseTapNotice(parsed) : null;
 
@@ -65,8 +62,6 @@ export function parseTapLine(line: string): TapItem | null {
   return { kind: 'message', msg: { id: parsed.id, from: parsed.from, sender, text: parsed.text } };
 }
 
-// A sender this mod cannot read is left out, and the message still goes out
-// with its sender's name.
 function parseTapSender(value: unknown): TapSender | undefined {
   if (typeof value !== 'object' || value === null) {
     return undefined;

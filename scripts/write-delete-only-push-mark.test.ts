@@ -17,9 +17,7 @@ import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { writeDeleteOnlyPushMark } from './write-delete-only-push-mark';
 
-// The clone's hook keeps the jobs from the mark job to the mark removal, each
-// check an echo of its name, because the real checks need the whole repo and
-// take minutes; the chex guard needs node_modules, so it stays out.
+// Each check is an echo of its name because the real checks need the whole repo and take minutes; the chex guard needs node_modules, so it stays out.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'delete-only-push-' });
 
@@ -42,7 +40,6 @@ async function setupTest() {
 
   invariant(markJob && removeJob && markIndex < removeIndex);
 
-  // A push with PUSH_GATE set waits here until that file exists, so two pushes can overlap.
   const gateJob = {
     name: 'gate',
     run: 'test -z "$PUSH_GATE" || { touch "$PUSH_GATE.reached"; while [ ! -f "$PUSH_GATE" ]; do sleep 0.05; done; }',
@@ -319,9 +316,7 @@ test('it skips every pre-push check of a delete-only push that overlaps another'
     stdout: 'pipe',
   });
 
-  // Killing the push would leave the gate loop of its hook running, so the
-  // release opens the gate and waits for the whole push to end; it runs before
-  // the fixture's directory goes, because it registers later.
+  // Killing the push would leave the gate loop of its hook running; it runs before the fixture's directory goes, because it registers later.
   registerTestCleanup(async () => {
     writeFileSync(gate, '');
 

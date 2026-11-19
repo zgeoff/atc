@@ -6,24 +6,18 @@ import type { DaemonName, SessionKey } from './session-key';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
 
-// The client's mirror of every daemon's fleet, kept fresh by events.
 export interface FleetMirror {
   sessions: MirrorSession[];
 
-  // When each session last flipped to done, so the Tab jump can prefer the
-  // most recently finished turn. Sessions already done before this client
-  // connected have no entry and rank last.
+  // Sessions already done before this client connected have no entry and rank last.
   readonly doneAt: SessionMap<number>;
 
-  // The primary daemon's stored fleet, which `R` restores.
   count: number;
 
   readonly upsert: (session: Readonly<MirrorSession>) => void;
   readonly find: (key: SessionKey) => MirrorSession | undefined;
   readonly has: (key: SessionKey) => boolean;
 
-  // Replaces the rows of one daemon with the daemon's own list, and forgets
-  // the done time of each session that daemon no longer holds.
   readonly refresh: (
     daemon: DaemonName,
     client: Pick<DaemonClient, 'sendRequest'>,

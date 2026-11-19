@@ -18,7 +18,7 @@ test('it lists the sources it offers in order in agents.list', async () => {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is read over file URLs, so the file transport must be allowed.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -53,7 +53,7 @@ test('it lists the spawn history, then the roots, then zoxide, as directories on
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The 'file' transport is enabled because probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -102,7 +102,6 @@ test('it lists the owner the directories spawned on every target', async () => {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       targets: [
@@ -162,7 +161,7 @@ test('it lists a principal only the directories spawned on targets it may use', 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is read over file URLs, so the file transport must be allowed.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       targets: [
@@ -222,7 +221,7 @@ test('it lists the configured GitHub owner through gh at the clone URL gh prefer
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The 'file' transport is enabled because the fixture's upstream is read over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -275,7 +274,7 @@ test('it lists the scope a request holds over the configured owner, at https URL
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is read over file URLs, so the file transport must be allowed.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -330,7 +329,7 @@ test('it refuses a GitHub scope gh could read as an option, running no gh', asyn
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is read over file URLs, so the file transport must be allowed.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -371,7 +370,7 @@ test('it refuses a GitHub listing on a host without gh as github_unavailable', a
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is read over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -410,7 +409,6 @@ test('it refuses a git source listing for a target that cannot take a workspace'
           provider: createLocalPTYProvider(),
         },
 
-        // The bare target's provider cannot transfer, so it takes no workspace.
         {
           id: 'bare',
           kind: 'fixture-dir',
@@ -445,7 +443,6 @@ test('it lists directories for a target that cannot take a workspace', async () 
           provider: createLocalPTYProvider(),
         },
 
-        // The bare target's provider cannot transfer, so it takes no workspace.
         {
           id: 'bare',
           kind: 'fixture-dir',
@@ -489,7 +486,7 @@ test('it refuses a principal a source listing for the default target it may not 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The 'file' transport is enabled because the fixture's upstream is read over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       targets: [
@@ -531,7 +528,7 @@ test('it refuses a source the daemon does not offer as unsupported', async () =>
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is only reachable over file URLs, so the file transport must be allowed.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -558,7 +555,7 @@ test.each([
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The 'file' transport is allowed because the fixture's upstream is read over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -591,7 +588,7 @@ test('it reads a leading ~ in directory input as the daemon home', async () => {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is read over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -831,7 +828,7 @@ test('it probes a git source for the target a principal may use', async () => {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The 'file' transport is enabled because probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       targets: [
@@ -877,7 +874,6 @@ test('it refuses a principal a probe for a target it may not use', async () => {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       targets: [
@@ -914,7 +910,7 @@ test('it refuses a probe for a ref the upstream does not have as ref_not_found',
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is read over file URLs, so the file transport must be enabled.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -933,7 +929,7 @@ test('it refuses a probe of an upstream git cannot read as clone_failed', async 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is read over file URLs, so the file transport must be enabled.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -950,7 +946,7 @@ test("it refuses a GitHub probe git cannot read with the repository's other URL 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is only reachable over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -987,7 +983,7 @@ test('it refuses a probe of the owner/repo shorthand, which only a spawn expands
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: (paths) => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
+      // The fixture's upstream is read over file URLs, so the file transport must be allowed.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -1003,8 +999,7 @@ test('it refuses a probe of the owner/repo shorthand, which only a spawn expands
     }),
   });
 
-  // The rewrite sends the expanded form to a path that does not exist, so
-  // a probe that expanded the shorthand would fail in git instead.
+  // A probe that expanded the shorthand would fail in git instead, because the rewrite sends the expanded form to a path that does not exist.
   await writeFile(
     join(daemon.directory, 'gitconfig'),
     `[url "file://${join(daemon.directory, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,
@@ -1021,7 +1016,6 @@ test('it refuses a GitHub probe with no alternates when the daemon offers no Git
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-sources-',
     options: () => ({
-      // Probes and git sources read the fixture's upstream over file URLs.
       gitTransports: ['https', 'ssh', 'file'],
       adapter: buildMockAgentAdapter(),
       principals: null,
@@ -1029,8 +1023,6 @@ test('it refuses a GitHub probe with no alternates when the daemon offers no Git
     }),
   });
 
-  // The rewrite sends the https form to a path that does not exist, so no
-  // request reaches GitHub.
   await writeFile(
     join(daemon.directory, 'gitconfig'),
     `[url "file://${join(daemon.directory, 'nowhere')}/"]\n\tinsteadOf = https://github.com/\n`,

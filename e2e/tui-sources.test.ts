@@ -317,8 +317,7 @@ test('it probes a repository typed in the list at the URL its source reads it as
     .env(fixture.env)
     .quiet();
 
-  // The daemon reads the home's git config, which sends the https form of
-  // acme/app to the mirror, so no request reaches GitHub.
+  // The daemon reads the home's git config, so no request reaches GitHub.
   writeFileSync(
     join(ctx.home, '.gitconfig'),
     `[url "file://${join(ctx.home, 'mirror')}/"]\n\tinsteadOf = https://github.com/\n`,

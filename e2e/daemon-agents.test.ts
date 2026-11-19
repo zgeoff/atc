@@ -70,7 +70,6 @@ test('it starts a gateway session with the atc-bridge mod folder', async () => {
     ctx.configPath,
     JSON.stringify({
       agents: {
-        // The gateway runs the stub Claude against an address nothing serves.
         zai: { kind: 'claude', bin: ctx.claude, baseURL: 'http://127.0.0.1:9' },
       },
     }),

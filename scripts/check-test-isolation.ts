@@ -1,6 +1,4 @@
-// Runs a test gate in a synthetic home of canary files and fails when the
-// gate touches one; reads show only where access times update.
-// Usage: bun scripts/check-test-isolation.ts [gate command...]
+// Reads show up only on filesystems where access times update.
 import {
   chmodSync,
   existsSync,
@@ -151,9 +149,7 @@ function writeClaudeCanary(bin: string, claudeCalls: string): void {
   chmodSync(claude, 0o755);
 }
 
-// One line per canary, with its hash, modification time, and access time,
-// then every path under the watched directories, sorted. Hashing reads each
-// canary, so its access time is taken first and put back after.
+// Hashing reads each canary, which updates its access time, so it is put back after.
 function readSnapshot(canaries: readonly string[], watched: readonly string[]): string[] {
   const lines = canaries.map((file) => {
     if (!existsSync(file)) {
@@ -186,7 +182,7 @@ function runGate(gate: readonly string[], home: string, run: string, bin: string
 
   // A mise shim, such as the node that `#!/usr/bin/env node` finds, reads its
   // installs, config and trust records from the XDG homes, and refuses to run
-  // from the canary home. These keep mise on the user's own directories.
+  // from the canary home.
   const env = {
     ...inherited,
     MISE_CONFIG_DIR:

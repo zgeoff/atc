@@ -451,7 +451,6 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
   mkdirSync(ctx.paths.stateDir, { recursive: true });
 
-  // The fleet a daemon that already ran here left behind.
   const seed = await createStateStore(ctx.paths.dbFile);
 
   registerTestCleanup(() => seed.stop());
@@ -477,9 +476,7 @@ test('it restores the stored fleet by itself when the config leaves restoreFleet
 
   await client.sendHello('atc/test');
 
-  // The client sends no fleet.restore: the daemon brings the fleet back on
-  // its own. A terminal lists as soon as it is adopted, before its agent has
-  // run, so the wait also covers both agents' starts.
+  // A terminal lists as soon as it is adopted, before its agent has run, so the wait also covers both agents' starts.
   const sessions = await waitFor(async () => {
     const reply = await client.sendRequest('session.list');
 

@@ -8,8 +8,6 @@ import { readStreamLines } from './read-stream-lines.ts';
 // call has answered, so a read waits this long for it.
 const SETTLE_MS = 5000;
 
-// Reads the handshakes the daemon's TCP listener refused since `use` last marked the `daemon`
-// stream, and fails with `check-failed` when it logged none within the settle time.
 export async function readHandshakeRefusals(
   client: StreamClient,
 ): Promise<{ refusals: HandshakeRefusal[] }> {

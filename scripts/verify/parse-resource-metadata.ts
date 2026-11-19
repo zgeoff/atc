@@ -10,9 +10,6 @@ interface MetadataAnswer {
   readonly json: unknown;
 }
 
-// The resource that the server at `origin` names in its protected-resource metadata, which an MCP
-// client reads before it signs in; null unless it answered 200 with `<origin>/mcp` as the resource
-// and `origin` among its authorization servers.
 export function parseResourceMetadata(answer: MetadataAnswer, origin: string): string | null {
   const metadata = metadataSchema.safeParse(answer.json);
 

@@ -1,8 +1,6 @@
 import { WringerError } from '@wringer/core';
 import type { MCPClient } from '@wringer/mcp';
 
-// The doctor's check that the target's service client signs in to each HTTP server: the mcp driver
-// trades its ID and secret for an access token, and lists the tools with it.
 export async function checkMCPSignIn(
   mcp: Pick<MCPClient, 'tools'>,
   servers: readonly string[],

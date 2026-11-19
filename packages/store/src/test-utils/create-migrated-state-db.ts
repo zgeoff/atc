@@ -12,7 +12,6 @@ export function createMigratedStateDB(dbPath: string): void {
 
   copyFileSync(template, dbPath);
 
-  // The migration draws the daemon id at random, so each copy draws its own,
-  // as two real databases would.
+  // The migration draws the daemon id at random.
   seedDaemonID({ dbPath });
 }

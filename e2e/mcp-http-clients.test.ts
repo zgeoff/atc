@@ -6,9 +6,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { runClients } from '../packages/app/src/auth/run-clients';
 
-// Each test runs one atc clients command as a process, and a test that needs
-// a client first adds it in the test's process to the database that command
-// reads.
 function setupTest() {
   const home = setupTempDir('atc-e2e-clients-');
 

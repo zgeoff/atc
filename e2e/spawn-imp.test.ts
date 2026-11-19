@@ -21,17 +21,12 @@ import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entr
 import { toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 
-// A real daemon whose one target `box` runs on the imp provider over a
-// stub imp port, with the daemon id its lease labels carry.
 async function setupTest() {
   const port = createStubImpPort();
 
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-imp-',
     options: (paths) => {
-      // Every session runs this agent, which prints its pid, echoes each
-      // line it reads with its pid, and exits 3 on `quit`, so a test sees
-      // which process took its input.
       const fakeClaude = createStubEchoClaude(paths.directory);
 
       return {
@@ -61,8 +56,6 @@ async function setupTest() {
         ],
         defaultTarget: 'box',
 
-        // A restore tries a refused session again at once, so a test of
-        // that retry waits on no real delay.
         restoreRetryDelaysMs: [0],
       };
     },
@@ -1170,9 +1163,6 @@ test('it keeps the guest-folder copy current for a harness restored after the im
 
 test('it places the copy in the guest folder when the imp’s agent is from before read-only files', async () => {
   const ctx = await setupTest();
-
-  // the port holds no folder for read-only files, as an imp still on an
-  // older agent
 
   const spawned = await ctx.client.sendRequest('session.spawn', {
     cwd: ctx.directory,

@@ -1,6 +1,3 @@
-// Checks which execution providers the atc bundle carries. The daemon reaches
-// a provider's code only through the shipped execution plugins list, so a
-// provider the list leaves out stays out of the bundle, with its own packages.
 import { readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import type { BunPlugin } from 'bun';
@@ -20,8 +17,6 @@ async function main(): Promise<void> {
 
   const local = providers.filter((provider) => provider.name === LOCAL_PROVIDER);
 
-  // Each build must also carry every provider it keeps, so the check cannot
-  // pass on a bundle that lost them
   const builds = [
     { label: 'atc', kept: shipped },
     { label: 'local-only atc', kept: local },
@@ -58,8 +53,6 @@ interface Provider {
   readonly name: string;
   readonly directory: string;
 
-  // The external packages this provider depends on and no other workspace
-  // package declares.
   readonly ownDependencies: readonly string[];
 }
 
@@ -106,8 +99,6 @@ function loadProviders(root: string): Provider[] {
 
 const STAND_IN_NAMESPACE = 'dropped-provider';
 
-// Each module of a dropped provider that the list imports turns into a
-// stand-in that holds the same export names and no code
 async function readBundled(
   root: string,
   providers: readonly Provider[],
@@ -135,7 +126,7 @@ async function readBundled(
     .map((input) => {
       // bun writes an input inside the working directory relative to it and
       // one outside as absolute, and a linked package's input can arrive under
-      // its link, so each counts at the path its link leads to
+      // its link
       const path = realpathSync(resolve(process.cwd(), input));
 
       return relative(root, path);

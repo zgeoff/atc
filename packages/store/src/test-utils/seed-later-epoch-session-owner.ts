@@ -15,8 +15,7 @@ export function seedLaterEpochSessionOwner(
   const db = new Database(deps.dbPath);
 
   try {
-    // An owner row from a later ownership epoch: this build writes every
-    // owner row at the first epoch, so none of its code makes one.
+    // This build writes every owner row at the first epoch, so none of its code makes one.
     db.run(
       'INSERT OR REPLACE INTO session_owner (session_id, daemon_id, owner_epoch, updated_at) VALUES (?, ?, ?, ?)',
       [row.session_id, row.daemon_id, row.owner_epoch, row.updated_at],

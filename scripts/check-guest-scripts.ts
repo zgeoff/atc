@@ -1,6 +1,4 @@
-// Runs shellcheck over the POSIX sh scripts that atc runs through `sh -c`,
-// mostly in a guest. lint:shell sees only tracked `.sh` files, so a script
-// held in a string would otherwise go unchecked.
+// Only tracked `.sh` files get linted, so a script held in a string would otherwise go unchecked.
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -46,8 +44,6 @@ async function main(): Promise<void> {
   const directory = mkdtempSync(join(tmpdir(), 'check-guest-scripts-'));
 
   try {
-    // Each string goes to a file named for the constant or the builder that
-    // holds it, so a finding names its source.
     for (const [name, script] of Object.entries(scripts)) {
       writeFileSync(join(directory, `${name}.sh`), script);
     }
@@ -87,8 +83,6 @@ async function main(): Promise<void> {
 
 const TEST_FILE = /\.test\.[cm]?[jt]sx?$|\/testing\//u;
 
-// A script that a function builds is checked as built from fixed sample
-// inputs, which fill only its arguments and the variable names it unsets.
 function collectGuestScripts(): Record<string, string> {
   return {
     ...DAEMON_GUEST_SCRIPTS,
@@ -126,7 +120,6 @@ function getLaunchScript(args: readonly string[]): string {
   return script;
 }
 
-// The names of the string constants a module exports as `*_SCRIPT`.
 function collectExportedScripts(source: string): string[] {
   return [
     ...source.matchAll(
@@ -135,7 +128,6 @@ function collectExportedScripts(source: string): string[] {
   ].map((match) => match.groups?.['name'] ?? '');
 }
 
-// The `.sh` files a module imports as text, relative to the module.
 function collectTextImports(source: string): string[] {
   return [...source.matchAll(/from '(?<specifier>\.[^']*\.sh)' with \{ type: 'text' \}/gu)].map(
     (match) => match.groups?.['specifier'] ?? '',

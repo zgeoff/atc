@@ -34,12 +34,7 @@ async function setupTest() {
 
   const git = await createGitFixture({ prefix: 'atc-workspace-trust-git-' });
 
-  // Each agent run records its start, so a test sees whether a launch went
-  // ahead.
   const fakeClaude = createStubRecordingClaude(temporaryDirectory.path);
-
-  // The imp provider installs this as the guest's atc. It prints the
-  // daemon's version, so the guest's hooks run it.
   const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const box = createImpProvider(
@@ -399,8 +394,7 @@ test.each([
       workspace: { kind: 'path', path: ctx.work },
     });
 
-    // The spawn goes on once the hold stops; settling it keeps a failure
-    // from the daemon's cleanup from going unhandled.
+    // Settling the spawn keeps a failure from the daemon's cleanup from going unhandled.
     void Promise.allSettled([spawn]);
 
     await hold.entered;

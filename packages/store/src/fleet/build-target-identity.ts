@@ -2,8 +2,6 @@ import { createHash } from 'node:crypto';
 import type { TargetIdentityRule } from '@atc/core';
 import { sortJSONKeys } from '@atc/core';
 
-// Target options hold only references to credentials, such as a variable's
-// name, so the identity never derives from a secret.
 export function buildTargetIdentity(
   kind: string,
   options: Readonly<Record<string, unknown>>,

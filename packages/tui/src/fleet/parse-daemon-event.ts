@@ -36,8 +36,6 @@ export type DaemonEvent =
     }
   | { readonly ev: 'PermissionResolved'; readonly request: string; readonly decision: string };
 
-// Every variant is a looseObject so unrecognized keys never fail a match —
-// additive evolution on a known event still parses.
 const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
   z.looseObject({ ev: z.literal('SessionAdded'), session: z.unknown() }),
   z.looseObject({ ev: z.literal('SessionState'), session: z.unknown() }),
@@ -75,7 +73,6 @@ const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
   }),
 ]);
 
-// An event as the daemon sent it, before the client parsed it.
 export interface RawDaemonEvent {
   readonly ev: string;
   readonly [field: string]: unknown;

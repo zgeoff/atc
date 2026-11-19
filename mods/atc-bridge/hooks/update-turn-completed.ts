@@ -45,8 +45,7 @@ export function updateTurnCompleted(
     }
   }
 
-  // One answer carries every message the turn answered, so atc records the
-  // whole group at once and no member reads as answered before the rest.
+  // atc records the whole group at once so no member reads as answered before the rest.
   if (answered.length > 0) {
     scheduleAnsweredReport(host, state, answered, turnID, answer);
   }

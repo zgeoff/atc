@@ -7,8 +7,6 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startInProcessMCP } from '@atc/mcp/test-utils/start-in-process-mcp';
 import invariant from 'tiny-invariant';
 
-// The MCP tools in the test's process, against a daemon in it whose Claude is
-// the in-process stand-in.
 async function setupTest() {
   const stub = await startStubAgentDaemon();
 

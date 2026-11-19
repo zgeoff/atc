@@ -32,7 +32,6 @@ async function setupTest() {
     prefix: 'atc-id-rules-',
     options: () => ({
       adapter: buildMockAgentAdapter({
-        // Session messages need an adapter that takes them.
         takesMessages: true,
         parseTranscriptLine: parseClaudeTranscriptLine,
       }),
@@ -141,7 +140,6 @@ test('it has a rule for every id in a message.get answer', async () => {
 
   const sessionID = getRecord(spawned, 'session')['id'];
 
-  // A message a session sends holds that session's id in its sender.
   const inside = await ctx.openClient({ session: sessionID });
 
   const sent = await inside.sendRequest('session.message', {
@@ -191,8 +189,7 @@ test('it has a rule for every id in the data of an uncertain keyed spawn', async
 
   registerTestCleanup(() => seed.stop());
 
-  // A claim still in progress under the key, which the daemon answers as
-  // an interrupted spawn whose effect may stand.
+  // The daemon answers a claim still in progress under the key as an interrupted spawn whose effect may stand.
   await seed.claimIdempotencyKey({
     principal: 'local',
     operation: 'session.spawn',
@@ -219,7 +216,6 @@ test('it has a rule for every id in a session.read answer, transcript text inclu
         takesMessages: true,
         parseTranscriptLine: parseClaudeTranscriptLine,
 
-        // Every hook starts the session on the transcript in the directory.
         planHookEvents: () => ({
           events: [
             { kind: 'started', transcriptSource: join(paths.directory, 'transcript.jsonl') },
@@ -265,7 +261,6 @@ test('it has a rule for every id in a session.resumeCommand answer', async () =>
         takesMessages: true,
         parseTranscriptLine: parseClaudeTranscriptLine,
 
-        // A resume command that holds the agent's session id.
         planResumeCommand: (_cwd, agentSessionID) => `claude --resume ${agentSessionID ?? ''}`,
       }),
     }),

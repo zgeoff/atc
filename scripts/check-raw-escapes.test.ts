@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
-// A temp directory standing in for a repo root.
 function setupTest() {
   const temporaryDirectory = setupTempDir('check-raw-escapes-');
 
@@ -44,8 +43,6 @@ test('it fails on a raw ESC byte in a source module and names the escape to writ
   );
 
   await Bun.write(join(ctx.directory, 'mods/bridge/b.mjs'), 'export const RESET = `\u001B[0m`;\n');
-
-  // a file outside the source extensions is not a source module
   await Bun.write(join(ctx.directory, 'packages/tui/fixture.txt'), '\u001B[0m\n');
 
   const checked = await runCommand([

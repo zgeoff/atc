@@ -21,21 +21,14 @@ export interface UpdateMessagesUnansweredOptions {
   readonly turn?: string | null;
 }
 
-// The messages sent to sessions, their settling, and the answer notices
-// queued for the sessions that sent them.
 export interface MessageStore {
   readonly writeMessage: (record: MessageRecord) => Promise<void>;
   readonly readPendingMessages: (owner: MessageOwner) => Promise<MessageRecord[]>;
 
-  // The messages the owner holds queued or delivered, which no turn has
-  // settled yet, oldest first.
   readonly readUnsettledMessages: (owner: MessageOwner) => Promise<MessageRecord[]>;
   readonly readMessage: (id: MessageID, owner: MessageOwner) => Promise<MessageRecord | null>;
   readonly readMessageByID: (id: MessageID) => Promise<MessageRecord | null>;
 
-  // The other messages of the same session the given message's turn
-  // answered, oldest first; none when the message has no turn or no answer.
-  // A message left unanswered keeps its turn but shares no answer.
   readonly readTurnSiblings: (record: MessageRecord) => Promise<TurnSibling[]>;
   readonly updateMessageDelivered: (
     id: MessageID,
@@ -43,58 +36,39 @@ export interface MessageStore {
     at: number,
   ) => Promise<MessageRecord | null>;
 
-  // One statement, so a reader sees all of one turn's messages answered or
-  // none, and it queues the answer notice of each message with a sender
-  // session too, so a stop after it never loses a notice.
   readonly updateMessagesAnswered: (
     ids: readonly MessageID[],
     owner: MessageOwner,
     options: UpdateMessagesAnsweredOptions,
   ) => Promise<MessageRecord[]>;
 
-  // One statement, so a reader sees all of one turn's messages settled or
-  // none, and it queues the answer notice of each message with a sender
-  // session too. A message already settled is left as it is.
   readonly updateMessagesUnanswered: (
     ids: readonly MessageID[],
     owner: MessageOwner,
     options: UpdateMessagesUnansweredOptions,
   ) => Promise<MessageRecord[]>;
 
-  // For a session whose process ended, so no turn is left to settle its
-  // delivered messages; a queued message waits for the next process. One
-  // statement also queues the answer notice of each with a sender session.
   readonly updateDeliveredMessagesUnanswered: (
     owner: MessageOwner,
     reason: string,
     at: number,
   ) => Promise<MessageRecord[]>;
 
-  // For a session that is gone for good, so no process will take its
-  // messages, queued or delivered. One statement also queues the answer
-  // notice of each with a sender session.
+  // The session is gone for good, so no process will take its messages, queued or delivered.
   readonly updateUnsettledMessagesUnanswered: (
     owner: MessageOwner,
     reason: string,
     at: number,
   ) => Promise<MessageRecord[]>;
 
-  // The answer notices queued for the sender session and not yet taken by
-  // its tap, oldest first.
   readonly readPendingNotices: (senderSession: SessionID) => Promise<MessageRecord[]>;
 
-  // Marks the answer notice the sender session's tap took. Returns the
-  // message when this call marked it, else null: the notice was already
-  // taken, was never queued, or belongs to another sender.
   readonly updateNoticeDelivered: (
     id: MessageID,
     senderSession: SessionID,
     at: number,
   ) => Promise<MessageRecord | null>;
 
-  // Messages sent before the agent reported its session id carry no agent
-  // session id; this stamps them once it is known, and moves every message
-  // from a previous agent session id to a changed one.
   readonly updateMessageOwner: (
     atcID: SessionID,
     previous: AgentSessionID | undefined,
@@ -345,9 +319,6 @@ export function createMessageStore(db: Kysely<StateStoreSchema>): MessageStore {
   };
 }
 
-// The client id of a connector or the atc id of a session, which the row
-// keeps in one column; null for a local program, the owner, and a message
-// with no sender.
 function findSenderID(sender: MessageSender | undefined): string | null {
   if (sender?.kind === 'connector') {
     return sender.client;
@@ -391,9 +362,6 @@ function toMessageRecord(row: Readonly<StateStoreSchema['messages']>): MessageRe
   };
 }
 
-// A row the daemon wrote with a typed sender reads back with it; a row from
-// before, or one whose kind or id this build cannot read, holds only the
-// sender's name.
 function buildMessageSender(
   row: Readonly<StateStoreSchema['messages']>,
 ): { readonly sender: MessageSender } | Record<string, never> {
@@ -409,9 +377,7 @@ function buildMessageSender(
   return parsed.success ? { sender: parsed.data } : {};
 }
 
-// The time a settling statement queues a message's answer notice at: the
-// settle time for a message that has a sender session, else none, since
-// no session waits on its outcome.
+// No session waits on the outcome of a message without a sender session, so it gets no answer notice.
 function buildNoticeQueuedAt(
   eb: ExpressionBuilder<StateStoreSchema, 'messages'>,
   at: number,

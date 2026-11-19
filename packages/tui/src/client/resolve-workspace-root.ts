@@ -9,12 +9,9 @@ type WorkspaceRoot =
 interface RootTarget {
   readonly id: string;
 
-  // Whether the target is the daemon's own machine, where `~` is this
-  // user's home.
   readonly inPlace: boolean;
 }
 
-// Where checkouts land on the daemon's own machine without a configured root.
 const DEFAULT_ROOT = '~/.local/share/atc/workspaces';
 
 export function resolveWorkspaceRoot(

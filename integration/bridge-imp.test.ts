@@ -135,8 +135,6 @@ test("it answers a status read on a remote session's bridge with that session's 
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  // The bridge socket is named for the session id, lowercased, with only
-  // letters and digits kept, cut to 16 characters.
   const socketName = id
     .toLowerCase()
     .replaceAll(/[^a-z0-9]/gu, '')
@@ -168,8 +166,6 @@ test('it answers an op the bridge does not offer with forbidden and closes the c
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  // The bridge socket is named for the session id, lowercased, with only
-  // letters and digits kept, cut to 16 characters.
   const socketName = id
     .toLowerCase()
     .replaceAll(/[^a-z0-9]/gu, '')
@@ -388,8 +384,6 @@ test("it records a remote session's note, needs-input and turn-done after impd c
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  // The bridge socket is named for the session id, lowercased, with only
-  // letters and digits kept, cut to 16 characters.
   const socketName = id
     .toLowerCase()
     .replaceAll(/[^a-z0-9]/gu, '')

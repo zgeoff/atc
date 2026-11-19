@@ -222,8 +222,7 @@ test.skipIf(process.getuid?.() === 0)(
   },
 );
 
-// Root reads a mode-000 file, so the permission check this exercises never
-// runs for it.
+// Root reads a mode-000 file, so the permission check never runs for it.
 test.skipIf(process.getuid?.() === 0)(
   'it refuses a spawn on the local target when the config file cannot be read',
   async () => {
@@ -597,8 +596,6 @@ test('it writes a first-run config with the three built-in sources and no old so
 test('it refuses a spawn of an agent missing from this host with the config problem when the config holds invalid JSON', async () => {
   const ctx = setupTest();
 
-  // A codex binary that does not exist, so codex is registered but not
-  // installed.
   const codexConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: { codex: { kind: 'codex', bin: join(ctx.directory, 'missing', 'codex') } },
   });
@@ -643,8 +640,6 @@ test('it refuses a spawn of an agent missing from this host with the config prob
 test('it refuses a spawn of an agent missing from this host as not installed when the config is usable', async () => {
   const ctx = setupTest();
 
-  // A codex binary that does not exist, so codex is registered but not
-  // installed.
   const codexConfig = parseConfig(SHIPPED_HARNESS_PLUGINS, {
     agents: { codex: { kind: 'codex', bin: join(ctx.directory, 'missing', 'codex') } },
   });

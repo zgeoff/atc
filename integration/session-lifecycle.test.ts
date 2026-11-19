@@ -5,8 +5,6 @@ import { getString } from '@atc/core/test-utils/get-string';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 
-// A daemon in the test's process whose Claude runs as the in-process
-// stand-in, reporting its hooks over the daemon's real reporter socket.
 function setupTest() {
   return startStubAgentDaemon();
 }

@@ -28,16 +28,13 @@ interface StackOptions {
   readonly viewerAccessRecheckMs?: number;
 }
 
-// Each stack is one daemon, with its own state and sockets, and its own
-// `atc mcp --http` server on a free port with its own authorization database.
 function setupTest() {
   const authRoot = setupTempDir('atc-live-terminal-auth-');
 
   const startStack = async (options: StackOptions) => {
     const provider = buildStubMemoryProvider({ kind: 'local-pty', capabilities: { resize: true } });
 
-    // OAuth client ids are minted when a client is added, so a test lists
-    // its client here once it has one; an unlisted client sees no session.
+    // OAuth client ids are minted when a client is added, so a test lists its client here once it has one.
     const principals = new Map<string, readonly string[]>();
 
     const daemon = await startTestDaemon({
@@ -107,8 +104,6 @@ function setupTest() {
       return { clientID: created.clientID, accessToken: grant.accessToken, authenticator };
     };
 
-    // A second grant to the client of an earlier one, signed in with the same
-    // passkey.
     const grantAgain = async (
       earlier: Awaited<ReturnType<typeof grantToken>>,
       scopes: readonly string[],
@@ -488,7 +483,6 @@ test('it keeps streaming to other clients while a viewer stops reading', async (
 
   const url = new URL(stack.ptyURL(session.id));
 
-  // A viewer that completes the handshake and then never reads again.
   const stalled = createConnection({ host: url.hostname, port: Number(url.port) });
 
   registerTestCleanup(() => {

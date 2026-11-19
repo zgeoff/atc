@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { loadWorkspacePackages } from './load-workspace-packages';
 
-// A temp directory standing in for a repo root.
 function setupTest() {
   const temporaryDirectory = setupTempDir('load-workspace-packages-');
 

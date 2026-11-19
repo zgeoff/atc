@@ -5,10 +5,6 @@ import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session'
 import { subscribeToSocketLines } from '@atc/protocol/test-utils/subscribe-to-socket-lines';
 import { decodeMessage } from '@atc/protocol/wire';
 
-// Events-socket tests: snapshot-then-stream and read-only behavior. The
-// overflow disconnect lives in start-events-server.test.ts, and protocol
-// behavior in daemon.test.ts.
-
 function setupTest() {
   return startTestDaemon({
     prefix: 'atc-events-',

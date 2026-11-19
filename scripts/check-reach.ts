@@ -1,6 +1,4 @@
-// Checks what the atc-gateway entry can reach. The gateway binary must never
-// start a daemon or run a session on its own machine, so nothing it imports,
-// type-only imports included, may belong to a package outside its allowance.
+// The gateway binary must never start a daemon or run a session on its own machine, so nothing it imports, type-only imports included, may belong to a package outside its allowance.
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
@@ -57,7 +55,6 @@ async function main(): Promise<void> {
 
 const ENTRY = 'packages/app/src/gateway.ts';
 
-// The packages whose files the gateway may reach, any folder.
 const ALLOWED_PACKAGES: ReadonlySet<string> = new Set([
   'contract',
   'core',
@@ -68,9 +65,6 @@ const ALLOWED_PACKAGES: ReadonlySet<string> = new Set([
   'reporters',
 ]);
 
-// The app modules behind the atc-gateway binary's own commands, as paths
-// under the app's src/: a path that ends in `/` holds every file in that
-// folder. Every other app module, cli.ts among them, is out of reach.
 const GATEWAY_APP_MODULES: readonly string[] = [
   'gateway.ts',
   'gateway/run-gateway-cli.ts',
@@ -109,9 +103,6 @@ interface Owner {
   readonly path: string;
 }
 
-// A package's directory under packages/ is the part of a path before its
-// src/ folder, and its name here is that directory without the packages/
-// prefix, such as `core` or `harnesses/claude`.
 function findPackage(file: string): Owner | undefined {
   const match = /^packages\/(?<name>.+?)\/(?<path>src\/.+)$/u.exec(file);
   const name = match?.groups?.['name'];
@@ -136,9 +127,6 @@ const REPORTER_ENTRIES = [
   'packages/reporters/src/relay-mux/index.ts',
 ];
 
-// The folders under src/ that a reporter may load, by package name: a light
-// root entry allows every folder but its heavy ones, such as core's schema
-// entry, which loads Zod. Every other package stays out of a reporter's reach.
 type ReporterAllowance = readonly string[] | { readonly except: readonly string[] };
 
 const REPORTER_FOLDERS: ReadonlyMap<string, ReporterAllowance> = new Map<string, ReporterAllowance>(
@@ -175,7 +163,6 @@ function checkReporters(
       exports,
       [entry],
 
-      // Type-only and dynamic imports load nothing at start-up
       (file) => collectImports(readFileSync(join(root, file), 'utf8')).staticLoads,
     );
 
@@ -214,35 +201,21 @@ function isReporterLoadable(file: string): boolean {
   return folders.some((folder) => path.startsWith(`${folder}/`));
 }
 
-// The daemon package's entry points: its main entry and its test daemon, the
-// first of the test helpers it exports, which other packages' tests load.
 const DAEMON_ENTRIES: readonly string[] = [
   'packages/daemon/src/index.ts',
   'packages/daemon/src/test-utils/start-test-daemon.ts',
 ];
 
-// The daemon's other test helpers, each of which another package's tests can
-// import through the package's test-utils export.
 const DAEMON_HELPER_FOLDER = 'packages/daemon/src/test-utils/';
-
-// The modules the daemon must never reach: the opener of the gateway's
-// authorization database, mcp-auth.db.
 const DAEMON_REFUSED_MODULES: readonly string[] = [`${APP_SOURCE}/mcp/open-mcp-auth-database.ts`];
-
-// The names that lead to mcp-auth.db: its file name and the config path that
-// holds it. A reached file that names either could open the database without
-// the opener.
 const AUTH_DB_NAMES: readonly string[] = ['mcp-auth.db', 'mcpAuthDBFile'];
 
-// The config modules that define the mcp-auth.db path, the only files the
-// daemon reaches that may name it.
 const AUTH_DB_PATH_MODULES: ReadonlySet<string> = new Set([
   'packages/config/src/host/resolve-paths.ts',
   'packages/config/src/host/constants.ts',
 ]);
 
-// The tokens that can hold a name: identifiers, strings, and template parts.
-// A comment is no token, so a comment may name the database.
+// Comments are not tokens, so a comment may name the database.
 const NAME_TOKEN_KINDS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.Identifier,
   SyntaxKind.StringLiteral,
@@ -252,9 +225,6 @@ const NAME_TOKEN_KINDS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.TemplateTail,
 ]);
 
-// Per daemon entry: each refused module, each reached file that names
-// mcp-auth.db, and each unresolved import. Beside the atc CLI entry, a missing
-// daemon entry or refused module is a finding too.
 function checkDaemon(
   root: string,
   known: ReadonlySet<string>,
@@ -341,8 +311,7 @@ function readContractEntries(
   });
 }
 
-// The 1-based line of the first token that names mcp-auth.db in any case,
-// which a case-insensitive filesystem opens as the same file, or undefined.
+// Names mcp-auth.db in any case, which a case-insensitive filesystem opens as the same file.
 function findAuthDBName(source: string): number | undefined {
   const token = collectTokens(source).find(
     (candidate) =>
@@ -385,8 +354,6 @@ function collectReached(
   return { files, unresolved };
 }
 
-// Null when the specifier names no workspace file that exists, undefined when
-// it names an external package or a non-source file
 function resolveSpecifier(
   known: ReadonlySet<string>,
   exports: ReadonlyMap<string, string>,
@@ -435,8 +402,6 @@ function findExport(exports: ReadonlyMap<string, string>, specifier: string): st
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs'];
 
-// A path to a non-source file, such as a package.json, resolves to undefined:
-// the walk follows source modules only
 function findModule(known: ReadonlySet<string>, base: string): string | null | undefined {
   const path = base.replace(/\.js$/u, '');
 
@@ -483,7 +448,6 @@ function readExports(root: string): Map<string, string> {
   return exports;
 }
 
-// The bundle catches a reach that the source walk cannot read
 async function readBundled(root: string, entry: string): Promise<string[]> {
   const out = mkdtempSync(join(tmpdir(), 'check-reach-'));
 

@@ -1,15 +1,12 @@
 import type { EngineInterface } from 'claude-code';
 import type { TapMessage, TapNotice } from './parse-tap-line.ts';
 
-// Settles when the main loop's response, and every server tool call in it,
-// has ended.
 interface StepHold {
   readonly ended: Promise<void>;
   readonly end: () => void;
 }
 
-// The engine calls the helper files use. The hook entry builds it from the engine's `$`, which
-// the plugin validator follows only inside the entry file.
+// The plugin validator follows the engine's `$` only inside the entry file.
 export interface BridgeHost {
   readonly process: {
     readonly run: EngineInterface['process']['run'];
@@ -24,23 +21,16 @@ export interface BridgeHost {
 export interface BridgeState {
   sessionID: string | null;
   runningTurnID: string | null;
-  // Claude Code records each streaming block once it ends. A row appended between two blocks
-  // puts a server tool call and its result in separate assistant messages, and the API then
-  // refuses every later request, so a delivery waits while this is set.
+  // A row appended between two streaming blocks puts a server tool call and its result in separate assistant messages, and the API then refuses every later request.
   stepHold: StepHold | null;
   delivering: Promise<void>;
   reporting: Promise<void>;
-  // A submitted message waits here until the turn that carries it starts. Another turn that
-  // ends without an answer leaves it waiting, because the host can still run its queued prompt;
+  // A turn that ends without an answer leaves a submitted message waiting, because the host can still run its queued prompt;
   // only a hook's drop shows it never will.
   readonly awaitingTurn: Map<string, TapMessage>;
   readonly carried: Map<string, TapMessage[]>;
   readonly unseen: Set<string>;
-  // The answer notices appended to each running turn that no step of the turn
-  // has shown the model yet; a step empties the list.
   readonly unseenNotices: Map<string, TapNotice[]>;
-  // The ids of the answer notices already in the conversation, so a notice the tap prints again
-  // never shows twice.
   readonly shownNotices: Set<string>;
 }
 

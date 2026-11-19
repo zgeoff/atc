@@ -81,8 +81,6 @@ test('it starts the next stored session once the default boot cap passes', async
         buildMockFleetEntry({ sessionID: toSessionID('s-b'), cwd: paths.directory }),
       ]);
 
-      // The fake agent never reports it booted, and the options leave the
-      // boot cap unset.
       await seed.stop();
 
       return {
@@ -542,8 +540,6 @@ test('it restores the rest of the fleet past rows whose repository cannot be res
     },
   });
 
-  // The boot caps of the first two live sessions each hold the stagger
-  // until the clock moves.
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([10]);
   });

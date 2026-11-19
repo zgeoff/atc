@@ -2,8 +2,6 @@ import { createStateStore } from '../stores/create-state-store';
 import { collectCompletedIdempotencyRecords } from './collect-completed-idempotency-records';
 import type { IdempotencySeedDeps } from './seed-swept-idempotency-keys';
 
-// Completes each completed key in a daemon's state database again with no
-// target, as a key completed before the ledger recorded targets reads.
 export async function seedTargetlessCompletedIdempotencyKeys(
   deps: IdempotencySeedDeps,
 ): Promise<void> {

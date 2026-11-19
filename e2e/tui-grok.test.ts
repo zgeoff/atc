@@ -17,8 +17,6 @@ function setupTest() {
 test('it spawns a grok session without resume or -p and marks it resumable', async () => {
   const ctx = setupTest();
 
-  // The agent reports its session only once the test removes this file,
-  // while its fleet row already exists without the id.
   writeFileSync(join(ctx.home, 'fake-grok-defer-start'), '');
 
   ctx.boot();
@@ -136,8 +134,6 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
 
   registerTestCleanup(() => store.stop());
 
-  // The daemon writes each hook it takes to the trail with the kind it read
-  // the hook as, after it has applied the hook to the session.
   await waitFor(async () => {
     const rows = await store.readTrailRows();
 
@@ -271,8 +267,6 @@ test('it keeps needs-you when grok emits idle_prompt after permission_prompt', a
 
   registerTestCleanup(() => store.stop());
 
-  // The daemon writes each hook it takes to the trail with the kind it read
-  // the hook as, after it has applied the hook to the session.
   await waitFor(async () => {
     const rows = await store.readTrailRows();
 

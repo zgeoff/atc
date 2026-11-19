@@ -312,7 +312,6 @@ test('it bumps the attach recency of a session it attaches', async () => {
 
   registerTestCleanup(() => seed.stop());
 
-  // A stored attach time far in the past, which the restore keeps.
   await seed.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-recent'),

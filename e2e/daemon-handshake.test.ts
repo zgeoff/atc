@@ -6,14 +6,11 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { openDaemonClient } from '@atc/protocol/client';
 import { subscribeToSocketLines } from '@atc/protocol/test-utils/subscribe-to-socket-lines';
 
-// Each test makes every connection to the daemon itself, so the harness opens
-// no main client.
 function setupTest() {
   return startTestDaemon({
     mainClient: false,
     prefix: 'atc-daemon-',
 
-    // Every spawn needs a Claude adapter; this one runs a sleep.
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 }

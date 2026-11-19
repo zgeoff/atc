@@ -15,9 +15,7 @@ import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-hos
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
-// Only a broker that sets the credential for api.github.com, as impd does
-// for an imp, answers this; Bun 1.4.2's skipIf takes a boolean and has no
-// in-body skip, so the probe runs when the file loads.
+// Bun 1.4.2's skipIf takes a boolean and has no in-body skip, so the probe runs when the file loads.
 const isBrokered = await fetch('https://api.github.com/user', {
   signal: AbortSignal.timeout(10_000),
 }).then(

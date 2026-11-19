@@ -6,7 +6,7 @@ export async function withImmediateTransaction<DB>(
   writes: () => Promise<void>,
 ): Promise<void> {
   // SQLite takes DDL inside this transaction though kysely's adapter declines to
-  // open one for it, so a table rebuild lands whole or not at all.
+  // open one for it.
   await sql`BEGIN IMMEDIATE`.execute(db);
 
   try {

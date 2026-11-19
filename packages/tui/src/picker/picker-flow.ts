@@ -26,10 +26,8 @@ export type DroppedAnswer =
   | 'agent list';
 
 export interface SpawnPickerDeps<TMirror> {
-  // The daemon the picker opens on, and the one it skips the daemon step for.
   readonly primaryDaemon: DaemonName;
 
-  // The daemons whose link is up, the primary first.
   readonly upDaemons: () => readonly DaemonName[];
   readonly sendRequest: (
     daemon: DaemonName,
@@ -119,17 +117,14 @@ interface PendingRequest {
   readonly kind: 'interpret' | 'probe' | 'spawn';
 }
 
-// A request, listing or completion, stamped with the daemon it goes to.
 export type OnDaemon<TRequest> = TRequest & { readonly daemon: DaemonName };
 
 export interface PickerContext {
   readonly step: PickerStep;
   readonly resume: boolean;
 
-  // The daemon every later step runs against; a name other than null takes a remote daemon's rules.
   readonly daemon: DaemonName;
 
-  // The daemons the daemon step offers, empty when the picker skipped that step.
   readonly daemons: readonly DaemonName[];
 
   readonly sources: readonly SourceEntry[];

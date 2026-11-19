@@ -3,8 +3,6 @@ import { join } from 'node:path';
 
 const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs'];
 
-// Every source module under the directory, in sorted order, skipping
-// installed packages; a directory that does not exist holds none.
 export function readSourceFiles(root: string, directory: string): string[] {
   const files: string[] = [];
 

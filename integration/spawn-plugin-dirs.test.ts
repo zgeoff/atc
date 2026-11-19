@@ -17,8 +17,6 @@ import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
-// A home whose ~ the daemon and its adapters expand, and a stand-in claude
-// that logs each start's arguments.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-spawn-plugin-dirs-');
   const home = join(temporaryDirectory.path, 'home');

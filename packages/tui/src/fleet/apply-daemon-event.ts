@@ -9,8 +9,6 @@ import { isSameSessionKey } from './session-key';
 import type { DaemonName, SessionKey } from './session-key';
 import type { MirrorSession } from './to-mirror-session';
 
-// What a daemon event borrows from the client that owns the screen and the
-// fleet mirror.
 export interface DaemonEventDeps {
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
@@ -24,7 +22,6 @@ export interface DaemonEventDeps {
   readonly scheduleStatus: () => void;
 }
 
-// Applies one event of one daemon; it moves only that daemon's rows.
 export function applyDaemonEvent(daemon: DaemonName, raw: RawDaemonEvent, deps: DaemonEventDeps) {
   const event = parseDaemonEvent(raw, daemon);
 
@@ -112,7 +109,6 @@ function refreshScreens(deps: DaemonEventDeps) {
     deps.overlay.render();
   }
 
-  // Focused session died under us: surface the list instead of a dead screen.
   const focused = deps.findFocused();
 
   if (currentMode === 'attached' && focused !== null && focused.state === 'exited') {

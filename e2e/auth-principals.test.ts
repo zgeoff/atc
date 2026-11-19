@@ -603,8 +603,6 @@ test.each([
     const hidden = String(getRecord(hiddenSpawned, 'session')['id']);
     const missing = randomUUID();
 
-    // The hidden session has a trail of its own, so a read that reached it
-    // would differ.
     await daemon.sendHookLines({ atcId: hidden, event: 'UserPromptSubmit', payload: {} });
 
     await waitFor(async () => {
@@ -674,8 +672,6 @@ test('it answers a spawn under a session on a target outside the principal as un
   const hidden = String(getRecord(hiddenSpawned, 'session')['id']);
   const missing = randomUUID();
 
-  // The hidden session has a trail of its own, so a read that reached it
-  // would differ.
   await daemon.sendHookLines({ atcId: hidden, event: 'UserPromptSubmit', payload: {} });
 
   await waitFor(async () => {
@@ -783,8 +779,6 @@ test.each([
     const child = String(getRecord(childSpawned, 'session')['id']);
     const missing = randomUUID();
 
-    // The hidden session has a trail of its own, so a read that reached it
-    // would differ.
     await daemon.sendHookLines({ atcId: hidden, event: 'UserPromptSubmit', payload: {} });
 
     await waitFor(async () => {
@@ -863,8 +857,6 @@ test('it answers a spawn under a parent whose sub-session is on a target outside
   const child = String(getRecord(childSpawned, 'session')['id']);
   const missing = randomUUID();
 
-  // The hidden session has a trail of its own, so a read that reached it
-  // would differ.
   await daemon.sendHookLines({ atcId: hidden, event: 'UserPromptSubmit', payload: {} });
 
   await waitFor(async () => {
@@ -977,8 +969,6 @@ test.each([
     const hidden = String(getRecord(hiddenSpawned, 'session')['id']);
     const missing = randomUUID();
 
-    // The hidden session has a trail of its own, so a read that reached it
-    // would differ.
     await daemon.sendHookLines({ atcId: hidden, event: 'UserPromptSubmit', payload: {} });
 
     await waitFor(async () => {
@@ -1057,8 +1047,6 @@ test('it answers a spawn under a sub-session whose parent is on a target outside
   const hidden = String(getRecord(hiddenSpawned, 'session')['id']);
   const missing = randomUUID();
 
-  // The hidden session has a trail of its own, so a read that reached it
-  // would differ.
   await daemon.sendHookLines({ atcId: hidden, event: 'UserPromptSubmit', payload: {} });
 
   await waitFor(async () => {
@@ -1894,8 +1882,7 @@ test('it keeps the activity of a forgotten hidden session out of a principal ses
 
   const before = await daemon.client.sendRequest('session.get', { session: shown }, 'narrow');
 
-  // The hidden session's event lands a minute after anything the shown
-  // session holds, so a leak would change what the principal reads.
+  // A leak of the hidden session's event would change what the principal reads, because it lands a minute after anything the shown session holds.
   clock.advance(60_000);
 
   await daemon.sendHookLines({
@@ -3052,8 +3039,7 @@ test('it reads the first of many large notes a principal may see while another c
 
   registerTestCleanup(() => caller.stop());
 
-  // A connection that reads its handshake answer and then stops reading, so
-  // whatever the daemon sends it backs up.
+  // The daemon's output to this connection backs up because it stops reading after the handshake answer.
   const slow = await startStubStalledClient(daemon.socketPath, 'atc/test-build');
 
   const shownSpawned = await daemon.client.sendRequest('session.spawn', {

@@ -6,8 +6,6 @@ import { createFleetMirror } from '../fleet/create-fleet-mirror';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
 import { buildStubClientScreens } from './build-stub-client-screens';
 
-// The overlay's session actions over the one daemon client a test gives, as the local daemon, with the client's real state
-// machine and an overlay that only holds its notice; the test stops the machine.
 export function createSessionActionsHarness(client: Pick<DaemonClient, 'sendRequest'>) {
   const service = createActor(buildClientMachine(buildStubClientScreens().deps));
 

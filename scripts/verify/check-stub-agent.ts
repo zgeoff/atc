@@ -7,8 +7,6 @@ import { parseRunEndpoints } from './run-endpoints.ts';
 const claudeEntrySchema = z.object({ bin: z.string() });
 const claudeBinSchema = z.object({ agents: z.object({ claude: claudeEntrySchema }) });
 
-// The doctor's stand-in check: the run's config points claude at the stand-in, and the daemon can
-// run it, so no journey starts the real claude.
 export async function checkStubAgent(endpoints: Endpoints): Promise<{ bin: string }> {
   const run = parseRunEndpoints(endpoints);
 

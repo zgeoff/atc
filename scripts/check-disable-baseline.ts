@@ -1,6 +1,3 @@
-// Fails when the lint directives that switch off an import rule, or every
-// rule, outnumber the committed baseline: nothing else stops a new one from
-// switching off a package rule.
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
@@ -42,7 +39,6 @@ const BASELINE_FILE = 'scripts/disable-baseline.json';
 const BASELINE_SCHEMA = z.object({ importRuleDisables: z.number().int().nonnegative() });
 const SOURCE_DIRS = ['packages', 'e2e', 'integration', 'scripts', 'mods'];
 
-// the require ban keeps every module load in a form the import rules read
 const IMPORT_RULES: ReadonlySet<string> = new Set([
   'import-zones',
   'no-restricted-imports',
@@ -60,7 +56,6 @@ function collectDirectives(source: string): number[] {
   const tokens = collectTokens(source);
   const end = tokens.at(-1);
 
-  // the comments and whitespace between tokens, and after the last one
   const trivia = [
     ...tokens.map((token) => ({
       start: token.fullStart,

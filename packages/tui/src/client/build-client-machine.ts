@@ -27,22 +27,13 @@ type ClientMachineEvent =
   | { readonly type: 'RESTART_ENDED'; readonly connected: boolean };
 
 interface ClientMachineContext {
-  // The session a confirmation opened on: a kill, or a forget the daemon
-  // holds until the operator confirms that forgetting it destroys its host.
-  // The confirmation acts on this key, never on the row selected later.
   readonly confirmKey: SessionKey | null;
 
-  // The restart prompt that waits for its key.
   readonly consent: RestartConsent | null;
 
-  // Until this time, a restart refuses a daemon that still runs the old
-  // build, so the client waits for the new one.
   readonly freshUntil: number;
 }
 
-// What the machine borrows from the client that owns the screen, the fleet
-// mirror, and the daemon connection. Every prop is a side effect the machine
-// triggers but never performs itself.
 export interface ClientMachineDeps {
   readonly openHome: () => void;
   readonly openAttached: (key: SessionKey) => void;
@@ -214,8 +205,6 @@ export function buildClientMachine(deps: ClientMachineDeps) {
   });
 }
 
-// The running client machine that the TUI sends its events to.
 export type ClientActor = Actor<ReturnType<typeof buildClientMachine>>;
 
-// The screen the client shows, as the machine's mode region holds it.
 export type ClientMode = ReturnType<ClientActor['getSnapshot']>['value']['mode'];
