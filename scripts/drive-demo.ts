@@ -236,7 +236,8 @@ function makeVHSCheck(watch: Watch, what: string, check: Check): Check {
 }
 
 // The check runs once at the start and again after each event, so a state
-// reached before the wait began still ends it.
+// reached before the wait began still ends it. The wake-up is in place before
+// each check, so an event that lands during the check is never missed.
 async function waitUntil(
   watch: Watch,
   what: string,
@@ -245,17 +246,24 @@ async function waitUntil(
 ): Promise<void> {
   const deadlineMs = Date.now() + timeoutMs;
 
-  while (!(await check())) {
+  for (;;) {
+    const woken = Promise.withResolvers<void>();
+
+    watch.wake = woken.resolve;
+
+    const done = await check();
+
+    if (done) {
+      return;
+    }
+
     const remainingMs = deadlineMs - Date.now();
 
     if (remainingMs <= 0) {
       throw new Error(`timed out waiting until ${what}`);
     }
 
-    const woken = Promise.withResolvers<void>();
     const timer = setTimeout(woken.resolve, remainingMs);
-
-    watch.wake = woken.resolve;
 
     await woken.promise;
 

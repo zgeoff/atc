@@ -23,9 +23,11 @@
 #    needs you.
 #
 # Each Sleep here, and each hold, is reading time for the viewer. A Wait or a
-# drive step that times out fails `bun run demo:record`.
+# drive step that times out fails `bun run demo:record`. vhs writes demo.gif
+# into a temp folder, and record-demo.sh copies it over docs/assets/demo.gif
+# once it decodes.
 
-Output docs/assets/demo.gif
+Output demo.gif
 
 Set Shell "zsh"
 Set FontSize 18

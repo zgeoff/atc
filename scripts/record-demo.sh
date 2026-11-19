@@ -94,6 +94,16 @@ atc daemon > "$DEMO/daemon.log" 2>&1 &
 LOCAL_PID=$!
 wait_for_file "$XDG_RUNTIME_DIR/atc-daemon.sock"
 
-cd "$ROOT"
-bun scripts/drive-demo.ts record "$DEMO/run/atc-daemon.sock" "$DEMO/cloud-run/atc-daemon.sock" \
-  "$DEMO/home/projects/shop" "$DEMO/home/projects/search" docs/assets/demo.tape
+# vhs writes the GIF into its working folder, and logs a failed encode without
+# failing, so the GIF replaces the committed one only once it decodes.
+cd "$DEMO"
+bun "$ROOT/scripts/drive-demo.ts" record "$DEMO/run/atc-daemon.sock" "$DEMO/cloud-run/atc-daemon.sock" \
+  "$DEMO/home/projects/shop" "$DEMO/home/projects/search" "$ROOT/docs/assets/demo.tape"
+FRAMES=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 demo.gif)
+# ffprobe prints N/A for a GIF with a header and no frames.
+if ! [[ "$FRAMES" =~ ^[0-9]+$ ]] || [ "$FRAMES" -lt 1 ]; then
+  echo "record-demo: vhs wrote no GIF that decodes" >&2
+  exit 1
+fi
+cp demo.gif "$ROOT/docs/assets/.demo.gif.new"
+mv "$ROOT/docs/assets/.demo.gif.new" "$ROOT/docs/assets/demo.gif"
