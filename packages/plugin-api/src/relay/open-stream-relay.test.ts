@@ -345,6 +345,44 @@ test('it never admits more than 1 MiB of unacked frames', async () => {
   });
 });
 
+test('it rejects a line whose frame outgrows the window when its sequence number gains a digit', async () => {
+  const ctx = setupTest();
+
+  await ctx.welcome({ ack: 0, reset: true }, 1);
+
+  ctx.guest.writeGuestFrame({ t: 'open', seq: 1, conn: 1 });
+
+  await waitFor(() => {
+    expect(ctx.relays).toHaveLength(1);
+  });
+
+  // sequence numbers 1 to 7 are used and acked
+  for (let index = 0; index < 7; index += 1) {
+    await ctx.relays[0]?.writeLine('small');
+  }
+
+  ctx.guest.writeGuestFrame({ t: 'ack', ack: 7 });
+
+  // the filler holds sequence number 8 unacked, so both big lines wait with next seq 9
+  await ctx.relays[0]?.writeLine('filler');
+
+  const windowBytes = 1024 * 1024;
+  const overhead = formatRelayFrame({ t: 'line', seq: 9, conn: 1, line: '' }).length;
+  const exact = 'x'.repeat(windowBytes - overhead);
+
+  const outcomes = Promise.allSettled([
+    ctx.relays[0]?.writeLine(exact),
+    ctx.relays[0]?.writeLine(exact),
+  ]);
+
+  ctx.guest.writeGuestFrame({ t: 'ack', ack: 8 });
+
+  const [fitsAtNine, growsAtTen] = await outcomes;
+
+  expect(fitsAtNine?.status).toBe('fulfilled');
+  expect(growsAtTen?.status).toBe('rejected');
+});
+
 test('it rejects a pending writeLine when the relay stops', async () => {
   const ctx = setupTest();
 

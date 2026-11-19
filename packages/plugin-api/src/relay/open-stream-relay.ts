@@ -143,6 +143,14 @@ export function openStreamRelay(
 
       const bytes = encoder.encode(formatRelayFrame(frame)).length;
 
+      // the final sequence number may be longer than the one at queue time, so a frame that
+      // can never fit is rejected here, where its size is known
+      if (bytes > MAX_UNACKED_BYTES) {
+        pending.shift();
+        next.settle.reject(new Error('the line is larger than the relay window'));
+        continue;
+      }
+
       if (heldBytes + bytes > MAX_UNACKED_BYTES) {
         return;
       }
