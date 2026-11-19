@@ -12,6 +12,7 @@
         "zones": {
           "packages": ["packages/**"],
           "contract": ["packages/contract{,/**}"],
+          "client": ["packages/client{,/**}"],
           "core": ["packages/core{,/**}"],
           "protocol": ["packages/protocol{,/**}"],
           "plugin-api": ["packages/plugin-api{,/**}"],
@@ -104,6 +105,7 @@
             "from": ["packages"],
             "zones": [
               "contract",
+              "client",
               "core",
               "protocol",
               "plugin-api",
@@ -142,6 +144,13 @@
           },
           {
             "name": "package-deps",
+            "from": ["client"],
+            "allow": ["contract"],
+            "allowWithin": "packages/*",
+            "reason": "@atcx/client is published, and npm holds no workspace package but @atcx/contract"
+          },
+          {
+            "name": "package-deps",
             "from": ["core"],
             "allow": ["contract"],
             "allowWithin": "packages/*",
@@ -150,7 +159,7 @@
           {
             "name": "package-deps",
             "from": ["protocol"],
-            "allow": ["contract", "core"],
+            "allow": ["contract", "client", "core"],
             "allowWithin": "packages/*"
           },
           {
@@ -174,13 +183,22 @@
           {
             "name": "package-deps",
             "from": ["lifecycle"],
-            "allow": ["contract", "core", "protocol", "config", "store"],
+            "allow": ["contract", "client", "core", "protocol", "config", "store"],
             "allowWithin": "packages/*"
           },
           {
             "name": "package-deps",
             "from": ["daemon"],
-            "allow": ["contract", "core", "protocol", "plugin-api", "config", "store", "lifecycle"],
+            "allow": [
+              "contract",
+              "client",
+              "core",
+              "protocol",
+              "plugin-api",
+              "config",
+              "store",
+              "lifecycle"
+            ],
             "allowWithin": "packages/*"
           },
           {
@@ -194,6 +212,7 @@
             "from": ["front-ends"],
             "allow": [
               "contract",
+              "client",
               "core",
               "protocol",
               "config",
@@ -272,6 +291,14 @@
             "allow": [],
             "ignore": ["**/*.test.{ts,tsx,js,mjs}", "packages/core/src/test-utils/**"],
             "reason": "@atc/core runs on any runtime"
+          },
+          {
+            "name": "any-runtime",
+            "modules": ["bun:*"],
+            "from": ["client"],
+            "allow": [],
+            "ignore": ["**/*.test.{ts,tsx,js,mjs}", "packages/client/src/test-utils/**"],
+            "reason": "@atcx/client runs on Node 22 and Bun alike"
           },
           { "name": "confinement", "modules": ["bun-pty"], "allow": ["pty-files"] },
           { "name": "confinement", "modules": ["@impz/client"], "allow": ["imp-client-files"] },

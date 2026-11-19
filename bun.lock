@@ -97,6 +97,19 @@
         "bun-pty": "catalog:",
       },
     },
+    "packages/client": {
+      "name": "@atcx/client",
+      "version": "7.20.0",
+      "dependencies": {
+        "@atcx/contract": "workspace:*",
+        "@orpc/client": "catalog:",
+        "@orpc/standard-server-peer": "catalog:",
+      },
+      "devDependencies": {
+        "@orpc/server": "catalog:",
+        "@orpc/standard-server": "catalog:",
+      },
+    },
     "packages/config": {
       "name": "@atc/config",
       "dependencies": {
@@ -566,6 +579,8 @@
     "@atc/store": ["@atc/store@workspace:packages/store"],
 
     "@atc/tui": ["@atc/tui@workspace:packages/tui"],
+
+    "@atcx/client": ["@atcx/client@workspace:packages/client"],
 
     "@atcx/contract": ["@atcx/contract@workspace:packages/contract"],
 
