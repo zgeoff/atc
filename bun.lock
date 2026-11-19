@@ -441,7 +441,7 @@
     "@wringer/terminal": "0.1.1",
     "@xterm/addon-serialize": "0.14.0",
     "@xterm/headless": "6.0.0",
-    "@zgeoff/agent-hooks": "0.2.13",
+    "@zgeoff/agent-hooks": "0.2.14",
     "@zgeoff/bun-test-extended": "0.2.4",
     "@zgeoff/chex": "0.3.6",
     "@zgeoff/diet": "0.2.3",
@@ -992,7 +992,7 @@
 
     "@xterm/headless": ["@xterm/headless@6.0.0", "", {}, "sha512-5Yj1QINYCyzrZtf8OFIHi47iQtI+0qYFPHmouEfG8dHNxbZ9Tb9YGSuLcsEwj9Z+OL75GJqPyJbyoFer80a2Hw=="],
 
-    "@zgeoff/agent-hooks": ["@zgeoff/agent-hooks@0.2.13", "", { "bin": { "agent-hooks": "dist/cli.js" } }, "sha512-kvzswc5g5uYom0fu14pjWgXEvpNMSBNWkCjWtcnTL+4A2Le9uwhsThAOQOlNDrVB93tjcDC6plhknvhpxTdJBA=="],
+    "@zgeoff/agent-hooks": ["@zgeoff/agent-hooks@0.2.14", "", { "bin": { "agent-hooks": "dist/cli.js" } }, "sha512-tSgMHpd/JQ8DpsD93/isL+5IOQevsNU1WqMZCZ3QeCaM9Gtg3h4TRhxsGTF8JwY3kZA1cpupI2IvTfXh5sA/Og=="],
 
     "@zgeoff/bun-test-extended": ["@zgeoff/bun-test-extended@0.2.4", "", { "dependencies": { "jest-extended": "7.0.0", "jest-matcher-utils": "30.5.2" } }, "sha512-pjHhfUFSQVOG97CPobmUJ3v1xbigRe5DOD+7VDoe5IIYvAOMkctmkHznj4EKKnZSpQp0b3/jqvYuzIFrpeaZMw=="],
 
