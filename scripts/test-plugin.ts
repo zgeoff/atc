@@ -21,7 +21,6 @@ const SETUP_PATHS = ['bunfig.toml', 'tsconfig.base.json', 'scripts/with-test-hom
 // The root development tools that only lint, format, or hook commits.
 const TOOLING = new Set([
   '@commitlint/cli',
-  '@maschwenk/tsrslint',
   '@stylistic/eslint-plugin',
   '@zgeoff/format-codemod',
   '@zgeoff/oxlint-config',
