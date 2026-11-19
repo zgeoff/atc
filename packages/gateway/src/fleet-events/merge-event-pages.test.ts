@@ -1,0 +1,887 @@
+import { expect, test } from 'bun:test';
+import { randomUUID } from 'node:crypto';
+import { isRecord } from '@atc/core';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import invariant from 'tiny-invariant';
+import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
+import { decodeGatewayCursor } from './decode-gateway-cursor';
+import { mergeEventPages } from './merge-event-pages';
+
+// Which daemons a test wires, by name.
+interface MergeEventsTestConfig<Name extends string> {
+  readonly daemons: readonly Name[];
+}
+
+async function setupTest<const Name extends string>(config: MergeEventsTestConfig<Name>) {
+  const started = await Promise.all(
+    config.daemons.map(async (name) => {
+      const daemon = await startTestDaemon({
+        prefix: `atc-merge-events-${name}-`,
+
+        // Session messages need an adapter that takes them.
+        options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+      });
+
+      const spawned = await daemon.client.sendRequest('session.spawn', {
+        cwd: daemon.directory,
+        resume: `a-${randomUUID()}`,
+      });
+
+      return [name, { daemon, session: String(getRecord(spawned, 'session')['id']) }] as const;
+    }),
+  );
+
+  const byName = new Map(started);
+
+  return {
+    getDaemon: (name: Name) => {
+      const found = byName.get(name);
+
+      invariant(found, `setupTest started no daemon named ${name}`);
+
+      return found;
+    },
+  };
+}
+
+test("it interleaves daemons by timestamp and keeps a daemon's own order when its clock steps back", () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [
+            { cursor: 'WyJldmVudHMiLDFd', at: 10, session: 's1', kind: 'state' },
+            { cursor: 'WyJldmVudHMiLDJd', at: 5, session: 's1', kind: 'state' },
+          ],
+          cursor: 'WyJldmVudHMiLDJd',
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'WyJldmVudHMiLDExXQ', at: 7, session: 's9', kind: 'state' }],
+          cursor: 'WyJldmVudHMiLDExXQ',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.events).toStrictEqual([
+    {
+      cursor:
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxEQmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSJ9fQ',
+      at: 7,
+      session: 'pc.9a1b2c3d.s9',
+      kind: 'state',
+      origin: { daemon: 'pc', incarnation: '9a1b2c3d', cursor: 'WyJldmVudHMiLDExXQ' },
+    },
+    {
+      cursor:
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxERmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSJ9fQ',
+      at: 10,
+      session: 'cloud.0f6c2a8e.s1',
+      kind: 'state',
+      origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'WyJldmVudHMiLDFd' },
+    },
+    {
+      cursor:
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxESmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSJ9fQ',
+      at: 5,
+      session: 'cloud.0f6c2a8e.s1',
+      kind: 'state',
+      origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'WyJldmVudHMiLDJd' },
+    },
+  ]);
+
+  expect(merged.more).toBeFalse();
+});
+
+test('it gives events of one timestamp to the daemon whose name sorts first', () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'WyJldmVudHMiLDExXQ', at: 7, session: 's9' }],
+          cursor: 'WyJldmVudHMiLDExXQ',
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'WyJldmVudHMiLDFd', at: 7, session: 's1' }],
+          cursor: 'WyJldmVudHMiLDFd',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.events).toStrictEqual([
+    {
+      cursor:
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXdYUSIsImNsb3VkLjBmNmMyYThlIjoiV3lKbGRtVnVkSE1pTERGZCJ9fQ',
+      at: 7,
+      session: 'cloud.0f6c2a8e.s1',
+      origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'WyJldmVudHMiLDFd' },
+    },
+    {
+      cursor:
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSIsImNsb3VkLjBmNmMyYThlIjoiV3lKbGRtVnVkSE1pTERGZCJ9fQ',
+      at: 7,
+      session: 'pc.9a1b2c3d.s9',
+      origin: { daemon: 'pc', incarnation: '9a1b2c3d', cursor: 'WyJldmVudHMiLDExXQ' },
+    },
+  ]);
+});
+
+test('it advances each daemon only past the events that made the page and reads the cut ones again', () => {
+  const registry = {
+    daemons: new Map([
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: 'c0' },
+        page: {
+          kind: 'read',
+          events: [
+            { cursor: 'WyJldmVudHMiLDFd', at: 1, session: 's1' },
+            { cursor: 'WyJldmVudHMiLDNd', at: 3, session: 's1' },
+          ],
+          cursor: 'WyJldmVudHMiLDNd',
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: 'p0' },
+        page: {
+          kind: 'read',
+          events: [
+            { cursor: 'WyJldmVudHMiLDEyXQ', at: 2, session: 's9' },
+            { cursor: 'WyJldmVudHMiLDE0XQ', at: 4, session: 's9' },
+          ],
+          cursor: 'WyJldmVudHMiLDE0XQ',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    2,
+  );
+
+  expect(merged.events).toStrictEqual([
+    {
+      cursor:
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxERmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXhYUSJ9fQ',
+      at: 1,
+      session: 'cloud.0f6c2a8e.s1',
+      origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'WyJldmVudHMiLDFd' },
+    },
+    {
+      cursor:
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxERmQiLCJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxERXlYUSJ9fQ',
+      at: 2,
+      session: 'pc.9a1b2c3d.s9',
+      origin: { daemon: 'pc', incarnation: '9a1b2c3d', cursor: 'WyJldmVudHMiLDEyXQ' },
+    },
+  ]);
+
+  expect(merged.more).toBeTrue();
+
+  expect(decodeGatewayCursor(merged.cursor, 'f', registry)).toStrictEqual(
+    new Map([
+      ['cloud', 'WyJldmVudHMiLDFd'],
+      ['pc', 'WyJldmVudHMiLDEyXQ'],
+    ]),
+  );
+});
+
+test('it gives each event the cursor that resumes right after it', () => {
+  const registry = {
+    daemons: new Map([
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: 'c0' },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'WyJldmVudHMiLDFd', at: 1, session: 's1' }],
+          cursor: 'WyJldmVudHMiLDFd',
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: 'p0' },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'WyJldmVudHMiLDEyXQ', at: 2, session: 's9' }],
+          cursor: 'WyJldmVudHMiLDEyXQ',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(decodeGatewayCursor(String(merged.events[0]?.['cursor']), 'f', registry)).toStrictEqual(
+    new Map([
+      ['cloud', 'WyJldmVudHMiLDFd'],
+      ['pc', 'WyJldmVudHMiLDExXQ'],
+    ]),
+  );
+});
+
+test('it keeps the position of a daemon that did not answer and lists it as unavailable', () => {
+  const registry = {
+    daemons: new Map([
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: 'c0' },
+        page: { kind: 'unavailable' },
+      },
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: 'p0' },
+        page: { kind: 'read', events: [], cursor: 'p0', more: false },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.unavailable).toStrictEqual(['cloud']);
+
+  expect(decodeGatewayCursor(merged.cursor, 'f', registry)).toStrictEqual(
+    new Map([
+      ['cloud', 'c0'],
+      ['pc', 'p0'],
+    ]),
+  );
+});
+
+test('it leaves a daemon the cursor never held out of the cursor while it does not answer', () => {
+  const registry = {
+    daemons: new Map([
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: null,
+        page: { kind: 'unavailable' },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(decodeGatewayCursor(merged.cursor, 'f', registry)).toStrictEqual(new Map());
+});
+
+test('it lists a daemon that started at its newest event and resumes it from there', () => {
+  const registry = {
+    daemons: new Map([['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })]]),
+    defaultDaemon: 'pc',
+  };
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: null,
+        page: { kind: 'started', cursor: 'p9' },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.started).toStrictEqual(['pc']);
+  expect(merged.events).toStrictEqual([]);
+  expect(decodeGatewayCursor(merged.cursor, 'f', registry)).toStrictEqual(new Map([['pc', 'p9']]));
+});
+
+test('it resumes a daemon whose every event was cut right before its first event', () => {
+  const registry = {
+    daemons: new Map([
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'WyJldmVudHMiLDFd', at: 1, session: 's1' }],
+          cursor: 'WyJldmVudHMiLDFd',
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [{ cursor: 'WyJldmVudHMiLDdd', at: 2, session: 's9' }],
+          cursor: 'WyJldmVudHMiLDdd',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    1,
+  );
+
+  expect(decodeGatewayCursor(merged.cursor, 'f', registry)).toStrictEqual(
+    new Map([
+      ['cloud', 'WyJldmVudHMiLDFd'],
+      ['pc', 'WyJldmVudHMiLDZd'],
+    ]),
+  );
+});
+
+test('it rewrites the session and message of each event for its daemon', () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [
+            {
+              cursor: 'WyJldmVudHMiLDFd',
+              at: 1,
+              session: 's1',
+              message: 'm-1',
+              kind: 'message',
+              detail: 'answered',
+            },
+          ],
+          cursor: 'WyJldmVudHMiLDFd',
+          more: true,
+        },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.events).toStrictEqual([
+    {
+      cursor:
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJjbG91ZC4wZjZjMmE4ZSI6Ild5SmxkbVZ1ZEhNaUxERmQifX0',
+      at: 1,
+      session: 'cloud.0f6c2a8e.s1',
+      message: 'cloud.0f6c2a8e.m-1',
+      kind: 'message',
+      detail: 'answered',
+      origin: { daemon: 'cloud', incarnation: '0f6c2a8e', cursor: 'WyJldmVudHMiLDFd' },
+    },
+  ]);
+
+  expect(merged.more).toBeTrue();
+});
+
+test('it reads an event cut from a page exactly once though the daemon appends another before the next page', async () => {
+  const ctx = await setupTest({ daemons: ['cloud', 'pc'] });
+
+  const registry = {
+    daemons: new Map([
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  // The cloud event is stamped no later than the pc one, and a tie goes to
+  // the daemon whose name sorts first, so the cloud event wins the
+  // one-event page.
+  await ctx.getDaemon('cloud').daemon.client.sendRequest('session.message', {
+    session: ctx.getDaemon('cloud').session,
+    from: 'tester',
+    text: 'first',
+  });
+
+  await ctx.getDaemon('pc').daemon.client.sendRequest('session.message', {
+    session: ctx.getDaemon('pc').session,
+    from: 'tester',
+    text: 'second',
+  });
+
+  const cloudFirst = await ctx
+    .getDaemon('cloud')
+    .daemon.client.sendRequest('events.read', { limit: 1 });
+
+  const pcFirst = await ctx.getDaemon('pc').daemon.client.sendRequest('events.read', { limit: 1 });
+
+  const first = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [cloudFirst['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(cloudFirst['cursor']),
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [pcFirst['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(pcFirst['cursor']),
+          more: false,
+        },
+      },
+    ],
+    'f',
+    1,
+  );
+
+  await ctx.getDaemon('pc').daemon.client.sendRequest('session.message', {
+    session: ctx.getDaemon('pc').session,
+    from: 'tester',
+    text: 'third',
+  });
+
+  const firstParts = decodeGatewayCursor(first.cursor, 'f', registry);
+
+  const cloudSecond = await ctx.getDaemon('cloud').daemon.client.sendRequest('events.read', {
+    limit: 1,
+    cursor: firstParts.get('cloud'),
+  });
+
+  const pcSecond = await ctx.getDaemon('pc').daemon.client.sendRequest('events.read', {
+    limit: 1,
+    cursor: firstParts.get('pc'),
+  });
+
+  const second = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: String(firstParts.get('cloud')) },
+        page: {
+          kind: 'read',
+          events: [cloudSecond['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(cloudSecond['cursor']),
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: String(firstParts.get('pc')) },
+        page: {
+          kind: 'read',
+          events: [pcSecond['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(pcSecond['cursor']),
+          more: false,
+        },
+      },
+    ],
+    'f',
+    1,
+  );
+
+  expect([...first.events, ...second.events].map((event) => event['detail'])).toStrictEqual([
+    'first',
+    'second',
+  ]);
+});
+
+test('it resumes a daemon right after its event a later page read again', async () => {
+  const ctx = await setupTest({ daemons: ['cloud', 'pc'] });
+
+  const registry = {
+    daemons: new Map([
+      ['cloud', buildMockRegistryDaemon({ name: 'cloud', incarnation: '0f6c2a8e' })],
+      ['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })],
+    ]),
+    defaultDaemon: 'cloud',
+  };
+
+  // The cloud event is stamped no later than the pc one, and a tie goes to
+  // the daemon whose name sorts first, so the cloud event wins the
+  // one-event page and the pc one is cut.
+  await ctx.getDaemon('cloud').daemon.client.sendRequest('session.message', {
+    session: ctx.getDaemon('cloud').session,
+    from: 'tester',
+    text: 'first',
+  });
+
+  await ctx.getDaemon('pc').daemon.client.sendRequest('session.message', {
+    session: ctx.getDaemon('pc').session,
+    from: 'tester',
+    text: 'second',
+  });
+
+  const pcFirst = await ctx.getDaemon('pc').daemon.client.sendRequest('events.read', { limit: 1 });
+
+  const cloudFirst = await ctx
+    .getDaemon('cloud')
+    .daemon.client.sendRequest('events.read', { limit: 1 });
+
+  const first = mergeEventPages(
+    [
+      {
+        daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [cloudFirst['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(cloudFirst['cursor']),
+          more: false,
+        },
+      },
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [pcFirst['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(pcFirst['cursor']),
+          more: false,
+        },
+      },
+    ],
+    'f',
+    1,
+  );
+
+  await ctx.getDaemon('pc').daemon.client.sendRequest('session.message', {
+    session: ctx.getDaemon('pc').session,
+    from: 'tester',
+    text: 'third',
+  });
+
+  const pcSecond = await ctx.getDaemon('pc').daemon.client.sendRequest('events.read', {
+    limit: 1,
+    cursor: decodeGatewayCursor(first.cursor, 'f', registry).get('pc'),
+  });
+
+  const second = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: String(decodeGatewayCursor(first.cursor, 'f', registry).get('pc')) },
+        page: {
+          kind: 'read',
+          events: [pcSecond['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(pcSecond['cursor']),
+          more: false,
+        },
+      },
+    ],
+    'f',
+    1,
+  );
+
+  const pcThird = await ctx.getDaemon('pc').daemon.client.sendRequest('events.read', {
+    limit: 1,
+    cursor: decodeGatewayCursor(second.cursor, 'f', registry).get('pc'),
+  });
+
+  expect(
+    [pcThird['events']]
+      .flat()
+      .filter((event) => isRecord(event))
+      .map((event) => event['detail']),
+  ).toStrictEqual(['third']);
+});
+
+test('it pins a daemon the cursor leaves out at its newest event and reads only what follows', async () => {
+  const ctx = await setupTest({ daemons: ['pc'] });
+
+  const registry = {
+    daemons: new Map([['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })]]),
+    defaultDaemon: 'pc',
+  };
+
+  await ctx.getDaemon('pc').daemon.client.sendRequest('session.message', {
+    session: ctx.getDaemon('pc').session,
+    from: 'tester',
+    text: 'old',
+  });
+
+  const newest = await ctx.getDaemon('pc').daemon.client.sendRequest('events.read', { limit: 1 });
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: null,
+        page: { kind: 'started', cursor: String(newest['cursor']) },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  await ctx.getDaemon('pc').daemon.client.sendRequest('session.message', {
+    session: ctx.getDaemon('pc').session,
+    from: 'tester',
+    text: 'new',
+  });
+
+  const after = await ctx.getDaemon('pc').daemon.client.sendRequest('events.read', {
+    cursor: decodeGatewayCursor(merged.cursor, 'f', registry).get('pc'),
+  });
+
+  expect(
+    [after['events']]
+      .flat()
+      .filter((event) => isRecord(event))
+      .map((event) => event['detail']),
+  ).toStrictEqual(['new']);
+});
+
+test('it reads the events a daemon queued while it was down once it answers at its latest events', async () => {
+  const ctx = await setupTest({ daemons: ['pc'] });
+
+  await ctx.getDaemon('pc').daemon.client.sendRequest('session.message', {
+    session: ctx.getDaemon('pc').session,
+    from: 'tester',
+    text: 'queued',
+  });
+
+  const latest = await ctx.getDaemon('pc').daemon.client.sendRequest('events.read', {});
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [latest['events']].flat().filter((event) => isRecord(event)),
+          cursor: String(latest['cursor']),
+          more: false,
+        },
+        unstarted: { olderUnread: false },
+      },
+    ],
+    'f',
+    50,
+  );
+
+  expect(merged.events.map((event) => event['detail'])).toContain('queued');
+  expect(merged.started).toStrictEqual(['pc']);
+  expect(merged.truncated).toStrictEqual([]);
+});
+
+test('it keeps a null position for a daemon that has not answered since the cursor started', () => {
+  const registry = {
+    daemons: new Map([['pc', buildMockRegistryDaemon({ name: 'pc', incarnation: '9a1b2c3d' })]]),
+    defaultDaemon: 'pc',
+  };
+
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: { kind: 'unavailable' },
+      },
+    ],
+    'f',
+    50,
+  );
+
+  expect(decodeGatewayCursor(merged.cursor, 'f', registry)).toStrictEqual(new Map([['pc', null]]));
+});
+
+test('it lists a daemon whose latest page after a gap left older events unread as truncated', () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: { kind: 'read', events: [], cursor: 'p9', more: false },
+        unstarted: { olderUnread: true },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.started).toStrictEqual(['pc']);
+  expect(merged.truncated).toStrictEqual(['pc']);
+});
+
+test("it gives a note event its daemon's own cursor as a qualified note handle beside the merged cursor", () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [
+            {
+              cursor: 'WyJldmVudHMiLDdd',
+              at: 1,
+              session: 's1',
+              kind: 'note',
+              label: 'decision',
+              detail: 'done',
+            },
+          ],
+          cursor: 'WyJldmVudHMiLDdd',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.events).toStrictEqual([
+    {
+      cursor:
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxEZGQifX0',
+      at: 1,
+      session: 'pc.9a1b2c3d.s1',
+      kind: 'note',
+      label: 'decision',
+      detail: 'done',
+      note: 'pc.9a1b2c3d.WyJldmVudHMiLDdd',
+      origin: { daemon: 'pc', incarnation: '9a1b2c3d', cursor: 'WyJldmVudHMiLDdd' },
+    },
+  ]);
+});
+
+test("it gives a message-answered event its daemon's own cursor as a qualified answer handle beside the merged cursor", () => {
+  const merged = mergeEventPages(
+    [
+      {
+        daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+        before: { cursor: null },
+        page: {
+          kind: 'read',
+          events: [
+            {
+              cursor: 'WyJldmVudHMiLDdd',
+              at: 1,
+              session: 's1',
+              kind: 'message-answered',
+              message: 'm-1',
+              detail: 'done',
+            },
+          ],
+          cursor: 'WyJldmVudHMiLDdd',
+          more: false,
+        },
+      },
+    ],
+    'f',
+    10,
+  );
+
+  expect(merged.events).toStrictEqual([
+    {
+      cursor:
+        'eyJ2ZXJzaW9uIjoxLCJmaWx0ZXIiOiJmIiwiZGFlbW9ucyI6eyJwYy45YTFiMmMzZCI6Ild5SmxkbVZ1ZEhNaUxEZGQifX0',
+      at: 1,
+      session: 'pc.9a1b2c3d.s1',
+      kind: 'message-answered',
+      message: 'pc.9a1b2c3d.m-1',
+      detail: 'done',
+      answer: 'pc.9a1b2c3d.WyJldmVudHMiLDdd',
+      origin: { daemon: 'pc', incarnation: '9a1b2c3d', cursor: 'WyJldmVudHMiLDdd' },
+    },
+  ]);
+});
+
+test("it gives a replayed event the same origin though another daemon's place changed its merged cursor", () => {
+  const merged = [{ cursor: 'p0' }, { cursor: 'WyJldmVudHMiLDEyXQ' }].map((before) =>
+    mergeEventPages(
+      [
+        {
+          daemon: { name: 'cloud', incarnation: '0f6c2a8e' },
+          before: { cursor: 'c0' },
+          page: {
+            kind: 'read',
+            events: [{ cursor: 'WyJldmVudHMiLDFd', at: 1, session: 's1' }],
+            cursor: 'WyJldmVudHMiLDFd',
+            more: false,
+          },
+        },
+        {
+          daemon: { name: 'pc', incarnation: '9a1b2c3d' },
+          before,
+          page: { kind: 'unavailable' },
+        },
+      ],
+      'f',
+      10,
+    ),
+  );
+
+  const [first, replayed] = merged.map((page) => page.events[0]);
+
+  expect(replayed?.['cursor']).not.toBe(first?.['cursor']);
+
+  expect(first?.['origin']).toStrictEqual({
+    daemon: 'cloud',
+    incarnation: '0f6c2a8e',
+    cursor: 'WyJldmVudHMiLDFd',
+  });
+
+  expect(replayed?.['origin']).toStrictEqual(first?.['origin']);
+});
