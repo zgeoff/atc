@@ -109,8 +109,8 @@ Read a feature's file before you run its journey.
     (VERIFY_UPLOAD_TOKEN="$(op read "$VERIFY_UPLOAD_TOKEN_REF")" && export VERIFY_UPLOAD_TOKEN && bun verify publish)
     ```
 
-    For another PR, add `--pr <number>`. Expect: `ok: true`, and `data.action` of `created`,
-    `replaced` or `unchanged`.
+    For another PR, add `--pr <number>`. When `op read` fails, stop and report it as a blocker.
+    Expect: `ok: true`, and `data.action` of `created`, `replaced` or `unchanged`.
 
 12. End the run: `bun verify down` after `up`, or `bun verify detach` after `attach`.
 
