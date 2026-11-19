@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config';
-import { CLAUDE_PLUGIN } from '../claude-plugin';
+import { CLAUDE_PLUGIN } from '../plugin/claude-plugin';
 import { getGatewayConfig } from './get-gateway-config';
 
 test('it returns the gateway a config holds under an id', () => {

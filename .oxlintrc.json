@@ -63,7 +63,6 @@
           "packages/contract",
           "packages/core",
           "packages/daemon",
-          "packages/harnesses/claude",
           "packages/lifecycle",
           "packages/plugin-api",
           "packages/protocol",

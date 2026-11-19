@@ -1,7 +1,7 @@
 import { writeATCBridge } from './bridge/write-atc-bridge';
-import type { HookSettingsProfile } from './build-hook-settings';
 import type { ClaudeAdapterOptions } from './claude-adapter-options';
-import { writeHookSettings } from './write-hook-settings';
+import type { HookSettingsProfile } from './hooks/build-hook-settings';
+import { writeHookSettings } from './hooks/write-hook-settings';
 
 export interface ClaudeLaunchFiles {
   // The settings file's path.

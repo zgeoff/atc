@@ -1,9 +1,9 @@
 import type { HarnessPlugin } from '@atc/config';
 import { definePlugin } from '@atc/plugin-api';
-import type { ClaudeAdapterOptions } from './claude-adapter-options';
-import { CLAUDE_CONFIG_PLUGIN } from './config/claude-config-plugin';
-import { createClaudeAdapter } from './create-claude-adapter';
-import { createGatewayAdapter } from './gateway/create-gateway-adapter';
+import type { ClaudeAdapterOptions } from '../claude-adapter-options';
+import { CLAUDE_CONFIG_PLUGIN } from '../config/claude-config-plugin';
+import { createClaudeAdapter } from '../create-claude-adapter';
+import { createGatewayAdapter } from '../gateway/create-gateway-adapter';
 
 export function buildClaudePlugin(options: ClaudeAdapterOptions = {}): HarnessPlugin {
   return definePlugin({

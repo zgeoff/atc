@@ -1,5 +1,5 @@
-export * from './build-claude-plugin';
-export * from './build-hook-settings-path';
+export * from './plugin/build-claude-plugin';
+export * from './hooks/build-hook-settings-path';
 export type * from './claude-adapter-options';
 export type * from './claude-host-paths';
 export * from './config/collect-claude-auth';
@@ -9,4 +9,4 @@ export * from './gateway/create-gateway-adapter';
 export * from './guest/build-guest-settings-path';
 export * from './headless/make-claude-headless-runner';
 export * from './headless/start-claude-headless-run';
-export * from './parse-claude-transcript-line';
+export * from './transcript/parse-claude-transcript-line';
