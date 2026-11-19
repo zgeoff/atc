@@ -66,6 +66,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
   bridge and reconnecting to a harness
 - [The docker provider](architecture/execution/docker-provider.md) — the objects on the Engine, the
   lifecycle, the token launch and the refusals
+- [The sprites provider](architecture/execution/sprites-provider.md) — the sprite and its execs, the
+  relay, the connector routes and the refusals
 - [Runtime auth](architecture/execution/runtime-auth.md) — broker bindings, spawn checks, admission,
   revoke and rebind
 - [Workspaces](architecture/execution/workspaces.md) — sources, the materialization phases, claims
