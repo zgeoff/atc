@@ -1,8 +1,11 @@
 import type { Generated } from 'kysely';
-import type { IdempotencyState } from '../idempotency-record';
-import type { MessageStatus } from '../message-record';
-import type { RuntimeAuthBindingState, RuntimeAuthGrantPhase } from '../runtime-auth-binding';
-import type { MaterializationPhase } from '../workspace-materialization';
+import type {
+  RuntimeAuthBindingState,
+  RuntimeAuthGrantPhase,
+} from '../auth-bindings/runtime-auth-binding';
+import type { IdempotencyState } from '../idempotency/idempotency-record';
+import type { MaterializationPhase } from '../materializations/workspace-materialization';
+import type { MessageStatus } from '../messages/message-record';
 
 interface FleetTable {
   session_id: string;

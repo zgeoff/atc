@@ -1,6 +1,6 @@
 import { toSessionID } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
-import type { StoredEvent } from '../stored-event';
+import type { StoredEvent } from '../events/stored-event';
 
 export function buildMockStoredEvent(overrides: Partial<StoredEvent> = {}): StoredEvent {
   return {

@@ -5,8 +5,8 @@ import type {
   RuntimeAuthBinding,
   RuntimeAuthBindingUpdate,
   RuntimeAuthGrant,
-} from './runtime-auth-binding';
-import type { StateStoreSchema } from './sqlite/state-store-schema';
+} from '../auth-bindings/runtime-auth-binding';
+import type { StateStoreSchema } from '../sqlite/state-store-schema';
 
 // Each host's runtime auth binding and the grant rows it holds.
 export interface AuthBindingStore {

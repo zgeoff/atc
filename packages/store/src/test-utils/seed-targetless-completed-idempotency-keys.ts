@@ -1,4 +1,4 @@
-import { createStateStore } from '../create-state-store';
+import { createStateStore } from '../stores/create-state-store';
 import { collectCompletedIdempotencyRecords } from './collect-completed-idempotency-records';
 import type { IdempotencySeedDeps } from './seed-swept-idempotency-keys';
 

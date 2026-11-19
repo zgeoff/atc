@@ -1,5 +1,8 @@
 import invariant from 'tiny-invariant';
-import type { NewMaterialization, WorkspaceMaterialization } from '../workspace-materialization';
+import type {
+  NewMaterialization,
+  WorkspaceMaterialization,
+} from '../materializations/workspace-materialization';
 import { seedMaterialization } from './seed-materialization';
 import type { MaterializationSeedDeps } from './seed-materialization';
 

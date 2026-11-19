@@ -69,7 +69,6 @@
           "packages/lifecycle",
           "packages/plugin-api",
           "packages/protocol",
-          "packages/store",
           "packages/tui"
         ]
       }
@@ -189,7 +188,7 @@
         "packages/daemon/src/test-utils/build-target-options-from-config.test.ts",
         "packages/daemon/src/transport/start-session-bridge.test.ts",
         "packages/harnesses/claude/src/guest/build-claude-config-seed.test.ts",
-        "packages/store/src/fleet-entry.ts"
+        "packages/store/src/fleet/fleet-entry.ts"
       ],
       "rules": { "zgeoff/no-restricted-words": "off" }
     }

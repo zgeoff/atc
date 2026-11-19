@@ -1,7 +1,11 @@
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
-import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
-import type { StateStoreSchema } from './sqlite/state-store-schema';
+import type {
+  EffectTarget,
+  IdempotencyClaim,
+  IdempotencyRecord,
+} from '../idempotency/idempotency-record';
+import type { StateStoreSchema } from '../sqlite/state-store-schema';
 
 // The idempotency ledger: one key per principal and operation, and the
 // outcome of the effect it guards.

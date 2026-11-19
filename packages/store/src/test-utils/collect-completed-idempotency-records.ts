@@ -1,4 +1,4 @@
-import type { IdempotencyRecord } from '../idempotency-record';
+import type { IdempotencyRecord } from '../idempotency/idempotency-record';
 
 type CompletedIdempotencyRecord = IdempotencyRecord & { readonly result: string };
 

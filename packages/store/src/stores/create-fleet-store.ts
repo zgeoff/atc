@@ -3,12 +3,12 @@ import type { DaemonID, GrantScope, SessionID, SessionWorkspace } from '@atcx/co
 import { GRANT_SCOPES, toAgentSessionID, toDaemonID, toSessionID } from '@atcx/contract';
 import { sql } from 'kysely';
 import type { Kysely, Transaction } from 'kysely';
-import { buildFleetWithoutReplacedRows } from './build-fleet-without-replaced-rows';
-import { findReplacement } from './find-replacement';
-import type { FleetEntry, FleetStore } from './fleet-entry';
-import { parseWithheldEnv } from './parse-withheld-env';
-import type { StateStoreSchema } from './sqlite/state-store-schema';
-import { StaleOwnershipError } from './stale-ownership-error';
+import { buildFleetWithoutReplacedRows } from '../fleet/build-fleet-without-replaced-rows';
+import { findReplacement } from '../fleet/find-replacement';
+import type { FleetEntry, FleetStore } from '../fleet/fleet-entry';
+import { StaleOwnershipError } from '../fleet/stale-ownership-error';
+import type { StateStoreSchema } from '../sqlite/state-store-schema';
+import { parseWithheldEnv } from '../utils/parse-withheld-env';
 
 // The ownership epoch this daemon writes under. Nothing moves a session to
 // a later epoch yet, so every row this daemon owns holds this one.

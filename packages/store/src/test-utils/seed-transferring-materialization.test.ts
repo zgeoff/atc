@@ -5,7 +5,7 @@ import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { toSessionID } from '@atcx/contract';
-import { createStateStore } from '../create-state-store';
+import { createStateStore } from '../stores/create-state-store';
 import { createMigratedStateDB } from './create-migrated-state-db';
 import { seedTransferringMaterialization } from './seed-transferring-materialization';
 

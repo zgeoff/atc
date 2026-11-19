@@ -1,4 +1,4 @@
-import { createStateStore } from '../create-state-store';
+import { createStateStore } from '../stores/create-state-store';
 
 export interface IdempotencySeedDeps {
   readonly dbPath: string;
