@@ -136,6 +136,9 @@ that command alone. A command with neither runs on the registry's first target, 
 | `docker` | `bun verify use --target docker`, then `bun verify up`; needs a local Docker Engine | read-write |
 | `prod`   | [On prod](references/feature-gateway-routing.md#on-prod), from step 1; no verdict   | read-only  |
 
+Run docker-target's journey after every other journey, which runs on `local`. Its file says how to
+move the run to `docker`.
+
 <!-- /repo -->
 
 ## Commands

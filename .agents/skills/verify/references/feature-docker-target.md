@@ -1,22 +1,40 @@
 # docker-target
 
-Check that a session runs in Docker containers on the `docker` target, keeps its token out of every
-container's environment, wakes after a kill, and leaves the sign-in volume when it is forgotten.
+Check, on the `docker` verify target, that:
 
-Run this journey on the `docker` target, not `local`: `bun verify use --target docker`, then
-`bun verify up` and `bun verify doctor`, as steps 2 and 3 of the verify skill's Check a change say.
-It needs a Docker Engine on this machine that the user can reach through `/var/run/docker.sock`. Run
-the journey's lines in order. At the first line that exits non-zero, skip to the last line, run it,
-and count the feature as failed.
+- a Claude session runs in Docker containers;
+- no container's environment holds the Claude token;
+- the session runs again after a kill and a revive;
+- a forget removes the session's containers and volumes, and keeps the sign-in volume, which every
+  session shares.
 
-- `up` compiles the daemon, since a container runs the daemon's binary, builds an image on
-  `debian:stable-slim` that holds a stand-in claude, and stores a fixed fake token in a sign-in
-  volume. That takes several seconds. `down` removes the containers, volumes and image of the run.
-- The stand-in reports its hooks through the real reporter over the relay, and writes a file when
-  the token it was given matches the sign-in volume's file.
-- `spawn-docker-session` starts the session on the target `box`. `wake-docker-session` kills it,
-  which pauses the containers, revives it, and waits until the daemon lists it alive.
-- `inspect-docker-session` lists the run's containers and volumes by name prefix.
+Run this journey after the journeys on `local`:
+
+1. Run `docker info`. Expect: exit 0. When it fails, skip `done` for docker-target, and list it in
+   your reply.
+2. Run `bun verify down`. Then run `bun verify use --target docker`, `bun verify up` and
+   `bun verify doctor`. Expect from `up`: `ok: true`, after about 10 seconds.
+3. Run the lines of [Journey](#journey) in order. When a line exits non-zero, do what step 5 of the
+   verify skill's [Check a change](../SKILL.md#check-a-change) says.
+4. When you are done with this journey, run `bun verify down`. Expect: `ok: true`. `down` removes
+   every container, volume and image of the run.
+
+## What the run holds
+
+- `up` compiles the atc binary, builds an image with a stand-in `claude`, and writes a fake token
+  into the run's sign-in volume.
+- `bun verify` names each Docker object of the run with one prefix, `atcverify<random>-`.
+  `inspect-docker-session` reads only the objects with that prefix.
+- The run's daemon has one execution target in its config, `box`, of the `docker` provider. Each
+  action starts its session on `box`. The word "target" in the rest of this file means a verify
+  target.
+- Each session has a harness container, which runs the stand-in `claude`, and a `-relay` sidecar
+  container, which carries the session's hooks to the daemon. The two share a `-relay` volume, which
+  holds the socket the hooks go through.
+- At start, the stand-in reads the token file in the sign-in volume, and compares the token with the
+  one `up` wrote.
+- On this target, a kill pauses the session's containers. `wake-docker-session` kills the session,
+  revives it, and waits until the daemon lists it as running.
 
 ## Journey
 
@@ -32,10 +50,13 @@ bun verify action inspect-docker-session
 
 ## End state
 
+Each value sits under the command's `data`.
+
 - Every command exits 0.
-- The first `inspect-docker-session` returns two `containers`, a harness and its `-relay` sidecar,
-  three `volumes` (the host, its `-relay` volume and the sign-in volume), `tokenInEnv` false, and
-  `tokenSeenByHarness` true.
-- After the wake, the `db query` returns the `wv-docker` row with `exited` 0.
-- After the forget, the last `inspect-docker-session` returns no `containers`, only the sign-in
-  volume in `volumes`, and `tokenInEnv` false.
+- The first `inspect-docker-session` gives two `containers`, the harness and its `-relay` sidecar,
+  and three `volumes`: the session's own volume, its `-relay` volume and the sign-in volume. It also
+  gives `tokenInEnv` false, and `tokenSeenByHarness` true, which means the stand-in read the token
+  from the file.
+- After the wake, `rows` of the `db query` holds the `wv-docker` row with `exited` 0.
+- The last `inspect-docker-session` gives no `containers`, the sign-in volume alone in `volumes`,
+  and `tokenInEnv` false.
