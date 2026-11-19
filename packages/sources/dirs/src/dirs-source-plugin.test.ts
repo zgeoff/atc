@@ -5,7 +5,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { DIRS_SOURCE_PLUGIN } from './dirs-source-plugin';
 
-// A home directory the listed directories sit in.
 function setupTest() {
   const temp = setupTempDir('atc-dirs-plugin-');
 

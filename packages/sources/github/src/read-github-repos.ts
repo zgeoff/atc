@@ -4,12 +4,10 @@ import { z } from 'zod';
 import { readGitProtocol } from './read-git-protocol';
 
 interface GitHubRepo {
-  // `owner/repo`, which a git workspace source takes as its URL.
   readonly nameWithOwner: string;
   readonly description: string;
   readonly isPrivate: boolean;
 
-  // The repository's https and ssh clone URLs.
   readonly url: string;
   readonly sshUrl: string;
 }
@@ -17,11 +15,9 @@ interface GitHubRepo {
 interface GitHubRepoListing {
   readonly ok: true;
 
-  // The owner listed, or null for every repository the gh account can access.
   readonly owner: string | null;
   readonly repos: readonly GitHubRepo[];
 
-  // The clone protocol the gh config prefers, `https` unless it says `ssh`.
   readonly gitProtocol: 'https' | 'ssh';
 }
 
@@ -33,28 +29,18 @@ interface GitHubUnavailable {
 }
 
 interface GitHubListRequest {
-  // The host's command runner, which runs gh.
   readonly run: HostServices['runCommand'];
 
-  // The gh executable: a name looked up on PATH, or a path.
   readonly bin: string;
 
-  // The account or organization to list; null lists every repository the gh
-  // account can access: its own, and those it reaches as a collaborator or an
-  // organization member.
   readonly owner: string | null;
 
-  // How long each gh command may take; 20 s when unset.
   readonly timeoutMs?: number;
 }
 
-// How long a gh command may take before the listing is refused.
 const GH_TIMEOUT_MS = 20_000;
-
-// How many repositories one listing holds at most.
 const REPO_LIMIT = 500;
 
-// The fields of each repository gh repo list prints that a listing keeps.
 const REPO_LIST_SCHEMA = z.array(
   z.object({
     nameWithOwner: z.string().regex(/^[^/\s]+\/[^/\s]+$/u),
@@ -115,11 +101,9 @@ interface GHCommand {
   readonly timeoutMs: number;
 }
 
-// The repositories one page of the REST API holds at most.
+// GitHub's REST API returns at most 100 repositories per page.
 const PAGE_SIZE = 100;
 
-// The fields of each repository a page of gh api user/repos prints, as a
-// listing keeps them.
 const USER_REPOS_PAGE_SCHEMA = z.array(
   z
     .object({
@@ -138,8 +122,6 @@ const USER_REPOS_PAGE_SCHEMA = z.array(
     })),
 );
 
-// `gh api --paginate` reads every page before it prints any, with no limit,
-// so the pages are read one at a time up to the listing's limit.
 async function readAccessibleRepos(
   gh: GHCommand,
 ): Promise<ReadJSON<readonly GitHubRepo[]> | GitHubUnavailable> {
@@ -245,7 +227,6 @@ function parseJSON(text: string): unknown {
   }
 }
 
-// The gh command and its subcommand or API path, without the query.
 function formatCommandName(args: readonly string[]): string {
   return args.slice(0, 2).join(' ').split('?')[0] ?? '';
 }
