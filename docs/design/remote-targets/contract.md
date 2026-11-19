@@ -2,19 +2,29 @@
 
 - **Status:** draft
 
-The provider contract changes in four places so that a remote host without impd's forward or broker
-fits it: a `relay` capability with one shared relay over a byte stream, a tagged union for the
-host's credentials, a read of what became of each sleeping harness, and a state folder for each
-execution provider entry. imp and `local-pty` keep their behaviour. [The README](./README.md) holds
-the decisions that span the parts.
+The execution provider contract changes in four places, so that a host without impd fits it.
+[The README](./README.md#terms) defines the terms this doc uses, impd's forward and broker among
+them.
 
-The relay delivers every line exactly once while the daemon runs and the guest's mux lives. A daemon
-restart can repeat one frame and lose the unacked tail of a connection that was open at the time, as
-[the reset rule](#constraints) says.
+- **The relay.** A provider whose host offers a byte stream to a process inside it, such as a
+  sprite's exec or a container's attach, carries the session bridge over that stream with
+  `openStreamRelay`.
+- **The credentials kind.** A provider declares how its host supplies credentials, and the daemon
+  decides each launch from that declaration.
+- **Harness fates.** A provider can say, without waking a host, whether the host still holds each
+  sleeping session's harness.
+- **The state folder.** Each execution provider entry gets a folder of its own on the daemon's
+  machine.
 
-## Shape
+imp declares `relay: true` and carries the session bridge through impd's forward, with no
+`openStreamRelay`. It declares the broker kind. `local-pty` declares `relay: false` and no
+credentials.
 
-A link drops, and the daemon reattaches it:
+## A dropped connection, reopened
+
+`openStreamRelay` opens a connection to the guest's `atc relay-mux` through the provider's
+`RelayLink`. The mux holds every frame until the daemon acks it, so a dropped connection loses
+nothing:
 
 ```mermaid
 sequenceDiagram
@@ -23,11 +33,11 @@ sequenceDiagram
   participant D as openStreamRelay (daemon)
   R->>M: connect, write a hook line
   M->>D: open seq 1, line seq 2
-  Note over M,D: the link drops; M keeps seq 1 and 2
-  D->>M: newline, hello {link, gen 2, ack 0}
-  M->>D: replay from byte 0, then welcome {link, gen 2, ack 0}
+  Note over M,D: the connection drops; M keeps seq 1 and 2
+  D->>M: newline, hello {v 1, relay, gen 2, ack 0}
+  M->>D: stdout replayed from byte 0, then welcome {v 1, relay, gen 2, ack 0}
   Note over D: discards every byte before its own welcome
-  M->>D: open seq 1, line seq 2 again
+  M->>D: open seq 1, line seq 2, again
   D->>M: ack 2
 ```
 
@@ -35,8 +45,9 @@ sequenceDiagram
 
 ### The relay
 
-A provider whose host offers a byte stream that survives a drop calls `openStreamRelay` in
-`spawnHarness`, and passes the daemon's `onRelay` through.
+A provider calls `openStreamRelay` in `spawnHarness` and passes the daemon's `onRelay` through. The
+provider supplies only a `RelayLink`, which opens a connection to the guest's `atc relay-mux`. The
+mux binds the bridge socket before it reads stdin, so its first welcome means reporters can connect.
 
 ```ts
 const relay = openStreamRelay(
@@ -45,22 +56,23 @@ const relay = openStreamRelay(
   { reconnectDelaysMs: [250, 1000, 5000], log },
 );
 
-await relay.listening; // the guest listens on `socket`; the harness may start
-// → resolves, or rejects when the host lost the mux before it listened
+await relay.listening; // resolves on the first welcome
+// → the harness may start; rejects when the host lost the mux before its first welcome
 ```
 
 ```ts
-// plugin-api. A provider supplies only the link.
+// plugin-api
 interface RelayLink {
-  // starts the guest's `atc relay-mux <socket>`, or attaches the one the host still runs for this link
-  open(): Promise<RelayLinkConnection>;
+  // starts the guest's `atc relay-mux <socket>`, or attaches to the one the host still runs for this link.
+  // replace: true stops that mux first and starts a new one.
+  open(options?: { readonly replace?: boolean }): Promise<RelayLinkConnection>;
 }
 
 interface RelayLinkConnection {
-  onData(listener: (data: Uint8Array) => void): void; // may replay stdout from any earlier byte, byte 0 included
-  onEnd(listener: (end: 'dropped' | 'lost') => void): void; // lost: the host no longer holds the mux
-  write(data: Uint8Array): Promise<void>;
-  detach(): void; // lets go and leaves the mux running
+  onData(listener: (data: Uint8Array) => void): void; // the mux's stdout; may replay from any earlier byte, byte 0 included
+  onEnd(listener: (end: 'dropped' | 'lost') => void): void; // lost: the host no longer runs the mux
+  write(data: Uint8Array): Promise<void>; // the mux's stdin
+  detach(): void; // lets go of the connection and leaves the mux running
 }
 
 declare function openStreamRelay(
@@ -71,81 +83,75 @@ declare function openStreamRelay(
 
 interface OpenedRelay {
   readonly listening: Promise<void>;
-  stop(): void; // closes every connection the daemon holds and detaches the link
+  stop(): void; // closes every bridge connection this relay carries, and detaches its connection
 }
 
 interface StreamRelayOptions {
-  readonly reconnectDelaysMs: readonly number[]; // after the last one, every retry waits the last delay
+  readonly reconnectDelaysMs: readonly number[]; // after the last delay, every retry waits the last delay, until stop()
   readonly log?: (line: string) => void;
+}
+
+interface ExecutionCapabilities {
+  // …existing fields
+  readonly relay: boolean; // the provider carries HarnessSpec.onRelay
 }
 ```
 
-The frames are one JSON object per line, in a light entry that the guest's `atc relay-mux` loads
-without Zod or the protocol contract. `seq` counts the frames each side sends, and a receiver
-applies only the frame one past the last it applied.
+The frames are one JSON object per line. They live in the package entry `@atc/protocol/relay`, which
+loads neither Zod nor the protocol contract, so the mux starts fast. Each side numbers the frames it
+sends in `seq`, and applies only the frame one past the last it applied.
 
 ```ts
 // protocol, entry `@atc/protocol/relay`
 type DaemonFrame =
-  | { t: 'hello'; link: string; gen: number; ack: number } // link: new per openStreamRelay call; gen: new per open
-  | { t: 'line'; seq: number; conn: number; line: string }
-  | { t: 'close'; seq: number; conn: number }
+  | { t: 'hello'; v: 1; relay: string; gen: number; ack: number } // relay: new per openStreamRelay call; gen: new per connection
+  | { t: 'line'; seq: number; conn: number; line: string } // a line the daemon writes to a reporter
+  | { t: 'close'; seq: number; conn: number } // the daemon closed its side of the bridge connection
   | { t: 'ack'; ack: number }; // the highest guest seq the daemon applied
 
 type GuestFrame =
-  | { t: 'welcome'; link: string; gen: number; ack: number; reset: boolean } // echoes the hello; reset: a new link, numbering from 1
+  | { t: 'welcome'; v: 1; relay: string; gen: number; ack: number; reset: boolean } // echoes the hello's relay and gen
   | { t: 'open'; seq: number; conn: number } // a reporter connected to the socket
   | { t: 'line'; seq: number; conn: number; line: string }
-  | { t: 'end'; seq: number; conn: number } // the reporter wrote its last line
-  | { t: 'close'; seq: number; conn: number }
+  | { t: 'end'; seq: number; conn: number } // the reporter closed its write side; it may still read
+  | { t: 'close'; seq: number; conn: number } // the reporter's socket closed
   | { t: 'ack'; ack: number };
-```
-
-```ts
-// plugin-api
-interface ExecutionCapabilities {
-  // …existing fields
-  readonly relay: boolean; // carries HarnessSpec.onRelay; imp true through its forward, local-pty false
-}
-
-interface HostRequest {
-  // …existing fields
-  readonly isNew?: boolean; // the spawn of a top-level session, whose host must not exist yet
-}
 ```
 
 ### Credentials
 
+The daemon decides a launch's credentials from the target's declaration, the agent's auth selection,
+and any credential setting in the agent's own config. For a Sprites launch whose agent has no auth
+selection:
+
 ```ts
 // daemon, auth. Pure.
-const decision = decideHarnessAuth(
-  adapter.findAuthSelection?.() ?? null,
-  provider.credentials ?? { kind: 'none' },
-  adapter.findCredentialOverrides?.() ?? [],
-);
-// → { kind: 'routed', router }
-//   or { kind: 'refused', problem: 'route_required' }
+const conflict =
+  credentials.kind === 'none' ? null : (adapter.findGuestEnvConflict?.(credentials.kind) ?? null);
+const decision = decideHarnessAuth(adapter.findAuthSelection?.() ?? null, credentials, conflict);
+// → { kind: 'refused', problem: 'route_required' }
+//   and with a selection: { kind: 'routed', router }
 ```
 
 ```ts
 // plugin-api
 interface ExecutionProvider {
-  // …existing fields, without brokerAuth and rebindChangedAuth
+  // …existing fields; the brokerAuth and rebindChangedAuth fields move into credentials
   readonly credentials?: HostCredentials; // absent is { kind: 'none' }
 }
 
 type HostCredentials =
-  | { kind: 'none' } // the host's own sign-in: an agent with optional auth runs under it, as today
-  | { kind: 'broker'; broker: CredentialBroker; rebindChangedAuth: boolean } // imp, today's path moved here
-  | { kind: 'routed'; router: CredentialRouter } // Sprites: every agent must sign in through a route
-  | { kind: 'host-sign-in' }; // Docker: the user's own token, which no agent with auth runs under
+  | { kind: 'none' } // atc supplies no credential; an agent signs in on the host by itself
+  | { kind: 'broker'; broker: CredentialBroker; rebindChangedAuth: boolean } // imp
+  | { kind: 'routed'; router: CredentialRouter } // Sprites: a service outside the host adds the credential
+  | { kind: 'stored-token' }; // Docker: a token the user stored once, mounted into every container
 
 interface CredentialRouter {
-  readonly hostPrefix: string; // the start of every host name; the router's access policy admits it
-  readonly describe: { readonly name: string; readonly upgrade?: string };
-  // rejects unless every profile has a route that admits hostPrefix
+  readonly hostPrefix: string; // the start of every host name; the Sprites provider passes its spritePrefix
+  // rejects unless every profile has a route whose access policy admits every name that starts with
+  // hostPrefix; runs before anything touches the host
   verifyRoutes(profiles: readonly AuthProfile[]): Promise<void>;
-  // the URL each profile's requests go to, keyed by profile name; the router adds the credential
+  // the URL that each profile's requests go to, keyed by profile name; the router adds the credential there
   readRoutes(profiles: readonly AuthProfile[]): Promise<Readonly<Record<string, string>>>;
 }
 
@@ -156,18 +162,19 @@ type HarnessAuthDecision =
       kind: 'refused';
       problem:
         | 'broker_required'
+        | 'guest_env_conflict'
         | 'route_required'
-        | 'credential_override'
-        | 'auth_on_sign_in_host'
+        | 'auth_on_stored_token'
         | 'sign_in_unsupported';
     }
-  | { kind: 'broker'; broker: CredentialBroker } // the caller still refuses when the daemon holds no auth binder, as today
-  | { kind: 'routed'; router: CredentialRouter };
+  | { kind: 'broker'; broker: CredentialBroker }
+  | { kind: 'routed'; router: CredentialRouter }
+  | { kind: 'stored-token' };
 
 declare function decideHarnessAuth(
   selection: AuthSelection | null,
   credentials: HostCredentials,
-  overrides: readonly string[],
+  conflict: string | null,
 ): HarnessAuthDecision;
 ```
 
@@ -175,24 +182,37 @@ declare function decideHarnessAuth(
 // plugin-api, agent-adapter
 interface AgentAdapter {
   // …existing fields
-  // the credential and endpoint variables the agent's own config sets: its env, its settings' env,
-  // and settings passed in its args. Absent finds none.
-  readonly findCredentialOverrides?: () => readonly string[];
-  // the file in a host-sign-in volume this agent reads its token from. Absent: refused on host-sign-in.
+  // The first key in the agent's own config that would replace the credentials of this kind, or send
+  // the agent's requests around them. It looks in three places: the agent's env, the env in its
+  // settings, and settings passed in its args. A key is a credential or endpoint variable, or a
+  // credential helper such as settings.apiKeyHelper. A gateway agent, whose config sets its own
+  // baseURL, also returns 'baseURL' for routed and stored-token, because its requests would go to that
+  // URL in place of the route or the token's API. Absent finds none.
+  readonly findGuestEnvConflict?: (kind: 'broker' | 'routed' | 'stored-token') => string | null;
+  // the file in the stored-token volume that this agent reads its token from. Absent: refused on stored-token.
   readonly signInFile?: string; // Claude: 'claude-oauth-token'
 }
 
+// plugin-api, agent-adapter. The daemon builds GuestPaths for the adapter from the provider's GuestLayout.
 interface GuestPaths {
   // …existing fields
   readonly auth?: {
     // …existing fields
-    readonly routes?: Readonly<Record<string, string>>; // per profile name; the adapter points its endpoint variable at it
+    // the route per profile name. Claude sets ANTHROPIC_BASE_URL to its profile's route, ANTHROPIC_AUTH_TOKEN
+    // to the placeholder value of runtime auth, and no CLAUDE_CODE_OAUTH_TOKEN.
+    readonly routes?: Readonly<Record<string, string>>;
   };
-  readonly signIn?: { readonly directory: string }; // where a host-sign-in volume mounts in the host
+  readonly signIn?: { readonly directory: string }; // from GuestLayout.signIn
+}
+
+// plugin-api, execution-provider. The provider's readGuest returns it.
+interface GuestLayout {
+  // …existing fields
+  readonly signIn: string | null; // the stored-token volume's mount in the host; null on every other kind
 }
 ```
 
-### What became of a sleeping harness
+### Harness fates
 
 ```ts
 const fates = await provider.readHarnessFates?.('k3f9', ['s-1', 's-2']);
@@ -203,92 +223,130 @@ const fates = await provider.readHarnessFates?.('k3f9', ['s-1', 's-2']);
 // plugin-api
 interface ExecutionProvider {
   // …existing fields
-  // read without waking the host; a session the answer leaves out is 'unknown'
+  // read without waking the host; takes session ids, and a session the answer leaves out is 'unknown'
   readonly readHarnessFates?: (
     host: string,
     sessions: readonly string[],
   ) => Promise<ReadonlyMap<string, HarnessFate>>;
 }
 
-type HarnessFate = 'kept' | 'lost' | 'unknown'; // lost: the host no longer holds the process, such as after a cold boot
+type HarnessFate = 'kept' | 'lost' | 'unknown'; // lost: the host no longer holds the session's harness, such as after a reboot
+```
 
-// plugin-api, plugin. Passed to an execution plugin's create in place of HostServices.
+`spawnHarness` keeps its signature. On a remote host it attaches to the harness that the host still
+runs for `spec.session`. When the host runs none, it starts `spec.argv`, which a revive sets to the
+agent's resume command. `HarnessStart.created` is true when the provider started the harness, and
+false when it attached to one.
+
+### The state folder
+
+```ts
+// plugin-api, plugin. An execution plugin's create gets these in place of HostServices.
 interface ExecutionHostServices extends HostServices {
-  readonly stateDir: string; // <state>/providers/<entry id>/, which this entry alone writes; kept across restarts
+  readonly stateDir: string; // <state>/providers/<entry id>/, mode 0700; only this entry writes it, and it lasts across restarts
 }
 ```
 
-`spawnHarness` keeps its signature. On a remote host it attaches the harness that the host still
-runs for `spec.session`, and otherwise starts the spec's argv, which a revive plans as the resume
-command. `waitForStart` reports which through `created`.
-
 ## Constraints
 
-- A remote spawn on a provider whose `relay` capability is false is refused with
-  `unsupported_operation`, problem `no_session_bridge`.
-- While the daemon runs and the guest's mux lives, every frame arrives exactly once and in order,
-  both ways, across any number of dropped links.
-- The daemon discards every byte before the welcome that echoes its own link and gen, so a replay of
-  stdout from byte 0 never reaches the bridge twice.
+### The relay
+
+- The daemon refuses a remote spawn on a provider whose `relay` capability is false with
+  `unsupported_operation`, problem `no_session_bridge`, before anything touches the host.
+- While the daemon runs and the guest's mux lives, every frame arrives once and in order, both ways,
+  across any number of dropped connections.
+- The daemon discards every byte before the welcome that echoes its own `relay` and `gen`, so a
+  replay of stdout from byte 0 never reaches the session bridge twice.
 - The daemon writes a newline before each hello, which ends any half line that a cut-off write left
   in the guest's stdin.
-- No welcome within 10 seconds counts as a drop.
-- A link that ends `lost` closes every bridge connection it carried and stops; the harness's own
-  exit says why.
-- A new link, after a daemon restart or a kill and an adopt, resets the guest's numbering. Across
-  that reset only:
-  - a frame the old link applied but had not acked arrives once more;
-  - the unacked tail of a connection whose `open` the old link acked is dropped, and the guest
-    closes that connection. Notes come back from the outbox and the tap reconnects; a hook line in
-    that tail is lost.
-- The mux never closes a connection unread. With 1 MiB of unacked frames held, it stops accepting
-  new connections until acks free room, and a reporter that waits past its own timeout loses its
-  line.
-- The daemon holds at most 1 MiB of unacked frames per link, and `writeLine` settles only once its
-  frame fits.
+- The daemon counts a connection as dropped when no welcome arrives within 10 seconds of its hello.
+- When a welcome holds a `v` the daemon cannot speak, the daemon opens the link with
+  `replace: true`. The new mux answers with `reset: true`.
+- When a connection ends `lost`, `openStreamRelay` closes every bridge connection it carries and
+  stops retrying. The harness's exit then reaches the daemon through `spawnHarness` as usual.
+- A new `openStreamRelay` call, after a daemon restart or after a kill and a revive, brings a new
+  `relay` id. The guest answers it with `reset: true`:
+  - the guest closes every bridge connection it had open and drops their unacked frames, and both
+    sides number their frames from 1 again;
+  - a reporter's note comes back from its outbox, and the message tap reconnects. A hook line that
+    was in flight is lost. [Messages](../../architecture/protocol/messages.md) covers the outbox and
+    the tap.
+- The mux closes a bridge connection only after the daemon acks its last frame. When the mux holds 1
+  MiB of unacked frames, it accepts no new bridge connection until acks free room. A reporter that
+  waits past its own timeout loses its line.
+- The daemon holds at most 1 MiB of unacked frames per relay. `HarnessRelay.writeLine` settles only
+  when its frame fits.
 - The mux exits only when the provider stops it or its host ends it. It never exits when its stdin
   closes.
-- Every bridge connection stays open on both sides while a link is down, so the bridge sees only
-  lines that arrive late.
-- Every credentials refusal is `auth_target_unsupported` with the problem from `decideHarnessAuth`.
-  `decideHarnessAuth` refuses:
-  - on `none`, an agent whose auth requires the broker, with `broker_required`;
-  - on `routed`, an agent with no auth selection, with `route_required`, so no Sprites session signs
-    in on the host;
-  - on `routed`, an agent whose `findCredentialOverrides` finds any variable, with
-    `credential_override`;
-  - on `host-sign-in`, an agent with an auth selection, with `auth_on_sign_in_host`;
-  - on `host-sign-in`, an agent with no `signInFile`, with `sign_in_unsupported`.
-- A routed launch builds the placeholder env and the profile env from the selection as a broker
-  launch does, records no binding, takes no admission, runs at revision 1, and sets no `oauth` or
-  `telemetryHost`. Revoke and rebind on a routed host refuse with `unsupported_operation`, problem
+- While a connection is down, every bridge connection stays open on both sides, and the lines reach
+  the session bridge late.
+
+### Credentials
+
+- `decideHarnessAuth` refuses with the first row that matches, and every refusal is
+  `auth_target_unsupported` with the row's problem:
+
+| Credentials kind | When                                           | Problem                |
+| ---------------- | ---------------------------------------------- | ---------------------- |
+| `none`           | the agent's auth selection requires the broker | `broker_required`      |
+| `broker`         | `findGuestEnvConflict` found a key             | `guest_env_conflict`   |
+| `routed`         | `findGuestEnvConflict` found a key             | `guest_env_conflict`   |
+| `routed`         | the agent has no auth selection                | `route_required`       |
+| `stored-token`   | `findGuestEnvConflict` found a key             | `guest_env_conflict`   |
+| `stored-token`   | the agent has an auth selection                | `auth_on_stored_token` |
+| `stored-token`   | the agent has no `signInFile`                  | `sign_in_unsupported`  |
+
+- The Claude adapter's check for override variables on a broker launch becomes its
+  `findGuestEnvConflict` for the `broker` kind, and refuses the same keys.
+- When the decision is `broker` and the daemon holds no auth binder, the daemon refuses with
+  `unsupported_operation`, problem `no_auth_binder`.
+- A routed launch builds the placeholder variables and the profile variables from the selection, as
+  a broker launch does. It records no broker binding, takes no admission, runs at revision 1, and
+  sets no `oauth` or `telemetryHost`. [Runtime auth](../../architecture/execution/runtime-auth.md)
+  defines these.
+- The daemon refuses a revoke or a rebind on a routed host with `unsupported_operation`, problem
   `routed_auth`.
-- `verifyRoutes` runs before anything touches the host, so a refused launch creates no host.
-- The daemon's agent list and target list filter each target through `decideHarnessAuth` with no
-  overrides, so a target never lists an agent it would refuse for its selection. The wire keeps
-  `brokerAuth` as `credentials` of kind `broker` or `routed`, so `@atcx/contract` changes only the
-  field's comment.
-- A host-sign-in launch never puts the token in the harness's environment as the host stores it. The
-  adapter's launch reads `<signIn.directory>/<signInFile>` inside the host when the harness starts.
-- A `prepareHost` with `isNew` refuses with `host_unavailable`, problem `host_exists`, when the host
-  already exists, so a spawn never reuses another session's host.
-- On restore, the daemon reads the fates of every host that has sleeping sessions, in the
-  background, so a slow host never delays the restore. Each time the daemon readies a host, it reads
-  the fates of the other sleeping sessions on that host.
-- A `lost` session lists as exited with the message of `HARNESS_EXIT_TRANSITIONS.ended`, and the
-  fleet row is not rewritten, because the owner never asked for the loss.
-- A fate read that fails changes nothing: the sessions stay asleep, and the next revive finds out.
-- `stateDir` is not one of the published state paths, and the daemon creates it before it calls
-  `create`.
-- imp declares `relay: true`, `credentials: { kind: 'broker', … }`, and no `readHarnessFates`, and
-  otherwise behaves as today. `local-pty` declares `relay: false`.
+- The daemon calls `verifyRoutes` before anything touches the host, so a refused launch creates no
+  host.
+- A stored-token launch never sets the token in a container's or exec's environment. The adapter's
+  launch reads `<signIn.directory>/<signInFile>` inside the host when the harness starts, and
+  exports it to the harness process only.
+- The daemon builds the agent list and the target list with the same check as a launch,
+  `findGuestEnvConflict` included, so it never lists an agent on a target that would refuse the
+  agent's default selection.
+- On the wire, `brokerAuth` is true for the `broker` and `routed` kinds, because a client shows the
+  agent's auth profiles for each target that sets it. The capabilities gain `relay`.
+  `@atcx/contract` takes that one new field, and `bun run check:contract --update` records it.
+- The daemon refuses a config in which one Sprites target's `spritePrefix` starts with another's,
+  with the two target ids in the error. Otherwise a connector's policy that admits the shorter
+  prefix would admit the other target's sprites too.
+
+### Harness fates
+
+- On restore, the daemon reads the harness fates of every host that has sleeping sessions, in the
+  background, so a slow host never delays the restore.
+- Each time the daemon readies a host, it reads the harness fates of the other sleeping sessions on
+  that host.
+- The daemon lists a `lost` session as exited, with the message of `HARNESS_EXIT_TRANSITIONS.ended`.
+  It leaves the fleet row as it is, because the owner never asked for the loss, so each restore
+  reads the fate again.
+- A revive of a `lost` session takes the normal revive path, and `spawnHarness` starts the resume
+  command.
+- When a fate read fails, the daemon changes nothing: the sessions stay asleep, and the next revive
+  finds out.
+
+### The state folder
+
+- The daemon creates `stateDir` before it calls the plugin's `create`. When a target leaves the
+  config, its folder stays in place.
+- `stateDir` is not one of the state paths that `@atcx/contract` publishes.
 
 ## Builder decides
 
 - The names and files of internal helpers, the mux's spool layout, and how acks batch.
-- The exact reconnect delays, within the 10-second welcome limit.
+- The exact reconnect delays.
 - The wording of each refusal.
-- Whether `openStreamRelay` lives in `@atc/plugin-api` or a package of its own that plugin-api
+- Whether `openStreamRelay` lives in `@atc/plugin-api` or in a package of its own that plugin-api
   re-exports, within the zones in `.oxlintrc.zones.json`.
-- How the routed launch is tested before a Sprites provider exists: a stub router and a stub
-  provider are enough.
+- How to test the routed launch before a Sprites provider exists. A stub router and a stub provider
+  are enough.
