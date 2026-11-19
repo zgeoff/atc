@@ -7,8 +7,8 @@ import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { readPidFilePID } from '../read-pid-file-pid';
-import { stopDaemonProcess } from '../stop-daemon-process';
+import { readPidFilePID } from '../daemon-files/read-pid-file-pid';
+import { stopDaemonProcess } from '../daemon-process/stop-daemon-process';
 import { buildStubMCPClaude } from './build-stub-mcp-claude';
 import { buildStubMCPGrok } from './build-stub-mcp-grok';
 

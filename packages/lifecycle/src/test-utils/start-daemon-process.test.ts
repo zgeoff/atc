@@ -7,8 +7,8 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { probeProcessAlive } from '../probe-process-alive';
-import { readDaemonRecord } from '../read-daemon-record';
+import { readDaemonRecord } from '../daemon-files/read-daemon-record';
+import { probeProcessAlive } from '../daemon-process/probe-process-alive';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
 import { startDaemonProcess } from './start-daemon-process';
 

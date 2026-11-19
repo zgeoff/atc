@@ -2,7 +2,7 @@ import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
-import type { DaemonRecord } from '../read-daemon-record';
+import type { DaemonRecord } from '../daemon-files/read-daemon-record';
 
 export function buildMockDaemonRecord(
   overrides: MockOverrides<DaemonRecord, keyof DaemonRecord> = {},
