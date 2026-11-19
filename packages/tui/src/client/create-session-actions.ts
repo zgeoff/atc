@@ -7,7 +7,7 @@ import type { FleetMirror } from '../fleet/create-fleet-mirror';
 import type { SessionKey } from '../fleet/session-key';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
 import { pickForgetStep } from '../overlay/pick-forget-step';
-import { cols } from '../terminal/draw-overlay';
+import { cols } from '../terminal/cols';
 import type { ClientActor, ClientMode } from './build-client-machine';
 
 // What the actions borrow from the client that owns the screen, the fleet

@@ -1,6 +1,6 @@
 import { DaemonError } from '@atc/protocol/wire';
 import { pickRefusalStep } from '../overlay/pick-refusal-step';
-import { cols } from '../terminal/draw-overlay';
+import { cols } from '../terminal/cols';
 import { buildSourceParams } from './build-target-param';
 import { buildDestination, isGitFlow } from './collect-list-items';
 import type { RequestOutcome } from './create-picker-actors';
