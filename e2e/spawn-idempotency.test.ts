@@ -1229,7 +1229,6 @@ test('it answers a failed spawn only once its killed process has exited', async 
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP.
-
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1268,7 +1267,6 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP.
-
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1303,7 +1301,6 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP.
-
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1358,7 +1355,6 @@ test('it leaves no session behind from a failed spawn whose revive was refused d
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP.
-
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
