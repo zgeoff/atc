@@ -1,10 +1,10 @@
 export * from './auth/create-runtime-auth-binder';
-export * from './daemon';
+export * from './start-daemon';
 export type * from './daemon-options';
 export type * from './daemon-context';
 export * from './fleet/build-execution-targets';
 export * from './fleet/restore-fleet';
 export * from './sessions/build-guest-session-directory';
-export * from './start-stderr-log';
+export * from './logging/start-stderr-log';
 export * from './transport/build-payload-hash';
 export * from './transport/create-daemon-connection';

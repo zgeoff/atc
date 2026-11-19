@@ -8,7 +8,7 @@ import type { StateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
 import type { BridgeBinding } from '../auth/is-binding-current';
 import type { TapClient } from '../daemon-context';
-import { formatLogField } from '../format-log-field';
+import { formatLogField } from '../logging/format-log-field';
 import { ANSWER_BYTE_CAP } from '../transport/answer-byte-cap';
 import type { EventSignal } from '../transport/create-event-signal';
 import { startSessionBridge } from '../transport/start-session-bridge';

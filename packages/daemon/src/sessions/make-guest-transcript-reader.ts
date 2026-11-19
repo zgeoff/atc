@@ -4,7 +4,7 @@ import {
   READ_TRANSCRIPT_WINDOW_SCRIPT,
   buildTranscriptWindowArgs,
   parseTranscriptWindow,
-} from './guest-transcript-window';
+} from './build-transcript-window-args';
 import type { ReadTranscriptWindow } from './load-transcript-page';
 
 export function makeGuestTranscriptReader(

@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { systemClock } from '@atc/core';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { startDaemon } from '../daemon';
-import { startStderrLog } from '../start-stderr-log';
+import { startStderrLog } from '../logging/start-stderr-log';
+import { startDaemon } from '../start-daemon';
 
 const STDERR_FD = 2;
 
