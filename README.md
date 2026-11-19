@@ -1,34 +1,29 @@
 <div align="center">
   <h1>atc</h1>
 
-  <p>
-    <a href="https://github.com/zgeoff/atc/releases/latest"><img src="https://img.shields.io/github/v/release/zgeoff/atc" alt="latest release"></a>
-    <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+  <p>     <a href="https://github.com/zgeoff/atc/releases/latest"><img src="https://img.shields.io/github/v/release/zgeoff/atc" alt="latest release"></a>     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   </p>
 
-  <p>
-    <a href="./docs/README.md">Documentation</a> •
-    <a href="./docs/guides/using-atc.md">Using atc</a> •
-    <a href="./docs/guides/configuration.md">Configuration</a>
+  <p>     <a href="./docs/README.md">Documentation</a> •     <a href="./docs/guides/using-atc.md">Using atc</a> •     <a href="./docs/guides/configuration.md">Configuration</a>
   </p>
 </div>
 
-atc is a daemon that runs your Claude Code, Codex and Grok sessions, so other agents, scripts and
-you can drive them.
+atc is a daemon that hosts your Claude Code, Codex and Grok sessions, each in a terminal of its own.
+Other agents drive the sessions over MCP, scripts message them, and you watch them in the `atc` TUI.
 
-Any MCP client can spawn a session, read its screen, type into it, pick from its menus, and send it
-a message and get the answer back. `atc send` does the messaging part from a shell script, cron, CI
-or a systemd unit:
+Any MCP client can spawn a session, read its screen and type into it. A Claude Code session also
+answers menus and gives up its transcript. Claude Code sessions, and Codex sessions on an App
+Server, take messages and send answers back. A script sends one with `atc send`:
 
 ```sh
 # Ask a session something and print its answer.
 atc send reviewer "Is the migration safe to run?" --wait
 
-# Queue a job from cron. The key makes a retry send once.
+# Send from cron. A rerun with the same key sends nothing new.
 atc send planner "Start the daily triage" --key "triage-$(date +%F)" --from cron
 ```
 
-The `atc` TUI is one more client. One session fills the terminal, `Ctrl-Space` opens the list, and a
+The TUI is one more client. One session fills the terminal, `Ctrl-Space` opens the list, and a
 session that's waiting on you turns red. Quit it and the sessions keep running.
 
 <img src="./docs/assets/demo.gif" alt="atc: spawn a session, open the session list, jump back in" width="1100">
@@ -39,12 +34,12 @@ session that's waiting on you turns red. Quit it and the sessions keep running.
 brew install zgeoff/tap/atc
 ```
 
-atc needs `claude`, `codex` or `grok` on your PATH. Codex and Grok take a
-[one-time hook install](./docs/guides/using-atc.md#grok-and-codex-hooks). The
+atc needs `claude`, `codex` or `grok` on your PATH, and Codex and Grok need
+[atc's hooks](./docs/guides/using-atc.md#grok-and-codex-hooks). The
 [install guide](./docs/guides/install.md) covers the other ways to install.
 
 Run `atc` to start the daemon and open the TUI. Press `n` to spawn a session and `?` for the keys.
-To give an agent the fleet, register the MCP server with it:
+To give an agent the sessions as MCP tools, register the server with it:
 
 ```sh
 claude mcp add --scope user atc -- atc mcp
@@ -52,23 +47,21 @@ claude mcp add --scope user atc -- atc mcp
 
 ## Features
 
-- **Agents that drive agents.** A session an agent spawns through `atc mcp` lists under it and ends
-  with it ([agents that drive agents](./docs/guides/using-atc.md#agents-that-drive-agents)).
-- **Messages with answers.** Claude Code sessions take messages from this host or another and answer
-  them, and so do Codex sessions on an App Server
+- An agent in an atc session can spawn sub-sessions, which list under it and stop with it
+  ([agents that drive agents](./docs/guides/using-atc.md#agents-that-drive-agents)).
+- A session can message a Claude Code session on another host and read the answer
   ([messages](./docs/architecture/protocol/messages.md)).
-- **Events.** `atc events` prints what the fleet does, hooks run your commands on it, and a webhook
-  wakes a subscribed MCP client ([events](./docs/guides/events.md),
+- `atc events` streams what the sessions do, `config.json` hooks run your commands on each event,
+  and a subscribed MCP client gets a webhook ([events](./docs/guides/events.md),
   [MCP Events](./docs/architecture/remote/mcp-events.md)).
-- **One fleet across hosts.** The TUI lists every configured daemon's sessions,
-  `atc mcp --daemon <name>` points an agent at one, and atc-gateway serves several through one
-  connector ([gateway](./docs/guides/gateway.md)).
-- **Hosted assistants.** `atc mcp --http` serves the tools behind OAuth, with the scopes you approve
+- The TUI lists the sessions of every daemon in your config, and atc-gateway puts several daemons
+  behind one MCP endpoint ([gateway](./docs/guides/gateway.md)).
+- `atc mcp` also serves over HTTP behind OAuth, for a hosted assistant such as Claude.ai
   ([remote MCP](./docs/guides/remote-mcp.md)).
-- **Cloud VMs.** A session can run in its own imp VM, which sleeps when you stop it and wakes where
-  it left off ([targets](./docs/guides/configuration/targets.md)).
-- **Sessions survive restarts.** A daemon restart, or an upgrade with `u`, brings every session back
-  from its transcript ([restarting](./docs/guides/using-atc.md#restarting-the-daemon)).
+- A session can run in a cloud VM through the imp provider. The VM sleeps when you stop the session
+  and wakes where it left off ([targets](./docs/guides/configuration/targets.md)).
+- A daemon restart or upgrade resumes every session's conversation from its transcript
+  ([restarting](./docs/guides/using-atc.md#restarting-the-daemon)).
 
 ## Configuration
 

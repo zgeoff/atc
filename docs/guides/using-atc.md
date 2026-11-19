@@ -113,8 +113,9 @@ The [configuration guide](./configuration/hooks.md) covers both installs.
 ## Agents that drive agents
 
 `atc mcp` exposes the fleet as MCP tools, so an agent can spawn, drive and read other agents. A
-session spawned this way lists under the session that spawned it, and is killed with it. Each agent
-keeps its own MCP config, so register the server once per agent:
+session spawned this way from inside an atc session lists under the session that spawned it, and is
+killed with it, unless the spawn passes `detached`. Each agent keeps its own MCP config, so register
+the server once per agent:
 
 ```bash
 claude mcp add --scope user atc -- atc mcp
