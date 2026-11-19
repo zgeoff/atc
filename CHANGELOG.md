@@ -2,11 +2,14 @@
 
 ## [7.18.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.18.0...@zgeoff/atc@7.18.1) (2026-11-19)
 
-
 ### Bug Fixes
 
-* **claude:** trust each session scratch folder on launch ([#1274](https://github.com/zgeoff/atc/issues/1274)) ([c1c51cd](https://github.com/zgeoff/atc/commit/c1c51cd8f4a6ac7e0df9bad38464ffc2371e02dd))
-* **daemon:** give a git source's clone token only to its own host ([#1256](https://github.com/zgeoff/atc/issues/1256)) ([8891cda](https://github.com/zgeoff/atc/commit/8891cda585dbc53c998831460df4f167780dc9c1))
+- **claude:** trust each session scratch folder on launch
+  ([#1274](https://github.com/zgeoff/atc/issues/1274))
+  ([c1c51cd](https://github.com/zgeoff/atc/commit/c1c51cd8f4a6ac7e0df9bad38464ffc2371e02dd))
+- **daemon:** give a git source's clone token only to its own host
+  ([#1256](https://github.com/zgeoff/atc/issues/1256))
+  ([8891cda](https://github.com/zgeoff/atc/commit/8891cda585dbc53c998831460df4f167780dc9c1))
 
 ## [7.18.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.17.0...@zgeoff/atc@7.18.0) (2026-11-18)
 
