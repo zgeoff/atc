@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import type { RemoteDaemon } from '@atc/config';
 import { parseListenAddress } from '@atc/config/host';
 import type { HostServices } from '@atc/plugin-api';
+import { readSessionEnv } from '@atc/protocol/session';
 import { PROCESS_IO } from './process-io';
 import { runATCCLI } from './run-atc-cli';
 import type { ATCCLIIO } from './run-atc-cli';
@@ -217,6 +218,27 @@ const ATC_CLI_IO: ATCCLIIO = {
 
     await events.runEvents();
   },
+  runSend: async (request) => {
+    const send = await import('./run-send');
+    const dependencies = await readSendDependencies();
+
+    const code = await send.runSend(request, {
+      ...dependencies,
+      insideSession: readSessionEnv(process.env).sessionID !== undefined,
+      readStdin: () => Bun.stdin.text(),
+      isStdinTTY: process.stdin.isTTY,
+      mintKey: () => `atc-send-${crypto.randomUUID()}`,
+    });
+
+    process.exit(code);
+  },
+  runMessageGet: async (request) => {
+    const get = await import('./run-message-get');
+    const dependencies = await readSendDependencies();
+    const code = await get.runMessageGet(request, dependencies);
+
+    process.exit(code);
+  },
   printCodexHooks: async () => {
     const hook = await import('@atc/harness-codex');
     const hostServices = await resolveHostServices();
@@ -289,6 +311,35 @@ async function readConfiguredDaemon(name: string, command: string): Promise<Remo
     configFile: config.configFile,
     io: PROCESS_IO,
   });
+}
+
+// What `atc send` and `atc message get` share: how they connect, without
+// ever starting a daemon.
+async function readSendDependencies() {
+  const opener = await import('./open-send-connection');
+  const config = await import('@atc/config');
+  const host = await import('@atc/config/host');
+  const harnessPlugins = await import('./plugins/shipped-harness-plugins');
+  const resolver = await import('./resolve-remote-daemon');
+  const core = await import('@atc/core');
+  const hostServices = await resolveHostServices();
+
+  return {
+    connect: (target: Parameters<typeof opener.openSendConnection>[0]) =>
+      opener.openSendConnection(target, {
+        socketPath: host.daemonSocketPath,
+        build: hostServices.build,
+        session: readSessionEnv(process.env).sessionID,
+        resolveDaemon: (name) =>
+          resolver.resolveRemoteDaemon(
+            config.loadConfig(harnessPlugins.SHIPPED_HARNESS_PLUGINS),
+            name,
+            config.configFile,
+          ),
+      }),
+    clock: core.systemClock,
+    io: PROCESS_IO,
+  };
 }
 
 // Reads the flags the restart commands share, and stops the command on one

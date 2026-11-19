@@ -164,6 +164,51 @@ with `session_dead` until the adopt starts or resumes it. An adopt refused with
 blocks an adopt. A remote client needs the `kill` scope to stop and the `spawn` scope to adopt, and
 may adopt only a session on a target its grant reaches, as with a stop or a forget.
 
+## Sending a session a message from a script
+
+`atc send` puts a message into a session's inbox from a shell script, a cron job, a CI step or a git
+hook. `atc message get` reads a message by its id. Neither command starts a daemon: with none
+running, both exit 4 within 10 seconds.
+
+```bash
+# The text is an argument, or stdin when it is `-` or absent.
+atc send planner "Start the daily triage" --key "triage-$(date +%F)" --from cron
+git log -1 --format=%B | atc send reviewer - --key "commit-$(git rev-parse HEAD)"
+
+# Wait for the answer, which `atc send` prints on stdout.
+atc send release-bot "Is main green to tag?" --wait --timeout 600
+```
+
+The first argument is a session id or the exact name of one session. A name that no session holds,
+or that several hold, exits 3, so pass an id then. `atc send` prints the message id, or with
+`--wait`, the answer. The agent sees the message as from `atc-send`, or from the name you give with
+`--from`. `--owner` sends it as the owner, and `--daemon <name>` sends to a daemon from the config's
+[`daemons` key](./configuration.md#remote-daemons). `--json` prints one JSON object on stdout for
+each outcome.
+
+Pass `--key` so a retry sends once. Without it, `atc send` makes a key and prints it on stderr as
+`atc send: key <key>`. Run the command again with the same key and text, within 24 hours, to replay
+the first message and resume the wait. The command never resends on its own.
+
+A script branches on the exit status alone:
+
+| Status | Meaning                                                  | Next step                                |
+| ------ | -------------------------------------------------------- | ---------------------------------------- |
+| 0      | sent, or with `--wait`, answered                         | none                                     |
+| 1      | the daemon refused, or the `--daemon` entry is unusable  | fix the cause, then send under a new key |
+| 2      | usage error                                              | fix the command line                     |
+| 3      | no session, or several, for the argument                 | pass an id                               |
+| 4      | the daemon was not reached, or gave no reply             | run again with the same `--key`          |
+| 5      | nothing was delivered under the key                      | send again under a new key               |
+| 6      | the command cannot tell whether it delivered the message | check with `atc message get`             |
+| 7      | the message ended unanswered, which is final             | send again under a new key, if you want  |
+| 8      | `--wait` timed out and the message is still pending      | run `atc message get <id> --wait`        |
+
+After a status 8, or when you hold only a message id, run `atc message get <id> --wait` to resume.
+It prints the status on the first line, then the answer. It exits 0 for a queued, delivered or
+answered message, 7 for an unanswered one and 8 when `--wait` times out. A session that has no live
+process refuses the send with `session_dead`: start it with `atc session adopt <session_id>`.
+
 ## Restarting the daemon
 
 When the daemon restarts, it restores the fleet by itself, and every session resumes from its

@@ -21,6 +21,10 @@ export interface CommandTree {
   // The commands that exit 0 on a command line they refuse, by the name
   // that leads to them, such as a reporter that runs inside a session.
   readonly lenient?: ReadonlySet<string>;
+
+  // The exit status and stderr-only usage of the commands that refuse a
+  // command line with a status of their own, by the name that leads to them.
+  readonly usageExits?: ReadonlyMap<string, number>;
 }
 
 export async function runCommandLine(
@@ -71,9 +75,16 @@ export async function runCommandLine(
     // commands below it where a name was not found.
     const usage = await cli([...refusedPath, '--help'], entry, options);
 
-    io.print(`${usage ?? ''}\n`);
+    const usageExit = tree.usageExits?.get(refusedPath[0] ?? '');
+
+    if (usageExit === undefined) {
+      io.print(`${usage ?? ''}\n`);
+    } else {
+      io.printError(`${usage ?? ''}\n`);
+    }
+
     io.printError(formatReasons(error));
-    io.exit(1);
+    io.exit(usageExit ?? 1);
   }
 }
 
@@ -83,6 +94,19 @@ export function makeMissingCommandRun(io: CommandLineIO) {
     io.printError('No command specified.');
     io.exit(1);
   };
+}
+
+// Refuses a command line the parser accepted: usage and the reason on
+// stderr, then the exit status.
+export async function refuseCommandLine(
+  io: CommandLineIO,
+  ctx: Readonly<CommandContext>,
+  message: string,
+  status: number,
+): Promise<void> {
+  io.printError(`${await renderCommandUsage(ctx)}\n`);
+  io.printError(message);
+  io.exit(status);
 }
 
 function renderCommandUsage(ctx: Readonly<CommandContext>): Promise<string> {

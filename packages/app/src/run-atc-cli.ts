@@ -7,9 +7,12 @@ import { createClientsCommand } from './create-clients-command';
 import { createDaemonCommand } from './create-daemon-command';
 import type { DaemonCommandIO } from './create-daemon-command';
 import { createPasskeysCommand } from './create-passkeys-command';
+import { parseMessageGetArgs } from './parse-message-get-args';
+import { parseSendArgs } from './parse-send-args';
 import type { runPasskeys } from './passkeys';
-import { makeMissingCommandRun, runCommandLine } from './run-command-line';
+import { makeMissingCommandRun, refuseCommandLine, runCommandLine } from './run-command-line';
 import type { CommandLineIO } from './run-command-line';
+import type { MessageGetRequest, SendRequest } from './send-types';
 
 // The `atc mcp` flags, parsed.
 interface MCPFlags {
@@ -36,6 +39,8 @@ export interface ATCCLIIO extends CommandLineIO, DaemonCommandIO {
   readonly runBackup: (path: string) => Promise<void>;
   readonly runWorkspacesPrune: (remove: boolean) => Promise<void>;
   readonly runEvents: () => Promise<void>;
+  readonly runSend: (request: SendRequest) => Promise<void>;
+  readonly runMessageGet: (request: MessageGetRequest) => Promise<void>;
   readonly printCodexHooks: () => Promise<void>;
   readonly printGrokHooks: () => Promise<void>;
   readonly runHookReport: (agent: string) => Promise<void>;
@@ -65,6 +70,13 @@ const REPORTER_COMMANDS: ReadonlySet<string> = new Set([
   'note',
   'answer',
   'unanswered',
+]);
+
+// The commands a script runs and branches on, which exit 2 on a command
+// line they refuse.
+const SCRIPT_COMMAND_USAGE_EXITS: ReadonlyMap<string, number> = new Map([
+  ['send', 2],
+  ['message', 2],
 ]);
 
 export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<void> {
@@ -275,6 +287,116 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
     run: makeMissingCommandRun(io),
   });
 
+  const send = lazy(
+    () => async (ctx) => {
+      const parsed = parseSendArgs({
+        session: ctx.values.session,
+        text: ctx.values.text,
+        key: ctx.values.key,
+        wait: ctx.values.wait,
+        timeout: ctx.values.timeout,
+        from: ctx.values.from,
+        owner: ctx.values.owner,
+        daemon: ctx.values.daemon,
+        json: ctx.values.json,
+      });
+
+      if (!parsed.ok) {
+        await refuseCommandLine(io, ctx, parsed.message, 2);
+
+        return;
+      }
+
+      await io.runSend(parsed.request);
+    },
+    {
+      name: 'send',
+      description:
+        'Send a session a message from a script; with --wait, wait for its answer. Exits 0 sent or answered, 1 refused, 2 usage, 3 no session, 4 daemon not reached, 5 not delivered, 6 delivery unknown, 7 unanswered, 8 wait timed out',
+      args: {
+        session: { type: 'positional', description: 'The session id, or its exact name' },
+        text: {
+          type: 'positional',
+          required: false,
+          description: 'The message text; "-" or none reads stdin',
+        },
+        key: {
+          type: 'string',
+          description: 'The idempotency key, so a retry sends once (default: a new key, printed)',
+        },
+        wait: {
+          type: 'boolean',
+          default: false,
+          description: 'Wait for the message to be answered',
+        },
+        timeout: integer({
+          min: 1,
+          description: 'With --wait, how many seconds to wait (default 300)',
+        }),
+        from: { type: 'string', description: 'The sender name of the message (default atc-send)' },
+        owner: { type: 'boolean', default: false, description: 'Send as the owner' },
+        daemon: {
+          type: 'string',
+          description: "Send to this daemon from the config's daemons map",
+        },
+        json: { type: 'boolean', default: false, description: 'Print one JSON object on stdout' },
+      },
+    },
+  );
+
+  const message = define({
+    name: 'message',
+    description: 'Read a message sent to a session',
+    subCommands: {
+      get: lazy(
+        () => async (ctx) => {
+          const parsed = parseMessageGetArgs({
+            message: ctx.values.message,
+            wait: ctx.values.wait,
+            timeout: ctx.values.timeout,
+            daemon: ctx.values.daemon,
+            json: ctx.values.json,
+          });
+
+          if (!parsed.ok) {
+            await refuseCommandLine(io, ctx, parsed.message, 2);
+
+            return;
+          }
+
+          await io.runMessageGet(parsed.request);
+        },
+        {
+          name: 'get',
+          description:
+            "Print a message's status and answer; with --wait, wait for the answer. Exits 0 queued, delivered or answered, 1 refused, 2 usage, 4 daemon not reached, 7 unanswered, 8 wait timed out",
+          args: {
+            message: { type: 'positional', description: 'The message id' },
+            wait: {
+              type: 'boolean',
+              default: false,
+              description: 'Wait for the message to be answered',
+            },
+            timeout: integer({
+              min: 1,
+              description: 'With --wait, how many seconds to wait (default 300)',
+            }),
+            daemon: {
+              type: 'string',
+              description: "Read from this daemon from the config's daemons map",
+            },
+            json: {
+              type: 'boolean',
+              default: false,
+              description: 'Print the message as one JSON object on stdout',
+            },
+          },
+        },
+      ),
+    },
+    run: makeMissingCommandRun(io),
+  });
+
   const events = lazy(
     () => async () => {
       await io.runEvents();
@@ -419,6 +541,8 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
         backup,
         workspaces,
         events,
+        send,
+        message,
         'codex-hooks': codexHooks,
         'grok-hooks': grokHooks,
         'hook-report': hookReport,
@@ -429,6 +553,7 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
         statusline,
       },
       lenient: REPORTER_COMMANDS,
+      usageExits: SCRIPT_COMMAND_USAGE_EXITS,
     },
     io,
   );

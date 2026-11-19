@@ -28,6 +28,7 @@ import { featurePaths, ignoredPaths, sharedPaths } from './feature-paths.ts';
 import { readHandshakeRefusals } from './read-handshake-refusals.ts';
 import { readSessionEvents } from './read-session-events.ts';
 import { removeSession } from './remove-session.ts';
+import { runCLICommand } from './run-cli-command.ts';
 import { parseRunEndpoints } from './run-endpoints.ts';
 import { stopSession } from './stop-session.ts';
 
@@ -39,6 +40,15 @@ const stoppedData = z.strictObject({ id: z.string() });
 const forgottenData = z.strictObject({ forgotten: z.array(z.string()) });
 const sessionEvent = z.strictObject({ ev: z.string(), state: z.string() });
 const sessionEventsData = z.strictObject({ events: z.array(sessionEvent) });
+const argvList = z.array(z.string()).min(1);
+const cliRunArgs = z.strictObject({ argv: argvList });
+
+const cliRunData = z.strictObject({
+  exitCode: z.number().int(),
+  stdout: z.string(),
+  stderr: z.string(),
+});
+
 const refusal = z.strictObject({ peer: z.string(), reason: z.string() });
 const refusalsData = z.strictObject({ refusals: z.array(refusal) });
 const daemonData = z.strictObject({ socket: z.string() });
@@ -51,6 +61,9 @@ const signInServers: Readonly<Record<string, readonly string[]>> = {
   local: ['remote', 'gateway'],
   prod: ['gateway'],
 };
+
+const repoRoot = join(import.meta.dir, '..', '..');
+const cliEntry = join(repoRoot, 'packages', 'app', 'src', 'cli.ts');
 
 // The registry's name is not `atc`: gunshi reads a command group named like the program as the
 // program itself.
@@ -140,6 +153,16 @@ export function createVerifyRegistry(): Wringer {
         run: (args, ctx) => readSessionEvents(ctx.drivers.stream, args.name),
       })
       .command({
+        path: ['cli', 'run'],
+        summary:
+          "Run the atc CLI of this checkout in the run's home with the arguments after `--`; it succeeds whatever the CLI exits with, and returns the exit code, stdout and stderr",
+        effect: 'write',
+        positionals: ['argv'],
+        args: cliRunArgs,
+        data: cliRunData,
+        run: (args, ctx) => runCLICommand(ctx.exec, ctx.endpoints, cliEntry, args.argv),
+      })
+      .command({
         path: ['handshake-refusals'],
         summary:
           "Read the handshakes that the daemon's TCP listener refused since `use` marked the `daemon` stream; fails when it refused none",
@@ -213,6 +236,12 @@ export function createVerifyRegistry(): Wringer {
           paths: featurePaths['session-messages'],
         },
         {
+          name: 'cli-send',
+          summary:
+            'Send a session a message with `atc send`, then read and wait on it with `atc message get`',
+          paths: featurePaths['cli-send'],
+        },
+        {
           name: 'remote-mcp-http',
           summary: 'Sign in to `atc mcp --http` as a service client, and list the sessions',
           paths: featurePaths['remote-mcp-http'],
@@ -229,8 +258,6 @@ export function createVerifyRegistry(): Wringer {
       .build()
   );
 }
-
-const repoRoot = join(import.meta.dir, '..', '..');
 
 // with-test-home.sh makes the run's temp home, and removes it and every process the run started
 // once the daemon's launcher exits. The launcher gets the digest of the run's service client, and
@@ -250,8 +277,6 @@ function createLaunchPlan(): LaunchPlan {
     ready: (line) => (line['event'] === 'ready' ? parseRunEndpoints(line) : null),
   };
 }
-
-const cliEntry = join(repoRoot, 'packages', 'app', 'src', 'cli.ts');
 
 // The one program the terminal driver starts: the TUI, in the run's home. The spawn picker lists
 // the client's own folder first, so a session that a journey spawns runs in the run's home too.

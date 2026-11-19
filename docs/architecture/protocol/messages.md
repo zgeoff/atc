@@ -191,6 +191,58 @@ the tap prints again. A notice added to a running turn that ended before its nex
 conversation, so the mod never sends it again: it submits a short prompt that holds the notice's
 message id and wakes the model to read it.
 
+## Sending from the command line
+
+`atc send` and `atc message get` use the `session.message` and `message.get` requests that the MCP
+message tools use, so a script can send and read without speaking the protocol. They share one
+exit-status table and one set of rules:
+
+- A send makes one `session.message` request, with `session`, `text`, `idempotencyKey` and, for a
+  `local` sender, `from`. It never sends `notice` or `replayOnly`, and never resends: a retry is the
+  caller running the command again with the same key. Without `--key`, the command mints
+  `atc-send-<uuid>` and prints it.
+- The command never starts a daemon. With none on the local socket, it exits 4.
+- It names itself in the handshake, and the daemon labels the sender from that name:
+
+  | Caller                                    | Handshake client name | Sender kind | Name                      |
+  | ----------------------------------------- | --------------------- | ----------- | ------------------------- |
+  | `atc send` outside a session              | `atc-send`            | `local`     | `--from`, else `atc-send` |
+  | `atc send --owner` outside a session      | `atc/<version>`       | `owner`     | `owner`                   |
+  | `atc send` inside a session, local socket | `atc-send`            | `session`   | the session's name        |
+  | `atc send --daemon <name>`                | the build, no session | `connector` | the entry's principal     |
+
+  The command passes `ATC_SESSION_ID` in the handshake, so a send from inside a session is labelled
+  `session` wherever it runs, and the daemon ignores `--from` and `--owner` there. The `atc/` prefix
+  is no credential: any program of the owner's user can claim it
+  ([principals](./principals.md#who-a-caller-is)).
+
+- A name resolves against `session.list`: an exact id first, then an exact, case-sensitive name
+  among every listed session, sub-sessions and exited ones included. Several matches exit 3 and list
+  each candidate, with no tie-break.
+- With `--wait`, the command reads the message in short slices until the message is answered or
+  unanswered, or `--timeout` ends, counted from the send's answer.
+- On `outcome_unknown` with an `effectRef`, it reads that message once with no wait.
+
+| Status | Outcome                                                                       |
+| ------ | ----------------------------------------------------------------------------- |
+| 0      | sent; with `--wait`, answered. `message get`: queued, delivered or answered   |
+| 1      | refused by the daemon, an unusable `--daemon` entry, or an unknown message id |
+| 2      | usage error, found before the command connects                                |
+| 3      | no session, or several, for the argument                                      |
+| 4      | the daemon not reached, or no reply from it                                   |
+| 5      | nothing delivered under the key                                               |
+| 6      | the command cannot tell whether the intent was delivered                      |
+| 7      | the message ended unanswered                                                  |
+| 8      | `--wait` timed out with the message still pending                             |
+
+The client reports a closed connection as an `internal` error, so the command checks whether its
+connection is closed after an error and reads an `internal` error on a closed connection as no reply
+(4). `outcome_unknown` on the local socket with no `effectRef`, or whose message the follow-up read
+refuses with `bad_args`, is 5. The same under `--daemon` is 6, because that read also refuses with
+`bad_args` for a message whose session the principal cannot see. `idempotency_conflict` is 6. A
+rename between two runs makes a retry by name exit 3, or 6 when the name now points at another
+session, so retry by id.
+
 ## Progress notes
 
 A note is progress a session sends with no message attached, through the mod's `note` tool, labelled

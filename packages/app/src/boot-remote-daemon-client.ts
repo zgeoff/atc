@@ -19,7 +19,7 @@ const RETRY_INTERVAL_MS = 1000;
 // takes the local one for it.
 const NO_FALLBACK = 'atc did not fall back to the local daemon.';
 
-class RemoteDaemonUnreachableError extends Error {
+export class RemoteDaemonUnreachableError extends Error {
   constructor(message: string, options?: Readonly<ErrorOptions>) {
     super(message, options);
 

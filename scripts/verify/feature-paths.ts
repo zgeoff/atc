@@ -18,6 +18,7 @@ export const featurePaths = {
   // federation; and the daemon's TCP listener, which sits in the daemon package
   'mcp-fleet-tools': [...everyJourney, 'packages/mcp/**'],
   'session-messages': [...everyJourney, 'packages/mcp/**'],
+  'cli-send': [...everyJourney],
   'remote-mcp-http': [...everyJourney, 'packages/mcp/**'],
   'gateway-routing': [...everyJourney, 'packages/mcp/**', 'packages/gateway/**'],
 } as const satisfies Record<string, readonly string[]>;

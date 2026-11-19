@@ -84,13 +84,13 @@
         "@atcx/contract": "workspace:*",
         "@zgeoff/std": "catalog:",
         "gunshi": "catalog:",
+        "tiny-invariant": "catalog:",
         "ts-pattern": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
         "@faker-js/faker": "catalog:",
         "bun-pty": "catalog:",
-        "tiny-invariant": "catalog:",
       },
     },
     "packages/config": {
