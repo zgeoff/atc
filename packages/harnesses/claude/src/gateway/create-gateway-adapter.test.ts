@@ -13,7 +13,7 @@ import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { ATC_BRIDGE_FILES } from '../bridge/atc-bridge-files';
-import { CLAUDE_PLUGIN } from '../claude-plugin';
+import { CLAUDE_PLUGIN } from '../plugin/claude-plugin';
 import { buildMockGatewayConfig } from '../test-utils/build-mock-gateway-config';
 import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-headless-run';
 import { createGatewayAdapter } from './create-gateway-adapter';

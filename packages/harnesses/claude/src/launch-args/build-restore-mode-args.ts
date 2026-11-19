@@ -1,5 +1,5 @@
 import { findFlagValue } from '@atc/plugin-api';
-import { findClaudePermissionMode } from './find-claude-permission-mode';
+import { findClaudePermissionMode } from '../screen/find-claude-permission-mode';
 
 // a resumed session takes back the mode it was saved in, which only an explicit
 // `--permission-mode` overrides, so a mode the settings alone set travels as the flag

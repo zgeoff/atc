@@ -13,8 +13,8 @@ import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { ATC_BRIDGE_FILES } from './bridge/atc-bridge-files';
-import { CLAUDE_PLUGIN } from './claude-plugin';
 import { createClaudeAdapter } from './create-claude-adapter';
+import { CLAUDE_PLUGIN } from './plugin/claude-plugin';
 import { buildStubClaudeHeadlessRun } from './test-utils/build-stub-claude-headless-run';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, a
