@@ -11,7 +11,6 @@ import invariant from 'tiny-invariant';
 import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unanswering-unix-listener';
 import { tryOpenDaemon } from './try-open-daemon';
 
-// A temp directory for the sockets.
 function setupTest() {
   const directory = setupTempDir('try-open-daemon-').path;
 

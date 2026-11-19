@@ -9,7 +9,7 @@ import type { DaemonProcess } from './types';
 export function readDaemonProcess(pid: number, procRoot: string): DaemonProcess {
   const subprocess = readProcProcess(procRoot, pid);
 
-  // an unreadable entry, as on macOS, falls back to this process's own start.
+  // macOS has no readable /proc entry for a process, so fall back to this process's own start.
   if (subprocess === null) {
     return readOwnDaemonProcess();
   }

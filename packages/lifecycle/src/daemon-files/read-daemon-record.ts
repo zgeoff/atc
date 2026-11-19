@@ -7,11 +7,8 @@ export interface DaemonRecord {
   readonly reporterSocketPath: string;
   readonly eventsSocketPath: string | null;
 
-  // The port the TCP listener bound, or null without one.
   readonly listenPort: number | null;
 
-  // The protocol version the daemon speaks, or null for a daemon whose
-  // record holds none, which speaks the older line protocol.
   readonly protocol: number | null;
 }
 
@@ -24,8 +21,6 @@ const RECORD_SCHEMA = z.object({
   protocol: z.number().int().positive().nullable().default(null),
 });
 
-// a record left by a crashed daemon still parses, so a caller proves
-// liveness by connecting.
 export function readDaemonRecord(recordPath: string): DaemonRecord | null {
   let raw: unknown;
 

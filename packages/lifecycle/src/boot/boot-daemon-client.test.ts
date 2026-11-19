@@ -21,7 +21,6 @@ function setupTest() {
     XDG_RUNTIME_DIR: temporaryDirectory.path,
   });
 
-  // The daemon and the client both expect the state directory to exist.
   mkdirSync(paths.stateDir, { recursive: true });
 
   return {
@@ -50,8 +49,6 @@ test('it leaves a daemon on another protocol running and rejects with both build
   const up = await legacy.stdout.getReader().read();
 
   const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
-
-  // The argv starts nothing, so a boot that tried to start a daemon fails.
   const host = buildMockLifecycleHost({ paths: ctx.paths });
 
   expect(bootDaemonClient(host)).rejects.toMatchObject({
@@ -223,9 +220,6 @@ test('it rejects with the socket it waited on, and starts no daemon, when none a
     },
   });
 
-  // The wait polls every 100 ms of the stepped clock, so a 300 ms wait
-  // misses four polls: the test steps past three of them and the fourth
-  // ends the wait.
   const steps: number[] = [];
 
   for (let poll = 0; poll < 3; poll++) {
@@ -265,8 +259,6 @@ test('it rejects when a socket takes the connection but never answers the handsh
     clock,
   });
 
-  // The socket takes the connection, so the boot waits on the handshake
-  // until the stepped clock reaches the end of the wait.
   const step = await waitFor(() => {
     const [pending] = clock.collectPending();
 
@@ -300,9 +292,6 @@ test('it reports the start of a wait once across every poll of that wait', async
     },
   });
 
-  // The wait polls every 100 ms of the stepped clock, so a 500 ms wait
-  // misses six polls: the test steps past five of them and the sixth ends
-  // the wait.
   const steps: number[] = [];
 
   for (let poll = 0; poll < 5; poll++) {
@@ -370,8 +359,6 @@ test('it waits for its own daemon while a boot on the same clock waits for anoth
   const second = setupTest();
   const clock = buildStubClock(0);
 
-  // The argv starts nothing, and the clock never reaches the end of the
-  // first boot's wait, so that boot neither settles nor rejects.
   void bootDaemonClient(buildMockLifecycleHost({ paths: first.paths }), { clock });
 
   await waitFor(() => {
@@ -410,7 +397,6 @@ test('it rejects at the 8 s boot deadline when the daemon it starts never become
     process.kill(Number(readFileSync(pidFile, 'utf8')), 'SIGKILL');
   });
 
-  // The daemon stays up but neither listens nor signals ready.
   const booting = bootDaemonClient(
     buildMockLifecycleHost({
       paths: ctx.paths,
@@ -463,8 +449,6 @@ test('it rejects at the 8 s boot deadline when the daemon it starts signals read
     { clock },
   );
 
-  // Before the clock moves, only the ready line can wake the boot to try the
-  // socket again and schedule a second poll.
   const delaysBeforeDeadline = await waitFor(() => {
     const delays = clock.collectDelays();
 

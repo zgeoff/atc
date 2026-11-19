@@ -2,7 +2,7 @@ import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '@atcx/contract/light';
 
-// an installed or masked unit keeps ownership while it is stopped.
+// systemd treats an installed or masked unit as owned even while it is stopped.
 export function readManagedDaemonUnit(
   env: Readonly<Record<string, string | undefined>>,
 ): string | null {
@@ -13,9 +13,7 @@ export function readManagedDaemonUnit(
       lstatSync(path);
 
       return path;
-    } catch {
-      // A directory without this unit contributes no ownership signal.
-    }
+    } catch {}
   }
 
   return null;

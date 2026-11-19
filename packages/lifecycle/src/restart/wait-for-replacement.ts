@@ -23,9 +23,6 @@ export async function waitForReplacement(
 ): Promise<ReplacementOutcome> {
   const clock = host.clock;
   const deadline = clock.now() + waitMs;
-
-  // The answer that ends the wait, and the last handshake a replacement
-  // refused.
   const settled: { outcome?: ReplacementOutcome; refusal?: string } = {};
 
   await waitUntil(
@@ -36,8 +33,6 @@ export async function waitForReplacement(
         return false;
       }
 
-      // A daemon that accepts the socket and never answers must not outlast
-      // the startup deadline.
       const attempt = await tryOpenDaemon(
         [record.socketPath],
         { build: host.invocation.readBuild(), deadline, clock, keepOpen: true },

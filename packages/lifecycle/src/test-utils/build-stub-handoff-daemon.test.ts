@@ -7,8 +7,6 @@ import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
 
-// A temp directory that holds the socket the stand-in hands over, removed
-// once the test finishes.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-handoff-');
 

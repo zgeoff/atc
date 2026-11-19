@@ -12,8 +12,6 @@ import { buildStubMCPClaude } from './build-stub-mcp-claude';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-mcp-claude-');
-
-  // The reporter the script reports through sends its lines here.
   const reporter = startStubReporterSocket(join(temporaryDirectory.path, 'report.sock'));
 
   const bin = createStubBin(
@@ -97,8 +95,6 @@ test('it reports nothing when the home holds the hold-start file', async () => {
 
   await held.exited;
 
-  // A run without the hold-start file reports after the held run has ended,
-  // so its line arrives after any line the held run sent.
   rmSync(join(ctx.directory, 'fake-claude-hold-start'));
 
   const sentinel = Bun.spawn([ctx.bin], {

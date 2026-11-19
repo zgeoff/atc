@@ -245,8 +245,6 @@ test('it removes a variable the config sets to undefined from the environment of
 
   const paths = resolvePaths({ HOME: ctx.directory });
 
-  // Without a runtime directory the daemon listens under its state
-  // directory, which its record holds once it is up.
   const record = await waitFor(() => {
     const found = readDaemonRecord(paths.daemonRecordFile);
 
@@ -348,7 +346,6 @@ test('it kills the daemon the state directory records once stopped', async () =>
 test('it kills the daemon once the test finishes without a stop', () => {
   const ctx = setupTest();
 
-  // A stand-in that runs until killed and ignores the arguments after it.
   const daemon = startDaemonProcess({
     command: ['bash', '-c', 'exec sleep 30'],
     home: ctx.directory,
@@ -365,7 +362,6 @@ test('it kills a child the daemon forked once the test finishes', async () => {
   const ctx = setupTest();
   const childPIDPath = join(ctx.directory, 'child.pid');
 
-  // A stand-in that forks a child, records its pid, and runs until killed.
   startDaemonProcess({
     command: ['bash', '-c', `sleep 30 & echo "$!" > '${childPIDPath}'; exec sleep 30`],
     home: ctx.directory,
@@ -391,8 +387,6 @@ test('it kills the daemon its home records and removes its stderr directory once
   let stderrLeft: boolean | null = null;
   let stderrDir = '';
 
-  // Runs after the helper's releases, which register later, and before the
-  // home goes; it records whether those releases left the stderr directory.
   registerTestCleanup(() => {
     stderrLeft = existsSync(stderrDir);
   });
@@ -406,9 +400,6 @@ test('it kills the daemon its home records and removes its stderr directory once
 
   stderrDir = daemon.stderrDir;
 
-  // Registered before the replacement starts, so it runs after the helper's
-  // release and before the fallback kill below. The helper signals the
-  // recorded daemon without waiting for it to exit.
   onTestFinished(async () => {
     expect(probeProcessAlive(pid)).toBe(false);
 
@@ -420,7 +411,6 @@ test('it kills the daemon its home records and removes its stderr directory once
     expect(existsSync(ctx.directory)).toBe(false);
   });
 
-  // A replacement daemon a restart would leave, recorded in the home.
   const replacement = Bun.spawn(['sleep', '30']);
 
   onTestFinished(() => {
@@ -460,7 +450,6 @@ test('it keeps the daemon stderr readable after a stop', async () => {
 test('it refuses to restart a stopped daemon', async () => {
   const ctx = setupTest();
 
-  // A stand-in that runs until killed and ignores the arguments after it.
   const daemon = startDaemonProcess({
     command: ['bash', '-c', 'exec sleep 30'],
     home: ctx.directory,

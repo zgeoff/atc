@@ -12,8 +12,6 @@ import { buildStubMCPGrok } from './build-stub-mcp-grok';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-mcp-grok-');
-
-  // The reporter the script reports through sends its lines here.
   const reporter = startStubReporterSocket(join(temporaryDirectory.path, 'report.sock'));
 
   const bin = createStubBin(

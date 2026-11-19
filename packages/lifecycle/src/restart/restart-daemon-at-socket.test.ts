@@ -12,7 +12,6 @@ function setupTest() {
   const paths = resolvePaths({ HOME: directory, XDG_RUNTIME_DIR: directory });
   const procRoot = join(directory, 'proc');
 
-  // The record the daemon keeps lives in the state directory.
   mkdirSync(paths.stateDir, { recursive: true });
   mkdirSync(procRoot);
 
@@ -61,8 +60,6 @@ test('it restarts the unit whose main process is the daemon behind the socket', 
     }),
   );
 
-  // The daemon's cgroup puts it in a user service, as one a user manager
-  // runs reads.
   const uid = process.getuid?.() ?? 0;
 
   mkdirSync(join(ctx.procRoot, String(ctx.daemon.pid)));

@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { parseSystemdUnit } from '@atc/core';
 import type { LifecycleHost } from '../boot/types';
 
-// the cgroup alone proves nothing: a process can sit in the unit's cgroup
-// without being the process the unit runs, so `MainPID` must match too.
+// A process can sit in a unit's cgroup without being the process the unit runs,
+// so the cgroup alone proves nothing; the unit's main PID must match too.
 export async function readRestartUnit(
   pid: number,
   host: Pick<LifecycleHost, 'procRoot' | 'runSystemctl'>,

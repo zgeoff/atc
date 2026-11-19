@@ -13,8 +13,6 @@ function main() {
 
   const build = process.argv.at(4);
 
-  // A client on the current protocol reads the session list and the fleet
-  // as it starts, so the daemon answers both as empty.
   startStubLegacyDaemon(socketPath, {
     protocol: build === 'current' ? PROTOCOL_V : PROTOCOL_V + 1,
     refusalHoldsProtocol: build === 'newer',
@@ -24,8 +22,6 @@ function main() {
 
   const session = Bun.spawn(['sleep', '60']);
 
-  // Killing the session on every exit means a caller that stops only the daemon
-  // leaves nothing behind.
   process.on('exit', () => {
     session.kill('SIGKILL');
   });
@@ -42,8 +38,6 @@ function main() {
     });
   }
 
-  // Recorded the way a real daemon records itself, so a client that finds it by
-  // its record can stop it.
   writeFileSync(
     buildDaemonStatePaths(stateDir).recordFile,
     JSON.stringify({

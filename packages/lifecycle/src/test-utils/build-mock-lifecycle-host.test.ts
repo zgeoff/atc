@@ -3,8 +3,6 @@ import { resolvePaths } from '@atc/config/host';
 import { systemClock } from '@atc/core';
 import { buildMockLifecycleHost } from './build-mock-lifecycle-host';
 
-// The home is random, so each test takes it from the config file, which the
-// person writes and atc only reads.
 test('it builds a default lifecycle host on the paths of one home', () => {
   const host = buildMockLifecycleHost();
   const home = host.paths.configFile.slice(0, -'/.config/atc/config.json'.length);

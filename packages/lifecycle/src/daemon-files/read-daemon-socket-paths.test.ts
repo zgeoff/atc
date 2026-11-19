@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readDaemonSocketPaths } from './read-daemon-socket-paths';
 
-// A temp directory for the daemon's files.
 function setupTest() {
   const directory = setupTempDir('collect-daemon-socket-paths-').path;
 

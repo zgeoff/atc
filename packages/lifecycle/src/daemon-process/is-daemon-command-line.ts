@@ -13,8 +13,6 @@ export function isDaemonCommandLine(args: readonly string[]): boolean {
   return isATCEntry(entry, at) && (next === undefined || next === 'serve' || next.startsWith('--'));
 }
 
-// The program itself when it sits first, or the script a runtime loads when
-// it sits second.
 function isATCEntry(entry: string, at: number): boolean {
   const name = basename(entry);
 

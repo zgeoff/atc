@@ -1,7 +1,5 @@
 import invariant from 'tiny-invariant';
 
-// A daemon test fails on an `internal` error with no sign of its cause, which only the
-// daemon's stderr holds, and a refusal of any other code is an answer a test expects.
 export function buildStderrReportingClient<T extends object>(
   client: T,
   readStderr: () => string,
