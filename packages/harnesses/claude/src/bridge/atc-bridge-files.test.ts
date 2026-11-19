@@ -4,51 +4,21 @@ import { join } from 'node:path';
 import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 
 test('it embeds the mod files exactly as the mods folder holds them', () => {
-  expect(ATC_BRIDGE_FILES).toStrictEqual({
-    '.claude-plugin/plugin.json': readFileSync(
-      join(
-        import.meta.dir,
-        '..',
-        '..',
-        '..',
-        '..',
-        '..',
-        'mods',
-        'atc-bridge',
-        '.claude-plugin',
-        'plugin.json',
-      ),
-      'utf8',
-    ),
-    'hooks/hooks.json': readFileSync(
-      join(
-        import.meta.dir,
-        '..',
-        '..',
-        '..',
-        '..',
-        '..',
-        'mods',
-        'atc-bridge',
-        'hooks',
-        'hooks.json',
-      ),
-      'utf8',
-    ),
-    'hooks/register.ts': readFileSync(
-      join(
-        import.meta.dir,
-        '..',
-        '..',
-        '..',
-        '..',
-        '..',
-        'mods',
-        'atc-bridge',
-        'hooks',
-        'register.ts',
-      ),
-      'utf8',
-    ),
-  });
+  const modFolder = join(import.meta.dir, '..', '..', '..', '..', '..', 'mods', 'atc-bridge');
+
+  expect(Object.keys(ATC_BRIDGE_FILES).toSorted()).toStrictEqual([
+    '.claude-plugin/plugin.json',
+    'hooks/bridge-state.ts',
+    'hooks/deliver-messages.ts',
+    'hooks/hooks.json',
+    'hooks/parse-tap-line.ts',
+    'hooks/register.ts',
+    'hooks/report-turns.ts',
+    'hooks/run-tap.ts',
+    'hooks/track-turns.ts',
+  ]);
+
+  for (const [path, content] of Object.entries(ATC_BRIDGE_FILES)) {
+    expect(content).toBe(readFileSync(join(modFolder, path), 'utf8'));
+  }
 });

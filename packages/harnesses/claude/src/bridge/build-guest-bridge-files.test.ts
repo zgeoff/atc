@@ -7,6 +7,12 @@ test("it places the mod's files in the guest folder's mod folder, running the ho
     'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
     'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
     'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
+    'atc-bridge/hooks/bridge-state.ts': ATC_BRIDGE_FILES['hooks/bridge-state.ts'],
+    'atc-bridge/hooks/deliver-messages.ts': ATC_BRIDGE_FILES['hooks/deliver-messages.ts'],
+    'atc-bridge/hooks/parse-tap-line.ts': ATC_BRIDGE_FILES['hooks/parse-tap-line.ts'],
+    'atc-bridge/hooks/report-turns.ts': ATC_BRIDGE_FILES['hooks/report-turns.ts'],
+    'atc-bridge/hooks/run-tap.ts': ATC_BRIDGE_FILES['hooks/run-tap.ts'],
+    'atc-bridge/hooks/track-turns.ts': ATC_BRIDGE_FILES['hooks/track-turns.ts'],
     'atc-bridge/hooks/atc-cli.ts':
       'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
   });
