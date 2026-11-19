@@ -64,7 +64,6 @@
           "packages/core",
           "packages/daemon",
           "packages/harnesses/claude",
-          "packages/harnesses/codex",
           "packages/lifecycle",
           "packages/plugin-api",
           "packages/protocol",
