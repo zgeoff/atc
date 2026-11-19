@@ -11,9 +11,8 @@ import { openTestAuthDatabase } from './open-test-auth-database';
 import { runMCPAuthorization } from './run-mcp-authorization';
 import { runPasskeyEnrollment } from './run-passkey-enrollment';
 
-// The MCP HTTP server with the owner's passkey enrolled through its
-// enrollment page. An authorization never reaches the daemon, so the caller
-// points at a socket nothing listens on and never dials it.
+// Authorization never reaches the daemon, so the caller points at a socket nothing listens on
+// and never dials it.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-mcp-authorization-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
@@ -42,8 +41,6 @@ async function setupTest() {
 
   registerTestCleanup(() => server.stop());
 
-  // The authorization database opened the way `atc clients` opens it, to
-  // register clients through.
   const store = await openTestAuthAdmin(dbPath);
 
   const authenticator = buildStubAuthenticator();

@@ -77,7 +77,6 @@ function buildInputSchema(
   };
 }
 
-// The input schema with only the agent field's description replaced.
 function buildAgentFieldSchema(
   schema: Readonly<Record<string, unknown>>,
   description: string,

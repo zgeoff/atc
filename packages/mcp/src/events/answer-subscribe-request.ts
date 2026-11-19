@@ -20,7 +20,6 @@ import { writeCallbackVerifiedAt } from './write-callback-verified-at';
 export interface EventMethodDeps {
   readonly db: Kysely<EventSchema>;
 
-  // Acts as the subscribing client.
   readonly caller: FleetCaller;
   readonly clientID: string;
   readonly send: WebhookSender;
@@ -77,9 +76,9 @@ export async function answerSubscribeRequest(
     }
   }
 
-  // A subscription past its refreshBefore that the watcher has yet to remove
-  // is gone, so the subscribe starts afresh from the client's cursor, and the
-  // old watcher, whose pending read started from the old position, ends.
+  // An expired subscription the watcher has not removed yet counts as gone, so the subscribe
+  // starts afresh from the client's cursor. The old watcher must end, since its pending read
+  // began at the old position.
   const position = await readStartPosition(deps, request.cursor);
 
   deps.deliverer.retire(id);
@@ -99,8 +98,8 @@ export async function answerSubscribeRequest(
     now,
   );
 
-  // A subscribe of the same key that started the subscription meanwhile made
-  // it live, so this one refreshes it instead.
+  // A concurrent subscribe for the same ID started the subscription first and made it live,
+  // so the retry refreshes that one instead of starting another.
   if (!started) {
     return answerSubscribeRequest(deps, params);
   }
@@ -110,7 +109,6 @@ export async function answerSubscribeRequest(
   return { id, refreshBefore, cursor: position, truncated: false };
 }
 
-// How long one echoed challenge covers a client's callback URL.
 const VERIFIED_FOR_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function requireVerifiedCallback(
@@ -165,9 +163,6 @@ function pickTTL(ttlMs: number | null | undefined): number {
   return Math.min(Math.max(ttlMs, MIN_TTL_MS), MAX_TTL_MS);
 }
 
-// A client's cursor starts delivery after the event it points past, so the
-// events it missed while it held no subscription arrive. No cursor starts
-// after the newest event.
 async function readStartPosition(deps: EventMethodDeps, cursor: string | null): Promise<string> {
   if (cursor === null) {
     return readHeadPosition(deps);
@@ -187,8 +182,6 @@ async function readStartPosition(deps: EventMethodDeps, cursor: string | null): 
 }
 
 const HEAD_PAGE_SCHEMA = EVENTS_PAGE_SCHEMA.pick({ cursor: true, more: true });
-
-// The largest page a read returns.
 const HEAD_READ_LIMIT = 200;
 
 // A gateway answers a read without a cursor with each daemon's newest events

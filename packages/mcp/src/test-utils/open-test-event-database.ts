@@ -9,14 +9,10 @@ import { openEventDatabase } from '../events/open-event-database';
 interface TestEventDatabase {
   readonly db: Kysely<EventSchema>;
 
-  // The package's admin handle on the same database, which adds the clients
-  // whose names a delivery reads.
   readonly admin: MCPAuthAdmin;
   readonly close: () => Promise<void>;
 }
 
-// An in-memory authorization database with atc's event tables beside the
-// package's own.
 export async function openTestEventDatabase(): Promise<TestEventDatabase> {
   const sqlite = createTestDatabase();
 

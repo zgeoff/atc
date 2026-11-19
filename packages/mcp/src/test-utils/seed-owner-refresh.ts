@@ -3,9 +3,8 @@ import type { OwnerGrant } from './seed-owner-grant';
 import { seedOwnerTokens } from './seed-owner-tokens';
 import type { OwnerTokens } from './seed-owner-tokens';
 
-// A refresh of a grant as atc's own OAuth server ran it before atc moved to
-// @zgeoff/mcp-auth, which no code here makes now: it revoked the refresh
-// token, and stored a new pair that keeps the grant's authorization code.
+// This package has no code that performs an owner token refresh, so the seed writes the
+// database rows directly.
 export function seedOwnerRefresh(sqlite: Database, grant: OwnerGrant): OwnerTokens {
   const now = Date.now();
 

@@ -5,40 +5,32 @@ import { P, match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { PTY_VIEWER_MACHINE } from './pty-viewer-machine';
 
-// The daemon connection one viewer reads. Each viewer has its own, so a
-// viewer that lags holds back no other client.
+// Each viewer gets its own daemon connection, so a viewer that lags holds back no other client.
 export interface WatchChannel extends Pick<DaemonClient, 'onEvent' | 'onClose' | 'stop'> {
   readonly procedures: {
     readonly session: Pick<DaemonProcedures['session'], 'get' | 'watch'>;
   };
 }
 
-// The browser's WebSocket, as the viewer writes to it.
 export interface PTYSocket {
   readonly send: (frame: string | Uint8Array) => void;
   readonly getBufferedAmount: () => number;
   readonly close: (code: number, reason: string) => void;
 }
 
-// A session's screen as a watch answers with it.
 export type WatchAnswer = Awaited<ReturnType<DaemonProcedures['session']['watch']>>;
 
-// A watch answer and the session's state.
 export interface PTYSnapshot extends WatchAnswer {
   readonly state: SessionDescriptor['state'];
 }
 
 export interface PTYViewer {
-  // Sends the first snapshot and the output held since it was taken.
   readonly open: (socket: PTYSocket) => void;
   readonly drain: () => void;
 
-  // Ends the viewer's daemon connection once the browser closes the socket.
   readonly close: () => void;
 }
 
-// How a viewer rechecks that the token it opened with still verifies with
-// read; a revoked or expired token ends the stream.
 interface ViewerAccess {
   readonly probe: () => Promise<boolean>;
   readonly clock: Clock;
@@ -50,8 +42,6 @@ interface PTYViewerOptions {
   readonly channel: WatchChannel;
   readonly first: PTYSnapshot;
 
-  // How many bytes the socket may hold unsent before the viewer drops output
-  // and sends a fresh snapshot once the socket drains.
   readonly maxBufferedBytes: number;
 
   // null for the daemon's owner, whose token file grants for as long as the
@@ -59,10 +49,8 @@ interface PTYViewerOptions {
   readonly access: ViewerAccess | null;
 }
 
-// Why a viewer's stream ended, as its closed frame says.
 type ClosedReason = 'exited' | 'removed' | 'daemon_closed' | 'unavailable' | 'revoked';
 
-// A WebSocket close code for a stream that ended as it should.
 const NORMAL_CLOSURE = 1000;
 
 export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
@@ -221,8 +209,6 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
     sendSnapshot({ ...answer, state: pending.state });
   };
 
-  // A fresh snapshot replaces whatever output the viewer skipped or would
-  // have sent out of order.
   const resync = (): void => {
     actor.send({ type: isIn('stalled') ? 'DRAIN' : 'RESYNC' });
 
@@ -345,8 +331,6 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
     open: (opened) => {
       socket = opened;
 
-      // A session that ended before the browser's socket opened still tells
-      // the browser why.
       if (closedReason !== null) {
         sendClosed(closedReason);
 

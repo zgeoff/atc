@@ -4,7 +4,6 @@ import type { EventSchema } from './event-schema';
 
 export type SubscriptionRow = EventSchema['atc_event_subscription'];
 
-// A stored subscription is live until its refreshBefore and expired after it.
 type SubscriptionState = 'live' | 'expired';
 
 interface StoredSubscription {
@@ -16,8 +15,6 @@ export interface SubscriptionStore {
   readonly read: (subscriptionID: string, now: number) => Promise<StoredSubscription | null>;
   readonly readIDs: () => Promise<readonly string[]>;
 
-  // Stores a new subscription, or replaces an expired one; false when a live
-  // subscription holds the id.
   readonly start: (row: SubscriptionRow, now: number) => Promise<boolean>;
   readonly refresh: (
     subscriptionID: string,
@@ -28,8 +25,6 @@ export interface SubscriptionStore {
   readonly expire: (subscriptionID: string, now: number) => Promise<boolean>;
   readonly end: (subscriptionID: string) => Promise<boolean>;
 
-  // Removes a subscription unless a subscribe renewed it since the caller
-  // read the refreshBefore it passes.
   readonly drop: (subscriptionID: string, refreshBefore: string) => Promise<boolean>;
   readonly endForClient: (clientID: string) => Promise<void>;
 }
@@ -142,9 +137,6 @@ interface SubscriptionMove {
   readonly to: SubscriptionState | 'removed';
 }
 
-// Every write to a subscription row is one of these moves. A write touches a
-// row only while the row is in a state its move starts from, and the bound on
-// refreshBefore that each write carries comes from this table.
 const SUBSCRIPTION_MOVES = {
   start: { from: ['absent', 'expired'], to: 'live' },
   refresh: { from: ['live'], to: 'live' },
@@ -155,8 +147,6 @@ const SUBSCRIPTION_MOVES = {
   drop: { from: ['live', 'expired'], to: 'removed' },
 } as const satisfies Record<string, SubscriptionMove>;
 
-// A move that writes a new refreshBefore leaves the row in the state that new
-// refreshBefore tells, so the value must put the row where the move ends.
 function checkDestination(move: 'start' | 'refresh', refreshBefore: string, now: number): void {
   invariant(
     pickState(refreshBefore, now) === SUBSCRIPTION_MOVES[move].to,
@@ -171,9 +161,8 @@ interface StateBound {
 
 type SubscriptionMoveName = keyof typeof SUBSCRIPTION_MOVES;
 
-// A row's refreshBefore against the present tells its state, so a move that
-// starts from live rows only, or from expired rows only, holds the write to
-// rows on that side of the present. A move from both states needs no bound.
+// A row has no stored state: live or expired comes from its refresh deadline against now, so a
+// time bound on the write keeps a move from changing rows already on the other side of now.
 function getStateBound(
   move: Exclude<SubscriptionMoveName, 'end' | 'endForClient' | 'drop'>,
   now: number,

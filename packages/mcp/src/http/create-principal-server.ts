@@ -4,8 +4,6 @@ import { registerEventMethods } from '../events/register-event-methods';
 import { buildPrincipalCaller } from '../tools/build-principal-caller';
 import { createMCPServer } from '../tools/create-mcp-server';
 
-// A server for one modern request, with the tools and the event methods the
-// request's token allows.
 export function createPrincipalServer(ctx: HTTPServerContext, access: VerifiedAccess): McpServer {
   const caller = buildPrincipalCaller(ctx.caller, { id: access.clientID, name: access.clientName });
 

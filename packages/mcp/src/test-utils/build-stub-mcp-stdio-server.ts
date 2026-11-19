@@ -7,7 +7,8 @@ export function buildStubMCPStdioServer(replies: readonly string[]): string {
   return `#!/usr/bin/env bash\necho $$ > "$0.pid.tmp"\nmv "$0.pid.tmp" "$0.pid"\n${answers}exec cat > /dev/null\n`;
 }
 
-// Quotes a value for the shell as one word, whatever it holds.
+// POSIX shells allow no escapes inside single quotes, so each ' closes the quote,
+// adds an escaped quote, and reopens it.
 function toShellLiteral(value: string): string {
   return `'${value.replaceAll("'", String.raw`'\''`)}'`;
 }

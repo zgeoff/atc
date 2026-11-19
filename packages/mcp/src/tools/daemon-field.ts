@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-// The daemon a call goes to, offered only by a caller that routes across
-// named daemons.
 export const DAEMON_FIELD = z
   .string()
   .optional()

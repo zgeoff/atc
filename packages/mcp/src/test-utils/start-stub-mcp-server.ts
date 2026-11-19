@@ -11,7 +11,6 @@ interface StubMCPRequest {
 interface StubMCPServer {
   readonly url: string;
 
-  // Every request the stand-in received, in arrival order.
   readonly requests: readonly StubMCPRequest[];
 
   readonly stop: () => Promise<void>;

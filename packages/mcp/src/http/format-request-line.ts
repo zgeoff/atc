@@ -1,6 +1,5 @@
 import type { RPCLabel } from './types';
 
-// Client-sent values in a request line are cut to this many characters.
 const LABEL_LENGTH = 64;
 
 // The line names the path without its query, which carries authorization

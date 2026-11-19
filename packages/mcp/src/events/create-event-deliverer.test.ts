@@ -20,8 +20,6 @@ import { createEventDeliverer } from './create-event-deliverer';
 import { createSubscriptionStore } from './create-subscription-store';
 import type { WebhookSender } from './types';
 
-// A daemon whose every hook line becomes a finished turn, a caller that
-// reaches it, and the authorization database the subscriptions live in.
 async function setupTest(
   config: { readonly principals?: ReadonlyMap<string, readonly string[]> } = {},
 ) {

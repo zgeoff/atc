@@ -29,29 +29,20 @@ interface EventDelivererDeps {
   readonly send: WebhookSender;
   readonly clock: Clock;
 
-  // Answers whether the client still holds a live grant with read.
   readonly probeAccess: (clientID: string) => Promise<boolean>;
 
-  // Receives one line per delivery that failed.
   readonly log: (line: string) => void;
 }
 
 export interface EventDeliverer {
-  // Starts a watcher for each stored subscription.
   readonly start: () => Promise<void>;
 
-  // Starts a watcher for the subscription, unless one runs for it.
   readonly watch: (subscriptionID: string) => void;
 
-  // Ends the subscription's watcher, so work it started before an
-  // unsubscribe never acts on a subscription stored again with the same id.
   readonly retire: (subscriptionID: string) => void;
   readonly stop: () => void;
 }
 
-// Each subscription's watcher reads the trail as the subscription's client,
-// so it sees only the sessions the client's principal reaches, and it stores
-// how far it got, so a restarted server resumes where it stopped.
 export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
   const machine = createSubscriptionWatcherMachine({
     readSubscription: (subscriptionID) => readLiveSubscription(deps, subscriptionID),
@@ -121,8 +112,8 @@ export function createEventDeliverer(deps: EventDelivererDeps): EventDeliverer {
   };
 }
 
-// A subscription past its refreshBefore is gone, as the extension says, so the
-// watcher removes its row and ends.
+// The extension treats a subscription past its refresh deadline as gone, so an expired row is
+// removed instead of served.
 async function readLiveSubscription(
   deps: EventDelivererDeps,
   subscriptionID: string,
@@ -135,14 +126,14 @@ async function readLiveSubscription(
     return stored?.row ?? null;
   }
 
-  // A refresh that lands between the read and the removal renews the row,
-  // and the removal then leaves it, so the watcher reads the renewed row.
+  // Another caller can refresh the row between the read and the expire; the expire then leaves the
+  // renewed row in place, so read it again instead of returning null.
   const removed = await deps.subscriptions.expire(subscriptionID, now);
 
   return removed ? null : readLiveSubscription(deps, subscriptionID);
 }
 
-// How long a read of the trail waits for an event, the most the daemon allows.
+// The daemon allows a trail read to wait at most 30 s for an event.
 const READ_WAIT_MS = 30_000;
 const READ_LIMIT = 50;
 
@@ -254,8 +245,6 @@ async function deliverEvent(
 
     invariant(row, 'a delivery picked a send for a subscription that is gone');
 
-    // The event's cursor points past the event, so a subscriber that reads the
-    // trail from it starts after this event.
     const body = JSON.stringify({
       eventId: `evt_${digest.slice(0, 32)}`,
       name: row.name,
@@ -293,16 +282,15 @@ async function deliverEvent(
   }
 }
 
-// Two daemons can hold events at one cursor, but each mints session ids at
-// random; a gateway's merged cursor moves with other daemons, so its origin
-// gives the daemon's own cursor.
+// Two daemons can hold events at the same cursor; each mints its session ids at random, so the
+// session tells them apart. Behind a gateway the merged cursor moves as other daemons write, so
+// the origin supplies the daemon's own cursor instead.
 function formatEventSource(event: TrailPage['events'][number]): string {
   return event.origin === undefined
     ? `${event.session}.${event.cursor}`
     : `${event.origin.daemon}.${event.origin.incarnation}.${event.origin.cursor}`;
 }
 
-// Ends early once the signal aborts, so a stopped watcher waits on nothing.
 function waitOnClock(clock: Clock, delayMs: number, signal: AbortSignal): Promise<void> {
   const resolvers = Promise.withResolvers<void>();
 
@@ -345,8 +333,8 @@ function formatOutcome(outcome: WebhookOutcome): string {
   return outcome.kind === 'failed' ? outcome.reason : `HTTP ${outcome.status}`;
 }
 
-// A 410 ends the subscription, as the extension says. A subscribe that
-// renewed the row after this attempt left it, and keeps it.
+// The extension spec says an HTTP 410 ends the subscription.
+// Deleting only the row as this attempt read it keeps a subscription renewed in the meantime.
 async function removeSubscription(deps: EventDelivererDeps, row: SubscriptionRow): Promise<void> {
   await deps.subscriptions.drop(row.id, row.refresh_before);
 

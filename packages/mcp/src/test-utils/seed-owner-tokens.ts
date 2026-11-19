@@ -20,9 +20,6 @@ export interface OwnerTokenRows {
 const ACCESS_TOKEN_MS = 60 * 60 * 1000;
 const REFRESH_TOKEN_MS = 30 * 24 * 60 * 60 * 1000;
 
-// A refresh token and the access token issued with it, as atc's own OAuth
-// server wrote them before atc moved to @zgeoff/mcp-auth, each stored as its
-// hash.
 export function seedOwnerTokens(sqlite: Database, rows: OwnerTokenRows): OwnerTokens {
   const accessToken = randomBytes(24).toString('base64url');
   const refreshToken = randomBytes(24).toString('base64url');

@@ -11,8 +11,8 @@ export interface OwnerClient {
   readonly name: string;
 }
 
-// A client as atc's own `atc clients add` wrote it before atc moved to
-// @zgeoff/mcp-auth: no code here makes it now.
+// Databases written by earlier CLI releases still hold clients in this shape, but the app
+// cannot create them, so tests insert the row directly.
 export function seedOwnerClient(sqlite: Database, input: OwnerClientInput): OwnerClient {
   const clientID = toTagged<OAuthClientID>(crypto.randomUUID().replaceAll('-', ''));
 

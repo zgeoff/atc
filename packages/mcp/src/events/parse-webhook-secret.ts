@@ -1,5 +1,5 @@
-// A Standard Webhooks symmetric secret: `whsec_` and the base64 of 24 to 64
-// bytes, the range the Events extension requires. Anything else parses to null.
+// Standard Webhooks symmetric secrets are `whsec_` followed by base64, and the Events extension
+// requires the decoded key to be 24 to 64 bytes.
 export function parseWebhookSecret(secret: string): Uint8Array | null {
   const match = /^whsec_(?<encoded>[A-Za-z0-9+/]+={0,2})$/u.exec(secret);
   const encoded = match?.groups?.['encoded'];

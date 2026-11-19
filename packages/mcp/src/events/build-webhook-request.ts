@@ -14,8 +14,8 @@ interface WebhookMessage {
   readonly body: string;
 }
 
-// The headers the Events extension's Standard Webhooks profile requires on
-// every POST, signed over the exact body bytes the request sends.
+// Standard Webhooks signs the exact body bytes, so send the body unchanged; re-serializing it
+// breaks the receiver's signature check.
 export function buildWebhookRequest(message: WebhookMessage): WebhookRequest {
   return {
     url: message.url,

@@ -1,11 +1,9 @@
-// atc's own tables in the authorization database, and the one column of the
-// package's client table that names a subscription's client. atc only reads
-// the client table: @zgeoff/mcp-auth writes it.
+// @zgeoff/mcp-auth owns and writes the client table; atc only reads the one column of it
+// that names a subscription's client.
 export interface EventSchema {
   readonly oauthClient: { readonly clientId: string; readonly name: string | null };
 
-  // Each MCP Events webhook subscription, under the id derived from its
-  // client, callback URL, event name and canonical JSON arguments.
+  // The id is derived from the client, callback URL, event name and canonical JSON arguments.
   readonly atc_event_subscription: {
     readonly id: string;
     readonly client_id: string;
@@ -16,7 +14,6 @@ export interface EventSchema {
     // The whsec_ value the client sent.
     readonly secret: string;
 
-    // The event trail cursor that its deliveries have reached.
     readonly position: string;
     readonly refresh_before: string;
     readonly created_at: string;

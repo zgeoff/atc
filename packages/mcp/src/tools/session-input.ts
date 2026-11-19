@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-// tool schemas require the session; the daemon's wire schemas default an absent
-// one to an empty string instead.
+// The daemon defaults a missing session to an empty string; keep it required here so callers
+// must pass one.
 export const SESSION_ID_BASE = z.object({
   session: z.string().describe('The atc session id, from atc_sessions_list'),
 });

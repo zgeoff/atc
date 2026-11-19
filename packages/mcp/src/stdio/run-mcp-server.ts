@@ -9,8 +9,6 @@ import { createMCPServer } from '../tools/create-mcp-server';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { findBridgeSocket } from './find-bridge-socket';
 
-// The daemon the tools call: the local one, booted when none answers, or a
-// daemon of the config's daemons map, through the caller the entry builds.
 type MCPServerDaemon =
   | { readonly kind: 'local'; readonly boot: () => Promise<DaemonBoot> }
   | { readonly kind: 'named'; readonly caller: ChannelCaller };
@@ -58,8 +56,8 @@ interface ServedCaller {
   readonly callerSessionID: string | null;
 }
 
-// Claude Code fails a server that misses its deadline for initialize, and a
-// daemon boot can outlast that deadline.
+// The daemon boots on first use, not before the handshake: Claude Code fails a server that
+// misses its deadline for initialize, and a daemon boot can outlast that deadline.
 function createLocalCaller(build: string, bootDaemon: () => Promise<DaemonBoot>): ServedCaller {
   const sessionEnv = readSessionEnv(process.env);
   const bridgeSocket = findBridgeSocket(sessionEnv);

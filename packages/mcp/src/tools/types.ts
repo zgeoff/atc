@@ -12,7 +12,6 @@ export interface FleetCaller {
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly features: ReadonlySet<FleetFeature>;
 
-  // Resolves once the caller can reach a daemon, and rejects when it cannot.
   readonly waitForDaemon: () => Promise<void>;
 }
 
@@ -31,13 +30,9 @@ export interface MCPToolDefinition {
   readonly description: string;
   readonly inputSchema: Readonly<Record<string, unknown>>;
 
-  // The shape of the tool's structured result, for the tools that declare one.
   readonly outputSchema?: Readonly<Record<string, unknown>>;
   readonly annotations: MCPToolAnnotations;
 
-  // what the caller must announce for the tool to be listed and each input
-  // offered. `outputUnless` drops the output schema when the caller announces
-  // that feature.
   readonly requires?: {
     readonly tool?: FleetFeature;
     readonly outputUnless?: FleetFeature;

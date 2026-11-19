@@ -4,8 +4,8 @@ import { TOOL_ANNOTATIONS } from './tool-annotations';
 import type { MCPToolDefinition } from './types';
 import { WAIT_MS } from './wait-ms';
 
-// The key as a plain JSON Schema property, for an input schema written out
-// by hand.
+// zod's JSON Schema output carries a top-level $schema key; drop it so the result can sit as
+// a nested property inside a hand-written input schema.
 const { $schema: _, ...IDEMPOTENCY_KEY_INPUT } = z.toJSONSchema(IDEMPOTENCY_KEY_FIELD, {
   io: 'input',
 });

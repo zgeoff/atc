@@ -59,8 +59,6 @@ const SESSION_STOP_OUTPUT: Readonly<Record<string, unknown>> = {
   required: ['stopped'],
 };
 
-// A forget's first call on a target that destroys its hosts returns the token pair; the call
-// that forgets returns the outcome pair.
 const SESSION_FORGET_OUTPUT: Readonly<Record<string, unknown>> = {
   type: 'object',
   properties: {

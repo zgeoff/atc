@@ -8,12 +8,9 @@ type MCPTokenGrantRequest = Parameters<typeof runMCPAuthorization>[1];
 interface MCPTokenGrant {
   readonly accessToken: string;
 
-  // The scopes the token holds, as the token endpoint returned them.
   readonly scope: string;
 }
 
-// Runs the authorization a hosted assistant runs, through passkey sign-in and
-// consent, and exchanges its code at the token endpoint.
 export async function runMCPTokenGrant(
   server: MCPTokenGrantServer,
   request: MCPTokenGrantRequest,

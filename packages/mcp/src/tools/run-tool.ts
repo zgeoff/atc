@@ -65,8 +65,8 @@ export function runTool(
           ? await sendNestedSpawn(caller, params, ctx.callerSessionID)
           : await caller.sendRequest('session.spawn', params);
 
-      // A spawn whose workspace left changes behind returns its warnings
-      // beside the session's own fields.
+      // The daemon puts warnings about changes a workspace left behind outside the session
+      // object in its spawn reply, so they are copied into the session the caller gets.
       const warnings = ok['warnings'];
 
       const session =
@@ -151,8 +151,6 @@ export function runTool(
       return { text: JSON.stringify(ok), structured: ok };
     })
     .with('atc_session_stop', async () => {
-      // A stop never removes a session, so an exited one stays listed until
-      // a forget removes it.
       const ok = await caller.sendRequest('session.kill', {
         session: args['session'],
         stopOnly: true,
@@ -229,8 +227,6 @@ export function runTool(
         ...(typeof args['session'] === 'string' ? { session: args['session'] } : {}),
       });
 
-      // Each note's whole text and each message's whole answer ride the
-      // same call, so a reader catches up without one read per event.
       const page = previewOnly ? ok : await readEventTexts(caller, ok);
 
       return buildObjectResult(buildPageWithoutTextHandles(page));
@@ -305,7 +301,6 @@ function buildTopLevelParams(
   return { ...params, idempotencyKey: `top-level:${digest}` };
 }
 
-// The refusals of a forget, worded for an MCP client.
 const SESSION_PINNED_REFUSAL =
   'session_pinned: the session is pinned, or is a sub-session of a pinned session and the call does not come from inside its parent. Unpin it, or detach the sub-session with parent null, through atc_session_update before forgetting it.';
 
@@ -342,8 +337,8 @@ async function sendGuardedForget(
   }
 }
 
-// A page without the per-event note and answer handles, which only a text
-// read takes and no tool offers to a caller.
+// Only a text read takes the per-event note and answer handles, and no tool offers that read
+// to a caller, so the handles are useless to one.
 function buildPageWithoutTextHandles(
   page: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {

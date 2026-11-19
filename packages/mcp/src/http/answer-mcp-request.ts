@@ -12,7 +12,6 @@ import type { HTTPServerContext, VerifiedAccess } from '../auth/types';
 import { buildPrincipalCaller } from '../tools/build-principal-caller';
 import { createMCPServer } from '../tools/create-mcp-server';
 
-// The adapter verified the request's bearer token before it got here.
 export async function answerMCPRequest(
   ctx: HTTPServerContext,
   request: Request,
@@ -73,8 +72,7 @@ export async function answerMCPRequest(
   }
 }
 
-// The JSON-RPC method of a request, read from a copy of its body, so the
-// handler still reads the body itself.
+// A Request body can be read only once, so read a clone and leave the original for the handler.
 async function readRPCMethod(request: Request): Promise<string | null> {
   const body = await request.clone().text();
 

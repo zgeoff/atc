@@ -2,8 +2,6 @@ import type { buildStubAuthenticator } from './build-stub-authenticator';
 import { parsePasskeyPage } from './parse-passkey-page';
 
 interface EnrollmentServer {
-  // The address the test reaches the server at, and its public origin,
-  // which the browser's page runs on.
   readonly url: string;
   readonly origin: string;
 }

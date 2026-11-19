@@ -97,7 +97,6 @@ async function setupTest() {
 
   await runPasskeyEnrollment(server, enrollmentToken, authenticator);
 
-  // The lines the enrollment printed are not part of any scenario.
   requests.length = 0;
   security.length = 0;
 
@@ -119,9 +118,6 @@ async function setupTest() {
     sqlite,
     seed: buildSeeder({ db: events, clock }),
 
-    // Stops the server and starts a fresh process's worth of it on the same
-    // port and database, as an operator's restart does, trusting the
-    // forwarded address from the proxies given.
     async restartServer(trustForwardedFrom: readonly string[] = []): Promise<void> {
       const port = Number(new URL(server.url).port);
 
@@ -1167,8 +1163,6 @@ test('it removes the subscription of a client that revoked its refresh token, an
     'the spawn returned no session',
   );
 
-  // The revoke ends the subscription in the process that serves it, before
-  // the next event.
   await waitFor(async () => {
     const subscriptions = await createSubscriptionStore(ctx.events).readIDs();
 
@@ -3665,8 +3659,6 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
 
   const clientID = created.clientID;
 
-  // Every request carries a forwarded address, a cookie, and a bearer token
-  // of its own that no event may hold.
   const sent = {
     'cf-connecting-ip': '198.51.100.23',
     cookie: 'canary_cookie=canary-cookie-value-5e1d',
@@ -3825,9 +3817,8 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  // The refused token requests carry the spent code and refresh token with no
-  // Authorization header, which better-auth reads as client authentication,
-  // then the canary bearer token and a header that is no bearer token.
+  // These token requests send no Authorization header, because better-auth reads that header
+  // as client authentication.
   await fetch(`${ctx.url}/oauth2/token`, {
     method: 'POST',
     headers: { 'cf-connecting-ip': sent['cf-connecting-ip'], cookie: sent.cookie },
@@ -3868,9 +3859,6 @@ test('it marks every forwarded address unverified and keeps every secret of a fu
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
   });
 
-  // The refusals carry the same secrets: an authorization for another
-  // resource, a request to a Host atc does not serve, and a consent form
-  // from another origin.
   const invalid = new URL(authorize);
 
   invalid.searchParams.set('resource', 'https://other.example/mcp');

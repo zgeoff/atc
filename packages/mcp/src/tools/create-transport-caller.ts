@@ -3,9 +3,8 @@ import type { DaemonChannel } from '@atc/protocol/wire';
 import { createChannelCaller } from './create-channel-caller';
 import type { ChannelCaller } from './create-channel-caller';
 
-// each channel is handshaken before a request rides it, claiming the session the
-// caller runs inside, which takes the answer notices of the messages it sends;
-// null claims none.
+// The handshake claims the session this caller runs inside, and the daemon delivers answer
+// notices for the messages the caller sends to that session; null claims no session.
 export function createTransportCaller(
   socketPath: string | (() => Promise<string>),
   build: string,
@@ -15,7 +14,6 @@ export function createTransportCaller(
   return createChannelCaller(() => openHandshaken(socketPath, build, openChannel, session));
 }
 
-// Opens a connection and handshakes it, closing one whose handshake fails.
 async function openHandshaken(
   socketPath: string | (() => Promise<string>),
   build: string,
