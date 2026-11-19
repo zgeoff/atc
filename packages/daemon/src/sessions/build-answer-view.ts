@@ -17,8 +17,8 @@ export function buildAnswerView(
   sessions: readonly SessionDescriptor[],
   aliases: readonly SessionDescriptor[],
 ): AnswerView {
-  // A restored session gets a new atc id, so a stored row can hold the id of an earlier run.
-  // The agent session id is the only value that still finds the live session.
+  // A row can hold an older atc id of a restored session, so an alias holding its agent session
+  // id names it. The alias only names it, and a read check still uses the row's own atc id.
   const live =
     sessions.find((session) => session.id === stored.atcID) ??
     (stored.agentSessionID === null
