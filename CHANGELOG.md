@@ -1,5 +1,14 @@
 # Changelog
 
+## [7.20.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.19.0...@zgeoff/atc@7.20.0) (2026-11-19)
+
+
+### Features
+
+* **execution:** add stream relay, credential kinds and harness fates ([#1305](https://github.com/zgeoff/atc/issues/1305)) ([4e58272](https://github.com/zgeoff/atc/commit/4e5827283bce48e490c2a66906db17b0f8907bd1))
+* **execution:** add the docker execution target ([#1311](https://github.com/zgeoff/atc/issues/1311)) ([a8839c3](https://github.com/zgeoff/atc/commit/a8839c3f195f3dae5a3489e70deea0a6aad6b13e))
+* **execution:** add the sprites execution provider ([#1314](https://github.com/zgeoff/atc/issues/1314)) ([01a2e15](https://github.com/zgeoff/atc/commit/01a2e155b55097843bb39b45a0198339a97c9fde))
+
 ## [7.19.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.18.1...@zgeoff/atc@7.19.0) (2026-11-19)
 
 ### Features
