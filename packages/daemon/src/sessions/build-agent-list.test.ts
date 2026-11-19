@@ -1,10 +1,20 @@
 import { expect, test } from 'bun:test';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { buildMockAgentProfile } from '@atc/plugin-api/test-utils/build-mock-agent-profile';
+import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
 import { buildAgentList } from './build-agent-list';
 
 test.each([
-  ['a target on the daemon machine', [{ id: 'local', remote: false, brokerAuth: false }], true],
-  ['only a remote target', [{ id: 'box', remote: true, brokerAuth: false }], false],
+  [
+    'a target on the daemon machine',
+    [{ id: 'local', remote: false, credentials: { kind: 'none' as const } }],
+    true,
+  ],
+  [
+    'only a remote target',
+    [{ id: 'box', remote: true, credentials: { kind: 'none' as const } }],
+    false,
+  ],
 ])('it lists plugin folders as available with %s: %p', (_label, targets, available) => {
   const adapter = buildMockAgentAdapter({
     id: 'claude',
@@ -59,12 +69,16 @@ test.each([
   [
     'a target on the daemon machine and a remote one',
     [
-      { id: 'local', remote: false, brokerAuth: false },
-      { id: 'box', remote: true, brokerAuth: false },
+      { id: 'local', remote: false, credentials: { kind: 'none' as const } },
+      { id: 'box', remote: true, credentials: { kind: 'none' as const } },
     ],
     ['local'],
   ],
-  ['only a remote target', [{ id: 'box', remote: true, brokerAuth: false }], []],
+  [
+    'only a remote target',
+    [{ id: 'box', remote: true, credentials: { kind: 'none' as const } }],
+    [],
+  ],
 ])(
   'it lists an agent whose config loads plugin folders as spawnable on no remote target, with %s',
   (_label, targets, spawnTargets) => {
@@ -137,8 +151,8 @@ test('it lists an agent whose binary is missing as spawnable only on a remote ta
 
   expect(
     buildAgentList([adapter], () => false, [
-      { id: 'local', remote: false, brokerAuth: false },
-      { id: 'box', remote: true, brokerAuth: false },
+      { id: 'local', remote: false, credentials: { kind: 'none' as const } },
+      { id: 'box', remote: true, credentials: { kind: 'none' as const } },
     ]),
   ).toStrictEqual([
     {
@@ -230,7 +244,17 @@ test('it lists an agent that takes the broker credential as spawnable once a tar
   });
 
   expect(
-    buildAgentList([adapter], () => true, [{ id: 'box', remote: true, brokerAuth: true }]),
+    buildAgentList([adapter], () => true, [
+      {
+        id: 'box',
+        remote: true,
+        credentials: {
+          kind: 'broker',
+          broker: buildStubCredentialBroker(),
+          rebindChangedAuth: false,
+        },
+      },
+    ]),
   ).toStrictEqual([
     {
       id: 'glm',
@@ -321,7 +345,9 @@ test('it lists an agent that takes the broker credential as not spawnable when n
   });
 
   expect(
-    buildAgentList([adapter], () => true, [{ id: 'local', remote: false, brokerAuth: false }]),
+    buildAgentList([adapter], () => true, [
+      { id: 'local', remote: false, credentials: { kind: 'none' as const } },
+    ]),
   ).toStrictEqual([
     {
       id: 'glm',
@@ -403,7 +429,9 @@ test('it lists an agent that takes no broker credential as spawnable when no tar
   });
 
   expect(
-    buildAgentList([adapter], () => true, [{ id: 'local', remote: false, brokerAuth: false }]),
+    buildAgentList([adapter], () => true, [
+      { id: 'local', remote: false, credentials: { kind: 'none' as const } },
+    ]),
   ).toStrictEqual([
     {
       id: 'plain',
@@ -497,7 +525,9 @@ test('it lists an agent that takes the broker credential only where a broker is 
   });
 
   expect(
-    buildAgentList([adapter], () => true, [{ id: 'local', remote: false, brokerAuth: false }]),
+    buildAgentList([adapter], () => true, [
+      { id: 'local', remote: false, credentials: { kind: 'none' as const } },
+    ]),
   ).toStrictEqual([
     {
       id: 'claude',
@@ -547,4 +577,69 @@ test('it lists an agent that takes the broker credential only where a broker is 
       },
     },
   ]);
+});
+
+test.each([
+  {
+    label: 'an agent with no auth selection on a routed target',
+    selection: false,
+    conflict: null,
+    credentials: 'routed',
+  },
+  {
+    label: 'an agent with an auth selection on a stored-token target',
+    selection: true,
+    conflict: null,
+    credentials: 'stored-token',
+  },
+  {
+    label: 'an agent whose config conflicts with a routed target',
+    selection: true,
+    conflict: 'ANTHROPIC_BASE_URL',
+    credentials: 'routed',
+  },
+  {
+    label: 'an agent that reads no stored token on a stored-token target',
+    selection: false,
+    conflict: null,
+    credentials: 'stored-token-unsupported',
+  },
+])('it hides $label from the targets it lists for the agent', (row) => {
+  const adapter = buildMockAgentAdapter({
+    id: 'claude',
+    profile: buildMockAgentProfile({ label: 'Claude', kind: 'claude', bin: 'claude' }),
+    findGuestEnvConflict: () => row.conflict,
+    ...(row.credentials === 'stored-token-unsupported' ? {} : { signInFile: 'claude-oauth-token' }),
+    findAuthSelection: () =>
+      row.selection
+        ? {
+            gateway: {
+              id: 'claude',
+              baseURL: 'https://api.anthropic.com',
+              auth: { profiles: ['claude'], placeholderEnv: {} },
+            },
+            profiles: new Map(),
+            brokerRequired: false,
+          }
+        : null,
+  });
+
+  const credentials =
+    row.credentials === 'routed'
+      ? {
+          kind: 'routed' as const,
+          router: {
+            hostPrefix: 'atc-',
+            verifyRoutes: () => Promise.resolve(),
+            readRoutes: () => Promise.resolve({}),
+          },
+        }
+      : { kind: 'stored-token' as const };
+
+  const [listed] = buildAgentList([adapter], () => true, [
+    { id: 'box', remote: true, credentials },
+    { id: 'local', remote: false, credentials: { kind: 'none' as const } },
+  ]);
+
+  expect(listed?.spawnTargets).toStrictEqual(['local']);
 });

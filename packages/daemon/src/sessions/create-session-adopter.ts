@@ -459,9 +459,9 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     }
 
     let start = await timer.withStep('harness-start', () =>
-      harnessAuth === null
-        ? Promise.resolve(undefined)
-        : harnesses.waitForAuthStart(session, provider, pty),
+      harnessAuth?.kind === 'broker'
+        ? harnesses.waitForAuthStart(session, provider, pty)
+        : Promise.resolve(undefined),
     );
 
     const outdated =

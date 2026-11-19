@@ -17,7 +17,11 @@ test('it writes the bridge mod again and notes it in the feed for a remote sessi
       const provider = {
         ...createStubExecutionProvider({ kind: 'imp-like', remote: true }),
         readGuest: () =>
-          Promise.resolve({ directory: join(paths.directory, 'guest'), atc: '/opt/atc/bin/atc' }),
+          Promise.resolve({
+            directory: join(paths.directory, 'guest'),
+            atc: '/opt/atc/bin/atc',
+            signIn: null,
+          }),
       };
 
       return {
@@ -79,7 +83,11 @@ test('it writes the bridge mod again for a started remote session that never att
       const provider = {
         ...createStubExecutionProvider({ kind: 'imp-like', remote: true }),
         readGuest: () =>
-          Promise.resolve({ directory: join(paths.directory, 'guest'), atc: '/opt/atc/bin/atc' }),
+          Promise.resolve({
+            directory: join(paths.directory, 'guest'),
+            atc: '/opt/atc/bin/atc',
+            signIn: null,
+          }),
       };
 
       return {

@@ -3759,7 +3759,7 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
 
   registerTestCleanup(() => store.stop());
 
-  await createRuntimeAuthBinder(store).createBinding(ctx.provider.brokerAuth, {
+  await createRuntimeAuthBinder(store).createBinding(ctx.provider.credentials.broker, {
     hostKey: toSessionID('orphan'),
     target: 'box',
     targetIdentity: 'imp:test',

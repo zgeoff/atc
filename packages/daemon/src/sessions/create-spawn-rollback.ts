@@ -1,4 +1,4 @@
-import { EffectRemainsError } from '@atc/plugin-api';
+import { EffectRemainsError, findHostBroker } from '@atc/plugin-api';
 import type { ExecutionProvider, HarnessHandle } from '@atc/plugin-api';
 import type { SessionID } from '@atcx/contract';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
@@ -154,10 +154,10 @@ export function createSpawnRollback(deps: SpawnRollbackDeps): SpawnRollback {
     hostKey: SessionID,
     attemptID: string | null,
   ): Promise<void> => {
-    const host = provider.brokerAuth;
+    const host = findHostBroker(provider);
     const binder = callbacks.findAuthBinder();
 
-    if (attemptID === null || host === undefined || binder === null) {
+    if (attemptID === null || host === null || binder === null) {
       return;
     }
 

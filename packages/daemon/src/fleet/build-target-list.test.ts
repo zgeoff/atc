@@ -8,7 +8,7 @@ test('it lists an imp target as reaching the broker', () => {
     kind: 'imp',
     remote: true,
     capabilities: { headless: false, suspend: true, destroy: true },
-    brokerAuth: buildStubCredentialBroker(),
+    credentials: { kind: 'broker', broker: buildStubCredentialBroker(), rebindChangedAuth: false },
   });
 
   const entries = buildTargetList(

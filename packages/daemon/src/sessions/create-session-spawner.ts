@@ -324,9 +324,9 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
     // sleeps first, and a host of its own goes with the take-back
     await steps.run('harness-start', () =>
       timer.withStep('harness-start', async () => {
-        if (auth !== null && hostKey === id) {
+        if (auth?.kind === 'broker' && hostKey === id) {
           await session.pty?.waitForStart?.();
-        } else if (auth !== null && session.pty !== null) {
+        } else if (auth?.kind === 'broker' && session.pty !== null) {
           await harnesses.waitForAuthStart(session, provider, session.pty);
         }
       }),
@@ -454,7 +454,9 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       const atcAccess = grant.atcAccess;
 
       if (hostKey !== id) {
-        await authSetup.requireSharedBinding(hostKey, auth?.binding ?? null);
+        const heldBinding = auth?.kind === 'broker' ? auth.binding : null;
+
+        await authSetup.requireSharedBinding(hostKey, heldBinding);
       }
 
       const refusal = adapter.findSpawnRefusal?.() ?? null;

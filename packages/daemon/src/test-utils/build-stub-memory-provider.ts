@@ -3,7 +3,6 @@ import type { Clock } from '@atc/core';
 import type {
   CommandResult,
   CommandSpec,
-  CredentialBroker,
   ExecutionCapabilities,
   ExecutionProvider,
   GuestLayout,
@@ -11,6 +10,7 @@ import type {
   HarnessHandle,
   HarnessSpec,
   HarnessStart,
+  HostCredentials,
   HostRequest,
 } from '@atc/plugin-api';
 
@@ -51,8 +51,10 @@ interface StubMemoryProviderConfig {
 
   // Whether the daemon treats the host as another machine; false when absent.
   readonly remote?: boolean;
-  readonly guest?: GuestLayout;
-  readonly brokerAuth?: CredentialBroker;
+
+  // the layout the host reports; a stored-token mount is absent unless given
+  readonly guest?: Omit<GuestLayout, 'signIn'> & { readonly signIn?: string | null };
+  readonly credentials?: HostCredentials;
   readonly cloneOnTarget?: boolean;
   readonly hostGitIdentity?: boolean;
   readonly guestWorkspaceTrust?: boolean;
@@ -147,8 +149,10 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
       relay: config.remote ?? false,
       ...config.capabilities,
     },
-    ...(guest === undefined ? {} : { readGuest: () => Promise.resolve(guest) }),
-    ...(config.brokerAuth === undefined ? {} : { brokerAuth: config.brokerAuth }),
+    ...(guest === undefined
+      ? {}
+      : { readGuest: () => Promise.resolve({ ...guest, signIn: guest.signIn ?? null }) }),
+    ...(config.credentials === undefined ? {} : { credentials: config.credentials }),
     ...(config.cloneOnTarget === undefined ? {} : { cloneOnTarget: config.cloneOnTarget }),
     ...(config.hostGitIdentity === undefined ? {} : { hostGitIdentity: config.hostGitIdentity }),
     ...(config.guestWorkspaceTrust === undefined

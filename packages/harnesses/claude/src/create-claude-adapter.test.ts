@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { buildMockAgentEntry } from '@atc/config/test-utils/build-mock-agent-entry';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
-import { isRecord } from '@atc/core';
+import { BROKER_PLACEHOLDER, isRecord } from '@atc/core';
 import { KEYS } from '@atc/core/test-utils/keys';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
@@ -1825,7 +1825,7 @@ test.each([
   ['ANTHROPIC_BASE_URL'],
   ['CLAUDE_CODE_USE_VERTEX'],
   ['HTTPS_PROXY'],
-])('it refuses a subscription guest spawn whose configured --settings sets %s', (variable) => {
+])('it finds %s set in configured --settings as a conflict with the broker', (variable) => {
   const config = parseConfig([CLAUDE_PLUGIN], {
     authProfiles: {
       claude: {
@@ -1849,29 +1849,10 @@ test.each([
     buildMockHostServices(),
   );
 
-  const plan = () =>
-    adapter.planGuestSpawn(
-      { prompt: '', resume: false },
-      {
-        atc: '/opt/atc/bin/atc',
-        directory: '/tmp/atc/sessions/s1',
-        auth: {
-          revision: 1,
-          env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
-          profileEnv: {},
-        },
-      },
-    );
-
-  expect(plan).toThrow(
-    expect.objectContaining({
-      code: 'auth_target_unsupported',
-      data: { agent: 'claude', problem: 'guest_env_conflict', variable },
-    }),
-  );
+  expect(adapter.findGuestEnvConflict('broker')).toBe(variable);
 });
 
-test('it refuses a subscription guest spawn whose entry env overrides the sign-in', () => {
+test('it finds a variable in the entry env as a conflict with the broker', () => {
   const adapter = createClaudeAdapter(
     buildMockAgentEntry({
       id: 'claude',
@@ -1883,31 +1864,10 @@ test('it refuses a subscription guest spawn whose entry env overrides the sign-i
     buildMockHostServices(),
   );
 
-  const plan = () =>
-    adapter.planGuestSpawn(
-      { prompt: '', resume: false },
-      {
-        atc: '/opt/atc/bin/atc',
-        directory: '/tmp/atc/sessions/s1',
-        auth: {
-          revision: 1,
-          env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
-          profileEnv: {},
-        },
-      },
-    );
-
-  expect(plan).toThrow(
-    expect.objectContaining({
-      code: 'auth_target_unsupported',
-      message:
-        "claude signs in through this target's broker, but agents.claude.env sets ANTHROPIC_BASE_URL, which would override or route around that sign-in",
-      data: { agent: 'claude', problem: 'guest_env_conflict', variable: 'ANTHROPIC_BASE_URL' },
-    }),
-  );
+  expect(adapter.findGuestEnvConflict('broker')).toBe('ANTHROPIC_BASE_URL');
 });
 
-test('it refuses a subscription guest spawn whose entry settings env overrides the sign-in', () => {
+test('it finds a variable in the entry settings env as a conflict with the broker', () => {
   const adapter = createClaudeAdapter(
     buildMockAgentEntry({
       id: 'claude',
@@ -1919,28 +1879,114 @@ test('it refuses a subscription guest spawn whose entry settings env overrides t
     buildMockHostServices(),
   );
 
-  const plan = () =>
-    adapter.planGuestSpawn(
-      { prompt: '', resume: false },
-      {
-        atc: '/opt/atc/bin/atc',
-        directory: '/tmp/atc/sessions/s1',
-        auth: {
-          revision: 1,
-          env: { CLAUDE_CODE_OAUTH_TOKEN: 'broker-placeholder' },
-          profileEnv: {},
-        },
-      },
+  expect(adapter.findGuestEnvConflict('broker')).toBe('HTTPS_PROXY');
+});
+
+test('it finds no conflict with the broker for an entry that takes no auth profiles', () => {
+  const adapter = createClaudeAdapter(
+    buildMockAgentEntry({ id: 'claude', bin: 'claude', env: { ANTHROPIC_API_KEY: 'sk-test' } }),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+  );
+
+  expect(adapter.findGuestEnvConflict('broker')).toBeNull();
+});
+
+test.each(['routed', 'stored-token'] as const)(
+  'it finds an entry with no auth profiles that sets a credential variable as a conflict on %s',
+  (kind) => {
+    const adapter = createClaudeAdapter(
+      buildMockAgentEntry({ id: 'claude', bin: 'claude', env: { ANTHROPIC_API_KEY: 'sk-test' } }),
+      parseConfig([CLAUDE_PLUGIN], {}),
+      buildMockHostServices(),
     );
 
-  expect(plan).toThrow(
-    expect.objectContaining({
-      code: 'auth_target_unsupported',
-      message:
-        "claude signs in through this target's broker, but agents.claude.settings.env sets HTTPS_PROXY, which would override or route around that sign-in",
-      data: { agent: 'claude', problem: 'guest_env_conflict', variable: 'HTTPS_PROXY' },
-    }),
+    expect(adapter.findGuestEnvConflict(kind)).toBe('ANTHROPIC_API_KEY');
+  },
+);
+
+test.each(['routed', 'stored-token'] as const)(
+  'it finds a credential helper in the entry settings as a conflict on %s',
+  (kind) => {
+    const adapter = createClaudeAdapter(
+      buildMockAgentEntry({ id: 'claude', bin: 'claude', settings: { apiKeyHelper: 'get-key' } }),
+      parseConfig([CLAUDE_PLUGIN], {}),
+      buildMockHostServices(),
+    );
+
+    expect(adapter.findGuestEnvConflict(kind)).toBe('settings.apiKeyHelper');
+  },
+);
+
+test('it finds no conflict on routed for an entry that sets no credential', () => {
+  const adapter = createClaudeAdapter(
+    buildMockAgentEntry({ id: 'claude', bin: 'claude', env: { CLAUDE_MODEL: 'x' } }),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
   );
+
+  expect(adapter.findGuestEnvConflict('routed')).toBeNull();
+});
+
+test('it reads its stored token from the claude-oauth-token file', () => {
+  const adapter = createClaudeAdapter(
+    buildMockAgentEntry({ id: 'claude', bin: 'claude' }),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+  );
+
+  expect(adapter.signInFile).toBe('claude-oauth-token');
+});
+
+test('it plans a routed launch against its profile route, with a placeholder token and no subscription token or credentials file', () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {
+    authProfiles: {
+      claude: {
+        secret: 'claude-setup-token',
+        host: 'api.anthropic.com',
+        header: 'authorization',
+        scheme: 'bearer',
+      },
+    },
+    agents: { claude: { bin: 'claude', auth: { profiles: ['claude'] } } },
+  });
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/opt/atc/bin/atc',
+      directory: '/tmp/atc/sessions/s1',
+      auth: {
+        revision: 1,
+        env: { CLAUDE_CODE_OAUTH_TOKEN: BROKER_PLACEHOLDER },
+        profileEnv: {},
+        routes: { claude: 'https://route.example/anthropic' },
+      },
+    },
+  );
+
+  expect(plan?.env).toMatchObject({
+    ANTHROPIC_BASE_URL: 'https://route.example/anthropic',
+    ANTHROPIC_AUTH_TOKEN: BROKER_PLACEHOLDER,
+  });
+
+  expect(plan?.env).not.toContainKey('CLAUDE_CODE_OAUTH_TOKEN');
+
+  // the start script's guard refuses the variables a host sets, so a routed launch leaves out the
+  // two it sets itself
+  expect(plan?.args[1]).not.toContain('ANTHROPIC_BASE_URL+x');
+  expect(plan?.args[1]).not.toContain('ANTHROPIC_AUTH_TOKEN+x');
+  expect(plan?.args[1]).toContain('ANTHROPIC_API_KEY+x');
+
+  expect(
+    Object.keys(plan?.files ?? {}).filter((path) => path.endsWith('.credentials.json')),
+  ).toStrictEqual([]);
 });
 
 test('it refuses to start a subscription session in a host whose environment sets ANTHROPIC_API_KEY', async () => {

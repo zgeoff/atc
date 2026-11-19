@@ -5,7 +5,7 @@ import { systemClock } from '@atc/core';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
-import type { AgentAdapter } from '@atc/plugin-api';
+import type { AgentAdapter, GuestPaths } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { createStateStore } from '@atc/store';
@@ -19,6 +19,7 @@ import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-tar
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { buildStubBrokeredGatewayAdapter } from '../test-utils/build-stub-brokered-gateway-adapter';
 import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
+import { buildStubCredentialRouter } from '../test-utils/build-stub-credential-router';
 import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createHostDirClaims } from './create-host-dir-claims';
@@ -141,6 +142,8 @@ async function setupTest(config: SetupTestConfig) {
     claims,
     rollback,
     spawner,
+    auth,
+    authBinder,
   };
 }
 
@@ -302,6 +305,134 @@ test('it refuses a remote spawn on a provider that cannot carry the session brid
   expect(provider.prepared).toStrictEqual([]);
 });
 
+test('it launches a routed session at revision 1 with no binding, admission or recorded revision', async () => {
+  const directory = setupTempDir('atc-session-spawner-routed-').path;
+  const stub = buildStubCredentialRouter();
+  const planned: GuestPaths[] = [];
+
+  const provider = buildStubMemoryProvider({
+    kind: 'cloud',
+    remote: true,
+    credentials: { kind: 'routed', router: stub.router },
+    guest: { directory, atc: '/opt/atc/bin/atc' },
+  });
+
+  const adapter = buildStubBrokeredGatewayAdapter();
+
+  const ctx = await setupTest({
+    adapters: [
+      {
+        ...adapter,
+        planGuestSpawn: (opts, guest) => {
+          planned.push(guest);
+
+          return adapter.planGuestSpawn?.(opts, guest) ?? null;
+        },
+      },
+    ],
+    targets: [
+      buildMockExecutionTarget({ id: 'far', kind: 'cloud', identity: 'cloud:test', provider }),
+    ],
+  });
+
+  const session = await ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    agent: 'glm',
+    target: 'far',
+  });
+
+  expect(planned[0]?.auth).toStrictEqual({
+    revision: 1,
+    env: { ANTHROPIC_AUTH_TOKEN: 'broker-placeholder' },
+    profileEnv: {},
+    routes: { glm: 'https://route.example/glm' },
+  });
+
+  expect(stub.verified).toStrictEqual([['glm']]);
+
+  const binding = await ctx.authBinder.readBinding(session.hostKey);
+
+  expect(binding).toBeNull();
+  expect(session.authRevision).toBeUndefined();
+  expect(provider.harnesses[0]?.spec.requireBroker).toBeUndefined();
+  expect(provider.harnesses[0]?.spec.admit).toBeUndefined();
+});
+
+test('it refuses a routed launch whose routes do not verify before it readies a host', async () => {
+  const directory = setupTempDir('atc-session-spawner-routed-').path;
+  const stub = buildStubCredentialRouter();
+
+  const provider = buildStubMemoryProvider({
+    kind: 'cloud',
+    remote: true,
+    credentials: {
+      kind: 'routed',
+      router: { ...stub.router, verifyRoutes: () => Promise.reject(new Error('no route')) },
+    },
+    guest: { directory, atc: '/opt/atc/bin/atc' },
+  });
+
+  const ctx = await setupTest({
+    adapters: [buildStubBrokeredGatewayAdapter()],
+    targets: [
+      buildMockExecutionTarget({ id: 'far', kind: 'cloud', identity: 'cloud:test', provider }),
+    ],
+  });
+
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    agent: 'glm',
+    target: 'far',
+  });
+
+  expect(spawned).rejects.toThrowWithMessage(Error, 'no route');
+
+  await spawned.catch(() => null);
+
+  expect(provider.prepared).toStrictEqual([]);
+});
+
+test('it refuses to revoke or rebind the auth of a routed host', async () => {
+  const directory = setupTempDir('atc-session-spawner-routed-').path;
+
+  const provider = buildStubMemoryProvider({
+    kind: 'cloud',
+    remote: true,
+    credentials: { kind: 'routed', router: buildStubCredentialRouter().router },
+    guest: { directory, atc: '/opt/atc/bin/atc' },
+  });
+
+  const ctx = await setupTest({
+    adapters: [buildStubBrokeredGatewayAdapter()],
+    targets: [
+      buildMockExecutionTarget({ id: 'far', kind: 'cloud', identity: 'cloud:test', provider }),
+    ],
+  });
+
+  const session = await ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    agent: 'glm',
+    target: 'far',
+  });
+
+  const expected = { code: 'unsupported_operation', data: { problem: 'routed_auth' } };
+
+  expect(ctx.auth.revokeAuth(session.id)).rejects.toMatchObject(expected);
+  expect(ctx.auth.updateAuth(session.id)).rejects.toMatchObject(expected);
+});
+
 test('it boots a session before output its harness writes at once can reach it', async () => {
   const booted: number[] = [];
 
@@ -417,7 +548,7 @@ test('it takes clone trust for a brokered agent on a remote target that can trus
   const provider = buildStubMemoryProvider({
     kind: 'cloud',
     remote: true,
-    brokerAuth: buildStubCredentialBroker(),
+    credentials: { kind: 'broker', broker: buildStubCredentialBroker(), rebindChangedAuth: false },
     guestWorkspaceTrust: true,
   });
 
@@ -456,7 +587,11 @@ test.each([
     const provider = buildStubMemoryProvider({
       kind: 'cloud',
       remote: true,
-      brokerAuth: buildStubCredentialBroker(),
+      credentials: {
+        kind: 'broker',
+        broker: buildStubCredentialBroker(),
+        rebindChangedAuth: false,
+      },
       ...flags,
     });
 

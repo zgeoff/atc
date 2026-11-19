@@ -2,6 +2,7 @@ import { hostname } from 'node:os';
 import type { InvalidGitTransports, TargetConfigError } from '@atc/config';
 import type { AgentID } from '@atc/core';
 import type { SourceProvider } from '@atc/plugin-api';
+import { getHostCredentials } from '@atc/plugin-api';
 import type { StateStore } from '@atc/store';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { buildConfigRevision } from '../fleet/build-config-revision';
@@ -86,7 +87,7 @@ export function createSpawnCatalog(deps: SpawnCatalogDeps): SpawnCatalog {
                 {
                   id: target.id,
                   remote: target.provider.remote,
-                  brokerAuth: target.provider.brokerAuth !== undefined,
+                  credentials: getHostCredentials(target.provider),
                 },
               ],
         ),

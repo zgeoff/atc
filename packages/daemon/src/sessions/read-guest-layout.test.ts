@@ -11,7 +11,11 @@ test('it reads the guest layout the provider declares', async () => {
 
   const guest = await readGuestLayout(provider, 's-1');
 
-  expect(guest).toStrictEqual({ directory: '/var/lib/orchard-scratch/atc', atc: null });
+  expect(guest).toStrictEqual({
+    directory: '/var/lib/orchard-scratch/atc',
+    atc: null,
+    signIn: null,
+  });
 });
 
 test('it refuses a provider that declares no guest layout', () => {

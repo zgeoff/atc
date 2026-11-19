@@ -912,7 +912,7 @@ test("it scopes its broker and its imp names to the target's configured prefix",
     provider.dispose();
   });
 
-  expect(provider.brokerAuth.hostPrefix).toBe('harness-');
+  expect(provider.credentials.broker.hostPrefix).toBe('harness-');
   expect(provider.getImpName('s1')).toStartWith('harness-');
 });
 
@@ -937,7 +937,7 @@ test('it reads the identity of the token its port holds through its broker', asy
     grantable: ['glm'],
   });
 
-  const identity = await provider.brokerAuth.readIdentity();
+  const identity = await provider.credentials.broker.readIdentity();
 
   expect(identity).toMatchObject({ name: 'harness-runtime', grantable: ['glm'] });
 });
@@ -1107,6 +1107,7 @@ test("it lays out atc's files under the scratch folder impd declares", async () 
   expect(guest).toStrictEqual({
     directory: '/var/lib/orchard-scratch/atc',
     atc: '/var/lib/orchard-scratch/atc/bin/atc',
+    signIn: null,
   });
 });
 
@@ -1181,7 +1182,7 @@ test("it keeps the target's guest folder on an impd that declares no scratch fol
 
   const guest = await provider.readGuest('s1');
 
-  expect(guest).toStrictEqual({ directory: '/srv/orchard-atc', atc: null });
+  expect(guest).toStrictEqual({ directory: '/srv/orchard-atc', atc: null, signIn: null });
 });
 
 test("it refuses a guest layout read as the host's refusal on an impd that declares no scratch folder", () => {
@@ -1456,7 +1457,7 @@ test("it creates a host's imp for the broker with the target's image and memory"
     provider.dispose();
   });
 
-  const created = await provider.brokerAuth.createHost('s1');
+  const created = await provider.credentials.broker.createHost('s1');
 
   expect(created).toStrictEqual({ id: expect.toBeString(), name: 'atc-s1' });
   expect(ctx.port.calls).toStrictEqual(['imps.create atc-s1']);
@@ -1476,7 +1477,7 @@ test("it creates a host's imp with the target's memory max", async () => {
     provider.dispose();
   });
 
-  await provider.brokerAuth.createHost('s1');
+  await provider.credentials.broker.createHost('s1');
 
   expect(ctx.port.createSpecs).toStrictEqual([
     { name: 'atc-s1', memoryMib: 1024, maxMemoryMib: 2048 },
@@ -2132,7 +2133,7 @@ test('it reports the new imp id after the broker creates the imp again under the
   await provider.prepareHost({ host: 's1', daemonID: 'd1' });
   await ctx.port.destroyImp(name);
 
-  const created = await provider.brokerAuth.createHost('s1');
+  const created = await provider.credentials.broker.createHost('s1');
 
   expect(provider.findHostFact('s1')).toStrictEqual({
     name,
@@ -2161,7 +2162,7 @@ test('it reports the new imp id after the broker reads the imp made again under 
 
   const remade = await ctx.port.createImp({ name });
 
-  await provider.brokerAuth.readHost(name);
+  await provider.credentials.broker.readHost(name);
 
   expect(provider.findHostFact('s1')).toStrictEqual({
     name,
@@ -2187,7 +2188,7 @@ test('it drops the imp id when the broker reads a destroyed imp', async () => {
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1' });
   await ctx.port.destroyImp(name);
-  await provider.brokerAuth.readHost(name);
+  await provider.credentials.broker.readHost(name);
 
   expect(provider.findHostFact('s1')).toStrictEqual({ name, issuer: expect.any(String) });
 });

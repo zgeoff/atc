@@ -1,6 +1,10 @@
 export type * from './agent-adapter';
 export type * from './credentials/auth-profile';
 export type * from './credentials/credential-broker';
+export type * from './credentials/credential-router';
+export * from './credentials/find-host-broker';
+export * from './credentials/get-host-credentials';
+export type * from './credentials/host-credentials';
 export * from './credentials/credential-broker-error';
 export * from './plugin/define-plugin';
 export * from './execution/effect-remains-error';

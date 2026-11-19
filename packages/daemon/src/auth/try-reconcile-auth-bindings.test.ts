@@ -25,7 +25,9 @@ test('it settles the bindings with each fleet host listed and each target broker
       buildMockExecutionTarget({
         id: 'remote',
         identity: 'remote:test',
-        provider: buildStubMemoryProvider({ brokerAuth: broker }),
+        provider: buildStubMemoryProvider({
+          credentials: { kind: 'broker', broker, rebindChangedAuth: false },
+        }),
       }),
     ],
   ]);

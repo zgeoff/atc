@@ -1171,6 +1171,7 @@ test('it offers an agent that takes the broker credential only the targets that 
         installed: true,
         brokerAuth: true,
         brokerRequired: true,
+        spawnTargets: ['box'],
         capabilities: { spawn: true },
       }),
     ],

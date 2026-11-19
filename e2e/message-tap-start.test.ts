@@ -46,7 +46,8 @@ test('it delivers a message to a top-level remote session whose agent started a 
           identity: 'test:box',
           provider: {
             ...provider,
-            readGuest: () => Promise.resolve({ directory: guest, atc: '/opt/atc/bin/atc' }),
+            readGuest: () =>
+              Promise.resolve({ directory: guest, atc: '/opt/atc/bin/atc', signIn: null }),
           },
         },
       ],

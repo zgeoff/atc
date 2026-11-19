@@ -89,6 +89,10 @@ export interface ClaudeAdapter extends AgentAdapter {
   // the broker and with its host's own sign-in anywhere else
   readonly findAuthSelection: () => AuthSelection | null;
 
+  // Claude takes its stored token from the claude-oauth-token file of a host's sign-in volume.
+  readonly findGuestEnvConflict: (kind: 'broker' | 'routed' | 'stored-token') => string | null;
+  readonly signInFile: 'claude-oauth-token';
+
   // a remote session reports through the atc inside its host, so without one it cannot run there
   readonly planGuestSpawn: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
   readonly planGuestBridgeFiles: (
@@ -164,29 +168,76 @@ export function createClaudeAdapter(
   const buildModeArgs = (opts: SpawnOptions): string[] =>
     opts.resume === false ? [] : buildRestoreModeArgs(entry.args, entry.settings);
 
-  // a variable overrides the subscription sign-in or routes the CLI around the target's broker
-  const findCredentialOverride = (): DaemonError | null => {
-    const settingsEnv = entry.settings?.['env'];
-
-    const sources: readonly (readonly [string, readonly string[]])[] = [
-      ['env', Object.keys(entry.env)],
-      ['settings.env', isRecord(settingsEnv) ? Object.keys(settingsEnv) : []],
-      ['args in --settings', collectInlineSettingsKeys(entry.args)],
-    ];
-
-    for (const [source, keys] of sources) {
-      const variable = keys.find((key) => isSubscriptionOverrideVariable(key));
-
-      if (variable !== undefined) {
-        return new DaemonError(
-          'auth_target_unsupported',
-          `claude signs in through this target's broker, but agents.${entry.id}.${source === 'args in --settings' ? 'args set' : `${source} sets`} ${variable}${source === 'args in --settings' ? ' in --settings' : ''}, which would override or route around that sign-in`,
-          { agent: entry.id, problem: 'guest_env_conflict', variable },
-        );
-      }
+  // The first key in the agent's own config that would replace the credentials of a kind, or
+  // route the CLI around them. A broker launch matters only to an agent that signs in through it.
+  const findGuestEnvConflict = (kind: 'broker' | 'routed' | 'stored-token'): string | null => {
+    if (kind === 'broker' && entry.auth === undefined) {
+      return null;
     }
 
-    return null;
+    const settingsEnv = entry.settings?.['env'];
+    const inline = parseInlineSettings(entry.args);
+
+    const keys = [
+      ...Object.keys(entry.env),
+      ...(isRecord(settingsEnv) ? Object.keys(settingsEnv) : []),
+      ...Object.keys(inline.env),
+    ];
+
+    const variable = keys.find((key) => isSubscriptionOverrideVariable(key));
+
+    if (variable !== undefined) {
+      return variable;
+    }
+
+    if (kind === 'broker') {
+      return null;
+    }
+
+    return entry.settings?.['apiKeyHelper'] === undefined && !inline.hasAPIKeyHelper
+      ? null
+      : 'settings.apiKeyHelper';
+  };
+
+  // The placeholder variables a launch holds: the broker's, or on a routed host the placeholder
+  // token and the route in place of the subscription token, with the names the script's guard
+  // lets through because the launch sets them itself.
+  const planRoutedEnv = (
+    auth: NonNullable<GuestPaths['auth']>,
+  ): {
+    readonly routed: boolean;
+    readonly env: Readonly<Record<string, string>>;
+    readonly routedNames: ReadonlySet<string>;
+  } => {
+    if (auth.routes === undefined) {
+      return { routed: false, env: auth.env, routedNames: new Set() };
+    }
+
+    const profile = entry.auth?.profiles[0];
+    const route = profile === undefined ? undefined : auth.routes[profile];
+
+    if (route === undefined) {
+      throw new DaemonError(
+        'auth_target_unsupported',
+        `agent '${entry.id}' has no route for its auth profile on this target`,
+        { agent: entry.id, problem: 'no_route' },
+      );
+    }
+
+    const { [CLAUDE_CREDENTIAL_VARIABLES.oauthToken]: _oauthToken, ...placeholders } = auth.env;
+
+    return {
+      routed: true,
+      env: {
+        ...placeholders,
+        [CLAUDE_CREDENTIAL_VARIABLES.baseURL]: route,
+        [CLAUDE_CREDENTIAL_VARIABLES.authToken]: BROKER_PLACEHOLDER,
+      },
+      routedNames: new Set([
+        CLAUDE_CREDENTIAL_VARIABLES.baseURL,
+        CLAUDE_CREDENTIAL_VARIABLES.authToken,
+      ]),
+    };
   };
 
   const planSubscriptionGuestSpawn = (
@@ -196,15 +247,7 @@ export function createClaudeAdapter(
     argv: readonly string[],
   ): GuestSpawnPlan => {
     const directory = guest.directory;
-
-    // a credential, endpoint or provider variable in the configured settings or the host's
-    // environment would keep the CLI from sending the placeholder
-    const refusal = findCredentialOverride();
-
-    if (refusal !== null) {
-      throw refusal;
-    }
-
+    const routed = planRoutedEnv(auth);
     const revisionFolder = buildAuthRevisionFolder(auth.revision);
     const settingsPath = `${revisionFolder}/settings.json`;
     const mcpServers = entry.mcpServers ?? [];
@@ -217,14 +260,16 @@ export function createClaudeAdapter(
 
     // when the profiles send a ChatGPT sign-in too, the Codex CLI the session runs as a tool signs
     // in through the broker, with every variable that would sign it in another way unset
-    const codexHome = planCodexHome({
-      authProfiles,
-      selected: entry.auth?.profiles ?? [],
-      guestDir: directory,
-      revisionFolder,
-      states: auth.oauth ?? {},
-      telemetryHost: auth.telemetryHost ?? null,
-    });
+    const codexHome = routed.routed
+      ? { files: {}, env: {}, unsetEnv: [] }
+      : planCodexHome({
+          authProfiles,
+          selected: entry.auth?.profiles ?? [],
+          guestDir: directory,
+          revisionFolder,
+          states: auth.oauth ?? {},
+          telemetryHost: auth.telemetryHost ?? null,
+        });
 
     const telemetryEnv =
       auth.telemetryHost === undefined ? {} : buildTelemetryEnv(auth.telemetryHost);
@@ -244,7 +289,7 @@ export function createClaudeAdapter(
         }),
       ],
       {
-        refusedEnv: [...OUTRANKING_VARIABLES],
+        refusedEnv: [...OUTRANKING_VARIABLES].filter((name) => !routed.routedNames.has(name)),
         bundleKey,
         unsetEnv: codexHome.unsetEnv,
       },
@@ -256,7 +301,7 @@ export function createClaudeAdapter(
         launch.env.CLAUDE_CONFIG_DIR,
         options.homeDir,
       ),
-      '.credentials.json': buildClaudeCredentialsFile(),
+      ...(routed.routed ? {} : { '.credentials.json': buildClaudeCredentialsFile() }),
     };
 
     // atc's statusline renders the one the bundle's user settings set
@@ -270,7 +315,7 @@ export function createClaudeAdapter(
       buildSettingsProfile(guest.sessionEnv ?? {}, {
         ...auth.profileEnv,
         ...telemetryEnv,
-        ...auth.env,
+        ...routed.env,
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       }),
       padding,
@@ -302,7 +347,7 @@ export function createClaudeAdapter(
         ...codexHome.env,
         ...auth.profileEnv,
         ...telemetryEnv,
-        ...auth.env,
+        ...routed.env,
       },
     };
   };
@@ -356,6 +401,10 @@ export function createClaudeAdapter(
         ...(scratch === null ? {} : { env: { TMPDIR: scratch }, scratch }),
       };
     },
+
+    findGuestEnvConflict,
+
+    signInFile: 'claude-oauth-token',
 
     findAuthSelection: () => {
       const auth = entry.auth;
@@ -472,16 +521,24 @@ function toStringEntries(value: Readonly<Record<string, unknown>>): Record<strin
   );
 }
 
-// An inline `--settings` argument's env block; any other shape holds no
-// variables.
-const INLINE_SETTINGS_SCHEMA = z.object({ env: z.record(z.string(), z.unknown()) });
+// An inline `--settings` argument's env block and credential helper; any other shape holds
+// neither.
+const INLINE_SETTINGS_SCHEMA = z.looseObject({
+  env: z.record(z.string(), z.unknown()).optional(),
+  apiKeyHelper: z.unknown().optional(),
+});
 
-// The variables an inline `--settings` argument sets in its env block.
-function collectInlineSettingsKeys(args: readonly string[]): string[] {
+interface InlineSettings {
+  readonly env: Readonly<Record<string, unknown>>;
+  readonly hasAPIKeyHelper: boolean;
+}
+
+// What an inline `--settings` argument sets that could hold a credential.
+function parseInlineSettings(args: readonly string[]): InlineSettings {
   const inline = findFlagValue(args, ['--settings']);
 
   if (inline === null) {
-    return [];
+    return { env: {}, hasAPIKeyHelper: false };
   }
 
   let json: unknown;
@@ -489,12 +546,14 @@ function collectInlineSettingsKeys(args: readonly string[]): string[] {
   try {
     json = JSON.parse(inline);
   } catch {
-    return [];
+    return { env: {}, hasAPIKeyHelper: false };
   }
 
   const parsed = INLINE_SETTINGS_SCHEMA.safeParse(json);
 
-  return parsed.success ? Object.keys(parsed.data.env) : [];
+  return parsed.success
+    ? { env: parsed.data.env ?? {}, hasAPIKeyHelper: parsed.data.apiKeyHelper !== undefined }
+    : { env: {}, hasAPIKeyHelper: false };
 }
 
 // The aliases Claude Code documents for `--model`, each resolving to a model

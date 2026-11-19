@@ -1,3 +1,4 @@
+import { findHostBroker } from '@atc/plugin-api';
 import type { ExecutionCapability, HarnessHandle } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
@@ -282,7 +283,7 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
         const bound =
           binder === null
             ? false
-            : await binder.forgetBinding(provider.brokerAuth ?? null, session.hostKey);
+            : await binder.forgetBinding(findHostBroker(provider), session.hostKey);
 
         // a failed destroy throws before anything is forgotten
         if (!bound) {

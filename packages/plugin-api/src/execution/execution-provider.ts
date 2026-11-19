@@ -1,6 +1,6 @@
 import type { StepTimer } from '@atc/core';
 import type { DaemonError } from '@atc/protocol/wire';
-import type { CredentialBroker } from '../credentials/credential-broker';
+import type { HostCredentials } from '../credentials/host-credentials';
 
 export interface ExecutionProvider {
   // The provider kind a target's config selects, such as `local-pty`.
@@ -17,15 +17,9 @@ export interface ExecutionProvider {
   // host has none. Absent on the daemon's own machine.
   readonly readGuest?: (host: string) => Promise<GuestLayout>;
 
-  // How a harness here can take its credential from this provider's broker instead
-  // of holding it. Absent on a host with no broker, which never starts a
-  // session that needs one.
-  readonly brokerAuth?: CredentialBroker;
-
-  // Whether a launch behind the broker on a host whose agent's auth
-  // selection changed since the host was bound moves the host's binding to
-  // the current selection instead of refusing. Absent refuses.
-  readonly rebindChangedAuth?: boolean;
+  // How the host supplies credentials to the agents that run in it, which the daemon
+  // decides each launch from. Absent is `{ kind: 'none' }`.
+  readonly credentials?: HostCredentials;
 
   // The variables every session on a remote host gets, each of which outranks
   // the same key in its agent's own env. Absent sets none.
@@ -58,6 +52,13 @@ export interface ExecutionProvider {
   // record without a call out, or null for a host with no identity to report.
   // Absent on a provider whose hosts are not VMs.
   readonly findHostFact?: (host: string) => HostFact | null;
+
+  // Whether the host still holds each sleeping session's harness, read without waking the host.
+  // Takes session ids; a session the answer leaves out is 'unknown'.
+  readonly readHarnessFates?: (
+    host: string,
+    sessions: readonly string[],
+  ) => Promise<ReadonlyMap<string, HarnessFate>>;
 
   // Starts a process in a pseudo-terminal of the given size, on the host the
   // spec holds, which a prepare readied first.
@@ -138,7 +139,13 @@ export interface HostFact {
 export interface GuestLayout {
   readonly directory: string;
   readonly atc: string | null;
+
+  // the stored-token volume's mount in the host; null on every other kind of credentials
+  readonly signIn: string | null;
 }
+
+// lost: the host no longer holds the session's harness, such as after a reboot
+export type HarnessFate = 'kept' | 'lost' | 'unknown';
 
 export interface ExecutionCapabilities {
   // Start a harness in a pseudo-terminal.
@@ -289,8 +296,9 @@ export interface HarnessHandle {
 export type HarnessAttachment = 'attached' | 'reattaching';
 
 export interface HarnessStart {
-  // false when the start attached to a process its host still ran, which
-  // keeps the settings it launched with.
+  // true when the provider started the harness, and false when it attached to one the host
+  // still ran for the session, which keeps the settings it launched with. A remote host that
+  // runs none starts the spec's argv, which a revive sets to the agent's resume command.
   readonly created: boolean;
 }
 
