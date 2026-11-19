@@ -2,7 +2,7 @@ import type { DaemonAnswer, RequestParams } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import { P, match } from 'ts-pattern';
-import type { DaemonContext } from '../daemon-context';
+import type { DaemonContext } from '../types';
 import type { RequestDeps } from './request-deps';
 
 // The requests that drive a session's terminal: attaching to it, typing

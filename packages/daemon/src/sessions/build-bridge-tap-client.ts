@@ -2,7 +2,7 @@ import type { MessageBridgeTap } from '@atc/plugin-api';
 import type { EventMsg } from '@atc/protocol/wire';
 import { MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
 import { z } from 'zod';
-import type { TapClient } from '../daemon-context';
+import type { TapClient } from '../types';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
   message: z.string(),

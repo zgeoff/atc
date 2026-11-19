@@ -1,4 +1,4 @@
-import type { OutputClient, TapClient } from '../daemon-context';
+import type { OutputClient, TapClient } from '../types';
 import { buildMessageRequests } from './build-message-requests';
 import type { MessageRequests } from './build-message-requests';
 import { buildReadRequests } from './build-read-requests';

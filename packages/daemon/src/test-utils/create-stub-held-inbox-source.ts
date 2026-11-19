@@ -1,8 +1,8 @@
 import type { MessageRecord } from '@atc/store';
 import type { AgentSessionID, SessionID } from '@atcx/contract';
-import type { TapClient } from '../daemon-context';
 import { createTapRegistry } from '../sessions/create-tap-registry';
 import type { InboxSource } from '../sessions/drain-inbox';
+import type { TapClient } from '../types';
 
 export function createStubHeldInboxSource(
   agentSessionID: AgentSessionID,

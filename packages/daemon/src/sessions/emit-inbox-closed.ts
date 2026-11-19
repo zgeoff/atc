@@ -1,6 +1,6 @@
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
-import type { TapClient } from '../daemon-context';
+import type { TapClient } from '../types';
 
 // ends the subscription so the tap process behind it exits instead of idling
 export function emitInboxClosed(

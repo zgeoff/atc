@@ -10,8 +10,6 @@ import { resolveHomeDir } from '@atcx/contract/light';
 import { createRuntimeAuthBinder } from './auth/create-runtime-auth-binder';
 import type { RuntimeAuthBinder } from './auth/create-runtime-auth-binder';
 import { tryReconcileAuthBindings } from './auth/try-reconcile-auth-bindings';
-import type { TapClient } from './daemon-context';
-import type { DaemonOptions } from './daemon-options';
 import type { ExecutionTarget } from './fleet/build-execution-targets';
 import { createFleetRestorer } from './fleet/create-fleet-restorer';
 import type { FleetRestorer } from './fleet/create-fleet-restorer';
@@ -59,6 +57,7 @@ import { createEventTrail } from './transport/create-event-trail';
 import type { EventTrail } from './transport/create-event-trail';
 import { createIdempotencyLedger } from './transport/create-idempotency-ledger';
 import type { IdempotencyLedger } from './transport/create-idempotency-ledger';
+import type { DaemonOptions, TapClient } from './types';
 
 export interface SessionServicesDeps {
   readonly opts: DaemonOptions;

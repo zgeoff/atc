@@ -18,8 +18,6 @@ import { getLogger } from '@logtape/logtape';
 import { isBindingCurrent } from './auth/is-binding-current';
 import type { BridgeBinding } from './auth/is-binding-current';
 import { buildDaemonContext } from './build-daemon-context';
-import type { TapClient } from './daemon-context';
-import type { DaemonOptions } from './daemon-options';
 import { updateEndedFleetMessages } from './fleet/update-ended-fleet-messages';
 import { buildSessionEvent } from './sessions/build-session-event';
 import { createPermissionPrompts } from './sessions/create-permission-prompts';
@@ -48,6 +46,7 @@ import { startTCPListener } from './transport/start-tcp-listener';
 import type { TCPListener } from './transport/start-tcp-listener';
 import { tryRemoveExpiredIdempotencyKeys } from './transport/try-remove-expired-idempotency-keys';
 import { withOwnerOnlySocket } from './transport/with-owner-only-socket';
+import type { DaemonOptions, TapClient } from './types';
 
 export interface DaemonHandle {
   // A second stop, or a disposal after one, waits on the first and stops

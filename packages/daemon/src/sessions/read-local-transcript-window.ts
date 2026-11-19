@@ -1,4 +1,4 @@
-import type { TranscriptWindow } from './load-transcript-page';
+import type { TranscriptWindow } from './types';
 
 export async function readLocalTranscriptWindow(
   path: string,

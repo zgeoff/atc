@@ -2,9 +2,9 @@ import { expect, mock, test } from 'bun:test';
 import { buildMockPublishedRecord } from '@atc/protocol/test-utils/build-mock-published-record';
 import { toSessionID } from '@atcx/contract';
 import { call } from '@orpc/server';
-import type { DaemonContext } from '../daemon-context';
 import { buildMockProcedureContext } from '../test-utils/build-mock-procedure-context';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
+import type { DaemonContext } from '../types';
 import { buildConnectionRequests } from './build-connection-requests';
 import { DAEMON_ROUTER } from './daemon-router';
 

@@ -2,8 +2,8 @@ import { decodeCursor, encodeCursor } from '@atc/protocol';
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
 import { DaemonError } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
-import type { DaemonContext } from '../daemon-context';
 import type { TranscriptPosition } from '../sessions/load-transcript-page';
+import type { DaemonContext } from '../types';
 
 // The requests that read what a session left behind: its record, its
 // transcript, the event trail, and the notes and answers in it.

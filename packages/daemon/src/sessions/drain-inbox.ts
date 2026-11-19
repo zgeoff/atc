@@ -1,7 +1,7 @@
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { MessageOwner, MessageRecord } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
-import type { TapClient } from '../daemon-context';
+import type { TapClient } from '../types';
 import type { TapGeneration, TapRegistry } from './create-tap-registry';
 
 export interface InboxSource {

@@ -5,12 +5,11 @@ import type { StateStore } from '@atc/store';
 import { buildTargetAccess } from './auth/build-target-access';
 import { collectSessionSubtree } from './auth/collect-session-subtree';
 import { isTreeInReach } from './auth/is-tree-in-reach';
-import type { DaemonContext } from './daemon-context';
-import type { DaemonOptions } from './daemon-options';
 import type { ExecutionTarget } from './fleet/build-execution-targets';
 import type { PermissionPrompts } from './sessions/create-permission-prompts';
 import type { SessionManager } from './sessions/create-session-manager';
 import type { SessionServices } from './start-session-services';
+import type { DaemonContext, DaemonOptions } from './types';
 
 export interface DaemonContextDeps {
   readonly opts: DaemonOptions;

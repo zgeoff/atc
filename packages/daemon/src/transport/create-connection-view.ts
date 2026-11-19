@@ -2,7 +2,7 @@ import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
-import type { DaemonContext } from '../daemon-context';
+import type { DaemonContext } from '../types';
 import { findEventSession } from './find-event-session';
 
 // What a limited connection is sent for one event, and the sessions that

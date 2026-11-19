@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
-import type { TapClient } from '../daemon-context';
+import type { TapClient } from '../types';
 import { emitInboxClosed } from './emit-inbox-closed';
 
 test('it tells the tap why its inbox closed', () => {

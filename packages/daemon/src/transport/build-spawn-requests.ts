@@ -7,8 +7,8 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
 import { buildTargetForbiddenError } from '../auth/build-target-forbidden-error';
-import type { DaemonContext, SpawnParams } from '../daemon-context';
 import { parseSpawnOverrides } from '../sessions/parse-spawn-overrides';
+import type { DaemonContext, SpawnParams } from '../types';
 import { buildKeyedRequest } from './build-keyed-request';
 import type { RequestDeps } from './request-deps';
 

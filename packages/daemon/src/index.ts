@@ -1,7 +1,7 @@
 export * from './auth/create-runtime-auth-binder';
 export * from './start-daemon';
-export type * from './daemon-options';
-export type * from './daemon-context';
+export type * from './types';
+export type * from './types';
 export * from './fleet/build-execution-targets';
 export * from './fleet/restore-fleet';
 export * from './sessions/build-guest-session-directory';

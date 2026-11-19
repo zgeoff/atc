@@ -7,7 +7,7 @@ import { toMessageID } from '@atcx/contract';
 import { z } from 'zod';
 import { isBindingCurrent } from '../auth/is-binding-current';
 import type { BridgeBinding } from '../auth/is-binding-current';
-import type { TapClient } from '../daemon-context';
+import type { TapClient } from '../types';
 import { parseHookLine } from './parse-hook-line';
 
 export interface BridgeSession {

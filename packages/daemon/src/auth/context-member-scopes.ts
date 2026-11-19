@@ -1,4 +1,4 @@
-import type { DaemonContext } from '../daemon-context';
+import type { DaemonContext } from '../types';
 
 // a narrowed member reaches only the access's sessions and targets; a caller-checked one is
 // shared, so each request that calls it checks the session against the access or passes it;

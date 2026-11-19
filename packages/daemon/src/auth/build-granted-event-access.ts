@@ -1,5 +1,5 @@
 import type { SessionID } from '@atcx/contract';
-import type { HeldAtcAccess } from '../daemon-context';
+import type { HeldAtcAccess } from '../types';
 import { buildSessionSetAccess } from './build-session-set-access';
 import { buildTargetAccessFromGrants } from './build-target-access-from-grants';
 import type { TargetAccess } from './build-target-access-from-grants';

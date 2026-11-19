@@ -12,13 +12,13 @@ import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-sta
 import { toMessageID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
-import type { TapClient } from '../daemon-context';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { buildStubMessageBridges } from '../test-utils/build-stub-message-bridges';
 import { createEventSignal } from '../transport/create-event-signal';
 import { createIdempotencyLedger } from '../transport/create-idempotency-ledger';
+import type { TapClient } from '../types';
 import { createMessageBridges } from './create-message-bridges';
 import { createMessageService } from './create-message-service';
 import { createSessionManager } from './create-session-manager';

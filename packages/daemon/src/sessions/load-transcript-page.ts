@@ -1,4 +1,5 @@
 import type { TranscriptRow } from '@atcx/contract';
+import type { TranscriptWindow } from './types';
 
 export interface TranscriptPosition {
   readonly path: string;
@@ -9,11 +10,6 @@ export interface TranscriptPage {
   readonly rows: TranscriptRow[];
   readonly offset: number;
   readonly more: boolean;
-}
-
-export interface TranscriptWindow {
-  readonly size: number;
-  readonly bytes: Uint8Array;
 }
 
 export type ReadTranscriptWindow = (

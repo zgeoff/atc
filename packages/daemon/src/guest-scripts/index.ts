@@ -1,6 +1,6 @@
 import { RESOLVE_AGENT_HOME_SCRIPT } from '../auth/read-host-agent-home';
 import { READ_PROJECT_SETTINGS_SCRIPT } from '../auth/read-project-settings-script';
-import { READ_TRANSCRIPT_WINDOW_SCRIPT } from '../sessions/build-transcript-window-args';
+import { READ_TRANSCRIPT_WINDOW_SCRIPT } from '../sessions/constants';
 import {
   REMOVE_DIR_SCRIPT,
   RESOLVE_DIR_SCRIPT,

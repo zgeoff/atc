@@ -10,7 +10,7 @@ import type { HookEvent } from '@atc/protocol/session';
 import type { StateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
 import { toMessageID } from '@atcx/contract';
-import type { TapClient } from '../daemon-context';
+import type { TapClient } from '../types';
 import { buildBridgeTapClient } from './build-bridge-tap-client';
 import { buildMessageOwner } from './build-message-owner';
 import type { MessageService } from './create-message-service';
