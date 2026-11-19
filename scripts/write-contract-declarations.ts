@@ -49,7 +49,7 @@ export async function writeContractDeclarations(
 // no relative import without its file extension, and no folder import.
 function toNodeSpecifiers(source: string, directory: string, emitted: ReadonlySet<string>): string {
   return source.replaceAll(
-    /(?<quote>['"])(?<specifier>\.\.?\/[^'"]*)\k<quote>/gu,
+    /(?<quote>['"])(?<specifier>\.\.?\/[^'"]*|(?<=(?:from |import\()['"])\.\.?(?=['"]))\k<quote>/gu,
     (_whole, quote: string, specifier: string) => {
       const resolved = emitted.has(join(directory, specifier, 'index.d.ts'))
         ? `${specifier}/index.js`

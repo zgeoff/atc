@@ -245,7 +245,7 @@ export declare const DAEMON_CONTRACT: {
             protocol: z.ZodOptional<z.ZodNumber>;
             principal: z.ZodOptional<z.ZodString>;
             viewer: z.ZodOptional<z.ZodString>;
-            session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>, unknown>;
+            session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
         }, z.core.$strip>, z.ZodObject<{
             daemon: z.ZodString;
             daemonID: z.ZodString;
@@ -636,7 +636,7 @@ export declare const DAEMON_CONTRACT: {
     session: {
         list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, z.ZodObject<{
             sessions: z.ZodReadonly<z.ZodArray<z.ZodObject<{
-                id: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>;
+                id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>;
                 name: z.ZodString;
                 cwd: z.ZodString;
                 state: z.ZodEnum<{
@@ -649,7 +649,7 @@ export declare const DAEMON_CONTRACT: {
                 lastMsg: z.ZodString;
                 lastDetail: z.ZodOptional<z.ZodString>;
                 restoreRefusal: z.ZodOptional<z.ZodString>;
-                agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").AgentSessionID, string>>>;
+                agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").AgentSessionID, string>>>;
                 agent: z.ZodString;
                 pinned: z.ZodBoolean;
                 lastAttachedAt: z.ZodNumber;
@@ -666,9 +666,9 @@ export declare const DAEMON_CONTRACT: {
                 }>;
                 alive: z.ZodBoolean;
                 canEject: z.ZodBoolean;
-                parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>;
+                parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>;
                 locator: z.ZodObject<{
-                    daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").DaemonID, string>>;
+                    daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").DaemonID, string>>;
                     targetID: z.ZodString;
                 }, z.core.$strip>;
                 workspace: z.ZodOptional<z.ZodObject<{
@@ -720,7 +720,7 @@ export declare const DAEMON_CONTRACT: {
             prompt: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
             cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
             rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
-            resume: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodUnion<readonly [z.ZodBoolean, z.ZodString]>>, unknown>, z.ZodTransform<boolean | import("..").AgentSessionID, string | boolean>>;
+            resume: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodUnion<readonly [z.ZodBoolean, z.ZodString]>>, unknown>, z.ZodTransform<boolean | import("../index.js").AgentSessionID, string | boolean>>;
             agent: z.ZodOptional<z.ZodString>;
             model: z.ZodOptional<z.ZodString>;
             effort: z.ZodOptional<z.ZodString>;
@@ -747,7 +747,7 @@ export declare const DAEMON_CONTRACT: {
             }, z.core.$strict>], "kind">>;
             trustClonedWorkspace: z.ZodOptional<z.ZodBoolean>;
             scope: z.ZodOptional<z.ZodUnknown>;
-            parent: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>, unknown>;
+            parent: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
             atcAccess: z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 kill: "kill";
                 message: "message";
@@ -756,7 +756,7 @@ export declare const DAEMON_CONTRACT: {
             }>>>;
         }, z.core.$strip>, z.ZodObject<{
             session: z.ZodObject<{
-                id: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>;
+                id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>;
                 name: z.ZodString;
                 cwd: z.ZodString;
                 state: z.ZodEnum<{
@@ -769,7 +769,7 @@ export declare const DAEMON_CONTRACT: {
                 lastMsg: z.ZodString;
                 lastDetail: z.ZodOptional<z.ZodString>;
                 restoreRefusal: z.ZodOptional<z.ZodString>;
-                agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").AgentSessionID, string>>>;
+                agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").AgentSessionID, string>>>;
                 agent: z.ZodString;
                 pinned: z.ZodBoolean;
                 lastAttachedAt: z.ZodNumber;
@@ -786,9 +786,9 @@ export declare const DAEMON_CONTRACT: {
                 }>;
                 alive: z.ZodBoolean;
                 canEject: z.ZodBoolean;
-                parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>;
+                parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>;
                 locator: z.ZodObject<{
-                    daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").DaemonID, string>>;
+                    daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").DaemonID, string>>;
                     targetID: z.ZodString;
                 }, z.core.$strip>;
                 workspace: z.ZodOptional<z.ZodObject<{
@@ -836,7 +836,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         kill: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             stopOnly: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>, z.ZodObject<{
             stopped: z.ZodOptional<z.ZodBoolean>;
@@ -846,14 +846,14 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         ack: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
             access: "owner" | "principal";
             readOnly: boolean;
             keyed: boolean;
         }> & Record<never, never>>;
         forget: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             confirmToken: z.ZodOptional<z.ZodString>;
             refusePinned: z.ZodOptional<z.ZodBoolean>;
             refuseLive: z.ZodOptional<z.ZodBoolean>;
@@ -880,7 +880,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         resumeCommand: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         }, z.core.$strip>, z.ZodObject<{
             command: z.ZodString;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
@@ -890,7 +890,7 @@ export declare const DAEMON_CONTRACT: {
         }> & Record<never, never>>;
         auth: {
             revoke: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-                session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+                session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             }, z.core.$strip>, z.ZodObject<{
                 revoked: z.ZodLiteral<true>;
             }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
@@ -899,7 +899,7 @@ export declare const DAEMON_CONTRACT: {
                 keyed: boolean;
             }> & Record<never, never>>;
             rebind: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-                session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+                session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             }, z.core.$strip>, z.ZodObject<{
                 revision: z.ZodNumber;
                 restartPending: z.ZodReadonly<z.ZodArray<z.ZodString>>;
@@ -910,7 +910,7 @@ export declare const DAEMON_CONTRACT: {
             }> & Record<never, never>>;
         };
         update: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             name: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
             pinned: z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
             parent: z.ZodOptional<z.ZodNull>;
@@ -923,10 +923,10 @@ export declare const DAEMON_CONTRACT: {
         }> & Record<never, never>>;
         scope: {
             add: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-                session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+                session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
                 scope: z.ZodUnknown;
             }, z.core.$strip>, z.ZodObject<{
-                record: z.ZodType<import("..").PublishedRecord, import("..").PublishedRecord, z.core.$ZodTypeInternals<import("..").PublishedRecord, import("..").PublishedRecord>>;
+                record: z.ZodType<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord, z.core.$ZodTypeInternals<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord>>;
             }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
                 access: "owner" | "principal";
                 readOnly: boolean;
@@ -934,7 +934,7 @@ export declare const DAEMON_CONTRACT: {
             }> & Record<never, never>>;
         };
         attach: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
             rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
         }, z.core.$strip>, z.ZodObject<{
@@ -946,14 +946,14 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         detach: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
             access: "owner" | "principal";
             readOnly: boolean;
             keyed: boolean;
         }> & Record<never, never>>;
         watch: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         }, z.core.$strip>, z.ZodObject<{
             cols: z.ZodNumber;
             rows: z.ZodNumber;
@@ -965,7 +965,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         input: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             data: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
         }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
             access: "owner" | "principal";
@@ -973,7 +973,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         submit: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             text: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
         }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
             access: "owner" | "principal";
@@ -981,7 +981,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         resize: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
             rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
         }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
@@ -990,7 +990,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         screen: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         }, z.core.$strip>, z.ZodObject<{
             text: z.ZodString;
             cols: z.ZodNumber;
@@ -1001,7 +1001,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         menu: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         }, z.core.$strip>, z.ZodObject<{
             menu: z.ZodNullable<z.ZodObject<{
                 text: z.ZodString;
@@ -1019,7 +1019,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         choose: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             menuToken: z.ZodString;
             option: z.ZodOptional<z.ZodNumber>;
             label: z.ZodOptional<z.ZodString>;
@@ -1043,7 +1043,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         eject: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             prompt: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
         }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
             access: "owner" | "principal";
@@ -1051,7 +1051,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         adopt: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
             rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
         }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
@@ -1060,10 +1060,10 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         }, z.core.$strip>, z.ZodObject<{
             session: z.ZodObject<{
-                id: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>;
+                id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>;
                 name: z.ZodString;
                 cwd: z.ZodString;
                 state: z.ZodEnum<{
@@ -1076,7 +1076,7 @@ export declare const DAEMON_CONTRACT: {
                 lastMsg: z.ZodString;
                 lastDetail: z.ZodOptional<z.ZodString>;
                 restoreRefusal: z.ZodOptional<z.ZodString>;
-                agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").AgentSessionID, string>>>;
+                agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").AgentSessionID, string>>>;
                 agent: z.ZodString;
                 pinned: z.ZodBoolean;
                 lastAttachedAt: z.ZodNumber;
@@ -1093,9 +1093,9 @@ export declare const DAEMON_CONTRACT: {
                 }>;
                 alive: z.ZodBoolean;
                 canEject: z.ZodBoolean;
-                parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>;
+                parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>;
                 locator: z.ZodObject<{
-                    daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").DaemonID, string>>;
+                    daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").DaemonID, string>>;
                     targetID: z.ZodString;
                 }, z.core.$strip>;
                 workspace: z.ZodOptional<z.ZodObject<{
@@ -1142,14 +1142,14 @@ export declare const DAEMON_CONTRACT: {
                 message: z.ZodString;
             }, z.core.$strip>>;
             result: z.ZodNullable<z.ZodString>;
-            sessionRecord: z.ZodNullable<z.ZodType<import("..").PublishedRecord, import("..").PublishedRecord, z.core.$ZodTypeInternals<import("..").PublishedRecord, import("..").PublishedRecord>>>;
+            sessionRecord: z.ZodNullable<z.ZodType<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord, z.core.$ZodTypeInternals<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord>>>;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
             access: "owner" | "principal";
             readOnly: boolean;
             keyed: boolean;
         }> & Record<never, never>>;
         read: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             cursor: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
             limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
         }, z.core.$strip>, z.ZodObject<{
@@ -1173,7 +1173,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         message: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             text: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
             idempotencyKey: z.ZodOptional<z.ZodString>;
             replayOnly: z.ZodOptional<z.ZodBoolean>;
@@ -1193,7 +1193,7 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         tap: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             notices: z.ZodDefault<z.ZodBoolean>;
         }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./daemon-error-map.js").DaemonErrorMap>, Readonly<{
             access: "owner" | "principal";
@@ -1217,7 +1217,7 @@ export declare const DAEMON_CONTRACT: {
             from: z.ZodOptional<z.ZodLiteral<"start">>;
             limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
             waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
-            session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>, unknown>;
+            session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
         }, z.core.$strip>, z.ZodObject<{
             events: z.ZodReadonly<z.ZodArray<z.ZodObject<{
                 cursor: z.ZodString;
@@ -1690,7 +1690,7 @@ export declare const DAEMON_CONTRACT: {
             };
         } | {
             session: {
-                id: import("..").SessionID;
+                id: import("../index.js").SessionID;
                 name: string;
                 cwd: string;
                 state: "done" | "exited" | "needs_you" | "running";
@@ -1698,7 +1698,7 @@ export declare const DAEMON_CONTRACT: {
                 lastMsg: string;
                 lastDetail?: string | undefined;
                 restoreRefusal?: string | undefined;
-                agentSessionID?: import("..").AgentSessionID | undefined;
+                agentSessionID?: import("../index.js").AgentSessionID | undefined;
                 agent: string;
                 pinned: boolean;
                 lastAttachedAt: number;
@@ -1708,9 +1708,9 @@ export declare const DAEMON_CONTRACT: {
                 kind: "headless" | "pty";
                 alive: boolean;
                 canEject: boolean;
-                parent?: import("..").SessionID | undefined;
+                parent?: import("../index.js").SessionID | undefined;
                 locator: {
-                    daemonID: import("..").DaemonID;
+                    daemonID: import("../index.js").DaemonID;
                     targetID: string;
                 };
                 workspace?: {
@@ -1736,7 +1736,7 @@ export declare const DAEMON_CONTRACT: {
             ev: "SessionAdded";
         } | {
             session: {
-                id: import("..").SessionID;
+                id: import("../index.js").SessionID;
                 name: string;
                 cwd: string;
                 state: "done" | "exited" | "needs_you" | "running";
@@ -1744,7 +1744,7 @@ export declare const DAEMON_CONTRACT: {
                 lastMsg: string;
                 lastDetail?: string | undefined;
                 restoreRefusal?: string | undefined;
-                agentSessionID?: import("..").AgentSessionID | undefined;
+                agentSessionID?: import("../index.js").AgentSessionID | undefined;
                 agent: string;
                 pinned: boolean;
                 lastAttachedAt: number;
@@ -1754,9 +1754,9 @@ export declare const DAEMON_CONTRACT: {
                 kind: "headless" | "pty";
                 alive: boolean;
                 canEject: boolean;
-                parent?: import("..").SessionID | undefined;
+                parent?: import("../index.js").SessionID | undefined;
                 locator: {
-                    daemonID: import("..").DaemonID;
+                    daemonID: import("../index.js").DaemonID;
                     targetID: string;
                 };
                 workspace?: {
@@ -1782,7 +1782,7 @@ export declare const DAEMON_CONTRACT: {
             ev: "SessionState";
         } | {
             session: {
-                id: import("..").SessionID;
+                id: import("../index.js").SessionID;
                 name: string;
                 cwd: string;
                 state: "done" | "exited" | "needs_you" | "running";
@@ -1790,7 +1790,7 @@ export declare const DAEMON_CONTRACT: {
                 lastMsg: string;
                 lastDetail?: string | undefined;
                 restoreRefusal?: string | undefined;
-                agentSessionID?: import("..").AgentSessionID | undefined;
+                agentSessionID?: import("../index.js").AgentSessionID | undefined;
                 agent: string;
                 pinned: boolean;
                 lastAttachedAt: number;
@@ -1800,9 +1800,9 @@ export declare const DAEMON_CONTRACT: {
                 kind: "headless" | "pty";
                 alive: boolean;
                 canEject: boolean;
-                parent?: import("..").SessionID | undefined;
+                parent?: import("../index.js").SessionID | undefined;
                 locator: {
-                    daemonID: import("..").DaemonID;
+                    daemonID: import("../index.js").DaemonID;
                     targetID: string;
                 };
                 workspace?: {
@@ -1828,7 +1828,7 @@ export declare const DAEMON_CONTRACT: {
             ev: "SessionAttached";
         } | {
             session: {
-                id: import("..").SessionID;
+                id: import("../index.js").SessionID;
                 name: string;
                 cwd: string;
                 state: "done" | "exited" | "needs_you" | "running";
@@ -1836,7 +1836,7 @@ export declare const DAEMON_CONTRACT: {
                 lastMsg: string;
                 lastDetail?: string | undefined;
                 restoreRefusal?: string | undefined;
-                agentSessionID?: import("..").AgentSessionID | undefined;
+                agentSessionID?: import("../index.js").AgentSessionID | undefined;
                 agent: string;
                 pinned: boolean;
                 lastAttachedAt: number;
@@ -1846,9 +1846,9 @@ export declare const DAEMON_CONTRACT: {
                 kind: "headless" | "pty";
                 alive: boolean;
                 canEject: boolean;
-                parent?: import("..").SessionID | undefined;
+                parent?: import("../index.js").SessionID | undefined;
                 locator: {
-                    daemonID: import("..").DaemonID;
+                    daemonID: import("../index.js").DaemonID;
                     targetID: string;
                 };
                 workspace?: {
@@ -1880,7 +1880,7 @@ export declare const DAEMON_CONTRACT: {
     };
     message: {
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").MessageID, string>>;
+            message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").MessageID, string>>;
             waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
         }, z.core.$strip>, z.ZodObject<{
             message: z.ZodString;
@@ -1922,8 +1922,8 @@ export declare const DAEMON_CONTRACT: {
             keyed: boolean;
         }> & Record<never, never>>;
         ack: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
-            message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").MessageID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
+            message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").MessageID, string>>;
         }, z.core.$strip>, z.ZodObject<{
             message: z.ZodString;
             status: z.ZodEnum<{
@@ -1940,8 +1940,8 @@ export declare const DAEMON_CONTRACT: {
     };
     notice: {
         ack: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
-            message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").MessageID, string>>;
+            session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
+            message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").MessageID, string>>;
         }, z.core.$strip>, z.ZodObject<{
             message: z.ZodString;
             status: z.ZodEnum<{
@@ -2041,7 +2041,7 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         protocol: z.ZodOptional<z.ZodNumber>;
         principal: z.ZodOptional<z.ZodString>;
         viewer: z.ZodOptional<z.ZodString>;
-        session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>, unknown>;
+        session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
     }, z.core.$strip>;
     readonly 'daemon.ping': z.ZodObject<{}, z.core.$strip>;
     readonly 'daemon.quit': z.ZodObject<{}, z.core.$strip>;
@@ -2114,7 +2114,7 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         prompt: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
         cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
         rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
-        resume: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodUnion<readonly [z.ZodBoolean, z.ZodString]>>, unknown>, z.ZodTransform<boolean | import("..").AgentSessionID, string | boolean>>;
+        resume: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodUnion<readonly [z.ZodBoolean, z.ZodString]>>, unknown>, z.ZodTransform<boolean | import("../index.js").AgentSessionID, string | boolean>>;
         agent: z.ZodOptional<z.ZodString>;
         model: z.ZodOptional<z.ZodString>;
         effort: z.ZodOptional<z.ZodString>;
@@ -2141,7 +2141,7 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         }, z.core.$strict>], "kind">>;
         trustClonedWorkspace: z.ZodOptional<z.ZodBoolean>;
         scope: z.ZodOptional<z.ZodUnknown>;
-        parent: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>, unknown>;
+        parent: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
         atcAccess: z.ZodOptional<z.ZodArray<z.ZodEnum<{
             kill: "kill";
             message: "message";
@@ -2150,80 +2150,80 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         }>>>;
     }, z.core.$strip>;
     readonly 'session.kill': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         stopOnly: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>;
     readonly 'session.ack': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
     }, z.core.$strip>;
     readonly 'session.forget': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         confirmToken: z.ZodOptional<z.ZodString>;
         refusePinned: z.ZodOptional<z.ZodBoolean>;
         refuseLive: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>;
     readonly 'session.auth.revoke': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
     }, z.core.$strip>;
     readonly 'session.auth.rebind': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
     }, z.core.$strip>;
     readonly 'session.scope.add': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         scope: z.ZodUnknown;
     }, z.core.$strip>;
     readonly 'session.update': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         name: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
         pinned: z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
         parent: z.ZodOptional<z.ZodNull>;
     }, z.core.$strip>;
     readonly 'session.attach': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
         rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
     }, z.core.$strip>;
     readonly 'session.detach': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
     }, z.core.$strip>;
     readonly 'session.watch': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
     }, z.core.$strip>;
     readonly 'session.input': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         data: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
     }, z.core.$strip>;
     readonly 'session.submit': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         text: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
     }, z.core.$strip>;
     readonly 'session.resize': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
         rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
     }, z.core.$strip>;
     readonly 'session.resumeCommand': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
     }, z.core.$strip>;
     readonly 'session.screen': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
     }, z.core.$strip>;
     readonly 'session.menu': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
     }, z.core.$strip>;
     readonly 'session.choose': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         menuToken: z.ZodString;
         option: z.ZodOptional<z.ZodNumber>;
         label: z.ZodOptional<z.ZodString>;
         key: z.ZodOptional<z.ZodLiteral<"escape">>;
     }, z.core.$strip>;
     readonly 'session.eject': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         prompt: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
     }, z.core.$strip>;
     readonly 'session.adopt': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
         rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
     }, z.core.$strip>;
@@ -2232,10 +2232,10 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         decision: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
     }, z.core.$strip>;
     readonly 'session.get': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
     }, z.core.$strip>;
     readonly 'session.read': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         cursor: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
         limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
     }, z.core.$strip>;
@@ -2244,10 +2244,10 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         from: z.ZodOptional<z.ZodLiteral<"start">>;
         limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
         waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
-        session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>, unknown>;
+        session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
     }, z.core.$strip>;
     readonly 'session.message': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         text: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
         idempotencyKey: z.ZodOptional<z.ZodString>;
         replayOnly: z.ZodOptional<z.ZodBoolean>;
@@ -2255,11 +2255,11 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         notice: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>;
     readonly 'session.tap': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         notices: z.ZodDefault<z.ZodBoolean>;
     }, z.core.$strip>;
     readonly 'message.get': z.ZodObject<{
-        message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").MessageID, string>>;
+        message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").MessageID, string>>;
         waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
     }, z.core.$strip>;
     readonly 'note.get': z.ZodObject<{
@@ -2269,12 +2269,12 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         answer: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
     }, z.core.$strip>;
     readonly 'message.ack': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
-        message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").MessageID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
+        message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").MessageID, string>>;
     }, z.core.$strip>;
     readonly 'notice.ack': z.ZodObject<{
-        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").SessionID, string>>;
-        message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("..").MessageID, string>>;
+        session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
+        message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").MessageID, string>>;
     }, z.core.$strip>;
 };
 export {};
@@ -2283,7 +2283,7 @@ export {};
 import { z } from 'zod';
 export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
     session: z.ZodObject<{
-        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>;
+        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>;
         name: z.ZodString;
         cwd: z.ZodString;
         state: z.ZodEnum<{
@@ -2296,7 +2296,7 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         lastMsg: z.ZodString;
         lastDetail: z.ZodOptional<z.ZodString>;
         restoreRefusal: z.ZodOptional<z.ZodString>;
-        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").AgentSessionID, string>>>;
+        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").AgentSessionID, string>>>;
         agent: z.ZodString;
         pinned: z.ZodBoolean;
         lastAttachedAt: z.ZodNumber;
@@ -2313,9 +2313,9 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }>;
         alive: z.ZodBoolean;
         canEject: z.ZodBoolean;
-        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>;
+        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>;
         locator: z.ZodObject<{
-            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").DaemonID, string>>;
+            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").DaemonID, string>>;
             targetID: z.ZodString;
         }, z.core.$strip>;
         workspace: z.ZodOptional<z.ZodObject<{
@@ -2359,7 +2359,7 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
     ev: z.ZodLiteral<"SessionAdded">;
 }, z.core.$strip>, z.ZodObject<{
     session: z.ZodObject<{
-        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>;
+        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>;
         name: z.ZodString;
         cwd: z.ZodString;
         state: z.ZodEnum<{
@@ -2372,7 +2372,7 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         lastMsg: z.ZodString;
         lastDetail: z.ZodOptional<z.ZodString>;
         restoreRefusal: z.ZodOptional<z.ZodString>;
-        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").AgentSessionID, string>>>;
+        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").AgentSessionID, string>>>;
         agent: z.ZodString;
         pinned: z.ZodBoolean;
         lastAttachedAt: z.ZodNumber;
@@ -2389,9 +2389,9 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }>;
         alive: z.ZodBoolean;
         canEject: z.ZodBoolean;
-        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>;
+        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>;
         locator: z.ZodObject<{
-            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").DaemonID, string>>;
+            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").DaemonID, string>>;
             targetID: z.ZodString;
         }, z.core.$strip>;
         workspace: z.ZodOptional<z.ZodObject<{
@@ -2435,7 +2435,7 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
     ev: z.ZodLiteral<"SessionState">;
 }, z.core.$strip>, z.ZodObject<{
     session: z.ZodObject<{
-        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>;
+        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>;
         name: z.ZodString;
         cwd: z.ZodString;
         state: z.ZodEnum<{
@@ -2448,7 +2448,7 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         lastMsg: z.ZodString;
         lastDetail: z.ZodOptional<z.ZodString>;
         restoreRefusal: z.ZodOptional<z.ZodString>;
-        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").AgentSessionID, string>>>;
+        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").AgentSessionID, string>>>;
         agent: z.ZodString;
         pinned: z.ZodBoolean;
         lastAttachedAt: z.ZodNumber;
@@ -2465,9 +2465,9 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }>;
         alive: z.ZodBoolean;
         canEject: z.ZodBoolean;
-        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>;
+        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>;
         locator: z.ZodObject<{
-            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").DaemonID, string>>;
+            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").DaemonID, string>>;
             targetID: z.ZodString;
         }, z.core.$strip>;
         workspace: z.ZodOptional<z.ZodObject<{
@@ -2511,7 +2511,7 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
     ev: z.ZodLiteral<"SessionAttached">;
 }, z.core.$strip>, z.ZodObject<{
     session: z.ZodObject<{
-        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>;
+        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>;
         name: z.ZodString;
         cwd: z.ZodString;
         state: z.ZodEnum<{
@@ -2524,7 +2524,7 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         lastMsg: z.ZodString;
         lastDetail: z.ZodOptional<z.ZodString>;
         restoreRefusal: z.ZodOptional<z.ZodString>;
-        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").AgentSessionID, string>>>;
+        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").AgentSessionID, string>>>;
         agent: z.ZodString;
         pinned: z.ZodBoolean;
         lastAttachedAt: z.ZodNumber;
@@ -2541,9 +2541,9 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
         }>;
         alive: z.ZodBoolean;
         canEject: z.ZodBoolean;
-        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>;
+        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>;
         locator: z.ZodObject<{
-            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").DaemonID, string>>;
+            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").DaemonID, string>>;
             targetID: z.ZodString;
         }, z.core.$strip>;
         workspace: z.ZodOptional<z.ZodObject<{
@@ -3178,7 +3178,7 @@ export declare const NOTE_VIEW_SCHEMA: z.ZodObject<{
 import { z } from 'zod';
 export declare const SPAWN_ANSWER_SCHEMA: z.ZodObject<{
     session: z.ZodObject<{
-        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>;
+        id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>;
         name: z.ZodString;
         cwd: z.ZodString;
         state: z.ZodEnum<{
@@ -3191,7 +3191,7 @@ export declare const SPAWN_ANSWER_SCHEMA: z.ZodObject<{
         lastMsg: z.ZodString;
         lastDetail: z.ZodOptional<z.ZodString>;
         restoreRefusal: z.ZodOptional<z.ZodString>;
-        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").AgentSessionID, string>>>;
+        agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").AgentSessionID, string>>>;
         agent: z.ZodString;
         pinned: z.ZodBoolean;
         lastAttachedAt: z.ZodNumber;
@@ -3208,9 +3208,9 @@ export declare const SPAWN_ANSWER_SCHEMA: z.ZodObject<{
         }>;
         alive: z.ZodBoolean;
         canEject: z.ZodBoolean;
-        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>;
+        parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>;
         locator: z.ZodObject<{
-            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").DaemonID, string>>;
+            daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").DaemonID, string>>;
             targetID: z.ZodString;
         }, z.core.$strip>;
         workspace: z.ZodOptional<z.ZodObject<{
@@ -3365,7 +3365,7 @@ export {};
 // sessions/session-descriptor.d.ts
 import { z } from 'zod';
 export declare const SESSION_DESCRIPTOR_SCHEMA: z.ZodObject<{
-    id: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>;
+    id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>;
     name: z.ZodString;
     cwd: z.ZodString;
     state: z.ZodEnum<{
@@ -3378,7 +3378,7 @@ export declare const SESSION_DESCRIPTOR_SCHEMA: z.ZodObject<{
     lastMsg: z.ZodString;
     lastDetail: z.ZodOptional<z.ZodString>;
     restoreRefusal: z.ZodOptional<z.ZodString>;
-    agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").AgentSessionID, string>>>;
+    agentSessionID: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").AgentSessionID, string>>>;
     agent: z.ZodString;
     pinned: z.ZodBoolean;
     lastAttachedAt: z.ZodNumber;
@@ -3395,9 +3395,9 @@ export declare const SESSION_DESCRIPTOR_SCHEMA: z.ZodObject<{
     }>;
     alive: z.ZodBoolean;
     canEject: z.ZodBoolean;
-    parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("..").SessionID, string>>>;
+    parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>;
     locator: z.ZodObject<{
-        daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("..").DaemonID, string>>;
+        daemonID: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").DaemonID, string>>;
         targetID: z.ZodString;
     }, z.core.$strip>;
     workspace: z.ZodOptional<z.ZodObject<{
