@@ -35,7 +35,7 @@ server's `instructions` in the handshake describe it once. An error with no atc 
 argument the input schema refuses, has text alone.
 
 A server lists every tool and every input, because the daemon it reaches passed a handshake on the
-same protocol version ([the protocol](../protocol/protocol.md#versions)). Only the gateway adds the
+same major version ([the protocol](../protocol/protocol.md#versions)). Only the gateway adds the
 daemons tool and the inputs that name a daemon.
 
 ## Scopes

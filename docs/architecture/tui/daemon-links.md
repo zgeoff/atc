@@ -5,7 +5,7 @@ of the local daemon, in one list. The TUI holds one link per daemon, keys each s
 that holds it and the daemon's own session id, and sends each action through the link of the daemon
 that holds the session. The TUI does the merging itself, because the gateway carries no terminal
 stream and acts only for OAuth clients, so it cannot act for the owner. The daemons, the gateway and
-the wire format are unchanged, and the client speaks one protocol version.
+the wire format are unchanged, and the client speaks one protocol.
 
 ```mermaid
 flowchart LR
@@ -46,7 +46,7 @@ A link reports one of five states:
 | `up`           | the handshake passed and the daemon's rows are in the mirror |
 | `down`         | the daemon is unreachable, or the connection dropped         |
 | `unauthorized` | the token is missing or unreadable, or the daemon refused it |
-| `mismatched`   | the daemon speaks another protocol version                   |
+| `mismatched`   | the daemon runs another major version                        |
 
 The app's remote boot classifies each failure into one of these kinds, so the link sets its state
 without reading error text. A `down` link retries on the transport's backoff. An `unauthorized` or

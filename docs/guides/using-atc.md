@@ -215,8 +215,8 @@ When the daemon restarts, it restores the fleet by itself, and every session res
 transcript. Set `restoreFleetOnRestart` to `false` to wait for `R` on the home screen instead.
 
 After you upgrade atc, the status bar shows `⟳ update ready`, and `u` restarts the daemon and
-restores the fleet when you are ready. When the running daemon speaks an older protocol version, atc
-asks before it restarts the daemon, since the restart ends every session the daemon hosts. When your
+restores the fleet when you are ready. When the running daemon runs an older major version, atc asks
+before it restarts the daemon, since the restart ends every session the daemon hosts. When your
 client is the older side, such as a TUI you opened before the upgrade, atc exits and tells you to
 reopen it, and the daemon keeps running.
 
@@ -245,11 +245,11 @@ holds the daemon's address, the principal you act as, and where your token comes
 bar shows `atc@<name>` while you are on a remote daemon.
 
 The TUI connects to that daemon alone and never starts, finds, or falls back to your local one. When
-the daemon is unreachable, refuses your token, or speaks another protocol version, `atc` exits 1
-with the daemon's name, its address, and for a mismatch both builds and protocol versions. A
-connection that drops after the TUI opens shows `⟳ waiting for daemon` and reconnects when the
-daemon answers again. A reconnect that the daemon refuses, such as one with a token it no longer
-holds, exits 1 with the refusal.
+the daemon is unreachable, refuses your token, or runs another major version, `atc` exits 1 with the
+daemon's name, its address, and for a mismatch both builds and major versions. A connection that
+drops after the TUI opens shows `⟳ waiting for daemon` and reconnects when the daemon answers again.
+A reconnect that the daemon refuses, such as one with a token it no longer holds, exits 1 with the
+refusal.
 
 atc cannot restart a daemon on another host, so the TUI never offers `u` there: restart it on its
 own host. A principal may not restore the fleet, so `R` restores nothing on a remote daemon.
@@ -268,7 +268,7 @@ With no entries, the list shows your local daemon alone.
 
 A remote daemon you cannot reach shows as one line with its name and its state, and the list hides
 its rows. `down` means unreachable or dropped, and atc retries within seconds. `unauthorized` means
-the token is missing or refused, and `mismatched` means another protocol version. atc retries both
+the token is missing or refused, and `mismatched` means another major version. atc retries both
 every 30 seconds, so fixing the token or upgrading the daemon heals the link. A remote daemon never
 ends atc.
 

@@ -60,26 +60,31 @@ directories rather than asking systemd, so it holds while the service manager is
 `atc mcp --http --wait-for-daemon` makes the same choice for one process: it waits for a daemon and
 serves once one answers, and exits when none does, so a service manager starts it again.
 
-## Builds and protocol versions
+## Builds and major versions
 
 Client and daemon ship from one repo, so a version mismatch in practice is one side outliving an
 upgrade: a daemon that kept running, or a TUI opened before a service manager restarted the daemon
-on the new build. A daemon from another build on the same protocol version stays in service, and the
-TUI marks it `⟳ update ready` until the owner restarts it. A daemon on another protocol version
-refuses the handshake, so the client cannot ask it anything, including whether it hosts live
-sessions. The refusal holds the daemon's protocol version in its data, and the client compares it
-with its own:
+on the new build. A daemon from another build of the same major version stays in service, and the
+TUI marks it `⟳ update ready` until the owner restarts it. It asks no question, because the two talk
+([protocol](../protocol/protocol.md#versions)). `atc daemon` writes its major version into
+`daemon.json` beside its protocol number, and the restart plan reads both.
+
+A daemon on another major version refuses the handshake, so the client cannot ask it anything,
+including whether it hosts live sessions. The refusal holds the daemon's major version in its data,
+and the client compares it with its own:
 
 - A non-interactive client, such as `atc mcp`, exits with an error that holds both builds, both
-  protocol versions, the daemon's pid and how to restart it.
+  major versions, the daemon's pid and how to restart it.
 - The TUI shows the same facts and asks before it restarts the daemon, even when the daemon hosts no
   session, because it cannot tell. On a yes, it stops the daemon and boots one from its own build,
   which restores the fleet itself.
 - A client older than the daemon offers no restart, because the daemon would come back on its own
   build. It exits and prints how to update atc and reopen the client.
 
-A refusal without the version comes from a release that predates the field, so the client treats
-that daemon as the older side.
+A refusal without the major version comes from a release that predates the field, so the client
+treats that daemon as the older side. A daemon of the same major version that lacks a feature that a
+call needs is not restarted for it: the call fails with `feature_missing`, and its message says to
+restart the daemon on a newer atc.
 
 ## Listeners
 
