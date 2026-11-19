@@ -470,7 +470,7 @@
     "@xterm/addon-serialize": "0.14.0",
     "@xterm/headless": "6.0.0",
     "@zgeoff/agent-hooks": "0.2.13",
-    "@zgeoff/bun-test-extended": "0.2.3",
+    "@zgeoff/bun-test-extended": "0.2.4",
     "@zgeoff/chex": "0.3.6",
     "@zgeoff/diet": "0.2.3",
     "@zgeoff/format-codemod": "0.3.5",
@@ -1024,7 +1024,7 @@
 
     "@zgeoff/agent-hooks": ["@zgeoff/agent-hooks@0.2.13", "", { "bin": { "agent-hooks": "dist/cli.js" } }, "sha512-kvzswc5g5uYom0fu14pjWgXEvpNMSBNWkCjWtcnTL+4A2Le9uwhsThAOQOlNDrVB93tjcDC6plhknvhpxTdJBA=="],
 
-    "@zgeoff/bun-test-extended": ["@zgeoff/bun-test-extended@0.2.3", "", { "dependencies": { "jest-extended": "7.0.0", "jest-matcher-utils": "30.5.2" } }, "sha512-4ZNPft3LunVKp+s2esoJXSe64EaEywsu3z6Cg5/s/MJcdygmrQeAyfECioePCo5RuAIcaPfgF3lhYsPKcmVJ4w=="],
+    "@zgeoff/bun-test-extended": ["@zgeoff/bun-test-extended@0.2.4", "", { "dependencies": { "jest-extended": "7.0.0", "jest-matcher-utils": "30.5.2" } }, "sha512-pjHhfUFSQVOG97CPobmUJ3v1xbigRe5DOD+7VDoe5IIYvAOMkctmkHznj4EKKnZSpQp0b3/jqvYuzIFrpeaZMw=="],
 
     "@zgeoff/chex": ["@zgeoff/chex@0.3.6", "", { "dependencies": { "@zgeoff/std": "0.4.3", "oxc-parser": "0.158.0", "ts-pattern": "5.9.2" }, "bin": { "chex": "src/cli.ts" } }, "sha512-rLT7OwIk4WWmRJvdJufAzWTg1yDaGUGBtDBgLEUM43/wZAqMe4t66kC4U7tU6OfvhO4BivCBcvkBBRrpyvqnOw=="],
 
