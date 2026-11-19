@@ -1228,6 +1228,8 @@ test('it answers a failed spawn only once its killed process has exited', async 
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
+  // The child takes 300ms to exit after SIGHUP.
+
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1265,6 +1267,8 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
+  // The child takes 300ms to exit after SIGHUP.
+
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
       bin: 'bash',
@@ -1297,6 +1301,8 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
 test('it refuses to revive a failed spawn while its rollback waits for the killed process', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
+
+  // The child takes 300ms to exit after SIGHUP.
 
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {
@@ -1350,6 +1356,8 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
 test('it leaves no session behind from a failed spawn whose revive was refused during its rollback', async () => {
   const pids = setupTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
+
+  // The child takes 300ms to exit after SIGHUP.
 
   const stub = await createStubFailingAgentAdapter({
     firstPlan: {

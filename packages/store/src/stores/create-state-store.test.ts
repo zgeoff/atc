@@ -6307,6 +6307,8 @@ test('it writes a consistent backup while another connection commits writes', as
   seed.run('CREATE TABLE probe (generation INTEGER NOT NULL, slot INTEGER NOT NULL)');
   seed.run('CREATE TABLE probe_head (generation INTEGER NOT NULL)');
   seed.run('INSERT INTO probe_head VALUES (0)');
+
+  // About 8 MB of pages, so the copy runs long enough for the writer's commits to land while it reads.
   seed.run('CREATE TABLE bulk (data BLOB NOT NULL)');
 
   seed.run(
