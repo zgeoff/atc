@@ -32,12 +32,12 @@ import {
 import { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID } from '@atcx/contract';
 import { startCodexAppServerBridge } from './app-server/start-codex-app-server-bridge';
-import { buildCodexGuestLaunch } from './build-codex-guest-launch';
-import { buildCodexHookFile } from './build-codex-hook-file';
-import { buildCodexTrustSeed } from './build-codex-trust-seed';
+import { buildCodexGuestLaunch } from './guest-launch/build-codex-guest-launch';
+import { buildCodexHookFile } from './hooks/build-codex-hook-file';
+import { planCodexHookEvents } from './hooks/plan-codex-hook-events';
 import { loadCodexName } from './load-codex-name';
-import { planCodexHookEvents } from './plan-codex-hook-events';
 import { planCodexLineInput } from './plan-codex-line-input';
+import { buildCodexTrustSeed } from './trust-seed/build-codex-trust-seed';
 
 export interface CodexAdapter extends AgentAdapter {
   // The hook files a user installs print the kind for every entry of it, so
