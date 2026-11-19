@@ -3110,3 +3110,131 @@ test('it boots a local sub-session of a remote session after its parent, in the 
 
   expect(spawned).toStrictEqual(['s-local', 's-remote', 's-child']);
 });
+
+test('it lists a session whose host lost its harness as exited with the message of an ended harness, and leaves its fleet row as it is', async () => {
+  const reads: (readonly string[])[] = [];
+
+  const box = buildStubMemoryProvider({
+    kind: 'box',
+    remote: true,
+    capabilities: { suspend: true, destroy: true },
+    readHarnessFates: (_host, sessions) => {
+      reads.push(sessions);
+
+      return Promise.resolve(
+        new Map([
+          [toSessionID('s-lost'), 'lost'],
+          [toSessionID('s-kept'), 'kept'],
+        ]),
+      );
+    },
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      buildMockExecutionTarget({ id: 'box', kind: 'box', identity: 'box:test', provider: box }),
+    ],
+  });
+
+  const sleeping = {
+    cwd: ctx.directory,
+    agent: 'claude',
+    exited: true,
+    suspended: true,
+    target: 'box',
+    targetIdentity: 'box:test',
+    hostKey: toSessionID('s-lost'),
+  } as const;
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      ...sleeping,
+      sessionID: toSessionID('s-lost'),
+      name: 'lost',
+      agentSessionID: toAgentSessionID('c-lost'),
+    }),
+    buildMockFleetEntry({
+      ...sleeping,
+      sessionID: toSessionID('s-kept'),
+      name: 'kept',
+      agentSessionID: toAgentSessionID('c-kept'),
+      parent: toSessionID('s-lost'),
+    }),
+  ]);
+
+  const stored = await ctx.store.loadFleet();
+
+  await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  await waitFor(() => {
+    expect(
+      ctx.manager.sessions.map((session) => [session.id, session.state, session.lastMsg]),
+    ).toStrictEqual([
+      ['s-lost', 'exited', 'host lost the process'],
+      ['s-kept', 'exited', 'asleep'],
+    ]);
+  });
+
+  const after = await ctx.store.loadFleet();
+
+  expect(reads).toStrictEqual([['s-lost', 's-kept']]);
+  expect(after).toStrictEqual(stored);
+});
+
+test('it changes nothing for a host whose harness fates cannot be read', async () => {
+  const attempts: string[] = [];
+
+  const box = buildStubMemoryProvider({
+    kind: 'box',
+    remote: true,
+    capabilities: { suspend: true, destroy: true },
+    readHarnessFates: (host) => {
+      attempts.push(host);
+
+      return Promise.reject(new Error('the host is unreachable'));
+    },
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      buildMockExecutionTarget({ id: 'box', kind: 'box', identity: 'box:test', provider: box }),
+    ],
+  });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      cwd: ctx.directory,
+      agent: 'claude',
+      exited: true,
+      suspended: true,
+      target: 'box',
+      targetIdentity: 'box:test',
+      sessionID: toSessionID('s-asleep'),
+      hostKey: toSessionID('s-asleep'),
+      name: 'asleep',
+      agentSessionID: toAgentSessionID('c-asleep'),
+    }),
+  ]);
+
+  await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  await waitFor(() => {
+    expect(attempts).toStrictEqual(['s-asleep']);
+  });
+
+  expect(ctx.manager.sessions.map((session) => session.lastMsg)).toStrictEqual(['asleep']);
+});

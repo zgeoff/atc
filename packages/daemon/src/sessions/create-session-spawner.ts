@@ -8,6 +8,7 @@ import type { AgentSessionID, GrantScope, SessionID } from '@atcx/contract';
 import type { AuthSetup } from '../auth/create-auth-setup';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildHarnessEnv } from './build-harness-env';
+import type { HarnessFates } from './create-harness-fates';
 import type { HostDirClaims } from './create-host-dir-claims';
 import type { SessionHarnesses, SpawnReadied } from './create-session-harnesses';
 import type { SessionRegistry } from './create-session-registry';
@@ -81,6 +82,9 @@ interface SessionSpawnerDeps {
     | 'stopMessageBridge'
   >;
 
+  // Reads the fates of the sleeping sessions on a shared host once a spawn readies it.
+  readonly fates?: Pick<HarnessFates, 'readFates'>;
+
   // Runs each spawn's steps and unwinds them on a failure; the spawn steps
   // runner when unset.
   readonly runSteps?: SpawnStepRunner;
@@ -126,6 +130,7 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
   const rollback = deps.rollback;
   const authSetup = deps.auth;
   const callbacks = deps.callbacks;
+  const fates = deps.fates;
   const runSteps = deps.runSteps ?? runSpawnSteps;
 
   const spawning = new Set<SessionID>();
@@ -179,6 +184,10 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
         spawn,
       ),
     );
+
+    if (hostKey !== id) {
+      void fates?.readFates({ hostKey, except: id });
+    }
 
     // A spawn whose directory the daemon picked runs in the one it claimed,
     // as the host resolves it.

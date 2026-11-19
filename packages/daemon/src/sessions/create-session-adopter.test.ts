@@ -19,6 +19,7 @@ import { buildMockSession } from '../test-utils/build-mock-session';
 import { buildStubGuestFilesProvider } from '../test-utils/build-stub-guest-files-provider';
 import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
+import { createHarnessFates } from './create-harness-fates';
 import { createHostDirClaims } from './create-host-dir-claims';
 import { createSessionAdopter } from './create-session-adopter';
 import { createSessionHarnesses } from './create-session-harnesses';
@@ -99,7 +100,17 @@ async function setupTest(config: SetupTestConfig) {
   const harnesses = createSessionHarnesses({ registry, fleet, killer, callbacks });
   const rollback = createSpawnRollback({ registry, fleet, claims, harnesses, callbacks });
   const auth = createAuthSetup({ registry, fleet, claims, harnesses, rollback, store, callbacks });
-  const adopter = createSessionAdopter({ registry, fleet, harnesses, rollback, auth, callbacks });
+  const fates = createHarnessFates({ registry, callbacks });
+
+  const adopter = createSessionAdopter({
+    registry,
+    fleet,
+    harnesses,
+    rollback,
+    auth,
+    fates,
+    callbacks,
+  });
 
   return {
     directory: temporaryDirectory.path,
@@ -333,6 +344,64 @@ test('it keeps the agent home the remote host resolves for the revived harness o
 
   await waitFor(() => {
     expect(session.agentHome).toBe('/guest/atc/home/.grok');
+  });
+});
+
+test('it reads the fates of the other sleeping sessions on a host once a revive readies it', async () => {
+  const reads: (readonly string[])[] = [];
+
+  const provider = {
+    ...buildStubGuestFilesProvider({
+      guestDirectory: '/guest/atc',
+      hostDirectory: '/nonexistent',
+      harnessStart: { created: true },
+    }),
+    readHarnessFates: (_host: string, sessions: readonly string[]) => {
+      reads.push(sessions);
+
+      return Promise.resolve(new Map([[toSessionID('s-sibling'), 'lost' as const]]));
+    },
+  };
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'box', identity: 'remote:test', provider })],
+  });
+
+  const revived = buildMockSession({
+    id: toSessionID('s-revived'),
+    cwd: '/root/work',
+    kind: 'headless',
+    state: 'exited',
+    lastMsg: 'asleep',
+    agentSessionID: toAgentSessionID('g-1'),
+    agent: 'claude',
+    target: 'box',
+    targetIdentity: 'remote:test',
+    hostKey: toSessionID('s-revived'),
+    suspended: true,
+  });
+
+  const sibling = buildMockSession({
+    id: toSessionID('s-sibling'),
+    cwd: '/root/work',
+    kind: 'headless',
+    state: 'exited',
+    lastMsg: 'asleep',
+    agentSessionID: toAgentSessionID('g-2'),
+    agent: 'claude',
+    target: 'box',
+    targetIdentity: 'remote:test',
+    hostKey: toSessionID('s-revived'),
+    suspended: true,
+  });
+
+  ctx.registry.sessions.push(revived, sibling);
+
+  await ctx.adopter.adoptTerminal(revived.id, 100, 30);
+
+  await waitFor(() => {
+    expect(reads).toStrictEqual([['s-sibling']]);
   });
 });
 

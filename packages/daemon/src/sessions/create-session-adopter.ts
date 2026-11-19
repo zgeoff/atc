@@ -6,6 +6,7 @@ import type { AuthSetup, HarnessAuthSetup, HarnessPlan } from '../auth/create-au
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildHarnessEnv } from './build-harness-env';
 import { buildRecordSubject } from './build-record-subject';
+import type { HarnessFates } from './create-harness-fates';
 import type { SessionHarnesses } from './create-session-harnesses';
 import type { SessionRegistry } from './create-session-registry';
 import type { SpawnRollback } from './create-spawn-rollback';
@@ -34,6 +35,9 @@ interface SessionAdopterDeps {
     'rollingBack' | 'unconfirmedKills' | 'probeRollbackSettled' | 'killHarness'
   >;
   readonly auth: Pick<AuthSetup, 'buildBrokerSpec' | 'resolveHarnessAuth' | 'setupHarnessOnHost'>;
+
+  // Reads the fates of the other sleeping sessions on a host once a revive readies it.
+  readonly fates?: Pick<HarnessFates, 'readFates'>;
   readonly callbacks: Pick<
     SessionCallbacks,
     | 'onBoot'
@@ -95,6 +99,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
   const harnesses = deps.harnesses;
   const rollback = deps.rollback;
   const auth = deps.auth;
+  const fates = deps.fates;
   const callbacks = deps.callbacks;
 
   // Starts the harness that revives a session, or attaches the one its
@@ -362,6 +367,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
           timer,
         });
 
+        void fates?.readFates({ hostKey: session.hostKey, except: session.id });
         const records = callbacks.findRecords();
 
         const path =

@@ -206,6 +206,10 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     }
   }
 
+  // The hosts that hold sleeping sessions answer in the background, so a slow host never delays
+  // the restore.
+  void manager.readHarnessFates();
+
   // exited entries only register: they stay killed until revived by hand
   const queued = registered
     .filter((row) => row.revive || row.session.state !== 'exited')

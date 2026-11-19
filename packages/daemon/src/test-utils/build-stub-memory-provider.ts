@@ -75,6 +75,9 @@ interface StubMemoryProviderConfig {
   // before it starts; absent, the start follows the reported start.
   readonly harnessStartRefusal?: Error;
 
+  // Answers each read of the harness fates; absent, the provider reads none.
+  readonly readHarnessFates?: ExecutionProvider['readHarnessFates'];
+
   // Answers each command; absent, every command exits 0 and prints nothing.
   readonly runCommand?: (spec: CommandSpec) => Promise<CommandResult>;
 
@@ -153,6 +156,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
       ? {}
       : { readGuest: () => Promise.resolve({ ...guest, signIn: guest.signIn ?? null }) }),
     ...(config.credentials === undefined ? {} : { credentials: config.credentials }),
+    ...(config.readHarnessFates === undefined ? {} : { readHarnessFates: config.readHarnessFates }),
     ...(config.cloneOnTarget === undefined ? {} : { cloneOnTarget: config.cloneOnTarget }),
     ...(config.hostGitIdentity === undefined ? {} : { hostGitIdentity: config.hostGitIdentity }),
     ...(config.guestWorkspaceTrust === undefined
