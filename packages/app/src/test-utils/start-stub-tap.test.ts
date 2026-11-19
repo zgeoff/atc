@@ -6,8 +6,6 @@ import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session'
 import { startStubTap } from './start-stub-tap';
 import { startTestDaemon } from './start-test-daemon';
 
-// A daemon whose agent takes messages, one session on it, and a second
-// client to make that session's tap.
 async function setupTest() {
   const daemon = await startTestDaemon({
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),

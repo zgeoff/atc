@@ -6,9 +6,6 @@ import { buildRemoteListingCachePath } from '../tui/build-remote-listing-cache-p
 import { openListingCache } from '../tui/open-listing-cache';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
 
-// The TUI's entry for a daemon from the config's `daemons` map: a boot that acts as the entry's
-// principal and rejects with the failure's kind, and a listing cache of the daemon's own, so the
-// remote host's listings never mix with the local ones.
 export function createRemoteDaemonEntry(
   host: LifecycleHost,
   daemon: RemoteDaemon,

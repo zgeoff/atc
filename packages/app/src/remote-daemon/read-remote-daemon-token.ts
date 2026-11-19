@@ -2,11 +2,9 @@ import { readFileSync } from 'node:fs';
 import type { RemoteDaemon } from '@atc/config';
 import { runCommand } from '@atc/lifecycle/run-command';
 
-// How long a token command may run before the read gives up on it.
 const TOKEN_COMMAND_TIMEOUT_MS = 10_000;
 
 interface TokenReadOptions {
-  // How long a token command may take, its output and its exit together.
   readonly timeoutMs?: number;
 }
 
@@ -27,8 +25,8 @@ export async function readRemoteDaemonToken(
 
   const token = text.trim();
 
-  // a failure names the daemon and the token's source, never the token or the
-  // command's output
+  // Keep the token and the command's output out of this error: either can hold the secret,
+  // and error messages end up in logs.
   if (token === '' || token.includes('\n')) {
     throw new Error(
       `daemon '${daemon.name}': ${formatTokenSource(daemon)} must hold one token on one line`,

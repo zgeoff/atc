@@ -1,8 +1,6 @@
 import { isRecord } from '@atc/core';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 
-// A frame a live-terminal socket sent: a JSON control frame, or a binary
-// frame of terminal output.
 type PTYViewerFrame =
   | { readonly kind: 'control'; readonly frame: Readonly<Record<string, unknown>> }
   | { readonly kind: 'output'; readonly data: string };
@@ -10,23 +8,17 @@ type PTYViewerFrame =
 export interface PTYViewerClient {
   readonly socket: WebSocket;
 
-  // Every frame in the order the socket received it.
   readonly frames: PTYViewerFrame[];
 
-  // The last snapshot's screen followed by the output after it, as a
-  // terminal that wrote them in order would have received them.
   readonly readScreen: () => string;
   readonly closed: Promise<CloseEvent>;
 }
 
 interface PTYViewerClientOptions {
-  // The bearer token, sent base64url-encoded as a subprotocol.
   readonly token: string;
   readonly origin?: string;
 }
 
-// Opens a live-terminal WebSocket the way a browser page does, and resolves
-// once it opens. Cleanup closes it.
 export async function openPTYViewer(
   url: string,
   options: PTYViewerClientOptions,

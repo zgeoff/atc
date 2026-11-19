@@ -467,9 +467,7 @@ test('it reports the gateway manifest version, not the app manifest version, in 
   const preload = join(ctx.directory, 'gateway-manifest.ts');
   const script = join(ctx.directory, 'run.ts');
 
-  // Serves the gateway package's manifest at 9.1.0 while the app's stays at
-  // its own version, so the run shows which manifest the CLI read. Bun's
-  // plugin json loader refuses this content, so the manifest loads as a module.
+  // Bun's plugin json loader refuses this content, so the manifest loads as a js module.
   writeFileSync(
     preload,
     [

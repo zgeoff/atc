@@ -3,11 +3,8 @@ import { DaemonError } from '@atc/protocol/wire';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
 
-// What `atc session` does to one session: rebind its host's runtime auth,
-// or start a terminal for it.
 type SessionAction = 'rebind' | 'adopt';
 
-// The terminal size an adopted session starts at.
 interface TerminalSize {
   readonly cols: number;
   readonly rows: number;

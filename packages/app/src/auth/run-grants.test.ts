@@ -11,14 +11,12 @@ import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
 import { runGrants } from './run-grants';
 
-// A migrated grant needs no server, so the server starts only when a test
-// asks for it.
 function setupTest() {
   return {
     startServer: () => setupMCPHTTP(),
 
-    // A grant made before atc moved to its shared OAuth server keeps the
-    // authorization code it came from as its ID, which can start with a dash.
+    // A migrated grant keeps the authorization code it came from as its ID,
+    // and that code can start with a dash.
     writeMigratedGrant: (grantID: string) => {
       const temporaryDirectory = setupTempDir('atc-grants-');
       const dbPath = join(temporaryDirectory.path, 'state', 'mcp-auth.db');
@@ -182,8 +180,8 @@ test('it refuses to revoke an unknown grant', async () => {
 test('it sets the process exit code to 1 when it refuses to revoke by default', async () => {
   const ctx = { server: await setupTest().startServer() };
 
-  // Bun ignores an assignment of undefined, so an unset exit code goes back
-  // as 0, the code an unset one exits with.
+  // Bun ignores `process.exitCode = undefined`, so an unset exit code is restored as 0,
+  // the same code a process exits with when none is set.
   const exitCode = process.exitCode ?? 0;
 
   onTestFinished(() => {

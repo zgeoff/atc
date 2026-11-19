@@ -1,7 +1,5 @@
 import type { SendRequest, UsageResult } from './types';
 
-// The `atc send` arguments and flags as the command line parser hands them
-// over.
 export interface SendArgs {
   readonly session: string;
   readonly text: string | undefined;
@@ -79,7 +77,6 @@ function findSendRefusal(args: Readonly<SendArgs>): string | null {
 
 const MAX_TEXT_BYTES = 256 * 1024;
 
-// The reason a message text cannot be sent, or null when it can.
 export function findTextRefusal(text: string): string | null {
   if (text === '') {
     return 'the message text is empty';

@@ -9,8 +9,6 @@ type LoadedServiceTokenFile =
   | { readonly ok: true; readonly file: ServiceTokenFile<GrantScope> }
   | { readonly ok: false; readonly reason: string };
 
-// The file has to pass the check the daemon's token file passes: the process's
-// own user owns it, and no group or other bit is set.
 export function loadServiceTokenFile(
   path: string,
   access: TokenFileAccess,

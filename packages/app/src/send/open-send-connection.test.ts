@@ -6,8 +6,7 @@ import { openSendConnection } from './open-send-connection';
 import { runSend } from './run-send';
 import type { SendRequest } from './types';
 
-// The send command against a daemon in the test's process, whose Claude never
-// opens a message tap, so each message stays queued.
+// Claude never starts, so it never opens a message tap and each sent message stays queued.
 async function setupTest() {
   const stub = await startStubAgentDaemon({ tapGraceMs: 0 });
 

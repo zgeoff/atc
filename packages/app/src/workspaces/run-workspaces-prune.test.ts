@@ -9,8 +9,6 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { runWorkspacesPrune } from './run-workspaces-prune';
 
-// Each session runs in a workspace the daemon clones from the fixture's upstream, under a root of
-// the test's own; forget keeps every folder, as a daemon from before forget cleaned up did.
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-workspaces-prune-' });
 
@@ -47,7 +45,6 @@ async function setupTest() {
     },
   };
 
-  // a session whose workspace and state folder a forget left behind
   const createForgottenSession = async (name: string) => {
     const spawned = await daemon.client.sendRequest('session.spawn', {
       cwd: join(root, name),

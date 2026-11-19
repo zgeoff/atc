@@ -1,4 +1,3 @@
-// What `atc send` needs to know of a listed session to address it.
 export interface ListedSession {
   readonly id: string;
   readonly name: string;
@@ -10,8 +9,6 @@ export type SessionMatch =
   | { readonly kind: 'missing' }
   | { readonly kind: 'ambiguous'; readonly candidates: readonly ListedSession[] };
 
-// An id wins; otherwise the argument is a name that must match exactly one
-// listed session, sub-sessions and exited ones included.
 export function resolveSendSession(
   sessions: readonly ListedSession[],
   argument: string,

@@ -15,8 +15,7 @@ function setupTest() {
   return {
     dbPath,
 
-    // atc's own server let two clients share a name, and the move to the
-    // package keeps both.
+    // Databases written by atc's own server can hold two clients with the same name.
     writeOldClients: (names: readonly string[]) => {
       const sqlite = openMCPAuthDatabase(dbPath);
 

@@ -12,7 +12,6 @@ interface CreateShippedExecutionProviderOptions {
   readonly config: TargetConfig;
   readonly host: HostServices;
 
-  // The daemon's state folder, which holds a folder for each provider.
   readonly stateDir: string;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly authProfiles: ReadonlyMap<string, AuthProfile>;

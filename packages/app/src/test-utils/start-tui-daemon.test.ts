@@ -6,7 +6,6 @@ import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-sta
 import { startTUIDaemon } from './start-tui-daemon';
 import { startTUIHarness } from './start-tui-harness';
 
-// A harness home with its config written and no client booted.
 function setupTest() {
   return { tui: startTUIHarness({ createStateDB: createMigratedStateDB }) };
 }

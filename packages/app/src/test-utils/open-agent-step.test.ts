@@ -3,7 +3,6 @@ import { KEYS } from '@atc/core/test-utils/keys';
 import { openAgentStep } from './open-agent-step';
 import { startTUIHarness } from './start-tui-harness';
 
-// The client booted to its home screen.
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: () => {} });
 

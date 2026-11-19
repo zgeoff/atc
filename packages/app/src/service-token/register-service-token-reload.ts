@@ -4,15 +4,12 @@ import type { ProcessIO } from '../cli/process-io';
 import { loadServiceTokenFile } from './load-service-token-file';
 
 interface ServiceTokenReload {
-  // The name each error line starts with, such as `atc-gateway`.
   readonly binary: string;
   readonly path: string;
   readonly server: Pick<MCPHTTPServer, 'replaceServiceTokens'>;
   readonly io: Pick<ProcessIO, 'printError' | 'registerSignal'>;
 }
 
-// A SIGHUP reads the service-token file again. A file that fails to load, or
-// that the server refuses, leaves the file in force and prints why.
 export function registerServiceTokenReload(options: ServiceTokenReload): void {
   const printFault = (reason: string): void => {
     options.io.printError(`${options.binary}: --service-token-file: ${reason}`);

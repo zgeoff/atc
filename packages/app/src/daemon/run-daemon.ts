@@ -80,8 +80,6 @@ export async function runDaemon(invocation: DaemonInvocation): Promise<void> {
 
   const adapters = buildAgentAdapters(config, hostServices, startClaudeHeadlessRun);
 
-  // The daemon's own lines go to stderr through LogTape, and a stop or a
-  // quit stops the log before the process exits.
   const stderrLog = await startStderrLog();
 
   let handle: Awaited<ReturnType<typeof startDaemon>>;
@@ -115,9 +113,8 @@ export async function runDaemon(invocation: DaemonInvocation): Promise<void> {
       },
     });
   } catch (error) {
-    // A second daemon on the same state directory, or a listener whose
-    // address or token file is refused or whose bind fails, stops the start
-    // with nothing left held; any other startup failure stays a crash.
+    // The start releases everything it held before it throws these codes (a second daemon holds
+    // the state directory, or the listener was refused), so a message and exit 1 are enough.
     const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : null;
 
     if (error instanceof Error && (code === 'daemon_locked' || code === 'listen_refused')) {

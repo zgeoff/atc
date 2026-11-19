@@ -7,7 +7,6 @@ import { waitForMessage } from '../send/wait-for-message';
 import { buildFailureOutcome, buildReadOutcome } from './build-read-outcome';
 import type { OutcomeBase } from './build-read-outcome';
 
-// Resolves to the exit status.
 export async function runMessageGet(
   request: Readonly<MessageGetRequest>,
   dependencies: Readonly<Pick<SendDependencies, 'connect' | 'clock' | 'io'>>,

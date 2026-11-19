@@ -5,8 +5,7 @@ import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-s
 import { startTUIHarness } from './start-tui-harness';
 import { tabToRepoRows } from './tab-to-repo-rows';
 
-// The client booted to its home screen with a signed-out `gh` on its PATH,
-// so the GitHub rows settle without reaching GitHub.
+// A signed-out `gh` on the PATH lets the GitHub rows settle without any call to GitHub.
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: () => {} });
 

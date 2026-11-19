@@ -5,8 +5,6 @@ import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { seedATCPasskey } from './seed-atc-passkey';
 import type { ATCPasskeyRow } from './seed-atc-passkey';
 
-// The authorization database opened the way the `clients`, `grants` and
-// `passkeys` commands open it, closed when the test finishes.
 export async function openTestAuthAdmin(dbPath: string) {
   const sqlite = openMCPAuthDatabase(dbPath);
 
@@ -25,7 +23,6 @@ export async function openTestAuthAdmin(dbPath: string) {
   return {
     admin,
 
-    // atc's own event tables, beside the package's.
     events,
 
     seedPasskey: (row: ATCPasskeyRow): void => {

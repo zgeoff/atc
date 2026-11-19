@@ -4,8 +4,6 @@ import { openDaemonClient } from '@atc/protocol/client';
 import { spawnGrokSession } from './spawn-grok-session';
 import { startTUIHarness } from './start-tui-harness';
 
-// The client booted to its home screen, and a client of the daemon it
-// started there to read the fleet through.
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: () => {} });
 

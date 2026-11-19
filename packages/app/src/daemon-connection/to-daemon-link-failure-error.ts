@@ -2,9 +2,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import { DaemonLinkFailureError } from '@atc/tui';
 import { RemoteTokenError } from '../remote-daemon/remote-token-error';
 
-// Classifies a remote boot's failure into the state the TUI's link takes: a token the client
-// cannot read or the daemon refuses is `unauthorized`, a daemon on another protocol is
-// `mismatched`, and anything else, such as an unreachable daemon, is `down`.
 export function toDaemonLinkFailureError(error: unknown): DaemonLinkFailureError {
   const message = error instanceof Error ? error.message : String(error);
 

@@ -6,7 +6,6 @@ import type { TUIHost } from '@atc/tui';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { createRemoteDaemonEntry } from '../remote-daemon/create-remote-daemon-entry';
 
-// The host of `atc --daemon <name>`: that one daemon is the primary, and no other is linked.
 export function createRemoteTUIHost(host: LifecycleHost, daemon: RemoteDaemon): TUIHost {
   return {
     logEvent: logClientEvent,

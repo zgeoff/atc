@@ -11,9 +11,6 @@ import type { CommandLineIO } from '../cli/run-command-line';
 import { buildGatewayStatePaths } from './build-gateway-state-paths';
 import type { runGateway } from './run-gateway';
 
-// What the command line reaches outside itself, the process's own by
-// default: the subcommands it hands a parsed command to, the console, and
-// the exit.
 interface GatewayCLIIO extends CommandLineIO {
   readonly runGateway: (...args: Readonly<Parameters<typeof runGateway>>) => Promise<void>;
   readonly runClients: (...args: Readonly<Parameters<typeof runClients>>) => Promise<void>;
@@ -39,9 +36,7 @@ const GATEWAY_CLI_IO: GatewayCLIIO = {
   },
 };
 
-// The flag every command takes for the directory holding `gateway.db` and
-// `mcp-auth.db`. It may repeat, and every value must give the same
-// directory.
+// The flag may repeat, but every value must name the same directory.
 const STATE_DIR_ARG = {
   'state-dir': {
     type: 'string',
@@ -58,8 +53,6 @@ export async function runGatewayCLI(
   io: GatewayCLIIO = GATEWAY_CLI_IO,
   version: string = GATEWAY_VERSION,
 ): Promise<void> {
-  // Runs a subcommand on the state directory, or prints why there is none
-  // and exits 1.
   const withStateDir = async (
     values: Readonly<Record<string, unknown>>,
     run: (stateDir: string) => Promise<void>,
@@ -176,8 +169,6 @@ type PickedStateDir =
   | { readonly ok: true; readonly stateDir: string }
   | { readonly ok: false; readonly message: string };
 
-// The state directory the command line gives, every `--state-dir` alike,
-// or `ATC_GATEWAY_STATE_DIR` when it gives none.
 function pickStateDir(
   given: readonly string[],
   env: Readonly<Record<string, string | undefined>>,

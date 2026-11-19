@@ -5,7 +5,6 @@ interface FormatOptions {
   readonly json: boolean;
 }
 
-// What a command writes: stdout, when it writes any, and stderr.
 interface CommandOutput {
   readonly stdout: string | null;
   readonly stderr: string | null;
@@ -25,8 +24,6 @@ export function formatCommandOutcome(
   };
 }
 
-// The exits that carry a message: answered or sent, unanswered, and waited
-// out.
 const MESSAGE_EXITS: ReadonlySet<number> = new Set([0, 7, 8]);
 
 function formatJSON(outcome: Readonly<CommandOutcome>, command: FormatOptions['command']): string {

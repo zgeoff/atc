@@ -190,7 +190,6 @@ test('it reads the token of a command whose child keeps stderr open after it exi
     { timeoutMs: 1000 },
   );
 
-  // A read that timed out has already killed the child's process group.
   const pid = await readFile(pidFile, 'utf8');
 
   onTestFinished(() => {

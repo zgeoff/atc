@@ -11,8 +11,6 @@ import { startTestDaemon } from './start-test-daemon';
 type StubAgentBins = ReturnType<typeof createStubAgentCLIs>['bins'];
 
 interface StubAgentDaemonConfig {
-  // The config's agents map, built from the stand-in executables; one
-  // Claude entry when absent.
   readonly agents?: (bins: StubAgentBins) => Readonly<Record<string, unknown>>;
 
   // How long a started session may go without a message tap before a
@@ -20,9 +18,6 @@ interface StubAgentDaemonConfig {
   readonly tapGraceMs?: number;
 }
 
-// A daemon in the test's process whose agents are the in-process stand-in
-// CLIs on its local target, so no session starts a process. The hook
-// commands it writes name this checkout's atc, so a test can run one.
 export async function startStubAgentDaemon(config: StubAgentDaemonConfig = {}) {
   const temporaryDirectory = setupTempDir('atc-stub-agents-');
   const agents = createStubAgentCLIs(temporaryDirectory.path);

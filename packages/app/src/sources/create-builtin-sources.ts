@@ -10,17 +10,14 @@ interface BuiltinSourceOptions {
   // The config's sources, in picker order.
   readonly entries: readonly SourceEntry[];
 
-  // The daemon user's home directory.
   readonly homeDir: string;
 
-  // The host's services, whose command runner runs gh and zoxide.
   readonly host: HostServices;
 }
 
 interface BuiltinSources {
   readonly sources: SourceProvider[];
 
-  // One line per entry this host cannot run, which the daemon leaves out.
   readonly problems: string[];
 }
 

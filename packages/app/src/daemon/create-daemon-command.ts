@@ -1,14 +1,11 @@
 import { define, lazy } from 'gunshi';
 
-// The flags `atc daemon restart` and its worker share, parsed only as far as
-// the parser checks them.
 interface RestartFlags {
   readonly listen: string | null;
   readonly tokenFile: string | null;
   readonly timeout: string | null;
 }
 
-// The runs the `atc daemon` command and its subcommands hand their flags to.
 export interface DaemonCommandIO {
   readonly runDaemon: (listen: string | null, tokenFile: string | null) => Promise<void>;
   readonly runDaemonID: () => Promise<void>;
@@ -18,14 +15,11 @@ export interface DaemonCommandIO {
   ) => Promise<void>;
 }
 
-// The `atc daemon` flags as the parser gives them.
 interface DaemonValues {
   readonly listen?: string | undefined;
   readonly 'token-file'?: string | undefined;
 }
 
-// The flags `atc daemon` takes, on its own and on each command that starts
-// a daemon.
 const DAEMON_ARGS = {
   listen: {
     type: 'string',

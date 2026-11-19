@@ -9,8 +9,6 @@ export type PasskeysAction =
   | { readonly kind: 'enroll'; readonly reset: boolean }
   | { readonly kind: 'remove'; readonly id: string };
 
-// The authorization server's database, and the command that prefixes every
-// message, such as `atc passkeys`.
 interface PasskeysTarget {
   readonly dbPath: string;
   readonly command: string;

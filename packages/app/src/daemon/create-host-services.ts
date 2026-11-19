@@ -7,10 +7,8 @@ import type { HostServices } from '@atc/plugin-api';
 import pkg from '../../package.json';
 
 interface HostServicesOptions {
-  // Where log lines go: stderr by default.
   readonly log?: (line: string) => void;
 
-  // Whether this process runs as a compiled binary: detected by default.
   readonly compiled?: boolean;
 }
 
@@ -38,8 +36,7 @@ export function createHostServices(options: HostServicesOptions = {}): HostServi
   };
 }
 
-// The packages folder of this checkout. Each package's src tree sits under
-// it, one folder deep or, for a package in a group folder, two.
+// Each package's src tree sits one folder below this, or two for a package inside a group folder.
 const PACKAGES_DIR = join(import.meta.dir, '..', '..', '..');
 
 function readSourceRoots(): string[] {

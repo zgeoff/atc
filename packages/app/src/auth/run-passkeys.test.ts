@@ -6,9 +6,6 @@ import { toTagged } from '@zgeoff/std';
 import { openTestAuthAdmin } from '../test-utils/open-test-auth-admin';
 import { runPasskeys } from './run-passkeys';
 
-// A temp directory that holds the authorization database the command
-// opens, with the database opened a second time the way the server opens
-// it, to arrange and read rows through.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-passkeys-');
   const dbPath = join(temporaryDirectory.path, 'state', 'mcp-auth.db');

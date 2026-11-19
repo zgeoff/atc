@@ -4,15 +4,10 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { buildMCPToolCalls } from '@atc/mcp/test-utils/build-mcp-tool-calls';
 
 interface MCPStdioOptions {
-  // The home the server runs with, as its `HOME` and `XDG_RUNTIME_DIR`.
   readonly home: string;
 
-  // The session id the server sees itself running inside; absent means a
-  // server started outside any session.
   readonly callerSessionID?: string;
 
-  // A command that stands in for `atc mcp`; absent means this checkout's
-  // `atc mcp`.
   readonly command?: readonly string[];
 }
 
@@ -34,7 +29,8 @@ export async function startMCPStdio(options: MCPStdioOptions) {
     },
   );
 
-  // The daemon the server booted or joined stays up, for the home to stop.
+  // Killing the server leaves the daemon it booted or joined running; the test home's cleanup
+  // stops that daemon.
   const stop = registerTestCleanup(async (): Promise<void> => {
     void subprocess.stdin.end();
     subprocess.kill();
@@ -69,7 +65,6 @@ export async function startMCPStdio(options: MCPStdioOptions) {
 
   const server = { sendRequest, ...buildMCPToolCalls(sendRequest), stop };
 
-  // A failed initialize stops the server here, before the start rejects.
   const initialized = await sendRequest('initialize', {
     protocolVersion: '2025-06-18',
     capabilities: {},

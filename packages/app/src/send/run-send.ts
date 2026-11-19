@@ -25,14 +25,12 @@ export interface SendDependencies {
   readonly readStdin: () => Promise<string>;
   readonly isStdinTTY: boolean;
 
-  // Whether the command runs inside an atc session.
   readonly insideSession: boolean;
   readonly mintKey: () => string;
   readonly clock: Clock;
   readonly io: Pick<ProcessIO, 'print' | 'printError'>;
 }
 
-// Resolves to the exit status.
 export async function runSend(
   request: Readonly<SendRequest>,
   dependencies: Readonly<SendDependencies>,
@@ -143,7 +141,6 @@ interface SendJob {
   readonly connection: SendConnection;
 }
 
-// How long the session list and the send get to answer.
 const REQUEST_LIMIT_MS = 30_000;
 const LISTED_SESSION_SCHEMA = z.object({ id: z.string(), name: z.string(), state: z.string() });
 const LIST_SCHEMA = z.object({ sessions: z.array(LISTED_SESSION_SCHEMA) });
@@ -229,13 +226,10 @@ type SentMessage =
       readonly message: string;
       readonly status: z.output<typeof MESSAGE_ANSWER_SCHEMA>['status'];
 
-      // The message the recovery read returned, or null for a normal send.
       readonly view: MessageView | null;
     }
   | { readonly kind: 'failed'; readonly outcome: CommandOutcome };
 
-// One `session.message` request; a send of unknown outcome that names its
-// message is settled with one read of that message.
 async function sendOnce(
   job: Readonly<SendJob>,
   session: string,
