@@ -44,7 +44,7 @@
       "@wringer/terminal": "0.1.1",
       "@xterm/addon-serialize": "0.14.0",
       "@xterm/headless": "6.0.0",
-      "@zgeoff/agent-hooks": "0.2.13",
+      "@zgeoff/agent-hooks": "0.2.14",
       "@zgeoff/bun-test-extended": "0.2.4",
       "@zgeoff/chex": "0.3.6",
       "@zgeoff/diet": "0.2.3",
