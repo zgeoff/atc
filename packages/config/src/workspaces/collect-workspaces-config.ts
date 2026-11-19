@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core';
-import { DEFAULT_GIT_TRANSPORTS } from './default-git-transports';
+import { DEFAULT_GIT_TRANSPORTS } from '../sources/default-git-transports';
 
 export interface InvalidGitTransports {
   readonly invalid: string;

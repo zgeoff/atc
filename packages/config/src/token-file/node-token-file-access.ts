@@ -1,6 +1,6 @@
 import { closeSync, fstatSync, openSync, readFileSync } from 'node:fs';
 import invariant from 'tiny-invariant';
-import type { TokenFileAccess } from './read-owner-only-file';
+import type { TokenFileAccess } from './read-owner-only-text';
 
 export const NODE_TOKEN_FILE_ACCESS: TokenFileAccess = {
   openFile: (path) => openSync(path, 'r'),

@@ -1,8 +1,8 @@
 import { BROKER_PLACEHOLDER, isRecord } from '@atc/core';
 import type { AuthProfile } from '@atc/plugin-api';
-import { buildTelemetryEnv } from './build-telemetry-env';
-import { isEnvName } from './is-env-name';
-import { isReservedEnvName } from './is-reserved-env-name';
+import { buildTelemetryEnv } from '../env/build-telemetry-env';
+import { isEnvName } from '../env/is-env-name';
+import { isReservedEnvName } from '../env/is-reserved-env-name';
 
 interface AuthProfiles {
   readonly profiles: ReadonlyMap<string, AuthProfile>;

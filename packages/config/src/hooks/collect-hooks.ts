@@ -2,7 +2,7 @@ import { isRecord } from '@atc/core';
 import { resolveHomeDir } from '@atcx/contract/light';
 import { buildOptionalNonEmptyString } from '@atcx/contract/schema';
 import { z } from 'zod';
-import { normalizeConfigDir } from './normalize-config-dir';
+import { normalizeConfigDir } from '../config-file/normalize-config-dir';
 
 export interface HookEntry {
   readonly command: string;

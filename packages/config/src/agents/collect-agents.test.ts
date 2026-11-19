@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
+import { buildStubHarnessPlugins } from '../test-utils/build-stub-harness-plugins';
 import { collectAgents } from './collect-agents';
-import { buildStubHarnessPlugins } from './test-utils/build-stub-harness-plugins';
 
 test('it fills every default for the three ids that name a kind', () => {
   expect(

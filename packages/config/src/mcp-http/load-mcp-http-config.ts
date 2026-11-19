@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { isRecord } from '@atc/core';
+import { configFile } from '../host/config-file';
 import { collectMCPHTTPConfig } from './collect-mcp-http-config';
 import type { MCPHTTPConfig } from './collect-mcp-http-config';
-import { configFile } from './host/process-paths';
 
 export function loadMCPHTTPConfig(): MCPHTTPConfig {
   try {
