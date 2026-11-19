@@ -1,12 +1,13 @@
-import type { SessionState } from './session-state';
+import type { SessionViewState } from './session-state';
 import type { SortableSessionView } from './sortable-session-view';
 
 export function sortSessionViews<T extends SortableSessionView>(list: readonly T[]): T[] {
-  const rank: Record<SessionState, number> = {
+  const rank: Record<SessionViewState, number> = {
     needs_you: 0,
     done: 1,
     running: 2,
     exited: 3,
+    unknown: 4,
   };
 
   const ranked = [...list].toSorted((left, right) => {

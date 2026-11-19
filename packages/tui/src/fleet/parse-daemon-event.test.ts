@@ -253,3 +253,18 @@ test('it misses on a SessionAdded event whose session descriptor is malformed', 
 
   expect(event).toBeNull();
 });
+
+test('it skips an event kind it does not know', () => {
+  expect(
+    parseDaemonEvent({ version: 15, ev: 'SessionTeleported', sessionID: 's-1' }, null),
+  ).toBeNull();
+});
+
+test('it shows a rename by a namer it does not know as unknown', () => {
+  expect(
+    parseDaemonEvent(
+      { version: 15, ev: 'SessionRenamed', sessionID: 's-1', name: 'work', namedBy: 'oracle' },
+      null,
+    ),
+  ).toStrictEqual({ ev: 'SessionRenamed', sessionID: 's-1', name: 'work', namedBy: 'unknown' });
+});
