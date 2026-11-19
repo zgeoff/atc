@@ -104,9 +104,12 @@ cd "$DEMO"
 bun "$ROOT/scripts/run-demo-recording.ts" record "$DEMO/run/atc-daemon.sock" "$DEMO/cloud-run/atc-daemon.sock" \
   "$DEMO/home/projects/shop" "$DEMO/cues" "$ROOT/docs/assets/demo.tape"
 FRAMES=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 demo.gif)
-# ffprobe prints N/A for a GIF with a header and no frames.
-if ! [[ "$FRAMES" =~ ^[0-9]+$ ]] || [ "$FRAMES" -lt 1 ]; then
-  echo "record-demo: vhs wrote no GIF that decodes" >&2
+# ffprobe prints N/A for a GIF with a header and no frames. A truncated GIF
+# still counts its first frames and exits 0, so a full decode must also print
+# no error.
+DECODE_ERRORS=$(ffmpeg -v error -i demo.gif -f null - 2>&1 || echo "ffmpeg exited $?")
+if ! [[ "$FRAMES" =~ ^[0-9]+$ ]] || [ "$FRAMES" -lt 1 ] || [ -n "$DECODE_ERRORS" ]; then
+  echo "record-demo: vhs wrote no GIF that decodes: $DECODE_ERRORS" >&2
   exit 1
 fi
 cp demo.gif "$ROOT/docs/assets/.demo.gif.new"
