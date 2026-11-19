@@ -48,8 +48,8 @@ host: `prepareHost` and a forget refuse it with `host_unavailable` and the probl
 
 An exec's session id arrives in a `session_info` message on the WebSocket. The provider speaks the
 exec WebSocket itself, because the SDK drops that message for an exec that is not a terminal. The
-SDK serves the REST calls and the file endpoint, and a file past the endpoint's 16 MiB limit, such
-as the binary, goes through an exec's stdin.
+SDK serves the REST calls and the file endpoint, and a file past the endpoint's size limit, such as
+the binary, goes through an exec's stdin.
 
 ## Lifecycle
 
@@ -58,7 +58,7 @@ as the binary, goes through an exec's stdin.
   record and uploads the binary when the sprite holds none of the daemon's build. The relay starts,
   and the harness starts once the relay answers.
 - **Kill.** `suspendHost` detaches every exec of the host, the relay's included, and calls no API.
-  The sprite goes to sleep about 10 seconds later with the harness frozen inside.
+  The sprite goes to sleep shortly after, with the harness frozen inside.
 - **Revive.** The provider attaches to the recorded harness exec when the sprite lists it under the
   same boot id. Otherwise it starts the spec's command, which a revive sets to the agent's resume
   command.
