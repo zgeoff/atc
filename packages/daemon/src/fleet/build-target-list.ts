@@ -1,4 +1,5 @@
-import type { ExecutionCapabilities } from '@atc/plugin-api';
+import type { ExecutionCapabilities, ExecutionProvider } from '@atc/plugin-api';
+import { getHostCredentials } from '@atc/plugin-api';
 import type { ExecutionTarget } from './build-execution-targets';
 
 export interface TargetEntry {
@@ -18,8 +19,8 @@ export interface TargetEntry {
   readonly default: boolean;
   readonly capabilities: ExecutionCapabilities;
 
-  // Whether the target's provider reaches impd's credential broker, so an
-  // agent that takes its credential from the broker can run there.
+  // Whether the target's provider supplies credentials to an agent's auth profiles, through a
+  // broker or routes, so an agent that selects them can run there.
   readonly brokerAuth: boolean;
 }
 
@@ -35,6 +36,7 @@ const NO_CAPABILITIES: ExecutionCapabilities = {
   headless: false,
   suspend: false,
   destroy: false,
+  relay: false,
 };
 
 export function buildTargetList(
@@ -50,6 +52,16 @@ export function buildTargetList(
     remote: target.provider?.remote ?? false,
     default: target.id === defaultTarget,
     capabilities: target.provider?.capabilities ?? NO_CAPABILITIES,
-    brokerAuth: target.provider?.brokerAuth !== undefined,
+    brokerAuth: isBrokered(target.provider),
   }));
+}
+
+function isBrokered(provider: ExecutionProvider | null): boolean {
+  if (provider === null) {
+    return false;
+  }
+
+  const kind = getHostCredentials(provider).kind;
+
+  return kind === 'broker' || kind === 'routed';
 }

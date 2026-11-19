@@ -26,6 +26,7 @@ function setupTest() {
       printGrokHooks: mock(() => Promise.resolve()),
       runHookReport: mock(() => Promise.resolve()),
       runTap: mock(() => Promise.resolve()),
+      runRelayMux: mock(() => Promise.resolve()),
       runNote: mock(() => Promise.resolve()),
       runStatusline: mock(() => Promise.resolve()),
       print: mock(),
@@ -216,6 +217,7 @@ test.each([
   { args: ['hook-report', '--agent', 'claude'], run: 'runHookReport', with: ['claude'] },
   { args: ['hook-report', '--agent=-custom'], run: 'runHookReport', with: ['-custom'] },
   { args: ['statusline', '--agent=-custom'], run: 'runStatusline', with: ['-custom'] },
+  { args: ['relay-mux', '/tmp/bridge.sock'], run: 'runRelayMux', with: ['/tmp/bridge.sock'] },
   { args: ['tap', '--session', 's-1'], run: 'runTap', with: ['s-1', false] },
   { args: ['tap', '--session=s-1', '--notices'], run: 'runTap', with: ['s-1', true] },
   {

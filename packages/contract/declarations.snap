@@ -84,6 +84,7 @@ declare const TARGET_ENTRY_SCHEMA: z.ZodObject<{
         headless: z.ZodBoolean;
         suspend: z.ZodBoolean;
         destroy: z.ZodBoolean;
+        relay: z.ZodBoolean;
     }, z.core.$strip>;
     brokerAuth: z.ZodBoolean;
 }, z.core.$strip>;
@@ -178,6 +179,7 @@ export declare const AGENT_LIST_SCHEMA: z.ZodObject<{
             headless: z.ZodBoolean;
             suspend: z.ZodBoolean;
             destroy: z.ZodBoolean;
+            relay: z.ZodBoolean;
         }, z.core.$strip>;
         brokerAuth: z.ZodBoolean;
     }, z.core.$strip>>>;
@@ -445,6 +447,7 @@ export declare const DAEMON_CONTRACT: {
                     headless: z.ZodBoolean;
                     suspend: z.ZodBoolean;
                     destroy: z.ZodBoolean;
+                    relay: z.ZodBoolean;
                 }, z.core.$strip>;
                 brokerAuth: z.ZodBoolean;
             }, z.core.$strip>>>;

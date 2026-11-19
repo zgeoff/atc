@@ -34,7 +34,8 @@ test('it refuses the command for a session on another machine as unsupported', a
     options: (paths) => {
       const provider = {
         ...createStubExecutionProvider({ kind: 'imp-like', remote: true }),
-        readGuest: () => Promise.resolve({ directory: join(paths.directory, 'guest'), atc: null }),
+        readGuest: () =>
+          Promise.resolve({ directory: join(paths.directory, 'guest'), atc: null, signIn: null }),
       };
 
       return {

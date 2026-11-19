@@ -36,6 +36,7 @@ export async function startTUIDaemon(
       plugins,
       config: target,
       host,
+      stateDir: paths.stateDir,
       env: tui.env,
       authProfiles: config.authProfiles,
     }),

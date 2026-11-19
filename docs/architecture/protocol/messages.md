@@ -260,6 +260,11 @@ notices not yet acked, and the tap prints each one once and acks a repeat again.
 waits in an outbox file beside the bridge socket until the bridge takes it, and the tap sends the
 outbox again on every connection, so a note survives a dropped connection and lands once.
 
+A host whose provider declares `relay` has no forwarded socket, so the daemon carries the same lines
+over the host's command streams as numbered, acked frames
+([targets](../execution/targets.md#providers-and-capabilities)). A dropped stream reconnects and
+replays every frame not yet acked, and the receiving side applies each frame once.
+
 A local session has no outbox. Its notes and answers go to the reporter socket once, and a daemon
 that is down at that moment loses them. Its tap exits when the daemon goes away, which ends the
 local session too, and the restored session starts a tap of its own.

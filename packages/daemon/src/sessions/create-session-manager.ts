@@ -24,6 +24,8 @@ import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { createSessionRestorer } from '../fleet/create-session-restorer';
 import type { SessionRestorer } from '../fleet/create-session-restorer';
 import { collectSessionDescriptors } from './collect-session-descriptors';
+import { createHarnessFates } from './create-harness-fates';
+import type { HarnessFates } from './create-harness-fates';
 import { createHostDirClaims } from './create-host-dir-claims';
 import type { HostDirClaims } from './create-host-dir-claims';
 import type { PublishedRecords } from './create-published-records';
@@ -149,6 +151,10 @@ export interface SessionManager {
   readonly isUnrestored: (id: SessionID) => boolean;
   readonly removeUnrestoredMark: (id: SessionID) => void;
   readonly updateRestoreRefusal: (session: Session, reason: string, code: string | null) => void;
+
+  // Reads whether each sleeping session's host still holds its harness, and lists a session whose
+  // host lost it as ended.
+  readonly readHarnessFates: HarnessFates['readFates'];
   readonly updateRestoredIdentity: (session: Session, identity: string) => void;
   readonly requireAgentTarget: (agent: AgentID, target: string) => void;
   readonly revokeAuth: (id: SessionID) => Promise<boolean>;
@@ -319,7 +325,17 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
   });
 
   const restorer = createSessionRestorer({ registry, fleet, callbacks });
-  const adopter = createSessionAdopter({ registry, fleet, harnesses, rollback, auth, callbacks });
+  const fates = createHarnessFates({ registry, callbacks });
+
+  const adopter = createSessionAdopter({
+    registry,
+    fleet,
+    harnesses,
+    rollback,
+    auth,
+    fates,
+    callbacks,
+  });
 
   const spawner = createSessionSpawner({
     registry,
@@ -328,6 +344,7 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
     harnesses,
     rollback,
     auth,
+    fates,
     callbacks,
   });
 
@@ -467,6 +484,8 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
     removeUnrestoredMark: (id) => {
       restorer.removeUnrestoredMark(id);
     },
+
+    readHarnessFates: (scope) => fates.readFates(scope),
 
     updateRestoreRefusal: (session, reason, code) => {
       restorer.updateRestoreRefusal(session, reason, code);

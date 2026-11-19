@@ -10,7 +10,7 @@ test('it reports itself as a remote imp with the imp capabilities and guest layo
 
   const guest = await provider.readGuest?.('s-1');
 
-  expect(guest).toStrictEqual({ directory: '/tmp/atc', atc: null });
+  expect(guest).toStrictEqual({ directory: '/tmp/atc', atc: null, signIn: null });
 
   expect(provider.capabilities).toStrictEqual({
     spawn: true,
@@ -23,6 +23,7 @@ test('it reports itself as a remote imp with the imp capabilities and guest layo
     headless: false,
     suspend: true,
     destroy: true,
+    relay: true,
   });
 });
 

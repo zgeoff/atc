@@ -132,6 +132,16 @@ gives it. Input sent to a Claude Code session in that window starts a headless t
 waiting for the terminal. The restore then starts no terminal for that session. It checks for such a
 turn before each try at the session, and again while the session's remote host wakes.
 
+## Harness fates
+
+A provider may answer which of a host's sleeping harnesses it still holds. The daemon asks in the
+background, so a slow host never delays a restore: once for each host with sleeping sessions when a
+restore runs, and again for the other sleeping sessions on a host each time a spawn or a revive
+readies it. A harness the host reports `lost`, such as after a reboot, lists as exited with the
+message `host lost the process`. The session's fleet row stays as it is, so the owner can still
+revive it. An answer for a session that was revived, killed or forgotten while the read ran is
+dropped, and a read that fails changes nothing.
+
 ## What each failure costs
 
 - **A client crashes.** Nothing: the daemon keeps every session running.

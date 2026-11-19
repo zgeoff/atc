@@ -1,4 +1,4 @@
-import type { HostServices, PluginContext, PluginDefinition, PluginKind } from '@atc/plugin-api';
+import type { PluginContext, PluginDefinition, PluginKind } from '@atc/plugin-api';
 
 interface PluginContractArgs<K extends PluginKind, C> {
   readonly plugin: PluginDefinition<K, C>;
@@ -7,7 +7,7 @@ interface PluginContractArgs<K extends PluginKind, C> {
   // to.
   readonly raw: unknown;
   readonly entryID: string;
-  readonly host: HostServices;
+  readonly host: Parameters<PluginDefinition<K, C>['create']>[1];
   readonly context: PluginContext;
 }
 

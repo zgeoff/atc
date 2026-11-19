@@ -51,7 +51,11 @@ export function createStubExecutionProvider(
   return {
     kind: config.kind ?? 'stub',
     remote: config.remote ?? false,
-    capabilities: { ...local.capabilities, ...config.capabilities },
+    capabilities: {
+      ...local.capabilities,
+      relay: config.remote ?? false,
+      ...config.capabilities,
+    },
     prepareHost: local.prepareHost,
     spawnHarness: (spec) => {
       onSpawn(spec);

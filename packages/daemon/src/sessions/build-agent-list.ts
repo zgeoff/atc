@@ -1,5 +1,6 @@
-import type { AgentAdapter } from '@atc/plugin-api';
+import type { AgentAdapter, HostCredentials } from '@atc/plugin-api';
 import type { SpawnOptionSpec } from '@atcx/contract';
+import { buildHarnessAuthDecision } from '../auth/build-harness-auth-decision';
 
 interface AgentCapabilities {
   // Whether some target can start a session of the agent.
@@ -43,8 +44,8 @@ export interface AgentEntry {
   readonly brokerRequired: boolean;
 
   // The targets a spawn of the agent can start on: none when its starts are
-  // all refused, only those that reach impd's broker when it starts only
-  // there, and only a remote target when its binary is missing here.
+  // all refused, none whose credentials refuse the agent's default auth
+  // selection, and only a remote target when its binary is missing here.
   readonly spawnTargets: readonly string[];
   readonly capabilities: AgentCapabilities;
   readonly models: Readonly<Record<string, string>> | null;
@@ -59,8 +60,8 @@ export interface AgentListTarget {
   // daemon's, so the agent's binary need not resolve here.
   readonly remote: boolean;
 
-  // Whether its provider reaches impd's credential broker.
-  readonly brokerAuth: boolean;
+  // How its provider's host supplies credentials, which the agent's launch there is decided from.
+  readonly credentials: HostCredentials;
 }
 
 export function buildAgentList(
@@ -80,7 +81,9 @@ export function buildAgentList(
       ? []
       : targets
           .filter((target) => installed || target.remote)
-          .filter((target) => !brokerRequired || target.brokerAuth)
+          .filter(
+            (target) => buildHarnessAuthDecision(adapter, target.credentials).kind !== 'refused',
+          )
           .filter((target) => !configuresPluginDirs || !target.remote)
           .map((target) => target.id);
 

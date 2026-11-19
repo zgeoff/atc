@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client/index.ts",
+    "./relay": "./src/relay/index.ts",
     "./session": "./src/session/index.ts",
     "./wire": "./src/wire/index.ts",
     "./wire/transport": "./src/wire/transport/index.ts",

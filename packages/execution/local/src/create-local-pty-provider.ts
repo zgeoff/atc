@@ -32,6 +32,7 @@ export function createLocalPTYProvider(
     headless: true,
     suspend: false,
     destroy: false,
+    relay: false,
   };
 
   return {

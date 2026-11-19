@@ -59,8 +59,16 @@ export function sendPending(
 
 export function openList(flow: PickerFlow) {
   const ctx = flow.ctx;
-  const brokered = ctx.listedAgents.some((entry) => entry.id === ctx.agent && entry.brokerRequired);
-  const picks = ctx.listedTargets.filter((target) => !brokered || target.brokerAuth);
+  const listedAgent = ctx.listedAgents.find((entry) => entry.id === ctx.agent);
+
+  // the daemon lists the targets whose credentials serve the agent's auth selection; a target
+  // whose provider it lacks stays, so its choice explains why it is unavailable
+  const picks = ctx.listedTargets.filter(
+    (target) =>
+      !target.available ||
+      listedAgent === undefined ||
+      listedAgent.spawnTargets.includes(target.id),
+  );
 
   // An adopt resumes a session from its history on this host, which a
   // fresh checkout elsewhere does not hold.

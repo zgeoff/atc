@@ -1,3 +1,4 @@
+import { findHostBroker } from '@atc/plugin-api';
 import type { StateStore } from '@atc/store';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import type { RuntimeAuthBinder } from './create-runtime-auth-binder';
@@ -14,7 +15,7 @@ export async function tryReconcileAuthBindings(
     const listed = new Set(fleet.map((entry) => entry.hostKey ?? entry.sessionID));
 
     await binder.reconcileBindings(
-      (target) => targets.get(target)?.provider?.brokerAuth ?? null,
+      (target) => findHostBroker(targets.get(target)?.provider),
       listed,
       log,
     );

@@ -306,6 +306,10 @@ export function createGatewayAdapter(
       ...(pluginDirs.length === 0 ? {} : { pluginDirs }),
     },
 
+    // the gateway's own baseURL would take the requests in place of a route or a stored token's
+    // API, and the broker kind has its own refusal in findSpawnRefusal
+    findGuestEnvConflict: (kind) => (kind === 'broker' ? null : 'baseURL'),
+
     findSpawnRefusal: () => {
       const auth = gateway.auth;
 

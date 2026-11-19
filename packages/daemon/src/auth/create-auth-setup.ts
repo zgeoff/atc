@@ -1,7 +1,9 @@
 import type { AgentID, StepTimer } from '@atc/core';
 import type {
   AgentAdapter,
+  AuthProfile,
   CredentialBroker,
+  CredentialRouter,
   ExecutionProvider,
   GuestPaths,
   GuestSpawnPlan,
@@ -9,6 +11,7 @@ import type {
   SpawnOptions,
   SpawnPlan,
 } from '@atc/plugin-api';
+import { findHostBroker, getHostCredentials } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { FleetStore, RuntimeAuthBinding } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
@@ -22,9 +25,11 @@ import { readGuestLayout } from '../sessions/read-guest-layout';
 import type { SessionCallbacks } from '../sessions/session-callbacks';
 import { buildAuthBinding } from './build-auth-binding';
 import type { AuthBinding } from './build-auth-binding';
-import { buildBrokerTargetRefusal } from './build-broker-target-refusal';
 import { buildGuestRefusal } from './build-guest-refusal';
+import { buildHarnessAuthDecision } from './build-harness-auth-decision';
+import { buildHarnessAuthRefusal } from './build-harness-auth-refusal';
 import type { RuntimeAuthBinder } from './create-runtime-auth-binder';
+import type { HarnessAuthDecision } from './decide-harness-auth';
 import { formatAuthNotice } from './format-auth-notice';
 import { loadOAuthStates } from './load-oauth-states';
 import { readHostAgentHome } from './read-host-agent-home';
@@ -43,17 +48,36 @@ export interface HarnessSetup {
 
 // How a harness takes its credential from the target's broker: the broker the
 // provider reaches, and the binding the agent's selection resolves to now.
-interface HarnessAuth {
+interface BrokerHarnessAuth {
+  readonly kind: 'broker';
   readonly host: CredentialBroker;
   readonly binding: AuthBinding;
 }
 
+// How a harness sends its requests to routes that add the credential outside
+// its host. The launch records no binding, so the selection's binding only
+// gives the placeholders and profile variables.
+interface RoutedHarnessAuth {
+  readonly kind: 'routed';
+  readonly router: CredentialRouter;
+  readonly binding: AuthBinding;
+  readonly profiles: readonly AuthProfile[];
+}
+
+// How a harness takes its credential from the user's stored token, which the
+// host mounts.
+interface StoredTokenHarnessAuth {
+  readonly kind: 'stored-token';
+}
+
+type HarnessAuth = BrokerHarnessAuth | RoutedHarnessAuth | StoredTokenHarnessAuth;
+
 // A harness's auth as its setup applies it: a spawn's own new host creates
 // the binding, and every other launch verifies the one its host holds.
-export interface HarnessAuthSetup extends HarnessAuth {
+export type HarnessAuthSetup = HarnessAuth & {
   readonly mode: 'create' | 'verify';
   readonly targetIdentity: string;
-}
+};
 
 // A verified binding and the revision it held before the verify, which a
 // rebind inside the verify moves on from.
@@ -187,25 +211,51 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
     return binder;
   };
 
+  // The decision for an agent on a provider, with each refusal thrown and a broker decision
+  // thrown when the daemon holds no binder.
+  const requireAuthDecision = (
+    adapter: AgentAdapter,
+    provider: Pick<ExecutionProvider, 'credentials'>,
+    target: string,
+  ): Exclude<HarnessAuthDecision, { readonly kind: 'refused' }> => {
+    const credentials = getHostCredentials(provider);
+    const decision = buildHarnessAuthDecision(adapter, credentials);
+
+    if (decision.kind === 'refused') {
+      const variable =
+        credentials.kind === 'none'
+          ? null
+          : (adapter.findGuestEnvConflict?.(credentials.kind) ?? null);
+
+      throw buildHarnessAuthRefusal(adapter.id, target, decision.problem, variable);
+    }
+
+    if (decision.kind === 'broker') {
+      requireAuthBinder();
+    }
+
+    return decision;
+  };
+
   const resolveHarnessAuth = (
     adapter: AgentAdapter,
     provider: ExecutionProvider,
     target: string,
   ): HarnessAuth | null => {
+    const decision = requireAuthDecision(adapter, provider, target);
+
+    if (decision.kind === 'none') {
+      return null;
+    }
+
+    if (decision.kind === 'stored-token') {
+      return { kind: 'stored-token' };
+    }
+
     const selection = adapter.findAuthSelection?.() ?? null;
 
     if (selection === null) {
-      return null;
-    }
-
-    const host = provider.brokerAuth;
-
-    if (host === undefined && !selection.brokerRequired) {
-      return null;
-    }
-
-    if (host === undefined || callbacks.findAuthBinder() === null) {
-      throw buildBrokerTargetRefusal(adapter.id, target);
+      throw new Error(`agent '${adapter.id}' decided on a credential without an auth selection`);
     }
 
     const planned = buildAuthBinding(selection.gateway, selection.profiles);
@@ -217,7 +267,20 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       });
     }
 
-    return { host, binding: planned.binding };
+    if (decision.kind === 'broker') {
+      return { kind: 'broker', host: decision.broker, binding: planned.binding };
+    }
+
+    return {
+      kind: 'routed',
+      router: decision.router,
+      binding: planned.binding,
+      profiles: planned.binding.profiles.flatMap((name) => {
+        const profile = selection.profiles.get(name);
+
+        return profile === undefined ? [] : [profile];
+      }),
+    };
   };
 
   // A launch without runtime auth never starts on a host that holds a
@@ -240,7 +303,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
     agent: AgentID,
     provider: ExecutionProvider,
     hostKey: SessionID,
-    auth: HarnessAuthSetup,
+    auth: HarnessAuthSetup & { readonly kind: 'broker' },
   ): Promise<VerifiedAuth> => {
     // only a host whose every session runs this agent rebinds: two agents that select
     // different profiles would each move the host back on their own launches
@@ -248,8 +311,10 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       (other) => other.hostKey !== hostKey || other.agent === agent,
     );
 
+    const credentials = getHostCredentials(provider);
+
     const rebind =
-      provider.rebindChangedAuth === true && isSoleAgent
+      credentials.kind === 'broker' && credentials.rebindChangedAuth && isSoleAgent
         ? {
             log: (line: string) => {
               callbacks.log(line);
@@ -283,21 +348,13 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 
   const self: AuthSetup = {
     requireAgentTarget: (agent, target) => {
-      const selection = registry.findAdapter(agent)?.findAuthSelection?.() ?? null;
+      const adapter = registry.findAdapter(agent);
 
-      if (selection === null) {
+      if (adapter === null) {
         return;
       }
 
-      const host = registry.targets.get(target)?.provider?.brokerAuth;
-
-      if (host === undefined && !selection.brokerRequired) {
-        return;
-      }
-
-      if (host === undefined || callbacks.findAuthBinder() === null) {
-        throw buildBrokerTargetRefusal(agent, target);
-      }
+      requireAuthDecision(adapter, registry.targets.get(target)?.provider ?? {}, target);
     },
 
     resolveHarnessAuth,
@@ -346,8 +403,22 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
         throw refusal;
       }
 
-      if (auth === null) {
+      if (auth?.kind === 'stored-token') {
+        throw new DaemonError(
+          'unsupported_operation',
+          `agent '${adapter.id}' cannot launch on target '${target}' yet: a launch that reads the stored token inside the host is not built`,
+          { agent: adapter.id, target, problem: 'stored_token_launch' },
+        );
+      }
+
+      // a routed launch holds no binding, so a host that holds one is as unfit for it as for any
+      // launch without runtime auth
+      if (auth?.kind !== 'broker') {
         await requireUnboundHost(adapter.id, hostKey);
+      }
+
+      if (auth?.kind === 'routed') {
+        await auth.router.verifyRoutes(auth.profiles);
       }
 
       if (!provider.remote) {
@@ -398,7 +469,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       // a target that rebinds a changed selection moves the binding to the
       // revision the plan then launches under.
       const verified =
-        auth?.mode === 'verify'
+        auth?.kind === 'broker' && auth.mode === 'verify'
           ? await timer.withStep('auth-binding', () =>
               verifyHarnessAuth(adapter.id, provider, hostKey, auth),
             )
@@ -410,6 +481,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
         atc: guest.atc,
         directory,
         sessionEnv,
+        ...(guest.signIn === null ? {} : { signIn: { directory: guest.signIn } }),
         ...(auth === null
           ? {}
           : {
@@ -426,7 +498,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
           ? buildGuestRefusal(provider.kind, adapter.id, target, guest.atc === null)
           : new DaemonError(
               'auth_target_unsupported',
-              `agent '${adapter.id}' plans no guest settings to take its credential from the ${auth.host.describe.name} broker on target '${target}'`,
+              `agent '${adapter.id}' plans no guest settings to take its credential from the credentials of target '${target}'`,
               { agent: adapter.id, target, problem: 'no_guest_plan' },
             );
       }
@@ -436,7 +508,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       requireGuestEnv(adapter.id, target, env, auth !== null);
 
       const attemptID =
-        auth?.mode === 'create'
+        auth?.kind === 'broker' && auth.mode === 'create'
           ? await timer.withStep('auth-binding', () =>
               requireAuthBinder().createBinding(auth.host, {
                 hostKey,
@@ -476,7 +548,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       }
 
       const admission =
-        auth === null || paths.auth === undefined
+        auth?.kind !== 'broker' || paths.auth === undefined
           ? null
           : { revision: paths.auth.revision, hash: auth.binding.hash, attemptID };
 
@@ -516,10 +588,11 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
         return false;
       }
 
-      await requireAuthBinder().revokeBinding(
-        registry.findProvider(session)?.brokerAuth ?? null,
-        session.hostKey,
-      );
+      const provider = registry.findProvider(session);
+
+      requireNotRouted(provider);
+
+      await requireAuthBinder().revokeBinding(findHostBroker(provider), session.hostKey);
 
       return true;
     },
@@ -540,9 +613,12 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       }
 
       const provider = registry.requireExecution(session, 'spawn').provider;
+
+      requireNotRouted(provider);
+
       const auth = resolveHarnessAuth(adapter, provider, session.target);
 
-      if (auth === null) {
+      if (auth?.kind !== 'broker') {
         throw new DaemonError(
           'unsupported_operation',
           `agent '${session.agent}' takes no credential from the target's broker`,
@@ -583,13 +659,21 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
   return self;
 }
 
-// The binding revision and placeholders a guest plan behind the broker
-// launches under, with the sign-in state the broker lists for each oauth
-// secret the binding holds.
+// The revision and placeholders a guest plan launches under: the broker's, with the sign-in
+// state it lists for each oauth secret, or on a routed host revision 1 with each profile's route.
 async function planGuestAuth(
-  auth: HarnessAuthSetup,
+  auth: BrokerHarnessAuth | RoutedHarnessAuth,
   revision: number,
 ): Promise<NonNullable<GuestPaths['auth']>> {
+  if (auth.kind === 'routed') {
+    return {
+      revision: 1,
+      env: auth.binding.placeholderEnv,
+      profileEnv: auth.binding.profileEnv,
+      routes: await auth.router.readRoutes(auth.profiles),
+    };
+  }
+
   const oauth = await loadOAuthStates(auth.host, auth.binding);
 
   return {
@@ -618,6 +702,17 @@ function planHarnessOnGuest(
 
     return { ...local, env: { ...local.env, ...paths.sessionEnv }, files: {} };
   } catch (error) {
-    throw auth === null ? error : toSignInRefusal(error, auth.host, auth.binding.secrets);
+    throw auth?.kind === 'broker' ? toSignInRefusal(error, auth.host, auth.binding.secrets) : error;
+  }
+}
+
+// A routed host holds no binding, so there is nothing to revoke or rebind
+function requireNotRouted(provider: Pick<ExecutionProvider, 'credentials'> | null): void {
+  if (provider !== null && getHostCredentials(provider).kind === 'routed') {
+    throw new DaemonError(
+      'unsupported_operation',
+      "this host's credentials come from routes, which atc neither revokes nor rebinds",
+      { problem: 'routed_auth' },
+    );
   }
 }

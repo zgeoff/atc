@@ -45,6 +45,7 @@ export interface ATCCLIIO extends CommandLineIO, DaemonCommandIO {
   readonly printGrokHooks: () => Promise<void>;
   readonly runHookReport: (agent: string) => Promise<void>;
   readonly runTap: (session: string, notices: boolean) => Promise<void>;
+  readonly runRelayMux: (socket: string) => Promise<void>;
   readonly runNote: (...args: Readonly<Parameters<typeof runNote>>) => Promise<void>;
   readonly runStatusline: (agent: string) => Promise<void>;
 }
@@ -455,6 +456,19 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
     },
   );
 
+  const relayMux = lazy(
+    () => async (ctx) => {
+      await io.runRelayMux(ctx.values.socket);
+    },
+    {
+      name: 'relay-mux',
+      description:
+        "Carry a session's bridge socket over stdin and stdout, for a host the daemon reaches by a byte stream",
+      internal: true,
+      args: { socket: { type: 'positional', required: true, description: 'The socket to bind' } },
+    },
+  );
+
   const note = lazy(
     () => async (ctx) => {
       await io.runNote('note', { message: '', messages: '', label: ctx.values.label, turn: '' });
@@ -547,6 +561,7 @@ export async function runATCCLI(argv: readonly string[], io: ATCCLIIO): Promise<
         'grok-hooks': grokHooks,
         'hook-report': hookReport,
         tap,
+        'relay-mux': relayMux,
         note,
         answer,
         unanswered,

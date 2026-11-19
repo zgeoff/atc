@@ -193,6 +193,7 @@ test('it lists the imp target as reaching the broker and the local target as rea
         input: true,
         resize: true,
         kill: true,
+        relay: false,
         transfer: true,
         run: true,
         headless: true,
@@ -214,6 +215,7 @@ test('it lists the imp target as reaching the broker and the local target as rea
         input: true,
         resize: true,
         kill: true,
+        relay: true,
         transfer: true,
         run: true,
         headless: false,
@@ -3759,7 +3761,7 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
 
   registerTestCleanup(() => store.stop());
 
-  await createRuntimeAuthBinder(store).createBinding(ctx.provider.brokerAuth, {
+  await createRuntimeAuthBinder(store).createBinding(ctx.provider.credentials.broker, {
     hostKey: toSessionID('orphan'),
     target: 'box',
     targetIdentity: 'imp:test',

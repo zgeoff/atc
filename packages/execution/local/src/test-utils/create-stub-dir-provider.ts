@@ -49,6 +49,7 @@ export function createStubDirProvider(options: StubDirOptions = {}): StubDirProv
     headless: false,
     suspend: false,
     destroy: false,
+    relay: false,
   };
 
   const afterTransfer = options.afterTransfer;

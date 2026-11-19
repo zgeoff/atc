@@ -14,7 +14,7 @@ import { startClaudeHeadlessRun } from '@atc/harness-claude';
 import { makeDaemonReadySignal } from '@atc/lifecycle';
 import type { HostServices } from '@atc/plugin-api';
 import { registerRefusedSQLiteName } from '@atc/store/sqlite';
-import { resolveHomeDir } from '@atcx/contract/light';
+import { resolveHomeDir, resolveStateDir } from '@atcx/contract/light';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { createShippedExecutionProvider } from '../plugins/create-shipped-execution-provider';
 import { loadExecutionPlugins } from '../plugins/load-execution-plugins';
@@ -60,6 +60,7 @@ export async function runDaemon(invocation: DaemonInvocation): Promise<void> {
       plugins,
       config: target,
       host: hostServices,
+      stateDir: resolveStateDir(resolveHomeDir()),
       env: invocation.env,
       authProfiles: config.authProfiles,
     }),

@@ -1171,6 +1171,7 @@ test('it offers an agent that takes the broker credential only the targets that 
         installed: true,
         brokerAuth: true,
         brokerRequired: true,
+        spawnTargets: ['box'],
         capabilities: { spawn: true },
       }),
     ],
@@ -1379,6 +1380,67 @@ test('it offers every target to an agent that takes the broker credential withou
   await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
 
   picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+  picker.applyKey(Buffer.from(KEYS.enter));
+
+  expect(ctx.daemon.collectSent('session.spawn')).toStrictEqual([
+    {
+      cwd: ctx.cwd,
+      name: '',
+      prompt: '',
+      cols: expect.any(Number),
+      rows: 24,
+      agent: 'claude',
+      target: 'local',
+    },
+  ]);
+});
+
+test('it hides refused targets for an agent that does not require a broker', async () => {
+  const ctx = setupTest();
+
+  const picker = createSpawnPicker({
+    ...ctx.deps,
+    ptyRows: () => 24,
+    getLastUsedAgent: () => 'claude',
+  });
+
+  picker.open();
+
+  await ctx.daemon.answer('agents.list', {
+    agents: [
+      buildMockListedAgent({
+        id: 'claude',
+        installed: true,
+        brokerAuth: false,
+        brokerRequired: false,
+        spawnTargets: ['local'],
+        capabilities: { spawn: true },
+      }),
+    ],
+    targets: [
+      {
+        id: 'local',
+        provider: 'local-pty',
+        available: true,
+        default: true,
+        capabilities: { transfer: true, run: true },
+      },
+      {
+        id: 'routed',
+        provider: 'imp',
+        available: true,
+        default: false,
+        capabilities: { transfer: true, run: true },
+        brokerAuth: true,
+      },
+    ],
+    sources: [{ id: 'dirs', label: 'directory on the daemon host', kind: 'path' }],
+  });
+
+  await ctx.daemon.answer('sources.list', { source: 'dirs', scope: null, candidates: [] });
+
   picker.applyKey(Buffer.from(KEYS.enter));
   picker.applyKey(Buffer.from(KEYS.enter));
   picker.applyKey(Buffer.from(KEYS.enter));
@@ -2371,6 +2433,7 @@ test('it shows why no target can run an agent whose broker no target reaches', a
         installed: true,
         brokerAuth: true,
         brokerRequired: true,
+        spawnTargets: [],
         capabilities: { spawn: true },
       }),
     ],
@@ -5202,7 +5265,12 @@ test('it lists the picked daemon directories on that daemon target after the use
 
   await ctx.daemon.answer('agents.list', {
     agents: [
-      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({
+        id: 'claude',
+        installed: true,
+        spawnTargets: ['primary-only', 'primary-spare'],
+        capabilities: { spawn: true },
+      }),
     ],
     targets: [
       {
@@ -5240,7 +5308,12 @@ test('it lists the picked daemon directories on that daemon target after the use
 
   await ctx.daemon.answer('agents.list', {
     agents: [
-      buildMockListedAgent({ id: 'claude', installed: true, capabilities: { spawn: true } }),
+      buildMockListedAgent({
+        id: 'claude',
+        installed: true,
+        spawnTargets: ['remote-only'],
+        capabilities: { spawn: true },
+      }),
     ],
     targets: [
       {
