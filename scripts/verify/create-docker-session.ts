@@ -2,7 +2,6 @@ import type { Endpoints } from '@wringer/core';
 import { parseDockerRunEndpoints } from './docker-run-endpoints.ts';
 import { openDaemonConnection } from './open-daemon-connection.ts';
 
-// Spawns a session of the stand-in claude on the run's docker target, in the image user's home.
 export async function createDockerSession(
   endpoints: Endpoints,
   name: string,

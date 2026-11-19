@@ -1,6 +1,3 @@
-// Spawns or kills sessions on the daemon the environment points at, for the
-// demo recording. `spawn <cwd> <name> <prompt>` starts one session and prints
-// its id; `kill-all` kills every session the daemon hosts.
 import { resolvePaths } from '@atc/config/host';
 import { isRecord } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';

@@ -7,8 +7,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 
-// A temp directory standing in for a repo root, and the real repo, whose
-// test-home script and tool versions the stand-in reuses
 function setupTest() {
   const temporaryDirectory = setupTempDir('test-plugin-');
 
@@ -24,7 +22,6 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
     .object({ workspaces: z.object({ catalog: catalogSchema }) })
     .parse(JSON.parse(rootText));
 
-  // the tools the workspace's type check and tests need, at the repo's versions
   const catalog = rootManifest.workspaces.catalog;
 
   await Bun.write(

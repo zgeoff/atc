@@ -8,9 +8,6 @@ interface CLIRun {
   readonly stderr: string;
 }
 
-// Runs the atc CLI of this checkout in the run's home with the arguments, and returns what it
-// exited with and printed, whatever the exit code, so a journey can check a command that exits
-// non-zero on purpose.
 export async function runCLICommand(
   exec: RepoExec,
   endpoints: Endpoints,

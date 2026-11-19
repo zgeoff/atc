@@ -5,7 +5,6 @@ import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
-// A folder for the stand-in shellcheck, and one standing in for a repo root.
 function setupTest() {
   const temporaryDirectory = setupTempDir('check-guest-scripts-');
   const bin = join(temporaryDirectory.path, 'bin');

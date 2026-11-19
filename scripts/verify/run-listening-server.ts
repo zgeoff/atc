@@ -1,8 +1,6 @@
 import type { Subprocess } from 'bun';
 
-// Starts a server of the run, `atc mcp --http` or `atc-gateway serve`, and waits for the startup
-// line that each prints as its first line on stdout once it accepts requests. Its stderr, where it
-// logs requests and refusals, goes to the run's app log.
+// Each server prints its startup line as the first line on stdout once it accepts requests.
 export async function runListeningServer(
   argv: readonly string[],
   env: Readonly<Record<string, string | undefined>>,

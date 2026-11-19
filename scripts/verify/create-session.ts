@@ -2,7 +2,6 @@ import type { Endpoints } from '@wringer/core';
 import { openDaemonConnection } from './open-daemon-connection.ts';
 import { parseRunEndpoints } from './run-endpoints.ts';
 
-// Spawns a session of the default agent, the stand-in claude, in the run's home.
 export async function createSession(
   endpoints: Endpoints,
   name: string,

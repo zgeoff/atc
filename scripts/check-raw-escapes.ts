@@ -1,6 +1,4 @@
-// Fails on a raw ESC byte (0x1B) in a source module. An editor shows the byte
-// as nothing or as a lookalike, a diff can drop it, and oxlint passes it, so
-// the escape sequences the TUI writes stay legible only as `\u001B` escapes.
+// An editor shows a raw ESC byte as nothing or as a lookalike, a diff can drop it, and oxlint passes it, so the escape sequences the TUI writes stay legible only as `\u001B` escapes.
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { readSourceFiles } from './read-source-files';

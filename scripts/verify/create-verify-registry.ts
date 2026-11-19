@@ -69,7 +69,6 @@ const dockerSessionData = z.strictObject({
 
 const signInData = z.strictObject({ servers: z.record(z.string(), z.number().int()) });
 
-// The HTTP servers each target's service client signs in to, which the doctor checks.
 const signInServers: Readonly<Record<string, readonly string[]>> = {
   local: ['remote', 'gateway'],
   prod: ['gateway'],
@@ -102,7 +101,6 @@ export function createVerifyRegistry(): Wringer {
           }),
           stream: buildStreamConfig,
 
-          // `atc mcp --http` serves its probes and `/mcp` on the run's `remote` origin
           http: () => ({ endpoint: 'remote', healthPath: '/healthz' }),
           mcp: buildLocalMCPConfig,
         },
@@ -131,8 +129,7 @@ export function createVerifyRegistry(): Wringer {
         host: local(),
         endpoints: readProdEndpoints,
         drivers: {
-          // the gateway answers its own probes only for its public host, so the reachable check
-          // reads its resource metadata
+          // the gateway answers its own probes only for its public host
           http: () => ({ endpoint: 'mcp', healthPath: resourceMetadataPath }),
           mcp: (ctx) => ({
             servers: {
@@ -330,9 +327,6 @@ export function createVerifyRegistry(): Wringer {
   );
 }
 
-// with-test-home.sh makes the run's temp home, and removes it and every process the run started
-// once the daemon's launcher exits. The launcher gets the digest of the run's service client, and
-// never its secret.
 function createLaunchPlan(): LaunchPlan {
   return {
     command: [
@@ -342,15 +336,13 @@ function createLaunchPlan(): LaunchPlan {
       join(repoRoot, 'scripts', 'test-utils', 'run-local-daemon.ts'),
     ],
 
-    // A Unix socket path holds at most 108 bytes, so the run's home goes under /tmp, whatever the
-    // caller's TMPDIR, which can be a long folder.
+    // A Unix socket path holds at most 108 bytes, so the run's home goes under /tmp, whatever the caller's TMPDIR.
     env: { TMPDIR: '/tmp', [localDigestEnv]: createLocalMCPClient() },
     ready: (line) => (line['event'] === 'ready' ? parseRunEndpoints(line) : null),
   };
 }
 
-// The one program the terminal driver starts: the TUI, in the run's home. The spawn picker lists
-// the client's own folder first, so a session that a journey spawns runs in the run's home too.
+// The spawn picker lists the client's own folder first, so a session that a journey spawns runs in the run's home too.
 function buildTerminalConfig(ctx: DriverConfigContext) {
   const run = parseRunEndpoints(ctx.endpoints);
 
@@ -368,8 +360,6 @@ function buildStreamConfig(ctx: DriverConfigContext) {
   return { sources: { events: { command: events }, daemon: { file: run.daemonLog } } };
 }
 
-// The four servers of a `local` run: `atc mcp` over stdio in the run's home, `atc mcp --http`, and
-// the two gateways.
 function buildLocalMCPConfig(ctx: DriverConfigContext) {
   const run = parseRunEndpoints(ctx.endpoints);
   const readTools = collectReadTools();
@@ -389,7 +379,6 @@ function buildLocalMCPConfig(ctx: DriverConfigContext) {
   };
 }
 
-// The docker target's launcher: a compiled daemon with one docker target, in the run's temp home.
 function createDockerLaunchPlan(): LaunchPlan {
   return {
     command: [

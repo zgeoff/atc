@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-// Bun.file's text reads as many bytes as stat reports, and procfs and cgroupfs report 0 for every
-// file; readFile reads to the end.
+// Bun.file's text reads as many bytes as stat reports, and procfs and cgroupfs report 0 for every file.
 export async function readOptionalText(path: string): Promise<string | undefined> {
   try {
     return await readFile(path, 'utf8');

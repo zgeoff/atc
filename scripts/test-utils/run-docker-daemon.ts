@@ -11,9 +11,6 @@ import { readRunHome } from '../verify/read-run-home.ts';
 
 type Env = Readonly<Record<string, string | undefined>>;
 
-// The `docker` target's app, started by `with-test-home.sh`: a compiled daemon, since a container
-// runs its binary, with one docker target on an image that holds the stand-in claude. It removes
-// the run's docker objects when it stops.
 export async function runDockerDaemon(env: Env) {
   const home = readRunHome(env);
   const paths = resolvePaths(env);
@@ -128,7 +125,6 @@ function startCleanupWatcher(env: Env, prefix: string, image: string): void {
   }).unref();
 }
 
-// The flags of `scripts/build-binaries.sh`, for the host's own platform.
 async function runCompile(entry: string, outfile: string): Promise<void> {
   const build = Bun.spawn(
     [

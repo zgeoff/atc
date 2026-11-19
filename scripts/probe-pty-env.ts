@@ -11,8 +11,6 @@ import { z } from 'zod';
 
 const INNER_FLAG = '--inner';
 
-// Every value is synthetic. The parent-session keys stand in for an
-// enclosing Claude or Grok session, which the clean map drops.
 const STARTUP_MARKERS: Readonly<Record<string, string>> = {
   ATC_PROBE_STARTUP_KEPT: 'startup',
   ATC_PROBE_STARTUP_WITHHELD: 'startup',
@@ -57,9 +55,6 @@ const MARKER_KEYS: readonly string[] = [
 // newline cannot pass for another key.
 const ENV_BIN = '/usr/bin/env';
 const ENV_ARGS: readonly string[] = ['-0'];
-
-// The probe runs at the top-level await below, so every schema it parses
-// with is declared above it.
 const ENV_SCHEMA = z.record(z.string(), z.string());
 const CHILD_ENV_SCHEMA = z.object({ path: z.string(), env: ENV_SCHEMA });
 
@@ -247,8 +242,6 @@ function collectMarkers(env: Readonly<Record<string, string | undefined>>): Reco
   return markers;
 }
 
-// The probe process prints the markers it starts with, so it runs only with
-// the synthetic environment the launcher builds, never one it inherits.
 function requireSyntheticStartup(
   startupKeys: readonly string[],
   startup: Readonly<Record<string, string>>,
@@ -264,16 +257,12 @@ function requireSyntheticStartup(
   }
 }
 
-// Keys outside the marker set keep their names with the value dropped, so
-// the report shows which keys a child got without echoing their values.
 function buildRedactedEnv(env: Readonly<Record<string, string>>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(env).map(([key, value]) => [key, MARKER_KEYS.includes(key) ? value : '<set>']),
   );
 }
 
-// The provider the daemon starts every local harness through, with the
-// same map and withheld names it builds from a session's spec.
 async function readLocalPTYEnv(
   map: Readonly<Record<string, string>>,
 ): Promise<Record<string, string>> {
@@ -387,8 +376,6 @@ function parseEnvOutput(output: string): Record<string, string> {
   return env;
 }
 
-// Every key the map holds must reach the child, so a short or empty read of
-// a child's output fails the probe instead of passing as a missing key.
 function assertSameKeys(
   env: Readonly<Record<string, string>>,
   map: Readonly<Record<string, string>>,

@@ -3,13 +3,11 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
 interface TestHomeProcessesOptions {
-  // The run directory of with-test-home.sh, which each process the run starts holds in
-  // ATC_TEST_HOME.
   readonly root: string;
 
   readonly procRoot: string;
 
-  // The caller holds the run's variables too, and keeps running.
+  // The caller holds the run's variables too, and keeps running, so it must be excluded from the kill.
   readonly ownPID: number;
 }
 
@@ -39,8 +37,7 @@ async function readTestHomeProcesses(
     names
       .filter((name) => /^\d+$/u.test(name) && Number(name) !== options.ownPID)
       .map(async (name) => {
-        // Bun.file reads 0 bytes from procfs. Another user's process refuses the read, and a
-        // process that exits first takes its file with it.
+        // Another user's process refuses the read, and a process that exits first takes its file with it.
         const environ = await readFile(join(options.procRoot, name, 'environ'), 'utf8').catch(
           () => '',
         );
@@ -52,7 +49,7 @@ async function readTestHomeProcesses(
   return matches.filter((pid) => pid !== null);
 }
 
-// parseArgs throws on an option it does not declare, which the caller reports as a refused input.
+// parseArgs throws on an option it does not declare.
 function parseCLIArgs(args: readonly string[]): string | Error {
   try {
     const parsed = parseArgs({ args: [...args], options: {}, allowPositionals: true });

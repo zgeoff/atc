@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
-// A temp directory standing in for a repo root.
 function setupTest() {
   const temporaryDirectory = setupTempDir('check-disable-baseline-');
 

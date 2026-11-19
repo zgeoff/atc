@@ -7,9 +7,6 @@ import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 
-// A temp repo root that holds the real release scripts and root manifest, so
-// the entry script runs the packer that the test writes, and a stand-in npm
-// that answers the registry's calls but runs each install through the real npm.
 function setupTest() {
   const temporaryDirectory = setupTempDir('publish-contract-toolchain-');
   const npm = Bun.which('npm');

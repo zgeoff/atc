@@ -2,9 +2,6 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 
-// A workspace package, named without its scope, the private `@atc/` or the
-// published `@atcx/`, beside its full name: `deps` holds the workspace
-// packages its manifest depends on, without their scopes.
 export interface WorkspacePackage {
   readonly name: string;
   readonly packageName: string;
@@ -21,7 +18,6 @@ const PACKAGE_MANIFEST_SCHEMA = z.object({
   dependencies: z.record(z.string(), z.string()).optional(),
 });
 
-// The packages that the root manifest's workspace globs match, sorted by directory.
 export function loadWorkspacePackages(root: string): WorkspacePackage[] {
   const manifest = ROOT_MANIFEST_SCHEMA.parse(loadJSON(join(root, 'package.json')));
 

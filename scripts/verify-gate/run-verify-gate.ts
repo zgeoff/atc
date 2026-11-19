@@ -2,8 +2,7 @@ import { join } from 'node:path';
 import { match } from 'ts-pattern';
 import { pickGateStep } from './pick-gate-step.ts';
 
-// The step of the `verify / gate` check. The body comes from the event, as GitHub wrote it when the
-// run started, so an `edited` run reads the report that `bun verify publish` just wrote.
+// The body comes from the event, as GitHub wrote it when the run started, so an `edited` run reads the report just written.
 export async function runVerifyGate(env: Readonly<Record<string, string | undefined>>) {
   const eventPath = env['GITHUB_EVENT_PATH'];
   const tempDirectory = env['RUNNER_TEMP'];

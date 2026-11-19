@@ -3,8 +3,6 @@ import { collectNamedSessions } from './collect-named-sessions.ts';
 import { openDaemonConnection } from './open-daemon-connection.ts';
 import { parseRunEndpoints } from './run-endpoints.ts';
 
-// Kills each session with the name that still runs, then forgets it, so a journey leaves no
-// session behind. A name that no session has removes nothing.
 export async function removeSession(
   endpoints: Endpoints,
   name: string,
