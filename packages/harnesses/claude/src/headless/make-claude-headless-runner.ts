@@ -11,8 +11,6 @@ interface ClaudeHeadlessTarget {
   readonly permissionMode: string;
   readonly pluginDir: () => string;
 
-  // The plugin folders the agent's config sets, which load before the
-  // session's own.
   readonly pluginDirs: readonly string[];
   readonly settings?: () => string;
 }

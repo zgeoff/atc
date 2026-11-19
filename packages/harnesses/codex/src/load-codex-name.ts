@@ -2,7 +2,6 @@ import { join } from 'node:path';
 import type { HostFiles, NameUpdate } from '@atc/plugin-api';
 import { z } from 'zod';
 
-// One line of the session index: a thread's id and its title.
 const INDEX_LINE_SCHEMA = z.object({ id: z.string(), thread_name: z.string() });
 
 export async function loadCodexName(

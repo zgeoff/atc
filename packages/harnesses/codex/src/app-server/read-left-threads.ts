@@ -13,7 +13,6 @@ export interface LeftThreadsRead {
   readonly unconfirmed: UnconfirmedSends;
   readonly host: MessageBridgeHost;
 
-  // whether the message went unconfirmed to a thread other than the one the bridge serves
   readonly isLeft: (message: string) => boolean;
 }
 
@@ -21,8 +20,6 @@ export interface LeftThreadsRead {
 // when the thread has no history it can read.
 const INVALID_REQUEST_CODE = -32_600;
 
-// A left thread with no readable history strands its messages, since it
-// may have taken them; any other failure rejects, and recovery retries.
 export async function readLeftThreads(read: LeftThreadsRead): Promise<LeftThreadRecovery[]> {
   const byThread = new Map<string, UnsettledMessage[]>();
 

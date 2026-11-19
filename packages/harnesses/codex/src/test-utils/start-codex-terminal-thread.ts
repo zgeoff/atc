@@ -1,8 +1,5 @@
 import { z } from 'zod';
 
-// Starts a thread on a Codex App Server from a client of its own, as the
-// terminal does when it opens a new conversation, and resolves with the
-// thread's id once the client has closed.
 export async function startCodexTerminalThread(socket: string): Promise<string> {
   const ws = new WebSocket(`ws+unix://${socket}`);
   const answers = new Map<number, (value: unknown) => void>();
@@ -10,8 +7,6 @@ export async function startCodexTerminalThread(socket: string): Promise<string> 
 
   let failure: Error | null = null;
 
-  // A connection that fails or closes rejects every wait on it, so a missing
-  // or broken server fails the caller at once with the cause.
   const endConnection = (error: Error) => {
     failure ??= error;
 

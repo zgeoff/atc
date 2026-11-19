@@ -1,7 +1,7 @@
 import { buildCodexHookFile } from './build-codex-hook-file';
 
-// the operator merges these into `$CODEX_HOME/hooks.json` and trusts them once in the TUI, since
-// codex never runs an untrusted hook; atc never writes the user's own codex config
+// codex never runs a hook the user has not trusted in the TUI, so the hook file is
+// printed for the operator to merge into `$CODEX_HOME/hooks.json`.
 export function printCodexHookFile(
   atcArgv: readonly string[],
   write: (text: string) => void = (text) => {

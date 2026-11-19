@@ -7,20 +7,14 @@ const POINTER = '❯ ';
 // many as fit at one, two or three rows per option.
 const LIST_WINDOW = 5;
 const DIALOG_CHROME_ROWS = 8;
-
-// A terminal tall enough for the full window at three rows per option, for
-// a caller that does not give the terminal's height.
 const TALL_ROWS = DIALOG_CHROME_ROWS + LIST_WINDOW * 3;
 
-// a menu is the last `❯` line with options indented to its column, and a single option is no
-// menu; Claude Code indents every dialog's options, and draws a prompt with its `❯` at the line's
-// start, both in the prompt box and in the conversation, so such a line is no menu
+// Claude Code indents every dialog's options and draws a prompt's `❯` at the line start,
+// in the prompt box and in the conversation, so a `❯` at column 0 is no menu.
 export function findClaudeMenu(screen: string, height = TALL_ROWS): ScreenMenu | null {
   const lines = screen.split('\n');
   const at = lines.findLastIndex((line) => hasPointer(line));
 
-  // The last cursor on the screen is the one the agent waits on; an empty
-  // prompt box below a menu-like line of the conversation is no menu.
   if (at === -1 || !isPointerLine(lines[at] ?? '')) {
     return null;
   }
@@ -80,8 +74,6 @@ function isPointerLine(line: string): boolean {
 const MORE_ABOVE = '↑ ';
 const MORE_BELOW = '↓ ';
 
-// A line beside the cursor's: blank up to the cursor's column, two blank
-// columns or a scroll mark where the cursor would be, then text.
 function isOptionLine(line: string | undefined, column: number): boolean {
   if (line === undefined || line.slice(0, column).trim() !== '') {
     return false;
@@ -118,8 +110,6 @@ function parseOptions(rows: readonly string[], pointerRow: number): ParsedOption
   };
 }
 
-// Each numbered row starts an option, and a row without a number continues
-// the option above it. Rows above the first number belong to no option.
 function parseNumberedOptions(rows: readonly string[], pointerRow: number): ParsedOptions | null {
   const labels: string[] = [];
   let highlighted = -1;
@@ -155,14 +145,13 @@ function parseBoxOption(row: string): ScreenMenuOption {
   return { label: (boxed.groups?.['label'] ?? '').trim(), checked: boxed.groups?.['box'] !== ' ' };
 }
 
-// The mark a picker puts beside the value already in effect.
+// Claude Code pickers put a check mark before the option already in effect.
 const CURRENT_MARK = /^✔\s+/u;
 
 function parsePlainOption(row: string): ScreenMenuOption {
   return { label: row.trim().replace(CURRENT_MARK, ''), checked: null };
 }
 
-// Which scroll marks the option rows hold, or null when they hold none.
 function findScroll(rows: readonly string[], column: number): ScreenMenuScroll | null {
   const marks = new Set(rows.map((row) => row.slice(column, column + POINTER.length)));
 
@@ -174,9 +163,8 @@ function findScroll(rows: readonly string[], column: number): ScreenMenuScroll |
 
 const ROWS_PER_OPTION = [1, 2, 3];
 
-// both marks absent when the list fills a window Claude Code could draw on a screen this tall
-// and the cursor sits on its last row, where it hides the mark of options below; the list is
-// the boxed options when any has a box
+// Claude Code's cursor hides the scroll-below mark when it sits on the last row of a full
+// window. A list that fills the window with the cursor on its last row may have more below.
 function findHiddenScroll(parsed: ParsedOptions, height: number): ScreenMenuScroll | null {
   const boxed = parsed.options.findLastIndex((option) => option.checked !== null);
   const listed = boxed === -1 ? parsed.options.length : boxed + 1;
@@ -190,13 +178,9 @@ function findHiddenScroll(parsed: ParsedOptions, height: number): ScreenMenuScro
     : null;
 }
 
-// The most lines above the options a menu's text takes, so a screen with no
-// border above the menu never makes the text the whole screen.
 const MAX_TEXT_LINES = 24;
 const RULE = /^\s*[─━═╌]{8,}\s*$/u;
 
-// The lines above the options up to the nearest rule, without the blank
-// lines at either end and without their common indent.
 function collectText(lines: readonly string[], first: number): string {
   const above: string[] = [];
 

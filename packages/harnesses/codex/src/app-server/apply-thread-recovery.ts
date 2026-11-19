@@ -5,10 +5,8 @@ import type { ThreadRecovery } from './plan-thread-recovery';
 export interface ThreadRecoveryApply {
   readonly recovery: ThreadRecovery;
 
-  // the turn that carries each message the bridge tracks, until it settles
   readonly carried: Map<string, string>;
 
-  // the last reply each tracked turn has given so far
   readonly replies: Map<string, string>;
   readonly settledTurns: Set<string>;
   readonly host: MessageBridgeHost;

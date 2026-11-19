@@ -5,7 +5,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
 import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-path';
 
-// The folder that stands in for the user's home or the Claude config folder.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-claude-config-path-');
 

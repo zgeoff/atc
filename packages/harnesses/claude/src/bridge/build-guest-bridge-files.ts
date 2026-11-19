@@ -1,6 +1,5 @@
 import { buildATCBridgeFiles } from './build-atc-bridge-files';
 
-// The folder inside a session's guest folder that holds its copy of the mod.
 const GUEST_BRIDGE_FOLDER = 'atc-bridge';
 
 export function buildGuestBridgeFiles(

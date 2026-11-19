@@ -4,45 +4,22 @@ import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './claude-config-bundle-folder';
 import { CLAUDE_CONFIG_SEED_FILE } from './claude-config-seed-file';
 
 const CLAUDE_CONFIG_FOLDER = 'claude-config';
-
-// The key the CLI's global config holds once its one-time offer to block
-// reads outside the working directories was seen.
 const SEEN_OFFER_KEY = 'hasSeenAutoModeOutsideReadPrompt';
-
-// The space a JSON writer may put on either side of a key's colon.
 const COLON = '[[:space:]]*:[[:space:]]*';
-
-// Sets the key to true in a config that holds it as false.
 const SEEN_OFFER_SET_SED = `s/"${SEEN_OFFER_KEY}"${COLON}false/"${SEEN_OFFER_KEY}": true/`;
 
-// Adds the key at the start of the config's top-level object, which the
-// CLI opens on the file's first line, empty or not.
+// The CLI opens the config's top-level object on the file's first line, empty or not.
 const SEEN_OFFER_ADD_SED = [
   `1s/^\\([[:space:]]*\\){[[:space:]]*}/\\1{"${SEEN_OFFER_KEY}": true}/`,
   't',
   `1s/^\\([[:space:]]*\\){/\\1{"${SEEN_OFFER_KEY}": true,/`,
 ].join('\n');
 
-// A config that holds the key as true stays as it is. Any other one is
-// rewritten beside itself, readable by its owner alone, and moved into
-// place.
 const SEEN_OFFER_STEP = `{ grep -q '"${SEEN_OFFER_KEY}"${COLON}true' "$1/.claude.json" || { (umask 077 && if grep -q '"${SEEN_OFFER_KEY}"' "$1/.claude.json"; then sed -e '${SEEN_OFFER_SET_SED}' "$1/.claude.json"; else sed -e '${SEEN_OFFER_ADD_SED}' "$1/.claude.json"; fi > "$1/.claude.json.atc") && mv "$1/.claude.json.atc" "$1/.claude.json"; }; }`;
-
-// A config the merge could not mark, such as one whose object does not
-// open on its first line, still starts the CLI, with a warning that says
-// the offer may wait for an answer.
 const SEEN_OFFER_CHECK = `{ grep -q '"${SEEN_OFFER_KEY}"${COLON}true' "$1/.claude.json" || echo "atc: could not mark the outside-read offer seen in $1/.claude.json, so Claude may stop to ask once" >&2; }`;
-
-// the token file is the sixth argument of a launch that reads one
 const TOKEN_FILE_ARGUMENT = '$6';
-
-// reads the stored token into the launched process's environment alone, and stops the launch with
-// a line that says why when the file holds none
 const READ_TOKEN_STEP = `{ { CLAUDE_CODE_OAUTH_TOKEN=$(cat "${TOKEN_FILE_ARGUMENT}") && [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && export CLAUDE_CODE_OAUTH_TOKEN; } || { echo "atc: cannot read the stored sign-in token ${TOKEN_FILE_ARGUMENT}, so Claude does not start" >&2; exit 78; }; }`;
 
-// args: config folder, seed, bundle staging folder, this launch's bundle, scratch folder, the token
-// file when the launch reads one, argv; every bundle entry is removed first, so one the host
-// dropped leaves too, and every staged bundle goes so a later launch never reads this one
 const SEED_CONFIG_STEPS = [
   'mkdir -p "$1"',
   'mkdir -p "$5"',
@@ -54,15 +31,12 @@ const SEED_CONFIG_STEPS = [
 ];
 
 export interface BuildClaudeGuestLaunchOptions {
-  // the file in the host that holds the token the harness signs in with
   readonly tokenFile?: string;
   readonly refusedEnv?: readonly string[];
   readonly bundleKey?: string;
   readonly unsetEnv?: readonly string[];
 }
 
-// the shell seeds the config only when it holds no `.claude.json`, so a resumed session keeps
-// the state the CLI wrote, a folder trust a person accepted included
 export function buildClaudeGuestLaunch(
   guestDir: string,
   argv: readonly string[],
@@ -104,11 +78,9 @@ export function buildClaudeGuestLaunch(
 
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/u;
 
-// sysexits' EX_CONFIG: a configuration error.
+// 78 is EX_CONFIG in sysexits.h: a configuration error.
 const REFUSED_EXIT = 78;
 
-// A shell step that stops the launch when the variable is set, empty or
-// not, with a line that says which variable and why.
 function buildEnvGuard(name: string): string {
   if (!ENV_NAME.test(name)) {
     throw new Error(`refused variable ${name} is not an environment variable name`);
@@ -117,7 +89,6 @@ function buildEnvGuard(name: string): string {
   return `[ -z "\${${name}+x}" ] || { echo "atc: ${name} is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start" >&2; exit ${REFUSED_EXIT}; }; `;
 }
 
-// A shell step that unsets the variables, or nothing when there are none.
 function buildUnsetStep(names: readonly string[]): string {
   const invalid = names.find((name) => !ENV_NAME.test(name));
 

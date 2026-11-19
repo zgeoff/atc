@@ -17,8 +17,6 @@ interface CollectedClaudeAuth {
 // The one host Claude Code sends a subscription token to.
 const ANTHROPIC_API_HOST = 'api.anthropic.com';
 
-// an entry whose profiles send no bearer header to the Anthropic API is refused, so stock
-// Claude keeps its host's sign-in rather than binding a credential the CLI never sends
 export function collectClaudeAuth(
   raw: unknown,
   authProfiles: ReadonlyMap<string, AuthProfile>,
@@ -92,16 +90,11 @@ export function collectClaudeAuth(
   };
 }
 
-// What a placeholder is checked against: the profiles, and the selected
-// profiles' own variables, each with the profile that sets it.
 interface PlaceholderContext {
   readonly authProfiles: ReadonlyMap<string, AuthProfile>;
   readonly envOwners: Readonly<Record<string, string>>;
 }
 
-// atc alone sets the subscription token's placeholder and the launch's variables, so a variable
-// Claude Code, the Codex CLI or atc reads is refused, as is a proxy or CA variable, which would
-// route the session around the broker
 function parsePlaceholderEnv(
   raw: unknown,
   field: string,
@@ -132,7 +125,6 @@ function parsePlaceholderEnv(
   return errors.length > 0 ? errors : env;
 }
 
-// A variable name a shell can export.
 const VARIABLE_NAME = /^[A-Z_a-z]\w*$/u;
 
 interface FindPlaceholderProblemOptions {
@@ -143,8 +135,6 @@ interface FindPlaceholderProblemOptions {
   readonly context: PlaceholderContext;
 }
 
-// the profile must send its credential to one host that is not Anthropic's, so the broker swaps
-// the placeholder there and nowhere the subscription token goes
 function findPlaceholderProblem(options: FindPlaceholderProblemOptions): string | null {
   if (!VARIABLE_NAME.test(options.key)) {
     return 'a variable name must be letters, digits or underscores, and not start with a digit';
@@ -189,17 +179,10 @@ function findPlaceholderProblem(options: FindPlaceholderProblemOptions): string 
   return null;
 }
 
-// Variables the launch of a subscription session sets itself.
 const LAUNCH_VARIABLES: ReadonlySet<string> = new Set(['HOME', 'PATH', 'TMPDIR']);
 
-// The prefixes of the variables Claude Code reads its endpoint and
-// credentials from, those the Codex CLI the session runs as a tool signs in
-// with, and atc's own.
 const RESERVED_PREFIXES = ['ANTHROPIC_', 'CLAUDE_', 'CODEX_', 'OPENAI_', 'ATC_'];
 
-// Whether something other than the session's own tools reads the variable:
-// Claude Code, the Codex CLI, atc, the launch, or the target's broker, which
-// sets the proxy and CA variables.
 function isReservedVariable(key: string): boolean {
   const upper = key.toUpperCase();
 
@@ -212,8 +195,6 @@ function isReservedVariable(key: string): boolean {
 
 const ANTHROPIC_DOMAINS = ['anthropic.com', 'claude.ai', 'claude.com'];
 
-// Whether a host is Anthropic's, where a subscription token or an
-// Anthropic key goes.
 function isAnthropicHost(host: string): boolean {
   const name = host.toLowerCase();
 
@@ -225,8 +206,6 @@ interface CollectedMCPServers {
   readonly errors: readonly string[];
 }
 
-// Reads the `mcpServers` map, server names to the server's URL and the
-// selected profile that carries its credential.
 function collectMCPServers(
   raw: unknown,
   field: string,
@@ -257,7 +236,7 @@ function collectMCPServers(
   return { servers, errors };
 }
 
-// Claude Code's rule for an MCP server's name.
+// Claude Code accepts only 1-64 word characters or hyphens in an MCP server name.
 const MCP_SERVER_NAME = /^[\w-]{1,64}$/u;
 
 interface ParseMCPServerOptions {
@@ -268,9 +247,6 @@ interface ParseMCPServerOptions {
   readonly authProfiles: ReadonlyMap<string, AuthProfile>;
 }
 
-// The server an entry holds, or the first rule it breaks. The header comes
-// from the profile, so the header the session sends and the one the broker
-// swaps the credential into never differ.
 function parseMCPServer(options: ParseMCPServerOptions): ClaudeMCPServer | string {
   if (!MCP_SERVER_NAME.test(options.name)) {
     return 'a server name must be letters, digits, underscores or hyphens';

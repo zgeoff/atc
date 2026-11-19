@@ -7,10 +7,8 @@ export interface ToolCallAnswer {
   readonly conn: AppServerConnection;
   readonly request: AppServerRequest;
 
-  // the thread the bridge serves
   readonly threadID: string | null;
 
-  // the turn that carries each message the bridge tracks, until it settles
   readonly carried: Map<string, string>;
   readonly host: MessageBridgeHost;
 }
@@ -22,8 +20,6 @@ const TOOL_CALL_SCHEMA = z.looseObject({
   arguments: z.record(z.string(), z.unknown()).optional(),
 });
 
-// Serves a call to one of the bridge's own tools on its thread; every
-// other server request, approvals among them, is left to the terminal.
 export async function answerToolCall(answer: ToolCallAnswer): Promise<void> {
   if (answer.request.method !== 'item/tool/call') {
     return;

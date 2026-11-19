@@ -1,7 +1,6 @@
 import { isRecord } from '@atc/core';
 import { findFlagValue } from '@atc/plugin-api';
 
-// the argument wins over the settings, as it does for the CLI itself
 export function findClaudePermissionMode(
   args: readonly string[],
   settings: Readonly<Record<string, unknown>> | undefined,

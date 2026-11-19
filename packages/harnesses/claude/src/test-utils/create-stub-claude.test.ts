@@ -13,7 +13,6 @@ function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-claude-');
   const settings = join(temporaryDirectory.path, 'settings.json');
 
-  // Every run reads the hook command from the settings file it is given.
   writeFileSync(
     settings,
     JSON.stringify({
@@ -351,9 +350,6 @@ test('it holds its reports at the gate until an input line arrives, removing the
 
 test('it runs a daemon restart after its start once and removes the request', async () => {
   const ctx = setupTest();
-
-  // The atc the stub runs records each run on its own output, which the
-  // stub sends to the file the scenario writes.
   const atc = createStubBin(ctx.directory, 'atc', buildStubRecordingATC('/dev/stdout'));
 
   const stub = createStubClaude(ctx.directory, {
@@ -376,9 +372,6 @@ test('it runs a daemon restart after its start once and removes the request', as
 
 test('it taps its own session into the tap log when the home asks it to', async () => {
   const ctx = setupTest();
-
-  // The atc the stub runs records each run on its own output, which the
-  // stub sends to the file the scenario writes.
   const atc = createStubBin(ctx.directory, 'atc', buildStubRecordingATC('/dev/stdout'));
 
   const stub = createStubClaude(ctx.directory, {

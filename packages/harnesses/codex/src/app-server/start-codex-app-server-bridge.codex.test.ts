@@ -11,8 +11,7 @@ import { startCodexAppServerBridge } from './start-codex-app-server-bridge';
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-codex-app-server-');
 
-  // The real CLI refuses a CODEX_HOME that does not exist, and every file it
-  // writes must stay inside the test's tree.
+  // The real CLI refuses a CODEX_HOME that does not exist.
   const codexHome = join(temporaryDirectory.path, 'codex-home');
 
   mkdirSync(codexHome, { recursive: true });
@@ -24,8 +23,6 @@ function setupTest() {
   };
 }
 
-// The Codex version the CI job pins beside the Claude Code pin is unset on a
-// local run, where no pin names the installed build.
 const codexUnpinned = process.env['CODEX_VERSION'] === undefined;
 
 test.skipIf(codexUnpinned)('it matches the installed Codex to the pinned version', async () => {

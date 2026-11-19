@@ -14,7 +14,7 @@ export function planClaudeLineInput(text: string, modes: TerminalInputModes): re
     return planPastedLineInput(text, modes);
   }
 
-  // Claude sends a long paste as a message, so the command name is typed as keys and only the
-  // argument pasted, which runs the command at any argument length
+  // Claude treats a long paste as a message, not a command.
+  // Type the command name as keys and paste only the argument.
   return [command.name, `${PASTE_MARKERS.start}${command.argument}${PASTE_MARKERS.end}`, '\r'];
 }

@@ -6,8 +6,6 @@ import { z } from 'zod';
 const LOCAL_SETTINGS_FILE = '.claude/settings.local.json';
 const UNPARSEABLE = '(unparseable)';
 
-// a file that is not a JSON object refuses too, since what the CLI would take from it is
-// unknown; a refusal names the setting, never its value
 export function buildClaudeProjectSettingsCheck(agent: string): ProjectSettingsCheck {
   return {
     files: ['.claude/settings.json', LOCAL_SETTINGS_FILE],
@@ -34,8 +32,6 @@ export function buildClaudeProjectSettingsCheck(agent: string): ProjectSettingsC
   };
 }
 
-// The two keys of a project settings file that can carry a sign-in
-// override. An `env` that is not an object sets no variable.
 const ProjectSettingsSchema = z.looseObject({
   apiKeyHelper: z.unknown().optional(),
   env: z.unknown().optional(),
@@ -43,9 +39,6 @@ const ProjectSettingsSchema = z.looseObject({
 
 const EnvSchema = z.record(z.string(), z.unknown());
 
-// The first setting a project settings file holds that would override the
-// sign-in, as `env.<variable>` or `apiKeyHelper`, the unparseable marker
-// for content that is not a JSON object, or null when it holds none.
 function findOverrideSetting(content: string): string | null {
   let raw: unknown;
 

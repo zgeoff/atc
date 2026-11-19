@@ -5,8 +5,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { writeATCBridge } from './write-atc-bridge';
 
-// The folder a test writes the mod into, inside a fresh temp root; nothing
-// exists there until the test writes it.
 function setupTest() {
   const temp = setupTempDir('atc-bridge-');
 

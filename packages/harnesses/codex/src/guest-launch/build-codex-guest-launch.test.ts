@@ -5,7 +5,6 @@ import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 
-// The guest folder a launch stages its files under and runs in.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-codex-launch-');
 

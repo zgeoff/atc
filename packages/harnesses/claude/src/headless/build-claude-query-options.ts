@@ -5,17 +5,12 @@ import { buildHeadlessEnv } from './build-headless-env';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
 export interface ClaudeHeadlessRunRequest extends HeadlessRunRequest {
-  // The Claude Code binary a compiled atc hands the Agent SDK.
   readonly claudeBin: string;
 
-  // An SDK permission mode; any other value leaves the SDK's default.
   readonly permissionMode?: string;
 
-  // Settings file the run's CLI is started with, so a headless turn reaches
-  // the same backend the session's terminal did.
   readonly settings?: string;
 
-  // Folder of the atc-bridge mod the run's CLI loads.
   readonly pluginDir?: string;
 }
 
@@ -47,21 +42,15 @@ export function buildClaudeQueryOptions(
     ...(opts.resume === undefined ? {} : { resume: opts.resume }),
     ...(mode === undefined ? {} : { permissionMode: mode }),
 
-    // The session's own model and effort, so the turn runs as its terminal
-    // did.
     ...(opts.model === undefined ? {} : { model: opts.model }),
     ...(effort === undefined ? {} : { effort }),
 
-    // The config's plugin folders and the session's own, each passed as
-    // --plugin-dir.
     ...(opts.pluginDirs === undefined || opts.pluginDirs.length === 0
       ? {}
       : {
           plugins: [...new Set(opts.pluginDirs)].map((path) => ({ type: 'local' as const, path })),
         }),
 
-    // The same generated file the terminal spawn passes, so the turn runs
-    // against the session's own backend and instrumentation.
     ...(opts.settings === undefined ? {} : { extraArgs: { settings: opts.settings } }),
     ...resolveHeadlessExecutable(opts.claudeBin, compiled),
   };

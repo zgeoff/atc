@@ -1,7 +1,6 @@
 import { buildHookCommand, buildHookEntry } from '@atc/plugin-api';
 import { GROK_HOOKS } from './grok-hooks';
 
-// the operator copies this to `$GROK_HOME/hooks/atc-reporter.json`; atc never writes that path
 export function printGrokHookFile(
   atcArgv: readonly string[],
   write: (text: string) => void = (text) => {

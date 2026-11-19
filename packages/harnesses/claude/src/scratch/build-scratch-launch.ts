@@ -1,6 +1,5 @@
 import type { SpawnPlan } from '@atc/plugin-api';
 
-// The arguments are the scratch folder and the CLI's own command line.
 const SCRATCH_SCRIPT = 'mkdir -p "$1" && chmod 700 "$1" && shift && exec "$@"';
 
 export function buildScratchLaunch(

@@ -11,11 +11,9 @@ type CollectedCodexAuth =
     }
   | { readonly profiles: null; readonly errors: readonly string[] };
 
-// The one host Codex sends its ChatGPT sign-in to.
+// Codex sends its ChatGPT sign-in only to this host.
 const CHATGPT_HOST = 'chatgpt.com';
 
-// one profile must send an `oauth` secret to `chatgpt.com` as a bearer authorization header,
-// where codex sends its chatgpt sign-in; the rest bind beside it, such as a github token
 export function collectCodexAuth(
   raw: unknown,
   authProfiles: ReadonlyMap<string, AuthProfile>,

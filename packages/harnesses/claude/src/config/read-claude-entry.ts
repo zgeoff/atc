@@ -74,8 +74,6 @@ export function readClaudeEntry(args: ClaudeEntryArgs): AgentEntryRead {
   };
 }
 
-// What a stock entry with `auth` sets that would override the subscription
-// sign-in or route the CLI around the target's broker.
 function collectSubscriptionProblems(entry: AgentEntry): string[] {
   const settingsEnv = entry.settings?.['env'];
 
@@ -104,9 +102,6 @@ interface EntryAuth {
   readonly placeholderEnv: Readonly<Record<string, string>>;
 }
 
-// The variables a stock entry sets that its selected profiles also set. A
-// placeholder outranks the telemetry variables in the launch, so it counts
-// against them too.
 function collectEntryProfileEnvProblems(
   entry: AgentEntry,
   auth: EntryAuth,
@@ -137,8 +132,6 @@ function collectEntryProfileEnvProblems(
   ];
 }
 
-// The placeholders a stock entry's env or settings env also sets, whose
-// value would replace the placeholder.
 function collectPlaceholderOverrideProblems(
   entry: AgentEntry,
   placeholderEnv: Readonly<Record<string, string>>,

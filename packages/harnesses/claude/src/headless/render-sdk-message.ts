@@ -9,7 +9,6 @@ import { match } from 'ts-pattern';
 
 type ContentBlock = SDKAssistantMessage['message']['content'][number];
 
-// The fields of an SDK content block that the output line reads.
 type RenderableBlock =
   | Pick<Extract<ContentBlock, { type: 'text' }>, 'type' | 'text'>
   | Pick<Extract<ContentBlock, { type: 'tool_use' }>, 'type' | 'name' | 'input'>

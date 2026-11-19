@@ -5,9 +5,6 @@ import { buildOptionalString } from '@atcx/contract/schema';
 import { z } from 'zod';
 import { CODEX_HOOKS } from './codex-hooks';
 
-// Codex's hook payload keys, snake_case. An absent or wrong-typed field
-// parses to undefined rather than failing the payload, so a broken reporter
-// never breaks the session it reports on.
 const CODEX_HOOK_PAYLOAD_SCHEMA = z.object({
   session_id: buildOptionalString(),
   transcript_path: buildOptionalString(),
@@ -18,7 +15,6 @@ const CODEX_HOOK_PAYLOAD_SCHEMA = z.object({
 
 type CodexHookPayload = z.infer<typeof CODEX_HOOK_PAYLOAD_SCHEMA>;
 
-// the session id is the name source, since the session index keys titles by it
 export function buildCodexHookEvent(hookEvent: HookEvent): AdapterEvent {
   return buildClaudeStyleHookEvent(hookEvent, {
     hooks: CODEX_HOOKS,

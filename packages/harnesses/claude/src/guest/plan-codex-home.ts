@@ -23,8 +23,6 @@ interface PlanCodexHomeOptions {
   readonly telemetryHost: string | null;
 }
 
-// the home replaces the image's own Codex home, its settings included; without a ready
-// chatgpt.com sign-in Codex keeps the image's sign-in
 export function planCodexHome(options: PlanCodexHomeOptions): CodexHomePlan {
   const secret = findChatGPTSecret(options.authProfiles, options.selected);
   const signIn = secret === null ? null : findCodexSignIn(options.states[secret]);
@@ -48,12 +46,8 @@ export function planCodexHome(options: PlanCodexHomeOptions): CodexHomePlan {
   };
 }
 
-// The host Codex sends its ChatGPT sign-in to.
 const CHATGPT_HOST = 'chatgpt.com';
 
-// The oauth secret the selected profiles send to chatgpt.com as a bearer
-// authorization header, where Codex sends its access token, or null when
-// they send none or no longer resolve.
 function findChatGPTSecret(
   authProfiles: Config['authProfiles'],
   selected: readonly string[],

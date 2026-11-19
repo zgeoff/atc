@@ -183,7 +183,6 @@ export function startStubCodexAppServer(
     const thread = findThread(params);
 
     if (thread === null) {
-      // Codex fails a request for a thread it has not loaded with this code.
       return { error: { code: -32_600, message: 'thread not loaded' } };
     }
 
@@ -240,7 +239,6 @@ export function startStubCodexAppServer(
     if (method === 'turn/start' && overloads < (scenario.overloadTurnStarts ?? 0)) {
       overloads += 1;
 
-      // Codex answers with this overload error when its queue is full.
       return { error: { code: -32_001, message: 'Server overloaded; retry later.' } };
     }
 
@@ -255,8 +253,6 @@ export function startStubCodexAppServer(
 
       turnStarts += 1;
 
-      // The connection drops before the answer and before any notification
-      // of the turn reaches it.
       const dropped = turnStarts === scenario.dropOnTurnStart;
 
       if (dropped) {
@@ -372,7 +368,7 @@ function sendLine(ws: ServerWebSocket, value: unknown): void {
   ws.send(JSON.stringify(value));
 }
 
-// The App Server speaks only over a WebSocket, so a plain request is refused.
+// The Codex App Server accepts only WebSocket connections; plain HTTP gets 426.
 function answerUpgrade(request: Request, bunServer: Server<undefined>) {
   return bunServer.upgrade(request) ? undefined : new Response('upgrade required', { status: 426 });
 }

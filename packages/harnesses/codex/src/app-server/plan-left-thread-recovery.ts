@@ -7,16 +7,11 @@ export interface LeftThreadRecovery {
   readonly acks: readonly string[];
   readonly settlements: readonly TurnSettlement[];
 
-  // messages that a running turn of the left thread holds, or that it may hold when its turns
-  // could not be read; no turn of the thread the bridge serves will carry them
   readonly stranded: readonly string[];
 
-  // messages that no turn of the left thread holds, which the recovery of the thread the bridge
-  // serves settles
   readonly kept: readonly UnsettledMessage[];
 }
 
-// null turns stand for a thread whose history the server refused to read
 export function planLeftThreadRecovery(
   messages: readonly UnsettledMessage[],
   turns: readonly AppServerTurn[] | null,

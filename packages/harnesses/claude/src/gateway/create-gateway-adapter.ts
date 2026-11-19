@@ -58,23 +58,16 @@ import { loadClaudeName } from '../transcript/load-claude-name';
 import { parseClaudeTranscriptLine } from '../transcript/parse-claude-transcript-line';
 
 export interface GatewayAdapter extends AgentAdapter {
-  // The gateway runs the Claude CLI, which writes the same transcript.
   readonly parseTranscriptLine: (line: string) => TranscriptRow | null;
 
-  // The gateway runs the Claude CLI, whose TUI takes a line the same way.
   readonly planLineInput: (text: string, modes: TerminalInputModes) => readonly LineInputStep[];
 
-  // The gateway runs the Claude CLI, whose dialogs draw the same menus.
   readonly findMenu: (screen: string, rows?: number) => ScreenMenu | null;
   readonly profile: AgentProfile;
 
-  // refused before anything is prepared, when the placeholders cannot pair with the broker's
-  // header or the settings env would route the CLI around the broker
   readonly findSpawnRefusal: () => DaemonError | null;
   readonly findAuthSelection: () => AuthSelection | null;
 
-  // the guest holds placeholders the broker swaps for the real credential on the host's side,
-  // and never the credential helper, which runs on the daemon's machine alone
   readonly planGuestSpawn: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
   readonly planGuestBridgeFiles: (
     atc: string,
@@ -89,16 +82,11 @@ export interface GatewayAdapter extends AgentAdapter {
   // session's scratch folder is trusted in the config the CLI reads.
   readonly trustLocalScratch: (scratch: string) => Promise<void>;
 
-  // The repository's own settings files reach the CLI as well, so a launch
-  // behind the target's broker reads them first.
   readonly planProjectSettingsCheck: () => ProjectSettingsCheck;
 
-  // The gateway runs the Claude CLI, whose hook lines it reads as stock
-  // Claude does, with no state across a session's lines.
   readonly planHookEvents: (hookEvent: HookEvent) => HookPlan;
 }
 
-// The Claude CLI's mode that asks a person before each action.
 const MANUAL_PERMISSION_MODE = 'default';
 
 interface CredentialPairing {
@@ -124,9 +112,8 @@ const API_KEY_PAIRING: CredentialPairing = {
 
 const CREDENTIAL_PAIRINGS: readonly CredentialPairing[] = [BEARER_PAIRING, API_KEY_PAIRING];
 
-// Variables the Claude CLI reads as its own credential beside either
-// pairing's variable, plus the one that points it at the session's config
-// folder, whose launch value a placeholder would overwrite.
+// The Claude CLI reads these variables as its own credential, which would add a second header
+// the broker never fills. A placeholder would overwrite the session's config folder value.
 const COMPETING_CREDENTIAL_VARIABLES: ReadonlySet<string> = new Set([
   CLAUDE_CREDENTIAL_VARIABLES.oauthToken,
   'CLAUDE_CONFIG_DIR',
@@ -141,8 +128,8 @@ export function createGatewayAdapter(
   const headlessRun = options.headlessRun ?? null;
   const pluginDirs = resolveConfiguredPluginDirs(gateway.pluginDirs, options.homeDir);
 
-  // A relative config folder would mean one folder to the daemon and another to the CLI, which
-  // starts in the session's directory, so a local launch names it once as an absolute path.
+  // The CLI starts in the session's directory, so a relative config folder would resolve
+  // differently there than in the daemon.
   const configuredConfigDir = gateway.env['CLAUDE_CONFIG_DIR'];
 
   const localConfigDir =
@@ -150,8 +137,6 @@ export function createGatewayAdapter(
       ? null
       : resolve(configuredConfigDir);
 
-  // The settings file carries the backend's base URL, its environment, its
-  // credential helper, and its settings.
   const files = createClaudeLaunchFiles(
     {
       id: gateway.id,
@@ -169,8 +154,8 @@ export function createGatewayAdapter(
 
   const models = pickModels(gateway.env);
 
-  // a brokered session's Claude config is fresh, so without an explicit mode the CLI's own
-  // default would apply rather than the one the owner's settings set
+  // A brokered session starts with a fresh Claude config, so the CLI would use its own default
+  // mode instead of the one the owner's settings set.
   const buildGuestModeArgs = (args: readonly string[]): string[] => {
     if (findFlagValue(args, ['--permission-mode']) !== null) {
       return [];
@@ -189,8 +174,6 @@ export function createGatewayAdapter(
       { agent: gateway.id },
     );
 
-  // other placeholder variables pass through for tools in the session, except credential
-  // variables the CLI reads, which would add a second header the broker never fills
   const findPlaceholderRefusal = (
     env: Readonly<Record<string, string>>,
     profiles: readonly string[],
@@ -243,8 +226,8 @@ export function createGatewayAdapter(
     return null;
   };
 
-  // The settings file's env block reaches the CLI's own process, so a proxy
-  // or CA variable there would route the CLI around the broker.
+  // The settings env block reaches the CLI's own process, so a proxy or CA variable there
+  // would route the CLI around the broker.
   const findSettingsEnvConflict = (): DaemonError | null => {
     const settingsEnv = gateway.settings?.['env'];
 
@@ -274,9 +257,6 @@ export function createGatewayAdapter(
   return {
     id: gateway.id,
 
-    // A headless turn carries the same settings file the terminal spawn does,
-    // so it reaches this backend rather than the default one. A gateway whose
-    // credential comes through a broker alone runs no headless turn.
     headlessRunner:
       headlessRun === null || isBrokerOnlyGateway(gateway)
         ? null
@@ -306,8 +286,6 @@ export function createGatewayAdapter(
       ...(pluginDirs.length === 0 ? {} : { pluginDirs }),
     },
 
-    // the gateway's own baseURL would take the requests in place of a route or a stored token's
-    // API, and the broker kind has its own refusal in findSpawnRefusal
     findGuestEnvConflict: (kind) => (kind === 'broker' ? null : 'baseURL'),
 
     findSpawnRefusal: () => {
@@ -337,8 +315,6 @@ export function createGatewayAdapter(
     },
 
     planSpawn: (opts, session?: SessionID) => {
-      // started without the broker, the CLI would send whatever credential it holds to the
-      // gateway's host; a gateway with a credential helper starts here under that helper
       if (isBrokerOnlyGateway(gateway)) {
         throw buildBrokerRefusal('which only a target that reaches one can give it');
       }
@@ -416,7 +392,7 @@ export function createGatewayAdapter(
       const args = gateway.auth.args ?? gateway.args;
       const approvedAPIKey = findAPIKeyPlaceholder(guest.auth.env);
 
-      // a host-set bearer variable would put a second credential header beside the api key
+      // A host-set bearer variable would add a second credential header beside the API key.
       const refusedEnv = approvedAPIKey === null ? [] : [BEARER_PAIRING.variable];
 
       const launch = buildClaudeGuestLaunch(
@@ -475,7 +451,6 @@ export function createGatewayAdapter(
       );
     },
 
-    // The CLI reads the config folder the gateway's env names, else the user's own.
     trustLocalScratch: async (scratch) => {
       const configPath =
         localConfigDir === null
@@ -488,7 +463,6 @@ export function createGatewayAdapter(
     planHookEvents: (hookEvent) => ({ events: [buildClaudeHookEvent(hookEvent)] }),
 
     planResumeCommand: (cwd, agentSessionID: AgentSessionID | undefined, sessionPluginDirs) => {
-      // outside atc the broker never reaches the session
       if (isBrokerOnlyGateway(gateway)) {
         return null;
       }
@@ -497,7 +471,6 @@ export function createGatewayAdapter(
         .map((arg) => ` ${toShellArg(arg)}`)
         .join('');
 
-      // without the settings file the CLI would resume against the default backend
       const settings = toShellArg(files.writeSettings());
       const resume = agentSessionID === undefined ? '' : ` ${agentSessionID}`;
       const plugins = formatPluginDirArgs([...pluginDirs, ...sessionPluginDirs]);
@@ -509,9 +482,6 @@ export function createGatewayAdapter(
   };
 }
 
-// The model names a gateway's env sets explicitly, keyed by role:
-// `ANTHROPIC_MODEL` is `default`, and `ANTHROPIC_DEFAULT_<TIER>_MODEL` is the
-// tier in lower case. No other env value leaves the adapter.
 const MODEL_KEY = /^ANTHROPIC_(?:DEFAULT_(?<tier>[A-Z0-9]+)_)?MODEL$/u;
 
 function pickModels(
@@ -530,18 +500,12 @@ function pickModels(
   return Object.keys(models).length === 0 ? null : models;
 }
 
-// Whether a gateway takes its credential from a broker with no
-// credential helper to fall back on, so it starts only behind the broker.
 function isBrokerOnlyGateway(gateway: GatewayConfig): boolean {
   return gateway.auth !== undefined && gateway.apiKeyHelper === undefined;
 }
 
-// The Claude tiers a gateway's env can map to a provider model.
 const GATEWAY_TIERS = ['opus', 'sonnet', 'haiku'];
 
-// What a gateway spawn can override. The model examples are the tier aliases
-// the gateway's env maps, each with the provider model it reaches. Effort
-// goes to the CLI unchanged, and whether the provider acts on it is unknown.
 function buildGatewaySpawnOptions(
   args: readonly string[],
   models: Readonly<Record<string, string>> | null,
@@ -573,8 +537,6 @@ function buildGatewaySpawnOptions(
   };
 }
 
-// The gateway's settings without a credential helper, which a brokered
-// session never runs.
 function buildSettingsWithoutHelper(
   settings: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {
