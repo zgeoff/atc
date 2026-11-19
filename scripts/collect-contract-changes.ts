@@ -20,6 +20,7 @@ export interface ContractChange {
 }
 
 const EVENT = 'event';
+const HELLO = 'daemon.hello';
 
 export function collectContractChanges(
   before: ContractSchemas,
@@ -43,7 +44,7 @@ export function collectContractChanges(
 
     // A release that made the hello strict adds its fields in the same change: a daemon that
     // dropped an unknown field in silence had nothing to refuse.
-    if (method !== 'daemon.hello' || isStrictObject(old.input)) {
+    if (method !== HELLO || isStrictObject(old.input)) {
       compareSchemas(old.input, current.input, [], { direction: 'input', method, changes });
     }
 
@@ -156,13 +157,17 @@ function compareValues(
   path: readonly string[],
   walk: Walk,
 ): void {
-  // A new enum value in an answer is additive, so only an input holds the values to a set.
-  if (walk.direction === 'output') {
-    return;
+  // A value that an enum loses breaks an answer too: an older daemon still returns it, and a newer
+  // client may have narrowed its types.
+  if (!isSetCovering(toValueSet(after), toValueSet(before))) {
+    const message =
+      walk.direction === 'input' ? 'an accepted value is removed' : 'an answer value is removed';
+
+    addBreaking(walk, path, message);
   }
 
-  if (!isSetCovering(toValueSet(after), toValueSet(before))) {
-    addBreaking(walk, path, 'an accepted value is removed');
+  if (walk.direction === 'output') {
+    return;
   }
 
   for (const key of ['pattern', 'format']) {
@@ -255,10 +260,6 @@ function compareProperties(
     }
   }
 
-  if (walk.direction !== 'input') {
-    return;
-  }
-
   for (const key of Object.keys(newProperties)) {
     if (oldProperties[key] !== undefined) {
       continue;
@@ -267,8 +268,12 @@ function compareProperties(
     const fieldPath = [...path, key];
 
     if (newRequired.includes(key)) {
+      // A newer client could rely on an answer field that an older daemon never sends.
       addBreaking(walk, fieldPath, 'the new field is required');
-    } else {
+    } else if (walk.method === HELLO && walk.direction === 'input') {
+      // The hello schema is strict, so an older daemon refuses a hello that carries the field.
+      addBreaking(walk, fieldPath, 'the new field is refused by an older daemon');
+    } else if (walk.direction === 'input') {
       walk.changes.push({
         kind: 'new-input-field',
         method: walk.method,

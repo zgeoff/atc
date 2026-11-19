@@ -149,7 +149,19 @@ test('it finds a new required input field as breaking', () => {
   ]);
 });
 
-test('it passes a new answer field', () => {
+test('it passes a new optional answer field', () => {
+  const ctx = setupTest();
+  const input = z.object({});
+
+  const changes = ctx.collect(
+    { input, output: z.object({ id: z.string() }) },
+    { input, output: z.object({ id: z.string(), region: z.string().optional() }) },
+  );
+
+  expect(changes).toStrictEqual([]);
+});
+
+test('it finds a new required answer field as breaking', () => {
   const ctx = setupTest();
   const input = z.object({});
 
@@ -158,7 +170,33 @@ test('it passes a new answer field', () => {
     { input, output: z.object({ id: z.string(), region: z.string() }) },
   );
 
-  expect(changes).toStrictEqual([]);
+  expect(changes).toStrictEqual([
+    {
+      kind: 'breaking',
+      method: 'session.spawn',
+      path: 'region',
+      message: 'answer: the new field is required',
+    },
+  ]);
+});
+
+test('it finds an answer enum that lost a value', () => {
+  const ctx = setupTest();
+  const input = z.object({});
+
+  const changes = ctx.collect(
+    { input, output: z.object({ state: z.enum(['ready', 'paused']) }) },
+    { input, output: z.object({ state: z.enum(['ready']) }) },
+  );
+
+  expect(changes).toStrictEqual([
+    {
+      kind: 'breaking',
+      method: 'session.spawn',
+      path: 'state',
+      message: 'answer: an answer value is removed',
+    },
+  ]);
 });
 
 test('it finds an input field that is required now', () => {
@@ -362,7 +400,14 @@ test('it checks the hello input of a release that held the hello strict', () => 
     },
   );
 
-  expect(changes.map((change) => change.kind)).toStrictEqual(['new-input-field']);
+  expect(changes).toStrictEqual([
+    {
+      kind: 'breaking',
+      method: 'daemon.hello',
+      path: 'major',
+      message: 'input: the new field is refused by an older daemon',
+    },
+  ]);
 });
 
 test('it skips a schema that JSON Schema cannot hold', () => {
