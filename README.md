@@ -11,9 +11,11 @@
 atc is a daemon that hosts your Claude Code, Codex and Grok sessions, each in a terminal of its own.
 Other agents drive the sessions over MCP, scripts message them, and you watch them in the `atc` TUI.
 
-Any MCP client can spawn a session, read its screen and type into it. A Claude Code session also
-answers menus and gives up its transcript. Claude Code sessions, and Codex sessions on an App
-Server, take messages and send answers back. A script sends one with `atc send`:
+Any MCP client can spawn a session, read its screen and type into it. With a Claude Code session,
+the client can also answer menus and read the transcript. Claude Code sessions, and Codex sessions
+on an [App Server](./docs/guides/configuration/agents.md#codex-sessions-that-take-messages), take
+messages and send answers back. A script sends one with
+[`atc send`](./docs/guides/using-atc.md#sending-a-session-a-message-from-a-script):
 
 ```sh
 # Ask a session something and print its answer.
@@ -49,13 +51,14 @@ claude mcp add --scope user atc -- atc mcp
 
 - An agent in an atc session can spawn sub-sessions, which list under the top-level session and stop
   with it ([agents that drive agents](./docs/guides/using-atc.md#agents-that-drive-agents)).
-- A session can message a Claude Code session on another host and read the answer
+- A Claude Code session can message one on another host and read the answer
   ([messages](./docs/architecture/protocol/messages.md)).
 - `atc events` streams what the sessions do, `config.json` hooks run your commands on each event,
   and a subscribed MCP client gets a webhook ([events](./docs/guides/events.md),
   [MCP Events](./docs/architecture/remote/mcp-events.md)).
-- The TUI lists the sessions of every daemon in your config, and atc-gateway puts several daemons
-  behind one MCP endpoint ([gateway](./docs/guides/gateway.md)).
+- The TUI lists the sessions of every daemon in your config, `atc mcp --daemon <name>` points an
+  agent at one, and atc-gateway puts several behind one MCP endpoint
+  ([gateway](./docs/guides/gateway.md)).
 - `atc mcp` also serves over HTTP behind OAuth, for a hosted assistant such as Claude.ai
   ([remote MCP](./docs/guides/remote-mcp.md)).
 - A session can run in a cloud VM through the imp provider. The VM sleeps when you stop the session
