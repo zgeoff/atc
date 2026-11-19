@@ -8,7 +8,8 @@ import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-
 import { DaemonError } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
 import { resolveHomeDir } from '@atcx/contract/light';
-import type { DaemonName } from '../session-key';
+import type { DaemonName } from '../fleet/session-key';
+import { toMirrorSession } from '../fleet/to-mirror-session';
 import { buildStubDaemonRequests } from '../test-utils/build-stub-daemon-requests';
 import {
   buildStubListingCache,
@@ -16,7 +17,6 @@ import {
 } from '../test-utils/build-stub-listing-cache';
 import { buildStubPickerHost } from '../test-utils/build-stub-picker-host';
 import { buildStubTerminal } from '../test-utils/build-stub-terminal';
-import { toMirrorSession } from '../to-mirror-session';
 import { createSpawnPicker } from './create-spawn-picker';
 
 function setupTest() {

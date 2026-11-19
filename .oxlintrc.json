@@ -57,14 +57,14 @@
     "zgeoff/feature-folders": [
       "error",
       {
-        "pending": ["packages/app", "packages/tui"]
+        "pending": ["packages/app"]
       }
     ],
     // these packages still hold files that no export is named for
     "zgeoff/file-named-for-export": [
       "error",
       {
-        "pending": ["packages/app", "packages/tui"]
+        "pending": ["packages/app"]
       }
     ]
   },
@@ -115,12 +115,12 @@
       // removes the files it cleans
       "files": [
         "packages/app/src/build-migrated-config.test.ts",
-        "packages/tui/src/collect-target-picks.test.ts",
-        "packages/tui/src/collect-target-picks.ts",
+        "packages/tui/src/overlay/collect-target-picks.test.ts",
+        "packages/tui/src/overlay/collect-target-picks.ts",
         "packages/tui/src/picker/create-spawn-picker.test.ts",
-        "packages/tui/src/to-mirror-session.test.ts",
-        "packages/tui/src/ui.test.ts",
-        "packages/tui/src/xstate-stopped-actor.test.ts",
+        "packages/tui/src/fleet/to-mirror-session.test.ts",
+        "packages/tui/src/terminal/draw-overlay.test.ts",
+        "packages/tui/src/client/xstate-stopped-actor.test.ts",
         "packages/gateway/src/ids/build-gateway-error.test.ts",
         "e2e/mcp-run-tool.test.ts",
         "packages/app/src/plugins/create-shipped-execution-provider.test.ts",

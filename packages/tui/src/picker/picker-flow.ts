@@ -1,9 +1,9 @@
 import type { Config, WorkspacesConfig } from '@atc/config';
 import type { AgentID, Clock } from '@atc/core';
 import type { AgentEntry, GitRef, SourceEntry, SourcePick } from '@atcx/contract';
-import type { TargetPick } from '../collect-target-picks';
-import type { ListingCache } from '../listing-cache';
-import type { DaemonName } from '../session-key';
+import type { ListingCache } from '../client/listing-cache';
+import type { DaemonName } from '../fleet/session-key';
+import type { TargetPick } from '../overlay/collect-target-picks';
 
 type PickerStep =
   | 'daemon'

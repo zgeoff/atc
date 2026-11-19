@@ -1,0 +1,897 @@
+import { expect, test } from 'bun:test';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { planOverlayColumns } from '../overlay/plan-overlay-columns';
+import type { OverlayColumnPlan } from '../overlay/plan-overlay-columns';
+import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session';
+import { buildStubTerminal } from '../test-utils/build-stub-terminal';
+import { buildOverlayHint, buildSessionRow, drawOverlay, drawPicker } from './draw-overlay';
+import type { OverlayView } from './draw-overlay';
+
+test('#buildOverlayHint includes headless on a row whose agent can run a headless turn', () => {
+  expect(
+    buildOverlayHint(
+      buildMockMirrorSession({
+        state: 'running',
+        alive: true,
+        kind: 'pty',
+        canEject: true,
+        agent: 'claude',
+        pinned: false,
+      }),
+    ),
+  ).toBe('⏎ attach · H headless · y yank · Y eject · K kill · p pin ▏ g groups · n new · ? keys');
+});
+
+test('#buildOverlayHint omits headless and keeps yank on a Grok row, whose agent cannot run a headless turn', () => {
+  expect(
+    buildOverlayHint(
+      buildMockMirrorSession({
+        state: 'running',
+        alive: true,
+        kind: 'pty',
+        canEject: false,
+        agent: 'grok',
+        pinned: false,
+      }),
+    ),
+  ).toBe('⏎ attach · y yank · Y eject · K kill · p pin ▏ g groups · n new · ? keys');
+});
+
+test('#buildOverlayHint points the pin action of a sub-session at its parent', () => {
+  const parent = buildMockMirrorSession({
+    id: 'wrangler',
+    parent: null,
+    state: 'running',
+    alive: true,
+    kind: 'pty',
+    canEject: true,
+    agent: 'claude',
+    pinned: true,
+  });
+
+  const child = buildMockMirrorSession({
+    id: 'worker',
+    parent: 'wrangler',
+    state: 'running',
+    alive: true,
+    kind: 'pty',
+    canEject: true,
+    agent: 'claude',
+    pinned: false,
+  });
+
+  expect(buildOverlayHint(child, [parent, child])).toBe(
+    '⏎ attach · H headless · y yank · Y eject · K kill · p unpin parent ▏ g groups · n new · ? keys',
+  );
+});
+
+test('#buildOverlayHint points the pin action of a sub-session pinned on its own at the sub-session', () => {
+  const parent = buildMockMirrorSession({
+    id: 'wrangler',
+    parent: null,
+    state: 'running',
+    alive: true,
+    kind: 'pty',
+    canEject: true,
+    agent: 'claude',
+    pinned: false,
+  });
+
+  const child = buildMockMirrorSession({
+    id: 'worker',
+    parent: 'wrangler',
+    state: 'running',
+    alive: true,
+    kind: 'pty',
+    canEject: true,
+    agent: 'claude',
+    pinned: true,
+  });
+
+  expect(buildOverlayHint(child, [parent, child])).toBe(
+    '⏎ attach · H headless · y yank · Y eject · K kill · p unpin ▏ g groups · n new · ? keys',
+  );
+});
+
+test('#buildOverlayHint keeps the plain pin action on a top-level session', () => {
+  const session = buildMockMirrorSession({
+    id: 'auth',
+    parent: null,
+    state: 'running',
+    alive: true,
+    kind: 'pty',
+    canEject: true,
+    agent: 'claude',
+    pinned: false,
+  });
+
+  expect(buildOverlayHint(session, [session])).toBe(
+    '⏎ attach · H headless · y yank · Y eject · K kill · p pin ▏ g groups · n new · ? keys',
+  );
+});
+
+test('#buildSessionRow labels a gateway row with its readable harness name', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 0,
+    harnessWidth: 10,
+    modelWidth: 0,
+    lifecycleWidth: 9,
+    eventWidth: 7,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { zai: 'GLM (z.ai)' },
+    agentModels: {},
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    notice: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow(
+    buildMockMirrorSession({
+      name: 'auth',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      agent: 'zai',
+      pinned: false,
+      target: 'local',
+      model: null,
+      harness: 'running',
+    }),
+    plan,
+    view,
+    false,
+  );
+
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             GLM (z.ai) running   started",
+      "width": 49,
+    }
+  `);
+});
+
+test('#buildSessionRow resolves a model alias through the daemon answer map', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 0,
+    harnessWidth: 6,
+    modelWidth: 8,
+    lifecycleWidth: 9,
+    eventWidth: 7,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { zai: 'GLM (z.ai)' },
+    agentModels: { zai: { opus: 'glm-5.3' } },
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    notice: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow(
+    buildMockMirrorSession({
+      name: 'auth',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      agent: 'zai',
+      pinned: false,
+      target: 'local',
+      model: 'opus',
+      harness: 'running',
+    }),
+    plan,
+    view,
+    false,
+  );
+
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             GLM (… glm-5.3  running   started",
+      "width": 54,
+    }
+  `);
+});
+
+test('#buildSessionRow falls back to the raw model string when the alias map has no entry', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 0,
+    harnessWidth: 6,
+    modelWidth: 8,
+    lifecycleWidth: 9,
+    eventWidth: 7,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { zai: 'GLM (z.ai)' },
+    agentModels: {},
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    notice: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow(
+    buildMockMirrorSession({
+      name: 'auth',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      agent: 'zai',
+      pinned: false,
+      target: 'local',
+      model: 'opus',
+      harness: 'running',
+    }),
+    plan,
+    view,
+    false,
+  );
+
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             GLM (… opus     running   started",
+      "width": 54,
+    }
+  `);
+});
+
+test('#buildSessionRow shows the target column when several targets are available even if every row uses one', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 5,
+    harnessWidth: 6,
+    modelWidth: 0,
+    lifecycleWidth: 9,
+    eventWidth: 7,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { claude: 'Claude' },
+    agentModels: {},
+    showTarget: true,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    notice: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow(
+    buildMockMirrorSession({
+      name: 'auth',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      agent: 'claude',
+      pinned: false,
+      target: 'local',
+      model: null,
+      harness: 'running',
+    }),
+    plan,
+    view,
+    false,
+  );
+
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             local Claude running   started",
+      "width": 51,
+    }
+  `);
+});
+
+test('#buildSessionRow hides the target column when a single target is available', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 0,
+    harnessWidth: 6,
+    modelWidth: 0,
+    lifecycleWidth: 9,
+    eventWidth: 7,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { claude: 'Claude' },
+    agentModels: {},
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    notice: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow(
+    buildMockMirrorSession({
+      name: 'auth',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      agent: 'claude',
+      pinned: false,
+      target: 'imp-box',
+      model: null,
+      harness: 'running',
+    }),
+    plan,
+    view,
+    false,
+  );
+
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             Claude running   started",
+      "width": 45,
+    }
+  `);
+});
+
+test('#buildSessionRow keeps the harness lifecycle distinct from the attention state', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 0,
+    harnessWidth: 6,
+    modelWidth: 0,
+    lifecycleWidth: 9,
+    eventWidth: 15,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { claude: 'Claude' },
+    agentModels: {},
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    notice: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow(
+    buildMockMirrorSession({
+      name: 'auth',
+      state: 'needs_you',
+      unread: false,
+      lastMsg: 'asleep',
+      agent: 'claude',
+      pinned: false,
+      target: 'local',
+      model: null,
+      harness: 'suspended',
+    }),
+    plan,
+    view,
+    false,
+  );
+
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[31m●\u001B[0m   auth             Claude suspended asleep         ",
+      "width": 53,
+    }
+  `);
+});
+
+test('#buildSessionRow highlights the selected row with inverse video', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 0,
+    harnessWidth: 6,
+    modelWidth: 0,
+    lifecycleWidth: 9,
+    eventWidth: 7,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { claude: 'Claude' },
+    agentModels: {},
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    notice: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow(
+    buildMockMirrorSession({
+      name: 'auth',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      agent: 'claude',
+      pinned: false,
+      target: 'local',
+      model: null,
+      harness: 'running',
+    }),
+    plan,
+    view,
+    true,
+  );
+
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   \u001B[7mauth             Claude running   started\u001B[0m",
+      "width": 45,
+    }
+  `);
+});
+
+test('#buildSessionRow draws the harness and no model in a narrow grouped overlay', () => {
+  const plan = planOverlayColumns({
+    innerWidth: 48,
+    grouped: true,
+    showTarget: true,
+    targetMax: 5,
+    harnessMax: 6,
+    modelMax: 8,
+  });
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { claude: 'Claude' },
+    agentModels: { claude: { opus: 'sonnet-x' } },
+    showTarget: true,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    notice: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow(
+    buildMockMirrorSession({
+      name: 'auth',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      agent: 'claude',
+      pinned: false,
+      target: 'local',
+      model: 'opus',
+      harness: 'running',
+    }),
+    plan,
+    view,
+    false,
+  );
+
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             local Claude running   sta…",
+      "width": 48,
+    }
+  `);
+});
+
+test('#drawOverlay draws session rows inside the overlay box borders', () => {
+  const terminal = buildStubTerminal();
+
+  drawOverlay(
+    {
+      sessions: [
+        buildMockMirrorSession({
+          name: 'auth',
+        }),
+      ],
+      agentLabels: { claude: 'Claude' },
+      agentModels: {},
+      showTarget: false,
+      selected: 0,
+      confirmKill: false,
+      confirmDestroy: false,
+      filter: null,
+      notice: null,
+      stale: false,
+      grouped: true,
+    },
+    terminal.write,
+  );
+
+  const drawnRows = terminal
+    .getText()
+    .replaceAll(KEYS.esc, '')
+    .split(/\[[0-9;]+H/u)
+    .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim());
+
+  expect(drawnRows).toSatisfyAny((row: string) => /^│.*auth.*│$/u.test(row));
+});
+
+test('#drawOverlay draws a notice on the hint line in place of the hints', () => {
+  const terminal = buildStubTerminal();
+
+  drawOverlay(
+    {
+      sessions: [buildMockMirrorSession({ name: 'auth' })],
+      agentLabels: { claude: 'Claude' },
+      agentModels: {},
+      showTarget: false,
+      selected: 0,
+      confirmKill: false,
+      confirmDestroy: false,
+      filter: null,
+      notice: 'kept orchard-main-7: 1 stash',
+      stale: false,
+      grouped: true,
+    },
+    terminal.write,
+  );
+
+  const drawnRows = terminal
+    .getText()
+    .replaceAll(KEYS.esc, '')
+    .split(/\[[0-9;]+H/u)
+    .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim());
+
+  expect(drawnRows).toSatisfyAny((row: string) => /^│ kept orchard-main-7: 1 stash *│$/u.test(row));
+  expect(drawnRows).not.toSatisfyAny((row: string) => row.includes('? keys'));
+});
+
+test('#drawPicker scrolls to a selection past the tenth item and counts the items above it', () => {
+  const terminal = buildStubTerminal();
+
+  drawPicker(
+    {
+      title: 'spawn: agent',
+      items: Array.from({ length: 14 }, (_, index) => `agent-${index + 1}`),
+      selected: 12,
+      input: '',
+      hint: '⏎ pick · esc cancel',
+    },
+    terminal.write,
+  );
+
+  const contentRows = terminal
+    .getText()
+    .replaceAll(KEYS.esc, '')
+    .split(/\[[0-9;]+H/u)
+    .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim())
+    .filter((row) => row.startsWith('│'))
+    .map((row) => row.slice(1, -1).trim());
+
+  expect(contentRows).toStrictEqual([
+    '↑ 5 more',
+    'agent-6',
+    'agent-7',
+    'agent-8',
+    'agent-9',
+    'agent-10',
+    'agent-11',
+    'agent-12',
+    'agent-13',
+    'agent-14',
+    '> █',
+    '⏎ pick · esc cancel',
+  ]);
+});
+
+test('#drawPicker keeps both counts and the selection inside ten rows mid-list', () => {
+  const terminal = buildStubTerminal();
+
+  drawPicker(
+    {
+      title: 'spawn: repository',
+      items: Array.from({ length: 20 }, (_, index) => `acme/tool-${index + 1}`),
+      selected: 11,
+      input: '',
+      hint: '⏎ pick · esc cancel',
+    },
+    terminal.write,
+  );
+
+  const contentRows = terminal
+    .getText()
+    .replaceAll(KEYS.esc, '')
+    .split(/\[[0-9;]+H/u)
+    .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim())
+    .filter((row) => row.startsWith('│'))
+    .map((row) => row.slice(1, -1).trim());
+
+  expect(contentRows).toStrictEqual([
+    '↑ 4 more',
+    'acme/tool-5',
+    'acme/tool-6',
+    'acme/tool-7',
+    'acme/tool-8',
+    'acme/tool-9',
+    'acme/tool-10',
+    'acme/tool-11',
+    'acme/tool-12',
+    '↓ 8 more',
+    '> █',
+    '⏎ pick · esc cancel',
+  ]);
+});
+
+test('#drawPicker draws every item and no count when ten items fit', () => {
+  const terminal = buildStubTerminal();
+
+  drawPicker(
+    {
+      title: 'spawn: agent',
+      items: Array.from({ length: 10 }, (_, index) => `agent-${index + 1}`),
+      selected: 9,
+      input: '',
+      hint: '⏎ pick · esc cancel',
+    },
+    terminal.write,
+  );
+
+  const contentRows = terminal
+    .getText()
+    .replaceAll(KEYS.esc, '')
+    .split(/\[[0-9;]+H/u)
+    .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim())
+    .filter((row) => row.startsWith('│'))
+    .map((row) => row.slice(1, -1).trim());
+
+  expect(contentRows).toStrictEqual([
+    'agent-1',
+    'agent-2',
+    'agent-3',
+    'agent-4',
+    'agent-5',
+    'agent-6',
+    'agent-7',
+    'agent-8',
+    'agent-9',
+    'agent-10',
+    '> █',
+    '⏎ pick · esc cancel',
+  ]);
+});
+
+test('#buildSessionRow falls back to the raw id when the harness name would hit an inherited property', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 0,
+    harnessWidth: 11,
+    modelWidth: 0,
+    lifecycleWidth: 9,
+    eventWidth: 7,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { claude: 'Claude' },
+    agentModels: {},
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    notice: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow(
+    buildMockMirrorSession({
+      name: 'auth',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      agent: 'constructor',
+      pinned: false,
+      target: 'local',
+      model: null,
+      harness: 'running',
+    }),
+    plan,
+    view,
+    false,
+  );
+
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             constructor running   started",
+      "width": 50,
+    }
+  `);
+});
+
+test('#buildSessionRow falls back to the raw model when the alias would hit an inherited property', () => {
+  const plan: OverlayColumnPlan = {
+    nameWidth: 16,
+    dirWidth: 0,
+    targetWidth: 0,
+    harnessWidth: 6,
+    modelWidth: 12,
+    lifecycleWidth: 9,
+    eventWidth: 7,
+  };
+
+  const view: OverlayView = {
+    sessions: [],
+    agentLabels: { claude: 'Claude' },
+    agentModels: { claude: { opus: 'glm-5.3' } },
+    showTarget: false,
+    selected: 0,
+    confirmKill: false,
+    confirmDestroy: false,
+    filter: null,
+    notice: null,
+    stale: false,
+    grouped: true,
+  };
+
+  const row = buildSessionRow(
+    buildMockMirrorSession({
+      name: 'auth',
+      state: 'running',
+      unread: false,
+      lastMsg: 'started',
+      agent: 'claude',
+      pinned: false,
+      target: 'local',
+      model: 'constructor',
+      harness: 'running',
+    }),
+    plan,
+    view,
+    false,
+  );
+
+  expect(row).toMatchInlineSnapshot(`
+    {
+      "styled": "\u001B[36m◐\u001B[0m   auth             Claude constructor  running   started",
+      "width": 58,
+    }
+  `);
+});
+
+test('#drawOverlay names the daemon of a remote row and leaves a local row unnamed', () => {
+  const terminal = buildStubTerminal();
+
+  drawOverlay(
+    {
+      sessions: [
+        buildMockMirrorSession({ daemon: null, name: 'near' }),
+        buildMockMirrorSession({ daemon: 'geoffcloud', name: 'far' }),
+      ],
+      agentLabels: { claude: 'Claude' },
+      agentModels: {},
+      showDaemon: true,
+      showTarget: false,
+      selected: 0,
+      confirmKill: false,
+      confirmDestroy: false,
+      filter: null,
+      notice: null,
+      stale: false,
+      grouped: false,
+    },
+    terminal.write,
+  );
+
+  const drawnRows = terminal
+    .getText()
+    .replaceAll(KEYS.esc, '')
+    .split(/\[[0-9;]+H/u)
+    .map((row) => row.replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '').trim());
+
+  expect(drawnRows).toSatisfyAny(
+    (row: string) => /^│.*near/u.test(row) && !row.includes('geoffcloud'),
+  );
+
+  expect(drawnRows).toSatisfyAny((row: string) => /^│.*geoffcloud far/u.test(row));
+});
+
+test('#drawOverlay draws one line for each daemon that is not up under the rows', () => {
+  const terminal = buildStubTerminal();
+
+  drawOverlay(
+    {
+      sessions: [buildMockMirrorSession({ daemon: null, name: 'near' })],
+      agentLabels: { claude: 'Claude' },
+      agentModels: {},
+      showDaemon: true,
+      daemonLines: ['box: down — cannot reach daemon'],
+      showTarget: false,
+      selected: 0,
+      confirmKill: false,
+      confirmDestroy: false,
+      filter: null,
+      notice: null,
+      stale: false,
+      grouped: false,
+    },
+    terminal.write,
+  );
+
+  const text = terminal.getText().replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '');
+
+  expect(text).toInclude('box: down — cannot reach daemon');
+});
+
+test("#drawOverlay reads a remote row's agent label from its own daemon's answer", () => {
+  const terminal = buildStubTerminal();
+
+  drawOverlay(
+    {
+      sessions: [buildMockMirrorSession({ daemon: 'geoffcloud', name: 'far', agent: 'claude' })],
+      agentLabels: { claude: 'Claude' },
+      agentModels: {},
+      remoteAgents: new Map([['geoffcloud', { labels: { claude: 'Cloud Claude' }, models: {} }]]),
+      showDaemon: true,
+      showTarget: false,
+      selected: 0,
+      confirmKill: false,
+      confirmDestroy: false,
+      filter: null,
+      notice: null,
+      stale: false,
+      grouped: false,
+    },
+    terminal.write,
+  );
+
+  const text = terminal.getText().replaceAll(/\[[0-9;?]*[A-Za-z]/gu, '');
+
+  expect(text).toInclude('Cloud Claude');
+});
+
+test('#buildOverlayHint points a sub-session at a parent on its own daemon', () => {
+  const sameIDOnOtherDaemon = buildMockMirrorSession({
+    daemon: null,
+    id: 'wrangler',
+    pinned: true,
+  });
+
+  const parent = buildMockMirrorSession({ daemon: 'box', id: 'wrangler', pinned: false });
+
+  const child = buildMockMirrorSession({
+    daemon: 'box',
+    id: 'worker',
+    parent: 'wrangler',
+    pinned: false,
+  });
+
+  expect(buildOverlayHint(child, [sameIDOnOtherDaemon, parent, child])).toInclude('p pin parent');
+});

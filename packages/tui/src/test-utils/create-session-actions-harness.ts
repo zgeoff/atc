@@ -1,9 +1,9 @@
 import type { DaemonClient } from '@atc/protocol/client';
 import { createActor } from 'xstate';
-import { buildClientMachine } from '../build-client-machine';
-import { createFleetMirror } from '../create-fleet-mirror';
-import type { OverlayScreen } from '../create-overlay-screen';
-import { createSessionActions } from '../create-session-actions';
+import { buildClientMachine } from '../client/build-client-machine';
+import { createSessionActions } from '../client/create-session-actions';
+import { createFleetMirror } from '../fleet/create-fleet-mirror';
+import type { OverlayScreen } from '../overlay/create-overlay-screen';
 import { buildStubClientScreens } from './build-stub-client-screens';
 
 // The overlay's session actions over the one daemon client a test gives, as the local daemon, with the client's real state
