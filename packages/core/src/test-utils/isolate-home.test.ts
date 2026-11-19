@@ -268,7 +268,7 @@ test("it writes a gateway's generated settings file inside the run's own home", 
 import { realpathSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { createGatewayAdapter } from '${join(ctx.repo, 'packages', 'harnesses', 'claude', 'src', 'gateway', 'create-gateway-adapter')}';
-import { parseConfig } from '${join(ctx.repo, 'packages', 'config', 'src', 'config')}';
+import { parseConfig } from '${join(ctx.repo, 'packages', 'config', 'src', 'config-file', 'config')}';
 import { stateDir } from '${join(ctx.repo, 'packages', 'config', 'src', 'host', 'config-file')}';
 
 test('it writes the settings file under the home', () => {
