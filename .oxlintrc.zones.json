@@ -70,7 +70,7 @@
           // in real PTYs, and the stub composer's raw-mode reads need a real
           // terminal
           "pty-files": [
-            "packages/execution/local/src/bun-pty-spawn.ts",
+            "packages/execution/local/src/pty-library/bun-pty-spawn.ts",
             "packages/execution/imp/src/test-utils/{answer-stub-session,stub-imp,try-kill}.ts",
             "packages/execution/imp/src/test-utils/try-kill.test.ts",
             "packages/app/src/test-utils/start-tui-harness.ts",

@@ -12,7 +12,7 @@ import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session'
 import { startStubRecordingListener } from '@atc/protocol/test-utils/start-stub-recording-listener';
 import { startStubSessionBridge } from '@atc/protocol/test-utils/start-stub-session-bridge';
 import invariant from 'tiny-invariant';
-import { runTap } from './tap';
+import { runTap } from './run-tap';
 
 async function setupTest() {
   // The adapter takes messages, so a session has an inbox to tap.

@@ -5,7 +5,7 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
 import { startStubSessionBridge } from '@atc/protocol/test-utils/start-stub-session-bridge';
-import { runStatusline } from './statusline';
+import { runStatusline } from './run-statusline';
 
 // A Claude config folder the test writes its settings into, and a reporter
 // socket in the same directory.

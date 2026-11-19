@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
-import { runHookReport } from './hook-report';
+import { runHookReport } from './run-hook-report';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-hook-report-');
