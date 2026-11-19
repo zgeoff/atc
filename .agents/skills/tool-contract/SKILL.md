@@ -13,9 +13,10 @@ metadata:
 
 ## Where the tools live
 
-- Find each tool that `atc mcp` serves to an MCP client in
-  [`mcp-tools.ts`](../../../packages/mcp/src/tools/mcp-tools.ts): its name, description and schemas.
-  Its handler is in [`run-tool.ts`](../../../packages/mcp/src/tools/run-tool.ts).
+- Find each tool that `atc mcp` serves to an MCP client in the `*-tools.ts` files in
+  [`tools/`](../../../packages/mcp/src/tools/), which
+  [`mcp-tools.ts`](../../../packages/mcp/src/tools/mcp-tools.ts) assembles: its name, description
+  and schemas. Its handler is in [`run-tool.ts`](../../../packages/mcp/src/tools/run-tool.ts).
 - Change the spawn tool's description in
   [`build-spawn-descriptions.ts`](../../../packages/mcp/src/tools/build-spawn-descriptions.ts),
   which adds the daemon's agents to it.
@@ -53,7 +54,8 @@ sentence that rules it out.
 ## Description order
 
 Write a description in this order, and skip a step that doesn't apply to the tool.
-`atc_terminal_type` in [`mcp-tools.ts`](../../../packages/mcp/src/tools/mcp-tools.ts) follows it.
+`atc_terminal_type` in [`terminal-tools.ts`](../../../packages/mcp/src/tools/terminal-tools.ts)
+follows it.
 
 1. Say what the tool does, and on what.
 2. When a misuse does harm, say so next.
