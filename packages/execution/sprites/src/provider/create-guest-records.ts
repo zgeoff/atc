@@ -1,7 +1,9 @@
 import { makeKeyedLock } from '@atc/core';
 import { z } from 'zod';
+import { SpritesApiError } from '../port/sprites-api-error';
 import type { SpritesPort } from '../port/types';
 import { BOOT_ID_PATH } from './boot-id-path';
+import { runExec } from './run-exec';
 
 const HOST_RECORD_SCHEMA = z.object({ target: z.string(), host: z.string(), daemon: z.string() });
 
@@ -86,10 +88,17 @@ export function createGuestRecords(api: SpritesPort, guestDir: string): GuestRec
         await api.writeFile(sprite, buildSessionPath(session), bytes, 0o600);
       }),
 
+    // The file endpoint sends no bytes for a /proc file, whose size reads as 0, so an exec reads it.
     readBootID: async (sprite) => {
-      const bytes = await api.readFile(sprite, BOOT_ID_PATH);
+      const result = await runExec(api, sprite, { argv: ['cat', BOOT_ID_PATH] });
 
-      return bytes === null ? '' : decoder.decode(bytes).trim();
+      const bootID = decoder.decode(result.stdout).trim();
+
+      if (result.exitCode !== 0 || bootID === '') {
+        throw new SpritesApiError(null, `sprite ${sprite} gave no boot id`);
+      }
+
+      return bootID;
     },
   };
 }

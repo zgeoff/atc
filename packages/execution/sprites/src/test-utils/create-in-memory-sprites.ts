@@ -84,6 +84,7 @@ export interface InMemorySprites extends SpritesPort {
 
   // a reboot: the sprite gets a new boot id, and every exec on it is gone
   readonly changeBootID: (sprite: string) => void;
+  readonly findBootID: (sprite: string) => string | null;
 }
 
 // A sprite fleet in memory. An exec outlives its WebSockets, a sprite sleeps with its execs
@@ -143,7 +144,11 @@ export function createInMemorySprites(): InMemorySprites {
       offset += chunk.length;
     }
 
-    const result = await answer(exec.request, stdin);
+    const isBootRead = exec.request.argv.join(' ') === `cat ${BOOT_ID_PATH}`;
+
+    const result = isBootRead
+      ? { stdout: `${sprite.bootID}\n`, exitCode: 0 }
+      : await answer(exec.request, stdin);
 
     if (result.stdout !== undefined) {
       deliverOutput(exec, encoder.encode(result.stdout), 'stdout');
@@ -356,8 +361,9 @@ export function createInMemorySprites(): InMemorySprites {
 
       sprite.status = 'running';
 
-      if (path === BOOT_ID_PATH) {
-        return Promise.resolve(encoder.encode(`${sprite.bootID}\n`));
+      // The real file endpoint sends no bytes for a /proc file, whose size reads as 0.
+      if (path.startsWith('/proc/')) {
+        return Promise.resolve(new Uint8Array());
       }
 
       return Promise.resolve(sprite.files.get(path)?.content ?? null);
@@ -457,6 +463,8 @@ export function createInMemorySprites(): InMemorySprites {
       nextExec += 1;
       sprite.status = 'cold';
     },
+
+    findBootID: (name) => sprites.get(name)?.bootID ?? null,
   };
 }
 

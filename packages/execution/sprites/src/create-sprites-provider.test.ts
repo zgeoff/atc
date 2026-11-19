@@ -69,26 +69,44 @@ function setupTest() {
 
   const heldSprites: SpritesPort = {
     ...sprites,
-    readFile: async (name, path) => {
+    readFile: (name, path) => {
       if (isBootHeld) {
         afterBootHold.push(`readFile ${path}`);
       }
 
-      if (heldBoot !== null && path === BOOT_ID_PATH && !isBootHeld) {
-        bootReads += 1;
-
-        if (bootReads < 2) {
-          return sprites.readFile(name, path);
-        }
-
-        isBootHeld = true;
-
-        await heldBoot;
-
-        afterBootHold.length = 0;
+      return sprites.readFile(name, path);
+    },
+    openExec: (name, request) => {
+      if (isBootHeld) {
+        afterBootHold.push(`openExec ${request.argv.join(' ')}`);
       }
 
-      return sprites.readFile(name, path);
+      const connection = sprites.openExec(name, request);
+      const gate = heldBoot;
+      const isBootRead = request.argv.join(' ') === `cat ${BOOT_ID_PATH}`;
+
+      if (gate === null || !isBootRead || isBootHeld) {
+        return connection;
+      }
+
+      bootReads += 1;
+
+      if (bootReads < 2) {
+        return connection;
+      }
+
+      isBootHeld = true;
+
+      return {
+        ...connection,
+        endInput: async () => {
+          await gate;
+
+          afterBootHold.length = 0;
+
+          connection.endInput();
+        },
+      };
     },
     listExecs: async (name) => {
       if (isBootHeld) {
@@ -472,10 +490,7 @@ test('it records the exec ids of a session with the boot they ran under', async 
   await harness.waitForStart?.();
 
   const stored = ctx.sprites.findFile(ctx.sprite, `${ctx.guestDir}/state/s1.json`);
-
-  const bootBytes = await ctx.sprites.readFile(ctx.sprite, '/proc/sys/kernel/random/boot_id');
-
-  const boot = new TextDecoder().decode(bootBytes ?? undefined).trim();
+  const boot = ctx.sprites.findBootID(ctx.sprite);
 
   expect(JSON.parse(new TextDecoder().decode(stored?.content))).toStrictEqual({
     harness: { exec: ctx.findHarnessExecID(), boot },
