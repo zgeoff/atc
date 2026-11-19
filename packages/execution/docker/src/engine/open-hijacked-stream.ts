@@ -34,7 +34,17 @@ export async function openHijackedStream(
     }
   };
 
+  // output that arrives before the first listener, such as the bytes that follow the headers in
+  // the same chunk, waits for it
+  const unheard: { data: Uint8Array; stream: StreamName }[] = [];
+
   const emit = (data: Uint8Array, stream: StreamName): void => {
+    if (dataListeners.length === 0) {
+      unheard.push({ data, stream });
+
+      return;
+    }
+
     for (const listener of dataListeners) {
       listener(data, stream);
     }
@@ -139,6 +149,10 @@ export async function openHijackedStream(
   return {
     onData: (listener) => {
       dataListeners.push(listener);
+
+      for (const held of unheard.splice(0)) {
+        listener(held.data, held.stream);
+      }
     },
     onEnd: (listener) => {
       if (isEnded) {

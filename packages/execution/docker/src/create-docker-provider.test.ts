@@ -23,6 +23,7 @@ async function setupTest() {
   const runs: { cmd: readonly string[]; stdin: string; workingDir: string | undefined }[] = [];
   const boot = { id: 'boot-1' };
   const targetID = 'box';
+  const logged: string[] = [];
 
   engine.addImage('example/agents:1');
 
@@ -58,6 +59,9 @@ async function setupTest() {
         stateDir,
         readBootID: () => boot.id,
         reconnectDelaysMs: [0],
+        log: (line) => {
+          logged.push(line);
+        },
       },
     );
 
@@ -88,6 +92,7 @@ async function setupTest() {
       });
 
   return {
+    logged,
     directory: directory.path,
     stateDir,
     engine,
@@ -873,4 +878,70 @@ test('it confirms an existing host of its own and refuses one of another daemon'
   const other = await ctx.provider.checkExistingHost('h2');
 
   expect([own, other]).toStrictEqual([true, false]);
+});
+
+test('it refuses a sidecar-named container that carries another target and host, and keeps it', async () => {
+  const ctx = await setupTest();
+
+  ctx.engine.seedContainer(
+    {
+      name: 'atc-s1-relay',
+      image: 'example/agents:1',
+      labels: { 'atc.target': 'other', 'atc.host': 'x1', 'atc.daemon': 'd-2' },
+      cmd: [],
+      env: {},
+      tty: false,
+      stdin: 'held',
+      mounts: [],
+    },
+    'exited',
+  );
+
+  await ctx.provider.prepareHost(ctx.request);
+
+  ctx.provider.spawnHarness(ctx.spec);
+
+  await waitFor(() => {
+    expect(ctx.logged).toSatisfyAny((line) => line.includes('relay link did not open'));
+  });
+
+  const kept = await ctx.engine.readContainer('atc-s1-relay');
+
+  expect(kept?.labels['atc.target']).toBe('other');
+});
+
+test('it refuses to replace an exited harness-named container that carries another target', async () => {
+  const ctx = await setupTest();
+
+  ctx.engine.seedContainer(
+    {
+      name: 'atc-s1',
+      image: 'example/agents:1',
+      labels: { 'atc.target': 'other', 'atc.host': 'x1', 'atc.daemon': 'd-2' },
+      cmd: [],
+      env: {},
+      tty: true,
+      stdin: 'held',
+      mounts: [],
+    },
+    'exited',
+  );
+
+  await ctx.provider.prepareHost(ctx.request);
+
+  const harness = ctx.provider.spawnHarness(ctx.spec);
+  const exited = Promise.withResolvers<string>();
+
+  harness.onExit((exit) => {
+    exited.resolve(exit.detail ?? '');
+  });
+
+  await ctx.guest.welcome('s1', { ack: 0, reset: true });
+
+  const kept = await ctx.engine.readContainer('atc-s1');
+
+  expect([await exited.promise, kept?.labels['atc.target']]).toStrictEqual([
+    expect.stringContaining('start failed'),
+    'other',
+  ]);
 });

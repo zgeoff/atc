@@ -1,5 +1,6 @@
 import type { RelayLink, RelayLinkConnection } from '@atc/plugin-api';
 import type { ContainerSpec, DockerEngine } from '../engine/types';
+import { requireOwnContainer } from './require-own-container';
 
 interface SidecarLinkOptions {
   readonly engine: DockerEngine;
@@ -43,6 +44,8 @@ export function makeSidecarLink(options: SidecarLinkOptions): RelayLink {
 
   const readySidecar = async (replace: boolean): Promise<void> => {
     const existing = await engine.readContainer(name);
+
+    requireOwnContainer(existing, options.sidecar.labels);
 
     if (!replace && existing?.status === 'running') {
       return;

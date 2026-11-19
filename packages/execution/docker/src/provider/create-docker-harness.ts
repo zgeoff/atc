@@ -9,6 +9,7 @@ import type {
 import { DaemonError } from '@atc/protocol/wire';
 import type { ContainerAttachment, ContainerSpec, DockerEngine } from '../engine/types';
 import { pickHarnessStart } from './pick-harness-start';
+import { requireOwnContainer } from './require-own-container';
 import { waitOut } from './wait-out';
 
 interface DockerHarnessOptions {
@@ -178,6 +179,8 @@ export function createDockerHarness(options: DockerHarnessOptions): DockerHarnes
 
   const startContainer = async (): Promise<boolean> => {
     const existing = await engine.readContainer(name);
+
+    requireOwnContainer(existing, options.container.labels);
 
     const action = pickHarnessStart(existing);
 
