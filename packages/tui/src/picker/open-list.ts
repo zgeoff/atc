@@ -59,11 +59,11 @@ export function sendPending(
 
 export function openList(flow: PickerFlow) {
   const ctx = flow.ctx;
-  const brokered = ctx.listedAgents.find((entry) => entry.id === ctx.agent && entry.brokerRequired);
+  const listedAgent = ctx.listedAgents.find((entry) => entry.id === ctx.agent);
 
   // the daemon lists the targets whose credentials serve the agent's auth selection
   const picks = ctx.listedTargets.filter(
-    (target) => brokered === undefined || brokered.spawnTargets.includes(target.id),
+    (target) => listedAgent === undefined || listedAgent.spawnTargets.includes(target.id),
   );
 
   // An adopt resumes a session from its history on this host, which a

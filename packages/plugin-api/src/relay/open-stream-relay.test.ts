@@ -2,6 +2,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { waitFor } from '@atc/core/test-utils/wait-for';
+import { formatRelayFrame } from '@atc/protocol/relay';
 import type { HarnessRelay } from '../execution/execution-provider';
 import { buildStubRelayLink } from '../test-utils/build-stub-relay-link';
 import { openStreamRelay } from './open-stream-relay';
@@ -300,7 +301,7 @@ test('it settles writeLine only when its frame fits under 1 MiB of unacked frame
   });
 });
 
-test('it admits a frame over 1 MiB when nothing is unacked', async () => {
+test('it never admits more than 1 MiB of unacked frames', async () => {
   const ctx = setupTest();
 
   await ctx.welcome({ ack: 0, reset: true }, 1);
@@ -311,7 +312,37 @@ test('it admits a frame over 1 MiB when nothing is unacked', async () => {
     expect(ctx.relays).toHaveLength(1);
   });
 
-  await expect(ctx.relays[0]?.writeLine('x'.repeat(2 * 1024 * 1024))).toResolve();
+  await expect(ctx.relays[0]?.writeLine('x'.repeat(2 * 1024 * 1024))).toReject();
+
+  const half = 'x'.repeat(400 * 1024);
+
+  await ctx.relays[0]?.writeLine(half);
+  await ctx.relays[0]?.writeLine(half);
+
+  const blocked = ctx.relays[0]?.writeLine(half);
+
+  ctx.relays[0]?.close();
+
+  const sentBytes = () =>
+    ctx.guest
+      .readDaemonFrames()
+      .filter((frame) => frame.t === 'line' || frame.t === 'close')
+      .reduce((total, frame) => total + formatRelayFrame(frame).length, 0);
+
+  await waitFor(() => {
+    expect(ctx.guest.readDaemonFrames().filter((frame) => frame.t === 'line')).toHaveLength(2);
+  });
+
+  expect(sentBytes()).toBeLessThanOrEqual(1024 * 1024);
+  expect(ctx.guest.readDaemonFrames().filter((frame) => frame.t === 'close')).toHaveLength(0);
+
+  ctx.guest.writeGuestFrame({ t: 'ack', ack: 1 });
+
+  await expect(blocked).toResolve();
+
+  await waitFor(() => {
+    expect(ctx.guest.readDaemonFrames().filter((frame) => frame.t === 'close')).toHaveLength(1);
+  });
 });
 
 test('it rejects a pending writeLine when the relay stops', async () => {

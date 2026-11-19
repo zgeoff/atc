@@ -14,7 +14,7 @@ export function buildMockListedAgent(overrides: ListedAgentOverrides = {}): Agen
       installed: false,
       brokerAuth: false,
       brokerRequired: false,
-      spawnTargets: [],
+      spawnTargets: ['local', 'box'],
       capabilities: {
         spawn: false,
         readTranscript: false,

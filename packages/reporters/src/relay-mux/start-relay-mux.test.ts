@@ -184,6 +184,7 @@ test('it keeps a closed bridge connection until the daemon acks its close frame'
 
   ctx.sendFrame({ t: 'hello', v: 1, relay: 'r1', gen: 1, ack: 0 });
   reporter.socket.end();
+  ctx.sendFrame({ t: 'close', seq: 1, conn: 1 });
 
   await waitFor(() => {
     expect(ctx.stdout).toContainEqual({ t: 'close', seq: 3, conn: 1 });
@@ -195,10 +196,42 @@ test('it keeps a closed bridge connection until the daemon acks its close frame'
 
   await waitFor(() => {
     expect(ctx.stdout).toStrictEqual([
-      { t: 'welcome', v: 1, relay: 'r1', gen: 2, ack: 0, reset: false },
+      { t: 'welcome', v: 1, relay: 'r1', gen: 2, ack: 1, reset: false },
       { t: 'close', seq: 3, conn: 1 },
     ]);
   });
+});
+
+test('it keeps a half-closed reporter connected across a drop until the daemon closes it', async () => {
+  const ctx = await setupTest();
+  const reporter = await ctx.connectReporter();
+
+  const closed = new Promise<void>((resolve) => {
+    reporter.socket.once('close', () => {
+      resolve();
+    });
+  });
+
+  ctx.sendFrame({ t: 'hello', v: 1, relay: 'r1', gen: 1, ack: 0 });
+  reporter.socket.write('hook\n');
+  reporter.socket.end();
+
+  await waitFor(() => {
+    expect(ctx.stdout).toContainEqual({ t: 'end', seq: 3, conn: 1 });
+  });
+
+  ctx.sendFrame({ t: 'hello', v: 1, relay: 'r1', gen: 2, ack: 0 });
+  ctx.sendFrame({ t: 'line', seq: 1, conn: 1, line: 'reply' });
+
+  await waitFor(() => {
+    expect(reporter.received.join('')).toBe('reply\n');
+  });
+
+  expect(reporter.socket.destroyed).toBe(false);
+
+  ctx.sendFrame({ t: 'close', seq: 2, conn: 1 });
+
+  await expect(closed).toResolve();
 });
 
 test('it takes no new bridge connection while 1 MiB of frames is unacked, until acks free room', async () => {

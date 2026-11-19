@@ -23,9 +23,10 @@ interface HeldFrame {
   readonly bytes: number;
 }
 
+// A line, or the close of its connection when `line` is null, waiting for room in the window.
 interface PendingWrite {
   readonly conn: number;
-  readonly line: string;
+  readonly line: string | null;
   readonly settle: { readonly resolve: () => void; readonly reject: (error: Error) => void };
 }
 
@@ -126,7 +127,7 @@ export function openStreamRelay(
     }
   };
 
-  // admits each pending line, in order, once its frame fits; an empty window admits any frame
+  // admits each pending write, in order, once its frame fits under the cap
   const admitPending = (): void => {
     while (pending.length > 0) {
       const [next] = pending;
@@ -135,16 +136,14 @@ export function openStreamRelay(
         return;
       }
 
-      const frame: HeldFrame['frame'] = {
-        t: 'line',
-        seq: nextSeq,
-        conn: next.conn,
-        line: next.line,
-      };
+      const frame: HeldFrame['frame'] =
+        next.line === null
+          ? { t: 'close', seq: nextSeq, conn: next.conn }
+          : { t: 'line', seq: nextSeq, conn: next.conn, line: next.line };
 
       const bytes = encoder.encode(formatRelayFrame(frame)).length;
 
-      if (held.length > 0 && heldBytes + bytes > MAX_UNACKED_BYTES) {
+      if (heldBytes + bytes > MAX_UNACKED_BYTES) {
         return;
       }
 
@@ -186,6 +185,14 @@ export function openStreamRelay(
         return Promise.reject(new Error('the bridge connection is closed'));
       }
 
+      const bytes = encoder.encode(
+        formatRelayFrame({ t: 'line', seq: nextSeq, conn: bridge.id, line }),
+      ).length;
+
+      if (bytes > MAX_UNACKED_BYTES) {
+        return Promise.reject(new Error('the line is larger than the relay window'));
+      }
+
       const written = Promise.withResolvers<void>();
 
       pending.push({ conn: bridge.id, line, settle: written });
@@ -201,18 +208,13 @@ export function openStreamRelay(
 
       bridge.closed = true;
 
-      // a line still waiting for room is behind the close in no order, so it is refused
-      const refused = pending.filter((write) => write.conn === bridge.id);
+      pending.push({
+        conn: bridge.id,
+        line: null,
+        settle: { resolve: () => {}, reject: () => {} },
+      });
 
-      pending = pending.filter((write) => write.conn !== bridge.id);
-
-      for (const write of refused) {
-        write.settle.reject(new Error('the bridge connection is closed'));
-      }
-
-      hold({ t: 'close', seq: nextSeq, conn: bridge.id });
-
-      nextSeq += 1;
+      admitPending();
     },
   });
 

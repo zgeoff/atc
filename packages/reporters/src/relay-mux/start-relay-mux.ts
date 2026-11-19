@@ -250,7 +250,8 @@ export async function startRelayMux(options: RelayMuxOptions): Promise<RelayMux>
   // the socket is bound before the first byte of stdin is read
   rmSync(options.socketPath, { force: true });
 
-  const server: Server = createServer((socket) => {
+  // a reporter that shuts its write side still waits for the daemon's reply and close
+  const server: Server = createServer({ allowHalfOpen: true }, (socket) => {
     if (hasRoom() && waiting.length === 0) {
       attach(socket);
 
