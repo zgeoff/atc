@@ -37,5 +37,7 @@ export * from './execution/is-host-name-allowed';
 export type * from './plugin/message-bridge';
 export * from './plugin/normalize-plugin-dir';
 export * from './execution/run-gh';
+export * from './relay/open-stream-relay';
+export type * from './relay/relay-link';
 export * from './execution/target-unavailable-error';
 export type * from './types';

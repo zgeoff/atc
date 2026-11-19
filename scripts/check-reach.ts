@@ -133,6 +133,7 @@ const REPORTER_ENTRIES = [
   `${APP_SOURCE}/cli.ts`,
   'packages/reporters/src/index.ts',
   'packages/reporters/src/tap/index.ts',
+  'packages/reporters/src/relay-mux/index.ts',
 ];
 
 // The folders under src/ that a reporter may load, by package name: a light
@@ -145,7 +146,7 @@ const REPORTER_FOLDERS: ReadonlyMap<string, ReporterAllowance> = new Map<string,
     ['contract', ['light']],
     ['core', { except: ['schema'] }],
     ['reporters', { except: [] }],
-    ['protocol', ['client', 'session', 'wire']],
+    ['protocol', ['client', 'relay', 'session', 'wire']],
     ['config', ['host', 'claude-statusline']],
     ['lifecycle', ['run-command']],
   ],

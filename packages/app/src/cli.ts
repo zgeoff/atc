@@ -262,6 +262,11 @@ const ATC_CLI_IO: ATCCLIIO = {
 
     await tap.runTap(session, hostServices.build, { notices });
   },
+  runRelayMux: async (socket) => {
+    const mux = await import('@atc/reporters/relay-mux');
+
+    await mux.runRelayMux(socket);
+  },
   runNote: async (kind, options) => {
     const reporters = await import('@atc/reporters');
 

@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./relay-mux": "./src/relay-mux/index.ts",
     "./tap": "./src/tap/index.ts"
   },
   "dependencies": {
