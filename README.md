@@ -1,10 +1,18 @@
 <div align="center">
-  <h1>atc</h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/atc-dark.png">
+    <img src="./docs/assets/atc-light.png" alt="atc" width="256">
+  </picture>
 
-  <p>     <a href="https://github.com/zgeoff/atc/releases/latest"><img src="https://img.shields.io/github/v/release/zgeoff/atc" alt="latest release"></a>     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+  <p>
+    <a href="https://github.com/zgeoff/atc/releases/latest"><img src="https://img.shields.io/github/v/release/zgeoff/atc" alt="latest release"></a>
+    <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   </p>
 
-  <p>     <a href="./docs/README.md">Documentation</a> •     <a href="./docs/guides/using-atc.md">Using atc</a> •     <a href="./docs/guides/configuration.md">Configuration</a>
+  <p>
+    <a href="./docs/README.md">Documentation</a> •
+    <a href="./docs/guides/using-atc.md">Using atc</a> •
+    <a href="./docs/guides/configuration.md">Configuration</a>
   </p>
 </div>
 
