@@ -13,14 +13,11 @@ import type {
 } from '@atc/plugin-api';
 import { EffectRemainsError, openStreamRelay } from '@atc/plugin-api';
 import { buildSessionEnv } from '@atc/protocol/session';
-import { DaemonError } from '@atc/protocol/wire';
+import type { DaemonError } from '@atc/protocol/wire';
 import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import type { DockerTarget } from './config/parse-docker-target';
-import { EngineError } from './engine/engine-error';
-import { EngineUnreachableError } from './engine/engine-unreachable-error';
 import type { ContainerInfo, DockerEngine, Labels } from './engine/types';
-import { PROBE_SIGN_IN_SCRIPT } from './guest-scripts/probe-sign-in-script';
 import { READ_HOME_SCRIPT } from './guest-scripts/read-home-script';
 import { UNPACK_ARCHIVE_SCRIPT } from './guest-scripts/unpack-archive-script';
 import { buildContainerMounts } from './provider/build-container-mounts';
@@ -35,7 +32,11 @@ import { createDaemonRecord } from './provider/create-daemon-record';
 import { createDockerHarness } from './provider/create-docker-harness';
 import { makeSidecarLink } from './provider/make-sidecar-link';
 import { readBootID as readMachineBootID } from './provider/read-boot-id';
+import { requireDockerEngine } from './provider/require-docker-engine';
+import { requireHostObjects } from './provider/require-host-objects';
+import { requireSignIn } from './provider/require-sign-in';
 import { runThrowawayContainer } from './provider/run-throwaway-container';
+import { toDockerRefusal } from './provider/to-docker-refusal';
 import { writeRecordFile } from './provider/write-record-file';
 
 export interface DockerProvider extends ExecutionProvider {
@@ -68,12 +69,6 @@ interface DockerProviderOptions {
 }
 
 const RECONNECT_DELAYS_MS: readonly number[] = [250, 1000, 2000, 4000];
-
-// the Engine's word for each architecture a daemon's binary runs on
-const ENGINE_ARCHITECTURES: Readonly<Record<string, string>> = {
-  x64: 'x86_64',
-  arm64: 'aarch64',
-};
 
 const capabilities: ExecutionCapabilities = {
   spawn: true,
@@ -108,42 +103,8 @@ export function createDockerProvider(
 
   let latestHome: string | null = null;
   const buildRecordsDir = (host: string): string => join(options.stateDir, 'records', host);
-
-  const toRefusal = (error: unknown): DaemonError => {
-    if (error instanceof DaemonError) {
-      return error;
-    }
-
-    if (error instanceof EngineUnreachableError) {
-      return buildHostRefusal('engine_unreachable', error.message, { socket: target.socket });
-    }
-
-    const detail = error instanceof Error ? error.message : String(error);
-
-    return buildHostRefusal('engine_error', `the Docker Engine refused: ${detail}`, {
-      status: error instanceof EngineError ? error.status : null,
-    });
-  };
-
-  const requireEngine = async (): Promise<string> => {
-    const bootID = readBootID();
-
-    const info = await engine.readInfo();
-
-    if (
-      info.osType !== 'linux' ||
-      info.architecture !== ENGINE_ARCHITECTURES[process.arch] ||
-      bootID === null
-    ) {
-      throw buildHostRefusal(
-        'engine_unsupported',
-        `the Docker Engine at ${target.socket} runs ${info.osType} on ${info.architecture}; the docker provider needs a native Linux Engine of the daemon's own architecture`,
-        { osType: info.osType, architecture: info.architecture },
-      );
-    }
-
-    return bootID;
-  };
+  const toRefusal = (error: unknown): DaemonError => toDockerRefusal(error, target.socket);
+  const requireEngine = (): Promise<string> => requireDockerEngine(engine, target, readBootID());
 
   const readHome = async (): Promise<string> => {
     const image = await engine.readImage(target.image);
@@ -208,45 +169,6 @@ export function createDockerProvider(
   const listHostContainers = (host: string): Promise<readonly ContainerInfo[]> =>
     engine.listContainers({ 'atc.target': options.targetID, 'atc.host': host });
 
-  // Refuses an object another daemon created, and a volume of the host's name that is not this
-  // target's host. Containers are found by their labels, so another target's never match.
-  const requireHostObjects = async (host: string, daemon: string | null): Promise<void> => {
-    const names = buildHostNames(target, host);
-
-    const volumes = await Promise.all(
-      [names.hostVolume, names.relayVolume].map((name) => engine.readVolume(name)),
-    );
-
-    const containers = await listHostContainers(host);
-
-    for (const volume of volumes) {
-      if (volume === null) {
-        continue;
-      }
-
-      if (volume.labels['atc.target'] !== options.targetID || volume.labels['atc.host'] !== host) {
-        throw buildHostRefusal(
-          'host_exists',
-          `volume ${volume.name} exists and is not a host of target ${options.targetID}`,
-          { volume: volume.name },
-        );
-      }
-    }
-
-    const labelled: readonly Labels[] = [
-      ...volumes.flatMap((volume) => (volume === null ? [] : [volume.labels])),
-      ...containers.map((container) => container.labels),
-    ];
-
-    if (labelled.some((labels) => labels['atc.daemon'] !== daemon)) {
-      throw buildHostRefusal(
-        'host_leased',
-        `host ${host} belongs to another daemon, and atc never takes it over`,
-        { host },
-      );
-    }
-  };
-
   const toGuestLayout = (home: string): GuestLayout => ({
     directory: `${home}/.atc`,
     atc: `${target.guestDir}/bin/atc`,
@@ -296,7 +218,11 @@ export function createDockerProvider(
 
   const requireOwnHost = async (host: string): Promise<void> => {
     try {
-      await requireHostObjects(host, readOwnDaemon());
+      await requireHostObjects(engine, target, {
+        targetID: options.targetID,
+        host,
+        daemon: readOwnDaemon(),
+      });
     } catch (error) {
       throw toRefusal(error);
     }
@@ -313,9 +239,13 @@ export function createDockerProvider(
       const bootID = await timer.withStep('docker-engine', requireEngine);
 
       await timer.withStep('docker-image', readHome);
-      await timer.withStep('docker-sign-in', () => requireSignIn());
+      await timer.withStep('docker-sign-in', () => requireSignIn(engine, target));
 
-      await requireHostObjects(request.host, request.daemonID);
+      await requireHostObjects(engine, target, {
+        targetID: options.targetID,
+        host: request.host,
+        daemon: request.daemonID,
+      });
 
       const identity = buildIdentity(request.host, request.daemonID, bootID);
 
@@ -367,39 +297,6 @@ export function createDockerProvider(
       }
 
       throw refusal;
-    }
-  };
-
-  const requireSignIn = async (): Promise<void> => {
-    const volume = await engine.readVolume(target.signInVolume);
-
-    const missing = buildHostRefusal(
-      'sign_in_missing',
-      `volume ${target.signInVolume} holds no readable claude-oauth-token file; the docker guide shows how to store one`,
-      { volume: target.signInVolume },
-    );
-
-    if (volume === null) {
-      throw missing;
-    }
-
-    const probe = await runThrowawayContainer(engine, {
-      namePrefix: target.namePrefix,
-      image: target.image,
-      labels: {},
-      cmd: ['sh', '-c', PROBE_SIGN_IN_SCRIPT, 'sh', `${target.guestDir}/sign-in`],
-      mounts: [
-        {
-          kind: 'volume',
-          source: target.signInVolume,
-          target: `${target.guestDir}/sign-in`,
-          readOnly: true,
-        },
-      ],
-    });
-
-    if (probe.exitCode !== 0) {
-      throw missing;
     }
   };
 
