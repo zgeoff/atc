@@ -26,7 +26,6 @@ import { createStateStore } from '@atc/store';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 
-// The stub imp port runs each imp's commands on this machine.
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-imp-workspace-git-' });
 
@@ -57,8 +56,6 @@ async function setupTest() {
 test('it materializes a workspace on the host of an imp spawn and starts the session there', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -71,8 +68,6 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -100,7 +95,6 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const destination = join(ctx.directory, 'box', 'ws');
@@ -147,8 +141,6 @@ test('it materializes a workspace on the host of an imp spawn and starts the ses
 test('it materializes a git source without a cwd under the home of an imp and starts the session in it', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -161,8 +153,6 @@ test('it materializes a git source without a cwd under the home of an imp and st
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -190,7 +180,6 @@ test('it materializes a git source without a cwd under the home of an imp and st
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const home = join(ctx.directory, 'guest-home');
@@ -237,7 +226,7 @@ test('it clones a git source inside the imp as a blobless clone and uploads noth
     }),
   });
 
-  // The upstream serves filtered fetches, so a blobless clone stays blobless.
+  // The upstream must allow filtered fetches, otherwise a blobless clone silently falls back to a full one.
   await $`git config uploadpack.allowFilter true`.env(ctx.env).cwd(ctx.upstream).quiet();
 
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
@@ -340,9 +329,7 @@ test('it times a clone made inside the imp as resolve-ref and guest-clone, with 
 test('it uploads the workspace from the daemon and logs why when the imp cannot clone a repository the daemon reaches', async () => {
   const ctx = await setupTest();
 
-  // The daemon's own git config reaches the repository behind its URL, as
-  // a credential helper on the daemon host reaches a private repository;
-  // the imp's git has no such config, and nothing listens at the URL.
+  // Only the daemon's git config maps the URL to the repository; the imp's git has no such config.
   const gitConfig = join(ctx.directory, 'daemon-gitconfig');
 
   writeFileSync(
@@ -395,8 +382,6 @@ test('it uploads the workspace from the daemon and logs why when the imp cannot 
 test('it clones inside the imp only after the broker grants of the session are bound there', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` needs impd's token to manage `atc-*` imps
-  // and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -518,8 +503,6 @@ test('it refuses a git source that tracks paths through Git LFS inside the imp a
 test('it lands concurrent sub-sessions of one repository without a cwd side by side on their shared imp', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -532,8 +515,6 @@ test('it lands concurrent sub-sessions of one repository without a cwd side by s
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -561,7 +542,6 @@ test('it lands concurrent sub-sessions of one repository without a cwd side by s
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const home = join(ctx.directory, 'guest-home');
@@ -605,8 +585,6 @@ test('it lands concurrent sub-sessions of one repository without a cwd side by s
 test('it lands one of two concurrent sub-sessions without a cwd at the base of an absolute root on their shared imp', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` needs impd's token to manage `atc-*` imps
-  // and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -651,9 +629,6 @@ test('it lands one of two concurrent sub-sessions without a cwd at the base of a
 
   const parentID = getRecord(parent, 'session')['id'];
   const workspace = { kind: 'git', url: ctx.upstream, ref: 'main' };
-
-  // Both spawns start before either checks the base: each waits on the
-  // host as it resolves the base.
   const baseHold = ctx.port.startCommandHold(` sh ${base}`);
   let landed = 0;
 
@@ -678,9 +653,6 @@ test('it lands one of two concurrent sub-sessions without a cwd at the base of a
 
   baseHold.stop();
 
-  // A spawn past the base then waits on the host at its second directory, so
-  // the other spawn checks the base before the first claims anything else.
-  // The hold stops once each spawn has landed or waits there.
   const nextHold = ctx.port.startCommandHold(` sh ${base}-2`);
 
   await waitFor(() => {
@@ -713,8 +685,6 @@ test('it materializes a workspace for a local spawn on the daemon host and start
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -742,7 +712,6 @@ test('it materializes a workspace for a local spawn on the daemon host and start
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const destination = join(ctx.directory, 'local', 'ws');
@@ -782,8 +751,6 @@ test('it refuses a workspace sub-session under a revoked parent before resolving
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -823,8 +790,6 @@ test('it refuses a workspace sub-session under a revoked parent before resolving
 
   ctx.port.calls.length = 0;
 
-  // A source that does not exist fails its resolution, so a refusal other
-  // than the resolution's shows resolution never ran.
   const spawn = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.directory, 'box', 'child'),
     agent: 'glm',
@@ -851,7 +816,7 @@ test('it refuses a workspace sub-session under a revoked parent before resolving
 test('it materializes a workspace sub-session on the host of a ready parent and starts it there', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
+  // The broker sign-in needs impd's token to
   // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
@@ -865,8 +830,6 @@ test('it materializes a workspace sub-session on the host of a ready parent and 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -894,7 +857,6 @@ test('it materializes a workspace sub-session on the host of a ready parent and 
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const parent = await daemon.client.sendRequest('session.spawn', {
@@ -926,8 +888,6 @@ test('it materializes a workspace sub-session on the host of a ready parent and 
 test('it destroys the host of its own that a spawn readied when its workspace fails there', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -940,8 +900,6 @@ test('it destroys the host of its own that a spawn readied when its workspace fa
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -998,8 +956,6 @@ test('it destroys the host of its own that a spawn readied when its workspace fa
 test('it takes back the imp and binding a brokered spawn provisioned when its workspace fails there', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1012,8 +968,6 @@ test('it takes back the imp and binding a brokered spawn provisioned when its wo
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1073,8 +1027,6 @@ test('it takes back the imp and binding a brokered spawn provisioned when its wo
 test('it takes back the imp and binding of a brokered spawn whose start is refused, without removing its checkout first', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` needs impd's token to manage `atc-*` imps
-  // and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1109,8 +1061,6 @@ test('it takes back the imp and binding of a brokered spawn whose start is refus
     }),
   });
 
-  // impd refuses the harness's start, and removing a checkout on the imp
-  // fails, so only taking back the imp clears what the spawn left there.
   ctx.port.startBrokerFailure();
   ctx.port.setCommandFailure('-mindepth');
 
@@ -1137,8 +1087,6 @@ test('it takes back the imp and binding of a brokered spawn whose start is refus
 test("it leaves a parent running on its host when a sub-session's workspace fails there", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1151,8 +1099,6 @@ test("it leaves a parent running on its host when a sub-session's workspace fail
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1216,8 +1162,6 @@ test("it leaves a parent running on its host when a sub-session's workspace fail
 test('it destroys the host of its own that a plain workspace spawn readied when its agent is not signed in there', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1230,8 +1174,6 @@ test('it destroys the host of its own that a plain workspace spawn readied when 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1283,8 +1225,6 @@ test('it destroys the host of its own that a plain workspace spawn readied when 
 test('it answers outcome_unknown for a workspace spawn whose host it cannot take back after a failed sign-in check', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1297,8 +1237,6 @@ test('it answers outcome_unknown for a workspace spawn whose host it cannot take
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1342,8 +1280,6 @@ test('it answers outcome_unknown for a workspace spawn whose host it cannot take
 test('it keeps the key of a workspace spawn whose host it cannot take back as outcome_unknown, so a retry creates no imp', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1356,8 +1292,6 @@ test('it keeps the key of a workspace spawn whose host it cannot take back as ou
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1418,8 +1352,6 @@ test('it keeps the key of a workspace spawn whose host it cannot take back as ou
 test('it refuses a workspace spawn whose host fails its sign-in check and takes the host back', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1432,8 +1364,6 @@ test('it refuses a workspace spawn whose host fails its sign-in check and takes 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1485,8 +1415,6 @@ test('it refuses a workspace spawn whose host fails its sign-in check and takes 
 test("it refuses a sub-session workspace inside its parent's directory before claiming or transferring anything", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1499,8 +1427,6 @@ test("it refuses a sub-session workspace inside its parent's directory before cl
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1559,8 +1485,6 @@ test("it refuses a sub-session workspace inside its parent's directory before cl
 test("it materializes a sub-session workspace beside its parent's directory on the shared host", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1573,8 +1497,6 @@ test("it materializes a sub-session workspace beside its parent's directory on t
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1602,7 +1524,6 @@ test("it materializes a sub-session workspace beside its parent's directory on t
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const parent = await daemon.client.sendRequest('session.spawn', {
@@ -1632,8 +1553,6 @@ test("it materializes a sub-session workspace beside its parent's directory on t
 test('it refuses a git workspace whose credential variable is unset before touching impd', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1646,8 +1565,6 @@ test('it refuses a git workspace whose credential variable is unset before touch
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1702,8 +1619,6 @@ test('it refuses a git workspace whose credential variable is unset before touch
 test('it materializes a git workspace on an imp host when its credential variable is set', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1716,8 +1631,6 @@ test('it materializes a git workspace on an imp host when its credential variabl
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1745,7 +1658,6 @@ test('it materializes a git workspace on an imp host when its credential variabl
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   updateEnv('ATC_TEST_WORKSPACE_TOKEN', 'workspace-token');
@@ -1775,8 +1687,6 @@ test('it materializes a git workspace on an imp host when its credential variabl
 test('it claims the directory of a workspace sub-session on the shared host before it unpacks there', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1789,8 +1699,6 @@ test('it claims the directory of a workspace sub-session on the shared host befo
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1834,7 +1742,6 @@ test('it claims the directory of a workspace sub-session on the shared host befo
   const outer = join(ctx.directory, 'box', 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
-  // The daemon stops with this spawn still held, which rejects it.
   void Promise.allSettled([
     daemon.client.sendRequest('session.spawn', {
       cwd: outer,
@@ -1855,8 +1762,6 @@ test('it claims the directory of a workspace sub-session on the shared host befo
 test('it claims the directory of a workspace sub-session under the home of the shared host before it unpacks there', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1869,8 +1774,6 @@ test('it claims the directory of a workspace sub-session under the home of the s
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1898,8 +1801,7 @@ test('it claims the directory of a workspace sub-session under the home of the s
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -1920,7 +1822,6 @@ test('it claims the directory of a workspace sub-session under the home of the s
   const outer = join(home, 'a');
   const tarHold = ctx.port.startCommandHold('tar -x');
 
-  // The daemon stops with this spawn still held, which rejects it.
   void Promise.allSettled([
     daemon.client.sendRequest('session.spawn', {
       cwd: outer,
@@ -1941,8 +1842,6 @@ test('it claims the directory of a workspace sub-session under the home of the s
 test('it refuses a workspace spawn inside another one still materializing on the shared host before its first mkdir', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1955,8 +1854,6 @@ test('it refuses a workspace spawn inside another one still materializing on the
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -1984,8 +1881,7 @@ test('it refuses a workspace spawn inside another one still materializing on the
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -2022,8 +1918,6 @@ test('it refuses a workspace spawn inside another one still materializing on the
 
   const innerSettled = Promise.allSettled([innerSpawn]);
 
-  // The inner spawn either settles or claims its directory while the outer
-  // one is held.
   await waitFor(() => {
     expect([
       Bun.peek.status(innerSpawn),
@@ -2050,8 +1944,6 @@ test('it refuses a workspace spawn inside another one still materializing on the
 test('it materializes concurrent workspace spawns into sibling directories on the shared host', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2064,8 +1956,6 @@ test('it materializes concurrent workspace spawns into sibling directories on th
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2093,14 +1983,12 @@ test('it materializes concurrent workspace spawns into sibling directories on th
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const parent = await daemon.client.sendRequest('session.spawn', {
@@ -2145,8 +2033,6 @@ test('it materializes concurrent workspace spawns into sibling directories on th
 test("it keeps another session's files inside its directory when a workspace spawn rolls back on the shared host", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2159,8 +2045,6 @@ test("it keeps another session's files inside its directory when a workspace spa
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2188,8 +2072,7 @@ test("it keeps another session's files inside its directory when a workspace spa
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn waiting and block the daemon's stop.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -2248,8 +2131,6 @@ test("it keeps another session's files inside its directory when a workspace spa
 test('it refuses a plain sub-session inside a workspace still materializing on the shared host', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2262,8 +2143,6 @@ test('it refuses a plain sub-session inside a workspace still materializing on t
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2291,8 +2170,7 @@ test('it refuses a plain sub-session inside a workspace still materializing on t
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -2342,8 +2220,6 @@ test('it refuses a plain sub-session inside a workspace still materializing on t
 test('it keeps the files of a plain sub-session still starting through a symlink when a workspace rolls back', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2356,8 +2232,6 @@ test('it keeps the files of a plain sub-session still starting through a symlink
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2385,8 +2259,7 @@ test('it keeps the files of a plain sub-session still starting through a symlink
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -2420,7 +2293,6 @@ test('it keeps the files of a plain sub-session still starting through a symlink
 
   ctx.port.startLeaseHold();
 
-  // The plain sub-session waits for its lease, before it lists.
   const plain = daemon.client.sendRequest('session.spawn', {
     cwd: join(ctx.directory, 'alias', 'inner'),
     agent: 'glm',
@@ -2451,8 +2323,6 @@ test('it keeps the files of a plain sub-session still starting through a symlink
 test('it refuses a plain sub-session on the shared host while a workspace rollback removes its directory', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2465,8 +2335,6 @@ test('it refuses a plain sub-session on the shared host while a workspace rollba
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2494,8 +2362,7 @@ test('it refuses a plain sub-session on the shared host while a workspace rollba
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -2521,14 +2388,11 @@ test('it refuses a plain sub-session on the shared host while a workspace rollba
 
   await tarHold.entered;
 
-  // The daemon stops with this spawn still rolling back, which rejects it.
   void Promise.allSettled([outerSpawn]);
   symlinkSync(outer, join(ctx.directory, 'alias'));
 
   ctx.port.setCommandFailure('tar -x');
   tarHold.stop();
-
-  // The removal stays held until the daemon stops.
   ctx.port.startCommandHold('find . -mindepth');
 
   await waitFor(() => {
@@ -2550,8 +2414,6 @@ test('it refuses a plain sub-session on the shared host while a workspace rollba
 test('it starts a plain sub-session on the shared host once a workspace rollback that refused one has removed its directory', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2564,8 +2426,6 @@ test('it starts a plain sub-session on the shared host once a workspace rollback
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2593,8 +2453,7 @@ test('it starts a plain sub-session on the shared host once a workspace rollback
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep the daemon's stop waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -2661,8 +2520,6 @@ test('it starts a plain sub-session on the shared host once a workspace rollback
 test('it keeps the files of a relative plain sub-session still starting when a workspace rolls back', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2675,8 +2532,6 @@ test('it keeps the files of a relative plain sub-session still starting when a w
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2704,8 +2559,7 @@ test('it keeps the files of a relative plain sub-session still starting when a w
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -2744,7 +2598,6 @@ test('it keeps the files of a relative plain sub-session still starting when a w
 
   ctx.port.startLeaseHold();
 
-  // The relative sub-session waits for its lease, before it lists.
   const plain = daemon.client.sendRequest('session.spawn', {
     cwd: 'a/inner',
     agent: 'glm',
@@ -2776,8 +2629,6 @@ test('it keeps the files of a relative plain sub-session still starting when a w
 test('it keeps its directory when a workspace rollback cannot resolve a plain sub-session still starting', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2790,8 +2641,6 @@ test('it keeps its directory when a workspace rollback cannot resolve a plain su
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2819,8 +2668,7 @@ test('it keeps its directory when a workspace rollback cannot resolve a plain su
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -2880,7 +2728,6 @@ test('it keeps its directory when a workspace rollback cannot resolve a plain su
     );
   });
 
-  // Only the resolution of the plain sub-session's directory fails.
   ctx.port.setCommandFailure(join(ctx.directory, 'alias'));
   resolveHold.stop();
 
@@ -2899,8 +2746,6 @@ test('it keeps its directory when a workspace rollback cannot resolve a plain su
 test('it keeps its directory when a workspace rollback cannot resolve a relative plain sub-session still starting', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2913,8 +2758,6 @@ test('it keeps its directory when a workspace rollback cannot resolve a relative
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -2942,8 +2785,7 @@ test('it keeps its directory when a workspace rollback cannot resolve a relative
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -3008,7 +2850,6 @@ test('it keeps its directory when a workspace rollback cannot resolve a relative
     );
   });
 
-  // Only the resolution of the relative directory, which runs in it, fails.
   ctx.port.setCommandFailure(' sh .');
   resolveHold.stop();
 
@@ -3027,8 +2868,6 @@ test('it keeps its directory when a workspace rollback cannot resolve a relative
 test('it removes its directory when a workspace rollback meets a listed relative directory removed outside it', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3041,8 +2880,6 @@ test('it removes its directory when a workspace rollback meets a listed relative
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3070,8 +2907,7 @@ test('it removes its directory when a workspace rollback meets a listed relative
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -3098,8 +2934,6 @@ test('it removes its directory when a workspace rollback meets a listed relative
     parent: parentID,
   });
 
-  // The listed sub-session's directory is removed inside the guest, so
-  // the host can no longer enter it.
   rmSync(join(home, 'scratchpad'), { recursive: true });
 
   const outer = join(home, 'a');
@@ -3124,8 +2958,6 @@ test('it removes its directory when a workspace rollback meets a listed relative
 test('it starts a plain sub-session beside a workspace still materializing on the shared host', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3138,8 +2970,6 @@ test('it starts a plain sub-session beside a workspace still materializing on th
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3167,8 +2997,7 @@ test('it starts a plain sub-session beside a workspace still materializing on th
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -3212,8 +3041,6 @@ test('it starts a plain sub-session beside a workspace still materializing on th
 test('it removes the directory it claimed when a workspace spawn rolls back on the shared host', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3226,8 +3053,6 @@ test('it removes the directory it claimed when a workspace spawn rolls back on t
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3295,8 +3120,7 @@ test('it removes the directory it claimed when a workspace spawn rolls back on t
 test('it gives back the directory a rolled-back workspace spawn claimed, so a retry materializes there', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
+  // The broker sign-in of `glm` and `unsigned` needs impd's token to manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3309,8 +3133,6 @@ test('it gives back the directory a rolled-back workspace spawn claimed, so a re
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3375,8 +3197,6 @@ test('it gives back the directory a rolled-back workspace spawn claimed, so a re
 test("it removes a sub-session's checkout but keeps its parent and the files beside it when its start fails on the shared host", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3389,8 +3209,6 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3418,7 +3236,6 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const parent = await daemon.client.sendRequest('session.spawn', {
@@ -3429,8 +3246,6 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
 
   const parentID = String(getRecord(parent, 'session')['id']);
   const destination = join(ctx.directory, 'box', 'child');
-
-  // The imp the parent's spawn created, which the failed start must keep.
   const [imp] = ctx.port.collectImpNames();
 
   mkdirSync(join(ctx.directory, 'box'));
@@ -3478,8 +3293,6 @@ test("it removes a sub-session's checkout but keeps its parent and the files bes
 test('it spawns a sub-session again on the shared host after its failed start removed its checkout', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3492,8 +3305,6 @@ test('it spawns a sub-session again on the shared host after its failed start re
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3521,7 +3332,6 @@ test('it spawns a sub-session again on the shared host after its failed start re
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const parent = await daemon.client.sendRequest('session.spawn', {
@@ -3530,7 +3340,6 @@ test('it spawns a sub-session again on the shared host after its failed start re
     target: 'box',
   });
 
-  // The imp the parent's spawn created, which the failed start must keep.
   const [imp] = ctx.port.collectImpNames();
 
   mkdirSync(join(ctx.directory, 'box'));
@@ -3582,8 +3391,6 @@ test('it spawns a sub-session again on the shared host after its failed start re
 test("it removes a sub-session's checkout on its parent's sleeping host when its start fails there, then lets the host sleep again", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3596,8 +3403,6 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3690,8 +3495,6 @@ test("it removes a sub-session's checkout on its parent's sleeping host when its
 test("it answers outcome_unknown and logs the path of a sub-session's checkout it cannot remove when its start fails on the shared host", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3704,8 +3507,6 @@ test("it answers outcome_unknown and logs the path of a sub-session's checkout i
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3775,8 +3576,6 @@ test("it answers outcome_unknown and logs the path of a sub-session's checkout i
 test("it keeps the key of a sub-session's checkout it cannot remove, so a retry is answered outcome_unknown", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3789,8 +3588,6 @@ test("it keeps the key of a sub-session's checkout it cannot remove, so a retry 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3863,8 +3660,6 @@ test("it keeps the key of a sub-session's checkout it cannot remove, so a retry 
 test("it keeps the claim on a sub-session's checkout it cannot remove, so a spawn inside it is refused", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3877,8 +3672,6 @@ test("it keeps the claim on a sub-session's checkout it cannot remove, so a spaw
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -3952,8 +3745,6 @@ test("it keeps the claim on a sub-session's checkout it cannot remove, so a spaw
 test("it refuses a workspace destination that a symlink places inside its parent's directory before claiming it", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3966,8 +3757,6 @@ test("it refuses a workspace destination that a symlink places inside its parent
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4031,8 +3820,7 @@ test("it refuses a workspace destination that a symlink places inside its parent
 test("it refuses a workspace destination inside its parent's relative directory as the host resolves it", async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
+  // The broker sign-in needs impd's token to manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4045,8 +3833,6 @@ test("it refuses a workspace destination inside its parent's relative directory 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4114,8 +3900,6 @@ test("it refuses a workspace destination inside its parent's relative directory 
 test('it materializes a workspace through a symlinked directory that leads away from its parent', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4128,8 +3912,6 @@ test('it materializes a workspace through a symlinked directory that leads away 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4157,7 +3939,6 @@ test('it materializes a workspace through a symlinked directory that leads away 
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const parent = await daemon.client.sendRequest('session.spawn', {
@@ -4187,8 +3968,6 @@ test('it materializes a workspace through a symlinked directory that leads away 
 test('it answers outcome_unknown for a workspace spawn whose own host it cannot destroy after its workspace fails', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4201,8 +3980,6 @@ test('it answers outcome_unknown for a workspace spawn whose own host it cannot 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4250,8 +4027,6 @@ test('it answers outcome_unknown for a workspace spawn whose own host it cannot 
 test('it keeps the key of a workspace spawn whose own host it cannot destroy as outcome_unknown, so a retry creates no imp', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4264,8 +4039,6 @@ test('it keeps the key of a workspace spawn whose own host it cannot destroy as 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4328,8 +4101,6 @@ test('it keeps the key of a workspace spawn whose own host it cannot destroy as 
 test('it answers outcome_unknown for a spawn whose failed readying leaves an imp it cannot destroy', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4342,8 +4113,6 @@ test('it answers outcome_unknown for a spawn whose failed readying leaves an imp
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4388,8 +4157,6 @@ test('it answers outcome_unknown for a spawn whose failed readying leaves an imp
 test('it keeps the key of a spawn whose failed readying leaves an imp it cannot destroy as outcome_unknown, so a retry creates no imp', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4402,8 +4169,6 @@ test('it keeps the key of a spawn whose failed readying leaves an imp it cannot 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4465,8 +4230,6 @@ test('it keeps the key of a spawn whose failed readying leaves an imp it cannot 
 test('it refuses a spawn whose readying fails and destroys the imp the readying created', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4479,8 +4242,6 @@ test('it refuses a spawn whose readying fails and destroys the imp the readying 
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4532,8 +4293,6 @@ test('it refuses a spawn whose readying fails and destroys the imp the readying 
 test('it keeps the files of a session listed inside its directory while a workspace rollback resolves the host', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4546,8 +4305,6 @@ test('it keeps the files of a session listed inside its directory while a worksp
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4575,8 +4332,7 @@ test('it keeps the files of a session listed inside its directory while a worksp
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn waiting and block the daemon's stop.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -4619,8 +4375,7 @@ test('it keeps the files of a session listed inside its directory while a worksp
     );
   });
 
-  // The rollback's resolution is held while the nested session lists. It
-  // reaches the directory through a symlink, since a plain spawn naming a
+  // The directory is reached through a symlink, since a plain spawn naming a
   // path inside a workspace still materializing is refused.
   symlinkSync(outer, join(ctx.directory, 'alias'));
 
@@ -4642,8 +4397,6 @@ test('it keeps the files of a session listed inside its directory while a worksp
 test('it refuses a workspace cwd with a dot-dot segment before touching impd', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4656,8 +4409,6 @@ test('it refuses a workspace cwd with a dot-dot segment before touching impd', a
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4701,8 +4452,6 @@ test('it refuses a workspace cwd with a dot-dot segment before touching impd', a
 test('it refuses a workspace cwd with a control character before touching impd', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4715,8 +4464,6 @@ test('it refuses a workspace cwd with a control character before touching impd',
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4760,8 +4507,6 @@ test('it refuses a workspace cwd with a control character before touching impd',
 test('it materializes a workspace through a symlink to a directory whose name ends in a newline beside its parent', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4774,8 +4519,6 @@ test('it materializes a workspace through a symlink to a directory whose name en
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4803,7 +4546,6 @@ test('it materializes a workspace through a symlink to a directory whose name en
     }),
   });
 
-  // The README as the fixture committed it.
   const committed = await $`git show ${ctx.sha}:README.md`.env(ctx.env).cwd(ctx.work).text();
 
   const busy = join(ctx.directory, 'busy');
@@ -4834,8 +4576,6 @@ test('it materializes a workspace through a symlink to a directory whose name en
 test('it removes only the directory it created when a symlink in the requested path changes before a rollback', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4848,8 +4588,6 @@ test('it removes only the directory it created when a symlink in the requested p
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -4877,8 +4615,7 @@ test('it removes only the directory it created when a symlink in the requested p
     }),
   });
 
-  // A held command or lease would keep a spawn, and so the daemon's stop,
-  // waiting.
+  // A held command or lease would keep a spawn, and so the daemon's stop, waiting.
   registerTestCleanup(() => {
     ctx.port.stopCommandHold();
     ctx.port.stopLeaseHold();
@@ -4923,8 +4660,6 @@ test('it removes only the directory it created when a symlink in the requested p
 test('it leaves its directory and reports it when the directory it created no longer resolves to itself before a rollback', async () => {
   const ctx = await setupTest();
 
-  // The broker sign-in of `glm` and `unsigned` needs impd's token to
-  // manage `atc-*` imps and grant `glm`, and impd to hold `glm`.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4937,8 +4672,6 @@ test('it leaves its directory and reports it when the directory it created no lo
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);
 
-  // `glm` takes impd's api.z.ai credential from the broker and `plain` takes
-  // none; the `unsigned` variants of each fail their sign-in check in the host.
   const plainAdapter = buildMockAgentAdapter({ id: 'plain' });
   const glmAdapter = buildStubBrokeredGatewayAdapter();
 
@@ -5027,7 +4760,6 @@ test('it refuses a workspace spawn on an imp without gzip with a transfer error 
     }),
   });
 
-  // The guest's PATH holds every tool the spawn runs there except gzip.
   const bin = join(ctx.directory, 'bin');
 
   mkdirSync(bin);

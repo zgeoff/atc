@@ -19,8 +19,6 @@ import invariant from 'tiny-invariant';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
-// The fixed parts every imp guest test shares: the stub guest tools and the
-// guest folder under a temp directory, and a stub imp port.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-imp-guest-');
   const clis = createStubGuestCLIs(join(temporaryDirectory.path, 'bin'));
@@ -266,8 +264,7 @@ test('it starts a remote Claude session only once its mod is in the host, so a s
 
   await write.entered;
 
-  // the fault is a write that lasts: a harness start that skips the wait takes a few milliseconds,
-  // so it lands well inside a write held for 1 s
+  // a harness start that skips the wait takes a few milliseconds, so it lands well inside a write held for 1 s
   const startedDuringWrite = await waitFor(
     () => {
       expect(ctx.port.sessionRequests).not.toBeEmpty();

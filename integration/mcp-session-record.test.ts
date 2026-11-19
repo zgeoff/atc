@@ -3,8 +3,6 @@ import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemo
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { startInProcessMCP } from '@atc/mcp/test-utils/start-in-process-mcp';
 
-// The MCP tools in the test's process, against a daemon in it whose Claude is
-// the in-process stand-in.
 async function setupTest() {
   const stub = await startStubAgentDaemon();
   const fixture = await createGitFixture({ prefix: 'atc-mcp-record-' });

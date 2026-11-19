@@ -9,7 +9,6 @@ import type { AdapterEvent } from '@atc/protocol';
 import { createStateStore } from '@atc/store';
 
 async function setupTest() {
-  // The trail clock starts on a fixed day, so each row's time is exact.
   const clock = buildStubClock(Date.parse('2026-01-01T00:00:00.000Z'));
   const sweepClock = buildStubClock(0);
 

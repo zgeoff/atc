@@ -8,8 +8,6 @@ import { openStreamRelay } from '@atc/plugin-api';
 import type { HarnessRelay, RelayLink, RelayLinkConnection } from '@atc/plugin-api';
 import { startRelayMux } from '@atc/reporters/relay-mux';
 
-// The real mux behind an in-memory link. The link drops its connection on demand and replays the
-// mux's stdout from byte 0 on every connection it opens.
 async function setupTest() {
   const directory = setupTempDir('atc-stream-relay-');
   const socketPath = join(directory.path, 'bridge.sock');

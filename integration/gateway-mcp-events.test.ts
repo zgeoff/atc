@@ -26,8 +26,6 @@ import { openDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
-// The subscriber's endpoint is the receiver each test passes, because a test
-// cannot reach an endpoint across the internet.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-events-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
@@ -41,9 +39,6 @@ async function setupTest() {
 
   const planHookEvents = mock<AgentAdapter['planHookEvents']>();
   const authenticator = buildStubAuthenticator();
-
-  // Runs the daemon connections' timers and the deliverer's retry backoff,
-  // so none fires unless a test advances it.
   const clock = buildStubClock(Date.now());
 
   // A daemon reads the clients it lists only at boot, so the fleet starts
@@ -327,7 +322,6 @@ test('it delivers a signed event from a session on the second daemon under its g
 
   await fleet.pc.sendHookLines({ atcId: sessionID, event: 'Stop', payload: {} });
 
-  // The verification challenge, then the delivery.
   await waitFor(() => {
     expect(receiver.received).toHaveLength(2);
   });
@@ -424,7 +418,6 @@ test('it delivers the events of both daemons after the merged cursor a subscribe
     cursor: savedCursor,
   });
 
-  // The verification challenge, then one delivery for each daemon's event.
   await waitFor(() => {
     expect(receiver.received).toHaveLength(3);
   });
@@ -499,7 +492,6 @@ test('it retries a refused delivery through the gateway with the same webhook-id
     payload: {},
   });
 
-  // The verification challenge, then the delivery the endpoint refused.
   await waitFor(() => {
     expect(receiver.received).toHaveLength(2);
   });
@@ -579,7 +571,6 @@ test('it removes a subscription through the gateway whose endpoint answers 410, 
     expect(subscriptions).toStrictEqual([]);
   });
 
-  // The verification challenge and the one delivery the endpoint refused.
   expect(receiver.received).toHaveLength(2);
   expect(ctx.clock.collectPending()).not.toContain(30_000);
 });

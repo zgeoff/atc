@@ -7,7 +7,6 @@ import { getRecords } from '@atc/core/test-utils/get-records';
 import { getString } from '@atc/core/test-utils/get-string';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 
-// A daemon in the test's process whose Claude is the in-process stand-in.
 function setupTest() {
   return startStubAgentDaemon();
 }

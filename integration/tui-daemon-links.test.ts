@@ -7,9 +7,6 @@ import type { DaemonBoot } from '@atc/protocol';
 import { DaemonLinkFailureError, createDaemonLinks, createFleetMirror } from '@atc/tui';
 import type { DaemonEvent } from '@atcx/contract';
 
-// The TUI's links to two daemons in the test's process: the local one as the primary, and one
-// that stands in for a daemon on another host.
-
 async function setupTest() {
   const local = await startTestDaemon({ options: () => ({ adapter: buildMockAgentAdapter() }) });
   const remote = await startTestDaemon({ options: () => ({ adapter: buildMockAgentAdapter() }) });
