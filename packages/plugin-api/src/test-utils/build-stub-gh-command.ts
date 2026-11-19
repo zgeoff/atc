@@ -7,17 +7,12 @@ interface StubGHReply {
 }
 
 interface StubGHCommandOptions {
-  // Each gh command's reply, keyed by its first argument, such as `repo`:
-  // `hang` runs until the run's signal aborts, a list answers one run per
-  // reply in order, and a command without a reply prints nothing.
   readonly replies: Readonly<Record<string, StubGHReply | 'hang' | readonly StubGHReply[]>>;
 }
 
 interface StubGHCommand {
-  // A host command runner that answers each gh run with its reply.
   readonly runCommand: HostServices['runCommand'];
 
-  // The argv of every run, in order, the gh executable first.
   readonly calls: readonly (readonly string[])[];
 }
 
@@ -52,7 +47,6 @@ export function buildStubGHCommand(options: StubGHCommandOptions): StubGHCommand
   };
 }
 
-// The reply for a command's run, counting its runs from 0.
 function pickReply(
   reply: StubGHReply | 'hang' | readonly StubGHReply[] | undefined,
   runCount: number,
@@ -68,12 +62,9 @@ function isReplyList(reply: StubGHReply | readonly StubGHReply[]): reply is read
   return Array.isArray(reply);
 }
 
-// A run that hangs until its signal aborts; without a signal, forever.
 function waitForAbort(signal: Readonly<AbortSignal> | undefined): Promise<HostCommandResult> {
   const ended = Promise.withResolvers<HostCommandResult>();
 
-  // An aborted run answers as the host's runner answers one: exit code -1 and
-  // no output.
   const onAbort = () => {
     ended.resolve({ code: -1, stdout: '', stderr: '', aborted: true });
   };

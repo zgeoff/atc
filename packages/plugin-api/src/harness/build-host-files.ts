@@ -2,8 +2,6 @@ import type { HostFiles } from '../agent-adapter';
 import type { ExecutionProvider } from '../execution/execution-provider';
 import { parseMatchingLines } from './parse-matching-lines';
 
-// A host that is asleep or out of reach rejects the command; its file then counts as one the
-// host cannot read.
 export function buildHostFiles(
   runCommand: ExecutionProvider['runCommand'],
   host: string,

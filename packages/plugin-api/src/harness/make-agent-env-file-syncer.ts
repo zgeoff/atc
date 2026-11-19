@@ -8,9 +8,6 @@ interface AgentEnvEntry {
   readonly env: Readonly<Record<string, string>>;
 }
 
-// Syncs on the first call alone, so creating the syncer touches no state. An
-// entry without env removes the file an earlier run wrote, so a value taken
-// out of the config leaves no copy.
 export function makeAgentEnvFileSyncer(
   entry: AgentEnvEntry,
   directory: string,

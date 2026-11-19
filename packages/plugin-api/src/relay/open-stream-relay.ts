@@ -6,24 +6,19 @@ import type { DaemonFrame, GuestFrame } from '@atc/protocol/relay';
 import type { HarnessRelay } from '../execution/execution-provider';
 import type { OpenedRelay, RelayLink, RelayLinkConnection, StreamRelayOptions } from './relay-link';
 
-// The most frame bytes the daemon holds unacked per relay.
 const MAX_UNACKED_BYTES = 1024 * 1024;
-
-// A connection counts as dropped when no welcome follows its hello this soon.
 const WELCOME_TIMEOUT_MS = 10_000;
 
 const encoder = new TextEncoder();
 
 type Phase = 'connecting' | 'awaiting-welcome' | 'ready' | 'waiting-retry' | 'stopped';
 
-// A frame the daemon sent or will send, held until the guest acks it.
 interface HeldFrame {
   readonly seq: number;
   readonly frame: Extract<DaemonFrame, { seq: number }>;
   readonly bytes: number;
 }
 
-// A line, or the close of its connection when `line` is null, waiting for room in the window.
 interface PendingWrite {
   readonly conn: number;
   readonly line: string | null;
@@ -38,15 +33,12 @@ interface BridgeConnection {
   closed: boolean;
 }
 
-// One attempt at the link: its connection, and the welcome it waits for.
 interface Attempt {
   readonly gen: number;
   readonly connection: RelayLinkConnection;
   cancelTimeout: () => void;
 }
 
-// Carries the session bridge over the link's byte stream: every frame reaches the other side once
-// and in order across dropped connections, until the host loses the mux or stop() runs.
 export function openStreamRelay(
   link: RelayLink,
   onRelay: (relay: HarnessRelay) => void,
@@ -57,7 +49,7 @@ export function openStreamRelay(
   const relayID = randomUUID();
   const listening = Promise.withResolvers<void>();
 
-  // an unawaited rejection never crashes the daemon
+  // An unhandled promise rejection would crash the daemon process, so swallow it here.
   void ignoreRejection(listening.promise);
   let phase: Phase = 'connecting';
   let heardWelcome = false;
@@ -66,8 +58,6 @@ export function openStreamRelay(
   let replaceNext = false;
   let failures = 0;
   let cancelRetry: (() => void) | null = null;
-
-  // numbering and replay state
   let nextSeq = 1;
   let appliedGuestSeq = 0;
   let held: HeldFrame[] = [];
@@ -127,7 +117,6 @@ export function openStreamRelay(
     }
   };
 
-  // admits each pending write, in order, once its frame fits under the cap
   const admitPending = (): void => {
     while (pending.length > 0) {
       const [next] = pending;
@@ -143,8 +132,6 @@ export function openStreamRelay(
 
       const bytes = encoder.encode(formatRelayFrame(frame)).length;
 
-      // the final sequence number may be longer than the one at queue time, so a frame that
-      // can never fit is rejected here, where its size is known
       if (bytes > MAX_UNACKED_BYTES) {
         pending.shift();
         next.settle.reject(new Error('the line is larger than the relay window'));
@@ -404,7 +391,6 @@ export function openStreamRelay(
     }
   };
 
-  // a mux that speaks another version is stopped, and a new one answers the next hello
   const replaceOldMux = (target: Attempt): void => {
     target.cancelTimeout();
     target.connection.detach();
@@ -504,11 +490,8 @@ export function openStreamRelay(
   };
 }
 
-// Waits out a promise whose rejection the caller reads elsewhere.
 async function ignoreRejection(promise: Promise<unknown>): Promise<void> {
   try {
     await promise;
-  } catch {
-    // the caller of the promise sees the rejection
-  }
+  } catch {}
 }

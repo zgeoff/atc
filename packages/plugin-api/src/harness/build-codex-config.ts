@@ -1,5 +1,3 @@
-// credentials stay in the auth.json atc writes, never a keyring, and the TUI
-// skips its update check, since the host's image fixes the version it runs.
 // Codex reads its log exporter from this file alone, never from the environment.
 export function buildCodexConfig(telemetryHost: string | null): string {
   return [
