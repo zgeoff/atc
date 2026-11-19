@@ -51,8 +51,7 @@ test('it keeps serving the bridge socket after its stdin closes', async () => {
   const ctx = setupTest();
 
   await ctx.reporterConnects();
-
-  ctx.mux.stdin.end();
+  await ctx.mux.stdin.end();
 
   await setImmediate();
 

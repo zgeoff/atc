@@ -61,9 +61,13 @@ export function openList(flow: PickerFlow) {
   const ctx = flow.ctx;
   const listedAgent = ctx.listedAgents.find((entry) => entry.id === ctx.agent);
 
-  // the daemon lists the targets whose credentials serve the agent's auth selection
+  // the daemon lists the targets whose credentials serve the agent's auth selection; a target
+  // whose provider it lacks stays, so its choice explains why it is unavailable
   const picks = ctx.listedTargets.filter(
-    (target) => listedAgent === undefined || listedAgent.spawnTargets.includes(target.id),
+    (target) =>
+      !target.available ||
+      listedAgent === undefined ||
+      listedAgent.spawnTargets.includes(target.id),
   );
 
   // An adopt resumes a session from its history on this host, which a
