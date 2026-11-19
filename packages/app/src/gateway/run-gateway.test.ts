@@ -127,7 +127,6 @@ test('it trusts the forwarded address from a proxy its flags list', async () => 
 
   invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
 
-  // A probe for a host the gateway does not serve writes a bad_host event.
   await fetch(`http://127.0.0.1:${port}/healthz`, {
     headers: { host: 'other.example', 'cf-connecting-ip': '198.51.100.23' },
   });
@@ -202,7 +201,6 @@ test('it leaves the forwarded address unverified from a peer its flags do not li
 
   invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
 
-  // A probe for a host the gateway does not serve writes a bad_host event.
   await fetch(`http://127.0.0.1:${port}/healthz`, {
     headers: { host: 'other.example', 'cf-connecting-ip': '198.51.100.23' },
   });
@@ -281,7 +279,6 @@ test('it prints nothing to stdout once it serves and each sign-in security event
 
   invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
 
-  // The gateway's database, opened the way `atc-gateway clients` opens it.
   const store = await openTestAuthAdmin(
     buildGatewayStatePaths(join(ctx.directory, 'state')).mcpAuthDBFile,
   );

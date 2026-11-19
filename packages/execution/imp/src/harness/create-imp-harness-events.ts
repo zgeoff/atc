@@ -1,8 +1,6 @@
 import type { HarnessAttachment, HarnessExit, HarnessStart } from '@atc/plugin-api';
 import type { DaemonError } from '@atc/protocol/wire';
 
-// The listeners on a harness's output, exit, and attachment, and the waits on
-// its exit and its start, until the harness stops being followed.
 export interface ImpHarnessEvents {
   readonly onData: (listener: (data: string) => void) => { readonly dispose: () => void };
 
@@ -16,17 +14,14 @@ export interface ImpHarnessEvents {
 
   readonly waitForStart: () => Promise<HarnessStart>;
 
-  // The exit listeners as they stand, before an end drops them.
   readonly getExitListeners: () => ((exit: HarnessExit) => void)[];
 
   readonly emitData: (text: string) => void;
 
   readonly emitAttachment: (attachment: HarnessAttachment) => void;
 
-  // Each wait on the start settles once the start has settled.
   readonly emitStartOutcome: (outcome: 'started' | Readonly<DaemonError>, created: boolean) => void;
 
-  // Settles every wait on the exit and drops every listener.
   readonly dispose: (exited: boolean) => void;
 }
 
@@ -35,16 +30,11 @@ export function createImpHarnessEvents(): ImpHarnessEvents {
   const exitListeners = new Set<(exit: HarnessExit) => void>();
   const attachmentListeners = new Set<(attachment: HarnessAttachment) => void>();
 
-  // The waits on whether the process exited, until the harness stops being
-  // followed.
   const exitWaiters = new Set<{
     readonly waited: PromiseWithResolvers<boolean>;
     readonly timer: ReturnType<typeof setTimeout>;
   }>();
 
-  // The waits on how the harness's start settles: started once a connection
-  // first starts the process or attaches to it, or the refusal it ended
-  // with before that.
   const startWaiters = new Set<PromiseWithResolvers<HarnessStart>>();
 
   return {

@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readSystemdVersion } from './read-systemd-version';
 
-// A directory for the program files each test writes.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-systemd-version-');
 

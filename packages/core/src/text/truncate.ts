@@ -1,6 +1,4 @@
 export interface TruncateOptions {
-  // each newline becomes a space before the cut, so the result fits on one
-  // line
   readonly flatten?: boolean;
 }
 

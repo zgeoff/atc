@@ -2,17 +2,12 @@ import type { buildStubAuthenticator } from './build-stub-authenticator';
 import { parsePasskeyPage } from './parse-passkey-page';
 
 interface SignInServer {
-  // The address the test reaches the server at, and its public origin,
-  // which the browser's page runs on.
   readonly url: string;
   readonly origin: string;
 
-  // The authenticator that holds the owner's passkey.
   readonly authenticator: Pick<ReturnType<typeof buildStubAuthenticator>, 'signAssertion'>;
 }
 
-// What the browser and the authenticator put in the assertion in place of
-// the honest values.
 interface SignInCeremony {
   readonly origin?: string;
   readonly rpID?: string;

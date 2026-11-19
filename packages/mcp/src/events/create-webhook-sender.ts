@@ -3,22 +3,17 @@ import { buildPinnedRequest } from './build-pinned-request';
 import type { WebhookFailure, WebhookSender } from './types';
 
 interface WebhookSenderDeps {
-  // Every address the host name resolves to.
   readonly resolveHost: (hostname: string) => Promise<readonly string[]>;
 
-  // Whether the sender may connect to an address the host resolved to.
   readonly isAllowedAddress: (address: string) => boolean;
 
-  // Posts the pinned request.
   readonly transport: (target: string, init: BunFetchRequestInit) => Promise<Response>;
 
-  // How long a post may take, its answer's body included, before it fails.
   readonly timeoutMs: number;
 }
 
-// The sender refuses a callback whose host resolves to any address the
-// policy refuses, before it connects, so a subscriber cannot aim atc at a
-// private network.
+// Subscribers choose the callback host, so every address it resolves to must pass the policy
+// before connecting; otherwise a subscriber could aim atc at a private network.
 export function createWebhookSender(deps: WebhookSenderDeps): WebhookSender {
   return async (request) => {
     const url = new URL(request.url);

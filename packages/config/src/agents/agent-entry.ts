@@ -25,8 +25,7 @@ export interface AgentEntry {
   readonly mcpServers?: readonly ClaudeMCPServer[];
   readonly appServer?: boolean;
 
-  // Claude only: plugin folders every session of the entry loads, each an
-  // absolute path or one under the home with a leading ~/.
+  // Only Claude agents use this; each entry must be an absolute path or start with ~/ for the home.
   readonly pluginDirs?: readonly string[];
 }
 

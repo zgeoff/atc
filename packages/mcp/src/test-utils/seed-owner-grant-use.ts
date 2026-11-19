@@ -1,7 +1,5 @@
 import type { Database } from 'bun:sqlite';
 
-// When a grant last reached /mcp, as atc's own OAuth server stamped it before
-// atc moved to @zgeoff/mcp-auth, which no code here makes now.
 export interface OwnerGrantUse {
   readonly grantID: string;
   readonly lastUsedAt: string;

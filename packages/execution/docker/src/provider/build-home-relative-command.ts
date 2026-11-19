@@ -1,8 +1,7 @@
 import { posix } from 'node:path';
 
-// Enters the directory given first from the home, then runs the rest in its place. `./` keeps a
-// directory named `-` from meaning the previous one, and keeps any CDPATH entry from standing in
-// for it.
+// `./` stops cd from reading a directory named `-` as the previous directory, and stops it
+// from resolving the name through a CDPATH entry instead.
 export const ENTER_FROM_HOME_SCRIPT = 'cd && cd -P -- "./$0" && exec "$@"';
 
 // A relative directory lies under the home of the image's user, and the shell enters it, since the

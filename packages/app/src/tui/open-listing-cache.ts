@@ -20,8 +20,6 @@ interface ListingCacheOptions {
   readonly clock?: Clock;
 }
 
-// How long a write waits for the lock before it gives up, and how often
-// it tries again meanwhile.
 const LOCK_WAIT_MS = 2000;
 const LOCK_RETRY_MS = 10;
 
@@ -70,7 +68,6 @@ export function openListingCache(file: string, options: ListingCacheOptions = {}
   };
 }
 
-// The listings the file holds, leaving out each entry that does not parse.
 function loadListings(file: string): Map<string, CachedListing> {
   let raw: unknown;
 
@@ -108,9 +105,8 @@ function parseListing(entry: unknown): CachedListing | null {
   return { candidates: entry['candidates'], scope: entry['scope'], listedAt: entry['listedAt'] };
 }
 
-// a rename never replaces a directory that holds a file, so it fails while another write
-// holds the lock; a lock whose process has exited is then removed so the next try can
-// take it.
+// rename(2) replaces an empty target directory but fails on one that holds a file, so the
+// staged directory gets a file first and the rename fails while another write holds the lock.
 function tryClaimLock(lockPath: string, token: string): boolean {
   const stagedPath = `${lockPath}.${token}`;
 
@@ -153,12 +149,8 @@ function removeStaleLock(lockPath: string): void {
   } catch {}
 }
 
-// How many listings the file keeps; the oldest go first.
 const MAX_LISTINGS = 32;
 
-// Keeps the listing in the file unless the one there was requested later,
-// dropping listings past the lifetime and past the most the file keeps.
-// The caller holds the lock.
 function writeListingUnderLock(file: string, key: string, listing: CachedListing): void {
   const listings = loadListings(file);
   const kept = listings.get(key);
@@ -188,8 +180,8 @@ function writeListingUnderLock(file: string, key: string, listing: CachedListing
   }
 }
 
-// Removes this write's token file, then the lock directory. A lock that
-// another write took over holds no such token, so it stays.
+// If another write took over the lock, this token file is gone, so the unlink throws and the
+// lock directory is left for its new owner.
 function releaseLock(lockPath: string, token: string): void {
   try {
     unlinkSync(join(lockPath, token));

@@ -11,29 +11,24 @@ import { COMMIT_ID_PATTERN } from '../workspaces/commit-id-pattern';
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';
 
-// the one point where a session id arriving off the wire is branded
 const SESSION_DEFAULTED = z.object({
   session: buildDefaultedString('').transform(toSessionID),
 });
 
-// The idempotency key a spawn or message may carry, at most 200 characters.
 const IDEMPOTENCY_KEY = z
   .string({ error: 'idempotencyKey must be a string' })
   .min(1, 'idempotencyKey must not be empty')
   .max(200, 'idempotencyKey must be at most 200 characters')
   .optional();
 
-// With a key, only replays what the key already holds: a key the daemon
-// does not hold is refused and nothing runs.
 const REPLAY_ONLY = z.boolean({ error: 'replayOnly must be a boolean' }).optional();
 
-// The daemon environment variable a git workspace's token is read from.
 const CREDENTIAL_REF = z.strictObject({
   kind: z.literal('env'),
   name: z.string().regex(/^[A-Za-z_]\w*$/u, 'a credentialRef names an environment variable'),
 });
 
-// A git workspace's repository URL, which git must never read as an option.
+// git reads any argument that starts with - as an option, even where it expects a url.
 const GIT_URL = z
   .string({ error: 'a git workspace requires a url' })
   .min(1, 'a git workspace requires a url')
@@ -68,25 +63,20 @@ const WORKSPACE_SOURCE = z.discriminatedUnion('kind', [
     }),
 ]);
 
-// The execution target a request acts for; absent is the default target.
 const TARGET = z
   .string({ error: 'target must be a non-empty target id' })
   .min(1, 'target must be a non-empty target id')
   .optional();
 
-// The id of a source the daemon offers the spawn picker.
 const SOURCE_ID = z
   .string({ error: 'source must be a source id' })
   .min(1, 'source must be a source id')
   .max(64, 'source must be a source id');
 
-// Text a source reads, at most 4096 characters.
 const SOURCE_TEXT = z
   .string({ error: 'source text must be a string' })
   .max(4096, 'source text must be at most 4096 characters');
 
-// The directory the client runs in, which a source of directories reads a
-// relative path under when the daemon runs on the client's machine.
 const CLIENT_CWD = z
   .string({ error: 'clientCwd must be an absolute path' })
   .startsWith('/', 'clientCwd must be an absolute path')
@@ -94,7 +84,6 @@ const CLIENT_CWD = z
 
 export type SpawnWorkspaceSource = z.infer<typeof WORKSPACE_SOURCE>;
 
-// The refusal of a terminal size outside the range a terminal takes.
 const TERMINAL_SIZE_ERROR = 'cols and rows must be whole numbers from 1 to 4096';
 
 export const REQUEST_PARAM_SCHEMAS = {
@@ -135,7 +124,6 @@ export const REQUEST_PARAM_SCHEMAS = {
   }),
   'daemon.restarted': z.object({ result: RESTART_RESULT_SCHEMA }),
 
-  // Without remove, a dry run that removes nothing.
   'workspaces.prune': z.object({
     remove: z.boolean({ error: 'workspaces.prune remove must be a boolean' }).optional(),
   }),
@@ -152,7 +140,6 @@ export const REQUEST_PARAM_SCHEMAS = {
     text: SOURCE_TEXT.optional(),
   }),
 
-  // What one source reads typed input as, for a spawn to the target.
   'sources.interpret': z.object({
     source: SOURCE_ID,
     input: SOURCE_TEXT,
@@ -160,8 +147,6 @@ export const REQUEST_PARAM_SCHEMAS = {
     clientCwd: CLIENT_CWD.optional(),
   }),
 
-  // One source's completions of partly typed input, for a spawn to the
-  // target.
   'sources.complete': z.object({
     source: SOURCE_ID,
     input: SOURCE_TEXT,
@@ -169,9 +154,6 @@ export const REQUEST_PARAM_SCHEMAS = {
     clientCwd: CLIENT_CWD.optional(),
   }),
 
-  // Whether the daemon's host can read a git workspace source the way a
-  // spawn to the target would, with its refs and the commit a ref or sha
-  // selects; at most one of the two.
   'git.probe': z
     .object({
       url: GIT_URL,
@@ -220,13 +202,11 @@ export const REQUEST_PARAM_SCHEMAS = {
       .max(32, 'session.spawn pluginDirs takes at most 32 folders')
       .optional(),
 
-    // A retry carrying the same key replays the first spawn's answer instead
-    // of spawning again.
     idempotencyKey: IDEMPOTENCY_KEY,
     replayOnly: REPLAY_ONLY,
 
-    // The execution target the session runs on; absent runs on the default
-    // target, and a target the daemon cannot use refuses the spawn.
+    // Absent runs the session on the daemon's default target; a target the daemon cannot use
+    // refuses the spawn.
     target: z
       .string({ error: 'session.spawn target must be a non-empty target id' })
       .min(1, 'session.spawn target must be a non-empty target id')
@@ -245,8 +225,6 @@ export const REQUEST_PARAM_SCHEMAS = {
     // refuses as scope_invalid.
     scope: z.unknown().optional(),
 
-    // The session the new one is a sub-session of; absent or empty spawns a
-    // top-level session.
     parent: z.preprocess(
       (input) => (typeof input === 'string' && input !== '' ? input : undefined),
       z.string().transform(toSessionID).optional(),
@@ -286,10 +264,8 @@ export const REQUEST_PARAM_SCHEMAS = {
       .min(1, 'session.forget confirmToken must not be empty')
       .optional(),
 
-    // Refuse a pinned session, or a sub-session of a pinned one.
     refusePinned: z.boolean({ error: 'session.forget refusePinned must be a boolean' }).optional(),
 
-    // Refuse a live session.
     refuseLive: z.boolean({ error: 'session.forget refuseLive must be a boolean' }).optional(),
   }),
 
@@ -302,7 +278,6 @@ export const REQUEST_PARAM_SCHEMAS = {
   // session itself and for any session it is a sub-session of.
   'session.scope.add': SESSION_DEFAULTED.extend({ scope: z.unknown() }),
 
-  // A null parent makes a sub-session top-level; no other parent is taken.
   'session.update': SESSION_DEFAULTED.extend({
     name: buildOptionalString(),
     pinned: buildOptionalBoolean(),
@@ -330,8 +305,6 @@ export const REQUEST_PARAM_SCHEMAS = {
   'session.screen': SESSION_DEFAULTED,
   'session.menu': SESSION_DEFAULTED,
 
-  // Picks option `option`, counted from 1, of the menu `menuToken` matches,
-  // when that option's label is `label`; or presses Escape on that menu.
   'session.choose': SESSION_DEFAULTED.extend({
     menuToken: z
       .string({ error: 'session.choose requires the menuToken of the menu it answers' })
@@ -397,14 +370,11 @@ export const REQUEST_PARAM_SCHEMAS = {
   'session.message': SESSION_DEFAULTED.extend({
     text: buildDefaultedString(''),
 
-    // A retry carrying the same key replays the first send's message
-    // instead of sending another.
     idempotencyKey: IDEMPOTENCY_KEY,
     replayOnly: REPLAY_ONLY,
 
-    // The name a local program outside every session gives itself, which
-    // labels its message; every other caller's `from` is ignored. Anything
-    // but a non-empty string counts as none.
+    // Only a local program outside every session names itself here, to label its message;
+    // the daemon ignores `from` from any other caller.
     from: z.preprocess(
       (input) => (typeof input === 'string' && input.trim() !== '' ? input.trim() : undefined),
       z.string().max(200, 'from must be at most 200 characters').optional(),
@@ -415,8 +385,6 @@ export const REQUEST_PARAM_SCHEMAS = {
     notice: z.boolean({ error: 'notice must be a boolean' }).optional(),
   }).refine((params) => params.text !== '', { message: 'session.message requires text' }),
   'session.tap': SESSION_DEFAULTED.extend({
-    // Whether the tap also takes answer notices: the outcome of each message
-    // its session sent. A tap that leaves it out takes messages alone.
     notices: z.boolean().default(false),
   }),
   'message.get': z
@@ -427,7 +395,7 @@ export const REQUEST_PARAM_SCHEMAS = {
     .refine((params) => params.message !== '', { message: 'message.get requires a message' }),
   'note.get': z
     .object({
-      // The cursor events.read returned with the note's event.
+      // The cursor that reading the event stream returned with the note's event.
       note: buildDefaultedString(''),
     })
     .refine((params) => params.note !== '', { message: 'note.get requires a note' }),
@@ -473,11 +441,6 @@ function buildDefaultedBooleanOrString(fallback: boolean | string) {
   );
 }
 
-// Absent or wrong-typed stays undefined rather than falling back to a
-// value, so the caller can tell "not given" from "given" and skip an update.
-
-// An explicit empty string also falls back to the default instead of
-// standing as a deliberate empty value.
 function buildDefaultedNonEmptyString(fallback: string) {
   return z.preprocess(
     (input) => (typeof input === 'string' && input !== '' ? input : undefined),
@@ -500,8 +463,6 @@ function buildDefaultedNumber(fallback: number) {
   );
 }
 
-// How long a read may hold its request open, in milliseconds: 0 when absent,
-// clamped to 0–30000.
 function buildDefaultedWait() {
   return buildDefaultedNumber(0).transform((value) =>
     Math.min(Math.max(Math.trunc(value), 0), 30_000),

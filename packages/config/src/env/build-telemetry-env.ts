@@ -1,5 +1,5 @@
-// The variables that make Claude Code send its log records to a host as OTLP
-// over HTTP with JSON bodies. Claude Code adds the signal's path to the endpoint.
+// The OTLP exporter appends the signal's path (such as /v1/logs) to this endpoint,
+// so the endpoint carries only the host.
 export function buildTelemetryEnv(host: string): Record<string, string> {
   return {
     CLAUDE_CODE_ENABLE_TELEMETRY: '1',

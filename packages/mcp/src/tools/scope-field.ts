@@ -1,8 +1,8 @@
 import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 import { z } from 'zod';
 
-// The scope a session may touch beyond its own workspace, which atc checks
-// entry by entry on the session's host.
+// Paths outside the session's own workspace. Only the shape is checked here: atc checks each
+// entry on the session's host, where the paths actually resolve.
 const SCOPE_WORKTREE = z.strictObject({ path: z.string() });
 const SCOPE_BRANCH = z.strictObject({ name: z.string(), repo: z.string().optional() });
 const SCOPE_PULL_REQUEST_NUMBER = z.number().int();

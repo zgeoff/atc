@@ -8,7 +8,6 @@ export interface SuppressedSecurityEvent {
   readonly count: number;
 }
 
-// The paths an event may hold as its route.
 const ROUTES: ReadonlySet<string> = new Set(
   Object.values(GATEWAY_PATHS).flatMap((group) => Object.values(group)),
 );

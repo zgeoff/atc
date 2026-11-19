@@ -301,7 +301,6 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
   const ctx = setupTest();
   const output: string[] = [];
 
-  // The harness writes the file once it has caught the hang-up, and runs on.
   const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
@@ -350,7 +349,6 @@ test('it reports no exit for a killed harness whose process ignores the kill', a
 test('it ends a harness that ignores its kill with a forced kill', async () => {
   const ctx = setupTest();
 
-  // The harness writes the file once it has caught the hang-up, and runs on.
   const harness = ctx.provider.spawnHarness({
     session: 's1',
     host: 's1',
@@ -676,7 +674,8 @@ test.skipIf(process.platform !== 'linux')(
       expect(output.join('')).toInclude('READY');
     });
 
-    // One call per line, so the anchored pattern matches exactly one call.
+    // Without the m flag, ^ and $ match the ends of the whole joined string, so a second
+    // systemd-run call makes the match fail.
     expect(systemd.readSystemdRunCalls().join('\n')).toMatch(
       /^--user --scope --quiet --collect --expand-environment=no --unit=atc-daemon-session-0a1b2c3d-s1-[\da-f]{8}\.scope --description=atc session s1 --property=BindsTo=atc-daemon\.service -- \/\S*\/bash -c echo READY; sleep 30$/u,
     );

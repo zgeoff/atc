@@ -35,13 +35,11 @@ export function collectAuthProfiles(raw: unknown): AuthProfiles {
   return { profiles, errors };
 }
 
-// A lowercase hostname as a CONNECT carries it, with no port and no
-// wildcard, whose last label starts with a letter so an IP address never
-// matches.
+// Matches the host as a CONNECT request carries it. The last label must start with a letter
+// so an IP address never matches.
 const BROKER_HOST = /^(?:[a-z0-9][a-z0-9-]{0,62}\.)+[a-z][a-z0-9-]{0,62}$/u;
 const BROKER_HOST_MAX = 253;
 
-// The profile an entry holds, or the first rule it breaks.
 function parseAuthProfile(name: string, entry: unknown): AuthProfile | string {
   if (!isRecord(entry) || Array.isArray(entry)) {
     return 'a profile must be an object';
@@ -156,9 +154,8 @@ function parseProfileEnv(raw: unknown, host: string): Record<string, string> | s
       return `env.${key} cannot be set: atc or the broker sets or reserves it`;
     }
 
-    // only the placeholder the broker swaps a credential in for, or the
-    // profile's own host as an https origin, so a credential is never
-    // written into a profile
+    // The broker swaps the real credential in for the placeholder, so a profile never holds a
+    // credential; any other value could be one.
     if (value !== BROKER_PLACEHOLDER && value !== `https://${host}`) {
       return `env.${key} must be ${BROKER_PLACEHOLDER} or https://${host}`;
     }

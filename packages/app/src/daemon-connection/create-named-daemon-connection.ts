@@ -5,8 +5,6 @@ import type { DaemonChannel } from '@atc/protocol/wire';
 import { DaemonError } from '@atc/protocol/wire';
 import type { MCPDaemonConnection } from '../mcp/run-mcp-http-server';
 
-// A channel to the named daemon whose handshake has passed, which serves tool
-// requests and live terminals alike.
 export interface NamedDaemonChannel extends DaemonChannel, WatchChannel {
   principal: string | undefined;
 }
@@ -14,9 +12,6 @@ export interface NamedDaemonChannel extends DaemonChannel, WatchChannel {
 interface NamedDaemon {
   readonly name: string;
 
-  // Opens a channel as the principal of the config entry. A viewer narrows
-  // the channel's events and output, at the daemon, to what the entry and
-  // the viewer may both see.
   readonly openChannel: (viewer: string | null) => Promise<NamedDaemonChannel>;
 }
 

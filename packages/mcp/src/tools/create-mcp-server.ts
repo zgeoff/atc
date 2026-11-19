@@ -23,11 +23,9 @@ interface MCPServerDeps {
   readonly build: string;
   readonly toolContext: ToolContext;
 
-  // The scopes the caller holds; absent means every tool is allowed.
   readonly scopes?: readonly GrantScope[];
 }
 
-// Every tool shares one error shape, so the tool descriptions do not repeat it.
 const SERVER_INSTRUCTIONS =
   "A failed tool call returns isError true with the error as text and structuredContent { code, problem }. code is the atc error code, such as no_such_session. problem is present only when the daemon names a cause within that code, such as host_asleep under unsupported_operation. An error result holds no other structured field, and a tool's output schema describes only its successful result.";
 
@@ -99,9 +97,9 @@ export function createMCPServer(deps: MCPServerDeps): McpServer {
     );
   }
 
-  // McpServer lists each tool with the description it registered, and the
-  // spawn tool's description names the agents the daemon has when the list
-  // is asked for.
+  // McpServer answers tools/list with the descriptions fixed at registration, but the
+  // spawn tool's description must name the agents the daemon has when the list is
+  // requested, so this handler builds the list per request.
   server.server.setRequestHandler('tools/list', async () => {
     await deps.caller.waitForDaemon();
 
@@ -178,9 +176,7 @@ function collectUngrantedScopes(
 const ROSTER_AGENT_SCHEMA = z.object({ id: z.string(), installed: z.boolean() });
 const AGENT_ROSTER_SCHEMA = z.object({ agents: z.array(ROSTER_AGENT_SCHEMA) });
 
-// The registered agents, or null when the daemon cannot answer, so the tool
-// list still builds with descriptions that name no agent. A caller without
-// the read scope gets null too, since listing agents is a read.
+// The daemon counts agents.list as a read, so a caller without the read scope gets no roster.
 async function tryReadAgents(deps: MCPServerDeps): Promise<RegisteredAgent[] | null> {
   if (deps.scopes !== undefined && !deps.scopes.includes('read')) {
     return null;

@@ -5,7 +5,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
 import { loadClaudeStatusLine } from './load-claude-statusline';
 
-// A home folder for the Claude settings a test writes.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-claude-statusline-');
 

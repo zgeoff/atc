@@ -8,8 +8,6 @@ import { openTestEventDatabase } from '../test-utils/open-test-event-database';
 import { answerSubscribeRequest } from './answer-subscribe-request';
 import { createSubscriptionStore } from './create-subscription-store';
 
-// The authorization database the subscriptions live in, a clock at a fixed
-// instant, and a deliverer that records which subscriptions it was told to watch.
 async function setupTest() {
   const store = await openTestEventDatabase();
 

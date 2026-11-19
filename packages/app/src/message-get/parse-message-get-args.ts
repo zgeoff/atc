@@ -1,7 +1,5 @@
 import type { MessageGetRequest, UsageResult } from '../send/types';
 
-// The `atc message get` arguments and flags as the command line parser hands
-// them over.
 interface MessageGetArgs {
   readonly message: string;
   readonly wait: boolean;

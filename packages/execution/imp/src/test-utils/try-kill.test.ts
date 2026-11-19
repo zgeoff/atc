@@ -3,7 +3,6 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { spawn } from 'bun-pty';
 import { tryKill } from './try-kill';
 
-// A pty running a long sleep, which cleanup kills.
 function setupTest() {
   const pty = spawn('sleep', ['30'], { name: 'xterm-256color', cols: 80, rows: 24 });
 

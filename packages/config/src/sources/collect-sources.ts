@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { normalizeConfigDir } from '../config-file/normalize-config-dir';
 import { GITHUB_OWNER_PATTERN } from './github-owner-pattern';
 
-// One workspace source the daemon offers, with every default applied.
 export type SourceEntry =
   | { readonly id: string; readonly kind: 'dirs'; readonly roots: readonly string[] }
   | {
@@ -18,7 +17,6 @@ export type SourceEntry =
 interface CollectedSources {
   readonly sources: SourceEntry[];
 
-  // One line per problem, each starting with the entry it refused.
   readonly errors: string[];
 }
 
@@ -74,7 +72,6 @@ function parseSourceEntry(
     : { problems: collectIssueProblems(kind, parsed.error.issues) };
 }
 
-// The longest id a source request takes.
 const MAX_ID_LENGTH = 64;
 
 function findIDProblem(id: string): string | null {
@@ -97,11 +94,8 @@ function findIDProblem(id: string): string | null {
 
 export type SourceKind = 'dirs' | 'github' | 'git';
 
-// The kinds, in the order an error lists them.
 const KINDS: readonly SourceKind[] = ['dirs', 'git', 'github'];
 
-// The kind an entry's `kind` selects, or the problem that refuses it. An
-// absent kind is the id for a built-in id, and a problem for any other.
 function pickKind(id: string, kind: unknown): SourceKind | { readonly problem: string } {
   const named = KINDS.find((candidate) => candidate === id);
   const selected = KINDS.find((candidate) => candidate === kind);
@@ -122,8 +116,8 @@ function pickKind(id: string, kind: unknown): SourceKind | { readonly problem: s
   return selected;
 }
 
-// Each kind's fields, built into its entry; `kind` itself is checked
-// before the entry reaches its schema.
+// `kind` is checked before an entry reaches these schemas; it is declared as unknown only so the
+// strict object does not reject it as an unrecognized key.
 function buildEntrySchemas(id: string, home: string) {
   return {
     dirs: z
@@ -151,15 +145,12 @@ function buildEntrySchemas(id: string, home: string) {
   } satisfies Record<SourceKind, z.ZodType<SourceEntry>>;
 }
 
-// The problem each field reports for a value of the wrong type.
 const FIELD_PROBLEMS: Readonly<Record<string, string>> = {
   roots: 'roots must be an array of non-empty strings',
   owner: 'owner is not a GitHub account or organization',
   bin: 'bin must be a non-empty string',
 };
 
-// One line per field a schema refused: an unknown field, a field of
-// another kind, or a field of the wrong type.
 function collectIssueProblems(kind: SourceKind, issues: readonly z.core.$ZodIssue[]): string[] {
   const problems = new Set<string>();
 

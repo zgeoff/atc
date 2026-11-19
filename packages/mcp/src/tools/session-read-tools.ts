@@ -148,7 +148,6 @@ const EVENTS_OUTPUT: Readonly<Record<string, unknown>> = {
   required: ['events', 'cursor', 'more'],
 };
 
-// The fields the session read returns beside the entry fields the other session tools share.
 const SESSION_GET_ENTRY: Readonly<Record<string, unknown>> = {
   ...SESSION_ENTRY,
   description: 'the entry atc_sessions_list shows',

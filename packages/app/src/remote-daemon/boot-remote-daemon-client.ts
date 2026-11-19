@@ -8,11 +8,7 @@ import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
 import { RemoteTokenError } from './remote-token-error';
 
-// How long one attempt gives the remote daemon to take the connection and
-// answer the handshake, the same budget a local boot gives its daemon.
 const DEFAULT_ANSWER_TIMEOUT_MS = 8000;
-
-// How long a waiting boot rests between attempts.
 const RETRY_INTERVAL_MS = 1000;
 
 // Every failure says so, so a user who expected the remote fleet never
@@ -28,12 +24,8 @@ export class RemoteDaemonUnreachableError extends Error {
 }
 
 interface RemoteBootOptions extends DaemonBootOptions {
-  // How long one attempt waits for the daemon to answer; 8 seconds unless
-  // set.
   readonly answerTimeoutMs?: number;
 
-  // The principal whose reach narrows the connection's events and output,
-  // beside the entry's principal.
   readonly viewer?: string;
 }
 
@@ -58,8 +50,6 @@ export async function bootRemoteDaemonClient(
   const deadline =
     options.waitForDaemonMs === undefined ? null : clock.now() + options.waitForDaemonMs;
 
-  // Every attempt and every rest ends by the deadline, so the boot gives up
-  // when the wait runs out rather than one attempt later.
   const capMs = (durationMs: number): number =>
     deadline === null ? durationMs : Math.min(durationMs, deadline - clock.now());
 
@@ -122,7 +112,6 @@ function formatRemoteAddress(daemon: RemoteDaemon): string {
     : `${daemon.host}:${daemon.port}`;
 }
 
-// One attempt's outcome: the handshaken connection, or why it failed.
 type RemoteAttempt =
   | {
       readonly ok: true;
@@ -143,8 +132,6 @@ async function openRemoteDaemon(
   daemon: RemoteDaemon,
   options: OpenRemoteDaemonOptions,
 ): Promise<DaemonBoot> {
-  // The connection, once open, so a timeout or a failed handshake closes
-  // it; a property, since the attempt sets it after the race starts.
   const opened: { client: DaemonClient | null; expired: boolean } = {
     client: null,
     expired: false,
@@ -171,7 +158,6 @@ async function openRemoteDaemon(
 
       opened.client = client;
 
-      // A connection that opens after the attempt gave up is closed at once.
       if (opened.expired) {
         client.stop();
       }
@@ -224,7 +210,6 @@ async function openRemoteDaemon(
   }
 }
 
-// Opens the TCP connection; a refusal is the daemon being unreachable.
 async function openRemoteConnection(daemon: RemoteDaemon): Promise<DaemonClient> {
   try {
     return await openDaemonClient({ hostname: daemon.host, port: daemon.port });
@@ -235,8 +220,6 @@ async function openRemoteConnection(daemon: RemoteDaemon): Promise<DaemonClient>
   }
 }
 
-// The runtime's code for a refused or unresolved connection, or its
-// message when it gives none.
 function formatConnectError(error: unknown): string {
   const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : undefined;
 
@@ -253,8 +236,6 @@ function hasViewerFeature(hello: Readonly<Record<string, unknown>>): boolean {
   return Array.isArray(features) && features.includes('daemon.hello.viewer');
 }
 
-// A handshake failure as the error the boot rejects with; one the boot
-// itself raised passes through.
 function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown): unknown {
   if (!(error instanceof DaemonError)) {
     return error;
@@ -278,8 +259,9 @@ function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown):
     );
   }
 
-  // The connection closed before the handshake answer: the daemon went
-  // away, or something in front of it dropped the connection.
+  // During the handshake an internal error means the connection closed before the answer: the
+  // daemon went away or something in front of it dropped the connection. Report it as unreachable,
+  // not as a refusal.
   if (error.code === 'internal') {
     return new RemoteDaemonUnreachableError(
       formatUnreachable(

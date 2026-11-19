@@ -1,4 +1,3 @@
-// The file calls and the user id the loader checks a token file with.
 export interface TokenFileAccess {
   readonly openFile: (path: string) => number;
   readonly statFile: (descriptor: number) => { readonly uid: number; readonly mode: number };
@@ -11,8 +10,8 @@ type OwnerOnlyRead =
   | { readonly ok: true; readonly text: string }
   | { readonly ok: false; readonly reason: string };
 
-// A file other users can open would let any of them read its tokens, so only
-// a file the process's own user owns, with no group or other bits, reads.
+// Any user who can open a token file can read its tokens, so this refuses a file unless
+// the process's own user owns it and it has no group or other permission bits.
 export function readOwnerOnlyText(path: string, access: TokenFileAccess): OwnerOnlyRead {
   try {
     return readCheckedFile(path, access);
@@ -23,7 +22,7 @@ export function readOwnerOnlyText(path: string, access: TokenFileAccess): OwnerO
   }
 }
 
-// The permission bits that let the owner's group or any other user at a file.
+// POSIX mode bits 0o077 grant read, write or execute to the file's group or to other users.
 const SHARED_MODE_BITS = 0o077;
 
 // The file is checked through the descriptor it is read from, so a swap of

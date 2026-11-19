@@ -30,13 +30,10 @@ import { createStubImpSessions } from './create-stub-imp-sessions';
 import { tryKill } from './try-kill';
 
 interface StubImpPort extends ImpPort {
-  // Every port call, in order, as `<call> <imp> [<detail>]`.
   readonly calls: string[];
 
-  // Every session request the port received, in order.
   readonly sessionRequests: ImpSessionRequest[];
 
-  // The spec of every imp create the port received, in order.
   readonly createSpecs: ImpCreateSpec[];
 
   version: string;
@@ -125,7 +122,6 @@ interface StubImpPort extends ImpPort {
   ) => void;
   readonly setVersionFailures: (count: number) => void;
 
-  // How many version checks failed as an unreachable impd.
   readonly countFailedVersionChecks: () => number;
 
   readonly setNextSessionFailure: (refusal: ImpdExecRefusal, message?: string) => void;
@@ -141,13 +137,10 @@ interface StubImpPort extends ImpPort {
   ) => { readonly code: number | null } | null;
   readonly getEnd: (name: string, session: string) => number;
 
-  // Runs once the current test finishes, or sooner when called, and only once.
   readonly stop: () => Promise<void>;
 }
 
-// Must be created inside a test, since the test's end kills every process and
-// forward the stand-in holds. A sleeping imp SIGSTOPs its processes, so a
-// memory wake keeps each process and its generation.
+// Call this inside a test: the test's end kills every process and forward this stand-in holds.
 export function createStubImpPort(
   principal = 'token:atc',
   now: () => number = Date.now,
@@ -158,11 +151,7 @@ export function createStubImpPort(
   const calls: string[] = [];
   const sessionRequests: ImpSessionRequest[] = [];
   const createSpecs: ImpCreateSpec[] = [];
-
-  // Version checks still to fail as an unreachable impd before they answer.
   let versionFailures = 0;
-
-  // Version checks that failed as an unreachable impd.
   let failedVersionChecks = 0;
 
   const stop = registerTestCleanup(async () => {
@@ -258,7 +247,7 @@ export function createStubImpPort(
 
     openSession: (request, handlers, gate) => sessions.openSession(request, handlers, gate),
 
-    // Replaces the file through a rename, at mode 0444, as impd's agent does.
+    // impd's agent replaces the file atomically and read-only, so the stub does the same.
     writeReadOnlyFile: async (name, path, content) => {
       calls.push(`files.write ${name} ${path}`);
 

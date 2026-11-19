@@ -41,21 +41,19 @@ export interface ImpProvider extends ExecutionProvider {
 
   readonly readGuest: (hostKey: string) => Promise<GuestLayout>;
 
-  // The literal start of every imp name this provider builds: the runtime
-  // namespace an impd token's imp patterns are checked against.
+  // An impd token's imp patterns are checked against this prefix as the imps' runtime namespace.
   readonly impPrefix: string;
 
   readonly credentials: Extract<HostCredentials, { readonly kind: 'broker' }>;
 
-  // The imp a host key runs on, under this provider's prefix.
   readonly getImpName: (hostKey: string) => string;
 
   readonly checkExistingHost: (host: string) => Promise<boolean>;
 
   readonly findHostFact: (host: string) => HostFact;
 
-  // An imp whose agent booted before read-only files has no such place,
-  // which a later cold boot of the imp gives it.
+  // An imp creates the place that holds read-only files only at cold boot, so an agent on an
+  // imp booted without that place has nowhere to put them until the imp cold boots again.
   readonly writeReadOnlyFile: (
     hostKey: string,
     path: string,
@@ -65,17 +63,11 @@ export interface ImpProvider extends ExecutionProvider {
   readonly dispose: () => void;
 }
 
-// The folder, inside the scratch folder impd declares, that atc's files go
-// under when the target sets none.
 const GUEST_FOLDER = 'atc';
-
-// The start of every imp name when the target sets no prefix.
 const IMP_PREFIX = 'atc-';
 
 // impd takes a lease of 10 to 3600 seconds; the daemon renews at a third of it.
 const LEASE_SECONDS = 600;
-
-// About 15 seconds of reconnects before a harness counts as ended.
 const RECONNECT_DELAYS_MS: readonly number[] = [250, 1000, 2000, 4000, 8000];
 const gzipAsync = promisify(gzip);
 
@@ -109,7 +101,6 @@ export function createImpProvider(
   // a readying just took.
   const withHostTurn = makeKeyedLock();
 
-  // The readyings of each imp still waiting for their turn.
   const waitingPrepares = new Map<string, number>();
 
   const impPrefix = target.impPrefix ?? IMP_PREFIX;
@@ -119,13 +110,10 @@ export function createImpProvider(
   const atcBinary = options.atcBinary === undefined ? findOwnLinuxBinary() : options.atcBinary;
   const hasGuestATC = target.guestATC !== undefined || atcBinary !== null;
 
-  // The id impd gave each imp, by imp name, as the latest readying or restore
-  // check read it. A readying that finds no imp drops the entry before it
-  // creates one, so a new imp made under the same name never shows an old id.
+  // impd gives a new id to an imp made again under an old name, so a readying that finds no imp
+  // drops the stored id before it creates one; otherwise the new imp would show the old id.
   const impIDs = new Map<string, string>();
 
-  // The identity issuer of the impd, as the latest readying or restore check
-  // read it.
   let issuer: string | null = null;
 
   // impd's scratch folder changes only with impd's own config, so the first
@@ -162,7 +150,6 @@ export function createImpProvider(
 
   const getImpName = (hostKey: string): string => buildImpName(impPrefix, hostKey);
 
-  // The provider's record of a host, made and kept on the first ask.
   const getHost = (hostKey: string): ImpHost => {
     const host = hosts.get(hostKey) ?? {
       name: getImpName(hostKey),
@@ -179,9 +166,7 @@ export function createImpProvider(
     return host;
   };
 
-  // An imp this prepare created is destroyed, which ends its lease too; on an
-  // imp that existed before, only the lease goes back. False when a created imp
-  // may still stand.
+  // Destroying an imp also ends its lease, so an imp created here needs no separate lease release.
   const tryUndoPrepare = async (
     name: string,
     label: string,
@@ -332,8 +317,6 @@ export function createImpProvider(
     guestATC.removeImageVersion(name);
   };
 
-  // A harness starts only on a host a readying readied, and each readying
-  // reads the layout first.
   const openHostReporter = (host: ImpHost, spec: HarnessSpec) => {
     invariant(guest !== null, 'the imp provider opens a reporter only after a readying');
 
@@ -439,8 +422,6 @@ export function createImpProvider(
       };
     },
 
-    // Creates the host's imp when impd holds none, then takes the daemon's
-    // lease, which boots or wakes the imp.
     prepareHost: (request) => {
       const name = getImpName(request.host);
 
@@ -504,8 +485,8 @@ export function createImpProvider(
     },
 
     transferArchive: async (archive, archiveDirectory, host) => {
-      // The archive crosses the network, so it goes gzipped: imp-base ships gzip and
-      // no faster decompressor, and nothing falls back to an uncompressed upload.
+      // The archive crosses the network, so it goes gzipped: the imp-base image ships gzip and
+      // no faster decompressor.
       const compressed = await gzipAsync(archive, { level: GZIP_LEVEL });
 
       // The archive records the daemon host's owners. Commands in an imp run as
@@ -555,14 +536,12 @@ export function createImpProvider(
       }
     },
 
-    // A lease blocks a sleep, so the daemon's own goes back first and the sleep
-    // never forces. Another owner's lease refuses it, and the daemon takes its
-    // lease back.
+    // The host service refuses to suspend while any lease is held, this daemon's own included,
+    // so the daemon releases its lease before asking for the suspend.
     suspendHost: (hostKey, isIdle) =>
       withHostTurn(getImpName(hostKey), async () => {
         const host = getHost(hostKey);
 
-        // A host a harness runs on, or that a readying waits for, is busy.
         const isBusy = () =>
           isIdle !== undefined &&
           (!isIdle() || host.harnesses > 0 || (waitingPrepares.get(host.name) ?? 0) > 0);

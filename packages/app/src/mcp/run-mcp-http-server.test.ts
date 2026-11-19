@@ -54,8 +54,8 @@ async function setupTest() {
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
   const serviceTokenFile = join(temporaryDirectory.path, 'service-tokens.json');
 
-  // Serves under the public origin https://atc.example.com, so a service
-  // token file can name its resource before the port is known.
+  // The OS picks the port at listen time, so the service token file can only name its
+  // resource by a fixed public origin.
   const runWithServiceTokens = async () => {
     const printed: string[] = [];
     const errors: string[] = [];
@@ -1256,8 +1256,8 @@ test('it answers a tool call with the sessions of a named daemon it reaches over
 
   const store = await openTestAuthAdmin(dbPath);
 
-  // The named daemon must list the connector's principal, which is the
-  // client id the authorization server mints, so the client comes first.
+  // The connector reaches the daemon as the client id the authorization server mints,
+  // so the daemon must list that id as a principal.
   const created = await store.admin.clients.add('Panel', ['https://panel.example.com/callback']);
 
   const remote = await startTestDaemon({

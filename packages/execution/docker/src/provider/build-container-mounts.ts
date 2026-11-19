@@ -8,15 +8,11 @@ export interface MountSources {
   readonly target: DockerTarget;
   readonly names: HostNames;
 
-  // the home folder of the image's user
   readonly home: string;
   readonly atcBinary: string;
   readonly recordsDir: string;
 }
 
-// The mounts of a container by its role. Each container holds the daemon's binary read-only. A
-// sidecar mounts only the relay volume; a harness and a command also mount the host volume at the
-// home folder, the sign-in volume read-only and the records folder read-only.
 export function buildContainerMounts(sources: MountSources, role: ContainerRole): Mount[] {
   const guestDir = sources.target.guestDir;
 

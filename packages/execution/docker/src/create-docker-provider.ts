@@ -51,19 +51,15 @@ export interface DockerProvider extends ExecutionProvider {
 }
 
 interface DockerProviderOptions {
-  // the id of the target the provider serves, which every object it creates is labelled with
   readonly targetID: string;
 
-  // the daemon's compiled binary, which each container mounts read-only
   readonly atcBinary: string;
 
-  // the provider's own folder under the daemon's state
   readonly stateDir: string;
 
-  // the id of the current boot of the daemon's machine, or null on a machine that keeps none
+  // returns null on a machine that keeps no boot id
   readonly readBootID?: () => string | null;
 
-  // the wait before each reconnect to a harness or a sidecar whose attach ended
   readonly reconnectDelaysMs?: readonly number[];
   readonly log?: (line: string) => void;
 }
@@ -97,8 +93,6 @@ export function createDockerProvider(
 
   const hostIDs = new Map<string, string>();
   const harnesses = new Set<{ readonly detach: () => void }>();
-
-  // the home folder of the image's user, by the id of the image it was read from
   const homes = new Map<string, string>();
 
   let latestHome: string | null = null;

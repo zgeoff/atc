@@ -60,8 +60,8 @@ test('it replaces a file that a running process executes', async () => {
   const ctx = setupTest();
   const path = join(ctx.directory, 'agent');
 
-  // A running binary holds its file against writes, as a session that a
-  // test daemon's earlier boot started holds its agent.
+  // Linux refuses writes to a file that a running process executes (ETXTBSY), as when a
+  // session from an earlier test daemon boot still runs the agent.
   copyFileSync(Bun.which('sleep') ?? '/bin/sleep', path);
   chmodSync(path, 0o755);
 

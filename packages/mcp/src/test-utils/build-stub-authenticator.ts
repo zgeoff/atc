@@ -13,9 +13,6 @@ interface RequestOptions {
   readonly rpId?: string;
 }
 
-// What a browser and its authenticator put in a response, each defaulting
-// to the honest value: the page's origin as given, the RP ID the options
-// hold, and a verified user.
 interface Ceremony {
   readonly origin: string;
   readonly rpID?: string;
@@ -203,8 +200,6 @@ function encodeCBORHead(major: number, length: number): Buffer {
 const FLAG_UP = 0x01;
 const FLAG_UV = 0x04;
 
-// The RP ID hash, the flags with user presence always set, and the
-// big-endian signature counter.
 function buildAuthenticatorHeader(
   rpID: string,
   ceremony: Ceremony,

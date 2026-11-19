@@ -18,8 +18,6 @@ interface LegacyAgentKeys {
 interface LegacyAgents {
   readonly agents: AgentEntry[];
 
-  // The problems that left a Claude auth or a gateway out, in the text the
-  // old keys always reported.
   readonly errors: string[];
 }
 
@@ -27,7 +25,6 @@ export function collectLegacyAgents(
   keys: LegacyAgentKeys,
   authProfiles: ReadonlyMap<string, AuthProfile>,
 ): LegacyAgents {
-  // the old parse is lenient: an absent or wrong-typed field takes its default.
   const claudeAuth = collectLegacyClaudeAuth(keys.claudeAuth, authProfiles);
   const gateways = collectGateways(keys.gateways, keys.claudeBin, keys.claudeArgs, authProfiles);
 
@@ -71,8 +68,8 @@ export function collectLegacyAgents(
   return { agents, errors: [...claudeAuth.errors, ...gateways.errors] };
 }
 
-// The old key's Claude auth, which never takes placeholders: only an entry
-// in the agents map binds a variable to a profile.
+// Claude auth under this key never takes placeholders: only an entry in the agents map binds a
+// variable to a profile.
 function collectLegacyClaudeAuth(
   raw: unknown,
   authProfiles: ReadonlyMap<string, AuthProfile>,

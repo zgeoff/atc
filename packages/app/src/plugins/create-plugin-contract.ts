@@ -3,8 +3,6 @@ import type { PluginContext, PluginDefinition, PluginKind } from '@atc/plugin-ap
 interface PluginContractArgs<K extends PluginKind, C> {
   readonly plugin: PluginDefinition<K, C>;
 
-  // The config slice the plugin reads, and the id of the entry it belongs
-  // to.
   readonly raw: unknown;
   readonly entryID: string;
   readonly host: Parameters<PluginDefinition<K, C>['create']>[1];

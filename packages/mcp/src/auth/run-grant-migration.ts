@@ -3,9 +3,8 @@ import { z } from 'zod';
 import { collectGrantRows } from './collect-grant-rows';
 import type { OwnerToken } from './collect-grant-rows';
 
-// Splits the one owner user row of atc's own OAuth server into one row per
-// grant, as @zgeoff/mcp-auth needs, before every open. It returns whether it
-// changed the database, and leaves a new or already split one alone.
+// @zgeoff/mcp-auth needs one user row per grant. A database written by atc's own OAuth server
+// holds a single owner user row, so this splits it before every open.
 export function runGrantMigration(sqlite: Database, now: number): boolean {
   if (!probeOwnerUserTable(sqlite)) {
     return false;
@@ -110,8 +109,6 @@ function migrateOwnerRows(sqlite: Database, now: string): boolean {
     );
   }
 
-  // A token of a collected grant, rotated ones included, points at its row,
-  // and every other token goes with the owner row.
   for (const table of ['oauthRefreshToken', 'oauthAccessToken'] as const) {
     sqlite.run(
       `delete from "${table}" where "authorizationCodeId" is null or "authorizationCodeId" not in (select "id" from "user")`,
@@ -120,15 +117,16 @@ function migrateOwnerRows(sqlite: Database, now: string): boolean {
     sqlite.run(`update "${table}" set "userId" = "authorizationCodeId"`);
   }
 
-  // The owner's sessions, consents and accounts pointed at the owner row.
+  // Sessions, consents and accounts all belonged to the owner, whose row is gone after the rebuild,
+  // so they are deleted rather than repointed at a grant row.
   sqlite.run('delete from "session"');
   sqlite.run('delete from "oauthConsent"');
   sqlite.run('delete from "account"');
   sqlite.run('update "oauthClient" set "userId" = null where "userId" is not null');
   sqlite.run('drop table if exists atc_grant_use');
 
-  // atc's tables already reference user(id) on delete cascade, so they need
-  // no rebuild; the package refuses to open without it.
+  // atc's tables already reference user(id) with on delete cascade, so they need no rebuild;
+  // the package refuses to open a database where they don't.
   for (const table of CASCADING_TABLES) {
     if (!hasCascadingUserKey(sqlite, table)) {
       throw new Error(`${table}.userId does not reference user(id) on delete cascade`);
@@ -153,7 +151,6 @@ const TokenRowSchema = z.object({
   revoked: z.string().nullable(),
 });
 
-// Newest first, so a grant takes its scopes from its newest live token.
 function readTokens(
   sqlite: Database,
   table: 'oauthRefreshToken' | 'oauthAccessToken',

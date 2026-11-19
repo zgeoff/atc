@@ -1,4 +1,3 @@
-// A session's entry as the session tools return it.
 export const SESSION_ENTRY_PROPERTIES: Readonly<Record<string, unknown>> = {
   id: {
     type: 'string',
@@ -92,7 +91,6 @@ export const SESSION_ENTRY: Readonly<Record<string, unknown>> = {
   ],
 };
 
-// A session record as atc publishes it to the session.
 export const SESSION_RECORD: Readonly<Record<string, unknown>> = {
   type: 'object',
   properties: {

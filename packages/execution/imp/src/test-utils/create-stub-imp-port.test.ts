@@ -22,9 +22,6 @@ import { buildMockImpIdentity } from './build-mock-imp-identity';
 import { createStubHarnessGuest } from './create-stub-harness-guest';
 import { createStubImpPort } from './create-stub-imp-port';
 
-// The port under test and a temp directory its sessions and guest sockets
-// run in; once the test finishes, the port kills every process it started
-// before the directory goes.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-imp-port-');
   const port = createStubImpPort();
@@ -3699,8 +3696,6 @@ test('it delivers an exit no connection received to the next attach, with the ge
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  // The process waits for the go file, so it exits only after the start's
-  // connection has closed.
   const opened = ctx.port.openSession(
     {
       kind: 'start',
@@ -3770,8 +3765,6 @@ test('it answers an attach after the exit was delivered with NO_SESSION and the 
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  // The process waits for the go file, so it exits only after the start's
-  // connection has closed.
   const opened = ctx.port.openSession(
     {
       kind: 'start',
@@ -4027,8 +4020,6 @@ test('it finds no undelivered exit once an attach has delivered it', async () =>
 
   await ctx.port.createImp({ name: 'imp-a' });
 
-  // The process waits for the go file, so it exits only after the start's
-  // connection has closed.
   const opened = ctx.port.openSession(
     {
       kind: 'start',

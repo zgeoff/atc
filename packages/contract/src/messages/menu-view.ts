@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-// an option's number counts from 1 across the whole menu, even past the
-// screen; the token changes with the text, a label or a box, not the cursor
 export const MENU_VIEW_SCHEMA = z.object({
   text: z.string(),
   options: z.array(buildMenuOptionSchema()).readonly(),

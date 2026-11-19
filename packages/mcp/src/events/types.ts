@@ -1,4 +1,3 @@
-// One signed POST to a subscriber's callback URL.
 export interface WebhookRequest {
   readonly url: string;
   readonly headers: Readonly<Record<string, string>>;

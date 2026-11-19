@@ -1,7 +1,6 @@
 import { readOwnerOnlyText } from './read-owner-only-text';
 import type { TokenFileAccess } from './read-owner-only-text';
 
-// The fewest bytes a listener token may hold.
 const MIN_TOKEN_BYTES = 32;
 
 type LoadedListenerTokens =

@@ -6,9 +6,9 @@ import { writePTYLibrary } from './write-pty-library';
 
 let previous: string | undefined;
 
-// Bun 1.4.4 copies an embedded library into TMPDIR on its first dlopen
-// (`resolve_embedded_file_to_buf`) under a scratch name from the wall clock and
-// a per-process counter, so of two processes that read one clock time, one fails to load.
+// Bun 1.4.4 copies an embedded library into TMPDIR on its first dlopen under a scratch name
+// built from the wall clock and a per-process counter, so if two processes read one clock
+// time, one of them fails to load the library.
 export function exposePTYLibrary(): void {
   previous = process.env['BUN_PTY_LIB'];
 

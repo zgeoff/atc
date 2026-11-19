@@ -12,8 +12,6 @@ import { runMCPTokenGrant } from './run-mcp-token-grant';
 import { runPasskeyEnrollment } from './run-passkey-enrollment';
 import { sendModernMCPRequest } from './send-modern-mcp-request';
 
-// The MCP HTTP server with the owner's passkey enrolled. No request here
-// reaches the daemon, so the caller points at a socket nothing listens on.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-send-modern-mcp-request-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');

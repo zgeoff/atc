@@ -12,14 +12,12 @@ type StubFleetAnswer = (
 ) => Readonly<Record<string, unknown>> | Promise<Readonly<Record<string, unknown>>>;
 
 interface StubFleetCallerConfig {
-  // Gives the reply to one request: a value, a promise, or a throw, which
-  // the caller turns into a rejection, as a daemon refusal arrives.
+  // A throw here reaches the caller as a rejection, the same way a real daemon's refusal arrives.
   readonly answer?: StubFleetAnswer;
 
-  // The features the caller reports; none, as a single daemon reports, by default.
+  // Defaults to none because a single daemon reports no features.
   readonly features?: readonly FleetFeature[];
 
-  // Whether a wait for the daemon resolves, as when one answers; true by default.
   readonly reachable?: boolean;
 }
 

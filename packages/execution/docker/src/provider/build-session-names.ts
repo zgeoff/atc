@@ -4,7 +4,6 @@ export interface SessionNames {
   readonly harness: string;
   readonly sidecar: string;
 
-  // the bridge socket and the reporters' outbox, in the relay volume
   readonly socket: string;
   readonly outbox: string;
 }

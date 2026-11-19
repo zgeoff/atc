@@ -13,9 +13,8 @@ import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { createBuiltinSources } from '../sources/create-builtin-sources';
 import type { TUIHarness } from './start-tui-harness';
 
-// Starts in the test's process the daemon that a client booted in the
-// harness home would start, on the home's config, sockets and state, so the
-// client attaches to it instead of loading a daemon process of its own.
+// A client booted in the harness home attaches to a daemon already listening on the home's
+// sockets, so running one here keeps the client from spawning a daemon process of its own.
 export async function startTUIDaemon(
   tui: Pick<TUIHarness, 'env' | 'home' | 'stop'>,
 ): Promise<DaemonHandle> {

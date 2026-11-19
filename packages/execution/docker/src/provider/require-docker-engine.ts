@@ -2,7 +2,8 @@ import type { DockerTarget } from '../config/parse-docker-target';
 import type { DockerEngine } from '../engine/types';
 import { buildHostRefusal } from './build-host-refusal';
 
-// the Engine's word for each architecture a daemon's binary runs on
+// Docker Engine reports a daemon's architecture as x86_64 or aarch64, not as Node's x64 or arm64,
+// so the local architecture must be translated before comparing.
 const ENGINE_ARCHITECTURES: Readonly<Record<string, string>> = {
   x64: 'x86_64',
   arm64: 'aarch64',

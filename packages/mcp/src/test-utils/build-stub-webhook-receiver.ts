@@ -9,17 +9,13 @@ import type {
 type StubWebhookAnswer = { readonly status: number } | { readonly failure: WebhookFailure };
 
 interface StubWebhookReceiverConfig {
-  // How the receiver answers each event delivery, in order; 200 once the
-  // list runs out.
   readonly answers?: readonly StubWebhookAnswer[];
 
-  // Whether it echoes a verification challenge, as an endpoint that wants the
-  // deliveries does; true by default.
+  // A real endpoint echoes the provider's verification challenge to accept deliveries; set false
+  // to act like one that refuses them.
   readonly echoes?: boolean;
 }
 
-// Stands in for a subscriber's endpoint across the internet, which a test
-// cannot reach: it records each signed POST and answers it as configured.
 export function buildStubWebhookReceiver(config: StubWebhookReceiverConfig = {}): {
   readonly send: WebhookSender;
   readonly received: readonly WebhookRequest[];

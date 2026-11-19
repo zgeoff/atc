@@ -2,9 +2,8 @@ import type { Database } from 'bun:sqlite';
 import { createHash } from 'node:crypto';
 import type { DPoPKey } from './sign-dpop-proof';
 
-// Binds every access token in the store to the key, as better-auth writes a
-// token it issues against a DPoP proof: the key's RFC 7638 thumbprint in the
-// `confirmation` column.
+// better-auth stores a DPoP-bound token's key as its RFC 7638 thumbprint in the `confirmation`
+// column; writing the same shape makes every stored token look issued against a proof.
 export function seedDPoPBinding(sqlite: Database, key: DPoPKey): void {
   const jkt = createHash('sha256')
     .update(

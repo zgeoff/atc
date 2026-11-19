@@ -2,9 +2,6 @@ import { z } from 'zod';
 import { SOURCE_ENTRY_SCHEMA } from '../sources/source-entry';
 import { SPAWN_OPTION_SPEC_SCHEMA } from '../sources/spawn-option-spec';
 
-// A spawn option as `agents.list` shows it: the agent's own spec, plus
-// whether a spawn can pass it now. Only the supported option of an agent
-// some target can start is available.
 const SPAWN_OPTION_ENTRY_SCHEMA = SPAWN_OPTION_SPEC_SCHEMA.extend({ available: z.boolean() });
 
 export const AGENT_ENTRY_SCHEMA = z.object({
@@ -12,23 +9,16 @@ export const AGENT_ENTRY_SCHEMA = z.object({
   label: z.string(),
   kind: z.string(),
 
-  // whether the agent's binary resolves, on PATH or at its configured path
   installed: z.boolean(),
 
-  // whether the agent takes its credential from the broker of a target
-  // whose entry has `brokerAuth`
   brokerAuth: z.boolean(),
 
-  // whether it starts only there; false for an agent that starts on any
-  // other target under the sign-in that target's host holds
+  // whether the agent starts only on a target whose broker supplies its credential; false when
+  // it can also start on another target under the sign-in that target's host holds
   brokerRequired: z.boolean(),
 
-  // the targets a spawn of the agent can start on: none when its starts are
-  // all refused, only those that reach a broker when it starts only
-  // there, and only a remote target when its binary is missing here
   spawnTargets: z.array(z.string()).readonly(),
   capabilities: z.object({
-    // whether some target can start a session of the agent
     spawn: z.boolean(),
     readTranscript: z.boolean(),
 
@@ -48,8 +38,8 @@ export const AGENT_ENTRY_SCHEMA = z.object({
 
 export type AgentEntry = z.output<typeof AGENT_ENTRY_SCHEMA>;
 
-// What a provider can do; the terminal capabilities split so a host that
-// can show output but not take input, or not resize, says so.
+// Terminal access is split into separate flags because some hosts can show output but cannot
+// take input or resize, and need to report that.
 const EXECUTION_CAPABILITIES_SCHEMA = z.object({
   spawn: z.boolean(),
   attach: z.boolean(),
@@ -67,27 +57,21 @@ const EXECUTION_CAPABILITIES_SCHEMA = z.object({
 const TARGET_ENTRY_SCHEMA = z.object({
   id: z.string(),
 
-  // the provider kind the config selects for the target
   provider: z.string(),
 
-  // the identity a session spawned on the target binds to
   identity: z.string(),
 
-  // whether this daemon has a provider of that kind, so a spawn can run there
   available: z.boolean(),
 
-  // whether its provider runs a session on a machine other than the daemon's
   remote: z.boolean(),
   default: z.boolean(),
   capabilities: EXECUTION_CAPABILITIES_SCHEMA,
 
-  // whether the target's provider reaches a credential broker
   brokerAuth: z.boolean(),
 });
 
 export type TargetEntry = z.output<typeof TARGET_ENTRY_SCHEMA>;
 
-// A config problem that leaves a target, or every target, unusable.
 const TARGET_CONFIG_ERROR_SCHEMA = z.union([
   z.object({
     scope: z.enum(['targets', 'target', 'defaultTarget']),

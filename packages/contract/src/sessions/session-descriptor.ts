@@ -6,7 +6,6 @@ import { SESSION_LIFECYCLE_SCHEMA } from './session-lifecycle';
 import { SESSION_WORKSPACE_SCHEMA } from './session-workspace';
 
 const SESSION_HOST_SCHEMA = z.object({
-  // the host's name on its provider
   name: z.string(),
 
   // the provider's id for this host, which a new host made under the same
@@ -27,9 +26,9 @@ export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   lastMsg: z.string(),
   lastDetail: z.string().optional(),
 
-  // the error code of the refusal that left the session without a terminal
-  // at its restore, while lastMsg still holds that refusal; absent when no
-  // refusal holds or a later try of the restore may still lift it
+  // the error code of the refusal that left the session with no terminal on restore, set
+  // while the last message still shows that refusal; absent when no refusal holds or a later
+  // restore attempt may still clear it
   restoreRefusal: z.string().optional(),
   agentSessionID: z
     .string()
@@ -55,19 +54,13 @@ export const SESSION_DESCRIPTOR_SCHEMA = z.object({
     .transform((id) => toSessionID(id))
     .optional(),
 
-  // where the session runs: the daemon hosting it, and the execution target
-  // on that daemon's host
   locator: z.object({
     daemonID: z.string().transform((id) => toDaemonID(id)),
     targetID: z.string(),
   }),
 
-  // what the working directory was materialized from, for a session spawned
-  // with a workspace source
   workspace: SESSION_WORKSPACE_SCHEMA.optional(),
 
-  // what the operator asked for, the host, the harness, and the daemon's
-  // connection to it; the state derives from these and the attention
   lifecycle: SESSION_LIFECYCLE_SCHEMA,
 
   // the model the session was spawned with; absent when it runs the agent's
@@ -79,8 +72,7 @@ export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   pluginDirs: z.array(z.string()).readonly().optional(),
 
   // the VM host the session runs on, as its provider names it; absent for a
-  // session with no VM host, such as a local one. Sub-sessions that share a
-  // parent's host report the same host.
+  // session with no VM host, such as a local one
   host: SESSION_HOST_SCHEMA.optional(),
 });
 

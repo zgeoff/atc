@@ -1941,7 +1941,6 @@ test('it releases the admission ticket of each connection that fails before it o
 
   await ctx.port.createImp({ name: 'imp-b' });
 
-  // The first connection and its one reconnect both fail to open.
   ctx.port.setUpgradeFailures(2);
 
   const check = mock(() => null);

@@ -3,17 +3,15 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { ImpSessionRequest } from '../port/imp-port';
 import type { ImpHarnessState } from './create-imp-harness-state';
 
-// What a connection's gate needs of the harness whose request it guards.
 interface GateContext {
   readonly name: string;
   readonly state: ImpHarnessState;
 
-  // Ends the harness with the refusal of a ticket whose check failed.
   readonly applyTicketRefusal: (refusal: unknown) => void;
 }
 
-// impd's client can fail a start after the connection opens, as a feature
-// check that times out does, sending nothing; so only the gate marks it sent.
+// impd's client can fail a start after the connection opens without sending anything, for
+// example when a feature check times out, so the start is marked sent only when the gate runs.
 export function makeConnectionGate(
   request: ImpSessionRequest,
   ticket: LaunchTicket | undefined,
@@ -34,8 +32,8 @@ export function makeConnectionGate(
   };
 }
 
-// A refusal or a throw closes the connection unsent and ends the harness once
-// the port has returned to the caller. Only a start that passes counts as sent.
+// Refuse on a later microtask: the caller must hold the port first, because the refusal
+// closes the connection before anything is sent and ends the harness.
 function checkTicket(
   ticket: LaunchTicket,
   kind: ImpSessionRequest['kind'],

@@ -35,13 +35,10 @@ export function createImpHarness(
   const name = start.name;
   const session = start.session;
 
-  // Whether the start lists requirements. impd checks them on the start
-  // alone, since its exec protocol gives an attach none, so the start and
-  // every reattach pass the host's admission before they go out.
+  // impd checks requirements only on a start, since its exec protocol gives an attach none,
+  // so the start and every reattach go through the host's admission before they are sent.
   const hasRequirements = start.kind === 'start' && (start.require?.length ?? 0) > 0;
   const state = createImpHarnessState();
-
-  // The admission of the open connection's request, while it has one.
   let connectionTicket: LaunchTicket | null = null;
   const events = createImpHarnessEvents();
 
@@ -63,14 +60,9 @@ export function createImpHarness(
   // Whether the first start impd answered made the process, or attached to
   // one it still ran; null until a start is answered.
   let created: boolean | null = null;
-
-  // Why impd refused to start the harness, once it has given a reason.
   let startRefusal: DaemonError | null = null;
-
-  // The terminal size the open connection's request asked for.
   let requestedSize: { cols: number; rows: number } = { cols: 0, rows: 0 };
 
-  // Each wait on the start settles once the start has settled.
   const emitStartOutcome = (): void => {
     const outcome = state.findStartOutcome();
 
@@ -81,9 +73,6 @@ export function createImpHarness(
     events.emitStartOutcome(outcome, created ?? true);
   };
 
-  // The first end counts: it confirms the exit or leaves it unconfirmed,
-  // settles a start that has not started with the refusal, and settles
-  // every wait.
   const stopFollowing = (confirmed: boolean, refusal: Readonly<DaemonError>): void => {
     if (reconnectTimer !== null) {
       clearTimeout(reconnectTimer);
@@ -115,8 +104,6 @@ export function createImpHarness(
         ),
     );
 
-    // The host hears the harness is done only after every exit listener
-    // has run, so its owner no longer counts the harness as running then.
     try {
       for (const listener of listeners) {
         listener(exit);
@@ -126,8 +113,8 @@ export function createImpHarness(
     }
   };
 
-  // A launch the host's binding no longer admits ends the harness with
-  // that refusal; nothing went out to impd.
+  // The host's binding refuses the launch before any request reaches impd, so the harness
+  // exits here without telling impd anything.
   const applyAdmissionRefusal = (error: unknown): void => {
     const detail = error instanceof Error ? error.message : String(error);
 
@@ -166,7 +153,6 @@ export function createImpHarness(
     };
   };
 
-  // A start or reattach that has requirements waits until the host admits it.
   const openCheckedConnection = (request: ImpSessionRequest): void => {
     if (!hasRequirements) {
       openConnection(request);
@@ -186,8 +172,6 @@ export function createImpHarness(
     });
   };
 
-  // A delay of null takes the next one from the host's list; running out of
-  // them ends the harness with what ended its last connection.
   const scheduleReconnect = (
     outcome: Exclude<ImpSessionOutcome, { kind: 'exit' }>,
     delay: number | null,
@@ -236,9 +220,8 @@ export function createImpHarness(
     scheduleReconnect(outcome, delay);
   };
 
-  // impd refuses a start whose broker is not ready. An exec with
-  // requirements is refused against an impd that would ignore them, by
-  // impd's client and the harness both.
+  // impd refuses to start a session whose broker is not ready.
+  // impd's client and this harness both refuse an exec whose requirements impd would ignore.
   const applyPreconditionRefusal = (
     outcome: Extract<ImpSessionOutcome, { kind: 'failed' }>,
   ): void => {
@@ -273,9 +256,9 @@ export function createImpHarness(
       });
   };
 
-  // impd closes a connection whose send it dropped with 1011, and detaches a slow
-  // one. Either resumes at once, a drop only on a started connection, so one
-  // dropped before impd answers counts as a failed reconnect.
+  // impd closes with 1011 when it drops a send and detaches a slow client. Reconnect at once
+  // after either, but only on a started connection: one dropped before impd answered counts
+  // as a failed reconnect.
   const applyOutcome = (outcome: ImpSessionOutcome, wasStarted: boolean): void => {
     if (outcome.kind !== 'local_error') {
       localErrors = 0;
@@ -338,9 +321,9 @@ export function createImpHarness(
     openCheckedConnection(buildAttach());
   };
 
-  // A generation under the session's name other than its own is not the
-  // daemon's harness: the harness ended, with its exit code when impd kept
-  // it.
+  // impd starts a new generation under the same session name when it replaces the process,
+  // so a different generation means this harness ended. impd reports the old exit code
+  // only when it kept it.
   const emitReplacedExit = (
     opened: ImpSessionConnection,
     previous: PreviousGeneration | undefined,
@@ -377,7 +360,8 @@ export function createImpHarness(
 
     failures = 0;
 
-    // A start resumes the screen and takes the waiting kill with it.
+    // The started event clears the pending kill, so read it first and send the kill
+    // after the buffered input.
     const hasKill = state.hasPendingKill();
 
     created ??= started.created;
@@ -388,8 +372,8 @@ export function createImpHarness(
 
     events.emitAttachment('attached');
 
-    // impd drops a resize that reaches it before the session starts, so the
-    // size asked for since the request goes out now.
+    // impd drops a resize that reaches it before the session starts, so any size change
+    // asked for after the start request went out is sent again here.
     if (requestedSize.cols !== cols || requestedSize.rows !== rows) {
       opened.resize(cols, rows);
     }
@@ -405,9 +389,6 @@ export function createImpHarness(
     }
   };
 
-  // A start counts as sent only once the gate runs, and with a ticket only once
-  // its check passes. The ticket goes back whenever the connection ends or the
-  // harness lets go of it.
   const openConnection = (request: ImpSessionRequest, ticket?: LaunchTicket): void => {
     const gate = makeConnectionGate(request, ticket, {
       name,
@@ -434,8 +415,6 @@ export function createImpHarness(
 
     let opened: ImpSessionConnection;
 
-    // The ticket goes back however the connection ends, a throw from
-    // opening it included.
     try {
       opened = port.openSession(request, handlers, gate);
     } catch (error) {
@@ -467,7 +446,8 @@ export function createImpHarness(
       return;
     }
 
-    // A resize while the host readied changed the size the start asks for.
+    // The terminal can resize while the host gets ready, so send the current size rather than
+    // the size captured when the start was requested.
     if (!state.isDone()) {
       openCheckedConnection({ ...start, cols, rows });
     }
@@ -502,7 +482,6 @@ export function createImpHarness(
       connection?.resize(nextCols, nextRows);
     },
 
-    // A kill between connections goes out once the next one starts.
     kill: () => {
       if (state.isStarted() && connection !== null) {
         connection.sendSignal('SIGHUP');

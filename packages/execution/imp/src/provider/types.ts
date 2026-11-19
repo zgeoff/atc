@@ -11,11 +11,10 @@ export interface ImpTargetOptions {
 }
 
 export interface ImpProviderOptions {
-  // How long each lease the daemon takes lasts before a renewal, in seconds.
   readonly leaseSeconds?: number;
 
-  // The wait before each reconnect to a harness whose connection ended
-  // without an exit, in milliseconds.
+  // Applies only when a harness connection ends without an exit; each entry is the wait before
+  // the next reconnect.
   readonly reconnectDelaysMs?: readonly number[];
 
   // The Linux atc binary on the daemon's machine that the provider copies

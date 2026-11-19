@@ -6,7 +6,6 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStubSystemd } from '../test-utils/create-stub-systemd';
 import { startSessionScopes } from './start-session-scopes';
 
-// A stand-in service manager whose programs sit on the daemon's PATH.
 function setupTest() {
   const systemd = createStubSystemd(['/bin/true']);
 

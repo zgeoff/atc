@@ -8,8 +8,6 @@ import type {
   ORPCError,
 } from '@impz/client';
 
-// impd's RPC procedures as the client holds them, one namespace each,
-// without the client's own helpers.
 type ImpdRouter = {
   readonly [
     N in keyof ImpClient as ImpClient[N] extends (...args: never) => unknown ? never : N
@@ -31,8 +29,6 @@ type ImpdResult<P extends ImpdProcedure> =
 
 export type ImpdOutput<P extends ImpdProcedure> = Awaited<ImpdResult<P>>;
 
-// The errors the client types a procedure's call to reject with, for each
-// procedure of a union in turn.
 type ImpdError<P extends ImpdProcedure> = P extends unknown
   ? ImpdResult<P> extends { readonly __error?: { readonly type: infer E } }
     ? E
@@ -49,8 +45,6 @@ export type ImpdRefusal<P extends ImpdProcedure> =
       : never)
   | { readonly code: 'BAD_REQUEST' | 'INTERNAL_SERVER_ERROR'; readonly data?: undefined };
 
-// One code with its data: none for a code the contract gives no data,
-// optional for optional data, and required otherwise.
 type ImpdRefusalOf<C, D> = unknown extends D
   ? { readonly code: C; readonly data?: undefined }
   : undefined extends D

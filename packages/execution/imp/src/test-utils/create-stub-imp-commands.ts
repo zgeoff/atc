@@ -5,20 +5,14 @@ import type { ImpCommand, ImpCommandResult } from '../port/imp-port';
 import { buildNotFound } from './build-not-found';
 import type { StubImp } from './stub-imp';
 
-// A hold on the commands whose argv holds its text: entered resolves with
-// the argv of the first command it holds, and stop lets every command it
-// holds run.
 export interface StubCommandHold {
   readonly entered: Promise<string>;
   readonly stop: () => void;
 }
 
-// The guest commands that run inside the imps, the guest environment they
-// and the sessions start in, and the holds and failures a test puts on them.
 export interface StubImpCommands {
-  // The guest's home inside every imp: a missing working directory
-  // resolves to it and every process takes it as HOME, as impd gives one;
-  // null for the test's own working directory and environment.
+  // impd gives every guest process this directory as HOME and starts a command with no
+  // working directory in it; null keeps the test's own working directory and environment.
   homeDir: string | null;
 
   readonly runCommand: (name: string, command: ImpCommand) => Promise<ImpCommandResult>;
@@ -32,17 +26,14 @@ export interface StubImpCommands {
   readonly setGuestPath: (path: string) => void;
   readonly startCommandHold: (match: string) => StubCommandHold;
 
-  // How many commands wait for their command hold to stop.
   readonly countHeldCommands: () => number;
 
-  // Lets every command the active hold holds run, and the next at once.
   readonly stopCommandHold: () => void;
 
   readonly setCommandFailure: (match: string | null) => void;
 
-  // Kills every guest command still running, and returns them so the stop
-  // can wait for their exits. The kill takes each command's whole process
-  // group, so a child left holding the command's output ends too.
+  // The kill signals each command's whole process group, not just the command, so a child
+  // left holding the command's output ends too.
   readonly kill: () => readonly Subprocess[];
 }
 
@@ -62,34 +53,21 @@ interface StubImpCommandsOptions {
 export function createStubImpCommands(deps: StubImpCommandsOptions): StubImpCommands {
   let guestPath = GUEST_PATH;
 
-  // Commands whose argv holds this text wait for the hold to stop, while
-  // one is held.
   let commandHold: {
     readonly match: string;
     readonly entered: PromiseWithResolvers<string>;
     readonly done: PromiseWithResolvers<void>;
   } | null = null;
 
-  // How many commands wait on a command hold.
   let heldCommands = 0;
 
-  // The guest commands running now, which a stop kills, each with its argv
-  // and the parts of its end not yet seen: stdout, stderr, and exit.
   const commands = new Map<Subprocess, { readonly line: string; readonly pending: Set<string> }>();
 
-  // Set once the stand-in stops, so a command a hold released never runs.
   let stopped = false;
-
-  // Settles once a stop has killed every guest command, so a run still
-  // waiting on a killed command's output stops waiting.
   const killed = Promise.withResolvers<null>();
-
-  // Commands whose argv holds this text exit 1 without running, or null.
   let commandFailure: string | null = null;
   const calls = deps.calls;
   const imps = deps.imps;
-
-  // Takes one line per guest command a stop finds still running.
   const report = deps.report;
 
   const resolveGuestCwd = (cwd: string | undefined): string | undefined => {
@@ -194,9 +172,8 @@ export function createStubImpCommands(deps: StubImpCommandsOptions): StubImpComm
 
       commands.delete(subprocess);
 
-      // A run the stop cut short ends as a killed one does, without waiting
-      // for output: the runtime can miss the close of a pipe whose last
-      // holder a kill ended, and then that output never ends.
+      // Don't wait for output after a kill: Bun can miss the close of a pipe whose last holder
+      // the kill ended, and the read of that pipe then never settles.
       if (settled === null) {
         return { code: KILLED_CODE, stdout: new Uint8Array(0), stderr: new Uint8Array(0) };
       }

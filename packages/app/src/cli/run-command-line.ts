@@ -7,23 +7,16 @@ import {
 import type { Command, CommandContext, SubCommandable } from 'gunshi';
 import type { ProcessIO } from './process-io';
 
-// What a command line writes to and how it ends: the console and the exit.
 export type CommandLineIO = Pick<ProcessIO, 'print' | 'printError' | 'exit'>;
 
-// A binary's command tree, below its entry command, and how the binary
-// presents itself in usage.
 export interface CommandTree {
   readonly name: string;
   readonly version: string;
   readonly description: string;
   readonly subCommands: Readonly<Record<string, SubCommandable>>;
 
-  // The commands that exit 0 on a command line they refuse, by the name
-  // that leads to them, such as a reporter that runs inside a session.
   readonly lenient?: ReadonlySet<string>;
 
-  // The exit status and stderr-only usage of the commands that refuse a
-  // command line with a status of their own, by the name that leads to them.
   readonly usageExits?: ReadonlyMap<string, number>;
 }
 
@@ -71,8 +64,6 @@ export async function runCommandLine(
       return;
     }
 
-    // The usage `--help` prints for the refused command, which lists the
-    // commands below it where a name was not found.
     const usage = await cli([...refusedPath, '--help'], entry, options);
 
     const usageExit = tree.usageExits?.get(refusedPath[0] ?? '');
@@ -96,8 +87,6 @@ export function makeMissingCommandRun(io: CommandLineIO) {
   };
 }
 
-// Refuses a command line the parser accepted: usage and the reason on
-// stderr, then the exit status.
 export async function refuseCommandLine(
   io: CommandLineIO,
   ctx: Readonly<CommandContext>,

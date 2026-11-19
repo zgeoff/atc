@@ -1,7 +1,7 @@
 import { buildShortName } from './build-short-name';
 
-// The path inside the guest a session's reporter socket and outbox share,
-// short enough that the socket's path stays inside a unix socket's limit.
+// The session ID is shortened so the reporter socket's path inside the guest stays within
+// the length limit for a unix socket path.
 export function buildReporterSocketBase(guestDir: string, sessionID: string): string {
   return `${guestDir}/run/${buildShortName(sessionID, 16)}`;
 }

@@ -6,8 +6,8 @@ import type { ContainerAttachment, StreamName } from './types';
 const HEAD_END = '\r\n\r\n';
 const MULTIPLEXED = 'application/vnd.docker.multiplexed-stream';
 
-// Opens an attach request on the Engine's socket and keeps the connection the Engine upgrades to a
-// raw stream, which Bun's fetch cannot do. A request the Engine refuses rejects with its status.
+// Bun's fetch cannot keep the connection after the Engine upgrades an attach request to a raw
+// stream, so this reads the HTTP response straight off the socket.
 export async function openHijackedStream(
   socketPath: string,
   path: string,
@@ -34,8 +34,8 @@ export async function openHijackedStream(
     }
   };
 
-  // output that arrives before the first listener, such as the bytes that follow the headers in
-  // the same chunk, waits for it
+  // The Engine can send output in the same chunk as the response headers, before the caller has
+  // attached a listener, so hold it here until one attaches instead of dropping it.
   const unheard: { data: Uint8Array; stream: StreamName }[] = [];
 
   const emit = (data: Uint8Array, stream: StreamName): void => {

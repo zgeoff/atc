@@ -1,17 +1,13 @@
 import { DaemonError } from '@atc/protocol/wire';
 import type { CommandError } from './types';
 
-// Which request failed: the session list, the send, the one read that
-// settles a send of unknown outcome, or a read of the wait.
 export type FailureStage = 'list' | 'send' | 'recover' | 'wait';
 
 interface FailureContext {
   readonly stage: FailureStage;
 
-  // Whether the connection is closed once the request failed.
   readonly closed: boolean;
 
-  // Whether the daemon is one reached with `--daemon`.
   readonly remote: boolean;
 }
 

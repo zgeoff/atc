@@ -14,8 +14,6 @@ const TERMINAL_TYPE_OUTPUT: Readonly<Record<string, unknown>> = {
   required: ['written'],
 };
 
-// A menu as atc_terminal_choose returns it, and the result of a read or a
-// choice on one.
 const MENU_OUTPUT: Readonly<Record<string, unknown>> = {
   type: ['object', 'null'],
   description:

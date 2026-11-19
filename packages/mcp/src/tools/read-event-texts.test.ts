@@ -7,7 +7,6 @@ import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { createTransportCaller } from './create-transport-caller';
 import { readEventTexts } from './read-event-texts';
 
-// A daemon that holds no note and a caller connected to it.
 async function setupTest() {
   const daemon = await startTestDaemon({ prefix: 'atc-read-event-texts-' });
 

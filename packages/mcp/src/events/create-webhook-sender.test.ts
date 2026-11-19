@@ -5,7 +5,6 @@ import { makeTrustingTransport } from '../test-utils/make-trusting-transport';
 import { createWebhookSender } from './create-webhook-sender';
 import { isPublicAddress } from './is-public-address';
 
-// A transport that records each request it is asked to post, and answers 204.
 function setupTest() {
   const transport = mock<(target: string, init: BunFetchRequestInit) => Promise<Response>>(() =>
     Promise.resolve(new Response(null, { status: 204 })),

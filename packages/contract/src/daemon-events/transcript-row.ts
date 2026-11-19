@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// One tool a turn used, with its input summarized.
 const TRANSCRIPT_TOOL_SCHEMA = z.object({ name: z.string(), input: z.string() });
 
 export const TRANSCRIPT_ROW_SCHEMA = z.object({

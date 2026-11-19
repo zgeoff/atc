@@ -1,6 +1,5 @@
-// The routes of the HTTP server that atc-gateway and `atc mcp --http` run. A
-// person opens the browser routes in a browser, so an ingress may put them
-// behind a sign-in that a machine client could not pass.
+// A person opens the browser routes in a browser, so an ingress may put them behind a sign-in
+// that a machine client could not pass.
 export const GATEWAY_PATHS = {
   browser: {
     authorize: '/oauth2/authorize',

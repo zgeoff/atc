@@ -21,7 +21,6 @@ interface DPoPProofRequest {
 
 const encoder = new TextEncoder();
 
-// A new P-256 key pair for a client to sign DPoP proofs with.
 export async function generateDPoPKey(): Promise<DPoPKey> {
   const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
     'sign',
@@ -43,8 +42,6 @@ export async function generateDPoPKey(): Promise<DPoPKey> {
   };
 }
 
-// The RFC 9449 proof a DPoP client sends in the DPoP header: a JWT of type
-// dpop+jwt that carries the client's public key and names the request it signs.
 export async function signDPoPProof(request: DPoPProofRequest): Promise<string> {
   const header = encodeSegment({ typ: 'dpop+jwt', alg: 'ES256', jwk: request.key.publicJWK });
 

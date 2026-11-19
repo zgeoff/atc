@@ -15,8 +15,6 @@ import { createMCPServer } from './create-mcp-server';
 import { createTransportCaller } from './create-transport-caller';
 import type { FleetCaller } from './types';
 
-// The server on one end of an in-memory pair, initialized, with every message
-// it sends back recorded; absent scopes allow every tool.
 async function setupTest(caller: FleetCaller, scopes?: readonly GrantScope[]) {
   const server = createMCPServer({
     caller,

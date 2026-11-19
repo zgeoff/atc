@@ -15,8 +15,7 @@ export function buildLifecycleHost(
     paths: resolvePaths(env),
     clock: systemClock,
 
-    // a test moves the /proc reads to place a daemon in a unit without a user
-    // manager
+    // Tests point this at a fake /proc tree to simulate a daemon in a unit with no user manager.
     procRoot: env['ATC_PROC_ROOT'] ?? '/proc',
     restoreBootTimeoutMs: parseRestoreBootTimeoutMs(env),
     findManagedUnit: () => readManagedDaemonUnit(env),

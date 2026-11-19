@@ -4,8 +4,6 @@ import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { startStubImpdInfo } from '../test-utils/start-stub-impd-info';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 
-// A broker over a stub imp port that names each host `atc-<key>`, creates
-// it as a plain imp, and destroys it through the port.
 function setupTest() {
   const port = createStubImpPort();
 
@@ -134,8 +132,6 @@ test('it rejects a grant removal impd forbids as forbidden', async () => {
 });
 
 test('it rejects the version check of an outdated impd as too old after one system info call', () => {
-  // An impd stand-in on a real HTTP port that answers every call with
-  // system info, for the real client to read.
   const impd = startStubImpdInfo();
 
   impd.info.version = '2.1.0';

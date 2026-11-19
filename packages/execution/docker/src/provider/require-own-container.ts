@@ -3,8 +3,6 @@ import { buildHostRefusal } from './build-host-refusal';
 
 const OWNER_LABELS = ['atc.target', 'atc.host', 'atc.daemon'] as const;
 
-// Refuses a container of the expected name that this daemon did not create for this host, so atc
-// never reuses, replaces or removes a Docker object that is not its own.
 export function requireOwnContainer(existing: ContainerInfo | null, expected: Labels): void {
   if (existing === null) {
     return;

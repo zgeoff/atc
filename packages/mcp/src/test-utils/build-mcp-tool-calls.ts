@@ -6,7 +6,6 @@ interface ToolsCallParams {
   readonly arguments: Readonly<Record<string, unknown>>;
 }
 
-// Sends one `tools/call` request and resolves with its response.
 type SendToolsCall = (
   method: 'tools/call',
   params: ToolsCallParams,
@@ -18,7 +17,6 @@ interface MCPToolCalls {
     args: Readonly<Record<string, unknown>>,
   ) => Promise<MCPToolResult>;
 
-  // Spawns a session through the spawn tool and resolves with its id.
   readonly spawnSession: (args: Readonly<Record<string, unknown>>) => Promise<string>;
 }
 

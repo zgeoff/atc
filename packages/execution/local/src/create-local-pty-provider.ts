@@ -14,8 +14,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import { bunPTYSpawn } from './pty-library/bun-pty-spawn';
 import type { SessionScopes } from './session-scopes/create-session-scopes';
 
-// `clock` is the clock a harness's exit is waited on. `scopes` are the scopes
-// harnesses start in, or null when they start as the daemon's plain children.
 export function createLocalPTYProvider(
   clock: Clock = systemClock,
   scopes: SessionScopes | null = null,
@@ -42,12 +40,10 @@ export function createLocalPTYProvider(
 
     capabilities,
 
-    // The daemon's own machine is always ready.
     prepareHost: (): Promise<void> => Promise.resolve(),
 
     // The daemon's machine keeps no process the daemon lets go of, so a detach
-    // ends the harness as a kill does. With no credential broker here, a harness
-    // that requires one never starts.
+    // ends the harness as a kill does.
     spawnHarness: (spec: HarnessSpec): HarnessHandle => {
       if (spec.requireBroker === true) {
         throw new DaemonError(
@@ -102,7 +98,6 @@ export function createLocalPTYProvider(
           pty.kill();
         },
 
-        // A process already gone has nothing left to end.
         killForced: () => {
           try {
             process.kill(pty.pid, 'SIGKILL');

@@ -88,7 +88,6 @@ export function runConfigMigrate(
   return 0;
 }
 
-// A UTC time as `20261006T152200Z`.
 function formatBackupStamp(time: number): string {
   return new Date(time)
     .toISOString()

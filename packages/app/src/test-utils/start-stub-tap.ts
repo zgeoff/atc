@@ -2,8 +2,6 @@ import type { DaemonClient } from '@atc/protocol/client';
 import type { DaemonEvent } from '@atcx/contract';
 
 interface StubTapOptions {
-  // Whether the tap also takes the answer notices of the messages the session
-  // sent, as the bridge's tap does; it takes none when absent.
   readonly notices?: boolean;
 }
 

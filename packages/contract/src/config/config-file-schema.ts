@@ -2,9 +2,8 @@ import { z } from 'zod';
 import { buildOptionalBoolean } from '../schema/build-optional-boolean';
 import { buildOptionalString } from '../schema/build-optional-string';
 
-// A user-written config.json's top-level keys. An absent or wrong-typed
-// field parses to undefined rather than failing the file, so a bad config
-// falls back to a default instead of refusing to start atc.
+// An absent or wrong-typed field parses to undefined instead of failing the whole file,
+// so a bad config.json falls back to defaults rather than stopping atc from starting.
 export const CONFIG_FILE_SCHEMA = z.object({
   agents: z.unknown().optional(),
   sources: z.unknown().optional(),

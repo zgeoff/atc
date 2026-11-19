@@ -1,6 +1,3 @@
-// The event types a client may subscribe to, each fired by the event trail
-// kind beside it. A delivery carries only the session id, because the
-// subscriber reads what happened from the trail with atc_events_read.
 export const EVENT_TYPES = [
   {
     name: 'session.needs_input',
@@ -30,7 +27,6 @@ export const EVENT_TYPES = [
 
 export type EventType = (typeof EVENT_TYPES)[number];
 
-// The types take no arguments.
 export const EVENT_INPUT_SCHEMA = {
   type: 'object',
   properties: {},

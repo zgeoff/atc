@@ -7,7 +7,6 @@ import { KEYS } from '@atc/core/test-utils/keys';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startTUIHarness } from './start-tui-harness';
 
-// A harness whose client has booted and drawn its home screen.
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: () => {} });
 
@@ -104,9 +103,8 @@ test('it rejects a wait for text the client never draws with the tail of the cap
 
   tui.boot();
 
-  // The client's boot takes real time, which the stub clock never spends,
-  // so the boot is awaited on the capture with the harness's 9-second boot
-  // budget.
+  // The client boots in real time, which the stub clock never advances, so this waits for
+  // the first draw on the real clock.
   await waitFor(
     () => {
       expect(tui.read()).toInclude('atc — control tower');
@@ -233,9 +231,9 @@ test('it rejects a wait for a log line written only before the mark', async () =
 
   tui.boot();
 
-  // The client's boot and its answers take real time, which the stub clock
-  // never spends, so they are awaited on the capture and the log, the boot
-  // with the harness's 9-second boot budget.
+  // The client boots and answers in real time, which the stub clock never spends,
+  // so these waits poll the screen and the log on real time. Boot gets 9 seconds,
+  // the same budget the harness allows a real boot.
   await waitFor(
     () => {
       expect(tui.read()).toInclude('atc — control tower');
@@ -294,8 +292,8 @@ test('it removes its home on stop', async () => {
 test('it stops the daemon its pid file holds and removes the home once the test finishes', () => {
   const tui = startTUIHarness({ createStateDB: () => {} });
 
-  // A stand-in for the daemon the client would start; the harness stops it
-  // with SIGTERM, which a later kill of the stand-in never sends.
+  // Cleanup uses SIGKILL because a bare kill() sends SIGTERM, which would pass the SIGTERM check
+  // even if the harness never stopped this process.
   const daemon = Bun.spawn(['sleep', '30']);
 
   onTestFinished(() => {

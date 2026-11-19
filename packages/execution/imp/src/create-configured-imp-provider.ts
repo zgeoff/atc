@@ -31,8 +31,8 @@ export function createConfiguredImpProvider(
 
   const impPrefix = options['impPrefix'];
 
-  // At most 11 characters keep a name built with a host key's 20 within
-  // impd's 31.
+  // impd accepts imp names of at most 31 characters, and each name adds a 20-character host key
+  // to this prefix, so the prefix can hold at most 11.
   if (impPrefix !== undefined && !isImpPrefix(impPrefix)) {
     return {
       provider: null,
@@ -89,14 +89,12 @@ export function createConfiguredImpProvider(
   return { provider, problem: null };
 }
 
-// How the port reads the token: a function, so a file token rereads.
+// A function rather than a string, so a token from a file is read again on each call
+// and picks up changes to the file.
 interface TokenSource {
   readonly readToken: () => string | null;
 }
 
-// The token source the options give, or the problem that keeps the target
-// from one. A problem holds a variable's name or a file's path, never a
-// token.
 function loadTokenSource(
   id: string,
   options: Readonly<Record<string, unknown>>,
@@ -156,8 +154,6 @@ function isImpPrefix(value: unknown): value is string {
 // file, so a target's value would move them for the agent.
 const SESSION_SET_NAMES: ReadonlySet<string> = new Set(['TMPDIR', SESSION_ENV_NAMES.scopeFile]);
 
-// The variables every session on the target gets, or the problem that keeps
-// the target from them. A problem names a key, never a value.
 function parseSessionEnv(id: string, raw: unknown): Record<string, string> | null | string {
   if (raw === undefined) {
     return null;
@@ -193,8 +189,7 @@ function parseSessionEnv(id: string, raw: unknown): Record<string, string> | nul
 // impd refuses an imp of less memory.
 const MIN_IMP_MEMORY_MIB = 128;
 
-// The most memory a new imp may grow to, null when the target sets none, or
-// the problem with the value. impd checks the max against its own limits.
+// No upper bound here: impd checks the max against its own limits.
 function parseMaxMemoryMib(id: string, raw: unknown, memoryMib: unknown): number | null | string {
   if (raw === undefined) {
     return null;

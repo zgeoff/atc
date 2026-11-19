@@ -2,12 +2,8 @@ import { isRecord } from '@atc/core';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import type { Server, ServerWebSocket } from 'bun';
 
-// What the stand-in does with an exec open: refuse it as a start whose
-// broker is not ready, start it and count its stdin bytes as `wc -c` does,
-// or start it and exit 2 at once without reading stdin.
 type StubExecReply = 'refuse' | 'count' | 'exit-early';
 
-// The system info of impd 2.2.0, which reports every capability flag.
 const SYSTEM_INFO = {
   version: '2.2.0',
   features: {

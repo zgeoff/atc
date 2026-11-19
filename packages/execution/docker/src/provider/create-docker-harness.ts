@@ -15,13 +15,11 @@ import { waitOut } from './wait-out';
 interface DockerHarnessOptions {
   readonly engine: DockerEngine;
 
-  // the container to create when the Engine holds none that the harness can attach to
   readonly container: ContainerSpec;
   readonly relay: OpenedRelay;
   readonly reconnectDelaysMs: readonly number[];
   readonly log: (line: string) => void;
 
-  // runs once the harness has exited or been detached
   readonly onDone: () => void;
 }
 
@@ -31,9 +29,8 @@ export interface DockerHarness extends HarnessHandle {
   readonly killForced: NonNullable<HarnessHandle['killForced']>;
 }
 
-// Follows the harness container of a session: it attaches to one the Engine still runs, and
-// otherwise removes an exited one and creates the container that runs the spec's command. A start
-// that fails arrives as an exit, since the daemon waits on a start only for a brokered launch.
+// A failed start shows up as an exit, because the daemon waits on a start only for a
+// brokered launch.
 export function createDockerHarness(options: DockerHarnessOptions): DockerHarness {
   const engine = options.engine;
   const name = options.container.name;
@@ -47,7 +44,8 @@ export function createDockerHarness(options: DockerHarnessOptions): DockerHarnes
   const exitWaiters: ((exited: boolean) => void)[] = [];
   const started = Promise.withResolvers<HarnessStart>();
 
-  // an unawaited rejection never crashes the daemon
+  // Node ends the process on an unhandled rejection, and the start promise can reject before
+  // any caller awaits it, so a handler is attached up front.
   void waitOut(started.promise);
   let attachment: ContainerAttachment | null = null;
   let isFinished = false;
@@ -122,8 +120,8 @@ export function createDockerHarness(options: DockerHarnessOptions): DockerHarnes
     }
   };
 
-  // An attach that ended while the container still stands reattaches; the Engine replays the
-  // screen on each attach. A container that exited is the harness's exit.
+  // Reattaching loses no output: the Docker Engine replays the container's screen
+  // on each attach that asks for logs.
   const restoreAttach = async (): Promise<void> => {
     emitAttachment('reattaching');
 

@@ -281,7 +281,8 @@ test('it drops an open WebSocket once stopped', async () => {
 
   const code = await closed.promise;
 
-  // Stopping closes the connection at once, with the code for a server that goes away.
+  // 1001 is the WebSocket close code for an endpoint going away (RFC 6455), which a server
+  // sends when it shuts down.
   expect(code).toBe(1001);
 });
 

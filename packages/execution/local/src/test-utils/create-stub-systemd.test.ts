@@ -9,8 +9,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStubSystemd } from './create-stub-systemd';
 
-// A scratch directory for the files a test's commands write, removed once
-// the test finishes.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-systemd-');
 

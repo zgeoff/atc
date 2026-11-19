@@ -2,10 +2,8 @@ import { z } from 'zod';
 import { MAX_EVENTS_CURSOR_BYTES } from '../daemon-events/max-events-cursor-bytes';
 import { MAX_REGISTRY_DAEMONS } from './max-registry-daemons';
 
-// A daemon name: never a `.`, which separates the parts of a gateway id.
+// Never allow a `.` here: it separates the parts of a gateway id.
 const DAEMON_NAME_PATTERN = /^[a-z][a-z0-9-]{0,30}$/u;
-
-// `<host>:<port>`, with an IPv6 host in brackets.
 const ADDRESS_PATTERN = /^(?:\[(?<v6>[^\]]+)\]|(?<host>[^:[\]]+)):(?<port>\d{1,5})$/u;
 const ADDRESS_MESSAGE = 'needs an address of <host>:<port> with a port from 1 to 65535';
 
@@ -25,7 +23,7 @@ const ADDRESS_SCHEMA = z.string({ error: ADDRESS_MESSAGE }).transform((raw, ctx)
 
 const DAEMON_ID_MESSAGE = 'needs the daemonID that atc daemon id prints on its host';
 
-// A daemon ID as a daemon mints it: a lowercase UUID.
+// Daemons mint IDs as lowercase UUIDs, so the match is case-sensitive and rejects uppercase.
 const DAEMON_ID_SCHEMA = z
   .string({ error: DAEMON_ID_MESSAGE })
   .regex(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u, DAEMON_ID_MESSAGE);
@@ -35,8 +33,7 @@ const DAEMON_SCHEMA = z.object(
   { error: 'must be an object with address and daemonID' },
 );
 
-// The gateway's registry file. Each daemon's bearer token stays out of it, in
-// the gateway's environment.
+// The registry carries no bearer tokens; each daemon's token lives in the gateway's environment.
 export const GATEWAY_REGISTRY_SCHEMA = z
   .object(
     {

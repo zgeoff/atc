@@ -6,9 +6,8 @@ interface SpritePrefixOverlap {
   readonly longer: string;
 }
 
-// The pairs of Sprites targets in which one's prefix starts with the other's, the shorter's id
-// first. A connector whose access policy admits the shorter prefix admits every sprite that starts
-// with it, so the longer target's sprites would use the shorter target's connectors too.
+// A connector's access policy admits every sprite whose name starts with the allowed prefix, so
+// a target whose prefix extends another target's prefix would also use that target's connectors.
 export function collectSpritePrefixOverlaps(
   targets: readonly TargetConfig[],
 ): readonly SpritePrefixOverlap[] {

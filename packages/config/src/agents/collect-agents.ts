@@ -5,7 +5,6 @@ import type { AgentConfigPlugin, AgentEntry, ParsedAgentEntry } from './agent-en
 interface CollectedAgents {
   readonly agents: AgentEntry[];
 
-  // One line per problem, each starting with the entry it refused.
   readonly errors: string[];
 }
 
@@ -78,9 +77,6 @@ function parseAgentEntry(
     : { problems: result.error.issues.map((issue) => issue.message) };
 }
 
-// The plugin an entry's kind selects, or the problem that refuses it. An
-// absent kind is the id for an id that is a plugin's own, and a problem
-// for any other.
 function pickPlugin(
   id: string,
   kind: unknown,
@@ -108,7 +104,6 @@ function pickPlugin(
   return { plugin: selected };
 }
 
-// Sorted ids as a list in prose: "claude, codex, or grok".
 function formatIDList(ids: readonly string[]): string {
   if (ids.length <= 2) {
     return ids.join(' or ');

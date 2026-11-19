@@ -10,8 +10,6 @@ import type { StubSessionContext, StubSessionFaults } from './answer-stub-sessio
 import type { StubConnection } from './stub-imp';
 import { tryKill } from './try-kill';
 
-// The session connections the port opens to impd: how each opens and sends
-// its request, and the holds and failures a test puts on the way there.
 export interface StubImpSessions {
   readonly openSession: (
     request: ImpSessionRequest,
@@ -23,16 +21,13 @@ export interface StubImpSessions {
   readonly stopBrokerFailure: () => void;
   readonly startAnswerHold: () => void;
 
-  // How many session answers wait for the answer hold to stop.
   readonly countHeldAnswers: () => number;
 
   readonly stopAnswerHold: () => void;
   readonly setSessionDrops: (count: number, closeCode: number) => void;
 
-  // The open throws before it returns a connection.
   readonly setOpenFailures: (count: number) => void;
 
-  // Each connection ends unreachable without opening.
   readonly setUpgradeFailures: (count: number) => void;
 
   // impd's client checks capabilities before a start that requires the broker
@@ -40,19 +35,15 @@ export interface StubImpSessions {
   // with nothing sent.
   readonly setExecCheckFailures: (count: number) => void;
 
-  // How many capability checks timed out.
   readonly countFailedExecChecks: () => number;
 
   readonly startUpgradeHold: () => void;
 
-  // How many connections wait for the upgrade hold to stop.
   readonly countHeldUpgrades: () => number;
 
   readonly stopUpgradeHold: () => void;
   readonly setNextSessionFailure: (refusal: ImpdExecRefusal, message?: string) => void;
 
-  // The one answer the contract does not type, for a test of how the daemon
-  // reads a refusal it cannot trust.
   readonly setNextMalformedSessionFailure: (code: string, data: unknown) => void;
 }
 
@@ -63,8 +54,6 @@ interface StubImpSessionsOptions {
 }
 
 export function createStubImpSessions(deps: StubImpSessionsOptions): StubImpSessions {
-  // Session answers held back while a test lets output pile up, or null
-  // when answers go out at once.
   let held: (() => void)[] | null = null;
 
   const faults: StubSessionFaults = {
@@ -77,20 +66,9 @@ export function createStubImpSessions(deps: StubImpSessionsOptions): StubImpSess
   // Session connections whose opening still throws before it returns, as
   // an invalid authorization header makes the socket's constructor throw.
   let openFailures = 0;
-
-  // Session connections still to fail their upgrade, ending unreachable
-  // before they open and before any gate runs.
   let upgradeFailures = 0;
-
-  // Capability checks still to time out, each ending its start unreachable
-  // once the connection opens, before any gate runs.
   let execCheckFailures = 0;
-
-  // Capability checks that timed out.
   let failedExecChecks = 0;
-
-  // The connections still opening while upgrades are held, each sending
-  // its request once it opens; null while connections open at once.
   let upgrades: (() => void)[] | null = null;
   const calls = deps.calls;
   const sessionRequests = deps.sessionRequests;
@@ -132,9 +110,6 @@ export function createStubImpSessions(deps: StubImpSessionsOptions): StubImpSess
         },
       };
 
-      // The request reaches impd once the connection opens, after impd's
-      // client checks the features a start needs and the gate lets it go; a
-      // check that times out or a closed gate sends nothing.
       const sendToImpd = () => {
         if (execCheckFailures > 0 && shouldCheckExec(request)) {
           execCheckFailures -= 1;
@@ -159,8 +134,8 @@ export function createStubImpSessions(deps: StubImpSessionsOptions): StubImpSess
         calls.push(`exec.${request.kind} ${request.name} ${request.session}`);
         sessionRequests.push(request);
 
-        // impd answers over the network: nothing reaches the caller before
-        // openSession returns.
+        // Real impd answers over the network, so no reply reaches the caller before the session
+        // open call returns. Answer on a later tick to match.
         setTimeout(() => {
           if (held === null) {
             answerStubSession(context, request, connection);
@@ -285,7 +260,6 @@ function shouldCheckExec(request: ImpSessionRequest): boolean {
   );
 }
 
-// A gate that throws keeps the request from going out, as a closed one does.
 function tryPassGate(gate: () => boolean): boolean {
   try {
     return gate();

@@ -4,7 +4,6 @@ export interface MCPHTTPConfig {
   // The origin clients reach the server at, such as `https://mcp.example.com`.
   readonly publicURL: string | null;
 
-  // The address the server binds.
   readonly host: string;
   readonly port: number;
 

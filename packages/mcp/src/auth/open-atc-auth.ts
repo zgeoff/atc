@@ -20,8 +20,6 @@ interface ATCAuthOptions {
   readonly onGrantRevoked: (grantID: GrantID) => void;
 }
 
-// The authorization server `atc mcp --http` and the gateway serve, after the
-// grant migration.
 export function openATCAuth(options: ATCAuthOptions): Promise<ATCAuth> {
   runGrantMigration(options.database, options.clock.now());
 

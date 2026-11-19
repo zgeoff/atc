@@ -1,6 +1,5 @@
-// The client sends the request as the socket's first message and holds every
-// other until then, so the gate runs on that send. A closed or throwing gate
-// closes the socket and drops every later message.
+// The client sends the request as the socket's first message and holds every other message
+// until then, so gating the first send gates the whole exchange.
 export function openGatedSocket(
   url: string,
   headers: Readonly<Record<string, string>>,

@@ -2,29 +2,21 @@ import type { ExecutionCapabilities, ExecutionProvider, HarnessSpec } from '@atc
 import { createLocalPTYProvider } from '../create-local-pty-provider';
 
 interface StubExecutionProviderConfig {
-  // The provider kind the daemon reports for the target.
   readonly kind?: string;
 
   // Capabilities that differ from a local pseudo-terminal's.
   readonly capabilities?: Partial<ExecutionCapabilities>;
 
-  // Whether the daemon treats the host as another machine; false when left
-  // out.
   readonly remote?: boolean;
 
-  // The error every command rejects with instead of running; left out,
-  // commands run on this machine.
   readonly commandFailure?: Readonly<Error>;
 
-  // A throw aborts the spawn.
   readonly onSpawn?: (spec: HarnessSpec) => void;
 }
 
 interface StubExecutionProvider extends ExecutionProvider {
-  // Every host the daemon put to sleep, in order.
   readonly suspended: string[];
 
-  // Every host the daemon destroyed, in order.
   readonly destroyed: string[];
 
   readonly setSuspendFailure: (error: Readonly<Error> | null) => void;
@@ -41,8 +33,6 @@ export function createStubExecutionProvider(
   const suspended: string[] = [];
   const destroyed: string[] = [];
 
-  // The errors a suspend and a destroy reject with, or null while they
-  // succeed.
   const failures: { suspend: Readonly<Error> | null; destroy: Readonly<Error> | null } = {
     suspend: null,
     destroy: null,

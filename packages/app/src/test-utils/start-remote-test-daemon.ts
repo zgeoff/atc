@@ -12,9 +12,6 @@ type TestDaemonPaths = Parameters<OptionsBuilder>[0];
 
 type TestDaemonOptions = Awaited<ReturnType<OptionsBuilder>>;
 
-// A stand-in for a daemon on another host, on a loopback TCP port: principal `laptop`, token of 32
-// letters a, and sessions that echo each typed line as `GOT-REMOTE:<line>`. A restart passes these
-// options again with the port the daemon bound; `port` 0 takes any free port.
 export function writeRemoteTestDaemonOptions(
   paths: TestDaemonPaths,
   port: number,
@@ -23,8 +20,8 @@ export function writeRemoteTestDaemonOptions(
 
   return {
     adapter: buildStubAttentionAdapter({
-      // A hook line that carries a `session_id` records it as the agent session id, which a
-      // restore needs to resume the session.
+      // A restore resumes the agent session by this id,
+      // so the stub passes the hook's session_id through.
       planHookEvents: (hook) => ({
         events: [
           {

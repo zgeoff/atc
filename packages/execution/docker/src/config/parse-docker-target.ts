@@ -17,8 +17,6 @@ const DEFAULT_GUEST_DIR = '/atc';
 // Docker's rule for a container or volume name
 const NAME_START = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/u;
 
-// The target's options with each default laid in, or the first problem with them. A problem
-// names a key, never a value.
 export function parseDockerTarget(
   id: string,
   options: Readonly<Record<string, unknown>>,

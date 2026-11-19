@@ -1,6 +1,4 @@
 interface ATCRun {
-  // The command atc runs as, such as the source entry under bun or a
-  // compiled binary.
   readonly command: readonly string[];
 
   readonly args: readonly string[];
@@ -9,7 +7,6 @@ interface ATCRun {
   // state of this home alone.
   readonly home: string;
 
-  // Variables laid over the inherited environment; `undefined` removes one.
   readonly env?: Readonly<Record<string, string | undefined>>;
 
   readonly stdin?: string;
