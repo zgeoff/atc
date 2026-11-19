@@ -1,6 +1,6 @@
 # atc send and atc message get
 
-- **Status:** draft
+- **Status:** agreed
 
 A shell script, a cron job, a CI step, a git hook or a systemd unit has no atc command that sends a
 session a message: the only senders are an MCP client and a program that speaks the daemon's
