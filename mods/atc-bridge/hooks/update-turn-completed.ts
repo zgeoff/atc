@@ -1,27 +1,8 @@
 import type { BridgeHost, BridgeState } from './bridge-state.ts';
-import { scheduleDelivery, scheduleNoticeReminder } from './deliver-messages.ts';
-import type { TapMessage } from './parse-tap-line.ts';
-import { scheduleAnsweredReport, scheduleUnansweredReport } from './report-turns.ts';
-
-const ENVELOPE_ID = /<atc-message id="(?<id>[^"]+)"/gu;
-
-export function updateTurnStarted(state: BridgeState, turnID: string, text: string): void {
-  const carried: TapMessage[] = [];
-
-  state.runningTurnID = turnID;
-
-  state.carried.set(turnID, carried);
-  state.unseenNotices.set(turnID, []);
-
-  for (const match of text.matchAll(ENVELOPE_ID)) {
-    const msg = state.awaitingTurn.get(match.groups?.['id'] ?? '');
-
-    if (msg !== undefined) {
-      state.awaitingTurn.delete(msg.id);
-      carried.push(msg);
-    }
-  }
-}
+import { scheduleAnsweredReport } from './schedule-answered-report.ts';
+import { scheduleDelivery } from './schedule-delivery.ts';
+import { scheduleNoticeReminder } from './schedule-notice-reminder.ts';
+import { scheduleUnansweredReport } from './schedule-unanswered-report.ts';
 
 export function updateTurnCompleted(
   host: BridgeHost,

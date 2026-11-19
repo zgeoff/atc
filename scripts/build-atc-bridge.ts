@@ -12,11 +12,18 @@ function main(): void {
     'hooks/hooks.json',
     'hooks/register.ts',
     'hooks/bridge-state.ts',
-    'hooks/deliver-messages.ts',
+    'hooks/encode-attribute.ts',
     'hooks/parse-tap-line.ts',
-    'hooks/report-turns.ts',
     'hooks/run-tap.ts',
-    'hooks/track-turns.ts',
+    'hooks/schedule-answered-report.ts',
+    'hooks/schedule-delivery.ts',
+    'hooks/schedule-notice-delivery.ts',
+    'hooks/schedule-notice-reminder.ts',
+    'hooks/schedule-unanswered-report.ts',
+    'hooks/try-update-conversation.ts',
+    'hooks/update-turn-completed.ts',
+    'hooks/update-turn-started.ts',
+    'hooks/wait-for-step-end.ts',
   ];
 
   const entries = embedded.map(

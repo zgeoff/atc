@@ -1,7 +1,8 @@
 import { ATC_CLI } from './atc-cli.ts';
 import { ATC_CWD, type BridgeHost, type BridgeState } from './bridge-state.ts';
-import { scheduleDelivery, scheduleNoticeDelivery } from './deliver-messages.ts';
 import { parseTapLine } from './parse-tap-line.ts';
+import { scheduleDelivery } from './schedule-delivery.ts';
+import { scheduleNoticeDelivery } from './schedule-notice-delivery.ts';
 
 const FIRST_TAP_RETRY_MS = 1000;
 const LONGEST_TAP_RETRY_MS = 30_000;

@@ -2,9 +2,10 @@ import type { EngineInterface, Register, TurnStepResult } from 'claude-code';
 import { ATC_CLI } from './atc-cli.ts';
 import { ATC_CWD, type BridgeHost, type BridgeState } from './bridge-state.ts';
 import type { TapMessage } from './parse-tap-line.ts';
-import { scheduleUnansweredReport } from './report-turns.ts';
 import { runTap } from './run-tap.ts';
-import { updateTurnCompleted, updateTurnStarted } from './track-turns.ts';
+import { scheduleUnansweredReport } from './schedule-unanswered-report.ts';
+import { updateTurnCompleted } from './update-turn-completed.ts';
+import { updateTurnStarted } from './update-turn-started.ts';
 
 const GUIDE_SECTION = {
   id: 'atc-bridge:messages',
