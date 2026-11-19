@@ -54,14 +54,8 @@ function setupTest() {
 
   sprites.addConnector({ id: 'conn_example', provider: 'custom_api', namePrefix: 'atc-' });
 
-  // holds the second listExecs call after holdExecLists() until the returned release runs: the
-  // relay's mux link lists first, and the harness lists next
   let held: Promise<void> | null = null;
   let listCalls = 0;
-
-  // holds the second boot-id read after holdBootRead() until the returned release runs, and lists
-  // the reads and exec lists that follow the hold: the relay's mux link reads first, and the
-  // harness reads next
   let bootReads = 0;
   let heldBoot: Promise<void> | null = null;
   let isBootHeld = false;
@@ -209,7 +203,6 @@ function setupTest() {
     isBootHeld: () => isBootHeld,
     readsAfterBootHold: () => [...afterBootHold],
 
-    // the stand-in for the mux: answers the daemon's latest hello once it is on the mux's stdin
     guest: {
       welcome: async (_session: string, answer: WelcomeAnswer) => {
         const muxID = await waitForMux();
@@ -527,7 +520,6 @@ test('it delivers each hook line once and in order across a dropped relay WebSoc
 
   ctx.sprites.dropConnections(ctx.sprite, muxID);
 
-  // the attach replays stdout from byte 0, so the guest's answer follows the old frames
   await ctx.guest.welcome('s1', { ack: 0, reset: false });
   await ctx.guest.write({ t: 'open', seq: 1, conn: 1 });
   await ctx.guest.write({ t: 'line', seq: 2, conn: 1, line: 'one' });
@@ -648,7 +640,6 @@ test('it opens no harness exec when it is detached while the sprite still lists 
 
   release();
 
-  // one macrotask turn lets every in-memory call the start would make settle
   await setImmediate();
 
   expect(ctx.sprites.requests.filter((entry) => entry.request.tty)).toStrictEqual([]);
@@ -672,7 +663,6 @@ test('it stops its setup at once when it is detached while the boot read is held
 
   release();
 
-  // one macrotask turn lets every in-memory call the start would make settle
   await setImmediate();
 
   expect(ctx.readsAfterBootHold()).toStrictEqual([]);
@@ -854,8 +844,6 @@ test('it reads a harness lost when a running sprite booted again since it was re
   await ctx.provider.suspendHost('h1');
 
   ctx.sprites.changeBootID(ctx.sprite);
-
-  // a client of its own keeps the sprite running
   ctx.sprites.openExec(ctx.sprite, { argv: ['sleep', '60'], tty: false, outlivesClients: true });
 
   const fates = await ctx.provider.readHarnessFates('h1', ['s1']);

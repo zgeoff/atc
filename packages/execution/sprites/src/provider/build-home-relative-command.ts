@@ -1,8 +1,7 @@
 import { posix } from 'node:path';
 import { ENTER_FROM_HOME_SCRIPT } from '../guest-scripts/enter-from-home-script';
 
-// A relative directory lies under the home of the sprite's user, and the shell enters it, since
-// the exec would take a missing working directory as an error.
+// The exec fails on a missing working directory, so the shell enters a relative one itself.
 export function buildHomeRelativeCommand(
   argv: readonly string[],
   cwd: string,

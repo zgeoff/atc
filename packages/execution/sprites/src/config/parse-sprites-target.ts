@@ -18,11 +18,9 @@ export type SpritesTargetParse =
 const DEFAULT_API_URL = 'https://api.sprites.dev';
 const DEFAULT_GUEST_DIR = '/home/sprite/.atc';
 
-// a sprite name is lowercase letters, digits and hyphens, and a prefix leaves room for a host key
+// Sprite names allow only lowercase letters, digits and hyphens.
 const PREFIX_PATTERN = /^[a-z0-9][a-z0-9-]{0,30}$/u;
 
-// The target's options with each default laid in, or the first problem with them. A problem
-// names a key, never a value.
 export function parseSpritesTarget(
   id: string,
   options: Readonly<Record<string, unknown>>,

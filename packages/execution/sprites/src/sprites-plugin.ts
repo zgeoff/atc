@@ -38,7 +38,6 @@ export const SPRITES_PLUGIN = definePlugin({
       throw new TargetUnavailableError(config.id, `target ${JSON.stringify(config.id)} ${problem}`);
     }
 
-    // each sprite runs the daemon's own binary, which a daemon run from source lacks
     if (!isCompiledBinary()) {
       throw new TargetUnavailableError(
         config.id,
@@ -62,7 +61,6 @@ export const SPRITES_PLUGIN = definePlugin({
   },
 });
 
-// why the token cannot be used, naming the variable or the file and never the value
 function readTokenProblem(
   source: SpritesTokenSource,
   env: Readonly<Record<string, string | undefined>>,
