@@ -112,8 +112,8 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     launch: HarnessLaunch,
     canProceed: () => boolean,
   ): Promise<HarnessHandle> => {
-    // The outdated harness stops being the session's terminal first, so
-    // its exit leaves the session as it is.
+    // Clearing the session's terminal before the kill makes the old harness's exit handler skip the
+    // session, so the exit does not mark it stopped.
     session.pty = null;
 
     const settled = Promise.withResolvers<void>();
@@ -170,8 +170,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     });
   };
 
-  // The host stays readying across both harnesses so it is never idle between them and no other
-  // revive of the session starts.
   const restartOutdatedHarness = async (
     session: Session,
     outdated: HarnessHandle,

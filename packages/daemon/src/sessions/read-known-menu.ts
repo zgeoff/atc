@@ -8,7 +8,6 @@ export async function readKnownMenu(terminal: MenuTerminal): Promise<ScreenMenu 
   const known = terminal.findWholeMenu();
   const expanded = shown === null || known === null ? null : expandScreenMenu(shown, known);
 
-  // any other screen drops the kept whole menu, so a menu that closes and reopens is read afresh
   terminal.recordWholeMenu(expanded);
 
   return expanded ?? shown;

@@ -4,8 +4,6 @@ import type { SessionID } from '@atcx/contract';
 import { RESOLVE_UNLINKED_DIR_SCRIPT, resolveHostDir } from './resolve-host-dir';
 import { resolveHostHome } from './resolve-host-home';
 
-// A relative directory that cannot be entered, such as one removed inside the guest,
-// resolves from the host's home, unless a missing part of the path is a symlink.
 export async function resolveFromHome(
   provider: ExecutionProvider,
   hostKey: SessionID,

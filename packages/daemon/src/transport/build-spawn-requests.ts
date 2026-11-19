@@ -280,9 +280,8 @@ async function applySpawn(
   const sessionID = toSessionID(spawned.session.id);
   const grant = ctx.findSessionGrant(sessionID);
 
-  // A live session whose tree left the view before the answer goes out gets the refusal a
-  // replay out of reach gets; a replayed session no longer live was checked against its
-  // fleet row by the replay itself.
+  // The replay path already checks a replayed session against its fleet row. A live session can
+  // leave the view before the answer goes out, so it gets the same refusal as an unreachable replay.
   if (grant !== null && !ctx.isSessionVisible(sessionID)) {
     throw buildTargetForbiddenError(grant.target);
   }

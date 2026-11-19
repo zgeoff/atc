@@ -122,9 +122,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const runHooks = makeHookRunner(opts.hooks ?? {}, { clock });
 
-  // Any local process reads the events socket, a process inside a session
-  // too: the socket only streams, so the session a peer runs inside binds
-  // nothing on it.
+  // Any local process can read this socket, including one running inside a session. It only
+  // streams events and accepts no commands, so it checks no session identity.
   const eventsServer =
     opts.eventsSocketPath === undefined
       ? null
@@ -216,8 +215,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const event = buildSessionEvent(manager, kind, session);
 
     if (event !== null) {
-      // A removed session is already gone from the manager's list, so a lookup by ID finds nothing.
-      // Reading the scope from the session itself keeps dir-filtered hooks firing for removals.
+      // A removed session has already left the session list, so a lookup by ID finds nothing.
+      // Hooks filtered by directory still need its scope when the removal event fires.
       emitEvent(event, { cwd: session.cwd, repoRoot: session.repoRoot });
     }
   };

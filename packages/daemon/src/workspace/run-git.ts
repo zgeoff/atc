@@ -78,8 +78,8 @@ export async function runGit(
       ...options.env,
       ...(isolated ? ISOLATED_ENV : {}),
 
-      // A url rewrite in the host config can point a fetch at another transport. This protocol list
-      // still limits it.
+      // A url rewrite in the host config can send a fetch over a transport the caller did not pick.
+      // Git checks the rewritten url against the allowed protocols too.
       GIT_TERMINAL_PROMPT: '0',
       LC_ALL: 'C',
       GIT_ALLOW_PROTOCOL: (options.transports ?? DEFAULT_GIT_TRANSPORTS).join(':'),

@@ -44,8 +44,6 @@ export function createEventTrail(deps: EventTrailDeps): EventTrail {
   const clock = deps.clock;
   const eventSignal = deps.eventSignal;
 
-  // A live session's scope also matches the rows it wrote under an earlier atc id, through
-  // the agent session id a restore carries on.
   const buildEventScope = (
     sessionID: SessionID | null,
     access: TargetAccess | null,
@@ -129,7 +127,7 @@ export function createEventTrail(deps: EventTrailDeps): EventTrail {
         if (rows.length > 0 || remaining <= 0 || eventSignal.disposed) {
           const naming = collectNamingDescriptors(access);
 
-          // Under an access an alias would replace the atc id that the send check reads, so each event
+          // Under an access, an alias would replace the atc id that the send check reads. Each event
           // keeps the atc id it was recorded under.
           const aliases = access === null ? naming : [];
 

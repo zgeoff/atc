@@ -230,8 +230,8 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       initialMsg = spawn.resume === false ? 'started' : 'adopting…';
     }
 
-    // The harness's first output can arrive in the next microtask and is kept only once the session
-    // has booted, so the session lists and boots in the same turn as the start.
+    // The harness can emit output in the next microtask, and the daemon drops output until the session
+    // has booted. List and boot the session in the same turn as the spawn.
     const session = steps.runNow(
       'harness',
       () => {

@@ -26,8 +26,8 @@ export function checkGitTransport(url: string, transports: readonly string[]): T
   };
 }
 
-// `<transport>::<address>`, which runs git's remote helper for the
-// transport, such as `ext::` or `fd::`.
+// git runs a remote helper for `<transport>::<address>` URLs, such as `ext::` or `fd::`, even
+// though no scheme is present.
 const HELPER_PATTERN = /^(?<name>[A-Za-z][\w+.-]*)::/u;
 const SCHEME_PATTERN = /^(?<name>[A-Za-z][\w+.-]*):\/\//u;
 

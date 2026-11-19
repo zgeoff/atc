@@ -91,9 +91,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const isStopped = () => params.isStopped?.() === true;
   const beganAtMs = clock.now();
 
-  // A session whose terminal an earlier restore could not start is not live until a headless turn
-  // starts for it. A session that resumed the same agent session on another target does not count,
-  // because the fleet keeps one row per target.
   const hasLiveSession = (entry: FleetEntry) =>
     manager.sessions.some(
       (session) =>

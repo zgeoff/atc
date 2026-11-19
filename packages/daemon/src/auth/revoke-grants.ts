@@ -5,8 +5,6 @@ import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 import { tryRevokeGrant } from './try-revoke-grant';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
-// A host that the broker no longer lists took all of its grants with it, so nothing is left to
-// revoke one by one.
 export async function revokeGrants(
   ledger: RuntimeAuthLedger,
   host: CredentialBroker | null,

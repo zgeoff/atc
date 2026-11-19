@@ -65,8 +65,6 @@ export interface HookIntake {
 
   readonly applyNote: (hookEvent: HookEvent, noteID?: string) => Promise<void>;
 
-  // A headless turn has no terminal hooks of its own, so the daemon writes
-  // its start and end to the trail under a synthetic event name.
   readonly recordHeadlessTurnEvent: (sessionID: SessionID, ev: Readonly<AdapterEvent>) => void;
   readonly recordScreenNeedsInput: (sessionID: SessionID, message: string) => Promise<boolean>;
 

@@ -9,8 +9,8 @@ export const RESPONSE_FIELDS = [
   { name: 'blocks', value: '"$blocks"', pattern: String.raw`[\d+/=A-Za-z\n]*` },
 ] as const;
 
-// dd copies the blocks to a file first, since a pipeline exits with its last command's status and
-// a reader before it that stops early, such as tail before head, ends on a broken pipe.
+// dd writes to a temp file instead of a pipe because a pipeline reports only its last command's
+// exit status, so a dd failure or a broken pipe from a reader that quits early would go unseen.
 export const READ_TRANSCRIPT_WINDOW_SCRIPT = `[ -f "$1" ] || exit ${NO_TRANSCRIPT_CODE}
 size=$(wc -c < "$1") || exit 1
 window=$(mktemp) || exit 1

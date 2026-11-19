@@ -193,8 +193,6 @@ export interface SessionManager {
   readonly attach: (id: SessionID) => void;
   readonly ack: (id: SessionID) => void;
 
-  // A harness on the daemon's own machine ends with the daemon. One on a remote host keeps
-  // running for the next daemon to attach.
   readonly detachAll: () => void;
 
   readonly [Symbol.dispose]: () => void;

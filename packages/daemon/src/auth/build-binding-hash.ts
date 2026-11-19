@@ -10,8 +10,6 @@ interface HashedBinding {
   readonly telemetryHost: string | null;
 }
 
-// Stored hashes must stay valid, so a github secret with the default rules hashes with none
-// and the old broker placeholder hashes the same as the current one.
 export function buildBindingHash(binding: HashedBinding): string {
   const secrets = binding.secrets.map((secret) =>
     secret.kind === 'github' && isDeepStrictEqual(secret.rules, GITHUB_SECRET_RULES)

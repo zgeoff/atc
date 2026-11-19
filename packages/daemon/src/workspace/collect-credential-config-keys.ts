@@ -23,7 +23,6 @@ function isCredentialEntry(lowered: string, key: string, value: string): boolean
     return true;
   }
 
-  // an Authorization header rides in an http extra header
   if (lowered.startsWith('http.') && lowered.endsWith('.extraheader')) {
     return true;
   }

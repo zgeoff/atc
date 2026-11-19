@@ -46,8 +46,8 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
 
   term.loadAddon(serializer);
 
-  // the serializer drops the input-encoding state a fullscreen agent sets,
-  // so these handlers track it for the replay
+  // The xterm serialize addon omits the input-encoding modes a fullscreen agent sets, so a replay
+  // would lose them.
   for (const final of ['h', 'l'] as const) {
     term.parser.registerCsiHandler({ prefix: '?', final }, (params) => {
       for (const parameter of params) {
@@ -94,9 +94,8 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
     } while (pending !== flushed);
   };
 
-  // the client is always in alternate mode, where the buffer switch clears
-  // nothing, so a normal-buffer paint before it would show through blank
-  // cells: keep only what follows the last switch
+  // The client is always in alternate mode, where a buffer switch clears nothing, so normal-buffer
+  // paint from before the last switch would show through the blank cells.
   const renderVisibleScreen = (): string => {
     const serialized = serializer.serialize();
     const altSwitch = `${ansi.altScreenOn}${ansi.cursorHome}`;

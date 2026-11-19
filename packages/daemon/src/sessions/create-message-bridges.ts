@@ -116,8 +116,8 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
 
         await applyNote({ atcId: sessionID, event: 'Note', payload: { ...payload } });
 
-        // The bridge settles a message the App Server refused without an ack, so the inbox drains here
-        // to free the tap.
+        // The bridge settles a message the App Server refused without sending an ack, so no ack path
+        // drains the inbox. This drain frees the tap for the next queued message.
         void messages.drainSessionInbox(sessionID);
 
         return true;

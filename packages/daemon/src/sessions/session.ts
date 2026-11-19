@@ -21,7 +21,6 @@ export interface Session {
   lastMsg: string;
   lastDetail?: string;
 
-  // Attaching or a screen judgment leaves it set. Only a later agent event closes the prompt.
   permissionPending?: boolean;
   agentSessionID?: AgentSessionID;
   agent: AgentID;
@@ -41,8 +40,6 @@ export interface Session {
   // A sub-session never owns another, so nesting is one level deep.
   parent: SessionID | null;
 
-  // The session the spawn request came from, which can be a sub-session spawning a sibling.
-  // Null when the request came from outside every session.
   spawner: SessionID | null;
 
   atcAccess?: readonly GrantScope[];
@@ -51,18 +48,13 @@ export interface Session {
 
   result?: string;
 
-  // A restored path never changes whether a revive is allowed.
   transcriptPath?: string;
 
-  // Absent means the agent's configured default. Every revive passes both again.
   model?: string;
   effort?: string;
 
-  // Absolute paths on the daemon's machine. Every revive loads them again.
   pluginDirs?: readonly string[];
 
-  // Every revive runs on the same target, and only while the target still has the identity it
-  // had when the session started there.
   target: string;
   targetIdentity: string;
 
@@ -81,8 +73,6 @@ export interface Session {
   // top-level session and the sub-sessions beside it.
   hostKey: SessionID;
 
-  // The epoch of the session's latest harness start or attach, which the
-  // daemon's bridge to that harness is bound to; 0 before the first.
   bridgeEpoch: number;
 
   // The runtime auth revision the session's latest harness launched under;
@@ -93,8 +83,7 @@ export interface Session {
 
   trustedRoot?: string;
 
-  // The refusal a restore's last try at a terminal ended with, when no
-  // later try lifts it: its code, and the message the session listed with.
-  // It holds only while the session still lists that message.
+  // The code and message of the refusal that ended the last restore attempt at a terminal.
+  // It applies only while the session's listed message still equals this message.
   restoreRefusal?: { readonly code: string; readonly message: string };
 }

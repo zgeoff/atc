@@ -39,8 +39,7 @@ export interface HarnessPlan extends SpawnPlan {
 
   readonly agentHome?: string;
 
-  // The host's binding must still admit these values when each request goes out. Null when the
-  // launch has no runtime auth.
+  // The host's binding must still admit these values when each request goes out.
   readonly admission: {
     readonly revision: number;
     readonly hash: string;

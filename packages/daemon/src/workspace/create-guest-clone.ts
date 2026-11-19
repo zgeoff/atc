@@ -110,5 +110,5 @@ export async function createGuestClone(
   return { ok: true };
 }
 
-// The host runs commands in its own environment, so the clone unsets every
-// variable that could point git at another repository first.
+// The host runs commands in its own environment, which can carry git variables such as GIT_DIR
+// that point git at a different repository.

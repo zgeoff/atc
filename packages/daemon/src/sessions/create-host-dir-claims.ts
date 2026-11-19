@@ -85,8 +85,6 @@ export interface HostDirClaims {
 
   readonly withRemovalHold: <T>(hold: RemovalHold, run: () => Promise<T>) => Promise<T>;
 
-  // A relative directory resolves from the home of the user the provider runs as, which is where a
-  // harness starts. A custom script must print the same form.
   readonly resolveHostDir: (
     provider: ExecutionProvider,
     hostKey: SessionID | null,
@@ -347,8 +345,8 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       return removeClaimedDir(options);
     }
 
-    // A directory the host could not resolve, even from its home, may lie
-    // inside through a symlink, so the rollback keeps its own.
+    // A directory of another session that the host could not resolve may point into this one through
+    // a symlink, so the directory stays in place.
     if (fromHome === null) {
       return false;
     }

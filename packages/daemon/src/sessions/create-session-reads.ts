@@ -56,8 +56,8 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       const result = live.result ?? null;
       const createdAt = live.createdAt;
 
-      // Under an access the agent session id links nothing: a session that shared it may be gone
-      // while its rows remain in the trail. It also links nothing when another target resumed it.
+      // Skip the agent session id for an access read: a session that shared it may be gone while its
+      // rows stay in the trail. Skip it too when another target resumed the session.
       const shared = manager.sessions.some(
         (x) =>
           x.agentSessionID === live.agentSessionID &&

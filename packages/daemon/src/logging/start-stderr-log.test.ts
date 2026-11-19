@@ -29,8 +29,8 @@ async function setupTest() {
   // needs a named pipe so the daemon's writes can block.
   await runCommand(['mkfifo', fifoPath]);
 
-  // Opening the read end without blocking lets the write end open at once. This end never reads,
-  // so the daemon's writes block once the pipe is full.
+  // A blocking open of a named pipe waits for a writer, and this process opens the writer later.
+  // The non-blocking flag keeps the read open from hanging.
   const readEnd = openSync(fifoPath, constants.O_RDONLY | constants.O_NONBLOCK);
 
   registerTestCleanup(() => {

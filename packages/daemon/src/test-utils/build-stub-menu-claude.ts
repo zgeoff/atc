@@ -57,8 +57,8 @@ export function buildStubMenuClaude(clock: Clock = systemClock): StubMenuClaude 
       loaded = scenario;
     },
     start: (harness) => {
-      // A session that starts before any scenario loads stays idle, because other agents on the same
-      // provider start sessions that never show a menu.
+      // Other agents on the same provider start sessions that never show a menu, so a session that
+      // starts with no scenario loaded must stay idle.
       if (loaded === null) {
         return;
       }
@@ -116,8 +116,6 @@ function runStubMenuSession(
 ): (menu: StubMenu) => void {
   const [first] = scenario.menus;
 
-  // xstate's clock takes a timer id, and the stand-in's clock hands back a
-  // cancel.
   const cancels = new Map<number, () => void>();
 
   let nextTimerID = 0;

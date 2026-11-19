@@ -71,8 +71,8 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
     fleet.emitChange();
   };
 
-  // A conversation on another host never resumes on this one, so a remote session keeps its own
-  // agent session id when a session on another host already holds the one it reports.
+  // A conversation on another host never resumes on this one, so sessions on different hosts
+  // must not share an agent session id.
   const claimRemoteAgentSession = async (
     session: Session,
     agentSessionID: AgentSessionID,
@@ -164,9 +164,8 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
 
     const changed = match(ev.kind)
       .with('started', () => {
-        // Clearing or resuming inside a live terminal ends the old agent
-        // session and starts a new one in the same process, so the start
-        // supersedes the end's message. A gone terminal keeps it.
+        // Clearing or resuming inside a live terminal ends the old agent session and starts a new one
+        // in the same process.
         if (session.lastMsg === 'adopting…') {
           session.lastMsg = 'adopted';
 
@@ -228,8 +227,8 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
 
     dirty ||= changed;
 
-    // A full fleet write marks every session without a PTY as exited, so only a changed agent
-    // session id may use it. Every other update patches the one row.
+    // A full fleet write marks every session without a PTY as exited, so use it only when the agent
+    // session id changed.
     if (persist) {
       void fleet.tryWriteFleet(session.id);
     } else {

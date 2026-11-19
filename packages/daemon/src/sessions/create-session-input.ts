@@ -131,8 +131,8 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
     const pty = session.pty;
     const runtime = getRuntime(sessionID);
 
-    // Keys sent from outside a menu read can open a different list that looks like the cached
-    // full menu. The cached copy would then be stale, so it is discarded.
+    // Keys sent outside a menu read can open a different list that looks like the cached full menu,
+    // which makes the cached copy stale.
     runtime.wholeMenu = null;
 
     runtime.input.schedule(() => {

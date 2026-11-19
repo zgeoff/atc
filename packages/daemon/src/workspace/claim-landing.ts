@@ -46,8 +46,6 @@ mkdir -- "$2" && exit 0
 if [ -e "$2" ] || [ -L "$2" ]; then exit ${DIR_PRESENT_EXIT}; fi
 exit 5`;
 
-// `mkdir` without `-p` fails when the directory exists, so a materialization never unpacks
-// over files it did not put there
 async function claimTargetDir(
   request: MaterializeRequest,
   deps: MaterializeDeps,

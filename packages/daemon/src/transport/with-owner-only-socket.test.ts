@@ -55,7 +55,7 @@ test('it restores the process umask when the bind throws', () => {
     }),
   ).toThrowWithMessage(Error, 'bind failed');
 
-  // Setting the umask returns the one it replaces; the bare read form is
-  // deprecated because it writes the umask twice.
+  // Reading the umask with no argument is deprecated because it writes the umask twice.
+  // Setting it returns the previous value, so the test reads it that way.
   expect(process.umask(0o000)).toBe(0o000);
 });

@@ -78,8 +78,8 @@ export function buildAgentList(
       (target) => !target.remote && spawnTargets.includes(target.id),
     );
 
-    // only the profile and what the interface offers: no environment value, credential,
-    // helper command, or base URL may reach a client
+    // This entry is sent to clients. Never add an environment value, credential, helper command,
+    // or base URL to it.
     return {
       id: adapter.id,
       label: profile?.label ?? adapter.id,
@@ -93,7 +93,6 @@ export function buildAgentList(
         readTranscript: adapter.parseTranscriptLine !== undefined,
         message: adapter.takesMessages,
 
-        // every session runs in a PTY
         attach: true,
         screen: true,
         input: true,

@@ -14,7 +14,7 @@ interface StubBrokeredAgentAdapterConfig {
   // agent whose sessions already exist.
   readonly isJudgeSelected?: () => boolean;
 
-  // Read at each spawn, not once. A guest that ignores hangup never confirms an exit after a kill.
+  // A guest that ignores hangup never confirms an exit after a kill.
   readonly ignoresHangup?: () => boolean;
 }
 

@@ -82,8 +82,8 @@ export async function createHostAndGrants(
     }),
   );
 
-  // The first failure must not reject while other grants are still running, or the take-back would
-  // race them. Wait for every grant to finish, then throw.
+  // Rejecting on the first failure would start the take-back while other grants are still
+  // running, and the two would race.
   for (const result of granted) {
     getSettledValue(result);
   }

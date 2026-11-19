@@ -64,9 +64,9 @@ const TAP_OPEN_SCHEMA = z.looseObject({ notices: z.boolean().optional() });
 
 type BridgeRefusal = 'forbidden' | 'stale_binding' | 'not_tapping' | 'unknown_message';
 
-// the binding holds no secret: reaching the host's socket proves being inside that host, so
-// the per-session socket and binding stop processes crossing sessions by accident, never a
-// hostile process inside the same host
+// No secret guards this bridge: reaching the host's socket already proves the caller is inside
+// that host. The per-session socket stops sessions crossing by accident, but a hostile process
+// inside the same host can still connect.
 export function startSessionBridge(
   relay: HarnessRelay,
   binding: Readonly<BridgeBinding>,
