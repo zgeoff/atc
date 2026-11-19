@@ -21,7 +21,7 @@
 atc runs your coding agents in a daemon, on as many machines as you like. You drive them from the
 TUI, your scripts drive them from the shell, and the agents drive each other over MCP.
 
-## What that looks like
+## Usage
 
 Give an agent the whole fleet, or another machine's:
 
@@ -66,16 +66,12 @@ list, and `?` for the keys. Quit the TUI and the sessions keep running.
 
 ## Features
 
-- A Claude Code session can message one on another host and read the answer
-  ([messages](./docs/architecture/protocol/messages.md)).
-- `atc mcp` also serves over HTTP behind OAuth, for a hosted assistant such as Claude.ai
-  ([remote MCP](./docs/guides/remote-mcp.md)).
-- A session can run in a cloud VM through the imp provider. The VM sleeps when you stop the session
-  and wakes where it left off ([targets](./docs/guides/configuration/targets.md)).
-- `atc --daemon box` opens another machine's fleet, and `atc` lists every daemon in your config in
-  one place ([gateway](./docs/guides/gateway.md)).
-- A daemon restart or upgrade resumes every session's conversation from its transcript
-  ([restarting](./docs/guides/using-atc.md#restarting-the-daemon)).
+- Restart or upgrade the daemon, and every session picks up where it was.
+- Run sessions in [cloud VMs](./docs/guides/configuration/targets.md) that sleep when you stop them
+  and wake where they left off.
+- Every machine's sessions show up in [one list](./docs/guides/gateway.md).
+- Serve the fleet over [HTTP behind OAuth](./docs/guides/remote-mcp.md), so a hosted assistant can
+  drive it too.
 
 ## Documentation
 
