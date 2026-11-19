@@ -52,16 +52,18 @@ daemon releases the key for a retry.
 
 ### The relay
 
-The session bridge is the socket inside the host that the agent's hook and note reporters write
-their lines to. On imp, impd forwards the bridge to the daemon. Every other remote provider carries
-it over a byte stream of its own, such as a container's attach or an exec's stdin and stdout,
-through one relay:
+The session bridge is the socket inside the host that the agent's hook and note reporters connect
+to, one connection per reporter, to write their lines. Every remote provider declares `relay` to
+carry it. The imp provider has impd forward the bridge to the daemon. Every other remote provider
+carries it over a byte stream of its own, the link, such as a container's attach or an exec's stdin
+and stdout, through one relay:
 
 - On the daemon's side, `openStreamRelay` in `@atc/plugin-api` numbers and acks the frames both
   ways, and replays the unacked ones after a dropped connection. The provider supplies only the
   stream.
 - On the host's side, `atc relay-mux <socket>` binds the bridge socket before it reads stdin, so a
-  reporter never finds the socket missing, and keeps its bridges when stdin closes.
+  reporter never finds the socket missing, and keeps the reporters' connections open when stdin
+  closes.
 
 Each connection opens with a hello from the daemon, and the mux answers with a welcome. These rules
 hold:
@@ -75,11 +77,12 @@ hold:
   with `replace: true`. The provider's link then stops the old mux and starts a new one, which
   answers with `reset: true`.
 - Each `openStreamRelay` call takes a new relay id, so a daemon restart or a revive resets the mux.
-  The mux then closes its bridges and drops their unacked frames, and both sides number from 1
-  again. A hook line in flight is lost. A note is not, because the note reporter keeps it in its
-  outbox and sends it again.
-- When the link ends `lost`, because the host no longer runs the mux, the daemon closes every bridge
-  connection and stops its retries. The harness's exit then reaches the daemon the usual way.
+  The mux then closes every reporter's connection and drops its unacked frames, and both sides
+  number from 1 again. A hook line in flight is lost. A note is not, because the note reporter keeps
+  it in its outbox and sends it again.
+- When the link ends `lost`, because the host no longer runs the mux, the daemon closes every
+  reporter's connection and stops its retries. The harness's exit then reaches the daemon the usual
+  way.
 - Each side holds at most `MAX_UNACKED_BYTES` of unacked frames. On the daemon's side, `writeLine`
   settles only once its frame fits. On the mux's side, a new reporter connection waits, and the
   sockets pause, until acks free room.

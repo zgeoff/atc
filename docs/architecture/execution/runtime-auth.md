@@ -86,8 +86,8 @@ without a step.
 
 ## Spawning
 
-A spawn checks everything before it writes anything, so a refused spawn leaves no binding, no imp
-and no grant behind:
+A spawn runs these checks before it writes anything, so a spawn that they refuse leaves no binding,
+no imp and no grant behind:
 
 1. impd must be no older than the oldest impd atc supports.
 2. The daemon's impd token must manage imps only inside the target's name prefix and must be able to

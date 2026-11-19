@@ -98,14 +98,14 @@ refresh token, so sessions that shared one file would break each other's sign-in
 
 The provider refuses with `host_unavailable` and one of these problems:
 
-| Problem               | When                                                                                |
-| --------------------- | ----------------------------------------------------------------------------------- |
-| `image_missing`       | the Engine lacks the image, which the provider never pulls                          |
-| `engine_unreachable`  | the Engine does not answer at `socket`                                              |
-| `engine_unsupported`  | the Engine is not Linux, or runs another architecture than the daemon binary        |
-| `sign_in_missing`     | the sign-in volume is missing, or holds no token file                               |
-| `host_exists`         | an object of the host's name carries the labels of another host or target           |
-| `host_leased`         | an object carries another daemon's label                                            |
-| `image_user_unusable` | the image's user has no home folder of its own                                      |
-| `busy`                | the daemon asks `suspendHost` to pause an idle host, and a session still runs on it |
-| `engine_error`        | the Engine answered with any other error                                            |
+| Problem               | When                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `image_missing`       | the Engine lacks the image, which the provider never pulls                                                         |
+| `engine_unreachable`  | the Engine does not answer at `socket`                                                                             |
+| `engine_unsupported`  | the Engine is not Linux, or runs another architecture than the daemon binary                                       |
+| `sign_in_missing`     | the sign-in volume is missing, or holds no token file                                                              |
+| `host_exists`         | an object of the host's name carries the labels of another host or target                                          |
+| `host_leased`         | an object carries another daemon's label                                                                           |
+| `image_user_unusable` | the image's user has no home folder of its own                                                                     |
+| `busy`                | after a refused start, the daemon asks `suspendHost` to pause the host again, and another session still runs on it |
+| `engine_error`        | the Engine answered with any other error                                                                           |
