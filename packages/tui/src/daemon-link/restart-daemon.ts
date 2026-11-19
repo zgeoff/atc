@@ -10,8 +10,6 @@ import type { DaemonName } from '../fleet/session-key';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
 import { cols } from '../terminal/cols';
 
-// What a restart borrows from the client that owns the screen, the fleet
-// mirror, and the daemon connection.
 export interface RestartDaemonDeps<TLink> {
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
@@ -34,9 +32,6 @@ export interface RestartDaemonDeps<TLink> {
 }
 
 export async function restartDaemon<TLink>(deps: RestartDaemonDeps<TLink>) {
-  // The step `atc daemon restart` takes: the user service that runs the
-  // daemon restarts, or the daemon stops. A daemon that cannot be found or
-  // restarted stays in service, and the client stays on it.
   const socketPath = deps.getBoot().socketPath;
   let restarted: boolean;
 
@@ -58,16 +53,13 @@ export async function restartDaemon<TLink>(deps: RestartDaemonDeps<TLink>) {
     return;
   }
 
-  // a new daemon may map aliases and targets differently, so rows fall back to the config
-  // baseline, and the target column hides, until its own answer arrives.
+  // a new daemon may map aliases and targets differently
   const baseline = resolveAgentMetadata(deps.readConfig(), {});
 
   deps.overlay.agentLabels = baseline.labels;
   deps.overlay.agentModels = baseline.models;
   deps.overlay.availableTargets = 0;
 
-  // The transport reconnects once the old connection is dropped, and
-  // refuses the old daemon while it still answers.
   deps.service.send({ type: 'RESTART_AWAITING_FRESH', freshUntil: deps.clock.now() + 8000 });
 
   const old = deps.transport.findLatest();
@@ -76,9 +68,6 @@ export async function restartDaemon<TLink>(deps: RestartDaemonDeps<TLink>) {
     deps.transport.stopConnection(old);
   }
 
-  // A new daemon that has not answered by the deadline shows as a wait like
-  // any other, with each failed open logged; the restore still runs once
-  // it answers.
   const cancelLate = deps.clock.schedule(() => {
     deps.service.send({ type: 'RESTART_ENDED', connected: false });
     deps.logClientEvent('restart: the new daemon has not answered in 8s; still trying');

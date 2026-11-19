@@ -2,7 +2,6 @@ import { ansi } from '@atc/core';
 import type { ProtocolMismatch } from '@atc/protocol';
 import type { ClientActor } from '../client/build-client-machine';
 
-// What the prompt borrows from the client that owns the screen.
 export interface RestartConsentDeps {
   readonly service: ClientActor;
   readonly drawMode: () => void;
@@ -32,8 +31,6 @@ export async function waitForRestartConsent(
       deps.service.send({ type: 'CONSENT_ASKED', consent: { prompt, answer: resolve } });
     });
 
-    // The mode under the prompt may have changed while the reconnect
-    // waited, so the screen it owns is drawn again rather than left blank.
     process.stdout.write(ansi.clear);
     deps.drawMode();
 

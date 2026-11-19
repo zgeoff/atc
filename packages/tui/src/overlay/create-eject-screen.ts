@@ -8,8 +8,6 @@ import type { SessionKey } from '../fleet/session-key';
 import { drawPicker } from '../terminal/draw-overlay';
 import { planTextEdit } from '../terminal/key';
 
-// What the eject prompt borrows from the client that owns the screen and the
-// daemon connection.
 export interface EjectScreenDeps {
   readonly service: ClientActor;
   readonly actions: SessionActions;
@@ -19,12 +17,9 @@ export interface EjectScreenDeps {
   readonly scheduleStatus: () => void;
 }
 
-// The prompt that takes the instruction a session runs on headless once it
-// is ejected.
 export interface EjectScreen {
   readonly open: (key: SessionKey) => void;
 
-  // The session the prompt opened on, so the client can drop the prompt when it leaves the list.
   readonly findTarget: () => SessionKey | null;
   readonly render: () => void;
   readonly applyKey: (buf: Buffer) => void;
@@ -48,7 +43,6 @@ export function createEjectScreen(deps: EjectScreenDeps): EjectScreen {
   };
 
   const yankToHeadless = async (instruction: string) => {
-    // The key was set when the screen opened, so the eject acts on the session it opened on.
     const key = target;
 
     if (key === null) {

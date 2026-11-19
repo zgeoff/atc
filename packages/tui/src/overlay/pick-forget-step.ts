@@ -2,9 +2,6 @@ import { posix } from 'node:path';
 import { WORKSPACE_CLEANUP_SCHEMA } from '@atcx/contract';
 import { match } from 'ts-pattern';
 
-// What the overlay does with the daemon's answer to a forget: ask once more
-// before the forget destroys the session's host, show a notice on the hint
-// line, or nothing.
 export type ForgetStep =
   | { readonly step: 'confirm' }
   | { readonly step: 'notice'; readonly notice: string }

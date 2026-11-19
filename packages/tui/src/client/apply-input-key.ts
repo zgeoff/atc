@@ -7,8 +7,6 @@ import type { SpawnPicker } from '../picker/create-spawn-picker';
 import { KEY } from '../terminal/key';
 import type { ClientMode, RestartConsent } from './build-client-machine';
 
-// What a key from stdin borrows from the client that owns the screen, on top
-// of what the overlay's keys borrow.
 export interface InputKeyDeps extends OverlayKeyDeps {
   readonly picker: SpawnPicker;
   readonly eject: EjectScreen;

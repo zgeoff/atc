@@ -2,13 +2,9 @@ import type { Config } from '@atc/config';
 import type { AgentID } from '@atc/core';
 import { isRecord } from '@atc/core';
 
-// What the overlay needs to know per agent to label a row: the readable
-// name, and the tier-alias map a gateway's env configures.
 export interface AgentMetadata {
   readonly labels: Readonly<Record<AgentID, string>>;
 
-  // Per agent id, the alias-to-model mapping an `agents.list` entry
-  // carries; absent for agents that take models by name only.
   readonly models: Readonly<Record<AgentID, Readonly<Record<string, string>>>>;
 }
 
@@ -28,8 +24,7 @@ export function resolveAgentMetadata(config: Config, listed: unknown): AgentMeta
         continue;
       }
 
-      // the answer wins, so a backend the daemon registers under a stand-in adapter still
-      // lists under its own name.
+      // a backend the daemon registers under a stand-in adapter still lists under its own name.
       if (typeof entry['label'] === 'string' && entry['label'] !== '') {
         labels[entry['id']] = entry['label'];
       }
@@ -49,8 +44,6 @@ function isSafeKey(key: string): boolean {
   return key !== '__proto__';
 }
 
-// The alias-to-model entries of an `agents.list` model map, keeping the
-// string values a row can resolve and dropping anything else.
 function pickModelAliases(values: Readonly<Record<string, unknown>>): Record<string, string> {
   const aliases: Record<string, string> = {};
 

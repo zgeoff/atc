@@ -20,8 +20,6 @@ export function isDown(buf: Buffer): boolean {
 export interface TextEditOptions {
   readonly isLeaderKey: (buf: Buffer) => boolean;
 
-  // Only a screen with a list under its input answers the arrow keys; a
-  // plain prompt treats them as unprintable noise.
   readonly moves: boolean;
 }
 
@@ -39,7 +37,7 @@ export function planTextEdit(
   opts: Readonly<TextEditOptions>,
 ): TextEdit {
   // Pasted chunks arrive as one buffer: read it character by character so a
-  // trailing newline still submits. Escape sequences stay intact.
+  // trailing newline still submits.
   if (buf.length > 1 && buf[0] !== KEY.esc) {
     let value = input;
 

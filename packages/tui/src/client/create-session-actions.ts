@@ -10,8 +10,6 @@ import { pickForgetStep } from '../overlay/pick-forget-step';
 import { cols } from '../terminal/cols';
 import type { ClientActor, ClientMode } from './build-client-machine';
 
-// What the actions borrow from the client that owns the screen, the fleet
-// mirror, and the daemon connection.
 export interface SessionActionsDeps {
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
@@ -21,24 +19,14 @@ export interface SessionActionsDeps {
   readonly attach: (key: SessionKey) => Promise<void>;
   readonly ptyRows: () => number;
 
-  // Tells the status bar why a request on a daemon failed, or that its link is not up.
   readonly reportFailure: (daemon: SessionKey['daemon'], error: unknown) => void;
 }
 
-// The requests the overlay makes on one session, which never throw. Each goes to the daemon that
-// holds the session, and sends nothing when that daemon's link is not up.
 export interface SessionActions {
-  // A kill the daemon refuses because forgetting the session destroys its
-  // host asks once more before the forget.
   readonly sendKill: (key: SessionKey) => Promise<void>;
 
-  // Forgets a session that has exited. A forget that destroys the session's
-  // host asks once more instead. The hint line shows why the forget kept the
-  // session's workspace, or why the daemon refused it.
   readonly sendForget: (key: SessionKey) => Promise<void>;
 
-  // Takes the confirm token the daemon offers and hands it straight back:
-  // the operator already confirmed in the overlay.
   readonly sendDestroy: (key: SessionKey) => Promise<void>;
 
   readonly sendAck: (key: SessionKey) => Promise<void>;
@@ -46,8 +34,6 @@ export interface SessionActions {
 
   readonly adoptSession: (key: SessionKey) => Promise<void>;
 
-  // A failed overlay action lands in the session's message column, so the
-  // reason is visible instead of the action silently doing nothing.
   readonly recordActionFailure: (key: SessionKey, error: unknown) => void;
 
   readonly yankResume: (key: SessionKey, eject: boolean) => Promise<void>;
@@ -205,15 +191,12 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
           session.lastMsg = 'resume cmd copied';
         }
 
-        // Eject hands the session off entirely.
         if (eject) {
           void killQuietly(key);
         }
 
         renderOverlay();
       } catch (error) {
-        // A session the daemon cannot resume outside atc keeps running, and
-        // the reason replaces the copy notice.
         recordActionFailure(key, error);
         renderOverlay();
       }
@@ -221,8 +204,7 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
   };
 }
 
-// Best-effort clipboard: OSC 52 (works through zellij/tmux/ssh) plus any
-// local clipboard helper that exists.
+// OSC 52 works through zellij/tmux/ssh.
 function copyToClipboard(text: string) {
   process.stdout.write(`\u001B]52;c;${Buffer.from(text).toString('base64')}\u0007`);
 

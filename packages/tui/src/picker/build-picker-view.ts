@@ -97,8 +97,7 @@ function buildListView(ctx: PickerContext, deps: PickerDeps, verb: string): Pick
     ([, listing]) => listing.status === 'failed' && listing.listedFrom !== null,
   );
 
-  // An 80-column terminal leaves the hint row 72 characters, so the keys of
-  // a git source take the place of the path aside and the arrow keys.
+  // An 80-column terminal leaves the hint row 72 characters.
   const keys = [
     ...(git.length > 0
       ? ['type to filter', '⏎ select', '^r refresh']

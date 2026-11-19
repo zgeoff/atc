@@ -43,8 +43,7 @@ export function applyListSubmit(flow: PickerFlow) {
     return;
   }
 
-  // The git URL source reads any absolute path as a repository, so a typed
-  // path goes to the path source first, as a directory.
+  // The git URL source reads any absolute path as a repository, so a typed path goes to the path source first.
   if (isPathInput(typed)) {
     readTypedInput(
       flow,

@@ -11,43 +11,32 @@ import type { DaemonName } from '../fleet/session-key';
 import { DaemonLinkFailureError } from './daemon-link-failure-error';
 import type { DaemonLinkState } from './daemon-link-state';
 
-// How long a link that a daemon refused waits before it tries again, so a token fix or an
-// upgrade of the remote daemon heals the link without a client restart.
+// A token fix or an upgrade of the remote daemon heals a refused link without a client restart.
 const REFUSAL_RETRY_MS = 30_000;
 
-// What the links borrow from the client that owns the fleet mirror and the screen.
 export interface DaemonLinksDeps {
   readonly daemons: readonly TUIDaemon[];
   readonly clock: Clock;
   readonly mirror: Pick<FleetMirror, 'refresh'>;
   readonly onEvent: (daemon: DaemonName, event: DaemonEvent) => void;
 
-  // Reads what a daemon that came up says about its agents.
   readonly readAgents: (daemon: DaemonName, client: DaemonClient) => Promise<void>;
   readonly logEvent: (line: string) => void;
 }
 
-// Every daemon's link. The session actions, the picker, the overlay and the eject screen reach a
-// daemon only through `clientFor`.
 export interface DaemonLinks {
-  // The client of a daemon whose link is up, or null.
   readonly clientFor: (daemon: DaemonName) => DaemonClient | null;
   readonly stateOf: (daemon: DaemonName) => DaemonLinkState;
   readonly onChange: (listener: (daemon: DaemonName, state: DaemonLinkState) => void) => void;
 
-  // The daemons whose link is up, the primary first.
   readonly upDaemons: () => readonly DaemonName[];
 
-  // The agent the daemon's boot reported as last used.
   readonly lastUsedAgent: (daemon: DaemonName) => AgentID | null;
 
-  // Every configured daemon, the primary first.
   readonly listDaemons: () => readonly DaemonName[];
 
-  // The primary link belongs to the client's own connection, which reports where it stands.
   readonly setPrimary: (state: DaemonLinkState, boot?: DaemonBoot) => void;
 
-  // Opens the links of every daemon but the primary; none waits on another.
   readonly openRemotes: () => void;
   readonly stop: () => void;
 }
@@ -114,8 +103,7 @@ export function createDaemonLinks(deps: DaemonLinksDeps): DaemonLinks {
   const openRemote = (daemon: TUIDaemon & { readonly name: string }) => {
     const name = daemon.name;
 
-    // A refusal waits out its own retry inside the open, so each retry boots again and reads the
-    // token again; an unreachable daemon rejects, and the transport's backoff retries it.
+    // A refusal waits out its own retry inside the open, so each retry boots again and reads the token again.
     const open = async (): Promise<RemoteLink> => {
       for (;;) {
         try {

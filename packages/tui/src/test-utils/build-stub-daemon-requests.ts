@@ -10,18 +10,12 @@ interface StubRequest {
 }
 
 interface StubDaemonRequestsOptions {
-  // A count the client under test raises each time it acts on something,
-  // such as a draw or a callback it makes.
   readonly countReactions: () => number;
 
-  // Milliseconds each wait for a request or a reaction lasts before it
-  // rejects; five seconds when absent.
   readonly timeoutMs?: number;
 
-  // The clock each wait reads its deadline from; the wall clock when absent.
   readonly now?: () => number;
 
-  // Waits out the pause between a wait's checks; a real sleep when absent.
   readonly wait?: (delayMs: number) => Promise<void>;
 }
 

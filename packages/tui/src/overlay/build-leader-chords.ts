@@ -1,5 +1,5 @@
 // a fullscreen agent can switch the terminal into the kitty keyboard protocol or xterm's
-// modifyOtherKeys mid-session, so the leader matches the bare byte and both chords.
+// modifyOtherKeys mid-session.
 export function buildLeaderChords(code: number): readonly string[] {
   const base = getBaseCodePoint(code);
 
@@ -7,8 +7,7 @@ export function buildLeaderChords(code: number): readonly string[] {
 }
 
 // The enhanced encodings name the unshifted key, not the control byte it
-// maps to: ctrl-space carries space, ctrl-a through ctrl-z carry the
-// lowercase letter, and the punctuation controls carry their symbol.
+// maps to.
 function getBaseCodePoint(code: number): number {
   if (code === 0) {
     return 32;

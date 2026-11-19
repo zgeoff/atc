@@ -35,17 +35,12 @@ export interface LinkReactionsDeps {
 }
 
 export interface LinkReactions {
-  // Ends a confirmation or the eject prompt whose session left the list or whose daemon's link
-  // left up.
   readonly cancelStaleConfirmations: () => void;
 
-  // What the client does once a daemon's link changes state.
   readonly handleLinkChange: (daemon: DaemonName) => void;
 }
 
 export function createLinkReactions(deps: LinkReactionsDeps): LinkReactions {
-  // A confirmation or the eject prompt holds the key of the session it opened on, and ends once
-  // that session leaves the list or its daemon's link leaves up.
   const isStale = (key: SessionKey): boolean =>
     !deps.mirror.has(toSessionKey(key)) || deps.links.stateOf(key.daemon).kind !== 'up';
 
@@ -67,8 +62,6 @@ export function createLinkReactions(deps: LinkReactionsDeps): LinkReactions {
     }
   };
 
-  // A remote link that came back reattaches the session on screen when its refreshed list still
-  // holds it, and otherwise returns to the list.
   const resumeAttachedSession = (daemon: DaemonName) => {
     const focusedKey = deps.findFocusedKey();
 
@@ -97,8 +90,6 @@ export function createLinkReactions(deps: LinkReactionsDeps): LinkReactions {
     });
   };
 
-  // A picker open on a remote daemon that leaves `up` ends, and the status bar says where the
-  // daemon stands. The primary's own loss already ends the picker.
   const endPickerOn = (daemon: DaemonName) => {
     const state = deps.links.stateOf(daemon);
 
