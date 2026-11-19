@@ -9,6 +9,7 @@ import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { buildMockMessageRecord } from '@atc/store/test-utils/build-mock-message-record';
 import { toDaemonID, toMessageID, toSessionID } from '@atcx/contract';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 
 test('it answers session.get whose session leaves the view during the read as for a session that does not exist', async () => {
   const entered = Promise.withResolvers<void>();
@@ -34,6 +35,7 @@ test('it answers session.get whose session leaves the view during the read as fo
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -89,6 +91,7 @@ test('it answers session.screen whose session leaves the view during the read as
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -136,6 +139,7 @@ test('it answers session.menu whose session leaves the view during the read as f
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -194,6 +198,7 @@ test('it answers session.read whose session leaves the view during the read as f
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -245,6 +250,7 @@ test('it leaves out of events.read the events of a session that leaves the view 
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -305,6 +311,7 @@ test('it answers note.get whose session leaves the view during the read as for a
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -364,6 +371,7 @@ test('it answers note.get whose sender leaves the view during the read as for a 
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -423,6 +431,7 @@ test('it answers message.get whose session leaves the view during the wait as fo
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -479,6 +488,7 @@ test('it answers message.ack whose session leaves the view during the ack as for
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -537,6 +547,7 @@ test('it answers session.message whose session leaves the view during the write 
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -590,6 +601,7 @@ test('it refuses a spawn whose session leaves the view before the answer as a re
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
@@ -650,6 +662,7 @@ test('it leaves out of fleet.list a session that leaves the view during the read
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
       principal: 'narrow',
     }),
   );
