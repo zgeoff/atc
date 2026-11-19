@@ -1,7 +1,7 @@
 import type { GuestLayout } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
+import type { ImpPort } from '../port/imp-port';
 import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
-import type { ImpPort } from './imp-port';
 import INSTALL_GUEST_ATC_SCRIPT from './install-guest-atc.sh' with { type: 'text' };
 import LINK_GUEST_ATC_SCRIPT from './link-guest-atc.sh' with { type: 'text' };
 import { NO_GZIP_CODE } from './no-gzip-code';

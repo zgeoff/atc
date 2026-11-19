@@ -1,5 +1,5 @@
 import { ansi } from '@atc/core';
-import type { ImpSessionStarted } from './imp-port';
+import type { ImpSessionStarted } from '../port/imp-port';
 
 type SessionOffsets = Extract<ImpSessionStarted['output'], { continuity: 'offsets' }>;
 

@@ -1,5 +1,5 @@
-import type { ImpView } from './imp-port';
-import type { ImpdOutput } from './impd-contract';
+import type { ImpdOutput } from '../impd/impd-procedure';
+import type { ImpView } from '../port/imp-port';
 import { toImpLease } from './to-imp-lease';
 
 export function toImpView(

@@ -1,7 +1,7 @@
 import type { makeKeyedLock } from '@atc/core';
-import type { ImpHost } from './imp-host';
-import type { ImpPort } from './imp-port';
-import { ImpPortError } from './imp-port-error';
+import type { ImpHost } from '../port/imp-host';
+import type { ImpPort } from '../port/imp-port';
+import { ImpPortError } from '../port/imp-port-error';
 
 // The daemon's lease on each imp: its renewal while the imp is in use, and
 // its return once nothing runs or starts there.

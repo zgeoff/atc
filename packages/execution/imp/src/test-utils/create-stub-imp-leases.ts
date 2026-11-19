@@ -1,8 +1,8 @@
-import { buildImpdRefusal } from '../build-impd-refusal';
-import type { ImpLease } from '../imp-port';
-import { ImpPortError } from '../imp-port-error';
-import type { ImpdBareRefusalCode, ImpdOutput } from '../impd-contract';
-import { toImpLease } from '../to-imp-lease';
+import { toImpLease } from '../client/to-imp-lease';
+import { buildImpdRefusal } from '../impd/build-impd-refusal';
+import type { ImpdBareRefusalCode, ImpdOutput } from '../impd/impd-procedure';
+import type { ImpLease } from '../port/imp-port';
+import { ImpPortError } from '../port/imp-port-error';
 import { buildImpdLease } from './build-impd-lease';
 import { buildNotFound } from './build-not-found';
 import type { StubImpFleet } from './create-stub-imp-fleet';

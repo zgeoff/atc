@@ -1,5 +1,5 @@
-import { ImpPortError } from './imp-port-error';
-import type { ImpdOutput } from './impd-contract';
+import type { ImpdOutput } from '../impd/impd-procedure';
+import { ImpPortError } from '../port/imp-port-error';
 
 export function requireGuestScratchDir(
   info: Pick<ImpdOutput<'system.info'>, 'version' | 'guest'>,

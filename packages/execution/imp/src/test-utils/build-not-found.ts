@@ -1,5 +1,5 @@
-import { buildImpdRefusal } from '../build-impd-refusal';
-import type { ImpPortError } from '../imp-port-error';
+import { buildImpdRefusal } from '../impd/build-impd-refusal';
+import type { ImpPortError } from '../port/imp-port-error';
 
 // The procedures the stand-in answers on an imp it may not hold.
 type StubImpProcedure =

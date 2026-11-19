@@ -1,6 +1,6 @@
 import type { LaunchTicket } from '@atc/plugin-api';
+import type { ImpSessionRequest } from '../port/imp-port';
 import type { ImpHarnessHost } from './imp-harness-host';
-import type { ImpSessionRequest } from './imp-port';
 
 // What an admission needs of the harness whose request waits for it.
 interface AdmissionContext {

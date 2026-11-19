@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import type { ImpRelayConnection } from '../imp-port';
+import type { ImpRelayConnection } from '../port/imp-port';
 import { createStubImpForwards } from './create-stub-imp-forwards';
 
 // The forwards under test and a guest socket path in a temp directory; every

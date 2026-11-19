@@ -1,5 +1,5 @@
-import type { ImpLease } from './imp-port';
-import type { ImpdOutput } from './impd-contract';
+import type { ImpdOutput } from '../impd/impd-procedure';
+import type { ImpLease } from '../port/imp-port';
 
 export type ImpdLease = ImpdOutput<'leases.acquire'>;
 

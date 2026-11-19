@@ -1,5 +1,5 @@
-import type { ImpIdentity } from './imp-port';
-import type { ImpdOutput } from './impd-contract';
+import type { ImpdOutput } from '../impd/impd-procedure';
+import type { ImpIdentity } from '../port/imp-port';
 
 export function toImpIdentity(
   identity: Pick<ImpdOutput<'tokens.whoami'>, 'kind' | 'name' | 'scope' | 'imps' | 'grantable'>,

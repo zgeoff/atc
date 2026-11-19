@@ -1,5 +1,5 @@
-import { ImpPortError } from './imp-port-error';
-import type { ImpdProcedure, ImpdRefusal } from './impd-contract';
+import { ImpPortError } from '../port/imp-port-error';
+import type { ImpdProcedure, ImpdRefusal } from './impd-procedure';
 
 // The procedure argument only types the refusal against impd's contract.
 export function buildImpdRefusal<P extends ImpdProcedure>(

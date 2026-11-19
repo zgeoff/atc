@@ -2,8 +2,8 @@ import type { HarnessExit } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
+import type { ImpSessionOutcome } from '../port/imp-port';
 import { formatOutcome } from './format-outcome';
-import type { ImpSessionOutcome } from './imp-port';
 
 // How a refused precondition ends a harness: the exit, and the refusal its
 // start settles with when impd gave a reason the daemon knows.

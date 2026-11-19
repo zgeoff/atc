@@ -23,10 +23,10 @@ import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-
 import { SESSION_DESCRIPTOR_SCHEMA } from '@atcx/contract';
 import { checkSessionImp } from '@impz/client/identity';
 import invariant from 'tiny-invariant';
-import { createImpClientPort } from './create-imp-client-port';
+import { createImpClientPort } from './client/create-imp-client-port';
 import { createImpProvider } from './create-imp-provider';
-import READ_GUEST_ATC_SCRIPT from './read-guest-atc.sh' with { type: 'text' };
-import READY_GUEST_DIR_SCRIPT from './ready-guest-dir.sh' with { type: 'text' };
+import READ_GUEST_ATC_SCRIPT from './guest-atc/read-guest-atc.sh' with { type: 'text' };
+import READY_GUEST_DIR_SCRIPT from './guest-atc/ready-guest-dir.sh' with { type: 'text' };
 import { buildMockImpIdentity } from './test-utils/build-mock-imp-identity';
 import { createStubImpPort } from './test-utils/create-stub-imp-port';
 import { startStubImpd } from './test-utils/start-stub-impd';

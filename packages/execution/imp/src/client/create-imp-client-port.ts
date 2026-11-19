@@ -4,19 +4,19 @@ import { createImpClient, openExecSession, openReverseForward } from '@impz/clie
 import type { ExecOutcome, ExecSessionOptions, ImpClient } from '@impz/client';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
+import type { ImpdOutput } from '../impd/impd-procedure';
+import { requireImpdVersion } from '../impd/require-impd-version';
 import type {
   ImpCommand,
   ImpCommandResult,
   ImpPort,
   ImpSessionOutcome,
   ImpSessionRequest,
-} from './imp-port';
-import { ImpPortError } from './imp-port-error';
-import type { ImpdOutput } from './impd-contract';
+} from '../port/imp-port';
+import { ImpPortError } from '../port/imp-port-error';
 import { openGatedSocket } from './open-gated-socket';
 import { openRelay } from './open-relay';
 import { requireGuestScratchDir } from './require-guest-scratch-dir';
-import { requireImpdVersion } from './require-impd-version';
 import { toImpIdentity } from './to-imp-identity';
 import { toImpLease } from './to-imp-lease';
 import { toImpSecret } from './to-imp-secret';

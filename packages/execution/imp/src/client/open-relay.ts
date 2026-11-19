@@ -1,4 +1,4 @@
-import type { ImpRelayConnection } from './imp-port';
+import type { ImpRelayConnection } from '../port/imp-port';
 
 // How the client hands over a guest connection: the daemon accepts it with
 // its handlers and gets the relay back.

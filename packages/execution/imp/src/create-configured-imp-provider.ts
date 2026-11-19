@@ -1,10 +1,10 @@
 import { isEnvName, isReservedEnvName } from '@atc/config';
 import { isRecord } from '@atc/core';
 import { SESSION_ENV_NAMES } from '@atcx/contract/light';
-import { createImpClientPort } from './create-imp-client-port';
+import { readImpToken } from './auth/read-imp-token';
+import { createImpClientPort } from './client/create-imp-client-port';
 import { createImpProvider } from './create-imp-provider';
 import type { ImpProvider } from './create-imp-provider';
-import { readImpToken } from './read-imp-token';
 
 interface ImpProviderBuild {
   readonly provider: ImpProvider | null;
