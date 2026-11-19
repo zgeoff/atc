@@ -102,8 +102,8 @@ Read a feature's file before you run its journey.
 9. Push the branch, and open a PR when none is open: `publish` fails without one.
 10. Check that `VERIFY_UPLOAD_URL` and `VERIFY_UPLOAD_TOKEN_REF` are set. When either is empty, stop
     and report it as a blocker. Never run `op read` on its own: it prints the token.
-11. Publish the report, even when you skipped a feature. Read the token in a subshell, where `&&`
-    stops the command before `publish` runs when `op read` fails. Report that as a blocker:
+11. Publish the report, even when you skipped a feature. Read the token in a subshell: `&&` stops
+    the command before `publish` runs when `op read` fails, a blocker:
 
     ```bash
     (VERIFY_UPLOAD_TOKEN="$(op read "$VERIFY_UPLOAD_TOKEN_REF")" && export VERIFY_UPLOAD_TOKEN && bun verify publish)
