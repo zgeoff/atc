@@ -98,7 +98,9 @@ async function setupTest() {
         `name=${prefix}`,
       );
 
-      return names.filter((name) => !name.endsWith('-relay')).toSorted();
+      return names
+        .filter((name) => !name.endsWith('-relay') && !name.startsWith(`${prefix}run-`))
+        .toSorted();
     },
     listContainers: async () => {
       const names = await readDockerLines(
@@ -110,7 +112,8 @@ async function setupTest() {
         `name=${prefix}`,
       );
 
-      return names.toSorted();
+      // a throwaway container of the daemon's own may exist for a moment
+      return names.filter((name) => !name.startsWith(`${prefix}run-`)).toSorted();
     },
     listVolumes: async () => {
       const names = await readDockerLines('volume', 'ls', '-q', '--filter', `name=${prefix}`);
@@ -221,15 +224,17 @@ test('it starts the resume command in a new container when the harness container
     expect(listed).toMatchObject({ sessions: [{ alive: true }] });
   });
 
-  const [revived = ''] = await ctx.listHarnesses();
+  const starts = await waitFor(async () => {
+    const [revived = ''] = await ctx.listHarnesses();
 
-  await waitFor(async () => {
-    const starts = await ctx.readHomeFile(revived, 'starts.log');
+    expect(revived).not.toBe('');
 
-    expect(starts.split('\n')).toHaveLength(2);
+    const log = await ctx.readHomeFile(revived, 'starts.log');
+
+    expect(log.split('\n')).toHaveLength(2);
+
+    return log;
   });
-
-  const starts = await ctx.readHomeFile(revived, 'starts.log');
 
   expect(starts.split('\n')[1]).toInclude('--resume stand-in-1');
 });

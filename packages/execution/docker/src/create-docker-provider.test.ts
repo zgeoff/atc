@@ -254,7 +254,7 @@ test('it finds its own host again when a spawn retries', async () => {
 
   await ctx.provider.prepareHost(ctx.request);
 
-  await expect(ctx.provider.prepareHost(ctx.request)).resolves.toBeUndefined();
+  expect(ctx.provider.prepareHost(ctx.request)).resolves.toBeUndefined();
 });
 
 test('it refuses a host when the Engine lacks the image', async () => {
@@ -262,7 +262,7 @@ test('it refuses a host when the Engine lacks the image', async () => {
 
   ctx.engine.removeImage('example/agents:1');
 
-  await expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
+  expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'image_missing', image: 'example/agents:1' },
   });
@@ -273,7 +273,7 @@ test('it refuses a host when the Engine does not answer at its socket', async ()
 
   ctx.engine.setUnreachable(true);
 
-  await expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
+  expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'engine_unreachable', socket: '/var/run/docker.sock' },
   });
@@ -284,7 +284,7 @@ test('it refuses a host when the Engine does not run Linux', async () => {
 
   ctx.engine.setInfo({ osType: 'windows', architecture: 'x86_64' });
 
-  await expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
+  expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'engine_unsupported' },
   });
@@ -295,7 +295,7 @@ test('it refuses a host when the Engine runs another architecture than the daemo
 
   ctx.engine.setInfo({ osType: 'linux', architecture: 'riscv64' });
 
-  await expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
+  expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'engine_unsupported' },
   });
@@ -306,7 +306,7 @@ test('it refuses a host when the sign-in volume is missing', async () => {
 
   await ctx.engine.removeVolume('atc-sign-in');
 
-  await expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
+  expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'sign_in_missing', volume: 'atc-sign-in' },
   });
@@ -319,7 +319,7 @@ test('it refuses a host when the sign-in volume holds no token file', async () =
     spec.cmd[2] === READ_HOME_SCRIPT ? { stdout: '/home/agent', exitCode: 0 } : { exitCode: 1 },
   );
 
-  await expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
+  expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'sign_in_missing', volume: 'atc-sign-in' },
   });
@@ -330,7 +330,7 @@ test('it refuses a host when the image user has no home folder of its own', asyn
 
   ctx.engine.answerRuns(() => ({ stdout: '/', exitCode: 0 }));
 
-  await expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
+  expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'image_user_unusable' },
   });
@@ -341,7 +341,7 @@ test('it refuses a host when a volume of its name belongs to no host of the targ
 
   await ctx.seed.volume('atc-h1', {});
 
-  await expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
+  expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'host_exists' },
   });
@@ -352,7 +352,7 @@ test('it refuses a host when a volume of its name belongs to another target', as
 
   await ctx.seed.volume('atc-h1', { 'atc.target': 'other', 'atc.host': 'h1' });
 
-  await expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
+  expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'host_exists' },
   });
@@ -363,7 +363,7 @@ test('it refuses a host that another daemon holds', async () => {
 
   await ctx.seed.volume('atc-h1', ctx.buildLabels('h1', 'd-2', 'boot-1'));
 
-  await expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
+  expect(ctx.provider.prepareHost(ctx.request)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'host_leased' },
   });
@@ -374,7 +374,7 @@ test('it refuses to forget a host that another daemon holds and leaves its volum
 
   await ctx.seed.volume('atc-h1', ctx.buildLabels('h1', 'd-2', 'boot-1'));
 
-  await expect(ctx.provider.destroyHost('h1')).rejects.toMatchObject({
+  expect(ctx.provider.destroyHost('h1')).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'host_leased' },
   });
@@ -387,7 +387,7 @@ test('it refuses to put to sleep a host that another daemon holds', async () => 
 
   await ctx.seed.volume('atc-h1', ctx.buildLabels('h1', 'd-2', 'boot-1'));
 
-  await expect(ctx.provider.suspendHost('h1')).rejects.toMatchObject({
+  expect(ctx.provider.suspendHost('h1')).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'host_leased' },
   });
@@ -400,7 +400,7 @@ test('it forgets a host of its own after the daemon restarted, by the id it reco
 
   const restarted = ctx.restartProvider();
 
-  await expect(restarted.destroyHost('h1')).resolves.toBeUndefined();
+  expect(restarted.destroyHost('h1')).resolves.toBeUndefined();
 });
 
 test('it keeps a host awake that a session still runs on', async () => {
@@ -408,7 +408,7 @@ test('it keeps a host awake that a session still runs on', async () => {
 
   await ctx.provider.prepareHost(ctx.request);
 
-  await expect(ctx.provider.suspendHost('h1', () => false)).rejects.toMatchObject({
+  expect(ctx.provider.suspendHost('h1', () => false)).rejects.toMatchObject({
     code: 'host_unavailable',
     data: { problem: 'busy' },
   });
@@ -475,7 +475,7 @@ test('it writes a record into the records folder read-only and reports its path 
 test('it refuses a record path that leaves the records folder', async () => {
   const ctx = await setupTest();
 
-  await expect(ctx.provider.writeReadOnlyFile('h1', '../escape.json', '{}')).rejects.toThrow();
+  expect(ctx.provider.writeReadOnlyFile('h1', '../escape.json', '{}')).rejects.toThrow();
 });
 
 test('it unpacks an archive through a throwaway container that reads it on stdin', async () => {
@@ -582,7 +582,7 @@ test('it reads no fate of a host that another daemon holds', async () => {
 
   await ctx.seed.volume('atc-h1', ctx.buildLabels('h1', 'd-2', 'boot-1'));
 
-  await expect(ctx.provider.readHarnessFates('h1', ['s1'])).rejects.toMatchObject({
+  expect(ctx.provider.readHarnessFates('h1', ['s1'])).rejects.toMatchObject({
     data: { problem: 'host_leased' },
   });
 });
@@ -902,7 +902,7 @@ test('it refuses a sidecar-named container that carries another target and host,
   ctx.provider.spawnHarness(ctx.spec);
 
   await waitFor(() => {
-    expect(ctx.logged).toSatisfyAny((line) => line.includes('relay link did not open'));
+    expect(ctx.logged).toSatisfyAny((line: string) => line.includes('relay link did not open'));
   });
 
   const kept = await ctx.engine.readContainer('atc-s1-relay');

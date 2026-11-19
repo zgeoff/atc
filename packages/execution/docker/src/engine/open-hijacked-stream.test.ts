@@ -40,8 +40,8 @@ test('it hands a listener the output that arrived in the chunk of the headers', 
   expect(received.join('')).toBe('FIRST_SCREEN');
 });
 
-test('it refuses a request the Engine answers with an error status', async () => {
+test('it refuses a request the Engine answers with an error status', () => {
   const ctx = setupTest('HTTP/1.1 404 Not Found\r\n\r\n');
 
-  await expect(ctx.open()).rejects.toThrow(/status 404/u);
+  expect(ctx.open()).rejects.toThrow(/status 404/u);
 });
