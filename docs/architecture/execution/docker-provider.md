@@ -2,13 +2,20 @@
 
 The `docker` provider runs each Claude session in containers on the Docker Engine of the daemon's
 own Linux machine. It is a remote provider (`remote: true`), so a harness gets only atc's variables.
-It declares every capability except `headless`, and its credentials kind is `stored-token`. The
-[execution targets](./targets.md) doc covers what those declarations mean, and the
-[design](../../design/remote-targets/docker.md) holds the contract it was built to.
+It declares every capability except `headless`, and its credentials kind is `stored-token`. It sets
+`hostGitIdentity`, so a checkout commits as the daemon machine's git user, and leaves
+`cloneOnTarget` unset, so the daemon clones the workspace and transfers it. The
+[execution targets](./targets.md) doc covers what those declarations mean.
 
 The compiled daemon binary runs inside each container, so the provider is available only when the
 daemon itself is a compiled binary. A daemon run from source lists a `docker` target as unavailable
-with the problem `compiled_binary_required`.
+with the problem `compiled_binary_required`. The provider runs Claude only: the sign-in volume holds
+a Claude token, and Codex reads no sign-in file, so a Codex launch is refused with
+`sign_in_unsupported`.
+
+The Engine must run on the daemon's own Linux machine, outside a VM such as Docker Desktop's. The
+provider bind-mounts files from the daemon's machine into each container, and runs the daemon's own
+Linux binary there.
 
 ## The objects on the Engine
 
@@ -16,6 +23,15 @@ A session's host is a named volume that holds the agent's home folder and the wo
 harness is the main process of a container on that volume, with a relay sidecar beside it whose main
 process is `atc relay-mux`. The daemon attaches to the sidecar and carries the session bridge over
 it through `openStreamRelay`.
+
+- Each harness is a container's main process, because an Engine can reattach to a container's main
+  process and never to a `docker exec`. A reattach replays the screen from the container's logs.
+- Each harness has a sidecar of its own, so one harness's relay never waits on another's, and a
+  sub-session's sidecar ends with its harness. A sidecar keeps its stdin open (`OpenStdin` set,
+  `StdinOnce` unset), so a dropped attach never ends the mux.
+- A command or an archive unpack runs in a throwaway container of the target's image on the host
+  volume. The provider reports `<home>/.atc` on the host volume as the guest folder, so a file it
+  transfers outlasts the container that unpacked it.
 
 | Object              | Name                             | Mounted at                          |
 | ------------------- | -------------------------------- | ----------------------------------- |
@@ -58,6 +74,13 @@ container's environment or command. The Claude launch reads the file by its path
 starts and exports `CLAUDE_CODE_OAUTH_TOKEN` to the harness process alone, with a
 `CLAUDE_CONFIG_DIR` of the session's own on the host volume. A missing or empty file stops the
 launch with exit status 78.
+
+Every session of the target runs under this one long-lived token, and any process in any container
+of the target can read it, while a local session's sign-in is open only to the user's own processes.
+atc accepts that trade because the token never leaves the user's machine. The token comes from
+`claude setup-token`, which Claude Code never refreshes, because sessions that shared one `/login`
+credentials file would break each other's sign-in: Claude Code replaces that file by rename and
+rotates its refresh token.
 
 ## Refusals
 

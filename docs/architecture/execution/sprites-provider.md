@@ -18,7 +18,9 @@ The provider declares these:
 - The credentials kind `routed`: Sprites adds the credential to each request outside the sprite,
   through a connector. A connector is a Sprites object that holds a credential and forwards requests
   to one API. [Decision 0001](../../decisions/0001-sprites-credentials-through-connectors.md) gives
-  the reasons.
+  the reasons. Only Claude has a route, so the daemon refuses Codex on the target.
+- `hostGitIdentity`: a checkout commits as the daemon machine's git user. `cloneOnTarget` stays
+  unset, so the daemon clones the workspace and transfers it.
 
 The provider reaches Sprites through `SpritesPort`, an interface of its own. One adapter serves it
 against the real API: it uses the `@fly/sprites` SDK for the REST calls and for the file endpoint,

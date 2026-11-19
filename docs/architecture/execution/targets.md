@@ -38,7 +38,27 @@ on it answers `unsupported_operation` with the problem `no_session_bridge`, befo
 touches the host. A provider with no impd opens the bridge through `openStreamRelay` in
 `@atc/plugin-api`, which numbers and acks the frames both ways over any link that gives it a
 command's stdin and stdout. The guest side is `atc relay-mux <socket>`, which binds the socket
-before it reads stdin and keeps its bridges when stdin closes.
+before it reads stdin and keeps its bridges when stdin closes. One relay serves every provider that
+has a byte stream to its host, so a provider supplies only the stream. imp keeps impd's forward.
+
+The relay keeps these rules:
+
+- The daemon writes a newline before each hello, to end any half line that a cut-off write left in
+  the mux's stdin.
+- A connection that gets no welcome within `WELCOME_TIMEOUT_MS` of its hello counts as dropped. The
+  retries wait the provider's `reconnectDelaysMs` in turn, then the last delay for each retry after.
+- When a welcome carries a version `v` the daemon cannot speak, the daemon opens the link again with
+  `replace: true`, and the new mux answers with `reset: true`.
+- Each `openStreamRelay` call takes a new relay id, so a daemon restart or a revive resets the mux.
+  The mux then closes its bridges and drops their unacked frames, and both sides number from 1
+  again. A hook line in flight is lost, and a note comes back from the reporter's outbox.
+- When the link ends `lost`, because the host no longer runs the mux, the relay closes every bridge
+  connection and stops its retries. The harness's exit then reaches the daemon the usual way.
+- Each side holds at most `MAX_UNACKED_BYTES` of unacked frames. On the daemon's side, `writeLine`
+  settles only once its frame fits. On the mux's side, a new reporter connection waits, and the
+  sockets pause, until acks free room.
+- The frames live in the `@atc/protocol/relay` entry, which imports neither Zod nor the contract, so
+  the mux starts fast.
 
 A provider operation that fails after its effect began, and cannot confirm that it took the effect
 back, throws an effect-remains error with the refusal as its cause. The daemon's
@@ -86,7 +106,9 @@ A session binds to its target's name and its identity when it spawns, and the fl
 A target's identity is a digest of its options, so a config change that would put the session
 somewhere else changes the identity. An imp target's identity leaves out the options that never
 change where a session lives, such as its image and memory size, so those can change under running
-sessions. A fleet row with no target binds to the implicit `local` target.
+sessions. A `docker` target's identity leaves out its `image`, so a new image reaches the next
+container the provider creates, a revived harness's included. A `sprites` target's identity covers
+every one of its options. A fleet row with no target binds to the implicit `local` target.
 
 A spawn without a target runs on the config's default target, and a sub-session runs on the default
 too unless its spawn sets one, so a sub-session never inherits its parent's target by accident.

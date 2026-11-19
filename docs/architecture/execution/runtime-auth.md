@@ -36,6 +36,10 @@ the agent's endpoint with the placeholder as its token, and runs at revision 1. 
 binding and asks for no admission, so a revoke or a rebind on a routed host answers
 `unsupported_operation` with the problem `routed_auth`.
 
+The target list sends `brokerAuth: true` for a `broker` and for a `routed` target, so a client
+offers the auth profiles on both. A broker launch on a daemon that has no auth binder answers
+`unsupported_operation` with the problem `no_auth_binder`.
+
 A stored-token launch records no binding either. The agent's launch reads the token from the agent's
 sign-in file in the host's sign-in folder when the harness starts, and exports it to the harness
 process alone, so the token never sits in a container's environment or an argument list. The Claude

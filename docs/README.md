@@ -100,8 +100,6 @@ Designs for work that is not built yet, each with the spikes behind it.
 - [Codex read-signal spike](design/codex-app-server-bridge/spikes/read-signal/README.md) — whether
   the Codex App Server bridge can tell that the model read a delivered message, with the runs and a
   recommendation
-- [Remote targets: Sprites and Docker](design/remote-targets/README.md) — the provider contract
-  change and the `sprites` and `docker` providers that build on it
 - [Waking a hosted assistant with MCP Events](design/mcp-events-wake.md) — which hosted assistants
   subscribe to MCP Events, what atc answers, what full delivery needs, and the live check with
   ChatGPT
