@@ -1,7 +1,7 @@
 import { waitUntil } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
-import type { LifecycleHost } from '../boot/lifecycle-host';
 import { tryOpenDaemon } from '../boot/try-open-daemon';
+import type { LifecycleHost } from '../boot/types';
 import { readDaemonRecord } from '../daemon-files/read-daemon-record';
 import { probeProcessAlive } from '../daemon-process/probe-process-alive';
 

@@ -1,7 +1,7 @@
 import { buildHostDaemonPaths } from '../daemon-files/build-host-daemon-paths';
 import { readDaemonSocketPaths } from '../daemon-files/read-daemon-socket-paths';
-import type { LifecycleHost } from './lifecycle-host';
 import { tryOpenDaemon } from './try-open-daemon';
+import type { LifecycleHost } from './types';
 
 // How long the handshake may take.
 const PROBE_DEADLINE_MS = 3000;

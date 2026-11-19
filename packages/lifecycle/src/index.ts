@@ -1,9 +1,8 @@
-export type * from './boot/atc-invocation';
 export * from './boot/boot-daemon-client';
 export * from './daemon-files/claim-daemon-lock';
 export * from './daemon-files/read-daemon-record';
 export * from './daemon-process/probe-process-alive';
-export type * from './boot/lifecycle-host';
+export type * from './boot/types';
 export * from './boot/log-client-event';
 export * from './boot/make-daemon-ready-signal';
 export * from './restart/read-restart-result';

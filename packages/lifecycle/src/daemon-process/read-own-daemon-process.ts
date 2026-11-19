@@ -1,5 +1,5 @@
 import { collectRestartEnv } from '../restart/collect-restart-env';
-import type { DaemonProcess } from './daemon-process';
+import type { DaemonProcess } from './types';
 
 export function readOwnDaemonProcess(): DaemonProcess {
   return {

@@ -1,4 +1,4 @@
-import type { LifecycleHost } from '../boot/lifecycle-host';
+import type { LifecycleHost } from '../boot/types';
 import { buildHostDaemonPaths } from '../daemon-files/build-host-daemon-paths';
 import { readDaemonPID } from '../daemon-files/read-daemon-pid';
 import { readRestartUnit } from './read-restart-unit';

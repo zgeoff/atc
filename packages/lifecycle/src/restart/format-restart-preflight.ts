@@ -1,5 +1,5 @@
 import { parseMismatchBuild } from './parse-mismatch-build';
-import type { RestartPlan } from './restart-plan';
+import type { RestartPlan } from './types';
 
 const INTERRUPTION_POLICY =
   'Stopping the daemon ends every agent process it hosts. A session that is mid-turn loses that turn; the restore resumes each session from its transcript, and the interrupted turn does not continue.';

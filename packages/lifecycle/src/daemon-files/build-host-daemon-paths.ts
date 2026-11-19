@@ -1,5 +1,5 @@
 import type { DaemonPaths } from '@atc/protocol';
-import type { LifecycleHost } from '../boot/lifecycle-host';
+import type { LifecycleHost } from '../boot/types';
 
 export function buildHostDaemonPaths(host: LifecycleHost): DaemonPaths {
   return {

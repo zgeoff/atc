@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseSystemdUnit } from '@atc/core';
-import type { LifecycleHost } from '../boot/lifecycle-host';
+import type { LifecycleHost } from '../boot/types';
 
 // the cgroup alone proves nothing: a process can sit in the unit's cgroup
 // without being the process the unit runs, so `MainPID` must match too.

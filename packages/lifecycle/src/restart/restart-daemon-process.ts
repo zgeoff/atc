@@ -1,4 +1,4 @@
-import type { LifecycleHost } from '../boot/lifecycle-host';
+import type { LifecycleHost } from '../boot/types';
 import { stopDaemonProcess } from '../daemon-process/stop-daemon-process';
 
 // The daemon to take out of service, and the user service whose main

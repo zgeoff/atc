@@ -18,9 +18,9 @@ import { readDaemonSocketPaths } from '../daemon-files/read-daemon-socket-paths'
 import { probeProcessAlive } from '../daemon-process/probe-process-alive';
 import { readRestartUnit } from '../restart/read-restart-unit';
 import { restartDaemonProcess } from '../restart/restart-daemon-process';
-import type { LifecycleHost } from './lifecycle-host';
 import { DAEMON_READY_FD_VARIABLE } from './make-daemon-ready-signal';
 import { spawnATCDetached } from './spawn-atc-detached';
+import type { LifecycleHost } from './types';
 
 export async function bootDaemonClient(
   host: LifecycleHost,

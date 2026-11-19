@@ -2,14 +2,14 @@ import { isRecord } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildATCCommand } from '../boot/build-atc-command';
-import type { LifecycleHost } from '../boot/lifecycle-host';
 import { tryOpenDaemon } from '../boot/try-open-daemon';
 import type { DaemonProbe } from '../boot/try-open-daemon';
+import type { LifecycleHost } from '../boot/types';
 import { buildHostDaemonPaths } from '../daemon-files/build-host-daemon-paths';
 import { readDaemonPID } from '../daemon-files/read-daemon-pid';
 import { readDaemonSocketPaths } from '../daemon-files/read-daemon-socket-paths';
 import { readRestartUnit } from './read-restart-unit';
-import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from './restart-plan';
+import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from './types';
 
 // How long the handshake and the session list may take together.
 const PROBE_DEADLINE_MS = 3000;

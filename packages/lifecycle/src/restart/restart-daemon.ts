@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
 import { readStoredFleetFile } from '@atc/store';
 import type { RestartResult } from '@atcx/contract';
-import type { LifecycleHost } from '../boot/lifecycle-host';
+import type { LifecycleHost } from '../boot/types';
 import { readDaemonProcess } from '../daemon-process/read-daemon-process';
 import { readOwnDaemonProcess } from '../daemon-process/read-own-daemon-process';
 import { buildRestartFailure } from './build-restart-failure';

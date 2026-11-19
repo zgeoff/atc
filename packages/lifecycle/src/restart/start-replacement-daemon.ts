@@ -1,5 +1,5 @@
 import { spawnATCDetached } from '../boot/spawn-atc-detached';
-import type { DaemonProcess } from '../daemon-process/daemon-process';
+import type { DaemonProcess } from '../daemon-process/types';
 
 interface ReplacementOverrides {
   readonly listen: string | null;

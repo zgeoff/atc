@@ -2,9 +2,9 @@ import { readlinkSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseDaemonFlags } from '../boot/parse-daemon-flags';
 import { collectRestartEnv } from '../restart/collect-restart-env';
-import type { DaemonProcess } from './daemon-process';
 import { readOwnDaemonProcess } from './read-own-daemon-process';
 import { readProcProcess } from './read-proc-process';
+import type { DaemonProcess } from './types';
 
 export function readDaemonProcess(pid: number, procRoot: string): DaemonProcess {
   const subprocess = readProcProcess(procRoot, pid);

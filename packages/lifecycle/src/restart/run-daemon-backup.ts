@@ -1,7 +1,7 @@
 import type { DaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
-import type { LifecycleHost } from '../boot/lifecycle-host';
 import { tryOpenDaemon } from '../boot/try-open-daemon';
+import type { LifecycleHost } from '../boot/types';
 import { buildHostDaemonPaths } from '../daemon-files/build-host-daemon-paths';
 import { readDaemonSocketPaths } from '../daemon-files/read-daemon-socket-paths';
 

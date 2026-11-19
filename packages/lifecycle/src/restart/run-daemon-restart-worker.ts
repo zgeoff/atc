@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import type { RestartResult } from '@atcx/contract';
-import type { LifecycleHost } from '../boot/lifecycle-host';
+import type { LifecycleHost } from '../boot/types';
 import { claimDaemonLock } from '../daemon-files/claim-daemon-lock';
 import { buildRestartFailure } from './build-restart-failure';
 import { formatRestartReport } from './format-restart-report';
