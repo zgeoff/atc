@@ -16,7 +16,7 @@ import { buildGuestSettingsPath, createClaudeAdapter } from '@atc/harness-claude
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import invariant from 'tiny-invariant';
-import { createHostServices } from '../packages/app/src/create-host-services';
+import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 // The fixed parts every imp guest test shares: the stub guest tools and the

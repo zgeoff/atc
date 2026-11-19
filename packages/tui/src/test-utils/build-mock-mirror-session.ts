@@ -1,7 +1,7 @@
 import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
-import type { MirrorSession } from '../to-mirror-session';
+import type { MirrorSession } from '../fleet/to-mirror-session';
 
 export function buildMockMirrorSession(
   overrides: MockOverrides<MirrorSession, keyof MirrorSession> = {},

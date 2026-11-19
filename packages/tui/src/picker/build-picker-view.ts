@@ -2,12 +2,11 @@ import { LOCAL_TARGET } from '@atc/config';
 import { formatHomePath } from '@atc/core';
 import type { GitRef } from '@atcx/contract';
 import { match } from 'ts-pattern';
-import type { TargetPick } from '../collect-target-picks';
-import { formatDirName } from '../dirs';
-import { splitToWidth } from '../split-to-width';
-import { getPickerWidth } from '../ui';
-import type { PickerView } from '../ui';
-import type { PickerContext, PickerDeps, SourceListing } from './picker-flow';
+import type { TargetPick } from '../overlay/collect-target-picks';
+import { getPickerWidth } from '../terminal/draw-overlay';
+import type { PickerView } from '../terminal/draw-overlay';
+import { formatDirName } from '../terminal/pick-matches';
+import { splitToWidth } from '../terminal/split-to-width';
 import {
   buildDestination,
   collectEligibleTargets,
@@ -15,7 +14,8 @@ import {
   collectRefItems,
   findEffectiveTarget,
   isGitFlow,
-} from './picker-queries';
+} from './collect-list-items';
+import type { PickerContext, PickerDeps, SourceListing } from './picker-flow';
 
 export function buildPickerView(ctx: PickerContext, deps: PickerDeps): PickerView {
   const verb = ctx.resume ? 'adopt' : 'spawn';

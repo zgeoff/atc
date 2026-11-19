@@ -1,10 +1,10 @@
 import { match } from 'ts-pattern';
-import { applyAgentList } from './agent-step';
+import { applyAccessProbe, applyReadOutcome } from './apply-list-submit';
+import { applySpawnOutcome } from './apply-prompt-submit';
+import { applyRefreshProbe, applyResolveProbe } from './apply-ref-submit';
 import type { RequestOutcome } from './create-picker-actors';
-import { applyAccessProbe, applyReadOutcome } from './list-step';
+import { applyAgentList } from './open-agent-menu';
 import type { PickerFlow } from './picker-flow';
-import { applySpawnOutcome } from './prompt-step';
-import { applyRefreshProbe, applyResolveProbe } from './ref-step';
 
 export function applyRequestOutcome(flow: PickerFlow, outcome: RequestOutcome) {
   if (outcome.kind !== 'agents') {

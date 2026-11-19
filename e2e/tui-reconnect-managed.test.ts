@@ -9,7 +9,7 @@ import { startDaemon } from '@atc/daemon';
 import { startStubLegacyDaemonProcess } from '@atc/lifecycle/test-utils/start-stub-legacy-daemon-process';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
-import { createHostServices } from '../packages/app/src/create-host-services';
+import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
 // A client that waits for an installed unit's daemon after that daemon
 // stopped, so a daemon on another protocol that takes the socket next is

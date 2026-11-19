@@ -5,8 +5,8 @@ import { resolveGatewayCommand } from '@atc/core/test-utils/resolve-gateway-comm
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
-import { buildGatewayStatePaths } from '../packages/app/src/build-gateway-state-paths';
-import { runClients } from '../packages/app/src/clients';
+import { runClients } from '../packages/app/src/auth/run-clients';
+import { buildGatewayStatePaths } from '../packages/app/src/gateway/build-gateway-state-paths';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-bin-');

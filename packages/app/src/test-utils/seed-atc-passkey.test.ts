@@ -5,7 +5,7 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openATCAuthAdmin } from '@atc/mcp';
 import type { PasskeyID } from '@atc/mcp';
 import { toTagged } from '@zgeoff/std';
-import { openMCPAuthDatabase } from '../open-mcp-auth-database';
+import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { seedATCPasskey } from './seed-atc-passkey';
 
 async function setupTest() {

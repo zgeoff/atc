@@ -1,7 +1,7 @@
 import type { WorkspacesConfig } from '@atc/config';
 import { DEFAULT_GIT_TRANSPORTS } from '@atc/config';
 import type { AgentID } from '@atc/core';
-import type { DaemonName } from '../session-key';
+import type { DaemonName } from '../fleet/session-key';
 import type { PickerContext } from './picker-flow';
 
 const NO_WORKSPACES: WorkspacesConfig = {

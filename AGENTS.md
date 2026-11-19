@@ -39,7 +39,7 @@ atc is one Bun workspace. The root package holds the repo tooling.
 ```text
 packages/
   app/           the atc and atc-gateway entrypoints and the modules they wire together; a module
-                 that backs one subcommand sits beside it at the src/ root
+                 that backs one subcommand lives in its feature folder, src/<feature>/
   daemon/        the session fleet, its runtime state, and the protocol server; it loads no plugin,
                  because the app passes in its execution targets and agent adapters
   tui/           the terminal client; it reads and writes no file, because the app passes in its
@@ -81,10 +81,11 @@ docs/
   start-up time: a hook or statusline reporter starts once per event, so it imports a light entry
   that skips the Zod schemas, the protocol contract, and the store.
 - Keep each test helper in `src/test-utils/` of the package that owns what it fakes or builds. Share
-  it through the package's `"./test-utils/*"` export, and import it by package name, such as
-  `@atc/core/test-utils/wait-for`, with the package as a `workspace:*` dev dependency. The helpers
-  that fake nothing a package owns sit in `@atc/core`, the lowest package. Production code never
-  imports a test helper.
+  it through the package's `"./test-utils/*"` export. Another package imports it by package name,
+  such as `@atc/core/test-utils/wait-for`, with the package as a `workspace:*` dev dependency; a
+  file in the owning package imports it by a relative path, which the self-import lint rule
+  enforces. The helpers that fake nothing a package owns sit in `@atc/core`, the lowest package.
+  Production code never imports a test helper.
 
 ## Commands
 

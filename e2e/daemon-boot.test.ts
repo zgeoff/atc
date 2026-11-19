@@ -12,7 +12,7 @@ import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
-import { createHostServices } from '../packages/app/src/create-host-services';
+import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-boot-');
@@ -44,13 +44,22 @@ function setupTest() {
       'boot',
       'boot-daemon-client.ts',
     ),
-    hostModule: join(import.meta.dir, '..', 'packages', 'app', 'src', 'build-lifecycle-host.ts'),
+    hostModule: join(
+      import.meta.dir,
+      '..',
+      'packages',
+      'app',
+      'src',
+      'daemon',
+      'build-lifecycle-host.ts',
+    ),
     servicesModule: join(
       import.meta.dir,
       '..',
       'packages',
       'app',
       'src',
+      'daemon',
       'create-host-services.ts',
     ),
   };

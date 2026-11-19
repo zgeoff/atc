@@ -1,6 +1,10 @@
 export type * from './agent-adapter';
 export type * from './credentials/auth-profile';
 export type * from './credentials/credential-broker';
+export type * from './credentials/credential-router';
+export * from './credentials/find-host-broker';
+export * from './credentials/get-host-credentials';
+export type * from './credentials/host-credentials';
 export * from './credentials/credential-broker-error';
 export * from './plugin/define-plugin';
 export * from './execution/effect-remains-error';
@@ -37,5 +41,7 @@ export * from './execution/is-host-name-allowed';
 export type * from './plugin/message-bridge';
 export * from './plugin/normalize-plugin-dir';
 export * from './execution/run-gh';
+export * from './relay/open-stream-relay';
+export type * from './relay/relay-link';
 export * from './execution/target-unavailable-error';
 export type * from './types';

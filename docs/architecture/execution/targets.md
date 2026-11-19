@@ -28,6 +28,14 @@ before it calls the provider:
 | `headless` | run an agent turn without a terminal                     |
 | `suspend`  | pause the host and resume it later with its state intact |
 | `destroy`  | delete the host and everything on it                     |
+| `relay`    | carry the session bridge's lines over the host's streams |
+
+A remote provider that declares no `relay` cannot carry a session's hooks to the daemon, so a spawn
+on it answers `unsupported_operation` with the problem `no_session_bridge`, before the daemon
+touches the host. A provider with no impd opens the bridge through `openStreamRelay` in
+`@atc/plugin-api`, which numbers and acks the frames both ways over any link that gives it a
+command's stdin and stdout. The guest side is `atc relay-mux <socket>`, which binds the socket
+before it reads stdin and keeps its bridges when stdin closes.
 
 A provider operation that fails after its effect began, and cannot confirm that it took the effect
 back, throws an effect-remains error with the refusal as its cause. The daemon's
@@ -58,6 +66,16 @@ daemon waits only for systemd to take the stops before it exits.
 own machine. What a session's kill and forget do follows from these two: a target that can suspend
 puts its host to sleep on a kill, and a target that can destroy its host makes a forget take a
 confirm token ([sessions](../daemon/sessions.md#ending-a-session)).
+
+## Credentials and state
+
+A provider declares how its host supplies credentials in `credentials`, and the daemon decides each
+launch from that and the agent's config ([runtime auth](./runtime-auth.md#credential-kinds)). A
+provider that declares none supplies no credential.
+
+The daemon creates `<state>/providers/<target id>/` at mode 0700 before it creates a provider, and
+hands the path to an execution plugin as `stateDir`. A target id that holds a path separator, `.` or
+`..` builds no provider and lists the problem.
 
 ## Binding to a target
 

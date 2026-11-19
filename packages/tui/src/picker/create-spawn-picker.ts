@@ -1,6 +1,6 @@
 import { toTimerClock } from '@atc/core';
 import { createActor } from 'xstate';
-import type { DaemonName } from '../session-key';
+import type { DaemonName } from '../fleet/session-key';
 import { createPickerMachine } from './create-picker-machine';
 import type { SpawnPickerDeps } from './picker-flow';
 

@@ -1,6 +1,6 @@
-export * from './create-daemon-links';
-export * from './create-fleet-mirror';
-export * from './daemon-link-failure-error';
-export * from './listing-cache';
-export * from './run-tui';
-export type * from './tui-host';
+export * from './daemon-link/create-daemon-links';
+export * from './fleet/create-fleet-mirror';
+export * from './daemon-link/daemon-link-failure-error';
+export * from './client/listing-cache';
+export * from './client/run-tui';
+export type * from './client/tui-host';

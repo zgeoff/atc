@@ -75,7 +75,15 @@ export interface GuestPaths {
     // the sign-in state the broker lists for each secret of kind `oauth` in the
     // binding, keyed by the secret's name.
     readonly oauth?: Readonly<Record<string, GuestOAuthState>>;
+
+    // the URL each selected profile's requests go to, keyed by profile name, when the target
+    // routes credentials in place of a broker: the agent sends the placeholder to its profile's
+    // route, and the router adds the credential there
+    readonly routes?: Readonly<Record<string, string>>;
   };
+
+  // where the target mounts the volume that holds the user's stored sign-in, when it has one
+  readonly signIn?: { readonly directory: string };
 }
 
 export interface GuestOAuthState {
@@ -356,6 +364,15 @@ export interface AgentAdapter {
   // The credential this agent takes from the target's broker, or null when it
   // takes none. Absent: it takes none.
   readonly findAuthSelection?: () => AuthSelection | null;
+
+  // The first key in the agent's own config (env, settings env, settings in its args) that would
+  // replace the credentials of this kind or send requests around them, such as a credential or
+  // endpoint variable or `settings.apiKeyHelper`. A gateway agent adds 'baseURL'. Absent finds none.
+  readonly findGuestEnvConflict?: (kind: 'broker' | 'routed' | 'stored-token') => string | null;
+
+  // the file in the stored-token volume that this agent reads its token from. Absent: a launch on
+  // stored-token credentials is refused.
+  readonly signInFile?: string;
 
   // The refusal every start of this agent's harness gets, on any target,
   // or null when it may start. Absent: no start is refused.

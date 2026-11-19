@@ -53,20 +53,8 @@
     ],
     // GEO-1196 splits the 19 files over the shared 500-line limit
     "max-lines": "off",
-    // GEO-2321 folds these packages' src/ roots into feature folders
-    "zgeoff/feature-folders": [
-      "error",
-      {
-        "pending": ["packages/app", "packages/core", "packages/tui"]
-      }
-    ],
-    // these packages still hold files that no export is named for
-    "zgeoff/file-named-for-export": [
-      "error",
-      {
-        "pending": ["packages/app", "packages/tui"]
-      }
-    ]
+    "zgeoff/feature-folders": "error",
+    "zgeoff/file-named-for-export": "error"
   },
   "overrides": [
     {
@@ -74,7 +62,7 @@
       // wall clock directly; an override replaces the rule's options, so it
       // repeats the spawn entry
       "files": [
-        "packages/core/src/system-clock.ts",
+        "packages/core/src/time/system-clock.ts",
         "**/*.test.ts",
         "packages/**/src/test-utils/**",
         "e2e/**",
@@ -114,24 +102,24 @@
       // GEO-1286 cleans the imp words out of these files; each follow-up
       // removes the files it cleans
       "files": [
-        "packages/app/src/build-migrated-config.test.ts",
-        "packages/tui/src/collect-target-picks.test.ts",
-        "packages/tui/src/collect-target-picks.ts",
+        "packages/app/src/config/build-migrated-config.test.ts",
+        "packages/tui/src/overlay/collect-target-picks.test.ts",
+        "packages/tui/src/overlay/collect-target-picks.ts",
         "packages/tui/src/picker/create-spawn-picker.test.ts",
-        "packages/tui/src/to-mirror-session.test.ts",
-        "packages/tui/src/ui.test.ts",
-        "packages/tui/src/xstate-stopped-actor.test.ts",
+        "packages/tui/src/fleet/to-mirror-session.test.ts",
+        "packages/tui/src/terminal/draw-overlay.test.ts",
+        "packages/tui/src/client/xstate-stopped-actor.test.ts",
         "packages/gateway/src/ids/build-gateway-error.test.ts",
         "e2e/mcp-run-tool.test.ts",
         "packages/app/src/plugins/create-shipped-execution-provider.test.ts",
         "packages/app/src/plugins/shipped-execution-plugins.test.ts",
-        "packages/app/src/run-session-action.test.ts",
-        "packages/app/src/shared/collect-legacy-agents.test.ts",
+        "packages/app/src/cli/run-session-action.test.ts",
+        "packages/app/src/agents/collect-legacy-agents.test.ts",
         "packages/config/src/targets/collect-targets.test.ts",
         "packages/config/src/config-file/config.test.ts",
-        "packages/core/src/create-step-timer.test.ts",
-        "packages/core/src/get-settled-value.test.ts",
-        "packages/core/src/is-broker-variable.ts",
+        "packages/core/src/time/create-step-timer.test.ts",
+        "packages/core/src/concurrency/get-settled-value.test.ts",
+        "packages/core/src/broker/is-broker-variable.ts",
         "packages/daemon/src/auth/create-runtime-auth-binder.test.ts",
         "packages/daemon/src/fleet/build-config-revision.test.ts",
         "packages/daemon/src/fleet/build-execution-targets.test.ts",

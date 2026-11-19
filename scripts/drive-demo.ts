@@ -6,7 +6,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import { DAEMON_EVENT_SCHEMA, SESSION_DESCRIPTOR_SCHEMA } from '@atcx/contract';
 import type { SessionDescriptor } from '@atcx/contract';
 import { z } from 'zod';
-import { createHostServices } from '../packages/app/src/create-host-services';
+import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
 type DaemonClient = Awaited<ReturnType<typeof openDaemonClient>>;
 

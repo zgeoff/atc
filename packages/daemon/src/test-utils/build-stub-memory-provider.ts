@@ -3,7 +3,6 @@ import type { Clock } from '@atc/core';
 import type {
   CommandResult,
   CommandSpec,
-  CredentialBroker,
   ExecutionCapabilities,
   ExecutionProvider,
   GuestLayout,
@@ -11,6 +10,7 @@ import type {
   HarnessHandle,
   HarnessSpec,
   HarnessStart,
+  HostCredentials,
   HostRequest,
 } from '@atc/plugin-api';
 
@@ -51,8 +51,10 @@ interface StubMemoryProviderConfig {
 
   // Whether the daemon treats the host as another machine; false when absent.
   readonly remote?: boolean;
-  readonly guest?: GuestLayout;
-  readonly brokerAuth?: CredentialBroker;
+
+  // the layout the host reports; a stored-token mount is absent unless given
+  readonly guest?: Omit<GuestLayout, 'signIn'> & { readonly signIn?: string | null };
+  readonly credentials?: HostCredentials;
   readonly cloneOnTarget?: boolean;
   readonly hostGitIdentity?: boolean;
   readonly guestWorkspaceTrust?: boolean;
@@ -72,6 +74,9 @@ interface StubMemoryProviderConfig {
   // What each harness's start rejects with, as a host that ends the harness
   // before it starts; absent, the start follows the reported start.
   readonly harnessStartRefusal?: Error;
+
+  // Answers each read of the harness fates; absent, the provider reads none.
+  readonly readHarnessFates?: ExecutionProvider['readHarnessFates'];
 
   // Answers each command; absent, every command exits 0 and prints nothing.
   readonly runCommand?: (spec: CommandSpec) => Promise<CommandResult>;
@@ -144,10 +149,14 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
       headless: true,
       suspend: false,
       destroy: false,
+      relay: config.remote ?? false,
       ...config.capabilities,
     },
-    ...(guest === undefined ? {} : { readGuest: () => Promise.resolve(guest) }),
-    ...(config.brokerAuth === undefined ? {} : { brokerAuth: config.brokerAuth }),
+    ...(guest === undefined
+      ? {}
+      : { readGuest: () => Promise.resolve({ ...guest, signIn: guest.signIn ?? null }) }),
+    ...(config.credentials === undefined ? {} : { credentials: config.credentials }),
+    ...(config.readHarnessFates === undefined ? {} : { readHarnessFates: config.readHarnessFates }),
     ...(config.cloneOnTarget === undefined ? {} : { cloneOnTarget: config.cloneOnTarget }),
     ...(config.hostGitIdentity === undefined ? {} : { hostGitIdentity: config.hostGitIdentity }),
     ...(config.guestWorkspaceTrust === undefined

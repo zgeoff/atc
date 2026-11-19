@@ -3,11 +3,11 @@ import { gzip } from 'node:zlib';
 import { isCompiledBinary } from '@atc/config/host';
 import { createStepTimer, makeKeyedLock } from '@atc/core';
 import type {
-  CredentialBroker,
   ExecutionCapabilities,
   ExecutionProvider,
   GuestLayout,
   HarnessSpec,
+  HostCredentials,
   HostFact,
   HostRequest,
 } from '@atc/plugin-api';
@@ -42,9 +42,7 @@ export interface ImpProvider extends ExecutionProvider {
   // namespace an impd token's imp patterns are checked against.
   readonly impPrefix: string;
 
-  readonly brokerAuth: CredentialBroker;
-
-  readonly rebindChangedAuth: boolean;
+  readonly credentials: Extract<HostCredentials, { readonly kind: 'broker' }>;
 
   // The imp a host key runs on, under this provider's prefix.
   readonly getImpName: (hostKey: string) => string;
@@ -128,6 +126,7 @@ export function createImpProvider(
     headless: false,
     suspend: true,
     destroy: true,
+    relay: true,
   };
 
   const hosts = new Map<string, ImpHost>();
@@ -169,7 +168,7 @@ export function createImpProvider(
 
     const directory = target.guestDir ?? `${await port.readGuestScratchDir()}/${GUEST_FOLDER}`;
 
-    guest = { directory, atc: hasGuestATC ? `${directory}/bin/atc` : null };
+    guest = { directory, atc: hasGuestATC ? `${directory}/bin/atc` : null, signIn: null };
 
     return guest;
   };
@@ -368,7 +367,7 @@ export function createImpProvider(
     return openReporter({ port, guestDir: guest.directory, reconnectDelaysMs }, host, spec);
   };
 
-  const brokerAuth = buildImpCredentialBroker(port, {
+  const broker = buildImpCredentialBroker(port, {
     impPrefix,
     getImpName: (hostKey) => getImpName(hostKey),
     createImp: async (hostKey) => {
@@ -419,9 +418,7 @@ export function createImpProvider(
 
     impPrefix,
 
-    brokerAuth,
-
-    rebindChangedAuth,
+    credentials: { kind: 'broker', broker, rebindChangedAuth },
 
     ...(target.sessionEnv === undefined ? {} : { sessionEnv: target.sessionEnv }),
 

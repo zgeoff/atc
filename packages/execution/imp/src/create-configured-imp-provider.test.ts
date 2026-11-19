@@ -43,6 +43,7 @@ test("it builds an imp provider that takes the target's guest options", async ()
   expect(guest).toStrictEqual({
     directory: '/srv/atc',
     atc: '/srv/atc/bin/atc',
+    signIn: null,
   });
 });
 
@@ -209,7 +210,7 @@ test('it builds an imp provider that refuses a changed auth selection when the t
 
   invariant(built.provider !== null, 'expected an imp provider');
 
-  expect(built.provider.rebindChangedAuth).toBe(false);
+  expect(built.provider.credentials.rebindChangedAuth).toBe(false);
 });
 
 test('it builds an imp provider that rebinds a changed auth selection when the target sets rebindChangedAuth', () => {
@@ -222,7 +223,7 @@ test('it builds an imp provider that rebinds a changed auth selection when the t
 
   invariant(built.provider !== null, 'expected an imp provider');
 
-  expect(built.provider.rebindChangedAuth).toBe(true);
+  expect(built.provider.credentials.rebindChangedAuth).toBe(true);
 });
 
 test('it reports a target whose rebindChangedAuth is not a boolean, without a provider', () => {

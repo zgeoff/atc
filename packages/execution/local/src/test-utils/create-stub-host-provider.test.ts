@@ -20,6 +20,7 @@ test('it declares every capability of a local terminal plus sleeping and destroy
     headless: true,
     suspend: true,
     destroy: true,
+    relay: false,
   });
 });
 

@@ -9,7 +9,7 @@ test('it builds a default listed agent', () => {
     installed: false,
     brokerAuth: false,
     brokerRequired: false,
-    spawnTargets: [],
+    spawnTargets: ['local', 'box'],
     capabilities: {
       spawn: false,
       readTranscript: false,

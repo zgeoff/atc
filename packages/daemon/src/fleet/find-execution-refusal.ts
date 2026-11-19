@@ -90,5 +90,13 @@ export function findExecutionRefusal(
     );
   }
 
+  if (capability === 'spawn' && target.provider.remote && !target.provider.capabilities.relay) {
+    return new DaemonError(
+      'unsupported_operation',
+      `the ${target.provider.kind} execution provider cannot carry a session's hooks from its host to the daemon`,
+      { provider: target.provider.kind, problem: 'no_session_bridge' },
+    );
+  }
+
   return null;
 }

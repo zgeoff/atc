@@ -8,7 +8,7 @@ test('it lists an imp target as reaching the broker', () => {
     kind: 'imp',
     remote: true,
     capabilities: { headless: false, suspend: true, destroy: true },
-    brokerAuth: buildStubCredentialBroker(),
+    credentials: { kind: 'broker', broker: buildStubCredentialBroker(), rebindChangedAuth: false },
   });
 
   const entries = buildTargetList(
@@ -35,6 +35,7 @@ test('it lists an imp target as reaching the broker', () => {
         headless: false,
         suspend: true,
         destroy: true,
+        relay: true,
       },
       brokerAuth: true,
     },
@@ -77,6 +78,7 @@ test('it lists the local target and a target without a provider as reaching no b
         headless: true,
         suspend: false,
         destroy: false,
+        relay: false,
       },
       brokerAuth: false,
     },
@@ -98,6 +100,7 @@ test('it lists the local target and a target without a provider as reaching no b
         headless: false,
         suspend: false,
         destroy: false,
+        relay: false,
       },
       brokerAuth: false,
     },

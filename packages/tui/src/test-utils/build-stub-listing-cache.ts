@@ -1,6 +1,6 @@
-import { LISTING_CACHE_LIFETIME_MS } from '../listing-cache';
-import type { CachedListing, ListingCache } from '../listing-cache';
-import type { DaemonName } from '../session-key';
+import { LISTING_CACHE_LIFETIME_MS } from '../client/listing-cache';
+import type { CachedListing, ListingCache } from '../client/listing-cache';
+import type { DaemonName } from '../fleet/session-key';
 
 // The listing cache contract in memory: a read past the lifetime finds
 // nothing, and a write for an older request never replaces a newer one.

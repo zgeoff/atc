@@ -61,6 +61,7 @@ const EXECUTION_CAPABILITIES_SCHEMA = z.object({
   headless: z.boolean(),
   suspend: z.boolean(),
   destroy: z.boolean(),
+  relay: z.boolean(),
 });
 
 const TARGET_ENTRY_SCHEMA = z.object({

@@ -21,6 +21,7 @@ test('it declares the capabilities of a local terminal', () => {
     headless: true,
     suspend: false,
     destroy: false,
+    relay: false,
   });
 });
 

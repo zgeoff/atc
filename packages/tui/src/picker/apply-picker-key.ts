@@ -1,17 +1,22 @@
 import { match } from 'ts-pattern';
-import { KEY, planTextEdit } from '../keys';
-import type { TextEdit } from '../keys';
-import { applyAgentSubmit } from './agent-step';
-import { applyConfirmCancel, applyConfirmSubmit } from './confirm-step';
-import { applyAgentCancel, applyDaemonCancel, applyDaemonSubmit } from './daemon-step';
-import { applyListCancel, applyListInput, applyListSubmit, applyListTab } from './list-step';
-import { applyNameCancel, applyNameSubmit } from './name-step';
-import { quitFlow, refreshListings, renderFlow } from './navigate-picker';
+import { KEY, planTextEdit } from '../terminal/key';
+import type { TextEdit } from '../terminal/key';
+import { applyConfirmCancel, applyConfirmSubmit } from './apply-confirm-submit';
+import { applyAgentCancel, applyDaemonCancel, applyDaemonSubmit } from './apply-daemon-submit';
+import {
+  applyListCancel,
+  applyListInput,
+  applyListSubmit,
+  applyListTab,
+} from './apply-list-submit';
+import { applyNameCancel, applyNameSubmit } from './apply-name-submit';
+import { applyPromptCancel, applyPromptSubmit } from './apply-prompt-submit';
+import { applyRefCancel, applyRefSubmit } from './apply-ref-submit';
+import { applySpawnedKey } from './apply-spawned-key';
+import { applyTargetCancel, applyTargetSubmit } from './apply-target-submit';
+import { applyAgentSubmit } from './open-agent-menu';
+import { quitFlow, refreshListings, renderFlow } from './open-list';
 import type { PickerFlow } from './picker-flow';
-import { applyPromptCancel, applyPromptSubmit } from './prompt-step';
-import { applyRefCancel, applyRefSubmit } from './ref-step';
-import { applySpawnedKey } from './spawned-step';
-import { applyTargetCancel, applyTargetSubmit } from './target-step';
 
 export function applyPickerKey(flow: PickerFlow, buf: Buffer) {
   const ctx = flow.ctx;

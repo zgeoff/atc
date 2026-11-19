@@ -9,6 +9,34 @@ secrets and enforces the grants.
 [The imp provider](./imp-provider.md) covers the imp itself, and the
 [brokered credentials guide](../../guides/configuration/brokered-credentials.md) covers the config.
 
+## Credential kinds
+
+A provider declares one of four kinds in `credentials`, and `decideHarnessAuth` takes the first
+matching row for each launch. The agent and target lists use the same decision, so a target that
+would refuse an agent's launch is not listed for it.
+
+| Kind           | What the host does                                                |
+| -------------- | ----------------------------------------------------------------- |
+| `none`         | supplies nothing; the agent signs in on the host by itself        |
+| `broker`       | swaps a placeholder for the secret, as the rest of this doc says  |
+| `routed`       | reaches each auth profile through a route the host's router gives |
+| `stored-token` | holds the agent's token in a sign-in file on the host             |
+
+A launch is refused, in this order, when:
+
+1. the agent requires the broker and the host has none (`broker_required`);
+2. the agent's own config sets a variable that overrides the credential, such as a base URL
+   (`guest_env_conflict`);
+3. a routed host gets an agent with no auth selection (`route_required`);
+4. a stored-token host gets an agent with an auth selection (`auth_on_stored_token`);
+5. a stored-token host gets an agent that reads no sign-in file (`sign_in_unsupported`).
+
+A routed launch verifies its routes before it readies the host, takes the route of its profile as
+the agent's endpoint with the placeholder as its token, and runs at revision 1. It records no
+binding and asks for no admission, so a revoke or a rebind on a routed host answers
+`unsupported_operation` with the problem `routed_auth`. A stored-token launch is refused with
+`stored_token_launch` until a provider can read the token inside its host.
+
 ## The binding
 
 The daemon records each host's binding in its state store: the imp's name and id, the secrets and

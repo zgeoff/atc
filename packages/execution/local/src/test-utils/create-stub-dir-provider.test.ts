@@ -75,6 +75,7 @@ test('it declares the capabilities it is told it lacks as missing', () => {
     headless: false,
     suspend: false,
     destroy: false,
+    relay: false,
   });
 });
 
