@@ -169,9 +169,12 @@ instrumented. These rules hold for any change to it:
   generated `--settings` file, the `atc-bridge` mod passed as `--plugin-dir`, and the per-session
   folders the doc lists.
 - Never write into the user's own agent config. Instrumentation an agent cannot take per invocation
-  is a documented self-install step (`atc grok-hooks`, `atc codex-hooks`). One exception: a local
-  launch that opts into clone trust adds one folder-trust entry for its verified clone root to the
-  user's Claude config, under Claude's own lock, since Claude takes trust no other way.
+  is a documented self-install step (`atc grok-hooks`, `atc codex-hooks`). Two exceptions, both
+  under Claude's own lock, since Claude takes trust no other way:
+  - a local launch that opts into clone trust adds one folder-trust entry for its verified clone
+    root to the user's Claude config;
+  - each local Claude launch adds a folder-trust entry for the session's own scratch folder, because
+    Claude 2.1.328 asks for trust on each `--add-dir` folder.
 - The config's `agents` map is the registry: one adapter per entry, keyed by the entry's id. A
   Claude-compatible backend is an entry with a `baseURL`, not a new adapter factory per vendor. A
   helper command supplies its credential, which never goes in the generated file.

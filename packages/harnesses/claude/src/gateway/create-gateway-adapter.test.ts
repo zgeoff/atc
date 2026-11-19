@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { isRecord } from '@atc/core';
@@ -1358,6 +1358,7 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
   expect(onboarding).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { '/tmp/atc/sessions/s1/scratch': { hasTrustDialogAccepted: true } },
   });
 
   expect(plan.files).toStrictEqual({
@@ -1975,6 +1976,7 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
   expect(JSON.parse(seeded)).toStrictEqual({
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
+    projects: { [join(ctx.directory, 'scratch')]: { hasTrustDialogAccepted: true } },
   });
 });
 
@@ -2420,6 +2422,7 @@ test('it plans a brokered guest spawn of an API key gateway that sends only the 
     hasCompletedOnboarding: true,
     hasSeenAutoModeOutsideReadPrompt: true,
     customApiKeyResponses: { approved: ['broker-placeholder'], rejected: [] },
+    projects: { '/tmp/atc/sessions/s1/scratch': { hasTrustDialogAccepted: true } },
   });
 });
 
@@ -2442,7 +2445,9 @@ test('it seeds the approval of the API key placeholder beside the clone trust of
     buildMockHostServices(),
   );
 
-  const seedFile = adapter.planGuestWorkspaceTrust('/work/repo')?.['claude-config-seed.json'];
+  const seedFile = adapter.planGuestWorkspaceTrust('/work/repo', '/guest/s1')?.[
+    'claude-config-seed.json'
+  ];
 
   invariant(typeof seedFile === 'string', 'expected the seed file');
 
@@ -2451,6 +2456,7 @@ test('it seeds the approval of the API key placeholder beside the clone trust of
     hasSeenAutoModeOutsideReadPrompt: true,
     customApiKeyResponses: { approved: ['broker-placeholder'], rejected: [] },
     projects: {
+      '/guest/s1/scratch': { hasTrustDialogAccepted: true },
       '/work/repo': { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true },
     },
   });
@@ -2794,4 +2800,97 @@ test("it sets the telemetry variables for the binding's telemetry host in a brok
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
     },
   });
+});
+
+test("it plans a local session's scratch folder as its scratch", () => {
+  const ctx = setupTest();
+
+  const adapter = createGatewayAdapter(
+    buildMockGatewayConfig(),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+    { stateDir: join(ctx.directory, 'state'), homeDir: join(ctx.directory, 'home') },
+  );
+
+  const plan = adapter.planSpawn({ prompt: '', resume: false }, toSessionID('s1'));
+
+  expect(plan.scratch).toBe(join(ctx.directory, 'state', 'sessions', 's1', 'scratch'));
+});
+
+test("it trusts a local session's scratch folder in the user's Claude config", async () => {
+  const ctx = setupTest();
+  const homeDir = join(ctx.directory, 'home');
+  const scratch = join(ctx.directory, 'state', 'sessions', 's1', 'scratch');
+
+  updateEnv('CLAUDE_CONFIG_DIR', undefined);
+  mkdirSync(homeDir, { recursive: true });
+
+  const adapter = createGatewayAdapter(
+    buildMockGatewayConfig(),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+    { homeDir },
+  );
+
+  await adapter.trustLocalScratch(scratch);
+
+  const written: unknown = JSON.parse(readFileSync(join(homeDir, '.claude.json'), 'utf8'));
+
+  expect(written).toStrictEqual({ projects: { [scratch]: { hasTrustDialogAccepted: true } } });
+});
+
+test("it trusts a local session's scratch folder in the config folder the gateway's env names", async () => {
+  const ctx = setupTest();
+  const homeDir = join(ctx.directory, 'home');
+  const configDir = join(ctx.directory, 'gateway-config');
+  const scratch = join(ctx.directory, 'state', 'sessions', 's1', 'scratch');
+
+  updateEnv('CLAUDE_CONFIG_DIR', undefined);
+  mkdirSync(homeDir, { recursive: true });
+  mkdirSync(configDir, { recursive: true });
+
+  const adapter = createGatewayAdapter(
+    buildMockGatewayConfig({ env: { CLAUDE_CONFIG_DIR: configDir } }),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+    { homeDir },
+  );
+
+  await adapter.trustLocalScratch(scratch);
+
+  const written: unknown = JSON.parse(readFileSync(join(configDir, '.claude.json'), 'utf8'));
+
+  expect(written).toStrictEqual({ projects: { [scratch]: { hasTrustDialogAccepted: true } } });
+  expect(existsSync(join(homeDir, '.claude.json'))).toBeFalse();
+});
+
+test("it trusts a relative config folder at the path the launch's settings name", async () => {
+  const ctx = setupTest();
+  const scratch = join(ctx.directory, 'state', 'sessions', 's1', 'scratch');
+  const relativeDir = join(relative(process.cwd(), ctx.directory), 'relative-config');
+  const configDir = resolve(relativeDir);
+
+  updateEnv('CLAUDE_CONFIG_DIR', undefined);
+  mkdirSync(configDir, { recursive: true });
+
+  const adapter = createGatewayAdapter(
+    buildMockGatewayConfig({ env: { CLAUDE_CONFIG_DIR: relativeDir } }),
+    parseConfig([CLAUDE_PLUGIN], {}),
+    buildMockHostServices(),
+    { stateDir: join(ctx.directory, 'state'), homeDir: join(ctx.directory, 'home') },
+  );
+
+  const plan = adapter.planSpawn({ prompt: '', resume: false }, toSessionID('s1'));
+  const settingsPath = plan.args[plan.args.indexOf('--settings') + 1];
+
+  invariant(settingsPath !== undefined, 'the plan passes a settings file');
+
+  const settings: unknown = JSON.parse(readFileSync(settingsPath, 'utf8'));
+
+  await adapter.trustLocalScratch(scratch);
+
+  const written: unknown = JSON.parse(readFileSync(join(configDir, '.claude.json'), 'utf8'));
+
+  expect(settings).toMatchObject({ env: { CLAUDE_CONFIG_DIR: configDir } });
+  expect(written).toStrictEqual({ projects: { [scratch]: { hasTrustDialogAccepted: true } } });
 });

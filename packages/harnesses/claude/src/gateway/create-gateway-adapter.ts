@@ -1,3 +1,4 @@
+import { join, resolve } from 'node:path';
 import type { Config } from '@atc/config';
 import { buildTelemetryEnv, resolveAuthProfiles } from '@atc/config';
 import {
@@ -41,6 +42,8 @@ import { buildHookSettings } from '../hooks/build-hook-settings';
 import { buildClaudeArgs } from '../launch-args/build-claude-args';
 import { buildRestoreModeArgs } from '../launch-args/build-restore-mode-args';
 import { CLAUDE_EFFORT_LEVELS } from '../launch-args/claude-effort-levels';
+import { resolveClaudeGlobalConfigPath } from '../local-trust/resolve-claude-global-config-path';
+import { updateClaudeProjectTrust } from '../local-trust/update-claude-project-trust';
 import { buildPluginDirsOption } from '../plugin/build-plugin-dirs-option';
 import { formatPluginDirArgs } from '../plugin/format-plugin-dir-args';
 import { resolveConfiguredPluginDirs } from '../plugin/resolve-configured-plugin-dirs';
@@ -77,7 +80,14 @@ export interface GatewayAdapter extends AgentAdapter {
     atc: string,
     writtenAt: number,
   ) => Readonly<Record<string, string>>;
-  readonly planGuestWorkspaceTrust: (root: string) => Readonly<Record<string, string>> | null;
+  readonly planGuestWorkspaceTrust: (
+    root: string,
+    guestDirectory: string,
+  ) => Readonly<Record<string, string>> | null;
+
+  // Claude 2.1.328 asks for trust on each `--add-dir` folder, so a local
+  // session's scratch folder is trusted in the config the CLI reads.
+  readonly trustLocalScratch: (scratch: string) => Promise<void>;
 
   // The repository's own settings files reach the CLI as well, so a launch
   // behind the target's broker reads them first.
@@ -131,12 +141,25 @@ export function createGatewayAdapter(
   const headlessRun = options.headlessRun ?? null;
   const pluginDirs = resolveConfiguredPluginDirs(gateway.pluginDirs, options.homeDir);
 
+  // A relative config folder would mean one folder to the daemon and another to the CLI, which
+  // starts in the session's directory, so a local launch names it once as an absolute path.
+  const configuredConfigDir = gateway.env['CLAUDE_CONFIG_DIR'];
+
+  const localConfigDir =
+    configuredConfigDir === undefined || configuredConfigDir === ''
+      ? null
+      : resolve(configuredConfigDir);
+
   // The settings file carries the backend's base URL, its environment, its
   // credential helper, and its settings.
   const files = createClaudeLaunchFiles(
     {
       id: gateway.id,
-      env: { ANTHROPIC_BASE_URL: gateway.baseURL, ...gateway.env },
+      env: {
+        ANTHROPIC_BASE_URL: gateway.baseURL,
+        ...gateway.env,
+        ...(localConfigDir === null ? {} : { CLAUDE_CONFIG_DIR: localConfigDir }),
+      },
       ...(gateway.apiKeyHelper === undefined ? {} : { apiKeyHelper: gateway.apiKeyHelper }),
       ...(gateway.settings === undefined ? {} : { settings: gateway.settings }),
     },
@@ -331,7 +354,7 @@ export function createGatewayAdapter(
           pluginDir: files.writeBridge(),
           pluginDirs: [...pluginDirs, ...(opts.pluginDirs ?? [])],
         }),
-        ...(scratch === null ? {} : { env: { TMPDIR: scratch } }),
+        ...(scratch === null ? {} : { env: { TMPDIR: scratch }, scratch }),
       };
     },
 
@@ -415,7 +438,11 @@ export function createGatewayAdapter(
           ...(atcArgv === null
             ? {}
             : { [mcpPath]: JSON.stringify(buildClaudeMCPConfig([], atcArgv), null, 2) }),
-          ...buildClaudeConfigSeed(null, approvedAPIKey),
+          ...buildClaudeConfigSeed(
+            null,
+            approvedAPIKey,
+            `${guest.directory}/${SESSION_SCRATCH_FOLDER}`,
+          ),
           ...buildGuestBridgeFiles(argv),
         },
         env: {
@@ -430,14 +457,28 @@ export function createGatewayAdapter(
 
     planGuestBridgeFiles: (atc, writtenAt) => buildGuestBridgeFiles([atc], writtenAt),
 
-    planGuestWorkspaceTrust: (root) => {
+    planGuestWorkspaceTrust: (root, guestDirectory) => {
       if (gateway.auth === undefined) {
         return null;
       }
 
       const approvedAPIKey = findAPIKeyPlaceholder(gateway.auth.placeholderEnv);
 
-      return buildClaudeConfigSeed(root, approvedAPIKey);
+      return buildClaudeConfigSeed(
+        root,
+        approvedAPIKey,
+        `${guestDirectory}/${SESSION_SCRATCH_FOLDER}`,
+      );
+    },
+
+    // The CLI reads the config folder the gateway's env names, else the user's own.
+    trustLocalScratch: async (scratch) => {
+      const configPath =
+        localConfigDir === null
+          ? resolveClaudeGlobalConfigPath(options.homeDir)
+          : join(localConfigDir, '.claude.json');
+
+      await updateClaudeProjectTrust(configPath, scratch);
     },
 
     planHookEvents: (hookEvent) => ({ events: [buildClaudeHookEvent(hookEvent)] }),

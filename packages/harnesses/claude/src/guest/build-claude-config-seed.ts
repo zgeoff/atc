@@ -9,9 +9,14 @@ const ONBOARDED_CONFIG = { hasCompletedOnboarding: true, hasSeenAutoModeOutsideR
 const API_KEY_SUFFIX_LENGTH = 20;
 const TRUSTED_PROJECT = { hasTrustDialogAccepted: true, enableAllProjectMcpServers: true };
 
+// Claude asks for trust on each extra folder it is given, and the session's
+// scratch folder is atc's own.
+const SCRATCH_PROJECT = { hasTrustDialogAccepted: true };
+
 export function buildClaudeConfigSeed(
   trustedRoot: string | null,
   approvedAPIKey: string | null = null,
+  scratch: string | null = null,
 ): Readonly<Record<string, string>> {
   const seed = {
     ...ONBOARDED_CONFIG,
@@ -23,7 +28,14 @@ export function buildClaudeConfigSeed(
             rejected: [],
           },
         }),
-    ...(trustedRoot === null ? {} : { projects: { [trustedRoot]: TRUSTED_PROJECT } }),
+    ...(trustedRoot === null && scratch === null
+      ? {}
+      : {
+          projects: {
+            ...(scratch === null ? {} : { [scratch]: SCRATCH_PROJECT }),
+            ...(trustedRoot === null ? {} : { [trustedRoot]: TRUSTED_PROJECT }),
+          },
+        }),
   };
 
   return { [CLAUDE_CONFIG_SEED_FILE]: JSON.stringify(seed, null, 2) };

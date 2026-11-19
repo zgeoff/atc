@@ -11,6 +11,8 @@ exceptions:
   the hooks there ([Grok and Codex](#grok-and-codex)).
 - A local Claude Code launch that opts into clone trust adds one folder-trust entry to the owner's
   Claude Code config ([Claude Code](#claude-code)).
+- Every local Claude Code launch adds a folder-trust entry for the session's own scratch folder to
+  that config ([Claude Code](#claude-code)).
 
 [Adapters](./adapters.md) covers the adapter each agent runs through, and
 [messages](../protocol/messages.md) covers the inbox the `atc-bridge` mod serves.
@@ -92,9 +94,16 @@ prompt for. The folder also holds a sign-in file whose access token is the broke
 Claude Code removes its credential variables from the environment of every tool it runs, so a Claude
 Code CLI that a tool starts finds its sign-in only in that file. A stock Claude Code session there
 also takes an allow-listed copy of the daemon host's own Claude Code config at each launch, which
-atc reads and never writes. A local launch that opts into clone trust breaks the rule that atc never
-writes an agent's config: it adds one folder-trust entry for its verified clone to the owner's
-Claude Code config, under Claude Code's own lock, since Claude Code takes trust no other way.
+atc reads and never writes. Two writes break the rule that atc never writes an agent's config, both
+under Claude Code's own lock, since Claude Code takes trust no other way:
+
+- A local launch that opts into clone trust adds one folder-trust entry for its verified clone to
+  the owner's Claude Code config.
+- Every local launch adds one folder-trust entry for the session's scratch folder, the exact path
+  atc passes with `--add-dir`, because Claude Code 2.1.328 asks for trust on each such folder. The
+  entry stays for the session's life, including restarts. A gateway entry whose `env` sets
+  `CLAUDE_CONFIG_DIR` gets the entry in that folder's `.claude.json`. A session that signs in
+  through impd's broker gets the same entry in its own seeded config.
 
 ## The atc-bridge mod
 

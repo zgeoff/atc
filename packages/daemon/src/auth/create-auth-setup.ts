@@ -360,6 +360,23 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 
         const local = adapter.planSpawn(options, id);
 
+        if (local.scratch !== undefined && adapter.trustLocalScratch !== undefined) {
+          const trust = adapter.trustLocalScratch.bind(adapter);
+          const scratch = local.scratch;
+
+          await timer.withStep('scratch-trust', async () => {
+            try {
+              await trust(scratch);
+            } catch (error) {
+              throw new DaemonError(
+                'internal',
+                `could not trust the session's scratch folder ${scratch}: ${error instanceof Error ? error.message : String(error)}`,
+                { agent: adapter.id },
+              );
+            }
+          });
+        }
+
         return {
           plan: {
             bin: local.bin,
