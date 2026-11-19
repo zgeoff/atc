@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.19.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.18.1...@zgeoff/atc@7.19.0) (2026-11-19)
+
+### Features
+
+- **app:** add atc send and atc message get ([#1293](https://github.com/zgeoff/atc/issues/1293))
+  ([e942aaa](https://github.com/zgeoff/atc/commit/e942aaa94baad2ad93a970fe9e0bea68fe271228))
+
 ## [7.18.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.18.0...@zgeoff/atc@7.18.1) (2026-11-19)
 
 ### Bug Fixes
