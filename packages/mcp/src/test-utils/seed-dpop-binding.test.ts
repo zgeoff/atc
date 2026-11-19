@@ -7,17 +7,22 @@ import { seedOwnerSchema } from './seed-owner-schema';
 import { seedOwnerTokens } from './seed-owner-tokens';
 import { generateDPoPKey } from './sign-dpop-proof';
 
-test('it writes the key thumbprint as the confirmation of each access token', async () => {
+function setupTest() {
   const sqlite = createTestDatabase();
 
   registerTestCleanup(() => {
     sqlite.close();
   });
 
-  const owner = seedOwnerSchema(sqlite);
-  const client = seedOwnerClient(sqlite, { name: 'Orchard' });
+  return { sqlite };
+}
 
-  seedOwnerTokens(sqlite, {
+test('it writes the key thumbprint as the confirmation of each access token', async () => {
+  const ctx = setupTest();
+  const owner = seedOwnerSchema(ctx.sqlite);
+  const client = seedOwnerClient(ctx.sqlite, { name: 'Orchard' });
+
+  seedOwnerTokens(ctx.sqlite, {
     ownerID: owner.ownerID,
     clientID: client.clientID,
     grantID: 'code-pear-41',
@@ -29,9 +34,9 @@ test('it writes the key thumbprint as the confirmation of each access token', as
 
   const key = await generateDPoPKey();
 
-  seedDPoPBinding(sqlite, key);
+  seedDPoPBinding(ctx.sqlite, key);
 
-  const [row] = sqlite.query('select "confirmation" from "oauthAccessToken"').all();
+  const [row] = ctx.sqlite.query('select "confirmation" from "oauthAccessToken"').all();
 
   expect(row).toStrictEqual({ confirmation: expect.stringMatching(/^\{"jkt":"[\w-]{43}"\}$/u) });
 });
