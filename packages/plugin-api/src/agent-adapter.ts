@@ -3,9 +3,9 @@ import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import type { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID, SessionID, SpawnOptionSpec, TranscriptRow } from '@atcx/contract';
-import type { AuthProfile } from './auth-profile';
-import type { GatewayAuth } from './gateway-auth';
-import type { MessageBridge, MessageBridgeRequest } from './message-bridge';
+import type { AuthProfile } from './credentials/auth-profile';
+import type { GatewayAuth } from './credentials/gateway-auth';
+import type { MessageBridge, MessageBridgeRequest } from './plugin/message-bridge';
 
 export interface SpawnOptions {
   readonly prompt: string;

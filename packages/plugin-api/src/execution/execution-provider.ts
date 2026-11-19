@@ -1,6 +1,6 @@
 import type { StepTimer } from '@atc/core';
 import type { DaemonError } from '@atc/protocol/wire';
-import type { CredentialBroker } from './credential-broker';
+import type { CredentialBroker } from '../credentials/credential-broker';
 
 export interface ExecutionProvider {
   // The provider kind a target's config selects, such as `local-pty`.

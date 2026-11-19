@@ -64,7 +64,6 @@
           "packages/core",
           "packages/daemon",
           "packages/lifecycle",
-          "packages/plugin-api",
           "packages/protocol",
           "packages/tui"
         ]

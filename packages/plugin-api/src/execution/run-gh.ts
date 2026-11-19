@@ -1,4 +1,4 @@
-import type { HostServices } from './host-services';
+import type { HostServices } from '../plugin/host-services';
 
 export interface GHRun {
   readonly exitCode: number;

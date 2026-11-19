@@ -1,6 +1,6 @@
 import type { SessionID } from '@atcx/contract';
 import type { MessageSender } from '@atcx/contract/light';
-import type { SpawnOptions, SpawnPlan } from './agent-adapter';
+import type { SpawnOptions, SpawnPlan } from '../agent-adapter';
 
 export interface BridgedMessage {
   readonly id: string;
