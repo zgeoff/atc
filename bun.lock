@@ -447,7 +447,7 @@
     "@zgeoff/diet": "0.2.3",
     "@zgeoff/format-codemod": "0.3.6",
     "@zgeoff/kysely-bun-sqlite": "0.3.2",
-    "@zgeoff/mcp-auth": "0.2.2",
+    "@zgeoff/mcp-auth": "0.2.3",
     "@zgeoff/oxlint-config": "0.10.7",
     "@zgeoff/rig": "0.2.3",
     "@zgeoff/std": "0.4.3",
@@ -1004,7 +1004,7 @@
 
     "@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.2", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-vPVzoBWIDXrO6VCfHY8XJSCTnRlTgW078HtyjrVSQP9grT8UswGlad2CP+G8D0GzQLfDRwpRWqqsg4LgxgNRoA=="],
 
-    "@zgeoff/mcp-auth": ["@zgeoff/mcp-auth@0.2.2", "", { "dependencies": { "@better-auth/mcp": "1.7.15", "@better-auth/oauth-provider": "1.7.15", "@simplewebauthn/server": "14.1.0", "@zgeoff/kysely-bun-sqlite": "0.3.2", "@zgeoff/std": "0.4.3", "better-auth": "1.7.15", "reflect-metadata": "0.2.2", "ts-pattern": "5.9.2", "type-fest": "5.10.0", "zod": "4.6.7" }, "peerDependencies": { "elysia": ">=2.0.0-rc.3 <3.0.0", "kysely": ">=0.29.5 <0.30.0" }, "optionalPeers": ["elysia"] }, "sha512-wDtoCeQaXAMAStyDw9ydWJVF8ub2lPDlULvU10Yap4g72JIZp6n4gqsixohtcUVFrNzPmbOkVDFdiriCW5pWNA=="],
+    "@zgeoff/mcp-auth": ["@zgeoff/mcp-auth@0.2.3", "", { "dependencies": { "@better-auth/mcp": "1.7.15", "@better-auth/oauth-provider": "1.7.15", "@simplewebauthn/server": "14.1.0", "@zgeoff/kysely-bun-sqlite": "0.3.3", "@zgeoff/std": "0.4.4", "better-auth": "1.7.15", "reflect-metadata": "0.2.2", "ts-pattern": "5.9.2", "type-fest": "5.10.0", "zod": "4.6.7" }, "peerDependencies": { "elysia": ">=2.0.0-rc.3 <3.0.0", "kysely": ">=0.29.5 <0.30.0" }, "optionalPeers": ["elysia"] }, "sha512-dX1CyxWDUGzit2+zEZageIi8XIV5broAvInBU5KXwCTzRt4QBxKF3pOayZZK09KRRjE0Tx8h4LODTiprcwUOjQ=="],
 
     "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.10.7", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-ggK8Vgmy/XvXG9jlblon1iN7H3klJak7Y9EJ0Y5Vs8ge1tRNVLe2tu4ezIN5ITdjV167Uute2i8Jr2C6jtNhjg=="],
 
@@ -1527,6 +1527,10 @@
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
     "@wringer/gunshi/gunshi": ["gunshi@0.37.3", "", {}, "sha512-uwm23bguqDcleEetknuQnF5okLcgmQPM3iv4aWVHTPDbiSs9shh02F079NCY0mWkrIRjHqNhgmzW6k0FCXhy1g=="],
+
+    "@zgeoff/mcp-auth/@zgeoff/kysely-bun-sqlite": ["@zgeoff/kysely-bun-sqlite@0.3.3", "", { "peerDependencies": { "kysely": ">=0.29.5 <0.30.0" } }, "sha512-zWtn7slj4UsUEfchim81oVLzK+Nm6/O6PsnuM+TiVTqjqxGuZrZkNgNmLWqsx8qdZ7jte3rxt/hy+l4fDGBv9g=="],
+
+    "@zgeoff/mcp-auth/@zgeoff/std": ["@zgeoff/std@0.4.4", "", {}, "sha512-AlT4lgjyC0ZhLUxxG0Sg9pxQG/+MIziC7BA9k29QDNt/ubGvB1+RCpTr/LaYkjFxiZnKG42psa4f2cp5BHGyzQ=="],
 
     "@zgeoff/rig/@zgeoff/diet": ["@zgeoff/diet@0.2.2", "", { "bin": { "diet": "diet.sh" } }, "sha512-zrToDuLnJJGeSxYOvrydH+AlWdtITX4zNENeVh8Y56e1qbSMZl9UNvIp9x4kcs/dMguQW5ihuAupnqngFBYJ4w=="],
 
