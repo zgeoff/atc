@@ -99,22 +99,23 @@ Read a feature's file before you run its journey.
    to run a feature's journey last, run it after every other journey.
 8. Run `bun verify report --human` to read the report. Expect: `verified` on each changed feature
    you did not skip in step 5. Repeat steps 4 to 6 for each `stale` feature.
-9. Push the branch, and open a PR when none is open: without one, `publish` fails.
-10. Check that `VERIFY_UPLOAD_URL`, the file host, and `VERIFY_UPLOAD_TOKEN_REF`, the token's
-    1Password `op://` reference, are set. When either is empty, stop and report a blocker. Never run
+9. Push the branch. When no PR is open for it, open one: `publish` fails without it.
+10. Check that both `VERIFY_UPLOAD_URL` (the file host) and `VERIFY_UPLOAD_TOKEN_REF` (the token's
+    1Password `op://` reference) are set. When either is empty, stop and report a blocker. Never run
     `op read` on its own: it prints the token.
 11. Publish the report, even when you skipped a feature. The subshell keeps the token out of your
-    shell. Because `&&` joins them, a failed `op read` stops the command before `publish` runs:
-    report that as a blocker.
+    shell, and `&&` stops the command before `publish` when `op read` fails: report that as a
+    blocker.
 
     ```bash
     (VERIFY_UPLOAD_TOKEN="$(op read "$VERIFY_UPLOAD_TOKEN_REF")" && export VERIFY_UPLOAD_TOKEN && bun verify publish)
     ```
 
-    For another PR, add `--pr <number>`. Expect: `ok: true`, and `data.action` of `created`,
-    `replaced` or `unchanged`.
+    To write to a PR other than the branch's own, end the command with `--pr <number>`. Expect:
+    `ok: true`, and `data.action` of `created`, `replaced` or `unchanged`.
 
-12. End the run: `bun verify down` after `up`, or `bun verify detach` after `attach`.
+12. End the run, even after a blocker: `bun verify down` after `up`, or `bun verify detach` after
+    `attach`.
 
 ## Read the envelope
 
@@ -177,7 +178,7 @@ session-name, `db` and `mcp --server` rules that `--help` leaves out.
 The registry is [`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts),
 with each feature's `paths` and the `.ignore` list in
 [`feature-paths.ts`](../../../scripts/verify/feature-paths.ts). An ignore glob beats a feature's
-glob, so ignore a file only when atc never reads it at run time.
+glob.
 
 <!-- /repo -->
 
