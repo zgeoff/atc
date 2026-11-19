@@ -36,11 +36,11 @@ import { PEER_CONNECTION_MACHINE } from './peer-connection-machine';
 import type { ProcedureContext } from './procedure-context';
 import type { ConnectionIdentity, RequestPrincipal } from './request-deps';
 import { requireGrantedRequestContext } from './require-granted-request-context';
-import type { BridgeGrant } from './require-granted-request-context';
 import { requireTCPRequestContext } from './require-tcp-request-context';
 import { resolveCallerSession } from './resolve-caller-session';
 import type { TCPPeer } from './tcp-peer';
 import { toPeerMethod } from './to-peer-method';
+import type { BridgeGrant } from './types';
 
 // One client connection, which speaks oRPC peer messages, one per line.
 export interface DaemonConnection {

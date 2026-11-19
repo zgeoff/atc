@@ -1,5 +1,4 @@
 import { DaemonError } from '@atc/protocol/wire';
-import type { SessionID } from '@atcx/contract';
 import { buildGrantedContext } from '../auth/build-granted-context';
 import { buildScopedContext } from '../auth/build-scoped-context';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
@@ -7,12 +6,7 @@ import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { GRANTED_METHOD_SCOPES } from '../auth/granted-method-scopes';
 import type { DaemonContext } from '../types';
 import type { RequestPrincipal } from './request-deps';
-
-// A connection through a session's bridge socket.
-export interface BridgeGrant {
-  readonly holder: SessionID;
-  readonly isCurrent: () => boolean;
-}
+import type { BridgeGrant } from './types';
 
 // What a bridge connection's request is checked against.
 export interface GrantedRequestSource {
