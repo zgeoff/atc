@@ -4,6 +4,8 @@ import type { DaemonName } from './session-key';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
 
+type NamedBy = 'user' | 'auto' | 'agent' | 'unknown';
+
 export type DaemonEvent =
   | { readonly ev: 'SessionAdded'; readonly session: MirrorSession }
   | { readonly ev: 'SessionState'; readonly session: MirrorSession }
@@ -11,7 +13,7 @@ export type DaemonEvent =
       readonly ev: 'SessionRenamed';
       readonly sessionID: string;
       readonly name: string;
-      readonly namedBy: 'user' | 'auto' | 'agent';
+      readonly namedBy: NamedBy;
     }
   | { readonly ev: 'SessionRemoved'; readonly sessionID: string }
   | {
@@ -36,6 +38,8 @@ export type DaemonEvent =
     }
   | { readonly ev: 'PermissionResolved'; readonly request: string; readonly decision: string };
 
+const NAMED_BY: readonly NamedBy[] = ['user', 'auto', 'agent'];
+
 const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
   z.looseObject({ ev: z.literal('SessionAdded'), session: z.unknown() }),
   z.looseObject({ ev: z.literal('SessionState'), session: z.unknown() }),
@@ -43,7 +47,7 @@ const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
     ev: z.literal('SessionRenamed'),
     sessionID: z.string(),
     name: z.string(),
-    namedBy: z.enum(['user', 'auto', 'agent']),
+    namedBy: z.string(),
   }),
   z.looseObject({ ev: z.literal('SessionRemoved'), sessionID: z.string() }),
   z.looseObject({
@@ -95,7 +99,7 @@ export function parseDaemonEvent(raw: RawDaemonEvent, daemon: DaemonName): Daemo
       ev: payload.ev,
       sessionID: payload.sessionID,
       name: payload.name,
-      namedBy: payload.namedBy,
+      namedBy: NAMED_BY.find((known) => known === payload.namedBy) ?? 'unknown',
     }))
     .with({ ev: 'SessionRemoved' }, (payload) => ({ ev: payload.ev, sessionID: payload.sessionID }))
     .with({ ev: 'SessionResized' }, (payload) => ({

@@ -1,5 +1,5 @@
 import { ansi } from '@atc/core';
-import type { SessionState } from '@atc/protocol';
+import type { SessionViewState } from '@atc/protocol';
 import { cols } from './cols';
 import { rows } from './rows';
 import { truncate } from './truncate';
@@ -8,7 +8,7 @@ import { writeOut } from './write-out';
 const ESC = '\u001B';
 
 export interface StatusView {
-  readonly counts: Readonly<Record<SessionState, number>>;
+  readonly counts: Readonly<Record<SessionViewState, number>>;
   readonly focusedName: string | null;
   readonly urgentName: string | null;
   readonly leaderLabel: string;
@@ -43,6 +43,10 @@ export function drawStatusBar(view: StatusView) {
 
   if (counts.running > 0) {
     parts.push(`◐ ${counts.running} running`);
+  }
+
+  if (counts.unknown > 0) {
+    parts.push(`? ${counts.unknown} unknown`);
   }
 
   if (counts.exited > 0) {

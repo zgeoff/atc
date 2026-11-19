@@ -1,4 +1,4 @@
-import type { DaemonAnswer, MismatchRefusalData, RequestParams } from '@atc/protocol';
+import type { DaemonAnswer, RequestParams } from '@atc/protocol';
 import {
   DEFAULT_QUEUE_BYTES,
   DaemonError,
@@ -9,6 +9,7 @@ import {
 } from '@atc/protocol/wire';
 import type { EventMsg, SocketWriter } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { ServerPeer } from '@orpc/standard-server-peer';
 import type { EncodedMessage } from '@orpc/standard-server-peer';
@@ -22,13 +23,13 @@ import { isOwnerOnlyMethod } from '../auth/is-owner-only-method';
 import type { DaemonContext } from '../types';
 import { answerPeerRequest } from './answer-peer-request';
 import { buildConnectionRequests } from './build-connection-requests';
+import { checkHelloMajor } from './check-hello-major';
 import { checkTCPHello } from './check-tcp-hello';
 import { createConnectionView } from './create-connection-view';
 import { createEventFeed } from './create-event-feed';
 import { decodePeerInput } from './decode-peer-input';
 import { findPeerMethod } from './find-peer-method';
 import { findRequestScope } from './find-request-scope';
-import { formatProtocolMismatch } from './format-protocol-mismatch';
 import { isPeerMessage } from './is-peer-message';
 import { loadHelloAnswer } from './load-hello-answer';
 import { parseRequestPrincipal } from './parse-request-principal';
@@ -199,10 +200,8 @@ export function createDaemonConnection(
       if (input.protocol !== PROTOCOL_V) {
         throw new DaemonError(
           'protocol_mismatch',
-          formatProtocolMismatch(ctx.build, input.client, input.protocol),
-          {
-            daemonProtocol: PROTOCOL_V,
-          } satisfies MismatchRefusalData,
+          `${input.client} speaks protocol v${input.protocol ?? 'unknown'}, daemon ${ctx.build} speaks v${PROTOCOL_V}; restart the daemon so both run the same build`,
+          { daemonProtocol: PROTOCOL_V, daemonMajor: CONTRACT_MAJOR },
         );
       }
 
@@ -253,7 +252,13 @@ export function createDaemonConnection(
   ): Promise<ProcedureContext | DaemonError> => {
     const raw = decodePeerInput(request);
 
-    if (tcp !== null) {
+    if (tcp === null) {
+      const refusal = checkHelloMajor(raw, ctx.build);
+
+      if (refusal !== null) {
+        return new DaemonError(refusal.code, refusal.message, refusal.data);
+      }
+    } else {
       const protocol = raw['protocol'];
 
       const hello = await checkTCPHello(
@@ -271,7 +276,7 @@ export function createDaemonConnection(
       );
 
       if (!hello.ok) {
-        return new DaemonError(hello.code, hello.message);
+        return new DaemonError(hello.code, hello.message, hello.data);
       }
 
       acceptedTCPHello = hello;

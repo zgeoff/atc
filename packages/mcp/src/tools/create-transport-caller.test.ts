@@ -283,3 +283,28 @@ test("it sends a principal's name beside it, which labels the message the reques
     sender: { kind: 'connector', client: 'client-7', name: 'Lantern Notes' },
   });
 });
+
+test('it fails an events read from the start with feature_missing and sends nothing when the daemon lacks the feature', async () => {
+  const temporaryDirectory = setupTempDir('atc-reconnecting-caller-');
+
+  const older = startStubLegacyDaemon(join(temporaryDirectory.path, 'daemon.sock'), {
+    replies: { 'events.read': { events: [] } },
+  });
+
+  const caller = createTransportCaller(
+    join(temporaryDirectory.path, 'daemon.sock'),
+    'atc/test-build',
+    (path) => openDaemonClient(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  expect(caller.sendRequest('events.read', { from: 'start' })).rejects.toMatchObject({
+    code: 'feature_missing',
+    message: expect.stringContaining('restart the daemon on a newer atc'),
+  });
+
+  await waitFor(() => {
+    expect(older.requests.map((request) => request.method)).toStrictEqual(['daemon.hello']);
+  });
+});

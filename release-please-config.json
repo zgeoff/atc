@@ -23,7 +23,7 @@
         },
         {
           "type": "generic",
-          "path": "packages/contract/src/daemon-contract/contract-version.ts"
+          "path": "packages/contract/src/light/contract-version.ts"
         }
       ]
     },

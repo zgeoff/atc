@@ -1,6 +1,6 @@
 import type { AgentID } from '@atc/core';
 import { isRecord, toAgentID } from '@atc/core';
-import type { SessionState } from '@atc/protocol';
+import type { SessionState, SessionViewState } from '@atc/protocol';
 import { z } from 'zod';
 import type { DaemonName } from './session-key';
 
@@ -14,7 +14,7 @@ export interface MirrorSession {
   pinned: boolean;
   lastAttachedAt: number;
   repoRoot: string;
-  state: SessionState;
+  state: SessionViewState;
   unread: boolean;
   lastMsg: string;
   createdAt: number;
@@ -36,7 +36,7 @@ const REQUIRED_MIRROR_FIELDS_SCHEMA = z.looseObject({
   id: z.string(),
   name: z.string(),
   cwd: z.string(),
-  state: z.enum(['running', 'needs_you', 'done', 'exited']),
+  state: z.string(),
   unread: z.boolean(),
   lastMsg: z.string(),
   createdAt: z.number(),
@@ -61,7 +61,7 @@ export function toMirrorSession(value: unknown, daemon: DaemonName): MirrorSessi
     lastAttachedAt:
       typeof record['lastAttachedAt'] === 'number' ? record['lastAttachedAt'] : record.createdAt,
     repoRoot: typeof record['repoRoot'] === 'string' ? record['repoRoot'] : record.cwd,
-    state: record.state,
+    state: parseSessionState(record.state),
     unread: record.unread,
     lastMsg: record.lastMsg,
     createdAt: record.createdAt,
@@ -75,6 +75,13 @@ export function toMirrorSession(value: unknown, daemon: DaemonName): MirrorSessi
     model: typeof record['model'] === 'string' ? record['model'] : null,
     harness: parseHarnessLifecycle(record['lifecycle'], record.alive),
   };
+}
+
+const SESSION_STATES: readonly SessionState[] = ['running', 'needs_you', 'done', 'exited'];
+
+// A state that a newer daemon adds shows as unknown.
+function parseSessionState(state: string): SessionViewState {
+  return SESSION_STATES.find((known) => known === state) ?? 'unknown';
 }
 
 function getTargetID(locator: unknown): string {

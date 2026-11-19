@@ -13,7 +13,12 @@ export interface RestartPlan {
 }
 
 export type DaemonAnswer =
-  | { readonly kind: 'ok'; readonly build: string; readonly protocol: number }
+  | {
+      readonly kind: 'ok';
+      readonly build: string;
+      readonly protocol: number;
+      readonly major: number;
+    }
   | { readonly kind: 'refused'; readonly message: string };
 
 export interface PlanSession {

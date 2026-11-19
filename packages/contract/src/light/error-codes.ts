@@ -2,6 +2,7 @@ export const ERROR_CODES = [
   'protocol_mismatch',
   'unauthorized',
   'unknown_method',
+  'feature_missing',
   'bad_args',
   'no_such_session',
   'session_dead',

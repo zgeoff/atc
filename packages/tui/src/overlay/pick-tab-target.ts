@@ -1,4 +1,4 @@
-import type { SessionState } from '@atc/protocol';
+import type { SessionViewState } from '@atc/protocol';
 import { sortSessionViews } from '@atc/protocol';
 import { collectPinnedFirst } from '../fleet/collect-pinned-first';
 import type { DaemonName, SessionKey } from '../fleet/session-key';
@@ -7,7 +7,7 @@ interface TabCandidate {
   readonly daemon: DaemonName;
   readonly id: string;
   readonly parent: string | null;
-  readonly state: SessionState;
+  readonly state: SessionViewState;
   readonly pinned: boolean;
   readonly lastAttachedAt: number;
   readonly createdAt: number;

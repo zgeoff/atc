@@ -1,9 +1,9 @@
-import type { SessionState } from './session-state';
+import type { SessionViewState } from './session-state';
 
 export interface SortableSessionView {
   readonly id: string;
   readonly parent: string | null;
-  readonly state: SessionState;
+  readonly state: SessionViewState;
   readonly pinned: boolean;
   readonly lastAttachedAt: number;
   readonly createdAt: number;

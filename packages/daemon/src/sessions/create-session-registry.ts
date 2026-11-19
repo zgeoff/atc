@@ -169,7 +169,17 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       callbacks.onEvent('removed', session);
     },
 
-    countStates: () => countSessionStates(registry.sessions),
+    // A daemon knows every state it holds, so the status file keeps the four counts it always had.
+    countStates: () => {
+      const counts = countSessionStates(registry.sessions);
+
+      return {
+        needs_you: counts.needs_you,
+        running: counts.running,
+        done: counts.done,
+        exited: counts.exited,
+      };
+    },
 
     sortSessions: () => sortSessionViews(registry.sessions),
   };

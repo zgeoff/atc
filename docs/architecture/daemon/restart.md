@@ -5,7 +5,7 @@ stored fleet on it, and reports which sessions came back. A restart ends every l
 so a session that is mid-turn loses that turn, and the restore resumes each session from its
 transcript without continuing the interrupted turn. The TUI's `u` key and its protocol-mismatch
 prompt restart the daemon in-process instead, and
-[the daemon](./daemon.md#builds-and-protocol-versions) covers when they do. The
+[the daemon](./daemon.md#builds-and-major-versions) covers when they do. The
 [daemon restart guide](../../guides/using-atc.md#restarting-the-daemon) covers the command's flags
 and exit codes.
 

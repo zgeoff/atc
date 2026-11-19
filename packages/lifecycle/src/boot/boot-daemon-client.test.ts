@@ -9,6 +9,7 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { ProtocolMismatch } from '@atc/protocol';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { buildMockLifecycleHost } from '../test-utils/build-mock-lifecycle-host';
 import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unanswering-unix-listener';
 import { bootDaemonClient } from './boot-daemon-client';
@@ -54,7 +55,7 @@ test('it leaves a daemon on another protocol running and rejects with both build
   expect(bootDaemonClient(host)).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message: [
-      `the atc daemon (pid ${legacy.pid}, socket ${ctx.sockPath}) speaks another protocol than this client, atc/test-build on protocol v${PROTOCOL_V}.`,
+      `the atc daemon (pid ${legacy.pid}, socket ${ctx.sockPath}) speaks another major version than this client, atc/test-build on major version ${CONTRACT_MAJOR}.`,
       `The daemon answered: atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
       'It was left running, so the sessions it hosts keep running.',
       'To restart it, run `atc` from the build you want and confirm its restart prompt: every hosted session ends, and the fleet is restored on the new daemon.',
@@ -124,7 +125,7 @@ test('it never offers to restart a daemon on a later protocol, and tells the use
   expect(booting).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message: [
-      `this client, atc/test-build on protocol v${PROTOCOL_V}, is older than the atc daemon (pid ${newer.pid}, socket ${ctx.sockPath}), which speaks protocol v${PROTOCOL_V + 1}.`,
+      `this client, atc/test-build on major version ${CONTRACT_MAJOR}, is older than the atc daemon (pid ${newer.pid}, socket ${ctx.sockPath}), which runs major version ${CONTRACT_MAJOR + 1}.`,
       `The daemon answered: atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
       'It was left running, so the sessions it hosts keep running.',
       'To reconnect, update atc if this build is out of date, then quit this client and run `atc` again. A daemon restart cannot help, because the daemon comes back on its own build.',
@@ -166,6 +167,8 @@ test('it offers to restart a daemon on an earlier protocol that names its versio
       clientBuild: 'atc/test-build',
       clientProtocol: PROTOCOL_V,
       daemonProtocol: PROTOCOL_V - 1,
+      clientMajor: CONTRACT_MAJOR,
+      daemonMajor: null,
       daemonMessage: `atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V - 1}; restart the daemon so both run the same build`,
     },
   ]);
@@ -542,7 +545,7 @@ test('it reads the pid of a daemon on another protocol from the pid file at the 
   ).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message: expect.toStartWith(
-      `the atc daemon (pid 4242, socket ${join(ctx.directory, 'given', 'atc-daemon.sock')}) speaks another protocol than this client`,
+      `the atc daemon (pid 4242, socket ${join(ctx.directory, 'given', 'atc-daemon.sock')}) speaks another major version than this client`,
     ),
   });
 });
@@ -578,7 +581,7 @@ test('it reads the pid of a daemon on another protocol from the record at the pa
   ).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message: expect.toStartWith(
-      `the atc daemon (pid 4343, socket ${join(ctx.directory, 'given', 'atc-daemon.sock')}) speaks another protocol than this client`,
+      `the atc daemon (pid 4343, socket ${join(ctx.directory, 'given', 'atc-daemon.sock')}) speaks another major version than this client`,
     ),
   });
 });

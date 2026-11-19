@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { getString } from '@atc/core/test-utils/get-string';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { z } from 'zod';
 import { buildPeerRequestLine } from '../test-utils/build-peer-request-line';
 import { startStubPeerDaemon } from '../test-utils/start-stub-peer-daemon';
@@ -139,7 +140,7 @@ test('it rejects a typed procedure call after the client stops, with the reason 
   });
 });
 
-test('it sends its handshake with its protocol version and subscribes as the principal it gave', async () => {
+test('it sends its handshake with its protocol number, its major version and subscribes as the principal it gave', async () => {
   const ctx = setupTest();
   const answers: Readonly<Record<string, StubPeerAnswer>> = { 'daemon.hello': { ok: {} } };
 
@@ -164,6 +165,7 @@ test('it sends its handshake with its protocol version and subscribes as the pri
         params: {
           protocol: PROTOCOL_V,
           client: 'atc/test',
+          major: CONTRACT_MAJOR,
           auth: { scheme: 'none' },
           principal: 'ci',
         },
@@ -358,4 +360,53 @@ test('it reports a close handler that throws instead of leaving it unhandled', a
       "atc: the daemon client's close handler failed: Error: the close handler broke",
     );
   });
+});
+
+test('it fails a call that sends events.read from to a daemon without the feature, and sends nothing', async () => {
+  const ctx = setupTest();
+
+  const answer = mock<(request: StubPeerRequest) => StubPeerAnswer>((request) =>
+    request.method === 'daemon.hello' ? { ok: { features: [] } } : 'silent',
+  );
+
+  startStubPeerDaemon(ctx.socketPath, { answer });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  const sent = answer.mock.calls.length;
+
+  expect(client.sendRequest('events.read', { from: 'start' })).rejects.toMatchObject({
+    code: 'feature_missing',
+    message: expect.stringContaining('restart the daemon on a newer atc'),
+  });
+
+  expect(answer.mock.calls).toHaveLength(sent);
+});
+
+test('it sends events.read from to a daemon that lists the feature', async () => {
+  const ctx = setupTest();
+
+  const answer = mock<(request: StubPeerRequest) => StubPeerAnswer>((request) =>
+    request.method === 'daemon.hello'
+      ? { ok: { features: ['events.read.from-start'] } }
+      : { ok: {} },
+  );
+
+  startStubPeerDaemon(ctx.socketPath, { answer });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test');
+
+  expect(client.sendRequest('events.read', { from: 'start' })).resolves.toStrictEqual({});
 });

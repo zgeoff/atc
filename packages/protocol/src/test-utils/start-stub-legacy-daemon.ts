@@ -15,6 +15,11 @@ interface StubLegacyDaemonTCPAddress {
 interface StubLegacyDaemonOptions {
   readonly protocol?: number;
 
+  // The major version the stub daemon runs. A stub with one refuses a hello of another major
+  // version and holds it in the refusal's data; one without behaves as a daemon released before
+  // the major version check, which compares the protocol number alone.
+  readonly major?: number;
+
   // Released daemons can omit the protocol version from their refusal's data.
   readonly refusalHoldsProtocol?: boolean;
 
@@ -64,7 +69,11 @@ export function startStubLegacyDaemon(
         return { err: refusal };
       }
 
-      return pickLegacyAnswer(request, answers, protocol, options.refusalHoldsProtocol ?? false);
+      return pickLegacyAnswer(request, answers, {
+        protocol,
+        major: options.major,
+        refusalHoldsProtocol: options.refusalHoldsProtocol ?? false,
+      });
     },
   });
 
@@ -76,22 +85,36 @@ export function startStubLegacyDaemon(
   };
 }
 
+interface LegacyDaemonIdentity {
+  readonly protocol: number;
+  readonly major: number | undefined;
+  readonly refusalHoldsProtocol: boolean;
+}
+
 function pickLegacyAnswer(
   request: StubPeerRequest,
   answers: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
-  protocol: number,
-  refusalHoldsProtocol: boolean,
+  daemon: LegacyDaemonIdentity,
 ): StubPeerAnswer {
+  const protocol = daemon.protocol;
+  const major = daemon.major;
+  const refusalHoldsProtocol = daemon.refusalHoldsProtocol;
   const asked = request.params?.['protocol'];
+  const isRefused = major === undefined ? asked !== protocol : request.params?.['major'] !== major;
 
-  if (request.method === 'daemon.hello' && asked !== protocol) {
+  if (request.method === 'daemon.hello' && isRefused) {
     const client = request.params?.['client'];
+
+    const data = {
+      ...(refusalHoldsProtocol ? { daemonProtocol: protocol } : {}),
+      ...(major === undefined ? {} : { daemonMajor: major }),
+    };
 
     return {
       err: {
         code: 'protocol_mismatch',
         message: `${String(client)} speaks protocol v${String(asked)}, daemon atc/legacy-build speaks v${protocol}; restart the daemon so both run the same build`,
-        ...(refusalHoldsProtocol ? { data: { daemonProtocol: protocol } } : {}),
+        ...(Object.keys(data).length === 0 ? {} : { data }),
       },
     };
   }

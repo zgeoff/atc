@@ -235,9 +235,6 @@ export declare const CONFIG_FILE_SCHEMA: z.ZodObject<{
 }, z.core.$strip>;
 export type ConfigFile = z.output<typeof CONFIG_FILE_SCHEMA>;
 
-// daemon-contract/contract-version.d.ts
-export declare const CONTRACT_VERSION: string;
-
 // daemon-contract/daemon-contract.d.ts
 import { z } from 'zod';
 export declare const DAEMON_CONTRACT: {
@@ -245,10 +242,17 @@ export declare const DAEMON_CONTRACT: {
         hello: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
             client: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
             protocol: z.ZodOptional<z.ZodNumber>;
+            major: z.ZodOptional<z.ZodNumber>;
+            auth: z.ZodOptional<z.ZodUnion<readonly [z.ZodObject<{
+                scheme: z.ZodLiteral<"none">;
+            }, z.core.$strip>, z.ZodObject<{
+                scheme: z.ZodLiteral<"bearer">;
+                token: z.ZodString;
+            }, z.core.$strip>]>>;
             principal: z.ZodOptional<z.ZodString>;
             viewer: z.ZodOptional<z.ZodString>;
             session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
-        }, z.core.$strip>, z.ZodObject<{
+        }, z.core.$strict>, z.ZodObject<{
             daemon: z.ZodString;
             daemonID: z.ZodString;
             limits: z.ZodObject<{
@@ -2042,10 +2046,17 @@ export declare const REQUEST_PARAM_SCHEMAS: {
     readonly 'daemon.hello': z.ZodObject<{
         client: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
         protocol: z.ZodOptional<z.ZodNumber>;
+        major: z.ZodOptional<z.ZodNumber>;
+        auth: z.ZodOptional<z.ZodUnion<readonly [z.ZodObject<{
+            scheme: z.ZodLiteral<"none">;
+        }, z.core.$strip>, z.ZodObject<{
+            scheme: z.ZodLiteral<"bearer">;
+            token: z.ZodString;
+        }, z.core.$strip>]>>;
         principal: z.ZodOptional<z.ZodString>;
         viewer: z.ZodOptional<z.ZodString>;
         session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
-    }, z.core.$strip>;
+    }, z.core.$strict>;
     readonly 'daemon.ping': z.ZodObject<{}, z.core.$strip>;
     readonly 'daemon.quit': z.ZodObject<{}, z.core.$strip>;
     readonly 'daemon.backup': z.ZodObject<{
@@ -2904,6 +2915,14 @@ export declare const HELLO_RESULT_SCHEMA: z.ZodObject<{
 }, z.core.$strip>;
 export type HelloResult = z.output<typeof HELLO_RESULT_SCHEMA>;
 
+// hello/mismatch-refusal-data.d.ts
+import { z } from 'zod';
+export declare const MISMATCH_REFUSAL_DATA_SCHEMA: z.ZodObject<{
+    daemonProtocol: z.ZodOptional<z.ZodNumber>;
+    daemonMajor: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strip>;
+export type MismatchRefusalData = z.output<typeof MISMATCH_REFUSAL_DATA_SCHEMA>;
+
 // hello/restart-result.d.ts
 import { z } from 'zod';
 declare const RESTART_FAILED_ROW_SCHEMA: z.ZodObject<{
@@ -2973,7 +2992,6 @@ export * from './messages/answer-view-schema.js';
 export * from './hello/check-daemon.js';
 export * from './workspaces/commit-id-pattern.js';
 export * from './config/config-file-schema.js';
-export * from './daemon-contract/contract-version.js';
 export * from './daemon-contract/daemon-contract.js';
 export * from './daemon-contract/daemon-error-map.js';
 export * from './daemon-events/daemon-event.js';
@@ -2988,6 +3006,7 @@ export * from './workspaces/git-probe-result.js';
 export * from './workspaces/git-ref.js';
 export * from './sessions/grant-scope.js';
 export * from './hello/hello-result.js';
+export * from './hello/mismatch-refusal-data.js';
 export * from './light/index.js';
 export * from './daemon-events/max-events-cursor-bytes.js';
 export * from './gateway/max-registry-daemons.js';
@@ -3020,12 +3039,28 @@ export * from './daemon-events/transcript-row.js';
 export * from './workspaces/workspace-cleanup.js';
 export * from './workspaces/workspace-prune.js';
 
+// light/contract-major.d.ts
+export declare const CONTRACT_MAJOR: number;
+
+// light/contract-version.d.ts
+export declare const CONTRACT_VERSION: string;
+
 // light/error-codes.d.ts
-export declare const ERROR_CODES: readonly ['protocol_mismatch', 'unauthorized', 'unknown_method', 'bad_args', 'no_such_session', 'session_dead', 'permission_pending', 'menu_changed', 'menu_label_mismatch', 'menu_busy', 'unsupported', 'unsupported_operation', 'unknown_target', 'target_unavailable', 'target_changed', 'target_config_invalid', 'target_forbidden', 'not_a_git_repo', 'no_commits', 'unreadable_tree', 'has_submodules', 'lfs_unsupported', 'workspace_dirty', 'no_origin', 'invalid_git_url', 'git_transports_invalid', 'unpushed_head', 'credential_in_url', 'credential_missing', 'ref_not_found', 'clone_failed', 'git_output_open', 'sanitize_failed', 'tar_failed', 'workspace_exists', 'workspace_overlap', 'transfer_failed', 'workspace_mismatch', 'scope_invalid', 'github_unavailable', 'host_unavailable', 'auth_not_configured', 'auth_target_unsupported', 'auth_signin_needed', 'auth_token_scope', 'auth_token_too_broad', 'auth_host_out_of_scope', 'auth_secret_not_grantable', 'auth_secret_mismatch', 'auth_runtime_mismatch', 'auth_runtime_exists', 'auth_grant_missing', 'auth_grants_mismatch', 'auth_rebind_required', 'auth_blocked', 'auth_binding_mismatch', 'auth_binding_invalid', 'auth_revocation_pending', 'broker_not_ready', 'auth_placeholder_unsupported', 'host_leased', 'confirmation_required', 'confirm_token_invalid', 'session_pinned', 'session_live', 'already_answered', 'too_slow', 'stale_epoch', 'idempotency_conflict', 'outcome_unknown', 'idempotency_key_unknown', 'internal'];
+export declare const ERROR_CODES: readonly ['protocol_mismatch', 'unauthorized', 'unknown_method', 'feature_missing', 'bad_args', 'no_such_session', 'session_dead', 'permission_pending', 'menu_changed', 'menu_label_mismatch', 'menu_busy', 'unsupported', 'unsupported_operation', 'unknown_target', 'target_unavailable', 'target_changed', 'target_config_invalid', 'target_forbidden', 'not_a_git_repo', 'no_commits', 'unreadable_tree', 'has_submodules', 'lfs_unsupported', 'workspace_dirty', 'no_origin', 'invalid_git_url', 'git_transports_invalid', 'unpushed_head', 'credential_in_url', 'credential_missing', 'ref_not_found', 'clone_failed', 'git_output_open', 'sanitize_failed', 'tar_failed', 'workspace_exists', 'workspace_overlap', 'transfer_failed', 'workspace_mismatch', 'scope_invalid', 'github_unavailable', 'host_unavailable', 'auth_not_configured', 'auth_target_unsupported', 'auth_signin_needed', 'auth_token_scope', 'auth_token_too_broad', 'auth_host_out_of_scope', 'auth_secret_not_grantable', 'auth_secret_mismatch', 'auth_runtime_mismatch', 'auth_runtime_exists', 'auth_grant_missing', 'auth_grants_mismatch', 'auth_rebind_required', 'auth_blocked', 'auth_binding_mismatch', 'auth_binding_invalid', 'auth_revocation_pending', 'broker_not_ready', 'auth_placeholder_unsupported', 'host_leased', 'confirmation_required', 'confirm_token_invalid', 'session_pinned', 'session_live', 'already_answered', 'too_slow', 'stale_epoch', 'idempotency_conflict', 'outcome_unknown', 'idempotency_key_unknown', 'internal'];
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
+// light/feature-input-fields.d.ts
+export declare const FEATURE_INPUT_FIELDS: {
+    readonly 'events.read': {
+        readonly from: 'events.read.from-start';
+    };
+};
+
 // light/index.d.ts
+export * from './contract-major.js';
+export * from './contract-version.js';
 export * from './error-codes.js';
+export * from './feature-input-fields.js';
 export * from './message-sender.js';
 export * from './resolve-atc-paths.js';
 export * from './resolve-home-dir.js';

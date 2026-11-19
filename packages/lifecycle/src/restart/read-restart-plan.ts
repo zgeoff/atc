@@ -1,6 +1,7 @@
 import { isRecord } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { buildATCCommand } from '../boot/build-atc-command';
 import { tryOpenDaemon } from '../boot/try-open-daemon';
 import type { DaemonProbe } from '../boot/try-open-daemon';
@@ -75,7 +76,7 @@ function pickAnswer(probe: DaemonProbe<unknown> | null): DaemonAnswer | null {
   }
 
   return probe.kind === 'ok'
-    ? { kind: 'ok', build: probe.hello.build, protocol: PROTOCOL_V }
+    ? { kind: 'ok', build: probe.hello.build, protocol: PROTOCOL_V, major: CONTRACT_MAJOR }
     : { kind: 'refused', message: probe.message };
 }
 
