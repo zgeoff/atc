@@ -44,7 +44,6 @@ export function parseGatewayRegistry(
   return { ok: true, registry: { daemons, defaultDaemon: parsed.data.defaultDaemon } };
 }
 
-// An issue inside one daemon's entry names that daemon.
 function formatRegistryIssue(issue: z.core.$ZodIssue): string {
   const [field, name] = issue.path;
 

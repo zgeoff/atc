@@ -9,7 +9,6 @@ import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemo
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { mergeEventPages } from './merge-event-pages';
 
-// Which daemons a test wires, by name.
 interface MergeEventsTestConfig<Name extends string> {
   readonly daemons: readonly Name[];
 }
@@ -20,7 +19,6 @@ async function setupTest<const Name extends string>(config: MergeEventsTestConfi
       const daemon = await startTestDaemon({
         prefix: `atc-merge-events-${name}-`,
 
-        // Session messages need an adapter that takes them.
         options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
       });
 
@@ -446,9 +444,6 @@ test('it reads an event cut from a page exactly once though the daemon appends a
     defaultDaemon: 'cloud',
   };
 
-  // The cloud event is stamped no later than the pc one, and a tie goes to
-  // the daemon whose name sorts first, so the cloud event wins the
-  // one-event page.
   await ctx.getDaemon('cloud').daemon.client.sendRequest('session.message', {
     session: ctx.getDaemon('cloud').session,
     from: 'tester',
@@ -556,9 +551,6 @@ test('it resumes a daemon right after its event a later page read again', async 
     defaultDaemon: 'cloud',
   };
 
-  // The cloud event is stamped no later than the pc one, and a tie goes to
-  // the daemon whose name sorts first, so the cloud event wins the
-  // one-event page and the pc one is cut.
   await ctx.getDaemon('cloud').daemon.client.sendRequest('session.message', {
     session: ctx.getDaemon('cloud').session,
     from: 'tester',

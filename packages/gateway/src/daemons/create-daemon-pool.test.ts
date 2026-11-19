@@ -12,7 +12,6 @@ import { createDaemonPool } from './create-daemon-pool';
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-pool-');
 
-  // The token both listeners take, which every pool here presents.
   writeFileSync(join(temporaryDirectory.path, 'token'), `${'a'.repeat(32)}\n`);
 
   const cloud = await startTestDaemon({
@@ -20,7 +19,6 @@ async function setupTest() {
     options: () => ({
       adapter: buildMockAgentAdapter(),
 
-      // Lets the pool's principal use the local target.
       principals: new Map([['gw', ['local']]]),
       listen: { host: '127.0.0.1', port: 0, tokenFile: join(temporaryDirectory.path, 'token') },
     }),
@@ -31,7 +29,6 @@ async function setupTest() {
     options: () => ({
       adapter: buildMockAgentAdapter(),
 
-      // Lets the pool's principal use the local target.
       principals: new Map([['gw', ['local']]]),
       listen: { host: '127.0.0.1', port: 0, tokenFile: join(temporaryDirectory.path, 'token') },
     }),

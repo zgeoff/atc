@@ -1,4 +1,3 @@
-// a refusal about the daemon itself, never an answer the daemon gave
 export class GatewayError extends Error {
   readonly code: 'daemon_unavailable' | 'daemon_unauthorized';
 

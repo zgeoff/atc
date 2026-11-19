@@ -22,12 +22,8 @@ interface RoutingCallerOptions {
   readonly pool: DaemonPool;
   readonly store: GatewayStore;
 
-  // How long each daemon may take to answer a call the gateway asks every
-  // daemon; 5 s when unset.
   readonly fanOutTimeoutMs?: number;
 
-  // Runs the fan-out waits and reads the time for the binding store; the
-  // system clock when unset.
   readonly clock?: Clock;
 }
 
@@ -42,8 +38,6 @@ export interface RoutingCaller {
 
   readonly features: ReadonlySet<GatewayFeature>;
 
-  // The gateway dials each daemon only when a call needs it, and a listing
-  // reports a daemon it cannot reach as down, so no single daemon gates it.
   readonly waitForDaemon: () => Promise<void>;
 }
 
@@ -54,7 +48,6 @@ export function createRoutingCaller(opts: RoutingCallerOptions): RoutingCaller {
   const getTimeout = (): number => opts.fanOutTimeoutMs ?? FAN_OUT_TIMEOUT_MS;
   const getClock = (): Clock => opts.clock ?? systemClock;
 
-  // The daemon a `daemon` param picks, or null when the call gives none.
   const findNamedDaemon = (named: unknown): RegistryDaemon | null => {
     if (named === undefined) {
       return null;
@@ -71,8 +64,6 @@ export function createRoutingCaller(opts: RoutingCallerOptions): RoutingCaller {
     return daemon;
   };
 
-  // The steps of a routed call, outermost first: the id rules, the daemon
-  // pick, the key binding, then the pass-through to the daemon.
   const sendRouted = async (
     method: string,
     params: Readonly<Record<string, unknown>>,
@@ -146,8 +137,6 @@ export function createRoutingCaller(opts: RoutingCallerOptions): RoutingCaller {
       };
     }
 
-    // each daemon's state sits beside the merged sessions, so one that did not answer reads
-    // as down, never as one with no sessions
     return {
       sessions: answered.flatMap((entry) => collectSessions(entry.outcome)),
       daemons: answered.map((entry) => ({
@@ -157,8 +146,6 @@ export function createRoutingCaller(opts: RoutingCallerOptions): RoutingCaller {
     };
   };
 
-  // Each daemon's name, state, build, and pinned state identity, read from
-  // its handshake, and the default daemon. Never an address or a token.
   const readDaemonStates = async (): Promise<Readonly<Record<string, unknown>>> => {
     const daemons = [...opts.registry.daemons.values()];
 
