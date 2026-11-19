@@ -1,12 +1,9 @@
 import { lstatSync, readlinkSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 
-// The file names no SQLite open in this process may reach, lowercased, since
-// a case-insensitive filesystem opens the same file under either case.
+// Lowercased, since a case-insensitive filesystem opens the same file under either case.
 const refusedNames = new Set<string>();
 
-// Refuses every later open of a SQLite file with this name in this process,
-// through a symlink too, until the returned release runs.
 export function registerRefusedSQLiteName(name: string): () => void {
   const key = name.toLowerCase();
 
@@ -31,8 +28,7 @@ export function requireOpenableSQLitePath(path: string): void {
 // The most symlinks the kernel follows before it fails with ELOOP.
 const MAX_LINK_HOPS = 40;
 
-// The file name of the path and of each symlink target it leads to, a missing
-// target included, since SQLite creates the file a dangling link names.
+// A missing target is included, since SQLite creates the file a dangling link names.
 function readLinkNames(path: string): string[] {
   const names = [basename(path)];
   let current = path;
@@ -52,8 +48,7 @@ function readLinkNames(path: string): string[] {
   return names;
 }
 
-// Undefined for a path that is no symlink, and for one this process cannot
-// read, which the SQLite open then fails to reach as well.
+// An unreadable path is not an error here: opening it as a database fails to reach it as well.
 function readLinkTarget(path: string): string | undefined {
   try {
     const stats = lstatSync(path, { throwIfNoEntry: false });

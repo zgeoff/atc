@@ -8,10 +8,7 @@ import type {
 } from '../auth-bindings/runtime-auth-binding';
 import type { StateStoreSchema } from '../sqlite/state-store-schema';
 
-// Each host's runtime auth binding and the grant rows it holds.
 export interface AuthBindingStore {
-  // Records a host's binding as its first attempt starts provisioning it,
-  // at the first revision, before the host exists.
   readonly createAuthBinding: (
     row: Pick<
       RuntimeAuthBinding,
@@ -32,26 +29,18 @@ export interface AuthBindingStore {
   ) => Promise<void>;
   readonly readAuthBinding: (hostKey: SessionID) => Promise<RuntimeAuthBinding | null>;
 
-  // Every host's binding, by host key.
   readonly readAuthBindings: () => Promise<RuntimeAuthBinding[]>;
 
-  // Writes one secret's grant row for a host, or moves the existing one to
-  // the given phase, revision and attempt.
   readonly upsertAuthGrant: (
     grant: Omit<RuntimeAuthGrant, 'updatedAt'>,
     at: number,
   ) => Promise<void>;
 
-  // A host's grant rows, by secret name.
   readonly readAuthGrants: (hostKey: SessionID) => Promise<RuntimeAuthGrant[]>;
 
-  // Drops a host's binding and every grant row it holds together, once
-  // the broker confirms the host and its grants gone.
   readonly removeAuthBinding: (hostKey: SessionID) => Promise<void>;
 
-  // Runs once as a daemon starts, before it serves a request: a grant still
-  // granting belonged to a daemon that stopped before the broker answered, so
-  // whether the broker holds it is uncertain until its grant list is read.
+  // A grant still granting belonged to a daemon that stopped before the broker answered, so whether the broker holds it is uncertain until its grant list is read.
   readonly reconcileAuthBindings: (at: number) => Promise<void>;
 }
 

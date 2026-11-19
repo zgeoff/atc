@@ -4,8 +4,6 @@ import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { StateStoreSchema } from './state-store-schema';
 
-// Mints the store's daemon id when it has none, then records that daemon as
-// the owner of every fleet row, at the first ownership epoch.
 export async function createSessionOwners(db: Kysely<StateStoreSchema>): Promise<void> {
   await db.schema
     .createTable('session_owner')

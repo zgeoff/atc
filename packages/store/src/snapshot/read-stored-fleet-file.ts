@@ -9,11 +9,7 @@ const FLEET_ROWS_SCHEMA = z.array(
   z.object({ id: z.string(), name: z.string(), exited: z.number() }),
 );
 
-// Reads a daemon whose protocol this build cannot speak, straight from its
-// database. A database without the session id, the exit status, or the
-// ownership table reads as none, like one that will not open.
 export function readStoredFleetFile(dbPath: string): StoredRow[] | null {
-  // a refused file throws, where a file that will not open reads as none
   requireOpenableSQLitePath(dbPath);
 
   let db: Database;

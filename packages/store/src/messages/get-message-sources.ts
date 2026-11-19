@@ -7,8 +7,6 @@ const MESSAGE_TRANSITIONS: Readonly<Record<MessageStatus, readonly MessageStatus
   unanswered: [],
 };
 
-// The statuses a write that moves messages to the given status may match, narrowed to the ones a
-// write names when it takes only some. Throws when a named status may not make the move.
 export function getMessageSources(
   to: MessageStatus,
   within?: readonly MessageStatus[],

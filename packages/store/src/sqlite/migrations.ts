@@ -9,8 +9,6 @@ import { updateFleetKeyToSessionID } from './update-fleet-key-to-session-id';
 import { updateSpawnHistoryKeyToTarget } from './update-spawn-history-key-to-target';
 import { withImmediateTransaction } from './with-immediate-transaction';
 
-// Every shape the tables have shipped with, oldest first. A step that rebuilds
-// a table carries every row across; no step drops a row.
 export const MIGRATIONS: Record<string, Migration> = {
   '001_create_initial_schema': {
     async up(db: Kysely<StateStoreSchema>) {
@@ -116,8 +114,7 @@ export const MIGRATIONS: Record<string, Migration> = {
         .columns(['session_id', 'ts'])
         .execute();
 
-      // Partial, so the trail reads walk only the rows they return. The
-      // predicate text must match the reads' filter for SQLite to pick it.
+      // The predicate text must match the reads' filter for SQLite to pick it.
       await sql`CREATE INDEX IF NOT EXISTS events_trail ON events (id) WHERE kind IS NOT NULL AND kind != 'heartbeat'`.execute(
         db,
       );
@@ -354,9 +351,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   },
   '028_rename_reports_to_notes_and_accepted_to_queued': {
     async up(db: Kysely<StateStoreSchema>) {
-      // Each step can run again after a crash: a column renames only while
-      // it still carries the old name, and every value update matches the
-      // old value alone.
+      // Each step can run again after a crash.
       const names = await readTableColumns(db, 'events');
 
       if (names.has('report_id')) {
@@ -452,8 +447,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   },
   '037_drop_fleet_resume_interrupted_turns': {
     async up(db: Kysely<StateStoreSchema>) {
-      // Nothing reads the column. The drop runs only while it is there, so
-      // the step can run again after a crash.
+      // The step can run again after a crash.
       const columns = await readTableColumns(db, 'fleet');
 
       if (columns.has('resume_interrupted_turns')) {
@@ -463,8 +457,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   },
   '038_rename_runtime_auth_binding_host_columns': {
     async up(db: Kysely<StateStoreSchema>) {
-      // A column renames only while it still carries the old name, so the
-      // step can run again after a crash.
+      // The step can run again after a crash.
       const names = await readTableColumns(db, 'runtime_auth_binding');
 
       if (names.has('imp_name')) {
@@ -484,8 +477,7 @@ export const MIGRATIONS: Record<string, Migration> = {
   },
   '039_rename_workspace_materialization_dir_to_directory': {
     async up(db: Kysely<StateStoreSchema>) {
-      // The column renames only while it still carries the old name, so the
-      // step can run again after a crash.
+      // The step can run again after a crash, so the column may already be renamed.
       const columns = await readTableColumns(db, 'workspace_materialization');
 
       if (columns.has('dir')) {

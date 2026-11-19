@@ -10,17 +10,12 @@ import { StaleOwnershipError } from '../fleet/stale-ownership-error';
 import type { StateStoreSchema } from '../sqlite/state-store-schema';
 import { parseWithheldEnv } from '../utils/parse-withheld-env';
 
-// The ownership epoch this daemon writes under. Nothing moves a session to
-// a later epoch yet, so every row this daemon owns holds this one.
 const OWNER_EPOCH = 1;
 
-// The fleet rows this daemon owns, and the ownership each write checks.
 export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonID): FleetStore {
   return {
     daemonID,
 
-    // Only the rows this daemon owns: another daemon's sessions are its own
-    // to restore.
     loadFleet: async () => {
       const rows = await db
         .selectFrom('fleet')
@@ -121,9 +116,6 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
       return entries;
     },
 
-    // A row the daemon never loaded stays as it stands, so it survives a write.
-    // A session another daemon owns, or one whose stored ownership epoch has
-    // moved past this daemon's, rejects the whole write as stale.
     writeFleet: async (entries, removed = []) => {
       const kept = buildFleetWithoutReplacedRows(entries);
       const sessionIDs = [...entries.map((entry) => entry.sessionID), ...removed];
@@ -151,9 +143,6 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
                 .where('agent_session_id', 'in', agentSessionIDs)
                 .execute();
 
-        // A stored row is replaced by the rule its entry follows in this write,
-        // or as a row written before every entry when the write does not
-        // cover it.
         const replaced = candidates.flatMap((row) => {
           const index = writtenIndex.get(toSessionID(row.session_id));
           const written = index === undefined ? undefined : entries[index];
@@ -251,9 +240,6 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
             .execute();
         }
 
-        // A stored row this write leaves in place follows its replaced parent
-        // to the session that replaced it, or to that session's own parent
-        // when the replacement is itself a sub-session.
         for (const row of replaced) {
           await trx
             .updateTable('fleet')
@@ -267,9 +253,6 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
       });
     },
 
-    // Rewrites fields on one existing row and leaves every other row as it
-    // stands. A session without a row yet is a no-op: the next fleet write
-    // inserts it with these fields.
     updateFleetEntry: async (sessionID, fields) => {
       const values = {
         ...(fields.result === undefined ? {} : { result: fields.result }),
@@ -287,7 +270,6 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
       });
     },
 
-    // A row without a host key ran on a host of its own.
     readAgentSessionHolders: async (agentSessionID) => {
       const rows = await db
         .selectFrom('fleet')
@@ -303,17 +285,13 @@ export function createFleetStore(db: Kysely<StateStoreSchema>, daemonID: DaemonI
   };
 }
 
-// A fleet row's plugin folders as its entry field, or nothing for a row that
-// asked for none. A stored list that does not read loads none, since a
-// session without its plugins still runs.
+// A session without its plugins still runs, so an unreadable stored list loads none.
 function buildPluginDirsField(stored: string | null): { readonly pluginDirs?: string[] } {
   const dirs = stored === null ? null : parseJSONStrings(stored);
 
   return dirs === null || dirs.length === 0 ? {} : { pluginDirs: dirs };
 }
 
-// A fleet row's ready workspace as its entry field, or nothing for a row
-// that ran without one.
 function buildWorkspaceField(
   row: Readonly<{
     repo_url: string | null;
@@ -336,8 +314,6 @@ function buildWorkspaceField(
   };
 }
 
-// A stored list that does not read loads as no atc access, the access a
-// session holds when nothing grants it more.
 function buildAtcAccessField(stored: string | null): { readonly atcAccess?: GrantScope[] } {
   const scopes = (stored === null ? null : parseJSONStrings(stored)) ?? [];
   const granted = GRANT_SCOPES.filter((scope) => scopes.includes(scope));
@@ -345,8 +321,6 @@ function buildAtcAccessField(stored: string | null): { readonly atcAccess?: Gran
   return granted.length === 0 || granted.length !== scopes.length ? {} : { atcAccess: granted };
 }
 
-// Rejects a write that touches a session another daemon owns, or one whose
-// stored epoch has moved past this daemon's: the write is stale.
 async function requireCurrentOwnership(
   trx: Transaction<StateStoreSchema>,
   daemonID: DaemonID,

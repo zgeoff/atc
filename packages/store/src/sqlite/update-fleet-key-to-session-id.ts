@@ -8,9 +8,6 @@ const FLEET_ID_ROWS_SCHEMA = z.array(
   z.object({ old_rowid: z.number(), agent_session_id: z.string().nullable() }),
 );
 
-// Gives every row a minted atc session id and moves the sub-session link
-// from the parent's agent session id to the parent's atc session id. A link
-// to an agent session id no row holds becomes no link.
 export async function updateFleetKeyToSessionID(db: Kysely<StateStoreSchema>): Promise<void> {
   // Keyed by rowid: SQLite lets a text primary key hold NULL, so a row can
   // lack the agent session id the mapping would otherwise key on.

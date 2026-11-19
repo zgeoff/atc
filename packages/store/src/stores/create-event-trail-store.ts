@@ -19,27 +19,17 @@ const ATTENTION_KINDS = ['turn-done', 'needs-input', 'prompt-submitted'] as cons
 
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
-// The hook events and trail entries a session leaves behind, kept in the
-// events table.
 export interface EventTrailStore {
-  // The latest hook-event timestamp per agent session id, from the event
-  // trail. Sessions that never reported an event are absent.
   readonly readFleetRecency: () => Promise<Map<AgentSessionID, string>>;
 
-  // Records a hook event in the trail, stamped with the given time in epoch
-  // milliseconds, or the system clock's when absent.
   readonly recordEvent: (
     hookEvent: HookEvent,
     ev: Readonly<AdapterEvent> | null,
     at: number,
   ) => Promise<void>;
 
-  // Returns whether the entry was written: a note whose id the trail
-  // already holds is left out.
   readonly recordTrailEntry: (entry: TrailEntry) => Promise<boolean>;
 
-  // A restart belongs to no session, so its row carries no atc id and only a
-  // read with no scope returns it.
   readonly recordRestart: (result: RestartResult, detail: string, at: number) => Promise<void>;
   readonly readEventsAfter: (
     afterID: number,
@@ -47,37 +37,28 @@ export interface EventTrailStore {
     scope: EventScope | null,
   ) => Promise<StoredEvent[]>;
 
-  // A row that is not a note, or that lies outside the scope, misses as a
-  // row the trail never held does.
   readonly readNote: (id: number, scope: EventScope | null) => Promise<StoredNote | null>;
 
-  // A row that is not an answered message, or that lies outside the scope,
-  // misses as a row the trail never held does.
   readonly readAnswer: (id: number, scope: EventScope | null) => Promise<StoredAnswer | null>;
   readonly readLatestEvents: (limit: number, scope: EventScope | null) => Promise<StoredEvent[]>;
 
-  // Matches the session by either id, since rows written before atc session
-  // ids stayed stable across restores carry an earlier atc id.
+  // Matches the session by either id, since a stored row can carry another atc id than the session's.
   readonly loadLastActivityAt: (
     atcID: SessionID,
     agentSessionID: AgentSessionID | undefined,
   ) => Promise<number | null>;
 
   // Matches the session by either id, since a stored event can carry another atc id than the
-  // session's; null once the trail holds no attention event.
+  // session's.
   readonly readLatestAttention: (
     atcID: SessionID,
     agentSessionID: AgentSessionID | undefined,
   ) => Promise<AttentionKind | null>;
 
   // The newest row under each atc id and each agent session id stays, so a
-  // session's last activity and restore order survive; past the cutoff it
-  // stays only while a fleet row holds either id.
+  // session's last activity and restore order survive.
   readonly removeExpiredEvents: (before: number) => Promise<void>;
 
-  // Trail entries written before the agent reported its session id carry
-  // none; this stamps them once it is known, so they follow the session
-  // across a restore.
   readonly updateTrailOwner: (atcID: SessionID, next: AgentSessionID) => Promise<void>;
   readonly readTrailRows: () => Promise<TrailRow[]>;
 }
@@ -135,7 +116,6 @@ export function createEventTrailStore(db: Kysely<StateStoreSchema>): EventTrailS
           atc_id: entry.atcID,
           event: entry.kind === 'note' ? 'SessionNote' : 'SessionMessage',
 
-          // The message column holds the message id or the note label; the reads hand it back by kind.
           message: entry.kind === 'note' ? entry.label : entry.message,
           session_id: entry.agentSessionID,
           kind: entry.kind,
@@ -354,8 +334,7 @@ export function createEventTrailStore(db: Kysely<StateStoreSchema>): EventTrailS
   };
 }
 
-// Spelled as the partial index's predicate, with the literal inlined rather
-// than bound, so SQLite can match the index.
+// The literal is inlined rather than bound so SQLite can match the partial index.
 function buildTrailFilter(
   expressionBuilder: ExpressionBuilder<StateStoreSchema, 'events'>,
 ): Expression<SqlBool> {
@@ -425,8 +404,6 @@ const MESSAGE_TRAIL_KINDS: ReadonlySet<string> = new Set([
   'notice-delivered',
 ]);
 
-// Message and note rows keep their message id or label where hook rows keep
-// the hook's message, so only hook rows fall back to it for a detail.
 function buildTrailFields(
   kind: string,
   detail: string | null,
@@ -443,8 +420,6 @@ function buildTrailFields(
   return { detail: detail ?? message };
 }
 
-// A result that no longer parses leaves the restart's row with its detail
-// alone, as a row from before results were kept.
 function buildRestartField(result: string | null): Pick<StoredEvent, 'result'> {
   if (result === null) {
     return {};
