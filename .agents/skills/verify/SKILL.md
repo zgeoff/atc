@@ -52,6 +52,7 @@ Read a feature's file before you run its journey.
 
 | Feature             | Summary                                                                                   | File                                                                                   |
 | ------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| docker-target       | Run a session in docker containers, wake it after a kill, and forget it                   | [references/feature-docker-target.md](references/feature-docker-target.md)             |
 | spawn-session       | Spawn a session from the TUI picker, and see it start                                     | [references/feature-spawn-session.md](references/feature-spawn-session.md)             |
 | session-list-leader | Open the session list with the leader key, ack a session, and filter the list             | [references/feature-session-list-leader.md](references/feature-session-list-leader.md) |
 | kill-forget         | Kill a session from the session list, then forget it                                      | [references/feature-kill-forget.md](references/feature-kill-forget.md)                 |
@@ -129,10 +130,11 @@ that command alone. A command with neither runs on the registry's first target, 
 
 <!-- repo: targets -->
 
-| Target  | Start with                                                                        | Access     |
-| ------- | --------------------------------------------------------------------------------- | ---------- |
-| `local` | `bun verify use --target local`, then `bun verify up`                             | read-write |
-| `prod`  | [On prod](references/feature-gateway-routing.md#on-prod), from step 1; no verdict | read-only  |
+| Target   | Start with                                                                          | Access     |
+| -------- | ----------------------------------------------------------------------------------- | ---------- |
+| `local`  | `bun verify use --target local`, then `bun verify up`                               | read-write |
+| `docker` | `bun verify use --target docker`, then `bun verify up`; needs a local Docker Engine | read-write |
+| `prod`   | [On prod](references/feature-gateway-routing.md#on-prod), from step 1; no verdict   | read-only  |
 
 <!-- /repo -->
 
