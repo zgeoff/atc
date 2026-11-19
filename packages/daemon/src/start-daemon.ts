@@ -72,6 +72,8 @@ const MAX_REFUSAL_WINDOWS = 1024;
 // state lock before refusing to start.
 const LOCK_WAIT_MS = 2000;
 
+export type { DaemonHandle } from './daemon-handle';
+
 // The first request on a connection must be `daemon.hello`. An unknown method is an error, never
 // a disconnect; a malformed or oversized line disconnects, because the transport guarantees byte
 // integrity and such a line means a buggy or hostile peer.

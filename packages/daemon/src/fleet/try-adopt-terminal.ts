@@ -2,13 +2,7 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import type { ErrorCode } from '@atcx/contract/light';
 import type { SessionManager } from '../sessions/create-session-manager';
-import type { Session } from '../sessions/session';
-
-// How one try at a session's terminal ended: the session it adopted, or
-// null when there was nothing to adopt, or the refusal its target gave.
-export type AdoptResult =
-  | { readonly kind: 'adopted'; readonly session: Session | null }
-  | { readonly kind: 'refused'; readonly refusal: DaemonError };
+import type { AdoptResult } from './types';
 
 // the refusals that leave one session without a terminal: its target is misconfigured,
 // gone, changed, without a provider here, or unable to start one, its agent refuses

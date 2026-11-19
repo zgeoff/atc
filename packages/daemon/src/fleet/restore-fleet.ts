@@ -13,7 +13,7 @@ import { getTopLevelSession } from './get-top-level-session';
 import { isOnEntryTarget } from './is-on-entry-target';
 import { isSameSession } from './is-same-session';
 import { tryAdoptTerminal } from './try-adopt-terminal';
-import type { AdoptResult } from './try-adopt-terminal';
+import type { AdoptResult } from './types';
 
 interface RestoreFleetParams {
   readonly manager: SessionManager;
