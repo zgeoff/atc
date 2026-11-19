@@ -58,7 +58,7 @@ if [ "$source_suites" = true ]; then
   [ "${#files[@]}" -eq 0 ] || refuse "${files[0]}"
   for suite in e2e/*.test.ts; do
     case "$suite" in
-      e2e/daemon-* | e2e/gateway-*) ;;
+      e2e/daemon-* | e2e/docker-* | e2e/gateway-*) ;;
       *) files+=("$suite") ;;
     esac
   done

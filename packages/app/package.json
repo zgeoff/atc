@@ -11,6 +11,7 @@
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/daemon": "workspace:*",
+    "@atc/execution-docker": "workspace:*",
     "@atc/execution-imp": "workspace:*",
     "@atc/execution-local": "workspace:*",
     "@atc/gateway": "workspace:*",

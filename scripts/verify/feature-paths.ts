@@ -9,6 +9,14 @@ const everyJourney = [
 ] as const;
 
 export const featurePaths = {
+  // the docker target runs the compiled daemon, a session of the stand-in claude in containers, and
+  // the provider's own package and the helpers that build its image
+  'docker-target': [
+    ...everyJourney,
+    'packages/execution/docker/**',
+    'scripts/test-utils/run-docker-daemon.ts',
+  ],
+
   'spawn-session': [...everyJourney, 'packages/tui/**'],
   'session-list-leader': [...everyJourney, 'packages/tui/**'],
   'kill-forget': [...everyJourney, 'packages/tui/**'],

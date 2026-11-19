@@ -6,15 +6,16 @@ feeds and ends every harness through that provider's interface, never past it. A
 its target when it spawns and runs nowhere else for its whole life, so a request that cannot run on
 the session's target is refused instead of falling back to the daemon's machine.
 
-[The imp provider](./imp-provider.md) covers the one remote provider, [workspaces](./workspaces.md)
-covers building a session's working directory on its target, and the
-[configuration guide](../../guides/configuration/targets.md) covers setting targets.
+[The imp provider](./imp-provider.md) and [the docker provider](./docker-provider.md) cover the
+remote providers, [workspaces](./workspaces.md) covers building a session's working directory on its
+target, and the [configuration guide](../../guides/configuration/targets.md) covers setting targets.
 
 ## Providers and capabilities
 
 The built-in `local-pty` provider runs each harness as a child process of the daemon on a
-pseudo-terminal. A provider declares what its host can do, and the daemon checks the declaration
-before it calls the provider:
+pseudo-terminal. The `imp` provider runs it in a VM, and the `docker` provider in a container on the
+daemon's own machine; the docker provider needs the daemon to be a compiled binary. A provider
+declares what its host can do, and the daemon checks the declaration before it calls the provider:
 
 | Capability | What the host can do                                     |
 | ---------- | -------------------------------------------------------- |

@@ -387,3 +387,52 @@ test('it reads no project settings for an agent that plans no settings check', a
 
   expect(provider.commands).toStrictEqual([]);
 });
+
+test('it plans a stored-token launch with the sign-in folder and no runtime auth', async () => {
+  const planGuestSpawn = mock<NonNullable<AgentAdapter['planGuestSpawn']>>(() => ({
+    bin: 'claude',
+    args: [],
+    files: {},
+    env: { CLAUDE_CONFIG_DIR: '/home/agent/.atc/spawn-1/claude-config' },
+  }));
+
+  const adapter = buildMockAgentAdapter({ id: 'claude', planGuestSpawn });
+
+  const provider = buildStubMemoryProvider({
+    remote: true,
+    credentials: { kind: 'stored-token' },
+    guest: {
+      directory: '/home/agent/.atc',
+      atc: '/atc/bin/atc',
+      signIn: '/atc/sign-in',
+    },
+  });
+
+  const ctx = setupTest({
+    adapters: [adapter],
+    targets: [buildMockExecutionTarget({ id: 'remote', provider })],
+  });
+
+  await ctx.auth.setupHarnessOnHost({
+    adapter,
+    provider,
+    id: toSessionID('spawn-1'),
+    hostKey: toSessionID('host-1'),
+    target: 'remote',
+    spawnOptions: { prompt: '', resume: false },
+    auth: { kind: 'stored-token', mode: 'create', targetIdentity: 'remote:test' },
+    cwd: null,
+    isNewHost: false,
+    timer: createStepTimer(),
+  });
+
+  expect(planGuestSpawn).toHaveBeenCalledWith(
+    { prompt: '', resume: false },
+    {
+      atc: '/atc/bin/atc',
+      directory: '/home/agent/.atc/sessions/spawn-1',
+      sessionEnv: {},
+      signIn: { directory: '/atc/sign-in' },
+    },
+  );
+});

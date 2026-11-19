@@ -64,6 +64,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
   target, the one check and the environment a harness gets
 - [The imp provider](architecture/execution/imp-provider.md) — leases, the guest folder, the session
   bridge and reconnecting to a harness
+- [The docker provider](architecture/execution/docker-provider.md) — the objects on the Engine, the
+  lifecycle, the token launch and the refusals
 - [Runtime auth](architecture/execution/runtime-auth.md) — broker bindings, spawn checks, admission,
   revoke and rebind
 - [Workspaces](architecture/execution/workspaces.md) — sources, the materialization phases, claims

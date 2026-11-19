@@ -1,0 +1,20 @@
+{
+  "name": "@atc/execution-docker",
+  "private": true,
+  "description": "The Docker execution provider: Claude sessions run in containers on the Docker Engine of the daemon's own Linux machine, each harness in a container of its own with a relay sidecar",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./guest-scripts": "./src/guest-scripts/index.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
+  },
+  "dependencies": {
+    "@atc/config": "workspace:*",
+    "@atc/core": "workspace:*",
+    "@atc/plugin-api": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
+    "tiny-invariant": "catalog:",
+    "zod": "catalog:"
+  }
+}

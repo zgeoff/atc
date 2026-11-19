@@ -3011,3 +3011,33 @@ test('it keeps the scratch trust in the seed a clone trust transfer replaces', (
     },
   });
 });
+
+test('it plans a stored-token launch in a config folder of its own, reading the token inside the host', () => {
+  const config = parseConfig([CLAUDE_PLUGIN], {});
+
+  const adapter = createClaudeAdapter(
+    getAgentEntry(config, 'claude'),
+    config,
+    buildMockHostServices(),
+  );
+
+  const plan = adapter.planGuestSpawn(
+    { prompt: '', resume: false },
+    {
+      atc: '/atc/bin/atc',
+      directory: '/home/agent/.atc/s1',
+      signIn: { directory: '/atc/sign-in' },
+    },
+  );
+
+  expect(plan).toStrictEqual({
+    bin: 'sh',
+    args: expect.arrayContaining(['/atc/sign-in/claude-oauth-token', 'claude']),
+    scratch: '/home/agent/.atc/s1/scratch',
+    files: expect.toContainKeys(['settings.json', 'claude-config-seed.json']),
+    env: {
+      CLAUDE_CONFIG_DIR: '/home/agent/.atc/s1/claude-config',
+      TMPDIR: '/home/agent/.atc/s1/scratch',
+    },
+  });
+});

@@ -107,6 +107,14 @@ jobs:
           ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
         run: bun run test:e2e e2e/daemon-*.test.ts
 
+      # The docker target runs the compiled daemon against the runner's Docker Engine, and
+      # builds a test image on a glibc base, so only the linux-x64 runner runs it.
+      - name: Smoke test the docker target
+        if: matrix.target == 'linux-x64'
+        env:
+          ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
+        run: bun run test:e2e e2e/docker-*.test.ts
+
       # The checks workflow runs the provider tests on Linux alone, and these
       # are the only macOS runners CI starts.
       - name: Test the local PTY provider
