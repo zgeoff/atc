@@ -6,7 +6,7 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildExecutionTargets, startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
-import { createHostServices } from '../create-host-services';
+import { createHostServices } from '../daemon/create-host-services';
 import { createShippedExecutionProvider } from '../plugins/create-shipped-execution-provider';
 import { loadExecutionPlugins } from '../plugins/load-execution-plugins';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';

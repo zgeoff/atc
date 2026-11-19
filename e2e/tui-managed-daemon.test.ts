@@ -9,7 +9,7 @@ import { startDaemon } from '@atc/daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
-import { createHostServices } from '../packages/app/src/create-host-services';
+import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
 function setupTest() {
   return startTUIHarness({ createStateDB: createMigratedStateDB });

@@ -1,0 +1,1383 @@
+import { expect, test } from 'bun:test';
+import { chmodSync, existsSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startDaemon } from '@atc/daemon';
+import { bootDaemonClient } from '@atc/lifecycle';
+import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
+import { mintServiceSecret } from '@atc/mcp';
+import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
+import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
+import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
+import { sendMCPRequest } from '@atc/mcp/test-utils/send-mcp-request';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { openDaemonClient } from '@atc/protocol/client';
+import invariant from 'tiny-invariant';
+import { connectNamedDaemon } from '../daemon-connection/connect-named-daemon';
+import { createLocalDaemonConnection } from '../daemon-connection/create-local-daemon-connection';
+import { bootRemoteDaemonClient } from '../remote-daemon/boot-remote-daemon-client';
+import { buildLocalTarget } from '../test-utils/build-local-target';
+import { buildMockRemoteDaemon } from '../test-utils/build-mock-remote-daemon';
+import { openPTYViewer } from '../test-utils/open-pty-viewer';
+import { openTestAuthAdmin } from '../test-utils/open-test-auth-admin';
+import { startTestDaemon } from '../test-utils/start-test-daemon';
+import { openMCPAuthDatabase } from './open-mcp-auth-database';
+import { runMCPHTTPServer } from './run-mcp-http-server';
+
+async function setupTest() {
+  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const socketPath = join(temporaryDirectory.path, 'atc-daemon.sock');
+
+  const daemon = await startDaemon({
+    socketPath,
+    reporterSocketPath: join(temporaryDirectory.path, 'reporter.sock'),
+    build: 'atc/test-build',
+    targets: [buildLocalTarget()],
+    adapter: buildMockAgentAdapter(),
+    dbPath: join(temporaryDirectory.path, 'state.db'),
+    statusPath: join(temporaryDirectory.path, 'status.json'),
+  });
+
+  registerTestCleanup(() => daemon.stop());
+
+  const daemonPaths = {
+    socketPath,
+    recordFile: join(temporaryDirectory.path, 'daemon.json'),
+    pidFile: join(temporaryDirectory.path, 'atc-daemon.pid'),
+  };
+
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
+  const serviceTokenFile = join(temporaryDirectory.path, 'service-tokens.json');
+
+  // Serves under the public origin https://atc.example.com, so a service
+  // token file can name its resource before the port is known.
+  const runWithServiceTokens = async () => {
+    const printed: string[] = [];
+    const errors: string[] = [];
+    const boots: string[] = [];
+    const exits: number[] = [];
+
+    const signals = new Map<string, () => Promise<void>>();
+
+    await runMCPHTTPServer(
+      'atc/test-build',
+      {
+        host: '127.0.0.1',
+        port: 0,
+        publicURL: 'https://atc.example.com',
+        waitForDaemon: false,
+        tokenFile: null,
+        serviceTokenFile,
+        allowedOrigins: [],
+      },
+      {
+        bootDaemon: (options) => {
+          boots.push('boot');
+
+          return bootDaemonClient(buildMockLifecycleHost(), options);
+        },
+        connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+        openAuthDatabase: openMCPAuthDatabase,
+      },
+      {
+        loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+        loadConfig: () => ({
+          publicURL: null,
+          host: '127.0.0.1',
+          port: 8414,
+          allowedHosts: [],
+          allowedOrigins: [],
+          trustForwardedFrom: [],
+        }),
+        dbPath,
+        daemonPaths,
+        print: (line) => {
+          printed.push(line);
+        },
+        printError: (line) => {
+          errors.push(line);
+        },
+        exit: (code) => {
+          exits.push(code);
+        },
+        registerSignal: (signal, listener) => {
+          signals.set(signal, listener);
+        },
+      },
+    );
+
+    return { printed, errors, boots, exits, signals };
+  };
+
+  return {
+    dbPath,
+    daemonPaths,
+    serviceTokenFile,
+    runWithServiceTokens,
+
+    serveWithServiceTokens: async () => {
+      const started = await runWithServiceTokens();
+
+      const stopServing = started.signals.get('SIGTERM');
+
+      invariant(stopServing, 'the server registered no SIGTERM handler');
+      registerTestCleanup(stopServing);
+
+      const port = /listening on http:\/\/127\.0\.0\.1:(?<port>\d+)/u.exec(
+        started.printed.join('\n'),
+      )?.groups?.['port'];
+
+      invariant(port !== undefined, `no port in: ${started.printed.join('\n')}`);
+
+      return {
+        url: `http://127.0.0.1:${port}`,
+        errors: started.errors,
+        reload: () => {
+          const reload = started.signals.get('SIGHUP');
+
+          invariant(reload, 'the server registered no SIGHUP handler');
+
+          return reload();
+        },
+      };
+    },
+  };
+}
+
+test('it gives a client with a secret digest a token from client_credentials that reads on /mcp', async () => {
+  const ctx = await setupTest();
+
+  const minted = mintServiceSecret();
+  const resource = 'https://atc.example.com/mcp';
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource,
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [minted.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const server = await ctx.serveWithServiceTokens();
+
+  const basic = Buffer.from(`${encodeURIComponent('service:ci-bot')}:${minted.secret}`);
+
+  const issued = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${basic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  const tokens = await readJSONRecord(issued);
+
+  const listed = await fetch(`${server.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'atc_sessions_list', arguments: {} },
+    }),
+  });
+
+  expect(issued.status).toBe(200);
+  expect(listed.status).toBe(200);
+
+  const body = await listed.json();
+
+  expect(body).toStrictEqual({
+    jsonrpc: '2.0',
+    id: 1,
+    result: {
+      content: [{ type: 'text', text: '[]' }],
+      structuredContent: { sessions: [] },
+    },
+  });
+});
+
+test('it refuses a client that a SIGHUP reload dropped with invalid_client', async () => {
+  const ctx = await setupTest();
+
+  const dropped = mintServiceSecret();
+  const kept = mintServiceSecret();
+  const resource = 'https://atc.example.com/mcp';
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource,
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [dropped.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const server = await ctx.serveWithServiceTokens();
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource,
+      clients: {
+        'other-bot': { scopes: ['read'], secretDigests: [kept.digest] },
+      },
+    }),
+  );
+
+  await server.reload();
+
+  const droppedBasic = Buffer.from(`${encodeURIComponent('service:ci-bot')}:${dropped.secret}`);
+  const keptBasic = Buffer.from(`${encodeURIComponent('service:other-bot')}:${kept.secret}`);
+
+  const refused = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${droppedBasic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  const admitted = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${keptBasic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  const refusal = await refused.json();
+
+  expect(refused.status).toBe(401);
+  expect(refusal).toMatchObject({ error: 'invalid_client' });
+  expect(admitted.status).toBe(200);
+});
+
+test('it refuses a service-token file for another resource before it boots the daemon', async () => {
+  const ctx = await setupTest();
+
+  const minted = mintServiceSecret();
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource: 'https://other.example.com/mcp',
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [minted.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const run = await ctx.runWithServiceTokens();
+
+  expect({
+    boots: run.boots,
+    exits: run.exits,
+    errors: run.errors,
+  }).toStrictEqual({
+    boots: [],
+    exits: [1],
+    errors: [
+      'atc mcp --http: --service-token-file: the file names the resource https://other.example.com/mcp, and the server serves https://atc.example.com/mcp',
+    ],
+  });
+});
+
+test('it answers unsupported_grant_type when a SIGHUP file leaves no digest', async () => {
+  const ctx = await setupTest();
+
+  const dropped = mintServiceSecret();
+  const resource = 'https://atc.example.com/mcp';
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource,
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [dropped.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const server = await ctx.serveWithServiceTokens();
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource,
+      clients: {
+        'ci-bot': { scopes: ['read'], tokens: [`atcs_${'b'.repeat(32)}`] },
+      },
+    }),
+  );
+
+  await server.reload();
+
+  const basic = Buffer.from(`${encodeURIComponent('service:ci-bot')}:${dropped.secret}`);
+
+  const refused = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${basic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  const refusal = await refused.json();
+
+  expect(refused.status).toBe(400);
+  expect(refusal).toMatchObject({ error: 'unsupported_grant_type' });
+});
+
+test('it keeps the loaded file and prints why when a SIGHUP file fails to parse', async () => {
+  const ctx = await setupTest();
+
+  const minted = mintServiceSecret();
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource: 'https://atc.example.com/mcp',
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [minted.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const server = await ctx.serveWithServiceTokens();
+
+  writeFileSync(ctx.serviceTokenFile, '{ not json');
+
+  await server.reload();
+
+  const basic = Buffer.from(`${encodeURIComponent('service:ci-bot')}:${minted.secret}`);
+
+  const admitted = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${basic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  expect(admitted.status).toBe(200);
+
+  expect(server.errors.filter((line) => !line.startsWith('atc security '))).toContain(
+    `atc mcp --http: --service-token-file: ${ctx.serviceTokenFile}: the file is not valid JSON`,
+  );
+});
+
+test('it refuses a write tool to a service client whose scopes lack the scope the tool needs', async () => {
+  const ctx = await setupTest();
+
+  const minted = mintServiceSecret();
+
+  writeFileSync(
+    ctx.serviceTokenFile,
+    JSON.stringify({
+      resource: 'https://atc.example.com/mcp',
+      clients: {
+        'ci-bot': { scopes: ['read'], secretDigests: [minted.digest] },
+      },
+    }),
+    { mode: 0o600 },
+  );
+
+  const server = await ctx.serveWithServiceTokens();
+
+  const basic = Buffer.from(`${encodeURIComponent('service:ci-bot')}:${minted.secret}`);
+
+  const issued = await fetch(`${server.url}/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Basic ${basic.toString('base64')}`,
+    },
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
+  });
+
+  const tokens = await readJSONRecord(issued);
+
+  const spawned = await fetch(`${server.url}/mcp`, {
+    method: 'POST',
+    headers: {
+      host: 'atc.example.com',
+      authorization: `Bearer ${String(tokens['access_token'])}`,
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'atc_session_spawn',
+        arguments: { cwd: ctx.serviceTokenFile },
+      },
+    }),
+  });
+
+  const body = await spawned.json();
+
+  expect(spawned.status).toBe(403);
+
+  expect(body).toStrictEqual({
+    error: 'insufficient_scope',
+    error_description: 'Insufficient scope',
+  });
+});
+
+test('it serves MCP through the daemon it boots and says no client can connect and no passkey is enrolled yet', async () => {
+  const ctx = await setupTest();
+
+  const printed: string[] = [];
+  const requests: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        requests.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  const served = await fetch(`http://127.0.0.1:${port}/mcp`, {
+    method: 'POST',
+  });
+
+  expect(printed).toStrictEqual([
+    `atc mcp --http: serving http://127.0.0.1:${port}/mcp, listening on http://127.0.0.1:${port}`,
+    'No clients can connect yet. Add one with: atc clients add <name> --redirect-uri <uri>',
+    'No passkey is enrolled, so nobody can sign in yet. Enroll one with: atc passkeys enroll',
+  ]);
+
+  expect(served.status).toBe(401);
+
+  expect(requests.filter((line) => !line.startsWith('atc security '))).toStrictEqual([
+    expect.stringMatching(/^POST \/mcp 401 \d+ms$/u),
+  ]);
+});
+
+test('it trusts the forwarded address from a proxy the config lists', async () => {
+  const ctx = await setupTest();
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: ['127.0.0.1'],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  await fetch(`http://127.0.0.1:${port}/oauth2/authorize?client_id=no-such-client`, {
+    headers: { 'cf-connecting-ip': '198.51.100.23' },
+    redirect: 'manual',
+  });
+
+  expect(
+    JSON.parse(
+      `[${errors
+        .filter((line) => line.startsWith('atc security '))
+        .map((line) => line.slice('atc security '.length))
+        .join(',')}]`,
+    ),
+  ).toMatchObject([
+    {
+      kind: 'authorize_invalid',
+      forwarded: {
+        address: '198.51.100.23',
+        header: 'cf-connecting-ip',
+        provenance: 'trusted',
+      },
+    },
+  ]);
+});
+
+test('it leaves the forwarded address unverified from a peer the config does not list', async () => {
+  const ctx = await setupTest();
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: ['192.0.2.1'],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  await fetch(`http://127.0.0.1:${port}/oauth2/authorize?client_id=no-such-client`, {
+    headers: { 'cf-connecting-ip': '198.51.100.23' },
+    redirect: 'manual',
+  });
+
+  expect(
+    JSON.parse(
+      `[${errors
+        .filter((line) => line.startsWith('atc security '))
+        .map((line) => line.slice('atc security '.length))
+        .join(',')}]`,
+    ),
+  ).toMatchObject([
+    {
+      kind: 'authorize_invalid',
+      forwarded: {
+        address: '198.51.100.23',
+        header: 'cf-connecting-ip',
+        provenance: 'unverified',
+      },
+    },
+  ]);
+});
+
+test('it prints no hint to add a client once one can connect', async () => {
+  const ctx = await setupTest();
+  const store = await openTestAuthAdmin(ctx.dbPath);
+
+  await store.admin.clients.add('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+
+  const printed: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  expect(printed.join('\n')).toMatch(
+    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+\nNo passkey is enrolled, so nobody can sign in yet\. Enroll one with: atc passkeys enroll$/u,
+  );
+});
+
+test('it prints no hint to enroll a passkey once one is enrolled', async () => {
+  const ctx = await setupTest();
+  const store = await openTestAuthAdmin(ctx.dbPath);
+
+  store.seedPasskey({
+    id: 'cred-phone',
+    createdAt: '2026-10-14T12:00:00.000Z',
+  });
+
+  const printed: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  expect(printed.join('\n')).toMatch(
+    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+\nNo clients can connect yet\. Add one with: atc clients add <name> --redirect-uri <uri>$/u,
+  );
+});
+
+test('it prints nothing to stdout once it serves and each sign-in security event to stderr', async () => {
+  const ctx = await setupTest();
+  const store = await openTestAuthAdmin(ctx.dbPath);
+
+  const created = await store.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
+
+  const printed: string[] = [];
+  const errors: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  const startup = [...printed];
+
+  const authorize = new URL(`http://127.0.0.1:${port}/oauth2/authorize`);
+
+  authorize.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: created.clientID,
+    redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    code_challenge_method: 'S256',
+  }).toString();
+
+  await fetch(authorize, { redirect: 'manual' });
+
+  await fetch(`http://127.0.0.1:${port}/mcp`, {
+    method: 'POST',
+    headers: { host: 'rebound.example' },
+  });
+
+  expect(printed).toStrictEqual(startup);
+
+  expect(errors.filter((line) => line.startsWith('atc security '))).toIncludeSameMembers([
+    expect.stringMatching(
+      /^atc security \{"version":1,.*"kind":"authorize_started","outcome":"accepted"/u,
+    ),
+    expect.stringMatching(
+      /^atc security \{"version":1,.*"kind":"bad_host".*"reason":"host_not_allowed"/u,
+    ),
+  ]);
+});
+
+test('it registers its SIGINT and SIGTERM handlers before it prints the serving line', async () => {
+  const ctx = await setupTest();
+
+  const happened: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        happened.push(line);
+      },
+      printError: () => {},
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        happened.push(signal);
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  expect(happened.slice(0, 2)).toStrictEqual(['SIGINT', 'SIGTERM']);
+
+  expect(happened.slice(2).join('\n')).toMatch(
+    /^atc mcp --http: serving http:\/\/127\.0\.0\.1:\d+\/mcp, listening on http:\/\/127\.0\.0\.1:\d+\nNo clients can connect yet\. Add one with: atc clients add <name> --redirect-uri <uri>\nNo passkey is enrolled, so nobody can sign in yet\. Enroll one with: atc passkeys enroll$/u,
+  );
+});
+
+test('it stops serving and exits 0 on SIGTERM', async () => {
+  const ctx = await setupTest();
+
+  const printed: string[] = [];
+  const codes: number[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      exit: (code) => {
+        codes.push(code);
+      },
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(
+    port !== undefined && stopServing !== undefined,
+    `no port or no SIGTERM handler after: ${printed.join('\n')}`,
+  );
+
+  const stop = registerTestCleanup(stopServing);
+
+  await stop();
+
+  expect(codes).toStrictEqual([0]);
+  expect(fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST' })).rejects.toThrow();
+});
+
+test('it exits 1 with the reason when no daemon answers at its daemon paths', async () => {
+  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const errors: string[] = [];
+  const codes: number[] = [];
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile: null,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
+      daemonPaths: {
+        socketPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
+        recordFile: join(temporaryDirectory.path, 'daemon.json'),
+        pidFile: join(temporaryDirectory.path, 'atc-daemon.pid'),
+      },
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: (code) => {
+        codes.push(code);
+      },
+      registerSignal: () => {},
+    },
+  );
+
+  expect(errors).toStrictEqual([
+    `atc mcp --http: no atc daemon answered at ${join(temporaryDirectory.path, 'atc-daemon.sock')}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`,
+  ]);
+
+  expect(codes).toStrictEqual([1]);
+});
+
+test('it streams a snapshot to a viewer that presents the token from its owner-only token file', async () => {
+  const ctx = await setupTest();
+
+  const tokenFile = join(dirname(ctx.dbPath), 'viewer-token');
+  const ownerToken = 'viewer-secret-4f1c-8a2d-6b9e-3c7f-0d5a';
+  const printed: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await Bun.write(tokenFile, `${ownerToken}\n`);
+
+  chmodSync(tokenFile, 0o600);
+
+  const client = await openDaemonClient(ctx.daemonPaths.socketPath);
+
+  registerTestCleanup(() => {
+    client.stop();
+  });
+
+  await client.sendHello('atc/test-build', {});
+
+  const spawned = await client.procedures.session.spawn({
+    cwd: dirname(ctx.dbPath),
+    cols: 80,
+    rows: 24,
+  });
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootDaemonClient(buildMockLifecycleHost(), options),
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: ctx.dbPath,
+      daemonPaths: ctx.daemonPaths,
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  const port = /:(?<port>\d+)\/mcp,/u.exec(printed.join('\n'))?.groups?.['port'];
+
+  invariant(port !== undefined, `no port in: ${printed.join('\n')}`);
+
+  const viewer = await openPTYViewer(`ws://127.0.0.1:${port}/sessions/${spawned.session.id}/pty`, {
+    token: ownerToken,
+  });
+
+  await waitFor(() => {
+    expect(viewer.frames).toHaveLength(1);
+  });
+
+  expect(viewer.frames).toStrictEqual([
+    {
+      kind: 'control',
+      frame: expect.objectContaining({
+        type: 'snapshot',
+        cols: 80,
+        rows: 24,
+        state: 'running',
+      }),
+    },
+  ]);
+});
+
+test('it exits 1 before it boots a daemon when other users can open its token file', async () => {
+  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const tokenFile = join(temporaryDirectory.path, 'viewer-token');
+  const errors: string[] = [];
+  const codes: number[] = [];
+  const boots: unknown[] = [];
+
+  await Bun.write(tokenFile, 'viewer-secret-4f1c\n');
+
+  chmodSync(tokenFile, 0o644);
+
+  await runMCPHTTPServer(
+    'atc/test-build',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: false,
+      tokenFile,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => {
+        boots.push(options);
+
+        return bootDaemonClient(buildMockLifecycleHost(), options);
+      },
+      connectDaemon: (boot) => createLocalDaemonConnection(boot.socketPath, 'atc/test-build'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath: join(temporaryDirectory.path, 'mcp-auth.db'),
+      daemonPaths: {
+        socketPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
+        recordFile: join(temporaryDirectory.path, 'daemon.json'),
+        pidFile: join(temporaryDirectory.path, 'atc-daemon.pid'),
+      },
+      print: () => {},
+      printError: (line) => {
+        errors.push(line);
+      },
+      exit: (code) => {
+        codes.push(code);
+      },
+      registerSignal: () => {},
+    },
+  );
+
+  expect(errors).toStrictEqual([
+    `atc mcp --http: --token-file: other users can open ${tokenFile} (mode 644); run chmod 600 ${tokenFile}`,
+  ]);
+
+  expect(codes).toStrictEqual([1]);
+  expect(boots).toBeEmpty();
+});
+
+test('it answers a tool call with the sessions of a named daemon it reaches over TCP, starting no local daemon', async () => {
+  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const tokenFile = join(temporaryDirectory.path, 'box.token');
+  const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
+
+  writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
+
+  const store = await openTestAuthAdmin(dbPath);
+
+  // The named daemon must list the connector's principal, which is the
+  // client id the authorization server mints, so the client comes first.
+  const created = await store.admin.clients.add('Panel', ['https://panel.example.com/callback']);
+
+  const remote = await startTestDaemon({
+    options: (paths) => {
+      writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
+
+      return {
+        adapter: buildMockAgentAdapter(),
+        principals: new Map([
+          ['laptop', ['local']],
+          [created.clientID, ['local']],
+        ]),
+        listen: {
+          host: '127.0.0.1',
+          port: 0,
+          tokenFile: join(paths.directory, 'gateway-token'),
+        },
+      };
+    },
+  });
+
+  invariant(remote.daemon.listenPort !== null, 'the remote daemon bound no TCP port');
+
+  await remote.client.sendRequest('session.spawn', {
+    cwd: remote.directory,
+    agent: 'claude',
+    name: 'on-the-box',
+    cols: 80,
+    rows: 24,
+  });
+
+  const named = buildMockRemoteDaemon({
+    name: 'box',
+    host: '127.0.0.1',
+    port: remote.daemon.listenPort,
+    token: { kind: 'file', path: tokenFile },
+    principal: 'laptop',
+  });
+
+  const printed: string[] = [];
+
+  const signals = new Map<string, () => Promise<void>>();
+
+  await runMCPHTTPServer(
+    'atc/named-http-test',
+    {
+      host: '127.0.0.1',
+      port: 0,
+      publicURL: null,
+      waitForDaemon: true,
+      tokenFile: null,
+      serviceTokenFile: null,
+      allowedOrigins: [],
+    },
+    {
+      bootDaemon: (options) => bootRemoteDaemonClient(named, 'atc/named-http-test', options),
+      connectDaemon: () => connectNamedDaemon(named, 'atc/named-http-test'),
+      openAuthDatabase: openMCPAuthDatabase,
+    },
+    {
+      loadTokens: (path) => loadListenerTokens(path, NODE_TOKEN_FILE_ACCESS),
+      loadConfig: () => ({
+        publicURL: null,
+        host: '127.0.0.1',
+        port: 8414,
+        allowedHosts: [],
+        allowedOrigins: [],
+        trustForwardedFrom: [],
+      }),
+      dbPath,
+      daemonPaths: {
+        socketPath: join(temporaryDirectory.path, 'atc-daemon.sock'),
+        recordFile: join(temporaryDirectory.path, 'daemon.json'),
+        pidFile: join(temporaryDirectory.path, 'atc-daemon.pid'),
+      },
+      print: (line) => {
+        printed.push(line);
+      },
+      printError: () => {},
+      exit: () => {},
+      registerSignal: (signal, listener) => {
+        signals.set(signal, listener);
+      },
+    },
+  );
+
+  const stopServing = signals.get('SIGTERM');
+
+  invariant(stopServing, 'the server registered no SIGTERM handler');
+  registerTestCleanup(stopServing);
+
+  const url = /serving (?<origin>http:\/\/127\.0\.0\.1:\d+)\/mcp,/u.exec(printed.join('\n'))
+    ?.groups?.['origin'];
+
+  invariant(url !== undefined, `no origin in: ${printed.join('\n')}`);
+
+  const authenticator = buildStubAuthenticator();
+
+  const enrollmentToken = await store.admin.passkeys.createEnrollmentToken();
+
+  await runPasskeyEnrollment({ url, origin: url }, enrollmentToken, authenticator);
+
+  const grant = await runMCPTokenGrant(
+    { url, origin: url, authenticator },
+    {
+      clientID: created.clientID,
+      redirectURI: 'https://panel.example.com/callback',
+      scope: 'read',
+      ticked: ['read'],
+    },
+  );
+
+  const listed = await sendMCPRequest(url, grant.accessToken, 'tools/call', {
+    name: 'atc_sessions_list',
+    arguments: {},
+  });
+
+  expect(getRecord(listed, 'structuredContent')['sessions']).toStrictEqual([
+    expect.objectContaining({ name: 'on-the-box' }),
+  ]);
+
+  expect(existsSync(join(temporaryDirectory.path, 'atc-daemon.pid'))).toBe(false);
+});

@@ -14,7 +14,7 @@ import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp
 import { createClaudeAdapter } from '@atc/harness-claude';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { openBridgeSocket, sendBridgeRequest } from '@atc/protocol/session';
-import { createHostServices } from '../packages/app/src/create-host-services';
+import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 async function setupTest() {

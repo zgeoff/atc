@@ -21,7 +21,7 @@ import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment
 import { sendMCPRequest } from '@atc/mcp/test-utils/send-mcp-request';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
-import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
+import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-');

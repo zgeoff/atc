@@ -1,7 +1,7 @@
 import { systemClock } from '@atc/core';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { openATCAuthAdmin, openEventDatabase } from '@atc/mcp';
-import { openMCPAuthDatabase } from '../open-mcp-auth-database';
+import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { seedATCPasskey } from './seed-atc-passkey';
 import type { ATCPasskeyRow } from './seed-atc-passkey';
 

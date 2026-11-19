@@ -19,8 +19,8 @@ import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
-import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
-import { openWatchChannel } from '../packages/app/src/open-watch-channel';
+import { openWatchChannel } from '../packages/app/src/events/open-watch-channel';
+import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
 interface StackOptions {
   readonly ownerTokens: readonly string[];

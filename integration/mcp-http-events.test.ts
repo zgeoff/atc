@@ -20,7 +20,7 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { openDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
-import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
+import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
 // The subscriber's endpoint is the receiver each test passes, because a test
 // cannot reach an endpoint across the internet.
