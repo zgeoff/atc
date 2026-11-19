@@ -472,7 +472,7 @@
     "@zgeoff/agent-hooks": "0.2.13",
     "@zgeoff/bun-test-extended": "0.2.3",
     "@zgeoff/chex": "0.3.6",
-    "@zgeoff/diet": "0.2.2",
+    "@zgeoff/diet": "0.2.3",
     "@zgeoff/format-codemod": "0.3.5",
     "@zgeoff/kysely-bun-sqlite": "0.3.2",
     "@zgeoff/mcp-auth": "0.2.2",
@@ -1028,7 +1028,7 @@
 
     "@zgeoff/chex": ["@zgeoff/chex@0.3.6", "", { "dependencies": { "@zgeoff/std": "0.4.3", "oxc-parser": "0.158.0", "ts-pattern": "5.9.2" }, "bin": { "chex": "src/cli.ts" } }, "sha512-rLT7OwIk4WWmRJvdJufAzWTg1yDaGUGBtDBgLEUM43/wZAqMe4t66kC4U7tU6OfvhO4BivCBcvkBBRrpyvqnOw=="],
 
-    "@zgeoff/diet": ["@zgeoff/diet@0.2.2", "", { "bin": { "diet": "diet.sh" } }, "sha512-zrToDuLnJJGeSxYOvrydH+AlWdtITX4zNENeVh8Y56e1qbSMZl9UNvIp9x4kcs/dMguQW5ihuAupnqngFBYJ4w=="],
+    "@zgeoff/diet": ["@zgeoff/diet@0.2.3", "", { "bin": { "diet": "diet.sh" } }, "sha512-/UHiaa0sMLCNtvpr/puCJFRX9OpKJ020OF4STNyc1ncTVGAdPOeSt0TcTeVuU2fqDkl9pHeLgP7dW2MrXoc8Cg=="],
 
     "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.3.5", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.155.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-aVHu3c5pYTISM68OL5fPjo2Go5DwemqB70chqFLsOnjlDJsEYBB2jdzyufv8QxrOwtTishnMV/v7EexmLZhIyQ=="],
 
@@ -1559,6 +1559,8 @@
     "@wringer/gunshi/gunshi": ["gunshi@0.37.3", "", {}, "sha512-uwm23bguqDcleEetknuQnF5okLcgmQPM3iv4aWVHTPDbiSs9shh02F079NCY0mWkrIRjHqNhgmzW6k0FCXhy1g=="],
 
     "@zgeoff/format-codemod/oxc-parser": ["oxc-parser@0.155.0", "", { "dependencies": { "@oxc-project/types": "^0.155.0" }, "optionalDependencies": { "@oxc-parser/binding-android-arm-eabi": "0.155.0", "@oxc-parser/binding-android-arm64": "0.155.0", "@oxc-parser/binding-darwin-arm64": "0.155.0", "@oxc-parser/binding-darwin-x64": "0.155.0", "@oxc-parser/binding-freebsd-x64": "0.155.0", "@oxc-parser/binding-linux-arm-gnueabihf": "0.155.0", "@oxc-parser/binding-linux-arm-musleabihf": "0.155.0", "@oxc-parser/binding-linux-arm64-gnu": "0.155.0", "@oxc-parser/binding-linux-arm64-musl": "0.155.0", "@oxc-parser/binding-linux-ppc64-gnu": "0.155.0", "@oxc-parser/binding-linux-riscv64-gnu": "0.155.0", "@oxc-parser/binding-linux-riscv64-musl": "0.155.0", "@oxc-parser/binding-linux-s390x-gnu": "0.155.0", "@oxc-parser/binding-linux-x64-gnu": "0.155.0", "@oxc-parser/binding-linux-x64-musl": "0.155.0", "@oxc-parser/binding-openharmony-arm64": "0.155.0", "@oxc-parser/binding-win32-arm64-msvc": "0.155.0", "@oxc-parser/binding-win32-ia32-msvc": "0.155.0", "@oxc-parser/binding-win32-x64-msvc": "0.155.0" } }, "sha512-C/ReSf1JUFukK/zvk6jhcNibSssvas5+ktIzK7fbKVd3CedWe59C3QwHEOrEZj/4Rt9+xg0Jeis/Jv1F/KM1mw=="],
+
+    "@zgeoff/rig/@zgeoff/diet": ["@zgeoff/diet@0.2.2", "", { "bin": { "diet": "diet.sh" } }, "sha512-zrToDuLnJJGeSxYOvrydH+AlWdtITX4zNENeVh8Y56e1qbSMZl9UNvIp9x4kcs/dMguQW5ihuAupnqngFBYJ4w=="],
 
     "body-parser/content-type": ["content-type@2.1.0", "", {}, "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="],
 
