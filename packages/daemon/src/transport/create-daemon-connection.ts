@@ -2,26 +2,22 @@ import type { DaemonAnswer, MismatchRefusalData, RequestParams } from '@atc/prot
 import {
   DEFAULT_QUEUE_BYTES,
   DaemonError,
-  MAX_CHUNK,
   MAX_LINE,
   PROTOCOL_V,
   createLineDecoder,
   createOutboundQueue,
 } from '@atc/protocol/wire';
 import type { EventMsg, SocketWriter } from '@atc/protocol/wire';
-import { DAEMON_FEATURES } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { ServerPeer } from '@orpc/standard-server-peer';
 import type { EncodedMessage } from '@orpc/standard-server-peer';
 import { createActor, waitFor } from 'xstate';
 import type { EventFromLogic } from 'xstate';
-import { buildGrantedContext } from '../auth/build-granted-context';
 import { buildGrantedEventAccess } from '../auth/build-granted-event-access';
 import { buildScopedContext } from '../auth/build-scoped-context';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
-import { GRANTED_METHOD_SCOPES } from '../auth/granted-method-scopes';
 import { isOwnerOnlyMethod } from '../auth/is-owner-only-method';
 import type { DaemonContext } from '../types';
 import { answerPeerRequest } from './answer-peer-request';
@@ -31,11 +27,18 @@ import { createConnectionView } from './create-connection-view';
 import { createEventFeed } from './create-event-feed';
 import { decodePeerInput } from './decode-peer-input';
 import { findPeerMethod } from './find-peer-method';
+import { findRequestScope } from './find-request-scope';
+import { formatProtocolMismatch } from './format-protocol-mismatch';
 import { isPeerMessage } from './is-peer-message';
+import { loadHelloAnswer } from './load-hello-answer';
 import { parseRequestPrincipal } from './parse-request-principal';
 import { PEER_CONNECTION_MACHINE } from './peer-connection-machine';
 import type { ProcedureContext } from './procedure-context';
 import type { ConnectionIdentity, RequestPrincipal } from './request-deps';
+import { requireGrantedRequestContext } from './require-granted-request-context';
+import type { BridgeGrant } from './require-granted-request-context';
+import { requireTCPRequestContext } from './require-tcp-request-context';
+import { resolveCallerSession } from './resolve-caller-session';
 import type { TCPPeer } from './tcp-peer';
 import { toPeerMethod } from './to-peer-method';
 
@@ -63,12 +66,6 @@ export interface DaemonConnection {
   readonly endInput: () => void;
 }
 
-// The targets a request may use and the namespace of its idempotency keys.
-interface RequestScope {
-  readonly access: TargetAccess;
-  readonly keyNamespace: string;
-}
-
 interface PeerSocket extends SocketWriter {
   readonly end: () => void;
 }
@@ -82,12 +79,6 @@ export interface PeerSession {
   // Whether the bridge's binding still matches the live session; absent on
   // the local socket.
   readonly isBridgeCurrent?: () => boolean;
-}
-
-// A connection through a session's bridge socket.
-interface BridgeGrant {
-  readonly holder: SessionID;
-  readonly isCurrent: () => boolean;
 }
 
 // tcp is the listener of a connection accepted over TCP, null on the local socket.
@@ -187,134 +178,10 @@ export function createDaemonConnection(
   // Whether this is a TCP connection whose handshake has not passed.
   const isUnauthenticatedTCP = (): boolean => tcp !== null && fingerprint === null;
 
-  // The context a request over TCP runs on, scoped to the principal it acts
-  // as; a refusal throws.
-  const requireTCPRequestContext = (method: string, as: RequestPrincipal | null): DaemonContext => {
-    if (isOwnerOnlyMethod(method)) {
-      throw new DaemonError('unauthorized', `${method} is open to the daemon's owner only`);
-    }
-
-    if (as === null) {
-      throw new DaemonError('unauthorized', 'a request over TCP must act as a principal with as');
-    }
-
-    if (!ctx.hasListedPrincipal(as.principal)) {
-      tcp?.recordRefusedPrincipal();
-
-      throw new DaemonError(
-        'unauthorized',
-        `principal '${as.principal}' is not listed in principals`,
-      );
-    }
-
-    const scope = findRequestScope(as.principal);
-
-    if (scope === null) {
-      throw new DaemonError('internal', 'a request over TCP resolved to the owner scope');
-    }
-
-    return buildScopedContext(ctx, scope.access, scope.keyNamespace);
-  };
-
-  // The context a request through a session's bridge runs on: the scope its
-  // method needs must be one the session holds now, under a binding that
-  // still matches the live session; a refusal throws.
-  const requireGrantedRequestContext = (
-    bridge: BridgeGrant,
-    method: string,
-    as: RequestPrincipal | null,
-  ): DaemonContext => {
-    if (as !== null) {
-      throw new DaemonError('unauthorized', "a session's atc access acts as no principal");
-    }
-
-    if (!bridge.isCurrent()) {
-      throw new DaemonError(
-        'unauthorized',
-        `session '${bridge.holder}' started or moved again since this connection opened`,
-      );
-    }
-
-    const held = ctx.findHeldAtcAccess(bridge.holder);
-
-    if (held === null) {
-      throw new DaemonError('unauthorized', `session '${bridge.holder}' holds no atc access`);
-    }
-
-    const needed = GRANTED_METHOD_SCOPES[method];
-
-    if (needed === undefined) {
-      throw new DaemonError('unauthorized', `${method} is closed to a session's atc access`);
-    }
-
-    if (needed !== 'any' && !held.scopes.includes(needed)) {
-      throw new DaemonError(
-        'unauthorized',
-        `${method} needs atc scope ${needed}, which session '${bridge.holder}' does not hold`,
-        { scope: needed },
-      );
-    }
-
-    // A subscription delivers only what the connection's own view admits.
-    if (method === 'events.subscribe') {
-      return buildScopedContext(
-        ctx,
-        connectionAccess ?? buildTargetAccessFromGrants([]),
-        `session:${bridge.holder}`,
-      );
-    }
-
-    return buildGrantedContext(ctx, bridge.holder, held, method);
-  };
-
   const buildGrantedView = (bridge: BridgeGrant): TargetAccess =>
     buildGrantedEventAccess(bridge.holder, ctx.findHeldAtcAccess(bridge.holder), (id) =>
       ctx.collectSubtree(bridge.holder).has(id),
     );
-
-  // Null is the daemon's owner. A connection that acts as a principal always keeps its own
-  // idempotency keys, whatever principal a request acts as.
-  const findRequestScope = (as: string | undefined): RequestScope | null => {
-    if (as === undefined) {
-      return identity.principal === null || connectionAccess === null
-        ? null
-        : { access: connectionAccess, keyNamespace: `client:${identity.principal}` };
-    }
-
-    const access = ctx.buildTargetAccess(as);
-
-    if (identity.principal === null || connectionAccess === null) {
-      return { access, keyNamespace: `client:${as}` };
-    }
-
-    return {
-      access: connectionAccess.merge(access),
-      keyNamespace: `client:${identity.principal}`,
-    };
-  };
-
-  // The kernel's answer wins over the handshake: a process inside a session
-  // acts as that session whether or not it gives one, and one that gives
-  // another session is refused.
-  const setCallerSession = (declared: SessionID | null): void => {
-    if (identity.peerSession !== null && declared !== null && declared !== identity.peerSession) {
-      throw new DaemonError(
-        'unauthorized',
-        `daemon.hello gives session '${declared}', but the connecting process runs inside session '${identity.peerSession}'`,
-      );
-    }
-
-    identity.callerSession = identity.peerSession ?? declared;
-  };
-
-  const formatMismatch = (client: string, protocol: number | undefined): string => {
-    const remedy =
-      protocol !== undefined && protocol < PROTOCOL_V
-        ? 'update or reopen the client'
-        : 'restart the daemon';
-
-    return `${client} speaks protocol v${protocol ?? 'unknown'}, daemon ${ctx.build} speaks v${PROTOCOL_V}; ${remedy} so both run the same build`;
-  };
 
   // Makes the connection act as the principal, its view starting as the
   // sessions the principal, and the viewer when one is given, may both see
@@ -328,16 +195,6 @@ export function createDaemonConnection(
 
     connectionView.startView(access);
   };
-
-  const loadHelloAnswer = async (): Promise<DaemonAnswer<'daemon.hello'>> => ({
-    daemon: ctx.build,
-    daemonID: ctx.daemonID,
-    limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
-    idempotency: { completedRetentionMs: ctx.idempotencyRetentionMs },
-    lastUsedAgent: await ctx.loadLastUsedAgent(),
-    peerSession: identity.peerSession,
-    features: DAEMON_FEATURES,
-  });
 
   const waitForDrain = async (): Promise<void> => {
     if (queue.queuedBytes === 0 || isIn('closed')) {
@@ -380,9 +237,13 @@ export function createDaemonConnection(
     // A refused handshake leaves the connection's identity as it was.
     if (tcpHello === null) {
       if (input.protocol !== PROTOCOL_V) {
-        throw new DaemonError('protocol_mismatch', formatMismatch(input.client, input.protocol), {
-          daemonProtocol: PROTOCOL_V,
-        } satisfies MismatchRefusalData);
+        throw new DaemonError(
+          'protocol_mismatch',
+          formatProtocolMismatch(ctx.build, input.client, input.protocol),
+          {
+            daemonProtocol: PROTOCOL_V,
+          } satisfies MismatchRefusalData,
+        );
       }
 
       if (grant !== null && input.principal !== undefined) {
@@ -393,8 +254,7 @@ export function createDaemonConnection(
         throw new DaemonError('bad_args', 'daemon.hello viewer needs a principal');
       }
 
-      setCallerSession(input.session ?? null);
-
+      identity.callerSession = resolveCallerSession(identity.peerSession, input.session ?? null);
       identity.helloClient = input.client;
 
       if (input.principal !== undefined) {
@@ -410,7 +270,7 @@ export function createDaemonConnection(
       fingerprint = tcpHello.fingerprint;
     }
 
-    const answer = await loadHelloAnswer();
+    const answer = await loadHelloAnswer(ctx, identity.peerSession);
 
     sendLifecycleEvent({ type: 'ACCEPT' });
 
@@ -486,7 +346,10 @@ export function createDaemonConnection(
       const as = parseRequestPrincipal(request.headers);
 
       if (grant !== null) {
-        return buildProcedureContext(requireGrantedRequestContext(grant, method, as), null);
+        return buildProcedureContext(
+          requireGrantedRequestContext({ ctx, connectionAccess, bridge: grant }, method, as),
+          null,
+        );
       }
 
       // A subscription delivers only what the connection's own view admits,
@@ -499,10 +362,17 @@ export function createDaemonConnection(
       }
 
       if (tcp !== null) {
-        return buildProcedureContext(requireTCPRequestContext(method, as), as);
+        return buildProcedureContext(
+          requireTCPRequestContext(
+            { ctx, tcp, principal: identity.principal, access: connectionAccess },
+            method,
+            as,
+          ),
+          as,
+        );
       }
 
-      const scope = findRequestScope(as?.principal);
+      const scope = findRequestScope(ctx, identity.principal, connectionAccess, as?.principal);
 
       if (scope !== null && isOwnerOnlyMethod(method)) {
         return new DaemonError('unauthorized', `${method} is open to the daemon's owner only`);
