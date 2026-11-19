@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { DAEMON_GUEST_SCRIPTS } from '@atc/daemon/guest-scripts';
 import { DOCKER_GUEST_SCRIPTS } from '@atc/execution-docker/guest-scripts';
 import { IMP_GUEST_SCRIPTS } from '@atc/execution-imp/guest-scripts';
+import { SPRITES_GUEST_SCRIPTS } from '@atc/execution-sprites/guest-scripts';
 import {
   CLAUDE_GUEST_SCRIPTS,
   buildClaudeGuestLaunch,
@@ -93,6 +94,7 @@ function collectGuestScripts(): Record<string, string> {
     ...DAEMON_GUEST_SCRIPTS,
     ...DOCKER_GUEST_SCRIPTS,
     ...IMP_GUEST_SCRIPTS,
+    ...SPRITES_GUEST_SCRIPTS,
     ...CLAUDE_GUEST_SCRIPTS,
     buildClaudeGuestLaunch: getLaunchScript(
       buildClaudeGuestLaunch('/home/u/.atc/guest', ['claude', '--resume'], {

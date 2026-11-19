@@ -84,6 +84,8 @@
             "packages/execution/imp/src/{client/create-imp-client-port,impd/impd-procedure}.ts",
             "packages/execution/imp/src/create-imp-provider.test.ts"
           ],
+          // the Sprites SDK's client, which only the port's adapter loads
+          "sprites-sdk-files": ["packages/execution/sprites/src/port/create-sprites-api-port.ts"],
           "claude-sdk-files": [
             "packages/harnesses/claude/src/headless/{build-claude-query-options,render-sdk-message,start-claude-headless-run}.ts"
           ],
@@ -273,6 +275,7 @@
           },
           { "name": "confinement", "modules": ["bun-pty"], "allow": ["pty-files"] },
           { "name": "confinement", "modules": ["@impz/client"], "allow": ["imp-client-files"] },
+          { "name": "confinement", "modules": ["@fly/sprites"], "allow": ["sprites-sdk-files"] },
           {
             "name": "confinement",
             "modules": ["@anthropic-ai/claude-agent-sdk"],

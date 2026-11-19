@@ -23,6 +23,14 @@ export const SHIPPED_EXECUTION_PLUGINS: ReadonlyMap<string, () => Promise<Execut
       },
     ],
     [
+      'sprites',
+      async () => {
+        const sprites = await import('@atc/execution-sprites');
+
+        return sprites.SPRITES_PLUGIN;
+      },
+    ],
+    [
       'imp',
       async () => {
         const imp = await import('@atc/execution-imp');
