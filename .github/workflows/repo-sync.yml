@@ -49,7 +49,8 @@ jobs:
       include:
         skill-testing, skill-docs-writing, hook-start, skill-code-style, skill-skill-writing,
         workflow-audit-fix, skill-ci-design
-      skip: agents, memory-cap
+      # pre-push-baseline keeps the scripts this repo still runs when tools retires the entry.
+      skip: agents, memory-cap, pre-push-baseline
     secrets:
       REPO_SYNC_APP_CLIENT_ID: ${{ secrets.REPO_SYNC_APP_CLIENT_ID }}
       REPO_SYNC_APP_PRIVATE_KEY: ${{ secrets.REPO_SYNC_APP_PRIVATE_KEY }}
