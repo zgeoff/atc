@@ -3,7 +3,7 @@ import { integer } from 'gunshi/combinators';
 import type { CommandLineIO } from './run-command-line';
 
 // The `atc mcp` flags, parsed.
-export interface MCPFlags {
+interface MCPFlags {
   readonly http: boolean;
   readonly host: string | null;
   readonly port: number | null;
