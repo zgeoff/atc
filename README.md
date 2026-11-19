@@ -66,12 +66,30 @@ list, and `?` for the keys. Quit the TUI and the sessions keep running.
 
 ## Features
 
-- Restart or upgrade the daemon, and every session picks up where it was.
-- Run sessions in [cloud VMs](./docs/guides/configuration/targets.md) that sleep when you stop them
-  and wake where they left off.
-- Every machine's sessions show up in [one list](./docs/guides/gateway.md).
-- Serve the fleet over [HTTP behind OAuth](./docs/guides/remote-mcp.md), so a hosted assistant can
-  drive it too.
+- **Gateway.** [atc-gateway](./docs/guides/gateway.md) puts several daemons behind one OAuth MCP
+  endpoint, so a hosted assistant drives them all. The TUI shows
+  [every daemon in your config](./docs/guides/using-atc.md#opening-every-daemon-at-once) in one
+  list.
+- **Targets.** Run sessions
+  [locally, in Docker, on imp microVMs or on Sprites](./docs/guides/configuration/targets.md). An
+  imp or a sprite sleeps when you stop its session, and a revive wakes it where it left off.
+- **MCP server.** Agents spawn, read, message and unstick each other, over
+  [stdio](./docs/guides/using-atc.md#agents-that-drive-agents) locally or over
+  [HTTP with OAuth](./docs/guides/remote-mcp.md) for a hosted assistant.
+- **Messaging.** [A message](./docs/architecture/protocol/messages.md) waits through a daemon
+  restart until its session takes it. When the sender is a session on the same daemon, the answer
+  lands in its conversation. Agents send progress notes.
+- **Events.** Every state change, message and note, [streamed](./docs/guides/events.md) to
+  `atc events`, a socket, your hooks or a hosted assistant's webhook, with a history you can resume
+  from.
+- **Workspaces.** Spawn a session on a [fresh clone](./docs/guides/configuration/workspaces.md) of
+  any branch. Forget the session and atc removes the clone, unless it holds unpushed work.
+- **Scoped access.** Each client sees only the
+  [targets you grant it](./docs/guides/configuration/principals.md), with separate scopes to read,
+  message, spawn and kill.
+- **Brokered credentials.** On imp and Sprites, the
+  [credential](./docs/guides/configuration/brokered-credentials.md) is added to each request outside
+  the VM, so the agent never holds it.
 
 ## Documentation
 
