@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
 // A temp directory for the database, opened in a folder that does not exist yet.

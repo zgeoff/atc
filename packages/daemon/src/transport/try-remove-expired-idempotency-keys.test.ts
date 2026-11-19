@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { buildStubClock } from '@atc/test-utils';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { tryRemoveExpiredIdempotencyKeys } from './try-remove-expired-idempotency-keys';
 
 test('it removes the keys older than the retention', async () => {

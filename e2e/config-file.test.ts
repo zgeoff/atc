@@ -1,22 +1,20 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { loadConfig, parseConfig } from '@atc/config';
-import { buildStubTargets } from '@atc/daemon/testing';
+import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { buildStubHeadlessRunner } from '@atc/daemon/test-utils/build-stub-headless-runner';
+import { buildStubTargets } from '@atc/daemon/test-utils/build-stub-targets';
 import { createCodexAdapter } from '@atc/harness-codex';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  buildMockAgentAdapter,
-  buildStubHeadlessRunner,
-  getAgentEntry,
-  getRecord,
-  registerTestCleanup,
-  setupTempDir,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-config-file-');

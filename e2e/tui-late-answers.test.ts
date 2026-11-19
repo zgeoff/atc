@@ -1,22 +1,20 @@
 import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { openAgentStep } from '@atc/app/test-utils/open-agent-step';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { tabToRepoRows } from '@atc/app/test-utils/tab-to-repo-rows';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startGitHTTPServer } from '@atc/daemon/test-utils/start-git-http-server';
 import { openDaemonClient } from '@atc/protocol/client';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  KEYS,
-  buildStubHeldGH,
-  buildStubHeldZoxide,
-  buildStubSignedOutGH,
-  createGitFixture,
-  createStubBin,
-  openAgentStep,
-  registerTestCleanup,
-  startGitHTTPServer,
-  startTUIHarness,
-  tabToRepoRows,
-  waitFor,
-} from '@atc/test-utils';
+import { buildStubHeldZoxide } from '@atc/source-dirs/test-utils/build-stub-held-zoxide';
+import { buildStubHeldGH } from '@atc/source-github/test-utils/build-stub-held-gh';
+import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-signed-out-gh';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { $ } from 'bun';
 
 function setupTest() {

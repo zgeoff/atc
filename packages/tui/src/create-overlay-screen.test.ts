@@ -1,12 +1,14 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config';
-import { KEYS, buildStubHarnessPlugins, buildStubTerminal } from '@atc/test-utils';
+import { buildStubHarnessPlugins } from '@atc/config/test-utils/build-stub-harness-plugins';
+import { KEYS } from '@atc/core/test-utils/keys';
 import { createFleetMirror } from './create-fleet-mirror';
 import { createOverlayScreen } from './create-overlay-screen';
 import type { OverlayConfirm } from './create-overlay-screen';
 import type { SessionKey } from './session-key';
-import { buildMockMirrorSession } from './testing/build-mock-mirror-session';
-import { collectOverlayHeaders } from './testing/collect-overlay-headers';
+import { buildMockMirrorSession } from './test-utils/build-mock-mirror-session';
+import { buildStubTerminal } from './test-utils/build-stub-terminal';
+import { collectOverlayHeaders } from './test-utils/collect-overlay-headers';
 
 function setupTest() {
   const terminal = buildStubTerminal();

@@ -2,9 +2,10 @@ import { expect, mock, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config/host';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { restartDaemonAtSocket } from './restart-daemon-at-socket';
-import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
+import { buildMockLifecycleHost } from './test-utils/build-mock-lifecycle-host';
 
 function setupTest() {
   const directory = setupTempDir('restart-daemon-at-socket-').path;

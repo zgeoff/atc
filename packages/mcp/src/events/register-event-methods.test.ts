@@ -1,20 +1,18 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { systemClock } from '@atc/core';
-import { startTestDaemon } from '@atc/daemon/testing';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  buildMockAgentAdapter,
-  buildStubAuthenticator,
-  registerTestCleanup,
-  runMCPTokenGrant,
-  runPasskeyEnrollment,
-  sendModernMCPRequest,
-} from '@atc/test-utils';
 import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
-import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
-import { openTestAuthDatabase } from '../testing/open-test-auth-database';
+import { buildStubAuthenticator } from '../test-utils/build-stub-authenticator';
+import { buildStubWebhookReceiver } from '../test-utils/build-stub-webhook-receiver';
+import { openTestAuthDatabase } from '../test-utils/open-test-auth-database';
+import { runMCPTokenGrant } from '../test-utils/run-mcp-token-grant';
+import { runPasskeyEnrollment } from '../test-utils/run-passkey-enrollment';
+import { sendModernMCPRequest } from '../test-utils/send-modern-mcp-request';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { openEventDatabase } from './open-event-database';
 

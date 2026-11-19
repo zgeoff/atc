@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { DaemonError } from '@atc/protocol/wire';
-import { buildStubClock } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { createConfirmTokens } from './create-confirm-tokens';
 

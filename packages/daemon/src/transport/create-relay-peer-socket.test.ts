@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'bun:test';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { HarnessRelay } from '@atc/plugin-api';
-import { buildStubHarnessRelay, waitFor } from '@atc/test-utils';
+import { buildStubHarnessRelay } from '../test-utils/build-stub-harness-relay';
 import { createRelayPeerSocket } from './create-relay-peer-socket';
 
 test('it writes each whole line to the relay and keeps a partial line for the next write', async () => {

@@ -8,7 +8,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { createGitFixture, registerTestCleanup, waitFor } from '@atc/test-utils';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { $ } from 'bun';
 import { spawn } from 'bun-pty';
 import invariant from 'tiny-invariant';

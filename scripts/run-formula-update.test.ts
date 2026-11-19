@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createGitFixture, createStubBin, runCommand, setupTempDir } from '@atc/test-utils';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 import { runFormulaUpdate } from './run-formula-update';
 

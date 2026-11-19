@@ -1,17 +1,15 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { openAgentStep } from '@atc/app/test-utils/open-agent-step';
+import { spawnClaudeSession } from '@atc/app/test-utils/spawn-claude-session';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { buildHookSettingsPath } from '@atc/harness-claude';
 import { openDaemonClient } from '@atc/protocol/client';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  KEYS,
-  createGitFixture,
-  openAgentStep,
-  registerTestCleanup,
-  spawnClaudeSession,
-  startTUIHarness,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { $ } from 'bun';
 
 function setupTest() {

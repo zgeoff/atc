@@ -1,6 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir, startStubReporterSocket, updateEnv } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
 import { runHookReport } from './hook-report';
 
 function setupTest() {

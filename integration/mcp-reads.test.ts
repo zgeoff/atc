@@ -1,12 +1,13 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemon';
 import { isRecord } from '@atc/core';
-import { startInProcessMCP } from '@atc/mcp/testing';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startInProcessMCP } from '@atc/mcp/test-utils/start-in-process-mcp';
 import { runNote } from '@atc/reporters';
-import { updateEnv, waitFor } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
-import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
 
 // The MCP tools in the test's process, against a daemon in it whose Claude is
 // the in-process stand-in.

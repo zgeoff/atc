@@ -1,15 +1,13 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  KEYS,
-  buildStubSignedOutGH,
-  createGitFixture,
-  createStubBin,
-  startTUIHarness,
-  tabToRepoRows,
-} from '@atc/test-utils';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { tabToRepoRows } from '@atc/app/test-utils/tab-to-repo-rows';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-signed-out-gh';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { $ } from 'bun';
 
 async function setupTest() {

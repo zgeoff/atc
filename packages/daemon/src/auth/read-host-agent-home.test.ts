@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
-import { runLocalCommand } from '@atc/test-utils';
+import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { toSessionID } from '@atcx/contract';
 import { resolveHomeDir } from '@atcx/contract/light';
 import { readHostAgentHome } from './read-host-agent-home';

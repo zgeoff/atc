@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { resolvePaths } from '@atc/config';
-import { resolveATCCommand, runCommand, setupTempDir } from '@atc/test-utils';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { runClients } from '../packages/app/src/clients';
 

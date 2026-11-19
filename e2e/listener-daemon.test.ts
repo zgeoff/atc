@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openDaemonClient } from '@atc/protocol/client';
-import { registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 
 // The listener daemon running on state in a temp directory, with what it
 // printed once it listened and everything it writes to stderr. Cleanup kills
@@ -16,7 +18,15 @@ async function setupTest() {
   const subprocess = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'packages', 'daemon', 'src', 'testing', 'run-listener-daemon.ts'),
+      join(
+        import.meta.dir,
+        '..',
+        'packages',
+        'daemon',
+        'src',
+        'test-utils',
+        'run-listener-daemon.ts',
+      ),
     ],
     {
       env: { ...process.env, ATC_TEST_DIR: temporaryDirectory.path },

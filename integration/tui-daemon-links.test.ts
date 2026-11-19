@@ -1,10 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import type { DaemonBoot } from '@atc/protocol';
-import { buildMockAgentAdapter, buildStubClock, waitFor } from '@atc/test-utils';
-import { DaemonLinkFailureError } from '@atc/tui';
-import { createDaemonLinks, createFleetMirror } from '@atc/tui/testing';
+import { DaemonLinkFailureError, createDaemonLinks, createFleetMirror } from '@atc/tui';
 import type { DaemonEvent } from '@atcx/contract';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // The TUI's links to two daemons in the test's process: the local one as the primary, and one
 // that stands in for a daemon on another host.

@@ -1,14 +1,13 @@
 import { expect, mock, test } from 'bun:test';
 import { createDaemonConnection } from '@atc/daemon';
 import type { DaemonContext } from '@atc/daemon';
-import { buildStubDaemonContext } from '@atc/daemon/testing';
+import { buildStubDaemonContext } from '@atc/daemon/test-utils/build-stub-daemon-context';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
+import { buildPeerRequestLine } from '@atc/protocol/test-utils/build-peer-request-line';
+import { buildStubPeerSocket } from '@atc/protocol/test-utils/build-stub-peer-socket';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { buildMockFleetEntry, buildMockMessageRecord } from '@atc/store/testing';
-import {
-  buildMockSessionDescriptor,
-  buildPeerRequestLine,
-  buildStubPeerSocket,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
+import { buildMockMessageRecord } from '@atc/store/test-utils/build-mock-message-record';
 import { toDaemonID, toMessageID, toSessionID } from '@atcx/contract';
 
 test('it answers session.get whose session leaves the view during the read as for a session that does not exist', async () => {

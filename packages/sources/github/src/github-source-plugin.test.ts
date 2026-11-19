@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
-import { buildMockHostServices, buildStubGHCommand } from '@atc/test-utils';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { buildStubGHCommand } from '@atc/plugin-api/test-utils/build-stub-gh-command';
 import { GITHUB_SOURCE_PLUGIN } from './github-source-plugin';
 
 test('it reads a slice with no owner as the gh account, under the id of its config entry', () => {

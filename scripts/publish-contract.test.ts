@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildStubNpm, createStubBin, runCommand, setupTempDir } from '@atc/test-utils';
+import { buildStubNpm } from '@atc/core/test-utils/build-stub-npm';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
 // A temp repo root that holds the real release scripts, so the entry script
 // takes the root from its own path and runs the packer that the test writes.

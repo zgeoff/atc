@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { seedOwnerClient, seedOwnerGrant, seedOwnerSchema } from '@atc/mcp/test-utils';
-import {
-  readJSONRecord,
-  registerTestCleanup,
-  runMCPAuthorization,
-  setupTempDir,
-} from '@atc/test-utils';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { runMCPAuthorization } from '@atc/mcp/test-utils/run-mcp-authorization';
+import { seedOwnerClient } from '@atc/mcp/test-utils/seed-owner-client';
+import { seedOwnerGrant } from '@atc/mcp/test-utils/seed-owner-grant';
+import { seedOwnerSchema } from '@atc/mcp/test-utils/seed-owner-schema';
 import { runGrants } from './grants';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { setupMCPHTTP } from './test-utils/setup-mcp-http';

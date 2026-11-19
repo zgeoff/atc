@@ -1,7 +1,8 @@
 import { expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runLocalCommand, setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { makeGuestTranscriptReader } from './make-guest-transcript-reader';
 
 function setupTest() {

@@ -72,7 +72,6 @@
           "packages/plugin-api",
           "packages/protocol",
           "packages/store",
-          "packages/test-utils",
           "packages/tui"
         ]
       }
@@ -97,17 +96,13 @@
   },
   "overrides": [
     {
-      // the system clock itself, tests, test helpers (a package's testing
-      // folder among them), and tooling read the
+      // the system clock itself, tests, test helpers, and tooling read the
       // wall clock directly; an override replaces the rule's options, so it
       // repeats the spawn entry
       "files": [
         "packages/core/src/system-clock.ts",
         "**/*.test.ts",
-        "packages/test-utils/**",
         "packages/**/src/test-utils/**",
-        "packages/*/src/testing/**",
-        "packages/*/*/src/testing/**",
         "e2e/**",
         "integration/**",
         "scripts/**"
@@ -131,13 +126,9 @@
       }
     },
     {
-      // the imp execution plugin, the shared test helpers, and the composition
+      // the imp execution plugin and the composition
       // root that ships the plugin may name imp
-      "files": [
-        "packages/execution/**",
-        "packages/test-utils/**",
-        "packages/app/src/plugins/shipped-execution-plugins.ts"
-      ],
+      "files": ["packages/execution/**", "packages/app/src/plugins/shipped-execution-plugins.ts"],
       "rules": { "zgeoff/no-restricted-words": "off" }
     },
     {
@@ -192,13 +183,13 @@
         "packages/daemon/src/sessions/create-session-manager.ts",
         "packages/daemon/src/sessions/create-spawn-replay.test.ts",
         "packages/daemon/src/sessions/start-bridge-revival.test.ts",
-        "packages/daemon/src/testing/build-mock-execution-target.test.ts",
-        "packages/daemon/src/testing/build-stub-binder-broker.ts",
-        "packages/daemon/src/testing/build-stub-memory-provider.test.ts",
-        "packages/daemon/src/testing/build-stub-restore-imp-provider.test.ts",
-        "packages/daemon/src/testing/build-stub-restore-imp-provider.ts",
-        "packages/daemon/src/testing/build-stub-targets.test.ts",
-        "packages/daemon/src/testing/build-target-options-from-config.test.ts",
+        "packages/daemon/src/test-utils/build-mock-execution-target.test.ts",
+        "packages/daemon/src/test-utils/build-stub-binder-broker.ts",
+        "packages/daemon/src/test-utils/build-stub-memory-provider.test.ts",
+        "packages/daemon/src/test-utils/build-stub-restore-imp-provider.test.ts",
+        "packages/daemon/src/test-utils/build-stub-restore-imp-provider.ts",
+        "packages/daemon/src/test-utils/build-stub-targets.test.ts",
+        "packages/daemon/src/test-utils/build-target-options-from-config.test.ts",
         "packages/daemon/src/transport/start-session-bridge.test.ts",
         "packages/harnesses/claude/src/guest/build-claude-config-seed.test.ts",
         "packages/store/src/fleet-entry.ts"

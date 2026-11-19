@@ -1,6 +1,7 @@
 import type { Clock } from '@atc/core';
 import type { StateStore } from '@atc/store';
-import { buildMaterializationSeeder, buildSessionOwnerSeeder } from '@atc/store/test-utils';
+import { buildMaterializationSeeder } from '@atc/store/test-utils/build-materialization-seeder';
+import { buildSessionOwnerSeeder } from '@atc/store/test-utils/build-session-owner-seeder';
 
 export interface TestDeps {
   readonly store: StateStore;

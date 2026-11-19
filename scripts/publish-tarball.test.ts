@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildStubNpm, createStubBin, runCommand, setupTempDir } from '@atc/test-utils';
+import { buildStubNpm } from '@atc/core/test-utils/build-stub-npm';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('publish-tarball-');

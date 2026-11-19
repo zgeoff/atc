@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
-import { buildStubLocalProvider } from '../testing/build-stub-local-provider';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { buildStubLocalProvider } from '../test-utils/build-stub-local-provider';
 import { readHostSubdirs } from './read-host-subdirs';
 
 function setupTest() {

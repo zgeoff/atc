@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openATCAuthAdmin } from '@atc/mcp';
 import type { PasskeyID } from '@atc/mcp';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { toTagged } from '@zgeoff/std';
 import { openMCPAuthDatabase } from '../open-mcp-auth-database';
 import { seedATCPasskey } from './seed-atc-passkey';

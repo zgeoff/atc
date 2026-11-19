@@ -1,19 +1,17 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubComposer } from '@atc/app/test-utils/create-stub-composer';
 import { resolvePaths } from '@atc/config';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { createStubSharedServerCodex } from '@atc/harness-codex/test-utils/create-stub-shared-server-codex';
+import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 import { createStateStore } from '@atc/store';
-import {
-  createStubComposer,
-  createStubSharedServerCodex,
-  getRecord,
-  getString,
-  registerTestCleanup,
-  resolveATCCommand,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-codex-shared-');

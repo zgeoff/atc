@@ -1,18 +1,16 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  buildStubClock,
-  registerTestCleanup,
-  setupTempDir,
-  startStubImpd,
-  startStubStallingProxy,
-  waitFor,
-} from '@atc/test-utils';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { createImpClientPort } from './create-imp-client-port';
 import { readImpToken } from './read-imp-token';
-import { buildMockImpSessionRequest } from './testing/build-mock-imp-session-request';
+import { buildMockImpSessionRequest } from './test-utils/build-mock-imp-session-request';
+import { startStubImpd } from './test-utils/start-stub-impd';
+import { startStubStallingProxy } from './test-utils/start-stub-stalling-proxy';
 
 function setupTest() {
   const impd = startStubImpd();

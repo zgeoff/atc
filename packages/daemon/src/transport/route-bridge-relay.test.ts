@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import type { HarnessRelay } from '@atc/plugin-api';
-import { buildStubHarnessRelay } from '@atc/test-utils';
+import { buildStubHarnessRelay } from '../test-utils/build-stub-harness-relay';
 import { routeBridgeRelay } from './route-bridge-relay';
 
 test('it opens the client protocol on a first line that is a peer message, which sees that line', () => {

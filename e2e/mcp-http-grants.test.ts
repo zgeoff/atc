@@ -3,9 +3,14 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
 import { systemClock } from '@atc/core';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openATCAuth } from '@atc/mcp';
-import { seedOwnerClient, seedOwnerGrant, seedOwnerSchema } from '@atc/mcp/test-utils';
-import { registerTestCleanup, resolveATCCommand, runCommand, setupTempDir } from '@atc/test-utils';
+import { seedOwnerClient } from '@atc/mcp/test-utils/seed-owner-client';
+import { seedOwnerGrant } from '@atc/mcp/test-utils/seed-owner-grant';
+import { seedOwnerSchema } from '@atc/mcp/test-utils/seed-owner-schema';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
 
 // An authorization database from before atc moved to its shared OAuth

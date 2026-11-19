@@ -12,7 +12,7 @@
         "scripts/probe-pty-env.ts",
         "rig.config.ts",
         "scripts/stage-demo-sessions.ts",
-        "scripts/verify/run-local-daemon.ts"
+        "scripts/test-utils/run-local-daemon.ts"
       ],
       "project": ["e2e/**/*.ts", "integration/**/*.ts", "scripts/**/*.ts"]
     },
@@ -20,17 +20,11 @@
       "entry": ["src/gateway.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
-    "packages/daemon": {
-      "entry": ["src/**/*.test.ts", "src/testing/run-listener-daemon.ts"]
-    },
     "packages/*": {
       "entry": ["src/**/*.test.ts"]
     },
     "packages/*/*": {
       "entry": ["src/**/*.test.ts"]
-    },
-    "packages/test-utils": {
-      "entry": ["src/**/*.test.ts", "src/run-stub-*.ts"]
     }
   },
   "ignoreDependencies": ["@stylistic/eslint-plugin"],

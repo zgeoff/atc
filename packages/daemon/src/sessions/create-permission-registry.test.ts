@@ -1,5 +1,5 @@
 import { expect, expectTypeOf, mock, test } from 'bun:test';
-import { buildStubClock } from '@atc/test-utils';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import type { AgentSessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
 import { createPermissionRegistry } from './create-permission-registry';

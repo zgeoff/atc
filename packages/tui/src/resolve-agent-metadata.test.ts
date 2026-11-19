@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config';
-import { buildStubHarnessPlugins } from '@atc/test-utils';
+import { buildStubHarnessPlugins } from '@atc/config/test-utils/build-stub-harness-plugins';
 import { resolveAgentMetadata } from './resolve-agent-metadata';
 
 test('it labels the built-in agents by name', () => {

@@ -1,20 +1,18 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
+import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createLocalPTYProvider } from '@atc/execution-local';
-import { createStubPTYProvider } from '@atc/execution-local/testing';
+import { createStubPTYProvider } from '@atc/execution-local/test-utils/create-stub-pty-provider';
 import { createClaudeAdapter, createGatewayAdapter } from '@atc/harness-claude';
-import { getGatewayConfig } from '@atc/harness-claude/testing';
-import {
-  buildMockHostServices,
-  createGitFixture,
-  createStubRecordingClaude,
-  getAgentEntry,
-  waitFor,
-} from '@atc/test-utils';
+import { createStubRecordingClaude } from '@atc/harness-claude/test-utils/create-stub-recording-claude';
+import { getGatewayConfig } from '@atc/harness-claude/test-utils/get-gateway-config';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-local-workspace-trust-' });

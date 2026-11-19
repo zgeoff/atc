@@ -1,16 +1,14 @@
 import { expect, test } from 'bun:test';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnGrokSession } from '@atc/app/test-utils/spawn-grok-session';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { resolvePaths } from '@atc/config';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  KEYS,
-  registerTestCleanup,
-  spawnGrokSession,
-  startTUIHarness,
-  waitFor,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
 function setupTest() {
   return startTUIHarness({ createStateDB: createMigratedStateDB });

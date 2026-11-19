@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/test-utils';
+import { runCommand } from '@atc/core/test-utils/run-command';
 
 test.each([
   ['a newer published version', '7.10.0\n7.3.1\n', '7.10.0\n'],

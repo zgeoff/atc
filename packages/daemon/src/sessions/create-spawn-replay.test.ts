@@ -1,14 +1,17 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { buildMockFleetEntry, buildMockIdempotencyRecord } from '@atc/store/testing';
-import { buildMockSessionDescriptor, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
+import { buildMockIdempotencyRecord } from '@atc/store/test-utils/build-mock-idempotency-record';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildStubHarnessAdapter } from '../testing/build-stub-harness-adapter';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createSessionManager } from './create-session-manager';
 import { createSpawnReplay } from './create-spawn-replay';
 

@@ -1,13 +1,16 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openDaemonClient } from '@atc/protocol/client';
 import { DaemonError } from '@atc/protocol/wire';
-import { getRecord, registerTestCleanup, setupTempDir, waitFor } from '@atc/test-utils';
 import type { GrantScope } from '@atcx/contract';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import invariant from 'tiny-invariant';
-import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
+import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { createMCPServer } from './create-mcp-server';
 import { createTransportCaller } from './create-transport-caller';
 import type { FleetCaller } from './types';

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { buildMockSessionDescriptor } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';

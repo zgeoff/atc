@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./claude-statusline": "./src/claude-statusline/index.ts",
     "./host": "./src/host/index.ts",
-    "./token-file": "./src/token-file/index.ts"
+    "./token-file": "./src/token-file/index.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
   },
   "dependencies": {
     "@atc/core": "workspace:*",
@@ -17,6 +18,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@atc/test-utils": "workspace:*"
+    "@faker-js/faker": "catalog:",
+    "@zgeoff/std": "catalog:"
   }
 }

@@ -1,0 +1,47 @@
+import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
+import type { AgentEntry } from '@atcx/contract';
+import { faker } from '@faker-js/faker';
+import { mergeDeep } from '@zgeoff/std';
+
+type ListedAgentOverrides = MockOverrides<AgentEntry, keyof AgentEntry>;
+
+export function buildMockListedAgent(overrides: ListedAgentOverrides = {}): AgentEntry {
+  return mergeDeep<AgentEntry>(
+    {
+      id: faker.string.alpha({ length: 8, casing: 'lower' }),
+      label: faker.company.name(),
+      kind: 'claude',
+      installed: false,
+      brokerAuth: false,
+      brokerRequired: false,
+      spawnTargets: [],
+      capabilities: {
+        spawn: false,
+        readTranscript: false,
+        message: false,
+        attach: true,
+        screen: true,
+        input: true,
+      },
+      models: null,
+      spawnOptions: {
+        model: buildUnsupportedOption(),
+        effort: buildUnsupportedOption(),
+        pluginDirs: buildUnsupportedOption(),
+      },
+    },
+    overrides,
+  );
+}
+
+function buildUnsupportedOption(): AgentEntry['spawnOptions']['model'] {
+  return {
+    supported: false,
+    values: null,
+    examples: [],
+    default: null,
+    backendEffect: null,
+    note: null,
+    available: false,
+  };
+}

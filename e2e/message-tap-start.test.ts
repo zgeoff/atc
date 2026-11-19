@@ -1,17 +1,15 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStubRelayProvider } from '@atc/execution-local/testing';
-import {
-  buildMockAgentAdapter,
-  buildStubBridgeClaude,
-  buildStubClock,
-  createStubBin,
-  getRecord,
-  resolveATCCommand,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
+import { buildStubBridgeClaude } from '@atc/app/test-utils/build-stub-bridge-claude';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { createStubRelayProvider } from '@atc/execution-local/test-utils/create-stub-relay-provider';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 
 test('it delivers a message to a top-level remote session whose agent started a tap the relay dropped', async () => {
   const host = setupTempDir('atc-tap-start-');

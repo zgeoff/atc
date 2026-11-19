@@ -1,7 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin, runCommand, setupTempDir } from '@atc/test-utils';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 

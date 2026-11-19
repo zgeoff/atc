@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubGHCommand } from '@atc/test-utils';
+import { buildStubGHCommand } from '@atc/plugin-api/test-utils/build-stub-gh-command';
 import { readGitHubRepos } from './read-github-repos';
 import { buildMockGitHubAPIRepo } from './test-utils/build-mock-github-api-repo';
 

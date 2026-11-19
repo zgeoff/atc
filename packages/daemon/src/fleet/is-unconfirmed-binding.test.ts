@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { isUnconfirmedBinding } from './is-unconfirmed-binding';
 
 test.each([

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
+import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
 import { BrokerAuthorityError } from './broker-authority-error';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 

@@ -2,32 +2,32 @@ import { expect, mock, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { isRecord } from '@atc/core';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildPayloadHash } from '@atc/daemon';
+import { buildStubBrokeredAgentAdapter } from '@atc/daemon/test-utils/build-stub-brokered-agent-adapter';
 import { createImpProvider } from '@atc/execution-imp';
-import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
+import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
+import { getOnlyImpName } from '@atc/execution-imp/test-utils/get-only-imp-name';
 import { createLocalPTYProvider } from '@atc/execution-local';
-import { createStubExecutionProvider } from '@atc/execution-local/testing';
+import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
 import { createDaemonPool, createGatewayStore, createRoutingCaller } from '@atc/gateway';
-import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
+import { buildMockRegistryDaemon } from '@atc/gateway/test-utils/build-mock-registry-daemon';
+import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-binding-database';
 import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
-import { buildStubFleetCaller } from '@atc/mcp/testing';
+import { buildStubFleetCaller } from '@atc/mcp/test-utils/build-stub-fleet-caller';
 import type { AgentAdapter } from '@atc/plugin-api';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
+import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { createStateStore } from '@atc/store';
-import {
-  buildMockAgentAdapter,
-  buildStubBrokeredAgentAdapter,
-  getRecord,
-  registerTestCleanup,
-  setupTempDir,
-  spawnNamedSession,
-  waitFor,
-} from '@atc/test-utils';
 import { REQUEST_PARAM_SCHEMAS, toAgentSessionID, toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
   const planSpawn = mock<AgentAdapter['planSpawn']>(() => ({ bin: 'sleep', args: ['30'] }));

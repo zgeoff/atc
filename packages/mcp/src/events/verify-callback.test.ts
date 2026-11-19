@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
 import invariant from 'tiny-invariant';
-import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
+import { buildStubWebhookReceiver } from '../test-utils/build-stub-webhook-receiver';
 import { verifyCallback } from './verify-callback';
 
 test('it verifies an endpoint that echoes the challenge', async () => {

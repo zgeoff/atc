@@ -1,0 +1,475 @@
+import { expect, mock, onTestFinished, test } from 'bun:test';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { resolvePaths } from '@atc/config';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { probeProcessAlive } from '../probe-process-alive';
+import { readDaemonRecord } from '../read-daemon-record';
+import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
+import { startDaemonProcess } from './start-daemon-process';
+
+function setupTest() {
+  const temporaryDirectory = setupTempDir('atc-daemon-process-');
+
+  return { directory: temporaryDirectory.path };
+}
+
+test('it starts a daemon that answers a handshake on the socket in the home', async () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
+
+  const client = await daemon.openClient();
+
+  expect(client.sendHello('atc/test')).resolves.toContainKey('daemonID');
+});
+
+test('it keeps the daemon state in the home and records the daemon process there', async () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const paths = resolvePaths({ HOME: ctx.directory, XDG_RUNTIME_DIR: ctx.directory });
+
+  expect(readDaemonRecord(paths.daemonRecordFile)).toStrictEqual({
+    pid: daemon.subprocess.pid,
+    socketPath: paths.daemonSocketPath,
+    reporterSocketPath: paths.socketPath,
+    eventsSocketPath: paths.eventsSocketPath,
+    listenPort: null,
+    protocol: 14,
+  });
+});
+
+test('it hands the daemon the arguments and keeps its stderr readable', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    args: ['--listen', '127.0.0.1:0'],
+  });
+
+  const exitCode = await daemon.subprocess.exited;
+
+  expect({ exitCode, stderr: daemon.readStderr() }).toStrictEqual({
+    exitCode: 1,
+    stderr: expect.toInclude('--listen and --token-file go together'),
+  });
+});
+
+test('it hands the daemon a copy of the migrated database in an owner-only state directory', async () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: ['/bin/true'], home: ctx.directory });
+
+  await daemon.subprocess.exited;
+
+  expect(existsSync(daemon.paths.dbFile)).toBe(true);
+  expect(statSync(daemon.stateDir).mode & 0o777).toBe(0o700);
+});
+
+test('it leaves the state directory for the daemon to create on a fresh state', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: ['/bin/true'],
+    home: ctx.directory,
+    freshState: true,
+  });
+
+  await daemon.subprocess.exited;
+
+  expect(existsSync(daemon.stateDir)).toBe(false);
+});
+
+test('it reports the daemon stderr when a request rejects with an internal error, and keeps the rejection', async () => {
+  const ctx = setupTest();
+  const writeReport = mock<(text: string) => void>();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    writeReport,
+  });
+
+  const client = await daemon.openClient();
+
+  client.onAnswer = () => {
+    throw new Error('the answer check broke');
+  };
+
+  const rejection = await client.sendHello('atc/test').then(
+    () => null,
+    (error: unknown) => error,
+  );
+
+  expect(rejection).toMatchObject({ code: 'internal', message: 'Error: the answer check broke' });
+
+  expect(writeReport).toHaveBeenCalledExactlyOnceWith(
+    `the daemon answered an internal error; its stderr:\n${daemon.readStderr()}`,
+  );
+});
+
+test('it rejects a client with the daemon stderr when the daemon exits before it listens', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    args: ['--listen', '127.0.0.1:0'],
+  });
+
+  const opening = daemon.openClient();
+
+  await daemon.subprocess.exited;
+
+  expect(opening).rejects.toThrowWithMessage(
+    Error,
+    /^the daemon exited \(1\) before it listened:\n.*--listen and --token-file go together/su,
+  );
+});
+
+test('it rejects a client at once with the daemon stderr when the daemon exited before the client was opened', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    args: ['--listen', '127.0.0.1:0'],
+  });
+
+  await daemon.subprocess.exited;
+
+  expect(daemon.openClient()).rejects.toThrowWithMessage(
+    Error,
+    /^the daemon exited \(1\) before it listened:\n.*--listen and --token-file go together/su,
+  );
+});
+
+test('it opens a client on the socket a replacement holds when the daemon exits before it listens', async () => {
+  const ctx = setupTest();
+  const nextPath = join(ctx.directory, 'next.sock');
+  let accepted = 0;
+
+  const replacement = Bun.listen({
+    unix: nextPath,
+    socket: {
+      open() {
+        accepted += 1;
+      },
+      data() {},
+    },
+  });
+
+  registerTestCleanup(() => {
+    replacement.stop(true);
+  });
+
+  const paths = resolvePaths({ HOME: ctx.directory, XDG_RUNTIME_DIR: ctx.directory });
+
+  const atc = createStubBin(
+    join(ctx.directory, 'bin'),
+    'atc',
+    buildStubHandoffDaemon(nextPath, paths.daemonSocketPath),
+  );
+
+  const daemon = startDaemonProcess({ command: [atc], home: ctx.directory });
+
+  await daemon.openClient();
+
+  const exitCode = await daemon.subprocess.exited;
+
+  await waitFor(() => {
+    expect(accepted).toBe(1);
+  });
+
+  expect(exitCode).toBe(0);
+});
+
+test('it lays the config variables over the environment of the daemon', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    env: { HOME: join(ctx.directory, 'other') },
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const paths = resolvePaths({
+    HOME: join(ctx.directory, 'other'),
+    XDG_RUNTIME_DIR: ctx.directory,
+  });
+
+  expect(readDaemonRecord(paths.daemonRecordFile)).toStrictEqual({
+    pid: daemon.subprocess.pid,
+    socketPath: paths.daemonSocketPath,
+    reporterSocketPath: paths.socketPath,
+    eventsSocketPath: paths.eventsSocketPath,
+    listenPort: null,
+    protocol: 14,
+  });
+});
+
+test('it opens a client on the socket under the state directory when the config unsets XDG_RUNTIME_DIR', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    env: { XDG_RUNTIME_DIR: undefined },
+  });
+
+  const client = await daemon.openClient();
+
+  expect(client.sendHello('atc/test')).resolves.toContainKey('daemonID');
+});
+
+test('it removes a variable the config sets to undefined from the environment of the daemon', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    env: { XDG_RUNTIME_DIR: undefined },
+  });
+
+  const paths = resolvePaths({ HOME: ctx.directory });
+
+  // Without a runtime directory the daemon listens under its state
+  // directory, which its record holds once it is up.
+  const record = await waitFor(() => {
+    const found = readDaemonRecord(paths.daemonRecordFile);
+
+    expect(found).not.toBeNull();
+
+    return found;
+  });
+
+  expect(record).toStrictEqual({
+    pid: daemon.subprocess.pid,
+    socketPath: paths.daemonSocketPath,
+    reporterSocketPath: paths.socketPath,
+    eventsSocketPath: paths.eventsSocketPath,
+    listenPort: null,
+    protocol: 14,
+  });
+});
+
+test('it restarts the daemon on the same home after the signal stops it', async () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
+
+  const first = await daemon.openClient();
+  const before = await first.sendHello('atc/test');
+
+  const crashed = daemon.subprocess;
+
+  await daemon.restart('SIGKILL');
+
+  const second = await daemon.openClient();
+  const after = await second.sendHello('atc/test');
+
+  expect(crashed.signalCode).toBe('SIGKILL');
+  expect(daemon.subprocess.pid).not.toBe(crashed.pid);
+  expect(after['daemonID']).toBe(before['daemonID']);
+});
+
+test('it keeps the stderr of two daemons on one home apart', async () => {
+  const ctx = setupTest();
+  const serving = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
+
+  const client = await serving.openClient();
+
+  await client.sendHello('atc/test');
+
+  const refused = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    args: ['--listen', '127.0.0.1:0'],
+  });
+
+  await refused.subprocess.exited;
+
+  expect(refused.readStderr()).toInclude('--listen and --token-file go together');
+  expect(serving.readStderr()).not.toInclude('--listen and --token-file go together');
+});
+
+test('it kills the daemon once stopped', async () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
+
+  await daemon.openClient();
+  await daemon.stop();
+
+  expect(daemon.subprocess.signalCode).toBe('SIGKILL');
+});
+
+test('it kills the daemon the state directory records once stopped', async () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.directory });
+  const recorded = Bun.spawn(['sleep', '30']);
+
+  onTestFinished(() => {
+    recorded.kill();
+  });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  writeFileSync(
+    daemon.paths.daemonRecordFile,
+    JSON.stringify({
+      pid: recorded.pid,
+      socketPath: daemon.socketPath,
+      reporterSocketPath: daemon.reporterSocketPath,
+      eventsSocketPath: null,
+      listenPort: null,
+    }),
+  );
+
+  await daemon.stop();
+
+  await recorded.exited;
+
+  expect(recorded.signalCode).toBe('SIGKILL');
+});
+
+test('it kills the daemon once the test finishes without a stop', () => {
+  const ctx = setupTest();
+
+  // A stand-in that runs until killed and ignores the arguments after it.
+  const daemon = startDaemonProcess({
+    command: ['bash', '-c', 'exec sleep 30'],
+    home: ctx.directory,
+  });
+
+  const pid = daemon.subprocess.pid;
+
+  onTestFinished(() => {
+    expect(probeProcessAlive(pid)).toBeFalse();
+  });
+});
+
+test('it kills a child the daemon forked once the test finishes', async () => {
+  const ctx = setupTest();
+  const childPIDPath = join(ctx.directory, 'child.pid');
+
+  // A stand-in that forks a child, records its pid, and runs until killed.
+  startDaemonProcess({
+    command: ['bash', '-c', `sleep 30 & echo "$!" > '${childPIDPath}'; exec sleep 30`],
+    home: ctx.directory,
+  });
+
+  const child = await waitFor(() => {
+    const pid = Number(readFileSync(childPIDPath, 'utf8'));
+
+    expect(pid).toBeGreaterThan(0);
+
+    return pid;
+  });
+
+  onTestFinished(async () => {
+    await waitFor(() => {
+      expect(probeProcessAlive(child)).toBeFalse();
+    });
+  });
+});
+
+test('it kills the daemon its home records and removes its stderr directory once the test finishes', () => {
+  const ctx = setupTest();
+  let stderrLeft: boolean | null = null;
+  let stderrDir = '';
+
+  // Runs after the helper's releases, which register later, and before the
+  // home goes; it records whether those releases left the stderr directory.
+  registerTestCleanup(() => {
+    stderrLeft = existsSync(stderrDir);
+  });
+
+  const daemon = startDaemonProcess({
+    command: ['bash', '-c', 'exec sleep 30'],
+    home: ctx.directory,
+  });
+
+  const pid = daemon.subprocess.pid;
+
+  stderrDir = daemon.stderrDir;
+
+  // Registered before the replacement starts, so it runs after the helper's
+  // release and before the fallback kill below. The helper signals the
+  // recorded daemon without waiting for it to exit.
+  onTestFinished(async () => {
+    expect(probeProcessAlive(pid)).toBe(false);
+
+    await waitFor(() => {
+      expect(probeProcessAlive(replacement.pid)).toBe(false);
+    });
+
+    expect(stderrLeft).toBe(false);
+    expect(existsSync(ctx.directory)).toBe(false);
+  });
+
+  // A replacement daemon a restart would leave, recorded in the home.
+  const replacement = Bun.spawn(['sleep', '30']);
+
+  onTestFinished(() => {
+    replacement.kill('SIGKILL');
+  });
+
+  mkdirSync(daemon.stateDir, { recursive: true });
+
+  writeFileSync(
+    daemon.paths.daemonRecordFile,
+    JSON.stringify({
+      pid: replacement.pid,
+      socketPath: daemon.socketPath,
+      reporterSocketPath: daemon.reporterSocketPath,
+      eventsSocketPath: null,
+      listenPort: null,
+    }),
+  );
+});
+
+test('it keeps the daemon stderr readable after a stop', async () => {
+  const ctx = setupTest();
+
+  const daemon = startDaemonProcess({
+    command: resolveATCCommand(),
+    home: ctx.directory,
+    args: ['--listen', '127.0.0.1:0'],
+  });
+
+  await daemon.subprocess.exited;
+
+  await daemon.stop();
+
+  expect(daemon.readStderr()).toInclude('--listen and --token-file go together');
+});
+
+test('it refuses to restart a stopped daemon', async () => {
+  const ctx = setupTest();
+
+  // A stand-in that runs until killed and ignores the arguments after it.
+  const daemon = startDaemonProcess({
+    command: ['bash', '-c', 'exec sleep 30'],
+    home: ctx.directory,
+  });
+
+  await daemon.stop();
+
+  expect(daemon.restart('SIGTERM')).rejects.toThrowWithMessage(
+    Error,
+    'a stopped daemon process cannot restart',
+  );
+});

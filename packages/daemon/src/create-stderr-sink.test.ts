@@ -1,7 +1,8 @@
 import { expect, jest, onTestFinished, test } from 'bun:test';
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir, waitFor } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStderrSink } from './create-stderr-sink';
 
 // Faked timers let a test decide when the sink reports the records it dropped.

@@ -2,25 +2,23 @@ import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
+import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createGrokAdapter } from '@atc/harness-grok';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { encodeCursor } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
+import { buildMockRestartResult } from '@atc/protocol/test-utils/build-mock-restart-result';
+import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { createStateStore } from '@atc/store';
-import { seedLaterEpochSessionOwner } from '@atc/store/test-utils';
-import {
-  buildMockAgentAdapter,
-  buildMockRestartResult,
-  buildStubClock,
-  getAgentEntry,
-  getRecord,
-  registerTestCleanup,
-  spawnNamedSession,
-  waitFor,
-} from '@atc/test-utils';
+import { seedLaterEpochSessionOwner } from '@atc/store/test-utils/seed-later-epoch-session-owner';
 import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
   return startTestDaemon({

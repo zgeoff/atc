@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createGitFixture } from '@atc/test-utils';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { resolveRemoteRef } from './resolve-remote-ref';
 
 // A bare upstream holding one pushed commit on `main`.

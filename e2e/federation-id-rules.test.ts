@@ -2,24 +2,22 @@ import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { isRecord } from '@atc/core';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildPayloadHash } from '@atc/daemon';
 import { createImpProvider } from '@atc/execution-imp';
-import { createStubImpPort } from '@atc/execution-imp/testing';
+import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { ERROR_DATA_RULES, ID_RULES, collectUnruledIDPaths } from '@atc/gateway';
 import { parseClaudeTranscriptLine } from '@atc/harness-claude';
+import { createStubEchoClaude } from '@atc/harness-claude/test-utils/create-stub-echo-claude';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
-import {
-  buildMockAgentAdapter,
-  createStubEchoClaude,
-  getRecord,
-  registerTestCleanup,
-  waitFor,
-} from '@atc/test-utils';
 import { REQUEST_PARAM_SCHEMAS } from '@atcx/contract';
 import invariant from 'tiny-invariant';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
   // under `/tmp`, not the temp root: a session's temp root holds its session id, and a path

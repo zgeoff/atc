@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { getRecord, getString, waitForEvent } from '@atc/test-utils';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 import { startStubAgentDaemon } from './start-stub-agent-daemon';
 
 test('it binds a Claude session that reports its start through the stand-in', async () => {

@@ -1,6 +1,6 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import type { PasskeyID } from '@zgeoff/mcp-auth';
 import { buildTestRequester, createTestDatabase } from '@zgeoff/mcp-auth/testing';
 import { toTagged } from '@zgeoff/std';

@@ -2,29 +2,25 @@ import { expect, test } from 'bun:test';
 import { mkdtempSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import {
-  buildMockExecutionTarget,
-  buildStubMemoryProvider,
-  startTestDaemon,
-} from '@atc/daemon/testing';
+import { openPTYViewer } from '@atc/app/test-utils/open-pty-viewer';
+import { openTestAuthAdmin } from '@atc/app/test-utils/open-test-auth-admin';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockExecutionTarget } from '@atc/daemon/test-utils/build-mock-execution-target';
+import { buildStubMemoryProvider } from '@atc/daemon/test-utils/build-stub-memory-provider';
+import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { createTransportCaller, startMCPHTTPServer } from '@atc/mcp';
+import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
+import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
+import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  buildMockAgentAdapter,
-  buildStubAuthenticator,
-  getRecord,
-  getString,
-  openPTYViewer,
-  registerTestCleanup,
-  runMCPTokenGrant,
-  runPasskeyEnrollment,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
 import { openWatchChannel } from '../packages/app/src/open-watch-channel';
-import { openTestAuthAdmin } from '../packages/app/src/test-utils/open-test-auth-admin';
 
 interface StackOptions {
   readonly ownerTokens: readonly string[];

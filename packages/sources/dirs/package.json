@@ -4,14 +4,12 @@
   "description": "The directories source: the daemon host's spawn history, configured roots, and zoxide list, and path completion",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
   },
   "dependencies": {
     "@atc/core": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@atc/test-utils": "workspace:*"
   }
 }

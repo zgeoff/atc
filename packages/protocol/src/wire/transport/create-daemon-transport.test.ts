@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { buildStubClock, waitFor } from '@atc/test-utils';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createDaemonTransport } from './create-daemon-transport';
 import type { TransportChannel } from './create-daemon-transport';
 

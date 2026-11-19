@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { AuthProfile } from '@atc/plugin-api';
-import { buildMockAuthProfile } from '@atc/test-utils';
+import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
 import { collectAuthProfileProblems } from './collect-auth-profile-problems';
 
 test('it finds no problem in profiles whose names impd accepts', () => {

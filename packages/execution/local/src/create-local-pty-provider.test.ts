@@ -2,16 +2,14 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { systemClock } from '@atc/core';
-import {
-  createStubSystemd,
-  registerTestCleanup,
-  setupTempDir,
-  updateEnv,
-  waitFor,
-} from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { createLocalPTYProvider } from './create-local-pty-provider';
 import { createSessionScopes } from './create-session-scopes';
+import { createStubSystemd } from './test-utils/create-stub-systemd';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-local-pty-');

@@ -1,18 +1,20 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { LEGACY_BROKER_PLACEHOLDER } from '@atc/config';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { AuthProfile, LaunchTicket } from '@atc/plugin-api';
+import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
 import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { buildMockAuthProfile, registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
-import { buildMockAuthBinding } from '../testing/build-mock-auth-binding';
-import { buildStubBinderBroker } from '../testing/build-stub-binder-broker';
-import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
-import { buildStubPregrantedBrokerHost } from '../testing/build-stub-pregranted-broker-host';
+import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
+import { buildStubBinderBroker } from '../test-utils/build-stub-binder-broker';
+import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
+import { buildStubPregrantedBrokerHost } from '../test-utils/build-stub-pregranted-broker-host';
 import { buildAuthBinding } from './build-auth-binding';
 import { createRuntimeAuthBinder } from './create-runtime-auth-binder';
 

@@ -1,8 +1,11 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createLocalPTYProvider } from '@atc/execution-local';
-import { buildMockAgentAdapter, createGitFixture, getRecord, setupTempDir } from '@atc/test-utils';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { runWorkspacesPrune } from './run-workspaces-prune';
 import { startTestDaemon } from './test-utils/start-test-daemon';
 

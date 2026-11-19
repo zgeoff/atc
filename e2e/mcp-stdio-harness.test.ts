@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { setupMCPHome } from '@atc/lifecycle/testing';
-import { startMCPStdio } from '@atc/test-utils';
+import { startMCPStdio } from '@atc/app/test-utils/start-mcp-stdio';
+import { setupMCPHome } from '@atc/lifecycle/test-utils/setup-mcp-home';
 
 // A home with the stand-in agents registered, for the real `atc mcp` server
 // each test starts there.

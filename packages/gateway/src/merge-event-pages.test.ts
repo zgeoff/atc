@@ -1,12 +1,13 @@
 import { expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { isRecord } from '@atc/core';
-import { startTestDaemon } from '@atc/daemon/testing';
-import { buildMockAgentAdapter, getRecord } from '@atc/test-utils';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import invariant from 'tiny-invariant';
 import { decodeGatewayCursor } from './decode-gateway-cursor';
 import { mergeEventPages } from './merge-event-pages';
-import { buildMockRegistryDaemon } from './testing/build-mock-registry-daemon';
+import { buildMockRegistryDaemon } from './test-utils/build-mock-registry-daemon';
 
 // Which daemons a test wires, by name.
 interface MergeEventsTestConfig<Name extends string> {

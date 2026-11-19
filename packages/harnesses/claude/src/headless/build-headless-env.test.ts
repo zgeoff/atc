@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { updateEnv } from '@atc/test-utils';
+import { updateEnv } from '@atc/core/test-utils/update-env';
 import { toSessionID } from '@atcx/contract';
 import { buildHeadlessEnv } from './build-headless-env';
 

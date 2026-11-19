@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { RuntimeAuthBindingState } from '@atc/store';
-import { buildMockRuntimeAuthBinding } from '@atc/store/testing';
+import { buildMockRuntimeAuthBinding } from '@atc/store/test-utils/build-mock-runtime-auth-binding';
 import { planLaunchAdmission } from './plan-launch-admission';
 
 test.each<[RuntimeAuthBindingState, 'admit' | 'blocked']>([

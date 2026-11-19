@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readSubdirNames } from './read-subdir-names';
 
 test('it reads the names of the folders under a folder, and of no file or symlink', async () => {

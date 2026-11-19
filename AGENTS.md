@@ -58,7 +58,6 @@ packages/
   sources/       one package per discovery source: dirs, git, github
   config/ core/ lifecycle/ protocol/ store/
                  the shared layers; each package.json describes its own
-  test-utils/    the generic test helpers, stand-ins, factories, and the test preload
 e2e/             the end-to-end suites, which start atc or the gateway as a process
 integration/     the flows across packages that run in process, under the unit test rules
 mods/atc-bridge/ the Claude Code mod
@@ -81,6 +80,11 @@ docs/
 - Give a package a second entry point only for a reason, never one per file. The usual reason is
   start-up time: a hook or statusline reporter starts once per event, so it imports a light entry
   that skips the Zod schemas, the protocol contract, and the store.
+- Keep each test helper in `src/test-utils/` of the package that owns what it fakes or builds. Share
+  it through the package's `"./test-utils/*"` export, and import it by package name, such as
+  `@atc/core/test-utils/wait-for`, with the package as a `workspace:*` dev dependency. The helpers
+  that fake nothing a package owns sit in `@atc/core`, the lowest package. Production code never
+  imports a test helper.
 
 ## Commands
 

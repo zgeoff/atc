@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { TargetUnavailableError } from '@atc/plugin-api';
-import { buildMockHostServices } from '@atc/test-utils';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { IMP_PLUGIN } from './imp-plugin';
 
 test('it creates an imp provider for a target with a url and a set token variable', () => {

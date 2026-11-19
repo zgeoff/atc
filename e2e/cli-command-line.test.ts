@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { resolveATCCommand, runATC, setupTempDir } from '@atc/test-utils';
+import { runATC } from '@atc/app/test-utils/run-atc';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import pkg from '../packages/app/package.json';
 
 function setupTest() {

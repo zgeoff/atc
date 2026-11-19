@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { collectAgents } from '@atc/config';
-import { buildMockHostServices } from '@atc/test-utils';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { GROK_PLUGIN } from './grok-plugin';
 
 test('it loads a grok entry on the defaults of its kind', () => {

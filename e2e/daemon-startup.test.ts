@@ -1,22 +1,20 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runATC } from '@atc/app/test-utils/run-atc';
 import { LOCAL_TARGET, resolvePaths } from '@atc/config';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { getString } from '@atc/core/test-utils/get-string';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
-import { buildStubTargets } from '@atc/daemon/testing';
+import { buildStubTargets } from '@atc/daemon/test-utils/build-stub-targets';
 import { readDaemonRecord } from '@atc/lifecycle';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 import { openDaemonClient } from '@atc/protocol/client';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  buildStubClock,
-  getString,
-  registerTestCleanup,
-  resolveATCCommand,
-  runATC,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import invariant from 'tiny-invariant';
 
 // The lock cases start their daemons in the test's process, each on sockets

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { updateEnv } from '@atc/test-utils';
+import { updateEnv } from '@atc/core/test-utils/update-env';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { buildClaudeQueryOptions } from './build-claude-query-options';
 

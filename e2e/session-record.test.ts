@@ -1,22 +1,20 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildMockExecutionTarget } from '@atc/daemon/testing';
-import { createStubDirProvider } from '@atc/execution-local/testing';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockExecutionTarget } from '@atc/daemon/test-utils/build-mock-execution-target';
+import { createStubDirProvider } from '@atc/execution-local/test-utils/create-stub-dir-provider';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  buildMockAgentAdapter,
-  createGitFixture,
-  getRecord,
-  readJSONRecord,
-  registerTestCleanup,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-session-record-' });

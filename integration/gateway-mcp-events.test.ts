@@ -2,30 +2,29 @@ import { expect, mock, test } from 'bun:test';
 import { createHmac, randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { openTestAuthAdmin } from '@atc/app/test-utils/open-test-auth-admin';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openGatewayCaller } from '@atc/gateway';
-import { buildMockRegistryDaemon, openTestBindingDatabase } from '@atc/gateway/testing';
+import { buildMockRegistryDaemon } from '@atc/gateway/test-utils/build-mock-registry-daemon';
+import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-binding-database';
 import { createSubscriptionStore, startMCPHTTPServer } from '@atc/mcp';
 import type { WebhookSender } from '@atc/mcp';
-import { buildStubWebhookReceiver } from '@atc/mcp/testing';
+import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
+import { buildStubWebhookReceiver } from '@atc/mcp/test-utils/build-stub-webhook-receiver';
+import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
+import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
+import { sendModernMCPRequest } from '@atc/mcp/test-utils/send-modern-mcp-request';
 import type { AgentAdapter } from '@atc/plugin-api';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  buildMockAgentAdapter,
-  buildStubAuthenticator,
-  buildStubClock,
-  getRecord,
-  getString,
-  registerTestCleanup,
-  runMCPTokenGrant,
-  runPasskeyEnrollment,
-  sendModernMCPRequest,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
-import { openTestAuthAdmin } from '../packages/app/src/test-utils/open-test-auth-admin';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // The subscriber's endpoint is the receiver each test passes, because a test
 // cannot reach an endpoint across the internet.

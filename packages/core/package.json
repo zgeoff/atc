@@ -4,9 +4,14 @@
   "description": "Pure helpers every other package shares: agent ids, the clock, truncation, canonical JSON and the broker vocabulary",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
   },
   "devDependencies": {
-    "@atc/test-utils": "workspace:*"
+    "@atcx/contract": "workspace:*",
+    "@faker-js/faker": "catalog:",
+    "tiny-invariant": "catalog:",
+    "type-fest": "catalog:",
+    "zod": "catalog:"
   }
 }

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { AuthProfile } from '@atc/plugin-api';
-import { buildMockAuthProfile } from '@atc/test-utils';
+import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
 import { planCodexHome } from './plan-codex-home';
 
 test('it plans a Codex home whose config sends log records to the telemetry host', () => {

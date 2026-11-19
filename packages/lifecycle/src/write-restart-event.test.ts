@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
 import { resolvePaths } from '@atc/config/host';
-import { resolveATCCommand, setupTempDir, waitFor } from '@atc/test-utils';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { DaemonEvent } from '@atcx/contract';
-import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
-import { startDaemonProcess } from './testing/start-daemon-process';
+import { buildMockLifecycleHost } from './test-utils/build-mock-lifecycle-host';
+import { startDaemonProcess } from './test-utils/start-daemon-process';
 import { writeRestartEvent } from './write-restart-event';
 
 function setupTest() {

@@ -1,12 +1,12 @@
 import { expect, mock, test } from 'bun:test';
 import type { CredentialBroker } from '@atc/plugin-api';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import { buildStubLog } from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
+import { buildStubLog } from '../test-utils/build-stub-log';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { tryReconcileAuthBindings } from './try-reconcile-auth-bindings';
 
 type ReconcileBindings = (

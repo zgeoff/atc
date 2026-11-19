@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { mintServiceSecret } from '@atc/mcp';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { buildGatewayStatePaths } from './build-gateway-state-paths';
 import { runGateway } from './run-gateway';

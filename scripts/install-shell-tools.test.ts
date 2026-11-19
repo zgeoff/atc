@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubCurl, setupTempDir } from '@atc/test-utils';
+import { createStubCurl } from '@atc/core/test-utils/create-stub-curl';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 
 // A downloads folder that the stand-in curl serves from, a runner temp

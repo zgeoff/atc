@@ -1,5 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { registerTestCleanup, waitFor } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createActor } from 'xstate';
 import type { SubscriptionRow } from './create-subscription-store';
 import { createSubscriptionWatcherMachine } from './create-subscription-watcher-machine';

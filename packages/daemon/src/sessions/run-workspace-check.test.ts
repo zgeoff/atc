@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createGitFixture, runLocalCommand, setupTempDir } from '@atc/test-utils';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { $ } from 'bun';
 import { runWorkspaceCheck } from './run-workspace-check';
 

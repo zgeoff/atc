@@ -2,22 +2,20 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
+import { buildMockAgentEntry } from '@atc/config/test-utils/build-mock-agent-entry';
+import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { isRecord } from '@atc/core';
-import {
-  KEYS,
-  buildMockAgentEntry,
-  buildMockHostServices,
-  getAgentEntry,
-  runCommand,
-  setupTempDir,
-} from '@atc/test-utils';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { ATC_BRIDGE_FILES } from './bridge/atc-bridge-files';
 import { CLAUDE_PLUGIN } from './claude-plugin';
 import { createClaudeAdapter } from './create-claude-adapter';
-import { buildStubClaudeHeadlessRun } from './testing/build-stub-claude-headless-run';
+import { buildStubClaudeHeadlessRun } from './test-utils/build-stub-claude-headless-run';
 
 // A folder for the files a test writes: transcripts, the atc-bridge mod, a
 // host config folder, or a guest folder a launch runs in.

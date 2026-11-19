@@ -47,7 +47,7 @@ function parseSourceEntries(script: string): SourceEntry[] {
 function readHelperFiles(root: string): string[] {
   // A helper's unit test stays out, since an entry path there is fixture data
   const helpers = readSourceFiles(root, 'packages').filter(
-    (file) => /\/(?:test-utils|testing)\//u.test(file) && !/\.test\.[cm]?[jt]sx?$/u.test(file),
+    (file) => /\/test-utils\//u.test(file) && !/\.test\.[cm]?[jt]sx?$/u.test(file),
   );
 
   return [...readSourceFiles(root, 'e2e'), ...readSourceFiles(root, 'integration'), ...helpers];

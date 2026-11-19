@@ -125,6 +125,7 @@
     "check:docs": "chex prose length links readmes skill"
   },
   "devDependencies": {
+    "@atc/app": "workspace:*",
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/daemon": "workspace:*",
@@ -143,7 +144,6 @@
     "@atc/source-git": "workspace:*",
     "@atc/source-github": "workspace:*",
     "@atc/store": "workspace:*",
-    "@atc/test-utils": "workspace:*",
     "@atc/tui": "workspace:*",
     "@atcx/contract": "workspace:*",
     "@commitlint/cli": "catalog:",

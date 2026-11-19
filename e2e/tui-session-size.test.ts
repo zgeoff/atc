@@ -1,14 +1,12 @@
 import { expect, test } from 'bun:test';
+import { spawnClaudeSession } from '@atc/app/test-utils/spawn-claude-session';
+import { spawnDaemonSession } from '@atc/app/test-utils/spawn-daemon-session';
+import { startTUIDaemon } from '@atc/app/test-utils/start-tui-daemon';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { openDaemonClient } from '@atc/protocol/client';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  KEYS,
-  registerTestCleanup,
-  spawnClaudeSession,
-  spawnDaemonSession,
-  startTUIHarness,
-} from '@atc/test-utils';
-import { startTUIDaemon } from '../packages/app/src/test-utils/start-tui-daemon';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
 // The client attaches to a daemon in the test's process, so a boot loads
 // one process instead of two.

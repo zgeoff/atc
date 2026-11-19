@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { collectAgents } from '@atc/config';
-import { buildStubHarnessPlugins } from '@atc/test-utils';
+import { buildStubHarnessPlugins } from '@atc/config/test-utils/build-stub-harness-plugins';
 import { buildHarnessPlugins } from './build-harness-plugins';
 
 test('it ships the plugins the config stand-ins copy, in their order and with their fields', () => {

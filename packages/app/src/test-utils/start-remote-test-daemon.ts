@@ -1,8 +1,8 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
-import type { TestDaemonConfig } from '@atc/daemon/testing';
-import { buildStubAttentionAdapter } from '@atc/test-utils';
+import { buildStubAttentionAdapter } from '@atc/daemon/test-utils/build-stub-attention-adapter';
+import type { TestDaemonConfig } from '@atc/daemon/test-utils/start-test-daemon';
 import { toAgentSessionID } from '@atcx/contract';
 import { startTestDaemon } from './start-test-daemon';
 

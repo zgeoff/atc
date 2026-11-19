@@ -2,17 +2,15 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
-import { startTestDaemon } from '@atc/daemon/testing';
-import {
-  buildMockAgentAdapter,
-  getRecord,
-  setupTempDir,
-  spawnNamedSession,
-  startStubRecordingListener,
-  startStubSessionBridge,
-  updateEnv,
-  waitFor,
-} from '@atc/test-utils';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
+import { startStubRecordingListener } from '@atc/protocol/test-utils/start-stub-recording-listener';
+import { startStubSessionBridge } from '@atc/protocol/test-utils/start-stub-session-bridge';
 import invariant from 'tiny-invariant';
 import { runTap } from './tap';
 

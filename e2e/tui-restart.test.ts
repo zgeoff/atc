@@ -1,21 +1,19 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildLocalTarget } from '@atc/app/test-utils/build-local-target';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { startDaemon } from '@atc/daemon';
+import { startStubLegacyDaemonProcess } from '@atc/lifecycle/test-utils/start-stub-legacy-daemon-process';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  KEYS,
-  buildMockAgentAdapter,
-  registerTestCleanup,
-  startStubLegacyDaemonProcess,
-  startTUIHarness,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID } from '@atcx/contract';
 import { createHostServices } from '../packages/app/src/create-host-services';
-import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
 
 function setupTest() {
   return startTUIHarness({ createStateDB: createMigratedStateDB });
@@ -49,7 +47,15 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
+      join(
+        import.meta.dir,
+        '..',
+        'packages',
+        'lifecycle',
+        'src',
+        'test-utils',
+        'run-stub-legacy-daemon.ts',
+      ),
       socketPath,
       stateDir,
     ],
@@ -158,7 +164,15 @@ test('it stops a daemon of an older build when the user asks for the update and 
   const older = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
+      join(
+        import.meta.dir,
+        '..',
+        'packages',
+        'lifecycle',
+        'src',
+        'test-utils',
+        'run-stub-legacy-daemon.ts',
+      ),
       socketPath,
       stateDir,
       'current',

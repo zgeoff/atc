@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { readGuestLayout } from './read-guest-layout';
 
 test('it reads the guest layout the provider declares', async () => {

@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
-import { buildMockAgentAdapter, registerTestCleanup, setupTempDir } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
-import { buildMockSession } from '../testing/build-mock-session';
+import { buildMockSession } from '../test-utils/build-mock-session';
 import { buildSessionEvent } from './build-session-event';
 import { createSessionManager } from './create-session-manager';
 

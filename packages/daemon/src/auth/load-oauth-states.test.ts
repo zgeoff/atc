@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { buildMockAuthBinding } from '../testing/build-mock-auth-binding';
-import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
+import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
+import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
 import { loadOAuthStates } from './load-oauth-states';
 
 test('it reads nothing from the broker for a binding without an oauth secret', async () => {

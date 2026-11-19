@@ -2,7 +2,9 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildStubSkipClock, runCommand, waitFor } from '@atc/test-utils';
+import { buildStubSkipClock } from '@atc/core/test-utils/build-stub-skip-clock';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { LISTING_CACHE_LIFETIME_MS } from '@atc/tui';
 import { openListingCache } from './open-listing-cache';
 

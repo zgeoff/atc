@@ -213,12 +213,16 @@ function isReporterLoadable(file: string): boolean {
   return folders.some((folder) => path.startsWith(`${folder}/`));
 }
 
-// The daemon package's entry points: its main entry and the test helpers it
-// exports, which other packages' tests load.
+// The daemon package's entry points: its main entry and its test daemon, the
+// first of the test helpers it exports, which other packages' tests load.
 const DAEMON_ENTRIES: readonly string[] = [
   'packages/daemon/src/index.ts',
-  'packages/daemon/src/testing/index.ts',
+  'packages/daemon/src/test-utils/start-test-daemon.ts',
 ];
+
+// The daemon's other test helpers, each of which another package's tests can
+// import through the package's test-utils export.
+const DAEMON_HELPER_FOLDER = 'packages/daemon/src/test-utils/';
 
 // The modules the daemon must never reach: the opener of the gateway's
 // authorization database, mcp-auth.db.
@@ -263,7 +267,16 @@ function checkDaemon(
 
   const findings = [...missing];
 
-  for (const entry of DAEMON_ENTRIES.filter((candidate) => known.has(candidate))) {
+  const helpers = [...known].filter(
+    (file) =>
+      file.startsWith(DAEMON_HELPER_FOLDER) &&
+      !file.endsWith('.test.ts') &&
+      !DAEMON_ENTRIES.includes(file),
+  );
+
+  for (const entry of [...DAEMON_ENTRIES, ...helpers.toSorted()].filter((candidate) =>
+    known.has(candidate),
+  )) {
     const reached = collectReached(
       known,
       exports,

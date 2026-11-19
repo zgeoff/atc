@@ -1,10 +1,10 @@
 import { expect, mock, test } from 'bun:test';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildTargetIdentity } from '@atc/store';
-import { buildMockAgentAdapter } from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildMockSession } from '../testing/build-mock-session';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildMockSession } from '../test-utils/build-mock-session';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createSessionRegistry } from './create-session-registry';
 
 test('it resolves an agent id to the registered adapter that declares it', () => {

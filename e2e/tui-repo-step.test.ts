@@ -1,19 +1,17 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { openAgentStep } from '@atc/app/test-utils/open-agent-step';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { tabToRepoRows } from '@atc/app/test-utils/tab-to-repo-rows';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { openDaemonClient } from '@atc/protocol/client';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  KEYS,
-  buildStubSignedInGH,
-  buildStubSignedOutGH,
-  createGitFixture,
-  createStubBin,
-  openAgentStep,
-  registerTestCleanup,
-  startTUIHarness,
-  tabToRepoRows,
-} from '@atc/test-utils';
+import { buildStubSignedInGH } from '@atc/source-github/test-utils/build-stub-signed-in-gh';
+import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-signed-out-gh';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { $ } from 'bun';
 
 function setupTest() {

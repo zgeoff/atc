@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildMockRestartResult } from '@atc/test-utils';
+import { buildMockRestartResult } from '@atc/protocol/test-utils/build-mock-restart-result';
 import { formatRestartDetail } from './format-restart-detail';
 
 test('it states the restored count of a clean restart', () => {

@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { buildTarArchive } from '@atc/core';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readGuestATCArchive } from './read-guest-atc-archive';
 
 function setupTest() {

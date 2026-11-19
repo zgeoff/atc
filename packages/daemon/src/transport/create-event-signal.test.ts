@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubClock } from '@atc/test-utils';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { createEventSignal } from './create-event-signal';
 
 test('it resolves a wait at once when an event landed since the reader looked', async () => {

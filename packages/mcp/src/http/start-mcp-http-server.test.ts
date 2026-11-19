@@ -2,30 +2,28 @@ import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { systemClock } from '@atc/core';
-import { startTestDaemon } from '@atc/daemon/testing';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  buildMockAgentAdapter,
-  buildStubAuthenticator,
-  buildStubClock,
-  parsePasskeyPage,
-  readJSONRecord,
-  registerTestCleanup,
-  runMCPAuthorization,
-  runMCPTokenGrant,
-  runPasskeyEnrollment,
-  runPasskeySignIn,
-  sendModernMCPRequest,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import { createSubscriptionStore } from '../events/create-subscription-store';
 import { openEventDatabase } from '../events/open-event-database';
 import { buildSeeder } from '../test-utils/build-seeder';
-import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
-import { openTestAuthDatabase } from '../testing/open-test-auth-database';
+import { buildStubAuthenticator } from '../test-utils/build-stub-authenticator';
+import { buildStubWebhookReceiver } from '../test-utils/build-stub-webhook-receiver';
+import { openTestAuthDatabase } from '../test-utils/open-test-auth-database';
+import { parsePasskeyPage } from '../test-utils/parse-passkey-page';
+import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
+import { runMCPTokenGrant } from '../test-utils/run-mcp-token-grant';
+import { runPasskeyEnrollment } from '../test-utils/run-passkey-enrollment';
+import { runPasskeySignIn } from '../test-utils/run-passkey-sign-in';
+import { sendModernMCPRequest } from '../test-utils/send-modern-mcp-request';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 

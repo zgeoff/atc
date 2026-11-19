@@ -1,18 +1,16 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runATC } from '@atc/app/test-utils/run-atc';
+import { startMCPStdio } from '@atc/app/test-utils/start-mcp-stdio';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { resolvePaths } from '@atc/config';
-import {
-  buildMockAgentAdapter,
-  buildMockAgentProfile,
-  resolveATCCommand,
-  runATC,
-  setupTempDir,
-  startMCPStdio,
-  waitFor,
-} from '@atc/test-utils';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { buildMockAgentProfile } from '@atc/plugin-api/test-utils/build-mock-agent-profile';
 import invariant from 'tiny-invariant';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-mcp-remote-');

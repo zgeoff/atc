@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { collectAuthProfiles, parseConfig } from '@atc/config';
-import { getRecord } from '@atc/test-utils';
+import { getRecord } from '@atc/core/test-utils/get-record';
 import invariant from 'tiny-invariant';
 import { buildMigratedConfig } from './build-migrated-config';
 import { SHIPPED_HARNESS_PLUGINS } from './plugins/shipped-harness-plugins';

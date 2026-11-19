@@ -1,14 +1,14 @@
 import { expect, mock, test } from 'bun:test';
 import { systemClock } from '@atc/core';
 import type { AgentAdapter } from '@atc/plugin-api';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildTargetIdentity } from '@atc/store';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import { buildMockAgentAdapter } from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { createSessionRegistry } from '../sessions/create-session-registry';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildMockSession } from '../testing/build-mock-session';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildMockSession } from '../test-utils/build-mock-session';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import type { ExecutionTarget } from './build-execution-targets';
 import { createSessionRestorer } from './create-session-restorer';
 

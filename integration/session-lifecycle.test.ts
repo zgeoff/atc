@@ -1,6 +1,9 @@
 import { expect, test } from 'bun:test';
-import { getRecord, getString, waitFor, waitForEvent } from '@atc/test-utils';
-import { startStubAgentDaemon } from '../packages/app/src/test-utils/start-stub-agent-daemon';
+import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemon';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 
 // A daemon in the test's process whose Claude runs as the in-process
 // stand-in, reporting its hooks over the daemon's real reporter socket.

@@ -2,15 +2,13 @@ import { expect, mock, onTestFinished, spyOn, test } from 'bun:test';
 import { createServer } from 'node:net';
 import type { Socket } from 'node:net';
 import { join } from 'node:path';
-import {
-  buildPeerRequestLine,
-  getString,
-  setupTempDir,
-  startStubPeerDaemon,
-  waitFor,
-} from '@atc/test-utils';
-import type { StubPeerAnswer, StubPeerRequest } from '@atc/test-utils';
+import { getString } from '@atc/core/test-utils/get-string';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { z } from 'zod';
+import { buildPeerRequestLine } from '../test-utils/build-peer-request-line';
+import { startStubPeerDaemon } from '../test-utils/start-stub-peer-daemon';
+import type { StubPeerAnswer, StubPeerRequest } from '../test-utils/start-stub-peer-daemon';
 import { PROTOCOL_V } from '../wire/protocol';
 import { openDaemonClient } from './open-daemon-client';
 

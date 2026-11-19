@@ -1,4 +1,4 @@
-import type { StartedTestDaemon, TestDaemonConfig } from '@atc/daemon/testing';
+import type { StartedTestDaemon, TestDaemonConfig } from '@atc/daemon/test-utils/start-test-daemon';
 import { writeRemoteTestDaemonOptions } from './start-remote-test-daemon';
 
 interface RestartOptions {

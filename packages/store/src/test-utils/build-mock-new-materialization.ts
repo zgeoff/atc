@@ -1,4 +1,4 @@
-import type { MockOverrides } from '@atc/test-utils';
+import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
 import { toSessionID } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';

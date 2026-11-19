@@ -1,24 +1,22 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubComposer } from '@atc/app/test-utils/create-stub-composer';
+import { runATC } from '@atc/app/test-utils/run-atc';
 import { toAgentID } from '@atc/core';
+import { getRecords } from '@atc/core/test-utils/get-records';
+import { getString } from '@atc/core/test-utils/get-string';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { createStubSystemd } from '@atc/execution-local/test-utils/create-stub-systemd';
+import { createStubClaude } from '@atc/harness-claude/test-utils/create-stub-claude';
 import { readDaemonRecord, readRestartResult } from '@atc/lifecycle';
-import { startDaemonProcess } from '@atc/lifecycle/testing';
+import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
-import { buildMockFleetEntry } from '@atc/store/testing';
-import {
-  createStubClaude,
-  createStubComposer,
-  createStubSystemd,
-  getRecords,
-  getString,
-  registerTestCleanup,
-  resolveATCCommand,
-  runATC,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 
@@ -759,7 +757,15 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
   const legacy = Bun.spawn(
     [
       process.execPath,
-      join(import.meta.dir, '..', 'packages', 'test-utils', 'src', 'run-stub-legacy-daemon.ts'),
+      join(
+        import.meta.dir,
+        '..',
+        'packages',
+        'lifecycle',
+        'src',
+        'test-utils',
+        'run-stub-legacy-daemon.ts',
+      ),
       daemon.socketPath,
       daemon.stateDir,
     ],

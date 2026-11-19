@@ -4,7 +4,9 @@
   "private": true,
   "description": "The atc and atc-gateway entrypoints and the modules they wire together",
   "type": "module",
-  "exports": {},
+  "exports": {
+    "./test-utils/*": "./src/test-utils/*.ts"
+  },
   "dependencies": {
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
@@ -32,8 +34,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@atc/test-utils": "workspace:*",
     "@faker-js/faker": "catalog:",
+    "bun-pty": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

@@ -15,14 +15,11 @@ import {
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { buildTarArchive } from '@atc/core';
-import {
-  buildMockSessionDescriptor,
-  createStubBin,
-  registerTestCleanup,
-  setupTempDir,
-  startStubImpd,
-  waitFor,
-} from '@atc/test-utils';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { SESSION_DESCRIPTOR_SCHEMA } from '@atcx/contract';
 import { checkSessionImp } from '@impz/client/identity';
 import invariant from 'tiny-invariant';
@@ -30,8 +27,9 @@ import { createImpClientPort } from './create-imp-client-port';
 import { createImpProvider } from './create-imp-provider';
 import READ_GUEST_ATC_SCRIPT from './read-guest-atc.sh' with { type: 'text' };
 import READY_GUEST_DIR_SCRIPT from './ready-guest-dir.sh' with { type: 'text' };
-import { buildMockImpIdentity } from './testing/build-mock-imp-identity';
-import { createStubImpPort } from './testing/create-stub-imp-port';
+import { buildMockImpIdentity } from './test-utils/build-mock-imp-identity';
+import { createStubImpPort } from './test-utils/create-stub-imp-port';
+import { startStubImpd } from './test-utils/start-stub-impd';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-imp-provider-');

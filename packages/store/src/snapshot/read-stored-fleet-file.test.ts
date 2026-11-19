@@ -2,7 +2,8 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { registerRefusedSQLiteName } from '../sqlite/register-refused-sqlite-name';
 import { readStoredFleetFile } from './read-stored-fleet-file';
 

@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { DaemonError } from '@atc/protocol/wire';
-import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
+import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
 import { toSignInRefusal } from './to-sign-in-refusal';
 
 test("it ends a Codex sign-in refusal with the broker's step to renew the secret", () => {

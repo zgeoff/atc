@@ -1,19 +1,17 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
+import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { CODEX_PLUGIN, createCodexAdapter } from '@atc/harness-codex';
-import {
-  createStubAppServerCodex,
-  getAgentEntry,
-  getRecord,
-  getString,
-  setupTempDir,
-  startCodexTerminalThread,
-  waitFor,
-} from '@atc/test-utils';
+import { createStubAppServerCodex } from '@atc/harness-codex/test-utils/create-stub-app-server-codex';
+import { startCodexTerminalThread } from '@atc/harness-codex/test-utils/start-codex-terminal-thread';
 import { z } from 'zod';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 // A daemon whose one agent is a Codex entry on an App Server, run by the
 // stand-in Codex CLI, which reads its scenario from the stub folder and

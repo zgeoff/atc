@@ -3,24 +3,22 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { dirname, join } from 'node:path';
+import { buildLocalTarget } from '@atc/app/test-utils/build-local-target';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { buildDaemonStatePaths, collectTargets } from '@atc/config';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { tryCreateListeners } from '@atc/core/test-utils/try-create-listeners';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock } from '@atc/lifecycle';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { buildPeerRequestLine } from '@atc/protocol/test-utils/build-peer-request-line';
 import { buildTargetIdentity } from '@atc/store';
-import {
-  buildMockAgentAdapter,
-  buildPeerRequestLine,
-  buildStubClock,
-  getRecord,
-  registerTestCleanup,
-  setupTempDir,
-  tryCreateListeners,
-  waitFor,
-} from '@atc/test-utils';
 import type { DaemonEvent } from '@atcx/contract';
-import { buildLocalTarget } from '../packages/app/src/test-utils/build-local-target';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-tcp-');

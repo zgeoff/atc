@@ -1,8 +1,9 @@
 import { expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { GATEWAY_VERSION } from '@atc/gateway/version';
-import { runCommand, setupTempDir } from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import pkg from '../package.json';
 import { buildGatewayStatePaths } from './build-gateway-state-paths';

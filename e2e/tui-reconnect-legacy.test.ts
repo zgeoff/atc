@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test';
 import { unlinkSync } from 'node:fs';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { readDaemonRecord } from '@atc/lifecycle';
+import { startStubLegacyDaemonProcess } from '@atc/lifecycle/test-utils/start-stub-legacy-daemon-process';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { startStubLegacyDaemonProcess, startTUIHarness } from '@atc/test-utils';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import invariant from 'tiny-invariant';
 
 // A client on an idle daemon whose socket a daemon on another protocol has

@@ -6,8 +6,8 @@ import { buildClientMachine } from './build-client-machine';
 import { createFleetMirror } from './create-fleet-mirror';
 import type { DaemonLinkState } from './daemon-link-state';
 import type { DaemonName, SessionKey } from './session-key';
-import { buildMockMirrorSession } from './testing/build-mock-mirror-session';
-import { buildStubClientScreens } from './testing/build-stub-client-screens';
+import { buildMockMirrorSession } from './test-utils/build-mock-mirror-session';
+import { buildStubClientScreens } from './test-utils/build-stub-client-screens';
 
 function setupTest() {
   const service = createActor(buildClientMachine(buildStubClientScreens().deps));

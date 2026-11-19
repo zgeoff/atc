@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { buildMockSessionDescriptor } from '@atc/test-utils';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import type { AgentSessionID, GrantScope } from '@atcx/contract';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
-import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
+import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
 import { buildGrantedContext } from './build-granted-context';
 
 test('it passes a spawn that grants held scopes and resumes an agent session in the subtree', () => {

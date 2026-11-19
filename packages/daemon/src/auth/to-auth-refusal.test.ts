@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { DaemonError } from '@atc/protocol/wire';
-import { buildStubCredentialBroker } from '../testing/build-stub-credential-broker';
+import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
 import { toAuthRefusal } from './to-auth-refusal';
 
 test("it answers a broker's refusal as an unavailable host that names the broker", async () => {

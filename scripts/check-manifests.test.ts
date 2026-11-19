@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand, setupTempDir } from '@atc/test-utils';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
@@ -248,54 +249,6 @@ test('it lets the root package resolve a computed specifier and never load one',
   });
 });
 
-test('it lets a listed helper test reach the app and no other helper test', async () => {
-  const ctx = setupTest();
-
-  await Bun.write(
-    join(ctx.directory, 'package.json'),
-    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/test-utils/package.json'),
-    JSON.stringify({ name: '@atc/test-utils', exports: { '.': './src/index.ts' } }),
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/app/package.json'),
-    JSON.stringify({ name: '@atc/app', exports: {} }),
-  );
-
-  await Bun.write(join(ctx.directory, 'packages/app/src/keymap.ts'), 'export const KEYMAP = [];\n');
-
-  await Bun.write(
-    join(ctx.directory, 'packages/test-utils/src/keys.test.ts'),
-    "import { KEYMAP } from '../../app/src/keymap';\n\nexport const A = KEYMAP;\n",
-  );
-
-  await Bun.write(
-    join(ctx.directory, 'packages/test-utils/src/wait-for.test.ts'),
-    "import { KEYMAP } from '../../app/src/keymap';\n\nexport const B = KEYMAP;\n",
-  );
-
-  const checked = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'check-manifests.ts'),
-    ctx.directory,
-  ]);
-
-  expect({
-    exitCode: checked.exitCode,
-    stdout: checked.stdout,
-    stderr: checked.stderr,
-  }).toStrictEqual({
-    exitCode: 1,
-    stdout: 'check-manifests: 3 packages, 3 files, 1 findings\n',
-    stderr:
-      'outside package: packages/test-utils/src/wait-for.test.ts imports ../../app/src/keymap, which resolves into packages/app\n',
-  });
-});
-
 test('it fails on a literal dynamic import into another package', async () => {
   const ctx = setupTest();
 
@@ -395,7 +348,7 @@ test('it fails on a production file importing a dev dependency', async () => {
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/store/src/testing/b.ts'),
+    join(ctx.directory, 'packages/store/src/test-utils/b.ts'),
     "import invariant from 'tiny-invariant';\n\nexport const B = invariant;\n",
   );
 
@@ -417,7 +370,7 @@ test('it fails on a production file importing a dev dependency', async () => {
   });
 });
 
-test("it lets a package's src/test-utils folder import a dev dependency, unlike the test-utils package's own source", async () => {
+test("it lets a package's src/test-utils folder import a dev dependency, unlike a package's other source", async () => {
   const ctx = setupTest();
 
   await Bun.write(
@@ -1039,6 +992,48 @@ test('it fails on a package with no exports map or a wildcard entry', async () =
   });
 });
 
+test("it allows a package's test-utils wildcard and no other wildcard", async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/package.json'),
+    JSON.stringify({
+      name: '@atc/core',
+      exports: { '.': './src/index.ts', './test-utils/*': './src/test-utils/*.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/protocol/package.json'),
+    JSON.stringify({
+      name: '@atc/protocol',
+      exports: { '.': './src/index.ts', './test-utils/*': './src/*.ts' },
+    }),
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 3 packages, 0 files, 1 findings\n',
+    stderr:
+      'wildcard entry: packages/protocol/package.json exports ./test-utils/*, which makes every matching file public; list each entry point\n',
+  });
+});
+
 test('it fails on an entry point that loads a preloaded module', async () => {
   const ctx = setupTest();
 
@@ -1094,6 +1089,65 @@ test('it fails on an entry point that loads a preloaded module', async () => {
       'preloaded module: packages/test-utils/src/wait-for.ts, which packages/test-utils/src/index.ts reaches as an entry point of packages/test-utils, loads @zgeoff/bun-test-extended, which bunfig.toml preloads as @zgeoff/bun-test-extended; import it by path\n' +
       'preloaded module: packages/test-utils/src/wait-for.ts, which packages/test-utils/src/index.ts reaches as an entry point of packages/test-utils, loads ./isolate-home.ts, which bunfig.toml preloads as ./packages/test-utils/src/isolate-home.ts; import it by path\n' +
       'preloaded entry: packages/test-utils/src/isolate-home.ts, an entry point of packages/test-utils, is ./packages/test-utils/src/isolate-home.ts, which bunfig.toml preloads; drop it from the exports map\n',
+  });
+});
+
+test('it fails on a test helper that loads a preloaded module through the test-utils wildcard', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(
+    join(ctx.directory, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['packages/*'] } }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'bunfig.toml'),
+    '[test]\npreload = ["./packages/core/src/test-utils/isolate-home.ts"]\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/package.json'),
+    JSON.stringify({
+      name: '@atc/core',
+      exports: { '.': './src/index.ts', './test-utils/*': './src/test-utils/*.ts' },
+    }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/src/index.ts'),
+    "export const CORE = 'core';\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/src/test-utils/isolate-home.ts'),
+    "export const ROOT = '/';\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/src/test-utils/wait-for.ts'),
+    "import { ROOT } from './isolate-home.ts';\n\nexport const WAIT = ROOT;\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/core/src/test-utils/isolate-home.test.ts'),
+    "import { ROOT } from './isolate-home.ts';\n\nexport const CHECK = ROOT;\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-manifests.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-manifests: 2 packages, 4 files, 1 findings\n',
+    stderr:
+      'preloaded module: packages/core/src/test-utils/wait-for.ts, which packages/core/src/test-utils/wait-for.ts reaches as an entry point of packages/core, loads ./isolate-home.ts, which bunfig.toml preloads as ./packages/core/src/test-utils/isolate-home.ts; import it by path\n',
   });
 });
 

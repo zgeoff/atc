@@ -1,0 +1,94 @@
+import { expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildStubGH } from './build-stub-gh';
+
+function setupTest() {
+  const temporaryDirectory = setupTempDir('atc-stub-gh-');
+
+  return { directory: temporaryDirectory.path };
+}
+
+test('it prints the reply of the first argument verbatim and exits with its code', async () => {
+  const ctx = setupTest();
+
+  const gh = createStubBin(
+    ctx.directory,
+    'gh',
+    buildStubGH({
+      replies: {
+        repo: { stdout: '[{"description":"it\'s mine"}]\n', stderr: 'warn\n', exitCode: 3 },
+        config: { stdout: 'ssh\n' },
+      },
+    }),
+  );
+
+  const result = await runCommand([gh, 'repo', 'list']);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  }).toStrictEqual({ exitCode: 3, stdout: '[{"description":"it\'s mine"}]\n', stderr: 'warn\n' });
+});
+
+test('it prints nothing and exits 0 for a command without a reply', async () => {
+  const ctx = setupTest();
+
+  const gh = createStubBin(
+    ctx.directory,
+    'gh',
+    buildStubGH({ replies: { config: { stdout: 'ssh\n' } } }),
+  );
+
+  const result = await runCommand([gh, 'repo', 'list']);
+
+  expect({
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  }).toStrictEqual({ exitCode: 0, stdout: '', stderr: '' });
+});
+
+test('it records the arguments of each run as one line', async () => {
+  const ctx = setupTest();
+  const argvFile = join(ctx.directory, "it's argv");
+  const gh = createStubBin(ctx.directory, 'gh', buildStubGH({ replies: {}, argvFile }));
+
+  await runCommand([gh, 'repo', 'list', 'acme']);
+  await runCommand([gh, 'config', 'get', 'git_protocol']);
+
+  expect(readFileSync(argvFile, 'utf8')).toBe('repo list acme\nconfig get git_protocol\n');
+});
+
+test('it keeps a hanging command running until it is killed', async () => {
+  const ctx = setupTest();
+  const argvFile = join(ctx.directory, 'argv');
+
+  const gh = createStubBin(
+    ctx.directory,
+    'gh',
+    buildStubGH({ replies: { repo: 'hang' }, argvFile }),
+  );
+
+  const subprocess = Bun.spawn([gh, 'repo', 'list']);
+
+  registerTestCleanup(() => {
+    subprocess.kill('SIGKILL');
+  });
+
+  await waitFor(() => {
+    expect(readFileSync(argvFile, 'utf8')).toBe('repo list\n');
+  });
+
+  subprocess.kill('SIGKILL');
+
+  await subprocess.exited;
+
+  expect(subprocess.signalCode).toBe('SIGKILL');
+});

@@ -200,7 +200,14 @@ function checkManifest(pkg: WorkspacePackage): string[] {
     findings.push(`no exports: ${manifestPath} holds no exports map`);
   }
 
-  for (const entry of Object.keys(pkg.manifest.exports ?? {}).filter((key) => key.includes('*'))) {
+  // a package shares its test helpers through one wildcard, which no production file reaches
+  for (const [entry, target] of Object.entries(pkg.manifest.exports ?? {}).filter(([key]) =>
+    key.includes('*'),
+  )) {
+    if (entry === TEST_UTILS_ENTRY && target === TEST_UTILS_TARGET) {
+      continue;
+    }
+
     findings.push(
       `wildcard entry: ${manifestPath} exports ${entry}, which makes every matching file public; list each entry point`,
     );
@@ -209,6 +216,8 @@ function checkManifest(pkg: WorkspacePackage): string[] {
   return findings;
 }
 
+const TEST_UTILS_ENTRY = './test-utils/*';
+const TEST_UTILS_TARGET = './src/test-utils/*.ts';
 const TEST_SCHEMA = z.object({ preload: z.array(z.string()).optional() });
 const BUNFIG_SCHEMA = z.object({ test: TEST_SCHEMA.optional() });
 
@@ -231,10 +240,13 @@ function checkPreloads(root: string, packages: readonly WorkspacePackage[]): str
   const findings: string[] = [];
 
   for (const pkg of packages) {
-    for (const entry of collectEntryFiles(pkg)) {
+    for (const reached of collectEntryFiles(root, pkg)) {
+      const entry = reached.entry;
+      const isWildcard = reached.isWildcard;
       const entryPreload = preloads.find((candidate) => candidate.file === entry);
 
-      if (entryPreload !== undefined) {
+      // a wildcard lists no file on purpose, so a preload among the files it matches is no entry
+      if (entryPreload !== undefined && !isWildcard) {
         findings.push(
           `preloaded entry: ${entry}, an entry point of ${pkg.directory}, is ${entryPreload.preload}, which bunfig.toml preloads; drop it from the exports map`,
         );
@@ -284,14 +296,31 @@ function findPreload(
   )?.preload;
 }
 
-// Every path an exports map lists, conditional entries included.
-function collectEntryFiles(pkg: WorkspacePackage): string[] {
-  const targets: string[] = [];
+interface EntryFile {
+  readonly entry: string;
+  readonly isWildcard: boolean;
+}
+
+// Every path an exports map lists, conditional entries included, and every file that a wildcard
+// target matches.
+function collectEntryFiles(root: string, pkg: WorkspacePackage): EntryFile[] {
+  const targets: EntryFile[] = [];
   const pending: unknown[] = Object.values(pkg.manifest.exports ?? {});
 
   for (let target = pending.pop(); target !== undefined; target = pending.pop()) {
-    if (typeof target === 'string') {
-      targets.push(normalize(join(pkg.directory, target)));
+    if (typeof target === 'string' && target.includes('*')) {
+      const matches = new Bun.Glob(normalize(target)).scanSync({
+        cwd: join(root, pkg.directory),
+      });
+
+      // a test beside a helper is no entry, though the pattern matches it
+      targets.push(
+        ...[...matches]
+          .filter((match) => !match.endsWith('.test.ts'))
+          .map((match) => ({ entry: normalize(join(pkg.directory, match)), isWildcard: true })),
+      );
+    } else if (typeof target === 'string') {
+      targets.push({ entry: normalize(join(pkg.directory, target)), isWildcard: false });
     } else if (typeof target === 'object' && target !== null) {
       const conditions: unknown[] = Object.values(target);
 
@@ -299,7 +328,7 @@ function collectEntryFiles(pkg: WorkspacePackage): string[] {
     }
   }
 
-  return targets.toSorted();
+  return targets.toSorted((left, right) => left.entry.localeCompare(right.entry));
 }
 
 const MODULE_SUFFIXES = [
@@ -467,9 +496,7 @@ function checkSpecifier(
     if (
       owner === pkg ||
       (pkg.directory === '.' &&
-        ROOT_REACHES.some((directory) => target.startsWith(`${directory}/`))) ||
-      (APP_TESTS.has(file) && target.startsWith('packages/app/')) ||
-      (OAUTH_HELPER_TESTS.has(file) && target.startsWith('packages/mcp/'))
+        ROOT_REACHES.some((directory) => target.startsWith(`${directory}/`)))
     ) {
       return [];
     }
@@ -509,35 +536,6 @@ function checkDeclared(pkg: WorkspacePackage, file: string, name: string): strin
 // exports yet.
 const ROOT_REACHES = ['packages/app'];
 
-// Tests of shared helpers that drive the helper against app modules no
-// package exports yet, such as the daemon client and the reporter line
-// format, so each reaches into the app by path.
-const APP_TESTS: ReadonlySet<string> = new Set([
-  'packages/test-utils/src/build-stub-daemon-requests.test.ts',
-  'packages/test-utils/src/keys.test.ts',
-  'packages/test-utils/src/run-mcp-authorization.test.ts',
-  'packages/test-utils/src/run-mcp-token-grant.test.ts',
-  'packages/test-utils/src/run-passkey-enrollment.test.ts',
-  'packages/test-utils/src/run-passkey-sign-in.test.ts',
-  'packages/test-utils/src/send-modern-mcp-request.test.ts',
-  'packages/test-utils/src/spawn-claude-session.test.ts',
-  'packages/test-utils/src/spawn-grok-session.test.ts',
-  'packages/test-utils/src/start-cut-proxy.test.ts',
-  'packages/test-utils/src/start-mcp-stdio.test.ts',
-  'packages/test-utils/src/start-stub-tap.test.ts',
-  'packages/test-utils/src/start-tui-harness.test.ts',
-]);
-
-// Tests of the helpers that drive the OAuth flow, which run each helper
-// against the real authorization server, so each reaches into it by path.
-const OAUTH_HELPER_TESTS: ReadonlySet<string> = new Set([
-  'packages/test-utils/src/run-mcp-authorization.test.ts',
-  'packages/test-utils/src/run-mcp-token-grant.test.ts',
-  'packages/test-utils/src/run-passkey-enrollment.test.ts',
-  'packages/test-utils/src/run-passkey-sign-in.test.ts',
-  'packages/test-utils/src/send-modern-mcp-request.test.ts',
-]);
-
 function getOwner(packages: readonly WorkspacePackage[], path: string): WorkspacePackage {
   const owners = packages.filter(
     (candidate) => candidate.directory !== '.' && path.startsWith(`${candidate.directory}/`),
@@ -561,13 +559,9 @@ function getPackageName(specifier: string): string {
   return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : (parts[0] ?? specifier);
 }
 
-// Test files, the modules of a testing entry, and the app's own test helpers.
+// Test files and the test helpers of every package.
 function isTestFile(file: string): boolean {
-  return (
-    file.endsWith('.test.ts') ||
-    file.split('/').includes('testing') ||
-    file.includes('/src/test-utils/')
-  );
+  return file.endsWith('.test.ts') || file.includes('/src/test-utils/');
 }
 
 main();

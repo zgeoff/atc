@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { runCommand, setupTempDir } from '@atc/test-utils';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
 // A temp directory standing in for a repo root, with a local and a remote
 // execution provider package linked where the bundler resolves them.

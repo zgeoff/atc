@@ -8,7 +8,8 @@
     "./client": "./src/client/index.ts",
     "./session": "./src/session/index.ts",
     "./wire": "./src/wire/index.ts",
-    "./wire/transport": "./src/wire/transport/index.ts"
+    "./wire/transport": "./src/wire/transport/index.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
   },
   "dependencies": {
     "@atc/core": "workspace:*",
@@ -21,6 +22,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@atc/test-utils": "workspace:*"
+    "@faker-js/faker": "catalog:",
+    "@orpc/standard-server": "catalog:",
+    "tiny-invariant": "catalog:"
   }
 }

@@ -1,23 +1,21 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
+import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
+import { buildStubTimeoutScheduler } from '@atc/core/test-utils/build-stub-timeout-scheduler';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildStubHeadlessRunner } from '@atc/daemon/test-utils/build-stub-headless-runner';
 import { createGrokAdapter } from '@atc/harness-grok';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { DaemonError } from '@atc/protocol/wire';
-import {
-  buildMockAgentAdapter,
-  buildStubHeadlessRunner,
-  buildStubTimeoutScheduler,
-  createGitFixture,
-  getAgentEntry,
-  getRecord,
-  setupTempDir,
-  updateEnv,
-  waitFor,
-} from '@atc/test-utils';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 async function setupTest() {
   const headless = buildStubHeadlessRunner();

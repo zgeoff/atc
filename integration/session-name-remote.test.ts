@@ -1,18 +1,16 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
-import { buildStubGuestFilesProvider } from '@atc/daemon/testing';
+import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildStubGuestFilesProvider } from '@atc/daemon/test-utils/build-stub-guest-files-provider';
 import { createClaudeAdapter } from '@atc/harness-claude';
-import {
-  buildMockHostServices,
-  getAgentEntry,
-  getRecord,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test('it names a remote Claude session after the /rename title in the transcript inside its host', async () => {
   const temporaryDirectory = setupTempDir('atc-remote-name-');

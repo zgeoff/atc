@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NODE_TOKEN_FILE_ACCESS } from '@atc/config/token-file';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { loadServiceTokenFile } from './load-service-token-file';
 
 function setupTest() {

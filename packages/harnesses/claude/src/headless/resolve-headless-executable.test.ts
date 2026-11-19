@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStubBin, setupTempDir, updateEnv } from '@atc/test-utils';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
 // The folder the PATH entry with a stand-in claude binary sits in.

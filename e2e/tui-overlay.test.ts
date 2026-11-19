@@ -1,19 +1,17 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { openAgentStep } from '@atc/app/test-utils/open-agent-step';
+import { spawnClaudeSession } from '@atc/app/test-utils/spawn-claude-session';
+import { spawnDaemonSession } from '@atc/app/test-utils/spawn-daemon-session';
+import { startTUIDaemon } from '@atc/app/test-utils/start-tui-daemon';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openDaemonClient } from '@atc/protocol/client';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import {
-  KEYS,
-  openAgentStep,
-  registerTestCleanup,
-  spawnClaudeSession,
-  spawnDaemonSession,
-  spawnNamedSession,
-  startTUIHarness,
-  waitFor,
-} from '@atc/test-utils';
-import { startTUIDaemon } from '../packages/app/src/test-utils/start-tui-daemon';
+import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
 // The client attaches to a daemon in the test's process, so a boot loads
 // one process instead of two.

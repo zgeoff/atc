@@ -1,12 +1,10 @@
 import { expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  setupTempDir,
-  startStubReporterSocket,
-  startStubSessionBridge,
-  updateEnv,
-} from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
+import { startStubSessionBridge } from '@atc/protocol/test-utils/start-stub-session-bridge';
 import { runStatusline } from './statusline';
 
 // A Claude config folder the test writes its settings into, and a reporter

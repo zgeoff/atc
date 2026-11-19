@@ -1,7 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { seedOwnerClient, seedOwnerSchema } from '@atc/mcp/test-utils';
-import { registerTestCleanup, setupTempDir } from '@atc/test-utils';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { seedOwnerClient } from '@atc/mcp/test-utils/seed-owner-client';
+import { seedOwnerSchema } from '@atc/mcp/test-utils/seed-owner-schema';
 import invariant from 'tiny-invariant';
 import { runClients } from './clients';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';

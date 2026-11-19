@@ -2,20 +2,18 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
+import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
+import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { updateEnv } from '@atc/core/test-utils/update-env';
 import { buildAgentEnvFilePath, buildHostFiles } from '@atc/plugin-api';
-import {
-  buildStubMessageBridgeHost,
-  createStubAppServerCodex,
-  createStubBin,
-  getAgentEntry,
-  runLocalCommand,
-  setupTempDir,
-  updateEnv,
-} from '@atc/test-utils';
+import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { CODEX_PLUGIN } from './codex-plugin';
 import { createCodexAdapter } from './create-codex-adapter';
+import { buildStubMessageBridgeHost } from './test-utils/build-stub-message-bridge-host';
+import { createStubAppServerCodex } from './test-utils/create-stub-app-server-codex';
 
 // A folder for the files a test writes: a Codex home with its session index,
 // or a rollout.

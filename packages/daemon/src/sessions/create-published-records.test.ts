@@ -1,19 +1,17 @@
 import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { createStateStore, parsePublishedRecord } from '@atc/store';
-import {
-  createGitFixture,
-  getRecord,
-  readJSONRecord,
-  registerTestCleanup,
-  runLocalCommand,
-  setupTempDir,
-} from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
 import { $ } from 'bun';
 import { z } from 'zod';
-import { buildStubMemoryProvider } from '../testing/build-stub-memory-provider';
+import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { PLACE_COPY_SCRIPT, createPublishedRecords } from './create-published-records';
 
 async function setupTest() {

@@ -1,9 +1,12 @@
 import { expect, test } from 'bun:test';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
-import { buildMockAgentAdapter, buildMockHostServices, getRecord, waitFor } from '@atc/test-utils';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 test("it passes each session's hook state back for that session alone, starting each at none", async () => {
   const seen: { readonly session: unknown; readonly previous: unknown }[] = [];

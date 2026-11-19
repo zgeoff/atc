@@ -1,23 +1,21 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openDaemonClient } from '@atc/protocol/client';
+import { buildPeerRequestLine } from '@atc/protocol/test-utils/build-peer-request-line';
+import { buildStubPeerSocket } from '@atc/protocol/test-utils/build-stub-peer-socket';
+import { parsePeerFrame } from '@atc/protocol/test-utils/parse-peer-frame';
+import type { PeerFrame } from '@atc/protocol/test-utils/parse-peer-frame';
 import { MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
-import {
-  buildPeerRequestLine,
-  buildStubPeerSocket,
-  parsePeerFrame,
-  runCommand,
-  setupTempDir,
-  waitFor,
-} from '@atc/test-utils';
-import type { PeerFrame } from '@atc/test-utils';
 import type { DaemonEvent, SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { DaemonContext } from '../daemon-context';
-import { buildStubDaemonContext } from '../testing/build-stub-daemon-context';
-import { startConnectionListener } from '../testing/start-connection-listener';
+import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
+import { startConnectionListener } from '../test-utils/start-connection-listener';
 import { createDaemonConnection } from './create-daemon-connection';
 
 function setupTest() {
@@ -2064,7 +2062,7 @@ test('it takes a second dispose of a closed peer connection as a no-op', () => {
 test('it sends a closed peer connection disposed again no event, so xstate warns of none', async () => {
   const script = [
     `import { createDaemonConnection } from '${join(import.meta.dir, 'create-daemon-connection.ts')}';`,
-    `import { buildStubDaemonContext } from '${join(import.meta.dir, '..', 'testing', 'build-stub-daemon-context.ts')}';`,
+    `import { buildStubDaemonContext } from '${join(import.meta.dir, '..', 'test-utils', 'build-stub-daemon-context.ts')}';`,
     'const socket = { write: (data) => data.length, end: () => {} };',
     'const conn = createDaemonConnection(socket, buildStubDaemonContext());',
     'conn.dispose();',

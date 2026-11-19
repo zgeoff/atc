@@ -1,17 +1,15 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { startTestDaemon } from '@atc/daemon/testing';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
+import { startStubDroppingDaemon } from '@atc/protocol/test-utils/start-stub-dropping-daemon';
+import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import {
-  buildMockAgentAdapter,
-  getRecord,
-  registerTestCleanup,
-  setupTempDir,
-  startStubDroppingDaemon,
-  startStubLegacyDaemon,
-  waitFor,
-} from '@atc/test-utils';
 import { createTransportCaller } from './create-transport-caller';
 
 async function setupTest() {

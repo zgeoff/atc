@@ -1,15 +1,17 @@
 import { loadConfig } from '@atc/config';
 import { resolvePaths } from '@atc/config/host';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { updateEnv } from '@atc/core/test-utils/update-env';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildExecutionTargets, startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
-import { registerTestCleanup, updateEnv, waitFor } from '@atc/test-utils';
-import type { TUIHarness } from '@atc/test-utils';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { createHostServices } from '../create-host-services';
 import { createShippedExecutionProvider } from '../plugins/create-shipped-execution-provider';
 import { loadExecutionPlugins } from '../plugins/load-execution-plugins';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { createBuiltinSources } from '../sources/create-builtin-sources';
+import type { TUIHarness } from './start-tui-harness';
 
 // Starts in the test's process the daemon that a client booted in the
 // harness home would start, on the home's config, sockets and state, so the

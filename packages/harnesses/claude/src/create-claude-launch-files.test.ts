@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentID } from '@atc/core';
-import { setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createClaudeLaunchFiles } from './create-claude-launch-files';
 
 // The folders the files go to: a state folder, a home, and a mod folder,

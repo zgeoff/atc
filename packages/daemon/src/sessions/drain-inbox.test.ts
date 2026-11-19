@@ -2,7 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
-import { createStubHeldInboxSource } from '../testing/create-stub-held-inbox-source';
+import { createStubHeldInboxSource } from '../test-utils/create-stub-held-inbox-source';
 import { drainInbox } from './drain-inbox';
 
 test("it sends a principal's tap that replaced the owner's during the read no message the owner's read found", async () => {

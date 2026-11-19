@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
-import { setupMCPHome, startDaemonProcess } from '@atc/lifecycle/testing';
-import { resolveATCCommand, startMCPStdio } from '@atc/test-utils';
+import { startMCPStdio } from '@atc/app/test-utils/start-mcp-stdio';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupMCPHome } from '@atc/lifecycle/test-utils/setup-mcp-home';
+import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 
 // A daemon of the test's own on a home with the stand-in agents, which the
 // `atc mcp` server joins instead of booting one.

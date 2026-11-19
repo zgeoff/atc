@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config';
-import { buildStubHarnessPlugins } from '@atc/test-utils';
+import { buildStubHarnessPlugins } from '@atc/config/test-utils/build-stub-harness-plugins';
 import { formatDaemonConfigProblems } from './format-daemon-config-problems';
 
 test('it formats no line for a config with no problem', () => {

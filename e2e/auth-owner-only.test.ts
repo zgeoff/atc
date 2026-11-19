@@ -2,9 +2,11 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { buildMockAgentAdapter, buildMockRestartResult, waitFor } from '@atc/test-utils';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { buildMockRestartResult } from '@atc/protocol/test-utils/build-mock-restart-result';
 import type { DaemonEvent } from '@atcx/contract';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
   // It takes messages, so the message methods reach their own checks.

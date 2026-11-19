@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildHostFiles } from '@atc/plugin-api';
-import { runLocalCommand, setupTempDir } from '@atc/test-utils';
+import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { loadGrokName } from './load-grok-name';
 
 // A Grok home of the test's own, where summaries sit under each working

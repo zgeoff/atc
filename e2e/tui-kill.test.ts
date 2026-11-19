@@ -1,8 +1,10 @@
 import { test } from 'bun:test';
 import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { KEYS, spawnClaudeSession, startTUIHarness } from '@atc/test-utils';
+import { spawnClaudeSession } from '@atc/app/test-utils/spawn-claude-session';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
+import { KEYS } from '@atc/core/test-utils/keys';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
 function setupTest() {
   return startTUIHarness({ createStateDB: createMigratedStateDB });

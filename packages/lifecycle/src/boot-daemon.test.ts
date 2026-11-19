@@ -2,18 +2,16 @@ import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildDaemonStatePaths, resolvePaths } from '@atc/config/host';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { ProtocolMismatch } from '@atc/protocol';
+import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
-import {
-  buildStubClock,
-  registerTestCleanup,
-  setupTempDir,
-  startStubLegacyDaemon,
-  startStubUnansweringUnixListener,
-  waitFor,
-} from '@atc/test-utils';
 import { bootDaemonClient } from './boot-daemon';
-import { buildMockLifecycleHost } from './testing/build-mock-lifecycle-host';
+import { buildMockLifecycleHost } from './test-utils/build-mock-lifecycle-host';
+import { startStubUnansweringUnixListener } from './test-utils/start-stub-unanswering-unix-listener';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-boot-daemon-');
@@ -31,14 +29,7 @@ function setupTest() {
     stateDir: paths.stateDir,
     sockPath: paths.daemonSocketPath,
     paths,
-    legacyDaemon: join(
-      import.meta.dir,
-      '..',
-      '..',
-      'test-utils',
-      'src',
-      'run-stub-legacy-daemon.ts',
-    ),
+    legacyDaemon: join(import.meta.dir, 'test-utils', 'run-stub-legacy-daemon.ts'),
   };
 }
 

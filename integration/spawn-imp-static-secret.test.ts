@@ -1,17 +1,16 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { buildStubBrokeredAgentAdapter } from '@atc/daemon/test-utils/build-stub-brokered-agent-adapter';
 import { createImpProvider } from '@atc/execution-imp';
-import { createStubImpPort, getOnlyImpName } from '@atc/execution-imp/testing';
+import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
+import { getOnlyImpName } from '@atc/execution-imp/test-utils/get-only-imp-name';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStateStore } from '@atc/store';
-import {
-  buildStubBrokeredAgentAdapter,
-  getRecord,
-  registerTestCleanup,
-  setupTempDir,
-} from '@atc/test-utils';
 import { toSessionID } from '@atcx/contract';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-static-secret-');

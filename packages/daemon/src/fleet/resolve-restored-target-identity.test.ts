@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { buildTargetIdentity } from '@atc/store';
-import { buildMockFleetEntry } from '@atc/store/testing';
+import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
-import { buildMockExecutionTarget } from '../testing/build-mock-execution-target';
-import { buildStubRestoreImpProvider } from '../testing/build-stub-restore-imp-provider';
+import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
+import { buildStubRestoreImpProvider } from '../test-utils/build-stub-restore-imp-provider';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
 
 test('it restores a legacy binding once the provider confirms its imp exists', async () => {

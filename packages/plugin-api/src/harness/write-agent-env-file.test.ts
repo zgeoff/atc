@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runLocalCommand, setupTempDir } from '@atc/test-utils';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { runLocalCommand } from '../test-utils/run-local-command';
 import { buildAgentEnvFilePath } from './build-agent-env-file-path';
 import { writeAgentEnvFile } from './write-agent-env-file';
 

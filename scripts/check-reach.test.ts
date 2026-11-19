@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand, setupTempDir } from '@atc/test-utils';
+import { runCommand } from '@atc/core/test-utils/run-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
 // A temp directory standing in for a repo root.
 function setupTest() {
@@ -486,7 +487,7 @@ test('it passes reporters whose static imports load only light entry points', as
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/daemon/src/testing/index.ts'),
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
     'export const STUB = 1;\n',
   );
 
@@ -566,7 +567,7 @@ test('it fails on a reporter whose static imports load a root entry point', asyn
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/daemon/src/testing/index.ts'),
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
     'export const STUB = 1;\n',
   );
 
@@ -644,7 +645,7 @@ test('it fails on a CLI entry whose static imports load the core schema entry', 
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/daemon/src/testing/index.ts'),
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
     'export const STUB = 1;\n',
   );
 
@@ -725,7 +726,7 @@ test('it fails on a missing reporter entry beside the CLI entry', async () => {
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/daemon/src/testing/index.ts'),
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
     'export const STUB = 1;\n',
   );
 
@@ -865,7 +866,7 @@ test('it fails on a missing daemon entry beside the CLI entry', async () => {
     exitCode: 1,
     stdout: 'check-reach: 1 files reached, 1 bundled, 2 findings\n',
     stderr:
-      'missing daemon module: packages/daemon/src/index.ts does not exist\nmissing daemon module: packages/daemon/src/testing/index.ts does not exist\n',
+      'missing daemon module: packages/daemon/src/index.ts does not exist\nmissing daemon module: packages/daemon/src/test-utils/start-test-daemon.ts does not exist\n',
   });
 });
 
@@ -891,7 +892,7 @@ test('it fails on a missing mcp-auth.db opener beside the CLI entry', async () =
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/daemon/src/testing/index.ts'),
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
     'export const STUB = 1;\n',
   );
 
@@ -956,7 +957,7 @@ test('it fails on a daemon testing entry that reaches the mcp-auth.db opener', a
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/daemon/src/testing/index.ts'),
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
     "export { OPEN } from '../../../app/src/open-mcp-auth-database';\n",
   );
 
@@ -974,7 +975,50 @@ test('it fails on a daemon testing entry that reaches the mcp-auth.db opener', a
     exitCode: 1,
     stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
     stderr:
-      "refused module: packages/daemon/src/testing/index.ts reaches packages/app/src/open-mcp-auth-database.ts, which opens the gateway's mcp-auth.db\n",
+      "refused module: packages/daemon/src/test-utils/start-test-daemon.ts reaches packages/app/src/open-mcp-auth-database.ts, which opens the gateway's mcp-auth.db\n",
+  });
+});
+
+test('it fails on a daemon test helper beside the test daemon that reaches the mcp-auth.db opener', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
+
+  await Bun.write(
+    join(ctx.directory, 'packages/app/src/open-mcp-auth-database.ts'),
+    'export const OPEN = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
+    'export const START = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/daemon/src/test-utils/build-stub-log.ts'),
+    "export { OPEN } from '../../../app/src/open-mcp-auth-database';\n",
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/daemon/src/test-utils/build-stub-log.test.ts'),
+    "export { OPEN } from '../../../app/src/open-mcp-auth-database';\n",
+  );
+
+  const checked = await runCommand([
+    process.execPath,
+    join(import.meta.dir, 'check-reach.ts'),
+    ctx.directory,
+  ]);
+
+  expect({
+    exitCode: checked.exitCode,
+    stdout: checked.stdout,
+    stderr: checked.stderr,
+  }).toStrictEqual({
+    exitCode: 1,
+    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
+    stderr:
+      "refused module: packages/daemon/src/test-utils/build-stub-log.ts reaches packages/app/src/open-mcp-auth-database.ts, which opens the gateway's mcp-auth.db\n",
   });
 });
 
@@ -1045,7 +1089,7 @@ test('it fails on a daemon test helper that names mcp-auth.db in upper case', as
   await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
 
   await Bun.write(
-    join(ctx.directory, 'packages/daemon/src/testing/index.ts'),
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
     "export const STUB = '/state/MCP-AUTH.DB';\n",
   );
 
@@ -1063,7 +1107,7 @@ test('it fails on a daemon test helper that names mcp-auth.db in upper case', as
     exitCode: 1,
     stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
     stderr:
-      "named database: packages/daemon/src/testing/index.ts reaches packages/daemon/src/testing/index.ts, which names the gateway's mcp-auth.db at line 1\n",
+      "named database: packages/daemon/src/test-utils/start-test-daemon.ts reaches packages/daemon/src/test-utils/start-test-daemon.ts, which names the gateway's mcp-auth.db at line 1\n",
   });
 });
 
@@ -1078,7 +1122,7 @@ test('it fails on a daemon test helper that reads the config path of mcp-auth.db
   );
 
   await Bun.write(
-    join(ctx.directory, 'packages/daemon/src/testing/index.ts'),
+    join(ctx.directory, 'packages/daemon/src/test-utils/start-test-daemon.ts'),
     "import { mcpAuthDBFile } from '../../../config/src/host/process-paths';\n\nexport const STUB = mcpAuthDBFile;\n",
   );
 
@@ -1096,7 +1140,7 @@ test('it fails on a daemon test helper that reads the config path of mcp-auth.db
     exitCode: 1,
     stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
     stderr:
-      "named database: packages/daemon/src/testing/index.ts reaches packages/daemon/src/testing/index.ts, which names the gateway's mcp-auth.db at line 1\n",
+      "named database: packages/daemon/src/test-utils/start-test-daemon.ts reaches packages/daemon/src/test-utils/start-test-daemon.ts, which names the gateway's mcp-auth.db at line 1\n",
   });
 });
 

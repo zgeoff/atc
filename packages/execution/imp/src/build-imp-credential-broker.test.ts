@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { startStubImpdInfo } from '@atc/test-utils';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 import { createImpClientPort } from './create-imp-client-port';
-import { createStubImpPort } from './testing/create-stub-imp-port';
+import { createStubImpPort } from './test-utils/create-stub-imp-port';
+import { startStubImpdInfo } from './test-utils/start-stub-impd-info';
 
 // A broker over a stub imp port that names each host `atc-<key>`, creates
 // it as a plain imp, and destroys it through the port.

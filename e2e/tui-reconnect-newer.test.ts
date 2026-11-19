@@ -1,8 +1,9 @@
 import { expect, test } from 'bun:test';
 import { unlinkSync } from 'node:fs';
+import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { readDaemonRecord } from '@atc/lifecycle';
-import { createMigratedStateDB } from '@atc/store/test-utils';
-import { startStubLegacyDaemonProcess, startTUIHarness } from '@atc/test-utils';
+import { startStubLegacyDaemonProcess } from '@atc/lifecycle/test-utils/start-stub-legacy-daemon-process';
+import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import invariant from 'tiny-invariant';
 
 test('it tells the user to reopen a client that a reconnect finds older than the daemon, and never offers a restart', async () => {

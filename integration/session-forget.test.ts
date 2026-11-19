@@ -1,14 +1,12 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildStubHeadlessRunner } from '@atc/daemon/test-utils/build-stub-headless-runner';
 import { createLocalPTYProvider } from '@atc/execution-local';
-import { createStubExecutionProvider } from '@atc/execution-local/testing';
-import {
-  buildMockAgentAdapter,
-  buildStubHeadlessRunner,
-  getRecord,
-  waitFor,
-} from '@atc/test-utils';
-import { startTestDaemon } from '../packages/app/src/test-utils/start-test-daemon';
+import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 
 test('it answers a forget on a host-destroying target with a token and destroys nothing yet', async () => {
   const provider = createStubExecutionProvider({

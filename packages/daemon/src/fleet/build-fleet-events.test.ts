@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { decodeCursor } from '@atc/protocol';
-import { buildMockStoredEvent } from '@atc/store/testing';
-import { buildMockSessionDescriptor } from '@atc/test-utils';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
+import { buildMockStoredEvent } from '@atc/store/test-utils/build-mock-stored-event';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { buildFleetEvents } from './build-fleet-events';

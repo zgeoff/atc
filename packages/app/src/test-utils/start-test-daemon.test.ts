@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
-import { buildMockAgentAdapter, spawnNamedSession, waitFor } from '@atc/test-utils';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { startTestDaemon } from './start-test-daemon';
 
 test('it runs a spawned harness on the local pseudo-terminal when the options name no target', async () => {

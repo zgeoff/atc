@@ -1,22 +1,20 @@
 import { expect, mock, test } from 'bun:test';
 import { createHmac } from 'node:crypto';
-import { startTestDaemon } from '@atc/daemon/testing';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { getRecord } from '@atc/core/test-utils/get-record';
+import { getString } from '@atc/core/test-utils/get-string';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
-import {
-  buildMockAgentAdapter,
-  buildStubClock,
-  getRecord,
-  getString,
-  registerTestCleanup,
-  waitFor,
-} from '@atc/test-utils';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { buildSeeder } from '../test-utils/build-seeder';
-import { buildStubFleetCaller } from '../testing/build-stub-fleet-caller';
-import { buildStubRacingSubscriptionStore } from '../testing/build-stub-racing-subscription-store';
-import { buildStubWebhookReceiver } from '../testing/build-stub-webhook-receiver';
-import { openTestEventDatabase } from '../testing/open-test-event-database';
+import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
+import { buildStubRacingSubscriptionStore } from '../test-utils/build-stub-racing-subscription-store';
+import { buildStubWebhookReceiver } from '../test-utils/build-stub-webhook-receiver';
+import { openTestEventDatabase } from '../test-utils/open-test-event-database';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { createEventDeliverer } from './create-event-deliverer';
 import { createSubscriptionStore } from './create-subscription-store';

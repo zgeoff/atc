@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveATCCommand, runATC, setupTempDir } from '@atc/test-utils';
+import { runATC } from '@atc/app/test-utils/run-atc';
+import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-e2e-hook-files-');
