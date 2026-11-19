@@ -4,7 +4,7 @@
 import { resolvePaths } from '@atc/config/host';
 import { isRecord } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
-import { createHostServices } from '../packages/app/src/create-host-services';
+import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
 const [mode, cwd, name = '', prompt = ''] = process.argv.slice(2);
 

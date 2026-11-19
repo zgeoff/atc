@@ -11,7 +11,7 @@ import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authentic
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
-import { openMCPAuthDatabase } from '../open-mcp-auth-database';
+import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { buildLocalTarget } from './build-local-target';
 
 interface MCPHTTPSetupOptions {

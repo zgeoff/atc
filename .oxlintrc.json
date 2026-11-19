@@ -53,20 +53,8 @@
     ],
     // GEO-1196 splits the 19 files over the shared 500-line limit
     "max-lines": "off",
-    // GEO-2321 folds these packages' src/ roots into feature folders
-    "zgeoff/feature-folders": [
-      "error",
-      {
-        "pending": ["packages/app"]
-      }
-    ],
-    // these packages still hold files that no export is named for
-    "zgeoff/file-named-for-export": [
-      "error",
-      {
-        "pending": ["packages/app"]
-      }
-    ]
+    "zgeoff/feature-folders": "error",
+    "zgeoff/file-named-for-export": "error"
   },
   "overrides": [
     {
@@ -114,7 +102,7 @@
       // GEO-1286 cleans the imp words out of these files; each follow-up
       // removes the files it cleans
       "files": [
-        "packages/app/src/build-migrated-config.test.ts",
+        "packages/app/src/config/build-migrated-config.test.ts",
         "packages/tui/src/overlay/collect-target-picks.test.ts",
         "packages/tui/src/overlay/collect-target-picks.ts",
         "packages/tui/src/picker/create-spawn-picker.test.ts",
@@ -125,8 +113,8 @@
         "e2e/mcp-run-tool.test.ts",
         "packages/app/src/plugins/create-shipped-execution-provider.test.ts",
         "packages/app/src/plugins/shipped-execution-plugins.test.ts",
-        "packages/app/src/run-session-action.test.ts",
-        "packages/app/src/shared/collect-legacy-agents.test.ts",
+        "packages/app/src/cli/run-session-action.test.ts",
+        "packages/app/src/agents/collect-legacy-agents.test.ts",
         "packages/config/src/targets/collect-targets.test.ts",
         "packages/config/src/config-file/config.test.ts",
         "packages/core/src/time/create-step-timer.test.ts",

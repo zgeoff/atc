@@ -39,7 +39,7 @@ atc is one Bun workspace. The root package holds the repo tooling.
 ```text
 packages/
   app/           the atc and atc-gateway entrypoints and the modules they wire together; a module
-                 that backs one subcommand sits beside it at the src/ root
+                 that backs one subcommand lives in its feature folder, src/<feature>/
   daemon/        the session fleet, its runtime state, and the protocol server; it loads no plugin,
                  because the app passes in its execution targets and agent adapters
   tui/           the terminal client; it reads and writes no file, because the app passes in its

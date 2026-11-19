@@ -24,7 +24,7 @@ import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { openDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
-import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
+import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
 // The subscriber's endpoint is the receiver each test passes, because a test
 // cannot reach an endpoint across the internet.

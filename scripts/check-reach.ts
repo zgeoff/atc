@@ -73,19 +73,19 @@ const ALLOWED_PACKAGES: ReadonlySet<string> = new Set([
 // folder. Every other app module, cli.ts among them, is out of reach.
 const GATEWAY_APP_MODULES: readonly string[] = [
   'gateway.ts',
-  'run-gateway-cli.ts',
-  'run-command-line.ts',
-  'run-gateway.ts',
-  'load-service-token-file.ts',
-  'register-service-token-reload.ts',
-  'build-gateway-state-paths.ts',
-  'open-mcp-auth-database.ts',
-  'with-mcp-auth-admin.ts',
-  'clients.ts',
-  'passkeys.ts',
-  'create-clients-command.ts',
-  'create-passkeys-command.ts',
-  'process-io.ts',
+  'gateway/run-gateway-cli.ts',
+  'cli/run-command-line.ts',
+  'gateway/run-gateway.ts',
+  'service-token/load-service-token-file.ts',
+  'service-token/register-service-token-reload.ts',
+  'gateway/build-gateway-state-paths.ts',
+  'mcp/open-mcp-auth-database.ts',
+  'mcp/with-mcp-auth-admin.ts',
+  'auth/run-clients.ts',
+  'auth/run-passkeys.ts',
+  'auth/create-clients-command.ts',
+  'auth/create-passkeys-command.ts',
+  'cli/process-io.ts',
 ];
 
 function checkFile(verb: string, file: string): string[] {
@@ -226,7 +226,7 @@ const DAEMON_HELPER_FOLDER = 'packages/daemon/src/test-utils/';
 
 // The modules the daemon must never reach: the opener of the gateway's
 // authorization database, mcp-auth.db.
-const DAEMON_REFUSED_MODULES: readonly string[] = [`${APP_SOURCE}/open-mcp-auth-database.ts`];
+const DAEMON_REFUSED_MODULES: readonly string[] = [`${APP_SOURCE}/mcp/open-mcp-auth-database.ts`];
 
 // The names that lead to mcp-auth.db: its file name and the config path that
 // holds it. A reached file that names either could open the database without

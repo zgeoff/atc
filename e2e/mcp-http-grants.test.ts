@@ -11,7 +11,7 @@ import { openATCAuth } from '@atc/mcp';
 import { seedOwnerClient } from '@atc/mcp/test-utils/seed-owner-client';
 import { seedOwnerGrant } from '@atc/mcp/test-utils/seed-owner-grant';
 import { seedOwnerSchema } from '@atc/mcp/test-utils/seed-owner-schema';
-import { openMCPAuthDatabase } from '../packages/app/src/open-mcp-auth-database';
+import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
 // An authorization database from before atc moved to its shared OAuth
 // server, under a home of its own, holding one grant with the given ID.

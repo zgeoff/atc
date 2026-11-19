@@ -13,7 +13,7 @@ import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID } from '@atcx/contract';
-import { createHostServices } from '../packages/app/src/create-host-services';
+import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
 function setupTest() {
   return startTUIHarness({ createStateDB: createMigratedStateDB });
