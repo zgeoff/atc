@@ -96,7 +96,6 @@ test('it throws from the second headless runner read when the config holds two',
 
   stub.adapter.planSpawn({ prompt: '', resume: false });
 
-  // Spends the first failing read, whose throw another test checks.
   await Promise.allSettled([Promise.try(() => stub.adapter.headlessRunner)]);
 
   expect(() => stub.adapter.headlessRunner).toThrowWithMessage(
@@ -140,8 +139,6 @@ test('it fails the first read only once a process has written its pid to the rea
 
   stub.adapter.planSpawn({ prompt: '', resume: false });
 
-  // The writer starts after the pipe exists and before the read, so the read
-  // holds its pid only if it waited for the write.
   const writer = Bun.spawn(['bash', '-c', `echo $$ > '${path}'`]);
 
   registerTestCleanup(() => {

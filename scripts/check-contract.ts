@@ -1,6 +1,3 @@
-// Checks the declarations of @atcx/contract, the types its consumers compile
-// against, against the committed snapshot, so a change to the published types
-// shows in review. Usage: bun scripts/check-contract.ts [root] [--update]
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -40,7 +37,7 @@ async function main(): Promise<void> {
         `stale snapshot: ${SNAPSHOT} differs from the emitted declarations at line ${line}; run bun run check:contract --update and review the diff`,
       );
 
-      // process.exit would skip the finally that removes the declarations
+      // process.exit would skip the cleanup that removes the declarations
       process.exitCode = 1;
 
       return;
@@ -58,8 +55,6 @@ function readSnapshot(files: readonly string[], readText: (file: string) => stri
   return files.map((file) => `// ${file}\n${readText(file)}`).join('\n');
 }
 
-// The 1-based number of the first line the two texts disagree on, or
-// undefined when they are equal.
 function findFirstDifference(committed: string, rendered: string): number | undefined {
   if (committed === rendered) {
     return undefined;

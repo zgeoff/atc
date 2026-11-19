@@ -2,8 +2,6 @@ import { PINNED_GROUP_KEY } from './pinned-group-key';
 import { sortSessionViews } from './sort-session-views';
 import type { SortableSessionView } from './sortable-session-view';
 
-// each repository's sessions gather at its best-ranked member, because the
-// renderer draws a group header wherever adjacent rows change repository
 export function sortGroupedSessionViews<
   T extends SortableSessionView & { readonly repoRoot: string },
 >(list: readonly T[]): T[] {

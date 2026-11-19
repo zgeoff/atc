@@ -14,29 +14,21 @@ interface GatewayDaemonCallerOptions {
   readonly daemon: RegistryDaemon;
   readonly build: string;
 
-  // Connects to the daemon's TCP address.
   readonly openChannel: (address: RegistryDaemon['address']) => Promise<GatewayChannel>;
 
-  // How long the connect and the handshake may take together, and how long
-  // a sent request may wait for its response.
   readonly connectTimeoutMs?: number;
   readonly responseTimeoutMs?: number;
 
-  // Runs the connect and response timers; the system clock when unset.
   readonly clock?: Clock;
 
-  // Takes the line about a daemon the gateway serves despite a gap in its
-  // handshake, such as a feature it lacks.
   readonly onWarning: (message: string) => void;
 }
 
-// One handshaken connection and what its handshake returned.
 interface OpenConnection {
   readonly channel: GatewayChannel;
   readonly hello: DaemonHello;
 }
 
-// A connection as a request reads it, which never replaces its callback.
 type SendingConnection = Readonly<{ channel: Readonly<GatewayChannel>; hello: DaemonHello }>;
 
 interface GatewayRequest {
@@ -72,9 +64,6 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
       { daemon: opts.daemon.name },
     );
 
-  // Connects and handshakes, refusing a daemon behind another state
-  // identity than the pin, or on another major version than the contract,
-  // before anything is sent to it.
   const openHandshaken = async (): Promise<OpenConnection> => {
     const daemon = opts.daemon;
     let channel: GatewayChannel;
@@ -166,8 +155,6 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
     return { channel, hello };
   };
 
-  // Connects and handshakes within the connect time, stopping a connection
-  // that opens after the time ran out, so a late open never leaks.
   const openTimedConnection = async (): Promise<OpenConnection> => {
     const daemon = opts.daemon;
     const timeout = Promise.withResolvers<'timeout'>();
@@ -178,8 +165,8 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
 
     let timedOut = false;
 
-    // Settles as a value either way, so an open that fails after the
-    // timeout won never goes unhandled.
+    // Promise.race leaves the loser unobserved, so a late failure would be an unhandled rejection.
+    // Return errors as values instead.
     const handshaken = (async () => {
       try {
         const late = await openHandshaken();
@@ -231,15 +218,9 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
     | { readonly kind: 'answered'; readonly ok: Readonly<Record<string, unknown>> }
     | { readonly kind: 'lost' }
   > => {
-    // Runs in the same synchronous step as the write below, after the
-    // connection's handshake, so whatever it decides still holds when the
-    // request leaves.
     const channel = connection.channel;
     const sent = prepareParams(request.params);
     const timeout = Promise.withResolvers<'timeout'>();
-
-    // A request that waits for a change on the daemon, such as a long poll,
-    // gets its own wait on top of the response time.
     const waitMs = typeof sent['waitMs'] === 'number' && sent['waitMs'] > 0 ? sent['waitMs'] : 0;
 
     const cancelTimeout = scheduleTimeout(
@@ -249,8 +230,8 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
       (opts.responseTimeoutMs ?? RESPONSE_TIMEOUT_MS) + waitMs,
     );
 
-    // Settles as a value either way, so a response that rejects after the
-    // timeout won never goes unhandled.
+    // Promise.race leaves the loser unobserved, so a late rejection would be unhandled.
+    // Return errors as values instead.
     const settled = (async () => {
       try {
         return {
@@ -266,8 +247,6 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
 
     cancelTimeout();
 
-    // A response that may still arrive leaves its connection out of
-    // service, so later requests open a fresh one.
     if (raced === 'timeout') {
       transport.stopConnection(connection);
 
@@ -282,7 +261,6 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
       return { kind: 'lost' };
     }
 
-    // a replay-only request gets this for a key the daemon never held or has dropped
     if (raced.error instanceof DaemonError && raced.error.code === 'idempotency_key_unknown') {
       throw buildOutcomeUnknown(request.method);
     }
@@ -320,8 +298,6 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
         throw buildOutcomeUnknown(method);
       }
 
-      // a keyed retry only ever replays, so a daemon whose first send never arrived, or that
-      // has dropped the key since, runs nothing a second time
       const second = await trySend(fresh, request, (params) =>
         keyed ? { ...prepareParams(params), replayOnly: true } : prepareParams(params),
       );

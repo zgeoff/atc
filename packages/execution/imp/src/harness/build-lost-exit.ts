@@ -1,18 +1,14 @@
 import type { HarnessExit } from '@atc/plugin-api';
 import { z } from 'zod';
 
-// What ended a process impd no longer holds: the kept previous generation
-// of the same boot, and impd's cold boots, newest first. Each part is read
-// on its own, and one that does not read is no evidence.
 const LOST_BOOT_SCHEMA = z.object({ bootId: z.string() });
 const LOST_PREVIOUS_SCHEMA = z.object({ previous: z.unknown() });
 const LOST_COLD_BOOTS_SCHEMA = z.object({ coldBoots: z.array(z.unknown()) });
 const GENERATION_SCHEMA = z.object({ executionGeneration: z.string() });
 const EXIT_CODE_SCHEMA = z.object({ exitCode: z.number() });
 
-// In the same boot, the kept previous generation gives the exit. Across a cold
-// boot, the first boot after the daemon's own gives the cause, unknown when
-// impd no longer lists the daemon's boot.
+// impd can drop old boots from its cold-boot list, so the daemon's own boot may be missing and
+// the reboot cause is then unknown.
 export function buildLostExit(
   data: unknown,
   cursor: Readonly<{ bootId: string; generation: string }> | null,
@@ -43,7 +39,6 @@ export function buildLostExit(
 const COLD_BOOT_SCHEMA = z.object({ bootId: z.unknown().optional() });
 const CAUSE_SCHEMA = z.object({ cause: z.string() });
 
-// impd's cold boots, newest first, as far as each one reads.
 function collectColdBoots(
   entries: readonly unknown[],
 ): { readonly bootId: unknown; readonly cause: string }[] {

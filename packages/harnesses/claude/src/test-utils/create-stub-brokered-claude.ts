@@ -1,8 +1,6 @@
 import { join } from 'node:path';
 import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 
-// The variables that route a request through a broker's proxy and trust its
-// certificate authority.
 const PROXY_VARIABLES = [
   'HTTPS_PROXY',
   'https_proxy',
@@ -12,11 +10,8 @@ const PROXY_VARIABLES = [
   'SSL_CERT_FILE',
 ] as const;
 
-// A stand-in claude that sends the auth token its `--settings` file holds as
-// a bearer token to the URL, with the proxy variables of the process that
-// creates it, and writes the HTTP status to `brokered-status` in the dir.
 export function createStubBrokeredClaude(directory: string, url: string): string {
-  // the guest's PATH may lack the tools the test process finds
+  // The guest's PATH may lack curl and sed, so resolve their paths in the test process.
   const curl = Bun.which('curl') ?? 'curl';
   const sed = Bun.which('sed') ?? 'sed';
   const status = join(directory, 'brokered-status');

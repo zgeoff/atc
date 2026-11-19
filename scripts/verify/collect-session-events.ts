@@ -10,8 +10,6 @@ export interface SessionEvent {
   readonly state: string;
 }
 
-// The events of the session with the name, in the order `atc events` printed them, from the
-// stream's lines. A line that is not an event of a named session is left out.
 export function collectSessionEvents(lines: readonly string[], name: string): SessionEvent[] {
   return lines.flatMap((line) => {
     const parsed = eventLineSchema.safeParse(parseJSONLine(line));

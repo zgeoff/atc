@@ -1,6 +1,5 @@
 import type { CredentialBroker } from '@atc/plugin-api';
 
-// as on a broker where another principal grants every host the moment it appears
 export function buildStubPregrantedBrokerHost(
   host: CredentialBroker,
   secret: string,

@@ -5,16 +5,11 @@ import { collectTokens } from './collect-tokens';
 export interface ImportList {
   readonly specifiers: readonly string[];
 
-  // The specifiers that only a resolve form names
   readonly resolveOnly: readonly string[];
 
-  // a type-only statement, or one whose every specifier is type-only, loads
-  // nothing, and a dynamic import loads its module only when the code
-  // reaches it
   readonly staticLoads: readonly string[];
 
-  // A load whose specifier is not a quoted string, which oxlint's import rules
-  // do not read, and a resolve form whose specifier is not a literal
+  // oxlint's import rules do not read a load whose specifier is not a quoted string
   readonly computedLoadLines: readonly number[];
   readonly computedResolveLines: readonly number[];
 }
@@ -23,17 +18,11 @@ export function collectImports(source: string): ImportList {
   const tokens = collectTokens(source);
 
   const specifiers = new Set<string>();
-
-  // specifiers that a form which loads the module names: an import, an
-  // export, `import(...)` or `require(...)`
   const loaded = new Set<string>();
   const staticLoads = new Set<string>();
 
   const computedLoadLines: number[] = [];
   const computedResolveLines: number[] = [];
-
-  // whether the import or export statement the scan is inside loads nothing
-  // at runtime, being type-only or naming only type-only specifiers
   let isTypeOnly = false;
 
   for (const [index, token] of tokens.entries()) {

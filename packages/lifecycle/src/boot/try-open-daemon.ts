@@ -7,7 +7,6 @@ import { HELLO_RESULT_SCHEMA } from '@atcx/contract';
 
 const HELLO_FIELDS = HELLO_RESULT_SCHEMA.pick({ daemon: true, daemonID: true });
 
-// The daemon's answer to the handshake: its build and its stable id.
 interface DaemonHello {
   readonly build: string;
   readonly daemonID: string;
@@ -23,15 +22,11 @@ export type DaemonProbe<T> =
   | { readonly kind: 'refused'; readonly socketPath: string; readonly message: string };
 
 interface DaemonProbeOptions {
-  // The build this client sends in its hello.
   readonly build: string;
 
-  // The clock time by which the hello and `read` must finish.
   readonly deadline: number;
   readonly clock: Clock;
 
-  // Leaves the client open once `read` resolves, for a caller that goes on
-  // to use it and closes it itself.
   readonly keepOpen?: boolean;
 }
 
@@ -49,8 +44,6 @@ export async function tryOpenDaemon<T>(
       continue;
     }
 
-    // Each socket gets an equal share of the time left, so one that never
-    // answers leaves the sockets after it time to answer.
     const remainingMs = Math.max(0, options.deadline - options.clock.now());
 
     const cancelExpiry = options.clock.schedule(
@@ -70,8 +63,7 @@ export async function tryOpenDaemon<T>(
           session: readSessionEnv(process.env).sessionID,
         });
       } catch (error) {
-        // a refused hello still identifies the daemon, so it ends the probe; any
-        // other failure passes the probe to the next socket.
+        // a refused hello still identifies the daemon, so it ends the probe.
         if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
           return { kind: 'refused', socketPath, message: error.message };
         }

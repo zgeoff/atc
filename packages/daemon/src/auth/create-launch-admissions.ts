@@ -3,22 +3,14 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 
 export interface LaunchAdmissions {
-  // Records an admission on a host and returns the ticket its request
-  // checks just before it goes out.
   readonly createTicket: (hostKey: SessionID) => LaunchTicket;
 
-  // How many admitted requests on a host have not gone out or ended yet.
   readonly countPendingAdmissions: (hostKey: SessionID) => number;
 
-  // Stops every admitted request on a host that has not gone out yet,
-  // with the block the caller is about to record.
   readonly revokeAdmissions: (hostKey: SessionID, state: string) => void;
 }
 
 export function createLaunchAdmissions(): LaunchAdmissions {
-  // The admissions on each host whose request has not gone out yet. A
-  // revoke, a rebind or a forget cancels them before it writes anything,
-  // so a request still opening its connection closes it unsent.
   const pending = new Map<SessionID, Set<{ refusal: DaemonError | null }>>();
 
   return {

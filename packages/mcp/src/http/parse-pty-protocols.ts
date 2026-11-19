@@ -1,5 +1,3 @@
-// The subprotocol a live-terminal socket speaks, which the server selects in
-// its upgrade answer.
 export const PTY_PROTOCOL = 'atc.pty.v1';
 
 // A browser cannot set an Authorization header on a WebSocket, so the bearer

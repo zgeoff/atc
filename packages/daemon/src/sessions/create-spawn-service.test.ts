@@ -32,13 +32,9 @@ interface SetupTestConfig {
     targetRoots: ReadonlyMap<string, string>;
   }>;
 
-  // The transports a workspace may clone over; https and ssh when absent.
   readonly gitTransports?: readonly string[];
 }
 
-// A session manager over the targets given, with the stub harness as its
-// one agent and a real state store, and the runtime the daemon gives each
-// session it announces.
 async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-spawn-service-');
   const dbPath = join(temporaryDirectory.path, 'state.db');

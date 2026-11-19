@@ -21,8 +21,6 @@ export interface ClaudeStyleHookPayload {
 export interface ClaudeStyleHookRules<P extends ClaudeStyleHookPayload> {
   readonly hooks: Readonly<Record<string, ClaudeStyleHook>>;
 
-  // Reads a payload as the harness's fields; a payload that is not one
-  // reads as no fields, so a broken reporter never breaks its session.
   readonly parsePayload: (payload: unknown) => P;
   readonly buildNeedsInput: (base: Readonly<AdapterEvent>, payload: P) => AdapterEvent;
   readonly buildSources: (payload: P) => Pick<AdapterEvent, 'nameSource' | 'transcriptSource'>;

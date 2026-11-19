@@ -38,7 +38,6 @@ interface SessionAdopterDeps {
   >;
   readonly auth: Pick<AuthSetup, 'buildBrokerSpec' | 'resolveHarnessAuth' | 'setupHarnessOnHost'>;
 
-  // Reads the fates of the other sleeping sessions on a host once a revive readies it.
   readonly fates?: Pick<HarnessFates, 'readFates'>;
   readonly callbacks: Pick<
     SessionCallbacks,
@@ -54,7 +53,6 @@ interface SessionAdopterDeps {
   >;
 }
 
-// A restart whose outdated harness waits on its kill.
 interface HarnessRestart {
   readonly session: Session;
   stopped: boolean;
@@ -62,13 +60,8 @@ interface HarnessRestart {
 }
 
 export interface SessionAdopter {
-  // resolves once the waiting restart leaves the session stopped and written
-  // to the fleet; false, touching nothing, when no restart waits
   readonly stopRestart: (id: SessionID) => Promise<boolean>;
 
-  // a remote host wakes first, attaching a harness it still runs and
-  // reviving every session asleep beside it; the caller's check runs again
-  // after each await, and a failed check leaves the session as it was
   readonly adoptTerminal: (
     id: SessionID,
     cols: number,
@@ -78,13 +71,7 @@ export interface SessionAdopter {
 }
 
 export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
-  // Sessions whose revive waits on their host waking, so a second revive
-  // of the same session does not start a second harness.
   const adopting = new Set<SessionID>();
-
-  // Sessions whose outdated harness waits on its kill before the restart
-  // starts a fresh one, each with whether a stop landed meanwhile and a
-  // promise that settles once the restart leaves the session as it ends.
   const restarts = new Map<SessionID, HarnessRestart>();
 
   const registry = deps.registry;
@@ -95,9 +82,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
   const fates = deps.fates;
   const callbacks = deps.callbacks;
 
-  // the harness is still the session's terminal, or ended on its own with
-  // an exit its host reported, as one that ended while its host slept does;
-  // a stop, a sleep, or another revive that took the session leaves it
   const probeHarnessRestartable = async (
     session: Session,
     pty: HarnessHandle,
@@ -122,17 +106,14 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     );
   };
 
-  // a kill whose exit atc cannot confirm blocks revives until the process
-  // is gone; a stop, a rollback, or a change out of the caller's reach
-  // while the kill waits starts nothing
   const restartHarnessOnHost = async (
     session: Session,
     outdated: HarnessHandle,
     launch: HarnessLaunch,
     canProceed: () => boolean,
   ): Promise<HarnessHandle> => {
-    // The outdated harness stops being the session's terminal first, so
-    // its exit leaves the session as it is.
+    // Clearing the session's terminal before the kill makes the old harness's exit handler skip the
+    // session, so the exit does not mark it stopped.
     session.pty = null;
 
     const settled = Promise.withResolvers<void>();
@@ -156,9 +137,8 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
         return startReviveHarness(deps, session, launch);
       }
     } finally {
-      // every path that starts no harness, a throwing kill included, writes
-      // the session stopped to the fleet before the adopt answers, so a
-      // restore after a daemon restart does not revive it
+      // A restore after a daemon restart revives any session the fleet does not show as stopped, so
+      // every path that starts no harness must write that state before the adopt answers.
       try {
         if (session.pty === null) {
           session.state = 'exited';
@@ -190,9 +170,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     });
   };
 
-  // a harness from before a rebind keeps the guest settings it launched
-  // under; the host counts as readying throughout, so it is never idle
-  // between the two harnesses and no other revive of the session starts
   const restartOutdatedHarness = async (
     session: Session,
     outdated: HarnessHandle,
@@ -316,13 +293,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     let launch: HarnessLaunch;
     let pty: HarnessHandle;
 
-    // The revive keeps the session taken until its terminal starts, so a
-    // second revive that lands while the message bridge starts finds it
-    // taken and starts nothing.
     try {
-      // A kill, a second adopt, a failed spawn's rollback, or a change that
-      // takes the session out of the caller's reach can land while the host
-      // wakes.
       if (
         !canProceed() ||
         session.pty !== null ||
@@ -333,9 +304,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
         return null;
       }
 
-      // the bridge starts first, on the thread the session resumes, so the
-      // terminal starts against it; a change that lands while it starts
-      // stops it again
       if (!provider.remote) {
         const bridged = await callbacks.startMessageBridge({
           adapter,
@@ -377,8 +345,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
 
       launch = { provider, plan, recordPath, cols, rows };
 
-      // A terminal that fails to start leaves no message bridge running
-      // without it.
       try {
         pty = startReviveHarness(deps, session, launch);
       } catch (error) {
@@ -436,8 +402,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       }
     };
 
-    // a launch without runtime auth goes on without waiting for its start, so its home follows
-    // the start once the host reports whether it attached
     if (start === undefined && pty.waitForStart !== undefined) {
       void followAgentHome();
     } else {
@@ -472,9 +436,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     return session;
   };
 
-  // A sibling's revive failing leaves that sibling asleep; the session
-  // whose revive woke the host is already running, so the failure is
-  // logged rather than thrown.
   const tryAdoptSibling = async (
     sibling: Session,
     session: Session,
@@ -514,8 +475,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
   };
 }
 
-// the held revision is the host's from before the revive, used when the
-// session recorded none at its latest launch
 function isLaunchOutdated(
   session: Session,
   revision: number,

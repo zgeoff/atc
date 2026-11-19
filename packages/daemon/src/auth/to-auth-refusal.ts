@@ -3,7 +3,6 @@ import { CredentialBrokerError, EffectRemainsError } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { BrokerAuthorityError } from './broker-authority-error';
 
-// A credential broker's refusal or an authority refusal as the daemon error it answers.
 export function toAuthRefusal(error: unknown, broker: Pick<CredentialBroker, 'describe'>): unknown {
   if (error instanceof DaemonError || error instanceof EffectRemainsError) {
     return error;

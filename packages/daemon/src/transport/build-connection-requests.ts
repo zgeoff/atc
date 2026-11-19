@@ -9,8 +9,6 @@ import { buildTerminalRequests } from './build-terminal-requests';
 import type { TerminalRequests } from './build-terminal-requests';
 import type { ConnectionIdentity, RequestDeps } from './request-deps';
 
-// The request handlers of one connection, with the connection as the
-// client the fleet attaches and who it acts as.
 export interface ConnectionRequests {
   readonly client: OutputClient & TapClient;
   readonly identity: ConnectionIdentity;

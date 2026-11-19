@@ -26,7 +26,7 @@ async function setupTest() {
     options: () => ({
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
 
-      // A workspace clone reads a local upstream.
+      // A workspace clone reads a local upstream, so the file transport must be allowed.
       gitTransports: ['https', 'ssh', 'http', 'file'],
       scheduleEjectSettle: scheduler.schedule,
     }),
@@ -1082,9 +1082,6 @@ test('it refuses to eject a grok session', async () => {
   });
 });
 
-// Every accepted eject schedules its handoff's settle, so the one settle
-// scheduled after a refused eject and a later accepted one shows the
-// refused eject scheduled no handoff.
 test('it starts no headless run for a refused grok eject', async () => {
   const headless = buildStubHeadlessRunner();
   const scheduler = buildStubTimeoutScheduler();

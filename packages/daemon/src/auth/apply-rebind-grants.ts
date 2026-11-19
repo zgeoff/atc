@@ -5,8 +5,6 @@ import type { AuthBinding } from './build-auth-binding';
 import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 import { tryRevokeGrant } from './try-revoke-grant';
 
-// A rebind attempt: the binding row it moves on from, the binding it moves
-// to, and the revision and attempt it records each grant under.
 interface RebindAttempt {
   readonly row: RuntimeAuthBinding;
   readonly binding: AuthBinding;
@@ -14,9 +12,6 @@ interface RebindAttempt {
   readonly attemptID: string;
 }
 
-// Grants each secret of the new binding the host lacks, recording one it
-// already holds as preexisting, then revokes each held grant the new
-// binding drops.
 export async function applyRebindGrants(
   ledger: RuntimeAuthLedger,
   host: CredentialBroker,

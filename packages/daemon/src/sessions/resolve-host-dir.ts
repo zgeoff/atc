@@ -3,13 +3,12 @@ import type { ExecutionProvider } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 
-// prints the nearest existing directory with every symlink resolved and a newline, which keeps a
-// name ending in newlines whole, then a NUL and the rest of the path as given
+// A trailing newline in a directory name would be lost when the output is captured, so the
+// resolved directory is followed by a NUL and the unresolved rest of the path comes after it.
 export const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=\${p%/*}; [ -n "$p" ] || p=/; done; cd -P -- "$p" && pwd -P && printf '\\0%s' "$s"`;
 
-// Resolves a directory as the script above does, but fails when any part
-// of it that is not an existing directory is a symlink, such as one whose
-// target was removed, since the directory it stands for could lie anywhere.
+// A symlink with a missing target could have been a directory anywhere, so walking up past it
+// would resolve the wrong parent.
 export const RESOLVE_UNLINKED_DIR_SCRIPT = `p=$1; while [ ! -d "$p" ]; do [ ! -L "$p" ] || exit 6; p=\${p%/*}; [ -n "$p" ] || p=/; done; ${RESOLVE_DIR_SCRIPT}`;
 
 export async function resolveHostDir(

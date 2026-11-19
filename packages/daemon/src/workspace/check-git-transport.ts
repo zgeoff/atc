@@ -26,17 +26,14 @@ export function checkGitTransport(url: string, transports: readonly string[]): T
   };
 }
 
-// `<transport>::<address>`, which runs git's remote helper for the
-// transport, such as `ext::` or `fd::`.
+// git runs a remote helper for `<transport>::<address>` URLs, such as `ext::` or `fd::`, even
+// though no scheme is present.
 const HELPER_PATTERN = /^(?<name>[A-Za-z][\w+.-]*)::/u;
-
-// `<scheme>://…`.
 const SCHEME_PATTERN = /^(?<name>[A-Za-z][\w+.-]*):\/\//u;
 
-// The scp-style `user@host:path` or `host:path`, which git reads as ssh.
+// git treats `host:path` and `user@host:path` as ssh, even though no scheme is present.
 const SCP_PATTERN = /^(?:[^@/:\s]+@)?[^@/:\s]+:/u;
 
-// Schemes git treats as ssh.
 const SSH_SCHEMES: ReadonlySet<string> = new Set(['ssh', 'git+ssh', 'ssh+git']);
 
 function getTransport(url: string): string {

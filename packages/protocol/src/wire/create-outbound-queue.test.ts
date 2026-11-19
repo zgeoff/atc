@@ -9,8 +9,6 @@ import type { Socket } from 'bun';
 import { createOutboundQueue } from './create-outbound-queue';
 import type { OutboundQueue } from './create-outbound-queue';
 
-// A Unix socket server and a paused client connected to it. The server's
-// drain callback flushes whatever queue the test hangs on the socket.
 async function setupTest() {
   const temp = setupTempDir('atc-queue-');
   const opened = Promise.withResolvers<Socket<{ queue: OutboundQueue }>>();
@@ -110,8 +108,6 @@ test('it queues the unwritten rest of a payload past its capacity', async () => 
 
   ctx.socket.data = { queue };
 
-  // Large enough that the kernel buffer cannot absorb it, so a remainder
-  // parks in the queue and pushes it past its 64-byte capacity.
   const accepted = queue.send('a'.repeat(4 * 1024 * 1024));
 
   expect(accepted).toBeTrue();
@@ -125,13 +121,9 @@ test('it refuses a whole payload once the queue is over capacity', async () => {
 
   ctx.socket.data = { queue };
 
-  // Large enough that the kernel buffer cannot absorb it, so a remainder
-  // parks in the queue and pushes it past its 64-byte capacity.
   queue.send('a'.repeat(4 * 1024 * 1024));
 
   const queuedBefore = queue.queuedBytes;
-
-  // Even one byte more is refused whole once the queue is past capacity.
   const accepted = queue.send('b');
 
   expect(accepted).toBeFalse();

@@ -12,12 +12,10 @@ import { getDescriptor } from './get-descriptor';
 import type { HookScope } from './make-hook-runner';
 import type { Session } from './session';
 
-// The size a session's terminal is read at before any client attaches and
-// before its harness reports one.
 const DEFAULT_DIMS: Dims = { cols: 80, rows: 24 };
 
-// How long a resize waits for more, so two clients resizing in opposite
-// directions cannot produce a storm of window-size signals.
+// Two clients resizing in opposite directions would otherwise send a storm of window-size
+// signals to the PTY.
 const RESIZE_DEBOUNCE_MS = 50;
 
 interface SessionOutputDeps {
@@ -30,12 +28,9 @@ interface SessionOutputDeps {
   readonly emitEvent: (event: EventMsg, scope: HookScope | null) => void;
   readonly findHookScope: (sessionID: SessionID) => HookScope | null;
 
-  // Starts the wait before the session's screen is judged for attention.
   readonly scheduleDetect: (sessionID: SessionID) => void;
 }
 
-// A watcher's start: the session's size, and its screen as a replay that
-// holds every output up to seq.
 export interface SessionWatch {
   readonly cols: number;
   readonly rows: number;
@@ -44,13 +39,8 @@ export interface SessionWatch {
 }
 
 export interface SessionOutput {
-  // The screen model consumes every byte continuously: background output
-  // is consumed, not discarded.
   readonly recordOutput: (session: Session, data: string) => void;
 
-  // Replay is the serialized screen sent as ordinary output events: the
-  // client cannot tell replay from live and does not need to. A clear leads
-  // so a stale or desynced client screen resets first.
   readonly sendReplay: (sessionID: SessionID, client: OutputClient) => Promise<void>;
 
   readonly attachSession: (
@@ -67,15 +57,12 @@ export interface SessionOutput {
   readonly detachSession: (client: OutputClient, sessionID: SessionID) => void;
   readonly detachClient: (client: OutputClient) => void;
 
-  // Returns false for a client that is not attached to the session.
   readonly updateSessionDims: (client: OutputClient, sessionID: SessionID, dims: Dims) => boolean;
 
   readonly getEffectiveDims: (sessionID: SessionID) => Dims;
 
-  // A no-op effective size never reaches the PTY.
   readonly scheduleResize: (sessionID: SessionID) => void;
 
-  // Drops every attachment of a session the manager removed.
   readonly removeSession: (sessionID: SessionID) => void;
 }
 
@@ -88,8 +75,6 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
   const scheduleDetect = deps.scheduleDetect;
   const attachments = createAttachRegistry<OutputClient>();
 
-  // The clients that receive a session's output without counting toward its
-  // size.
   const watchers = new Map<SessionID, Set<OutputClient>>();
 
   const removeWatcher = (sessionID: SessionID, client: OutputClient): boolean => {
@@ -119,8 +104,6 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
     const session = manager.sessions.find((x) => x.id === sessionID);
 
-    // A host that cannot resize keeps its terminal at the size it started
-    // with; the screen model still follows the clients.
     if (session !== undefined && (manager.findProvider(session)?.capabilities.resize ?? false)) {
       session.pty?.resize(dims.cols, dims.rows);
     }
@@ -143,9 +126,8 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
     );
   };
 
-  // A detach can outlive its session (a kill removes the session before the
-  // client's connection closes), and a gone session already broadcast its
-  // removal, so a descriptor miss emits nothing.
+  // A kill removes the session before the client's connection closes, and the removal was
+  // already broadcast, so a detach with no descriptor must emit nothing.
   const emitSessionDetached = (sessionID: SessionID): void => {
     const session = manager.collectDescriptors().find((x) => x.id === sessionID);
 
@@ -160,8 +142,8 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
   const sendReplay = async (sessionID: SessionID, client: OutputClient): Promise<void> => {
     const runtime = findRuntime(sessionID);
 
-    // A watcher takes a fresh start with another watch, since a replay sent
-    // as output carries no boundary it could tell from the live output.
+    // A replay sent as output has no boundary a watcher could tell from live output, so a watcher
+    // must request a fresh watch instead.
     if (runtime === undefined || runtime.screen === null || isWatcher(sessionID, client)) {
       return;
     }
@@ -290,9 +272,8 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
       manager.requireExecution(session, 'attach');
 
-      // The watcher joins before the capture, so output recorded while the
-      // capture waits reaches it; the seq is read in the step that renders
-      // the replay, so the replay holds exactly what has a seq at or below it.
+      // The watcher joins before the capture so output recorded while the capture runs still reaches
+      // it.
       const clients = watchers.get(sessionID) ?? new Set<OutputClient>();
 
       clients.add(client);

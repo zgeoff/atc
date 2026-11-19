@@ -2,13 +2,9 @@ import type { CommandResult, ExecutionProvider } from '@atc/plugin-api';
 import { REPOSITORY_ENV_UNSET_ARGV } from './repository-env-unset-argv';
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
 
-// The git options every check runs with: every directory counts as safe,
-// since a host's files may belong to another user than the one the command
-// runs as, and no fsmonitor starts.
+// Files on a host may belong to another user, so git's ownership check would refuse them.
+// fsmonitor stays off so a check never starts a background daemon.
 const GIT_OPTIONS = ['-c', 'safe.directory=*', '-c', 'core.fsmonitor=false'];
-
-// A remote host runs git without the variables that would point it at
-// another repository than the directory it is given.
 
 export async function runHostGit(
   provider: ExecutionProvider,

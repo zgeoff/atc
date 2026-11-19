@@ -14,7 +14,6 @@ export function buildSessionMessageEvent(sessionID: SessionID, record: MessageRe
     from: record.from,
     ...(record.sender === undefined ? {} : { sender: record.sender }),
 
-    // previews only, so a broadcast stays small; the full message is fetched on request
     textPreview: truncateDetail(record.text),
     sentAt: record.sentAt,
     ...(record.deliveredAt === undefined ? {} : { deliveredAt: record.deliveredAt }),

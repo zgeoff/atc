@@ -219,8 +219,6 @@ test('it refuses a spawn whose worktree is not a git worktree and leaves no reco
   });
 
   expect(ctx.box.harnesses).toBeEmpty();
-
-  // The daemon makes the copies' directory with its first copy.
   expect(existsSync(ctx.records)).toBeFalse();
 });
 
@@ -421,8 +419,6 @@ test('it places the stored record again when a restore revives the session', asy
   const daemon = await startTestDaemon({
     prefix: 'atc-session-record-daemon-',
     options: async (paths) => {
-      // The fleet holds a session with a published record whose copy is
-      // gone, as a cleared state directory leaves it.
       const store = await createStateStore(paths.dbPath);
 
       const stopStore = registerTestCleanup(() => store.stop());

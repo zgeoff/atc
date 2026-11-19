@@ -234,8 +234,6 @@ test('it collects the events the new main client receives after a restart in the
     options: () => ({ adapter: buildMockAgentAdapter() }),
   });
 
-  // Nothing spawns before the restart, so a session added is one the new
-  // main client saw.
   const events = harness.events;
 
   await harness.restart();
@@ -449,8 +447,6 @@ test("it boots the daemon on a copy of the run's migrated database", async () =>
   invariant(runTemplate !== undefined, 'the test script exports no state template');
   copyFileSync(runTemplate, template);
 
-  // The daemon reads the last-used agent from its database into each
-  // handshake answer, and a fresh database holds none.
   const store = await createStateStore(template);
 
   const stopStore = registerTestCleanup(() => store.stop());
@@ -572,8 +568,8 @@ test('it stops the daemon and removes its directory once the test finishes witho
 
   const closes: string[] = [];
 
-  // Registered before the client opens, so it runs after the harness's
-  // release and before the client's own stop below.
+  // Cleanup hooks run in reverse order. Registering this one first makes it run after the harness
+  // releases the daemon and after the client stops.
   onTestFinished(async () => {
     await waitFor(() => {
       expect(closes).toStrictEqual(['closed']);
@@ -582,8 +578,6 @@ test('it stops the daemon and removes its directory once the test finishes witho
     expect(existsSync(harness.directory)).toBeFalse();
   });
 
-  // A client the harness does not track, so only the daemon's stop closes
-  // it.
   const outside = await openDaemonClient(harness.socketPath);
 
   onTestFinished(() => {

@@ -3,10 +3,8 @@ import type { Socket } from 'node:net';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 
 interface StubAnsweringListener {
-  // The server's side of each connection it accepted, in order.
   readonly peers: readonly Socket[];
 
-  // The first read each connection sent, decoded, in arrival order.
   readonly lines: readonly string[];
   readonly stop: () => Promise<void>;
 }

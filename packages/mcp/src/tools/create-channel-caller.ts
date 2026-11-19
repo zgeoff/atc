@@ -25,7 +25,8 @@ export function createChannelCaller(openHandshaken: () => Promise<DaemonChannel>
       try {
         return await opened.sendRequest(method, params, principal?.id, principal?.name);
       } catch (error) {
-        // only a read-only or keyed request is retried, since any other must not run twice.
+        // The daemon may have run the request before the connection dropped, so resending is safe
+        // only for read-only or keyed requests.
         if (
           !transport.isLost(opened) ||
           !(keyed || PROCEDURE_TRAITS.get(method)?.readOnly === true)
@@ -42,7 +43,6 @@ export function createChannelCaller(openHandshaken: () => Promise<DaemonChannel>
     // A single daemon routes to no named daemons.
     features: new Set<FleetFeature>(),
 
-    // Handshakes, so a daemon that cannot be reached refuses the wait.
     waitForDaemon: async () => {
       await transport.waitForConnection();
     },
@@ -55,8 +55,6 @@ export function createChannelCaller(openHandshaken: () => Promise<DaemonChannel>
   };
 }
 
-// The request's params with its idempotency key, minting one when the caller
-// passed none.
 function buildKeyedParams(
   params: Readonly<Record<string, unknown>> | undefined,
 ): Readonly<Record<string, unknown>> {

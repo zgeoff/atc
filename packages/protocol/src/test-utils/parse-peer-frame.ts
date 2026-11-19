@@ -3,9 +3,6 @@ import { StandardRPCJsonSerializer, StandardRPCSerializer } from '@orpc/client/s
 import { MessageType, deserializeResponseMessage } from '@orpc/standard-server-peer';
 import type { BaseMessageFormat, DecodedResponseMessage } from '@orpc/standard-server-peer';
 
-// One message a daemon wrote to a peer client, decoded the way the client
-// decodes it: a response with its status and body, one event of a stream, or
-// the end of a stream the daemon aborted.
 export type PeerFrame =
   | {
       readonly kind: 'response';
@@ -56,8 +53,6 @@ export function parsePeerFrame(line: string): PeerFrame {
     };
   }
 
-  // A message type with no branch above fails the type check here, so a new
-  // one cannot fall through as an abort.
   const abort: AbortMessage = message;
 
   return { kind: 'abort', id: abort[0] };

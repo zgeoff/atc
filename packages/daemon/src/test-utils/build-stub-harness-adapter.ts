@@ -5,14 +5,10 @@ import type { HookEvent } from '@atc/protocol/session';
 import type { SessionID } from '@atcx/contract';
 
 interface StubHarnessAdapterConfig {
-  // The adapter's id; `claude` when absent.
   readonly id?: AgentID;
 
-  // The events each hook event name means, keyed by the name; a name the
-  // table lacks means one heartbeat.
   readonly hooks?: Readonly<Record<string, readonly Readonly<AdapterEvent>[]>>;
 
-  // Whether sessions take inbox messages; false when absent.
   readonly takesMessages?: boolean;
 }
 
@@ -22,10 +18,8 @@ interface StubHookRead {
 }
 
 export interface StubHarnessAdapter extends AgentAdapter {
-  // Every spawn planned, in order, with the session it starts.
   readonly spawns: { readonly opts: SpawnOptions; readonly session?: SessionID }[];
 
-  // Every hook line read, in order.
   readonly hookReads: StubHookRead[];
 }
 
@@ -46,7 +40,6 @@ export function buildStubHarnessAdapter(config: StubHarnessAdapterConfig = {}): 
 
       spawns.push(spawn);
 
-      // only an in-memory host starts this binary
       return { bin: 'stub-harness', args: [] };
     },
     planHookEvents: (hook, previous) => {
@@ -55,8 +48,6 @@ export function buildStubHarnessAdapter(config: StubHarnessAdapterConfig = {}): 
       return {
         events: hooks[hook.event] ?? [{ kind: 'heartbeat' }],
 
-        // the state counts the lines the harness reported since it booted, so a test
-        // can tell which state the daemon kept for which session
         next: (typeof previous === 'number' ? previous : 0) + 1,
       };
     },

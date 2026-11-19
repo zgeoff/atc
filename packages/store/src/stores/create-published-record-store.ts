@@ -3,10 +3,7 @@ import type { Kysely } from 'kysely';
 import { parsePublishedRecord } from '../published-records/parse-published-record';
 import type { StateStoreSchema } from '../sqlite/state-store-schema';
 
-// The record each session last published, keyed by the session.
 export interface PublishedRecordStore {
-  // A row whose JSON no longer reads as a record counts as no record, so
-  // the next delivery records the session afresh.
   readonly readPublishedRecord: (sessionID: SessionID) => Promise<PublishedRecord | null>;
   readonly writePublishedRecord: (record: PublishedRecord) => Promise<void>;
   readonly removePublishedRecord: (sessionID: SessionID) => Promise<void>;

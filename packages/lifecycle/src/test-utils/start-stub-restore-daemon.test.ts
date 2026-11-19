@@ -8,7 +8,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openDaemonClient } from '@atc/protocol/client';
 import { startStubRestoreDaemon } from './start-stub-restore-daemon';
 
-// A temp directory holding the stub daemon's socket, with the daemon started.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-restore-daemon-');
   const socketPath = join(temporaryDirectory.path, 'daemon.sock');
@@ -60,11 +59,8 @@ test('it withholds the answer to a session list once no reply is left', async ()
 
   const listed = client.sendRequest('session.list');
 
-  // Closing the client rejects the withheld list; nothing awaits it.
   void Promise.allSettled([listed]);
 
-  // The stub answers in arrival order on one connection, so an answer to
-  // the list would reach the client before the restore's.
   await client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
   expect(Bun.peek.status(listed)).toBe('pending');
@@ -155,13 +151,9 @@ test('it stops listening once stopped', () => {
 });
 
 test('it stops listening once the test finishes without a stop', () => {
-  // The socket sits outside any directory the test removes, so only the
-  // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-restore-${randomUUID()}.sock`);
   let left: boolean | null = null;
 
-  // Runs after the helper's own release, which registers later; it
-  // records whether that release left the socket, then removes it.
   registerTestCleanup(() => {
     left = existsSync(path);
 

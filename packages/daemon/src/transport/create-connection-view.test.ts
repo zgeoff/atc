@@ -6,8 +6,6 @@ import type { SessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { createConnectionView } from './create-connection-view';
 
-// A view over a fleet the test edits: the sessions the daemon holds, and
-// the ones the access reaches.
 function setupTest() {
   const held = new Set<SessionID>();
   const reached = new Set<SessionID>();

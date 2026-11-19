@@ -1,9 +1,8 @@
 import { posix } from 'node:path';
 import type { ExecutionProvider } from '@atc/plugin-api';
 
-// prints each folder directly under a folder, and no symlink, NUL-ended. A failed `test` cannot
-// tell a missing path from an error such as a name too long, so the script reads find's errors,
-// in the C locale, and counts the folder as missing only when every one is ENOENT
+// A failed `test` cannot tell a missing path from an error such as a name too long, so the
+// script reads find's errors instead. It sets the C locale so the error message text is stable.
 export const LIST_SUBDIRS_SCRIPT = String.raw`
 LC_ALL=C
 export LC_ALL
@@ -13,8 +12,6 @@ printf '%s\n' "$errors" | grep -qv ': No such file or directory$' || exit 0
 printf '%s\n' "$errors" >&2
 exit 1`;
 
-// The folders directly under an absolute folder on a host; rejects with the host's error when it
-// could not list them, so a failed listing never reads as an empty folder.
 export async function readHostSubdirs(
   provider: Pick<ExecutionProvider, 'runCommand'>,
   directory: string,

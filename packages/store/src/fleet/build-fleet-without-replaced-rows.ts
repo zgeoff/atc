@@ -2,9 +2,6 @@ import type { SessionID } from '@atcx/contract';
 import { findReplacement } from './find-replacement';
 import type { FleetEntry } from './fleet-entry';
 
-// One row per agent session id and target, the entry written last, plus every
-// live row on another target, relinked one level deep. Every walk takes at most
-// one step per entry, so it ends on any input.
 export function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): FleetEntry[] {
   const replaced = new Map<SessionID, SessionID>();
 
@@ -23,9 +20,6 @@ export function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): F
 
   const bound = entries.length;
 
-  // The surviving row an entry's parent link resolves to, or undefined when
-  // it resolves to no row the fleet keeps. A row that replaced its own parent
-  // follows that parent's link instead.
   const findSurvivingParent = (entry: FleetEntry): SessionID | undefined => {
     let link = entry.parent;
 
@@ -44,8 +38,6 @@ export function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): F
 
   const linked = new Map(kept.map((entry) => [entry.sessionID, findSurvivingParent(entry)]));
 
-  // The row written first in the cycle a walk up from this row enters, or
-  // undefined when the walk reaches a top-level row.
   const findCycleStart = (sessionID: SessionID): SessionID | undefined => {
     const seen: SessionID[] = [];
     let current: SessionID | undefined = sessionID;
@@ -75,7 +67,6 @@ export function buildFleetWithoutReplacedRows(entries: readonly FleetEntry[]): F
     }
   }
 
-  // The top-level row a walk up from this row reaches.
   const findTopLevel = (sessionID: SessionID): SessionID => {
     let current = sessionID;
 

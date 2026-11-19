@@ -13,8 +13,7 @@ import { $ } from 'bun';
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: createMigratedStateDB });
 
-  // The list shows the account's repositories through gh; a signed-out one
-  // keeps the list from reaching the host's own gh.
+  // A signed-out gh keeps the list from reaching the host's own gh.
   createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
 
   const fixture = await createGitFixture();
@@ -160,8 +159,6 @@ test('it returns a spawn whose commit left the upstream to the ref step with the
 
   await ctx.waitFor('spawn: initial prompt');
 
-  // Main moves to an unrelated commit and the old one is pruned, so the
-  // pinned commit is no longer in the upstream.
   await $`git checkout --quiet --orphan rewritten`
     .env(ctx.fixture.env)
     .cwd(ctx.fixture.work)

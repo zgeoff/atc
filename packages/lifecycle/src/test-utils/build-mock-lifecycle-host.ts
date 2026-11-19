@@ -18,7 +18,6 @@ export function buildMockLifecycleHost(
       restoreBootTimeoutMs: 15_000,
       findManagedUnit: () => null,
 
-      // a missing systemctl, so no test reaches a real service manager.
       runSystemctl: () =>
         Promise.resolve({
           code: 127,

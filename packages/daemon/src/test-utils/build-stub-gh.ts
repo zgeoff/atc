@@ -5,12 +5,8 @@ interface StubGHReply {
 }
 
 interface StubGHOptions {
-  // What each command prints and exits with, keyed by its first argument,
-  // such as `repo` or `config`; `hang` waits until the command is killed.
-  // A command without a reply prints nothing and exits 0.
   readonly replies: Readonly<Record<string, StubGHReply | 'hang'>>;
 
-  // A file each run appends its arguments to, as one line.
   readonly argvFile?: string;
 }
 

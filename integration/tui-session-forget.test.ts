@@ -9,10 +9,6 @@ import { createStubExecutionProvider } from '@atc/execution-local/test-utils/cre
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createSessionActionsHarness } from '@atc/tui/test-utils/create-session-actions-harness';
 
-// The overlay's session actions run against a daemon in the test's process. A session on
-// `local` runs `sleep` in a real terminal; one on `imp` runs in a stand-in host that a forget
-// destroys.
-
 async function setupTest() {
   const imp = createStubExecutionProvider({
     kind: 'imp-like',

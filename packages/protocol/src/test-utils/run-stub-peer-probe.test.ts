@@ -5,8 +5,6 @@ import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
-// A socket path and an output path in a fresh temp directory, and the probe
-// script's path.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-peer-probe-');
 

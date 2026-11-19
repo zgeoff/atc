@@ -12,23 +12,17 @@ type StubGHRelease = z.infer<typeof RELEASE_SCHEMA>;
 interface StubGHReleasesOptions {
   readonly releases: readonly StubGHRelease[];
 
-  // Releases that another branch publishes, in order, one before each edit
-  // lands, so each takes the latest mark first. Absent adds none.
   readonly rivals?: readonly string[];
 }
 
 interface StubGHReleases {
-  // The directory that holds the stub `gh`, for the front of PATH.
   readonly directory: string;
 
   readonly readReleases: () => StubGHRelease[];
 
-  // Each run's arguments, one line per run.
   readonly readCalls: () => string[];
 }
 
-// `gh release list` prints the releases as `--json tagName,isLatest` does,
-// and `gh release edit <tag> --latest` moves the mark to that tag.
 export function createStubGHReleases(
   directory: string,
   options: StubGHReleasesOptions,

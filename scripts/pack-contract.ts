@@ -1,5 +1,3 @@
-// Builds @atcx/contract as npm publishes it and packs it into a folder, then
-// prints the tarball's path. Usage: bun scripts/pack-contract.ts --out <dir> [root]
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';

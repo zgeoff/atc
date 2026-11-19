@@ -1,9 +1,8 @@
 import { GATEWAY_PATHS } from '@atcx/contract';
 import { normalizePublicURL } from './normalize-public-url';
 
-// The resource `startMCPHTTPServer` will serve, known before it binds. Null
-// when the origin is not yet known: an unusable public URL, which the server
-// reports itself, or no public URL on port 0, where the OS picks the port.
+// A bad public URL yields no origin because the server reports that error itself; port 0
+// with no public URL has none either, because the OS picks the port only at bind time.
 export function findMCPResource(publicURL: string | null, port: number): string | null {
   if (publicURL !== null) {
     try {

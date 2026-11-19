@@ -4,8 +4,6 @@ import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { setupMCPHome } from '@atc/lifecycle/test-utils/setup-mcp-home';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 
-// A daemon of the test's own on a home with the stand-in agents, which the
-// `atc mcp` server joins instead of booting one.
 async function setupTest() {
   const mcpHome = setupMCPHome();
   const daemon = startDaemonProcess({ command: resolveATCCommand(), home: mcpHome.home });

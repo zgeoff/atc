@@ -4,7 +4,6 @@ export interface BridgeSocket {
   readonly writeLine: (value: Readonly<Record<string, unknown>>) => void;
   readonly end: () => void;
 
-  // Settles once the connection has closed, from either side.
   readonly closed: Promise<void>;
 }
 

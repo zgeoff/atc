@@ -3,11 +3,7 @@ import { decodeGatewayCursor } from './decode-gateway-cursor';
 
 export type EventReadStart =
   | { readonly kind: 'after'; readonly cursor: string | null }
-
-  // pinned at its newest event, for a daemon the cursor leaves out
   | { readonly kind: 'newest' }
-
-  // read without a cursor and reported as started, for a daemon the cursor holds as null
   | { readonly kind: 'latest' };
 
 export function planEventReads(

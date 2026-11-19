@@ -267,9 +267,8 @@ test.each([
       provider.dispose();
     });
 
-    // A gzip ahead of the guest's own on its PATH hands tar the first bytes
-    // of the unpacked archive, marks the pause, and holds the rest back
-    // until the test lets it go, as a slow link to impd does.
+    // tar runs the first gzip on the guest's PATH, so a stub placed there can stall the unpack
+    // after a set number of bytes, the way a slow link to impd does.
     const realGzip = Bun.which('gzip');
 
     invariant(realGzip !== null);
@@ -428,9 +427,6 @@ test("it copies the daemon's atc it compressed for an earlier readying into a la
   });
 
   await first.prepareHost({ host: 's1', daemonID: 'd1', installATC: true });
-
-  // A binary that changed on disk would reach the second imp only if the
-  // second readying read and compressed it again.
   await Bun.write(atcBinary, '#!/bin/sh\necho 2.0.0\n');
   await second.prepareHost({ host: 's2', daemonID: 'd1', installATC: true });
 
@@ -818,9 +814,6 @@ test('it writes a read-only file through impd', async () => {
 
 test('it has no read-only file on an imp whose agent is from before them', async () => {
   const ctx = setupTest();
-
-  // the port holds no folder for read-only files, as an imp still on an
-  // older agent
 
   const provider = createImpProvider(
     ctx.port,
@@ -1538,7 +1531,6 @@ test('it refuses a transfer to an imp without gzip and leaves the directory uncr
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1' });
 
-  // The guest's PATH holds every tool the unpack runs except gzip.
   const bin = join(ctx.directory, 'bin');
 
   mkdirSync(bin);
@@ -1824,9 +1816,6 @@ test('it listens on the guest socket again when impd refuses the sleep that was 
   await harness.waitForStart();
 
   ctx.port.acquireOtherLease('atc-s1', 'token:other', 'build', 60);
-
-  // The sleep holds at its lease release until the forward has ended, so the
-  // end arrives while the sleep is pending.
   ctx.port.startReleaseHold();
 
   registerTestCleanup(() => {
@@ -1900,8 +1889,6 @@ test('it listens on the guest socket again when impd fails the destroy that was 
 
   await harness.waitForStart();
 
-  // The destroy holds at impd until the forward has ended, so the end
-  // arrives while the destroy is pending.
   ctx.port.startDestroyHold();
 
   registerTestCleanup(() => {
@@ -2342,7 +2329,6 @@ test("it lets a service check a caller's imp against the host a session read rep
 
   await provider.prepareHost({ host: 's1', daemonID: 'd1' });
 
-  // The session read carries the provider's host fact as the descriptor's host.
   const read = SESSION_DESCRIPTOR_SCHEMA.parse({
     ...buildMockSessionDescriptor(),
     host: provider.findHostFact('s1'),

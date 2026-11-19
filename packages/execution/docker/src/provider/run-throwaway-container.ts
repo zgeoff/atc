@@ -18,7 +18,6 @@ export interface ThrowawayResult {
   readonly stderr: Uint8Array;
 }
 
-// Runs a command to completion in a container of its own and removes the container.
 export async function runThrowawayContainer(
   engine: DockerEngine,
   run: ThrowawayRun,

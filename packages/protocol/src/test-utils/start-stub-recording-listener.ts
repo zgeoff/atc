@@ -2,10 +2,8 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import type { Socket } from 'bun';
 
 interface StubRecordingListener {
-  // Resolves with the server's side of the first connection it accepts.
   readonly accepted: Promise<Socket>;
 
-  // What each read took from any connection, decoded, in arrival order.
   readonly received: readonly string[];
   readonly stop: () => void;
 }

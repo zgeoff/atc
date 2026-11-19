@@ -24,16 +24,11 @@ export interface GatewayConfig {
 interface Gateways {
   readonly gateways: GatewayConfig[];
 
-  // The problems that kept a gateway with `auth` out, one per problem.
   readonly errors: string[];
 }
 
-// Ids the built-in adapters answer to; a gateway may not take one.
 const BUILT_IN_IDS = new Set(['claude', 'grok', 'codex']);
 
-// One gateway map entry's keys. An absent or wrong-typed field parses to
-// undefined rather than failing the entry, so a gateway with one bad field
-// still registers with the default for it.
 const GATEWAY_ENTRY_SCHEMA = z.object({
   label: buildOptionalNonEmptyString(),
   mark: buildOptionalNonEmptyString(),
@@ -45,8 +40,6 @@ const GATEWAY_ENTRY_SCHEMA = z.object({
   settings: buildOptionalSettings(),
 });
 
-// an entry without a base URL or under a taken id is left out rather than registered
-// half-formed, so every gateway returned can be spawned
 export function collectGateways(
   raw: unknown,
   claudeBin: string,
@@ -84,8 +77,6 @@ export function collectGateways(
       auth = checked;
     }
 
-    // the mark's first code point; mark falls back to id, and both are
-    // checked non-empty above, so the empty default never applies
     const [firstOfMark = ''] = parsed.data.mark ?? id;
 
     gateways.push({
@@ -105,8 +96,6 @@ export function collectGateways(
   return { gateways, errors };
 }
 
-// String values only: everything here is handed to a child process as an
-// environment variable.
 function buildStringEnvRecord() {
   return z.preprocess(
     (input) => {
@@ -128,8 +117,6 @@ function buildStringEnvRecord() {
   );
 }
 
-// Claude Code settings the sessions of this gateway are started with, on top of
-// the ones atc writes itself. Anything but an object is no extra settings.
 function buildOptionalSettings() {
   return z.preprocess(
     (input) => (isRecord(input) ? input : undefined),

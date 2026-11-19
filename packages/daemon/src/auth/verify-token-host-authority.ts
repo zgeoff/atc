@@ -22,8 +22,6 @@ export function verifyTokenHostAuthority(
 
   const patterns = identity.hosts;
 
-  // any pattern beyond the prefix refuses the token outright, however few names
-  // it reaches; a contained pattern never stands in for it
   if (patterns === null || !patterns.every((pattern) => isPatternContained(pattern, hostPrefix))) {
     throw new BrokerAuthorityError(
       'auth_token_too_broad',
@@ -50,14 +48,12 @@ export function verifyTokenHostAuthority(
   }
 }
 
-// An empty prefix would contain every pattern, `*` included.
 function assertHostPrefix(hostPrefix: string): void {
   if (hostPrefix === '') {
     throw new Error('the host name prefix of a runtime namespace must not be empty');
   }
 }
 
-// Every name a pattern matches starts with the text before its first `*`.
 function isPatternContained(pattern: string, hostPrefix: string): boolean {
   const [literal = ''] = pattern.split('*');
 

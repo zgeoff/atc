@@ -3,8 +3,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
 
 interface OpenOutputWatch {
-  // Arms the bound to fire after the delay, and returns the function that
-  // disarms it.
   readonly schedule: (fire: () => void, afterMs: number) => () => void;
   readonly report: (line: string) => void;
 }
@@ -15,19 +13,12 @@ interface GitRunOptions {
   readonly input?: string;
   readonly isolated?: boolean;
 
-  // How long the command may run before it is stopped and reported as
-  // timed out; unset waits as long as git takes.
   readonly timeoutMs?: number;
 
-  // The transports git may fetch over; https and ssh when unset.
   readonly transports?: readonly string[];
 
-  // Called with the pid of the started git right after it starts; that pid
-  // is also its process group's id.
   readonly onSpawn?: ((pid: number) => void) | undefined;
 
-  // Bounds the wait for the output of a git that has exited; a 30 s timer
-  // and a line on stderr when unset.
   readonly openOutputWatch?: OpenOutputWatch;
 }
 
@@ -87,8 +78,8 @@ export async function runGit(
       ...options.env,
       ...(isolated ? ISOLATED_ENV : {}),
 
-      // the daemon has no terminal to answer a prompt, callers read git's messages in the C
-      // locale, and git fetches only over the given transports, whatever a rewrite hands it
+      // A url rewrite in the host config can send a fetch over a transport the caller did not pick.
+      // Git checks the rewritten url against the allowed protocols too.
       GIT_TERMINAL_PROMPT: '0',
       LC_ALL: 'C',
       GIT_ALLOW_PROTOCOL: (options.transports ?? DEFAULT_GIT_TRANSPORTS).join(':'),
@@ -149,7 +140,6 @@ export async function runGit(
   }
 
   if (settled === null) {
-    // The group is stopped here, so the bound has nothing left to wait for.
     stopped.resolve();
 
     try {
@@ -188,8 +178,7 @@ interface WaitForOutputCloseOptions {
   readonly stopped: Readonly<Promise<void>>;
 }
 
-// the hangup of output whose writer is gone may never arrive, so past the bound the run
-// reports which git it waited on, kills git's process group, and fails
+// A helper that outlives git can keep the output pipes open, so the hangup may never arrive.
 async function waitForOutputClose(options: WaitForOutputCloseOptions): Promise<void> {
   const pid = options.pid;
   const subcommand = options.subcommand;
@@ -220,9 +209,8 @@ async function waitForOutputClose(options: WaitForOutputCloseOptions): Promise<v
   }
 }
 
-// The git subcommand among the arguments: the first that is neither an
-// option nor the value of a `-c` or `-C`. The report holds only it, since
-// another argument, such as a URL, can hold a credential.
+// Only the subcommand goes in the report, because any other argument, such as a URL, can hold
+// a credential.
 function findSubcommand(args: readonly string[]): string | undefined {
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];

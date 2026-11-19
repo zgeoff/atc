@@ -1,8 +1,6 @@
 import type { ExecutionProvider, HarnessSpec, HostRequest } from '@atc/plugin-api';
 import { createLocalPTYProvider } from '../create-local-pty-provider';
 
-// Each host preparation holds until the test releases that host, so a test
-// can act while a harness is still starting.
 export function createStubHeldProvider() {
   const local = createLocalPTYProvider();
 

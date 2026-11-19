@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readSourceFiles } from './read-source-files';
 
-// A temp directory standing in for a repo root.
 function setupTest() {
   const temporaryDirectory = setupTempDir('collect-source-files-');
 

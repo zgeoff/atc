@@ -5,9 +5,6 @@ interface ModernMCPAnswer {
   readonly body: Readonly<Record<string, unknown>>;
 }
 
-// One request in the stateless `2026-07-28` form: the protocol version and
-// the client's identity ride in `_meta`, and the headers mirror the method
-// and, when the params hold one, the name.
 export async function sendModernMCPRequest(
   url: string,
   token: string,

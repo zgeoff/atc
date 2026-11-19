@@ -1,6 +1,5 @@
 import type { SessionKey } from './session-key';
 
-// A map that takes a SessionKey, so no caller encodes one.
 export interface SessionMap<T> {
   readonly get: (key: SessionKey) => T | undefined;
   readonly set: (key: SessionKey, value: T) => void;

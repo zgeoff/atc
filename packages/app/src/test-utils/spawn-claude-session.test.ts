@@ -5,8 +5,6 @@ import { spawnClaudeSession } from './spawn-claude-session';
 import { startTUIDaemon } from './start-tui-daemon';
 import { startTUIHarness } from './start-tui-harness';
 
-// The client booted to its home screen against a daemon in the test's
-// process, and a client of that daemon to read the fleet through.
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: () => {} });
 

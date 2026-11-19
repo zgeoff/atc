@@ -2,8 +2,6 @@ import { expect, test } from 'bun:test';
 import { startMCPStdio } from '@atc/app/test-utils/start-mcp-stdio';
 import { setupMCPHome } from '@atc/lifecycle/test-utils/setup-mcp-home';
 
-// A home with the stand-in agents registered, for the real `atc mcp` server
-// each test starts there.
 function setupTest() {
   const mcpHome = setupMCPHome();
 
@@ -67,7 +65,6 @@ test('it rejects a request still pending when the server stops', async () => {
 
   const held = mcp.sendToolCall('atc_events_read', { waitMs: 4000 });
 
-  // The helper's own release awaits this stop once the test finishes.
   void mcp.stop();
   expect(held).rejects.toThrowWithMessage(Error, /^atc mcp stopped answering before request 2$/u);
 });

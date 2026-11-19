@@ -5,8 +5,6 @@ export interface HandshakeRefusal {
 
 const refusalPattern = /^atc tcp event=handshake_refused peer=(?<peer>\S+) reason=(?<reason>\S+)/u;
 
-// The handshakes the daemon's TCP listener refused, in order, from the lines of its stderr. Any
-// other line is left out.
 export function collectHandshakeRefusals(lines: readonly string[]): HandshakeRefusal[] {
   return lines.flatMap((line) => {
     const groups = refusalPattern.exec(line)?.groups;

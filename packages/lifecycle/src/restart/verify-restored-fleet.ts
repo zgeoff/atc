@@ -6,7 +6,6 @@ import { readStoredRows } from '@atc/store';
 import type { RestartFailedRow } from '@atcx/contract';
 
 interface FleetVerdict {
-  // The rows the daemon stored, exited ones included.
   readonly total: number;
   readonly failed: readonly RestartFailedRow[];
 }
@@ -28,8 +27,6 @@ export async function verifyRestoredFleet(
   const timeoutSeconds = options.timeoutSeconds;
   const startedAt = clock.now();
 
-  // Without a snapshot the rows come from the new daemon, and its count is
-  // not known until they are read, so that read gets the fixed allowance.
   const read =
     options.snapshot === null
       ? await sendBounded(
@@ -66,8 +63,6 @@ export async function verifyRestoredFleet(
   return { total: stored.length, failed: found.failed };
 }
 
-// the deadline rejects so a daemon that stops answering cannot hold the
-// restart, and its lock, open.
 async function sendBounded<T>(send: () => Promise<T>, deadline: number, clock: Clock): Promise<T> {
   let stopTimer: (() => void) | undefined;
 
@@ -117,11 +112,8 @@ async function tryRestore(
   }
 }
 
-// How long the agent list may take, so a daemon that withholds it still
-// leaves the rest of the deadline to list the rows.
 const AGENTS_READ_MS = 5000;
 
-// null keeps every row one that waiting can still revive.
 async function tryReadAgentIDs(
   client: Pick<DaemonClient, 'sendRequest'>,
   deadline: number,
@@ -146,8 +138,6 @@ async function tryReadAgentIDs(
   }
 }
 
-// The rows that are not restored yet, and whether waiting longer can still
-// change that.
 interface FailedRows {
   readonly failed: readonly RestartFailedRow[];
   readonly pending: boolean;
@@ -178,16 +168,12 @@ async function readFailedRows(
     if (session === undefined) {
       failed.push({ name: row.name, id: row.id, reason: 'not listed after the restore' });
 
-      // A finished restore lists every row it registers, so a row still
-      // missing never appears; after a failed restore it may yet.
       pending ||= !outcome.restored;
     } else if (
       !row.exited &&
       !(session['alive'] === true && session['kind'] === 'pty') &&
       typeof session['restoreRefusal'] === 'string'
     ) {
-      // A refusal no later try of the restore lifts waits on an action of
-      // the operator's own, so no wait revives the row.
       failed.push({
         name: row.name,
         id: row.id,
@@ -200,8 +186,6 @@ async function readFailedRows(
         reason: `listed in state ${String(session['state'])} without a terminal: ${String(session['lastMsg'])}`,
       });
 
-      // A row whose agent is gone from the config never gets a terminal,
-      // while one whose agent is listed but not installed yet still may.
       pending ||= outcome.agents === null || outcome.agents.has(String(session['agent']));
     }
   }

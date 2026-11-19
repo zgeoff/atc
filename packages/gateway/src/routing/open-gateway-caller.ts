@@ -10,22 +10,14 @@ interface GatewayCallerOptions {
   readonly registry: GatewayRegistry;
   readonly build: string;
 
-  // Connects to a daemon's TCP address.
   readonly openChannel: (address: RegistryDaemon['address']) => Promise<GatewayChannel>;
 
-  // The database of keyed-request bindings, which the caller closes when it stops.
   readonly bindings: BindingDatabase;
 
-  // How long each daemon may take to answer a call asked of every daemon.
   readonly fanOutTimeoutMs?: number;
 
-  // Runs each daemon connection's connect and response timers and the
-  // fan-out waits, and reads the time for the binding store; the system
-  // clock when unset.
   readonly clock?: Clock;
 
-  // Takes the line about a daemon the gateway serves despite a gap in its
-  // handshake, such as a feature it lacks.
   readonly onWarning: (message: string) => void;
 }
 

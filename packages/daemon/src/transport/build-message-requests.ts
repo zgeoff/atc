@@ -5,8 +5,6 @@ import type { DaemonContext } from '../types';
 import { buildKeyedRequest } from './build-keyed-request';
 import type { RequestDeps, RequestPrincipal } from './request-deps';
 
-// The requests that send messages between sessions and take them from a
-// session's inbox.
 export interface MessageRequests {
   readonly applySessionMessage: (
     data: RequestParams<'session.message'>,
@@ -39,8 +37,6 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
   const client = deps.client;
   const identity = deps.identity;
 
-  // The kernel's session wins over any principal a request gives. A local name is the only
-  // part of the request's params that labels the message, and never changes the kind.
   const findMessageCaller = (
     as: RequestPrincipal | null,
     localName: string | undefined,
@@ -76,12 +72,8 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
         throw new DaemonError('bad_args', 'replayOnly needs an idempotencyKey');
       }
 
-      // The hash leaves out a local caller's name, which only labels the
-      // message, so a retry under another name replays the same send.
       const { from: localName, ...hashed } = data;
       const keyed = buildKeyedRequest(hashed);
-
-      // A send that needs no answer leaves no session to notify.
       const noticeSession = data.notice === false ? null : identity.callerSession;
 
       const result = await ctx.writeSessionMessage({
@@ -141,8 +133,6 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
 
       const record = view.record;
 
-      // A message the turn also answered is listed only while the session it
-      // was sent to is in view, checked in the step that sends.
       const answeredWith = view.answeredWith
         .filter((sibling) => ctx.isSessionVisible(sibling.atcID))
         .map((sibling) => sibling.id);
@@ -206,8 +196,6 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
   };
 }
 
-// The client name every atc client gives in its handshake: the atc build,
-// `atc/` and its version.
 const ATC_CLIENT_PREFIX = 'atc/';
 
 function isAtcClient(client: string): boolean {

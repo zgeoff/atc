@@ -2,9 +2,8 @@ import type { CredentialBroker } from '@atc/plugin-api';
 import type { RuntimeAuthBinding } from '@atc/store';
 import { BrokerAuthorityError } from './broker-authority-error';
 
-// Refuses a provider whose name for the host is not the host the binding
-// recorded, such as after the target's host name prefix changed, so a
-// destroy by host key never reaches another host.
+// A changed host name prefix on the target can make a host key point at a different host.
+// Destroying by host key would then reach the wrong host.
 export function assertRecordedHostName(host: CredentialBroker, row: RuntimeAuthBinding): void {
   const name = host.getHostName(row.hostKey);
 

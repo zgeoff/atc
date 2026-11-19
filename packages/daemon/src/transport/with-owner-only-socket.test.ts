@@ -5,8 +5,6 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { withOwnerOnlySocket } from './with-owner-only-socket';
 
-// A socket path in a fresh temp directory, under a umask that grants every
-// bit, so a mode the helper did not set shows in the socket.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-owner-only-socket-');
   const previous = process.umask(0o000);
@@ -57,7 +55,7 @@ test('it restores the process umask when the bind throws', () => {
     }),
   ).toThrowWithMessage(Error, 'bind failed');
 
-  // Setting the umask returns the one it replaces; the bare read form is
-  // deprecated because it writes the umask twice.
+  // Reading the umask with no argument is deprecated because it writes the umask twice.
+  // Setting it returns the previous value, so the test reads it that way.
   expect(process.umask(0o000)).toBe(0o000);
 });

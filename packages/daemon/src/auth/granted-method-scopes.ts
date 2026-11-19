@@ -1,8 +1,7 @@
 import type { GrantScope } from '@atcx/contract';
 
-// The requests the atc MCP tools send, less the ones that read the daemon
-// host's files or the whole fleet; a method the table leaves out is refused
-// whatever a session's atc access holds.
+// Methods that read the daemon host's files or the whole fleet are left out on purpose.
+// A method missing here is refused, whatever access the session holds.
 export const GRANTED_METHOD_SCOPES: Readonly<Record<string, GrantScope | 'any'>> = {
   'daemon.hello': 'any',
   'daemon.ping': 'any',

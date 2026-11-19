@@ -19,8 +19,8 @@ export function waitForEvent<TEvent extends { readonly ev: string }>(
   }, options);
 }
 
-// The match runs on a copy: Bun's toMatchObject writes each asymmetric
-// matcher it compares over the field it matched in the received object.
+// Match on a copy: Bun's matcher overwrites fields of the received object
+// with the asymmetric matchers it compares.
 function isMatch(event: unknown, shape: Readonly<Record<string, unknown>>): boolean {
   try {
     expect(structuredClone(event)).toMatchObject(shape);

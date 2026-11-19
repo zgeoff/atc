@@ -8,30 +8,21 @@ import type { StubImpFleet } from './create-stub-imp-fleet';
 import { mergeTail } from './merge-tail';
 import type { StubConnection, StubImp, StubProcess } from './stub-imp';
 
-// What impd does with the next session requests instead of answering them,
-// which a test sets.
 export interface StubSessionFaults {
-  // How many of the next session requests impd drops before it answers,
-  // and the close code it drops them with.
   drops: { count: number; closeCode: number };
 
-  // A refusal outside impd's contract that the next session request gets
-  // instead, or null.
+  // A refusal outside impd's contract that the next session request gets instead of an answer.
   nextMalformedFailure: { readonly code: string; readonly data: unknown } | null;
 
-  // A refusal the next session request gets instead of an answer, with the
-  // message it carries when it has one of its own.
   nextFailure: {
     readonly refusal: ImpdExecRefusal;
     readonly message?: string;
   } | null;
 
-  // Whether the broker fails in every imp, as a CA that did not install
-  // leaves it.
+  // Stands in for a CA that did not install, which leaves the broker failing in every imp.
   brokerFailing: boolean;
 }
 
-// What a session's agent carries, read when the answer goes out.
 interface StubSessionSettings {
   readonly continuity: 'offsets' | 'none';
   readonly resumeOverlap: number;
@@ -44,8 +35,6 @@ export interface StubSessionContext {
   readonly settings: StubSessionSettings;
 }
 
-// impd's answer to a session request that reached it: a fault a test set, a
-// refusal, or a process started or joined and attached to the connection.
 export function answerStubSession(
   context: StubSessionContext,
   request: ImpSessionRequest,
@@ -273,8 +262,6 @@ function startProcess(
 
     const connection = subprocess.connection;
 
-    // An exit nobody received stays attachable until a connection
-    // delivers it.
     if (connection !== null) {
       imp.sessions.delete(request.session);
       connection.stop({ kind: 'exit', code: exitCode, signal: null, offset: subprocess.end });
@@ -284,8 +271,8 @@ function startProcess(
   return subprocess;
 }
 
-// Calls a connection's handler as the imp client does: a handler that
-// throws ends the connection with a local error and closes it.
+// Matches the real imp client: when a connection's handler throws, the client stops that
+// connection with a local error instead of letting the exception propagate.
 function tryEmit(connection: StubConnection, emit: () => void): boolean {
   try {
     emit();
@@ -301,8 +288,6 @@ function tryEmit(connection: StubConnection, emit: () => void): boolean {
   }
 }
 
-// A process and the connection it attaches to, with whether the request
-// started the process.
 interface StubAttach {
   readonly imp: StubImp;
   readonly subprocess: StubProcess;

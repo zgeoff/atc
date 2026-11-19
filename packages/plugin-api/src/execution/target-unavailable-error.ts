@@ -1,4 +1,3 @@
-// the target still lists, and refuses every spawn.
 export class TargetUnavailableError extends Error {
   readonly problem: string | null;
 

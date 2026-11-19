@@ -5,24 +5,16 @@ export interface UnconfirmedSends {
   readonly findThread: (message: string) => string | undefined;
   readonly collectMessages: () => string[];
 
-  // The file changes before the call returns, so a daemon that stops right
-  // after it still finds the thread.
   readonly setThread: (message: string, thread: string) => void;
   readonly removeMessages: (messages: readonly string[]) => void;
 }
 
-// the thread each unconfirmed message went to, kept in a file of the session's own so a daemon
-// restart before the recovery still reads that thread; a null path keeps it in memory alone, and
-// a file that does not read or write is logged, so recovery reads only the thread the bridge serves
 export function createUnconfirmedSends(
   path: string | null,
   log: (line: string) => void,
 ): UnconfirmedSends {
   const threads = path === null ? new Map<string, string>() : loadThreads(path, log);
 
-  // A rename replaces the file whole, so a stop part way through a write
-  // leaves the earlier file. A failed write keeps the memory copy, which
-  // serves every recovery until the daemon stops.
   const writeThreads = (): void => {
     if (path === null) {
       return;

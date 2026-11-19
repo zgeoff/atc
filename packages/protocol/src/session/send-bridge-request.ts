@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { openBridgeSocket } from './open-bridge-socket';
 
-// never throws: nothing listening, an early close, or no answer in time
-// resolves null
 export async function sendBridgeRequest(
   path: string,
   op: string,

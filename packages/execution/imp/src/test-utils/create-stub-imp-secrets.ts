@@ -9,8 +9,7 @@ import { ImpPortError } from '../port/imp-port-error';
 import { buildNotFound } from './build-not-found';
 import type { StubImpFleet } from './create-stub-imp-fleet';
 
-// The secrets impd holds, the grants of them to imps, and the identity the
-// port calls impd as, which decides what it may grant.
+// impd lets a caller grant only the secrets its identity covers.
 export interface StubImpSecrets {
   readonly readIdentity: () => Promise<ImpIdentity>;
   readonly readSecrets: () => Promise<readonly ImpSecret[]>;
@@ -18,7 +17,6 @@ export interface StubImpSecrets {
   readonly createGrant: (name: string, secret: string) => Promise<void>;
   readonly removeGrant: (name: string, secret: string) => Promise<boolean>;
 
-  // A new token's grantable list covers each secret as it now stands.
   readonly setIdentity: (identity: ImpIdentity) => void;
 
   readonly createSecret: (
@@ -43,7 +41,6 @@ interface StubImpSecretsOptions {
 }
 
 export function createStubImpSecrets(deps: StubImpSecretsOptions): StubImpSecrets {
-  // Who the port calls impd as.
   let identity: ImpIdentity = {
     kind: 'token',
     name: 'atc',
@@ -52,21 +49,17 @@ export function createStubImpSecrets(deps: StubImpSecretsOptions): StubImpSecret
     grantable: [],
   };
 
-  // Grantable secrets rebound or removed since the identity was set, which
-  // its list no longer covers, as a secret's new generation leaves a
-  // token's list behind.
+  // impd ties a token's grantable list to each secret's generation, so a secret rebound or
+  // removed after the identity was set is no longer grantable through that list.
   const staleGrantable = new Set<string>();
-
-  // The secrets impd holds, by name; which imps hold each is the grants'.
   const secrets = new Map<string, Omit<ImpSecret, 'imps'>>();
 
-  // impd's code for every grant removal while removals fail, or null.
   let grantRemovalFailure: ImpdBareRefusalCode<'grants.delete'> | 'UNREACHABLE' | null = null;
   const calls = deps.calls;
   const fleet = deps.fleet;
 
-  // impd's refusal of a grant or revoke: the scope and pattern checks run
-  // before anything is looked up, then a missing imp or secret.
+  // impd runs the scope and pattern checks before it looks anything up, so an out-of-scope caller
+  // gets FORBIDDEN even when the imp or secret does not exist.
   const findGrantRefusal = (name: string, secret: string): ImpPortError | null => {
     const patterns = identity.imps;
 

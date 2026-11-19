@@ -7,8 +7,6 @@ import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-rep
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 import { createStubAgentCLIs } from './create-stub-agent-clis';
 
-// The stand-in on a provider of its own beside a reporter socket, and a
-// start that spawns one session of an agent the way a launch does.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-agent-clis-');
   const agents = createStubAgentCLIs(temporaryDirectory.path);

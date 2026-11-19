@@ -5,20 +5,14 @@ import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import type { DaemonContext } from '../types';
 import { findEventSession } from './find-event-session';
 
-// What a limited connection is sent for one event, and the sessions that
-// event moved out of its view.
 interface ViewUpdate {
   readonly events: readonly EventMsg[];
   readonly withdrawn: readonly SessionID[];
 }
 
 export interface ConnectionView {
-  // Starts the view as the sessions the access reaches now, so one that
-  // leaves its reach later is pushed as removed.
   readonly startView: (access: TargetAccess) => void;
 
-  // The event itself reaches the connection when its session is in the view, or is gone
-  // from the daemon after the connection was shown it.
   readonly updateView: (event: EventMsg, access: TargetAccess) => ViewUpdate;
 }
 
@@ -29,13 +23,9 @@ export function createConnectionView(ctx: ViewContext): ConnectionView {
   const withheldSessions = new Set<SessionID>();
   const shownRequests = new Set<string>();
 
-  // Whether the daemon holds the session but the access does not reach its
-  // whole tree.
   const isWithheld = (id: SessionID, access: TargetAccess): boolean =>
     ctx.findSessionGrant(id) !== null && !ctx.canSeeSession(id, access);
 
-  // The event that adds the session to a view, or none when the daemon no
-  // longer lists it.
   const buildSessionAdded = (id: SessionID): EventMsg[] => {
     const session = ctx.collectSessions().find((x) => x.id === id);
 
@@ -111,7 +101,6 @@ export function createConnectionView(ctx: ViewContext): ConnectionView {
         return { events: sent, withdrawn };
       }
 
-      // The session is gone from the daemon.
       withheldSessions.delete(sessionID);
 
       if (shownSessions.has(sessionID)) {

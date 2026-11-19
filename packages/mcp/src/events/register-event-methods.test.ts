@@ -16,8 +16,6 @@ import { sendModernMCPRequest } from '../test-utils/send-modern-mcp-request';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { openEventDatabase } from './open-event-database';
 
-// `atc mcp --http` in front of a daemon, with the owner's passkey enrolled
-// and a stand-in for the subscriber's endpoint that echoes each challenge.
 async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-event-methods-',

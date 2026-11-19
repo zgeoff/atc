@@ -12,8 +12,6 @@ export type ClientsAction =
   // `client` is a client ID, or a name that exactly one client has.
   | { readonly kind: 'remove'; readonly client: string };
 
-// The authorization server's database, and the command that prefixes every
-// message, such as `atc clients`.
 interface ClientsTarget {
   readonly dbPath: string;
   readonly command: string;
@@ -120,7 +118,6 @@ type ResolvedClient =
   | { readonly kind: 'many'; readonly clientIDs: readonly OAuthClientID[] }
   | { readonly kind: 'none' };
 
-// An ID wins over a name, so a name never hides the client whose ID it is.
 async function resolveClientID(admin: MCPAuthAdmin, client: string): Promise<ResolvedClient> {
   const clients = await admin.clients.list();
 
@@ -139,7 +136,8 @@ async function resolveClientID(admin: MCPAuthAdmin, client: string): Promise<Res
     .otherwise((many) => ({ kind: 'many', clientIDs: many.map((listed) => listed.clientID) }));
 }
 
-// A name that cleans to nothing names no client.
+// The auth admin throws invalid-client-name when a name cleans to an empty string.
+// Such a name matches no client, so treat it as an empty result instead of an error.
 async function readClientsByName(admin: MCPAuthAdmin, name: string) {
   try {
     return await admin.clients.readByName(name);

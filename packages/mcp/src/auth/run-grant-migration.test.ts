@@ -14,8 +14,6 @@ import { openATCAuth } from './open-atc-auth';
 import { openATCAuthAdmin } from './open-atc-auth-admin';
 import { runGrantMigration } from './run-grant-migration';
 
-// A database of atc's own OAuth server, before the package, on one
-// connection with foreign keys on, as the app opens it.
 function setupTest() {
   const sqlite = createTestDatabase();
 
@@ -359,7 +357,8 @@ test('it rolls the whole move back when a step after the drop fails', () => {
 
   seedOwnerGrantUse(ctx.sqlite, { grantID: grant.grantID, lastUsedAt: '2026-10-14T12:00:00.000Z' });
 
-  // The consents go after the user table is made again.
+  // The migration deletes consents only after it rebuilds the user table,
+  // so refusing the delete makes a step after the drop fail.
   ctx.sqlite.run(
     'CREATE TRIGGER refuse_consent_delete BEFORE DELETE ON "oauthConsent" BEGIN SELECT RAISE(ABORT, \'consent delete refused\'); END',
   );

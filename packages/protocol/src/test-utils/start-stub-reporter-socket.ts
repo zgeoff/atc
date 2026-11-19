@@ -2,11 +2,8 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { waitFor } from '@atc/core/test-utils/wait-for';
 
 interface StubReporterSocket {
-  // Every complete line received so far, newline removed, in arrival order.
   readonly lines: readonly string[];
 
-  // How many reads the stand-in has taken from its connections, so a test
-  // can wait until one piece of a split write has arrived.
   readonly reads: number;
   readonly waitForLine: (timeoutMs?: number) => Promise<string>;
   readonly stop: () => void;

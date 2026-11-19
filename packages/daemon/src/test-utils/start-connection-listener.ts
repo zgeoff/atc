@@ -4,9 +4,6 @@ import type { DaemonConnection, PeerSession } from '../transport/create-daemon-c
 import type { TCPPeer } from '../transport/tcp-peer';
 import type { DaemonContext } from '../types';
 
-// Serves the daemon's connections on a unix socket the way its listener
-// wires them, as TCP or session connections when given that peer, and
-// returns the connections it accepts; the test's end stops it.
 export function startConnectionListener(
   socketPath: string,
   ctx: DaemonContext,

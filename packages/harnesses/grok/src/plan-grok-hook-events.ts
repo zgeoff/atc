@@ -14,9 +14,6 @@ import { z } from 'zod';
 import { GROK_HOOKS } from './grok-hooks';
 import type { GrokHook } from './grok-hooks';
 
-// Grok's hook payload keys, camelCase. An absent or wrong-typed field parses
-// to undefined rather than failing the payload, so a broken reporter never
-// breaks the session it reports on.
 const GROK_HOOK_PAYLOAD_SCHEMA = z.object({
   sessionId: buildOptionalString(),
   cwd: buildOptionalString(),
@@ -31,9 +28,6 @@ const GROK_HOOK_PAYLOAD_SCHEMA = z.object({
 
 type GrokHookPayload = z.infer<typeof GROK_HOOK_PAYLOAD_SCHEMA>;
 
-// What a Grok session's earlier hook lines leave for its next one: the id
-// of the latest prompt a person submitted, and the kind of the last event
-// that changed the session's state.
 const GROK_HOOK_STATE_SCHEMA = z.object({
   latestPromptID: z.string().optional(),
   lastKind: z.enum([
@@ -53,9 +47,6 @@ interface GrokHookPlan {
   readonly next?: GrokHookState;
 }
 
-// three rules need the previous line's state: a stop for a prompt older than the latest is stale,
-// an idle notice right after a permission prompt shows nothing finished, and a subagent's line
-// is only a heartbeat for its session
 export function planGrokHookEvents(
   hookEvent: HookEvent,
   previous: unknown,
@@ -72,8 +63,6 @@ export function planGrokHookEvents(
     return { events: [event] };
   }
 
-  // A session's own prompt submit records its prompt as the latest; every
-  // other line keeps the one before it.
   const promptID = hook === 'UserPromptSubmit' && !subagent ? payload.promptId : undefined;
   const latestPromptID = promptID ?? state?.latestPromptID;
 
@@ -145,9 +134,6 @@ function buildGrokNameSource(home: string, sessionID: string, cwd: string): stri
   return join(home, 'sessions', encodeURIComponent(cwd), sessionID, 'summary.json');
 }
 
-// A permission prompt waits on a person. An idle notice right after one
-// shows only that the prompt is still open; any other idle notice means the
-// turn finished.
 function buildNotificationEvent(
   base: Readonly<AdapterEvent>,
   named: Readonly<AdapterEvent>,
@@ -163,8 +149,6 @@ function buildNotificationEvent(
     .otherwise(() => ({ ...base }));
 }
 
-// The kinds that change what a session waits on, which a later idle notice
-// reads.
 function isStateKind(kind: AdapterEvent['kind']): boolean {
   return kind === 'needs-input' || kind === 'prompt-submitted' || kind === 'turn-done';
 }

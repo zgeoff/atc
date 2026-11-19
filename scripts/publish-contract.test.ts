@@ -6,8 +6,7 @@ import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
-// A temp repo root that holds the real release scripts, so the entry script
-// takes the root from its own path and runs the packer that the test writes.
+// The entry script takes the root from its own path.
 function setupTest() {
   const temporaryDirectory = setupTempDir('publish-contract-');
 

@@ -1,11 +1,6 @@
 export interface StepTimer {
-  // Runs the step and adds its time under its name, a step that throws
-  // included; a step that runs more than once counts its runs.
   readonly withStep: <T>(step: string, run: () => Promise<T>) => Promise<T>;
 
-  // Each step in the order it first ran, with its milliseconds and, for a
-  // step that ran more than once, its run count, then the time since the
-  // timer started.
   readonly formatSteps: () => string;
 }
 

@@ -1,22 +1,17 @@
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 
 interface GitHTTPServer {
-  // The base URL a repository under the root is served at, ending in `/`.
   readonly url: string;
 
-  // Every Authorization header a request carried, in arrival order.
   readonly authorizations: string[];
   readonly stop: () => Promise<void>;
 }
 
 interface GitHTTPServerOptions {
-  // How long each authenticated request waits before it is served.
   readonly delayMs?: number;
 
-  // Waits out the delay; a timer unless given.
   readonly wait?: (delayMs: number) => Promise<void>;
 
-  // Runs, and is awaited, while each authenticated request is held.
   readonly onRequest?: () => Promise<void> | void;
 }
 
@@ -89,8 +84,6 @@ export function startGitHTTPServer(
   };
 }
 
-// A CGI answer is a header block, a blank line, and the body; a `Status`
-// header sets the response status.
 function toCGIResponse(output: Buffer): Response {
   const split = output.indexOf('\r\n\r\n');
 

@@ -7,8 +7,6 @@ export interface HostIdentity {
   readonly boot: string;
 }
 
-// The labels every object of a host carries. A container adds its session and a host volume adds
-// its id.
 export function buildObjectLabels(
   identity: HostIdentity,
   extra: Readonly<{ session?: string; hostID?: string }> = {},

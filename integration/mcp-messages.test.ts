@@ -3,8 +3,6 @@ import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemo
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startInProcessMCP } from '@atc/mcp/test-utils/start-in-process-mcp';
 
-// The MCP tools in the test's process, against a daemon in it whose Claude is
-// the in-process stand-in, which never opens a message tap.
 async function setupTest() {
   const stub = await startStubAgentDaemon({ tapGraceMs: 0 });
 

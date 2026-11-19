@@ -23,9 +23,6 @@ interface KeyBindingDeps {
   readonly clock: Clock;
 }
 
-// A keyed call binds its key to one daemon before it leaves, and records the
-// daemon's outcome on the binding, so a retry under the key, from this
-// gateway process or a later one, goes to the same daemon.
 export async function withKeyBinding(
   deps: KeyBindingDeps,
   call: RoutedCall,
@@ -49,15 +46,12 @@ export async function withKeyBinding(
       ...call,
       daemon: claimed.daemon,
 
-      // marks the key sent right before each write, so only the first write under it, across
-      // calls and gateway processes, runs; a later one goes out replay-only
       prepareParams: (params) =>
         deps.store.claimFirstSend(call.principal.id, call.method, key, deps.clock.now())
           ? params
           : { ...params, replayOnly: true },
     });
   } catch (error) {
-    // a refusal before anything was sent leaves no trace of the key
     if (error instanceof GatewayError) {
       deps.store.removeBinding(call.principal.id, call.method, key, claimed.claimID);
     }
@@ -77,13 +71,11 @@ async function claimBinding(
 
   invariant(picked, 'a keyed call reached its binding before a step picked its daemon');
 
-  // expired bindings go first, so a key past its retention binds afresh
   deps.store.removeExpiredBindings(deps.clock.now());
 
   const held = deps.store.findBinding(call.principal.id, call.method, key);
   const bound = held === null ? null : deps.registry.daemons.get(held.daemon);
 
-  // a key never moves to another daemon, even when its bound daemon changed or left
   if (held !== null && (bound === undefined || bound?.daemonID !== held.daemonID)) {
     throw new GatewayError(
       'daemon_unavailable',
@@ -116,8 +108,6 @@ async function claimBinding(
     deps.clock.now(),
   );
 
-  // Another gateway call may have bound the key since it was read; the
-  // request goes only where the stored binding points.
   if (binding.daemon !== daemon.name) {
     throw buildConflict(key, binding.daemon);
   }
@@ -132,8 +122,6 @@ function buildConflict(key: string, daemon: string): DaemonError {
   );
 }
 
-// An unknown outcome carries the daemon's id of the effect when any answer
-// under the key returned one.
 function recordOutcome(
   deps: KeyBindingDeps,
   call: RoutedCall,

@@ -50,7 +50,6 @@ test('it starts the App Server again when it exits, and the bridge resumes its t
   const ctx = setupTest();
   const codex = createStubAppServerCodex(ctx.directory);
 
-  // Each start records its pid, so the test can end the first server.
   const bin = createStubBin(
     ctx.directory,
     'pid-codex',
@@ -202,8 +201,8 @@ test('it ends a server an earlier daemon left running for the session before it 
     orphan.kill();
   });
 
-  // Until the child execs, ps shows the test runner's command line, and the
-  // bridge leaves alone a pid that runs another command; the socket shows it ran.
+  // Until the child execs, ps shows the test runner's command line, so the pid looks like
+  // another command. The socket shows the exec has happened.
   await waitFor(() => {
     expect(existsSync(socket)).toBe(true);
   });
@@ -233,8 +232,6 @@ test('it kills a server an earlier daemon left running that ignores the stop sig
   const bin = createStubAppServerCodex(ctx.directory);
   const socket = join(ctx.bridgeDir, 'codex.sock');
 
-  // An earlier server that never exits on the stop signal. It marks itself
-  // ready once it ignores the signal, so no stop reaches it before.
   const stubborn = createStubBin(
     ctx.directory,
     'stubborn-codex',
@@ -310,8 +307,6 @@ test('it leaves alone a process whose pid the system gave out again', async () =
 test('it kills a server that ignores the stop signal once the stop grace ends', () => {
   const ctx = setupTest();
 
-  // A server that never listens and ignores the stop signal, so the failed
-  // start must kill it outright.
   const bin = createStubBin(
     ctx.directory,
     'stubborn-codex',

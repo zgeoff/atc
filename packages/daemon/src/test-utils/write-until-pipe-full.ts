@@ -1,13 +1,10 @@
 import { closeSync, constants, openSync, writeSync } from 'node:fs';
 
-// The pipe takes the large writes first, then single bytes, since a
-// non-blocking write that does not fit whole takes nothing.
+// A non-blocking write to a pipe that cannot hold it whole takes nothing. Filling to the
+// last byte needs single-byte writes after the 4096-byte ones.
 const CHUNK = Buffer.alloc(4096, 'x');
 const BYTE = Buffer.from('x');
 
-// Fills a named pipe whose read end is open, through a write end of its own, until the pipe takes
-// no more, so a blocking writer to it then waits until something reads. It returns how many bytes
-// it wrote.
 export function writeUntilPipeFull(fifoPath: string): number {
   const fd = openSync(fifoPath, constants.O_WRONLY | constants.O_NONBLOCK);
 

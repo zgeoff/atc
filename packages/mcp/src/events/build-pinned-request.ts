@@ -3,7 +3,6 @@ import { checkServerIdentity } from 'node:tls';
 import type { WebhookRequest } from './types';
 
 interface PinnedRequest {
-  // The callback URL with its host swapped for the checked address.
   readonly target: string;
   readonly init: BunFetchRequestInit;
 }

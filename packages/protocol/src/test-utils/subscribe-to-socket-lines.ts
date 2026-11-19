@@ -4,10 +4,8 @@ import { createOutboundQueue } from '../wire/index';
 import type { OutboundQueue } from '../wire/index';
 
 interface SocketLines {
-  // Every complete newline-terminated line the peer sent, in order.
   readonly lines: string[];
 
-  // Resolves once the connection has closed, from either end.
   readonly closed: Promise<void>;
 
   readonly write: (data: string) => void;
@@ -16,14 +14,10 @@ interface SocketLines {
 }
 
 interface SocketLinesOptions {
-  // How many unsent bytes the connection holds before it refuses a write.
   readonly queueBytes?: number;
 
-  // The clock a line wait reads its deadline from; the wall clock when absent.
   readonly now?: () => number;
 
-  // Waits out the interval between a line wait's polls; a real sleep when
-  // absent.
   readonly wait?: (delayMs: number) => Promise<void>;
 }
 
@@ -65,8 +59,6 @@ export async function subscribeToSocketLines(
     socket.end();
   });
 
-  // The default leaves room for the largest payload a test sends in one
-  // piece.
   queue = createOutboundQueue(socket, options.queueBytes ?? 8 * 1024 * 1024);
 
   const sending = queue;
@@ -90,8 +82,6 @@ export async function subscribeToSocketLines(
       }
     },
     async waitForLine(count = 1, timeoutMs = 5000) {
-      // The poll ends early once the connection closes, since no more lines
-      // can arrive.
       await waitFor(
         () => {
           if (!isClosed) {

@@ -57,8 +57,6 @@ const REPORTER_COMMANDS: ReadonlySet<string> = new Set([
   'unanswered',
 ]);
 
-// The commands a script runs and branches on, which exit 2 on a command
-// line they refuse.
 const SCRIPT_COMMAND_USAGE_EXITS: ReadonlyMap<string, number> = new Map([
   ['send', 2],
   ['message', 2],

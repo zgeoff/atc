@@ -29,14 +29,12 @@ function setupTest() {
 test('it lists and spawns sessions on the daemon the flag names and starts no local daemon', async () => {
   const ctx = setupTest();
 
-  // A second daemon on a loopback TCP port stands in for one on another
-  // host.
   const remote = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
-        // a binary the daemon finds, so it lists the agent as one it can start
+        // the daemon lists an agent as startable only if it finds its binary
         adapter: buildMockAgentAdapter({ profile: buildMockAgentProfile({ bin: 'sleep' }) }),
         principals: new Map([['laptop', ['local']]]),
         listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },

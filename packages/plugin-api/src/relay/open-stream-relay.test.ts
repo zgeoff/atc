@@ -41,7 +41,6 @@ function setupTest() {
     opened.stop();
   });
 
-  // the daemon's hello is on the wire, and the guest welcomes it
   const welcome = async (answer: HelloAnswer, hellos: number) => {
     await waitFor(() => {
       expect(guest.readDaemonFrames().filter((frame) => frame.t === 'hello')).toHaveLength(hellos);
@@ -356,14 +355,12 @@ test('it rejects a line whose frame outgrows the window when its sequence number
     expect(ctx.relays).toHaveLength(1);
   });
 
-  // sequence numbers 1 to 7 are used and acked
   for (let index = 0; index < 7; index += 1) {
     await ctx.relays[0]?.writeLine('small');
   }
 
   ctx.guest.writeGuestFrame({ t: 'ack', ack: 7 });
 
-  // the filler holds sequence number 8 unacked, so both big lines wait with next seq 9
   await ctx.relays[0]?.writeLine('filler');
 
   const windowBytes = 1024 * 1024;

@@ -7,8 +7,6 @@ import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-rep
 import { startStubSessionBridge } from '@atc/protocol/test-utils/start-stub-session-bridge';
 import { runStatusline } from './run-statusline';
 
-// A Claude config folder the test writes its settings into, and a reporter
-// socket in the same directory.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-statusline-');
 

@@ -13,9 +13,6 @@ import { createStubAppServerCodex } from '@atc/harness-codex/test-utils/create-s
 import { startCodexTerminalThread } from '@atc/harness-codex/test-utils/start-codex-terminal-thread';
 import { z } from 'zod';
 
-// A daemon whose one agent is a Codex entry on an App Server, run by the
-// stand-in Codex CLI, which reads its scenario from the stub folder and
-// logs every request it takes there.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-codex-app-server-');
   const bin = createStubAppServerCodex(temporaryDirectory.path);
@@ -268,7 +265,6 @@ test('it delivers a message to the thread a hook shows the terminal moved to and
 
   const id = getString(getRecord(spawned, 'session'), 'id');
 
-  // The terminal runs once the bridge has opened the session's thread.
   await waitFor(async () => {
     const read = await ctx.daemon.client.sendRequest('session.screen', { session: id });
 
@@ -334,7 +330,6 @@ test('it keeps delivering to the thread the terminal moved to when a turn of the
 
   const id = getString(getRecord(spawned, 'session'), 'id');
 
-  // The terminal runs once the bridge has opened the session's thread.
   await waitFor(async () => {
     const read = await ctx.daemon.client.sendRequest('session.screen', { session: id });
 
@@ -399,7 +394,6 @@ test('it raises no attention for an approval a turn of the old thread asks for a
 
   const id = getString(getRecord(spawned, 'session'), 'id');
 
-  // The terminal runs once the bridge has opened the session's thread.
   await waitFor(async () => {
     const read = await ctx.daemon.client.sendRequest('session.screen', { session: id });
 

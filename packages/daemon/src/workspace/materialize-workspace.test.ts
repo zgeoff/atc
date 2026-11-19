@@ -20,7 +20,6 @@ async function setupTest() {
   const scratch = join(temporaryDirectory.path, 'scratch');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
-  // The staging root must exist for a clone to stage in it.
   mkdirSync(scratch);
   createMigratedStateDB(dbPath);
 
@@ -79,8 +78,6 @@ test('it uploads the commit it pinned for the clone inside the host when the bra
 
   const directory = join(ctx.scratch, 'ws');
 
-  // The host fails its clone, and the branch moves on upstream before the
-  // daemon uploads the workspace instead.
   const provider = buildStubLocalProvider({
     runCommand: async (spec: CommandSpec) => {
       if (!spec.argv.some((arg) => arg.includes('--filter=blob:none'))) {

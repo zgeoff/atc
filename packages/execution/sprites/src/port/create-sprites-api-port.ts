@@ -9,7 +9,6 @@ import type { ConnectorView, ExecConnection, SpriteView, SpritesPort } from './t
 interface SpritesApiPortOptions {
   readonly apiURL: string;
 
-  // read on each call, so a token file that rotates is read again
   readonly readToken: () => string;
 }
 
@@ -18,8 +17,7 @@ interface HeldClient {
   readonly value: SpritesClient;
 }
 
-// the API takes a file of up to 16 MiB through its file endpoint; a larger one goes through an
-// exec's stdin
+// The file endpoint accepts at most 16 MiB; larger files go through an exec's stdin.
 const FILE_ENDPOINT_LIMIT = 15 * 1024 * 1024;
 const STDIN_CHUNK = 256 * 1024;
 const ACCESS_POLICY_SCHEMA = z.object({ name_prefix: z.string().nullish() });
@@ -43,7 +41,6 @@ export function createSpritesApiPort(options: SpritesApiPortOptions): SpritesPor
     return held.value;
   };
 
-  // runs a call as the API's failure, with the token scrubbed from what it says
   const guard = async <T>(call: (api: SpritesClient, token: string) => Promise<T>): Promise<T> => {
     const token = options.readToken();
 

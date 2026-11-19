@@ -27,8 +27,8 @@ export function buildMigratedConfig(file: unknown): MigratedConfig {
     };
   }
 
-  // the migrated file holds atc's own placeholder, so the parse below keeps
-  // each entry that holds the deprecated one
+  // the migrated file must hold atc's current placeholder, so the parse uses that one and keeps
+  // each entry that still holds the deprecated placeholder as written
   const raw = buildCurrentPlaceholderConfig(file).config;
   const present = Object.keys(raw).filter((key) => LEGACY_AGENT_KEYS.includes(key));
   const removed = REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key));
@@ -49,15 +49,13 @@ export function buildMigratedConfig(file: unknown): MigratedConfig {
 
   const registries = ['agents', 'sources'].filter((key) => Object.hasOwn(raw, key));
 
-  // a file that uses either registry and sets no old agent key already reads
-  // its agents as atc does, so only a file that uses neither gets agents
+  // a file with either registry and no old agent key already reads its agents the way atc does
   const movesAgents = present.length > 0 || registries.length === 0;
 
   if (!movesAgents && firstSourceKey === undefined && removed.length === 0) {
     return { kind: 'current', registries };
   }
 
-  // a note names a key and a reason only, never a value
   const removedNotes = removed.map(
     (key) => `atc config migrate: ${key} is dropped: atc no longer reads it`,
   );
@@ -81,8 +79,6 @@ export function buildMigratedConfig(file: unknown): MigratedConfig {
   };
 }
 
-// The old agent keys and the auth profiles they may name. An absent or
-// wrong-typed key parses to undefined and takes its default.
 const LEGACY_KEYS_SCHEMA = z.object({
   claudeBin: buildOptionalString(),
   claudeArgs: buildOptionalStringArray(),
@@ -95,8 +91,6 @@ const LEGACY_KEYS_SCHEMA = z.object({
   authProfiles: z.unknown().optional(),
 });
 
-// The file with the old agent keys replaced by an agents map at the
-// position of the first one, or at the end when it sets none.
 function moveAgentKeys(
   config: Readonly<Record<string, unknown>>,
   raw: Readonly<Record<string, unknown>>,
@@ -147,8 +141,8 @@ function moveAgentKeys(
   };
 }
 
-// The fields of an entry that differ from the defaults the `agents` parser
-// applies, so a migrated entry reads as short as one written by hand.
+// Leaves out every field the config parser would fill in with its default, so a migrated
+// entry reads as short as one written by hand. These checks must match the parser's defaults.
 function renderAgentEntry(entry: AgentEntry): Record<string, unknown> {
   const rendered: Record<string, unknown> = {};
 
@@ -216,7 +210,6 @@ function renderAgentEntry(entry: AgentEntry): Record<string, unknown> {
 
 const BUILT_IN_COUNT = 3;
 
-// One note per gateway the old parse left out, with the reason.
 function collectDroppedGateways(
   raw: unknown,
   agents: readonly AgentEntry[],
@@ -226,7 +219,7 @@ function collectDroppedGateways(
     return [];
   }
 
-  // The three built-in agents come first, so the gateways follow them.
+  // The agent list holds the built-in agents first, and every entry after them is a gateway.
   const kept = new Set(agents.slice(BUILT_IN_COUNT).map((entry) => entry.id));
 
   const notes: string[] = [];
@@ -275,12 +268,8 @@ function pickDropReason(id: string, entry: unknown, errors: readonly string[]): 
     : 'its entry could not be read';
 }
 
-// The old source keys this moves into sources.
 const OLD_WORKSPACE_SOURCE_KEYS: readonly string[] = ['githubOwner', 'sources'];
 
-// The file with `sources` at the position of the first top-level key that
-// holds an old source key, and those keys removed. A `workspaces` section
-// left empty goes too.
 function moveSourceKeys(
   config: Readonly<Record<string, unknown>>,
   sources: Readonly<Record<string, unknown>>,

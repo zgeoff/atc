@@ -5,8 +5,8 @@ import { registerTestCleanup } from './register-test-cleanup';
 interface CommandOptions {
   readonly cwd?: string;
 
-  // The whole environment of the run, as the spawn takes it; left out, the
-  // run inherits the test's environment.
+  // Node's spawn uses this object as the child's entire environment and does not merge it
+  // with the parent's; leave it out and the child inherits the test's environment.
   readonly env?: Readonly<Record<string, string | undefined>>;
 
   readonly stdin?: string | Buffer;

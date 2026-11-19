@@ -18,12 +18,10 @@ interface GatewayFlags {
   readonly port: number;
   readonly publicURL: string;
 
-  // The proxy addresses whose forwarded client address the gateway trusts.
   readonly trustForwardedFrom: readonly string[];
   readonly registryPath: string;
   readonly stateDir: string;
 
-  // The file of service tokens `/mcp` accepts; null for none.
   readonly serviceTokenFile: string | null;
 }
 
@@ -50,8 +48,8 @@ export async function runGateway(
     return;
   }
 
-  // The file is read once, before anything starts, so a bad file stops the
-  // gateway with nothing opened.
+  // The token file is read before anything starts, so a bad file stops the gateway
+  // with nothing opened.
   const serviceTokens =
     flags.serviceTokenFile === null
       ? null
@@ -94,7 +92,6 @@ export async function runGateway(
       probes: true,
       ...(serviceTokens === null ? {} : { serviceTokens: serviceTokens.file }),
 
-      // Request lines go to stderr, beside the security events.
       printRequest: (line) => {
         io.printError(line);
       },

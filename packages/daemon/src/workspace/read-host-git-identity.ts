@@ -5,7 +5,6 @@ export interface GitIdentity {
   readonly email: string;
 }
 
-// never throws: null when either value is missing or git cannot run
 export async function readHostGitIdentity(): Promise<GitIdentity | null> {
   const [name, email] = await Promise.all([
     readConfigValue('user.name'),
@@ -21,8 +20,6 @@ export async function readHostGitIdentity(): Promise<GitIdentity | null> {
 
 async function readConfigValue(key: string): Promise<string | null> {
   try {
-    // only the global config, from a neutral directory, so no repository's own config applies
-    // whatever directory or repository the environment points git at
     const subprocess = Bun.spawn(['git', 'config', '--global', '--get', key], {
       cwd: tmpdir(),
       env: process.env,

@@ -14,8 +14,6 @@ import { loadGrokName } from './load-grok-name';
 import { planGrokHookEvents } from './plan-grok-hook-events';
 
 export interface GrokAdapter extends AgentAdapter {
-  // The hook files a user installs print the kind for every entry of it, so
-  // the hook lines of every grok entry carry it.
   readonly hookAgent: AgentID;
   readonly profile: AgentProfile;
 
@@ -23,14 +21,12 @@ export interface GrokAdapter extends AgentAdapter {
   // line is pasted and then submitted.
   readonly planLineInput: (text: string, modes: TerminalInputModes) => readonly LineInputStep[];
 
-  // Shell command that re-opens this session outside atc (or anywhere).
   readonly planResumeCommand: (
     cwd: string,
     agentSessionID: AgentSessionID | undefined,
   ) => string | null;
 }
 
-// atc passes Grok neither a model nor an effort; the CLI's own config picks both.
 const GROK_UNSUPPORTED_OPTION: SpawnOptionSpec = {
   supported: false,
   values: null,
@@ -42,8 +38,6 @@ const GROK_UNSUPPORTED_OPTION: SpawnOptionSpec = {
 
 const GROK_HOME_LOCATION: AgentHomeLocation = { env: 'GROK_HOME', folder: '.grok' };
 
-// the state the hook mapping reads travels with each session's hook lines, so the adapter holds
-// none
 export function createGrokAdapter(
   entry: AgentEntry,
   home: string | null = null,
@@ -58,10 +52,8 @@ export function createGrokAdapter(
     id: entry.id,
     hookAgent: 'grok',
 
-    // Grok has no headless handoff.
     headlessRunner: null,
 
-    // Grok's hooks are authoritative; no screen heuristics needed.
     screenDetector: null,
 
     profile: {

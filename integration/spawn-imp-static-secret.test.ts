@@ -149,8 +149,6 @@ test('it revives a session bound to a custom secret after impd lists that secret
 
   await daemon.client.sendRequest('session.kill', { session: id });
 
-  // The host moves to impd 5, whose migration rewrites the stored kind in
-  // place and keeps the secret's rules and grants.
   ctx.port.createSecret('glm', 'static', [
     { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
   ]);

@@ -11,8 +11,6 @@ interface ReportRow {
   readonly detail: string;
 }
 
-// The lines `atc workspaces prune` prints: one per workspace, one per state folder it kept, one
-// for the state folders it removes, and a total.
 export function formatPruneReport(prune: WorkspacePrune): string[] {
   const removeLabel = prune.dryRun ? 'remove' : 'removed';
 
@@ -80,7 +78,6 @@ export function formatPruneReport(prune: WorkspacePrune): string[] {
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
 
-// Decimal units, one decimal place under 10; null when the host did not say.
 function formatBytes(bytes: number | null): string {
   if (bytes === null) {
     return '?';

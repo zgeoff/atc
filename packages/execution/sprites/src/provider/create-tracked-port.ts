@@ -1,11 +1,8 @@
 import type { ExecConnection, ExecEnd, SpritesPort } from '../port/types';
 
 export interface TrackedPort {
-  // the port, with each exec it opens counted as attached until its connection ends or detaches
   readonly port: SpritesPort;
 
-  // lets go of every exec still attached to the sprite; the owner of a connection that did not
-  // detach itself sees it end as dropped
   readonly detachAll: (sprite: string) => void;
   readonly countAttached: (sprite: string) => number;
 }

@@ -10,9 +10,8 @@ import { openTestAuthAdmin } from './open-test-auth-admin';
 import { openTestAuthDatabase } from './open-test-auth-database';
 import { runPasskeyEnrollment } from './run-passkey-enrollment';
 
-// The MCP HTTP server and its authorization database, opened the way
-// `atc passkeys` opens it. Enrollment never reaches the daemon, so the
-// caller points at a socket nothing listens on and never dials it.
+// Passkey enrollment never reaches the daemon, so the caller points at a socket
+// nothing listens on and never dials it.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-passkey-enrollment-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');

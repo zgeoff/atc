@@ -4,7 +4,6 @@ interface ListedSession {
   readonly alive: boolean;
 }
 
-// The listed sessions that carry the name, as id and liveness.
 export function collectNamedSessions(
   sessions: readonly ListedSession[],
   name: string,

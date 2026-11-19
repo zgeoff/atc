@@ -14,11 +14,10 @@ function setupTest() {
     directory: temporaryDirectory.path,
     command: resolveGatewayCommand(process.env['ATC_GATEWAY_BIN']),
 
-    // Bun's transpiler cache would write under HOME when the source entry runs.
+    // Bun's transpiler cache would write under HOME.
     env: {
       PATH: process.env['PATH'] ?? '',
 
-      // Nothing creates this home, so a write under it shows in the directory listing.
       HOME: join(temporaryDirectory.path, 'home'),
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
     },
@@ -69,8 +68,6 @@ test('it serves from the state directory given before its subcommand over the en
     return gateway.exited;
   });
 
-  // The gateway prints its serving line once its probes answer ready, with
-  // the port the kernel bound for port 0.
   const reader = gateway.stdout.getReader();
 
   const chunk = await reader.read();

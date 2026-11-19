@@ -1,11 +1,10 @@
 export interface SessionPaths {
-  // the bridge socket and the reporters' outbox, in the guest folder
   readonly socket: string;
   readonly outbox: string;
   readonly relayDir: string;
 }
 
-// The most characters of a session id in a socket path, which a unix socket's path limit bounds.
+// Unix socket paths have a short length limit, so the session id is cut to 16 characters.
 const SOCKET_ID_LENGTH = 16;
 
 export function buildSessionPaths(guestDir: string, session: string): SessionPaths {

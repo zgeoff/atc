@@ -35,8 +35,6 @@ async function setupTest() {
   registerTestCleanup(() => store.stop());
 
   const provider = buildStubLocalProvider();
-
-  // a target on another machine whose hosts stay up, and one the config names with no provider
   const far = buildStubMemoryProvider({ remote: true });
 
   const manager = createSessionManager({
@@ -411,7 +409,7 @@ test('it keeps a state folder whose removal fails, with the reason', async () =>
 
   const orphan = join(ctx.stateDir, 'sessions', 'forgotten-long-ago');
 
-  // rmdir refuses a folder that holds a file, even for root
+  // A folder that holds a file makes the remove call fail even when the tests run as root.
   const pruner = ctx.createPruner(rmdir);
 
   mkdirSync(orphan, { recursive: true });

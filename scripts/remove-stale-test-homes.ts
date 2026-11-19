@@ -4,7 +4,6 @@ import { parseArgs } from 'node:util';
 import { stopTestHomeProcesses } from './stop-test-home-processes';
 
 interface StaleTestHomesOptions {
-  // The folder that holds the run directories of with-test-home.sh.
   readonly tmpDir: string;
 
   readonly procRoot: string;
@@ -14,8 +13,7 @@ interface StaleTestHomesOptions {
 
 const runDirectoryPrefix = 'atc-test-home-';
 
-// A run directory with no owner file belongs to a run in its first instant, before the script
-// writes the file, or to a run of a script that predates the file.
+// A run directory with no owner file belongs to a run in its first instant, before the script writes the file.
 const unownedGraceMs = 60 * 60 * 1000;
 
 export async function removeStaleTestHomes(
@@ -94,7 +92,7 @@ async function probeProcessAlive(pid: number, procRoot: string): Promise<boolean
   );
 }
 
-// parseArgs throws on an option it does not declare, which the caller reports as a refused input.
+// parseArgs throws on an option it does not declare.
 function parseCLIArgs(args: readonly string[]): string | Error {
   try {
     const parsed = parseArgs({ args: [...args], options: {}, allowPositionals: true });

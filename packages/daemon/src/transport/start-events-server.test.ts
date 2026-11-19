@@ -8,9 +8,6 @@ import { subscribeToSocketLines } from '@atc/protocol/test-utils/subscribe-to-so
 import type { EventMsg } from '@atc/protocol/wire';
 import { startEventsServer } from './start-events-server';
 
-// A socket path in a fresh temp directory, and a snapshot collector for the
-// server under test. `snapshots` records each snapshot the server collected,
-// which it does once it has registered a new subscriber.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-events-server-');
   const snapshots: (readonly EventMsg[])[] = [];
@@ -35,7 +32,6 @@ test('it disconnects a subscriber whose outbound queue overflows', async () => {
     socketPath: ctx.socketPath,
     collectSnapshot: ctx.collectSnapshot,
 
-    // A queue small enough for one burst to overflow it.
     queueBytes: 1024,
   });
 
@@ -43,8 +39,6 @@ test('it disconnects a subscriber whose outbound queue overflows', async () => {
     server.stop();
   });
 
-  // A subscriber that stopped reading; `closed` resolves once its
-  // connection ends.
   const slow = connect(ctx.socketPath);
 
   registerTestCleanup(() => {
@@ -87,7 +81,6 @@ test('it serves a new subscriber after disconnecting one whose queue overflowed'
     socketPath: ctx.socketPath,
     collectSnapshot: ctx.collectSnapshot,
 
-    // A queue small enough for one burst to overflow it.
     queueBytes: 1024,
   });
 
@@ -95,8 +88,6 @@ test('it serves a new subscriber after disconnecting one whose queue overflowed'
     server.stop();
   });
 
-  // A subscriber that stopped reading; `closed` resolves once its
-  // connection ends.
   const slow = connect(ctx.socketPath);
 
   registerTestCleanup(() => {

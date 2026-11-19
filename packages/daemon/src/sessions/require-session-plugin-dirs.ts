@@ -2,9 +2,8 @@ import type { SessionRegistry } from './create-session-registry';
 import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 import type { Session } from './session';
 
-// Each launch of a session checks the folders its agent's config sets and
-// its own as they stand, since the config or the disk may have changed since
-// the spawn. A session whose provider is gone counts as remote.
+// The agent config and the disk can change after the spawn, so every launch rechecks the plugin
+// folders instead of trusting the spawn-time check.
 export function requireSessionPluginDirs(
   registry: Pick<SessionRegistry, 'findAdapter' | 'findProvider'>,
   session: Session,

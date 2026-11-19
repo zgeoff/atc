@@ -5,12 +5,10 @@ type AccessStep =
   | { readonly kind: 'send' };
 
 interface AccessCheck {
-  // Whether the subscription is gone, so the event needs no delivery.
   readonly isGone: boolean;
   readonly reads: boolean;
   readonly isStopped: boolean;
 
-  // Whether the attempt before this check already waited out a lost grant.
   readonly isRechecking: boolean;
 }
 

@@ -18,25 +18,20 @@ interface FleetEventsDeps {
   readonly registry: GatewayRegistry;
   readonly getCaller: (name: string) => GatewayDaemonCaller;
 
-  // How long each daemon may take to answer a read that does not wait.
   readonly timeoutMs: number;
 
-  // Runs the time each daemon gets.
   readonly clock: Clock;
 }
 
-// The daemon's own default and bounds for a page of events.
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MAX_WAIT_MS = 30_000;
 
-// What every daemon read of one call shares.
 interface DaemonRead {
   readonly deps: FleetEventsDeps;
   readonly principal: Principal;
   readonly limit: number;
 
-  // The daemon's own id of the session a filtered read asks about.
   readonly sessionID: string | null;
   readonly requestIDs: ReadonlyMap<string, string>;
 }
@@ -92,9 +87,6 @@ function toBounded(value: unknown, fallback: number, min: number, max: number): 
   return Math.min(Math.max(given, min), max);
 }
 
-// One daemon's part of the merge, from where the plan starts it. Only a
-// filtered read's daemon fails the call, and only with its own refusal;
-// any other failure is a daemon that is unavailable.
 async function readDaemonSource(
   read: DaemonRead,
   daemon: RegistryDaemon,
@@ -148,8 +140,6 @@ async function readDaemonPart(
   return { daemon, before: { cursor: null }, page, unstarted: { olderUnread } };
 }
 
-// One events.read to one daemon as the call's principal, with the
-// session filter when the read has one.
 async function sendEventsRead(
   read: DaemonRead,
   daemon: RegistryDaemon,
@@ -179,8 +169,6 @@ async function sendEventsRead(
   };
 }
 
-// Whether the daemon holds an event older than the first of a page of its
-// latest events, read as the first event after the start of its trail.
 async function probeOlderEvents(
   read: DaemonRead,
   daemon: RegistryDaemon,
@@ -221,9 +209,6 @@ function getDaemon(registry: GatewayRegistry, name: string): RegistryDaemon {
   return daemon;
 }
 
-// Reads again, waiting, each daemon whose page came back empty, and settles
-// once one of them answers with an event or all of them have answered. A
-// daemon still waiting then keeps the empty page it gave before.
 async function waitForFirstEvents(
   read: DaemonRead,
   sources: readonly MergeSource[],

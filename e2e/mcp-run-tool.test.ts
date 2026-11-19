@@ -40,7 +40,6 @@ async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-run-tool-',
     options: (paths) => {
-      // The token the listener takes, which a gateway's pool presents.
       writeFileSync(join(paths.directory, 'token'), `${'c'.repeat(32)}\n`);
 
       return {
@@ -73,9 +72,7 @@ async function setupTest() {
           },
         ],
 
-        // The daemon reads principals only at boot, so the remote clients
-        // the reach tests act as are set here: ops may use box only, and a
-        // gateway's principal, gw, may use the local target only.
+        // The daemon reads principals only at boot, so they are set here.
         principals: new Map([
           ['ops', ['box']],
           ['gw', ['local']],
@@ -1222,7 +1219,6 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
 
   const hello = await prober.sendHello(ctx.daemon.build);
 
-  // The daemon as `cloud`, the one daemon a gateway's registry holds.
   const registry = {
     daemons: new Map([
       [
@@ -1253,8 +1249,6 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
     store.stop();
   });
 
-  // The gateway's caller, acting as `gw` the way `atc-gateway` hands it to
-  // the tool handlers.
   const caller = buildPrincipalCaller(createRoutingCaller({ registry, pool, store }), {
     id: 'gw',
     name: 'Harbor Desk',
@@ -1294,7 +1288,6 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
 
   const hello = await prober.sendHello(ctx.daemon.build);
 
-  // The daemon as `cloud`, the one daemon a gateway's registry holds.
   const registry = {
     daemons: new Map([
       [
@@ -1325,8 +1318,6 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
     store.stop();
   });
 
-  // The gateway's caller, acting as `gw` the way `atc-gateway` hands it to
-  // the tool handlers.
   const caller = buildPrincipalCaller(createRoutingCaller({ registry, pool, store }), {
     id: 'gw',
     name: 'Harbor Desk',
@@ -1610,8 +1601,6 @@ test('it refuses a session a pin reaches just before the forget does', async () 
 
   const id = getRecord(spawned, 'session')['id'];
 
-  // The pin lands on the daemon right before each request the tool sends,
-  // the forget among them.
   const pinning = buildStubFleetCaller({
     answer: async (request) => {
       await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
@@ -1736,8 +1725,6 @@ test('it rebinds the host of a session whose restore was refused for a changed a
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1830,8 +1817,6 @@ test('it adopts a session whose restore was refused once its host is rebound', a
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1919,13 +1904,10 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
       ],
       defaultTarget: 'box',
 
-      // The remote client acts as ops, which may use box.
       principals: new Map([['ops', ['box']]]),
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',

@@ -52,7 +52,6 @@ test('it keeps the last-used agent when a restored session reports its start', a
     expect(unchanged).toStrictEqual([sessionID]);
   });
 
-  // A client that has not shaken hands, since a connection takes one handshake.
   const probe = await openDaemonClient(daemon.socketPath);
 
   registerTestCleanup(() => {

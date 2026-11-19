@@ -44,8 +44,6 @@ function setupTest() {
 test('it restarts the daemon in place and restores a saved fleet of two live sessions', async () => {
   const ctx = setupTest();
 
-  // Each stub reports its own atc session as its agent session, so every
-  // session a restart restores comes back under its own row.
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
   writeFileSync(
@@ -53,7 +51,6 @@ test('it restarts the daemon in place and restores a saved fleet of two live ses
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -355,7 +352,6 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -420,7 +416,6 @@ test('it leaves the daemon running when the token file for the replacement canno
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -460,8 +455,7 @@ test('it leaves the daemon running when the token file for the replacement canno
 test('it joins a restart already in flight and reports its result without a second restore', async () => {
   const ctx = setupTest();
 
-  // Each stub reports its own atc session as its agent session, so every
-  // session a restart restores comes back under its own row.
+  // Every session a restart restores must come back under its own row, so each stub reports its own atc session as its agent session.
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
   writeFileSync(
@@ -469,7 +463,6 @@ test('it joins a restart already in flight and reports its result without a seco
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -553,8 +546,6 @@ test('it joins a restart already in flight and reports its result without a seco
 test('it completes a restart run from inside a hosted session after the session dies with the old daemon', async () => {
   const ctx = setupTest();
 
-  // Each stub reports its own atc session as its agent session, so every
-  // session a restart restores comes back under its own row.
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
   writeFileSync(
@@ -562,7 +553,6 @@ test('it completes a restart run from inside a hosted session after the session 
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -630,8 +620,6 @@ test('it completes a restart run from inside a hosted session after the session 
 test('it restarts through the unit when the daemon is the unit main process, handing off through systemd-run', async () => {
   const ctx = setupTest();
 
-  // Each stub reports its own atc session as its agent session, so every
-  // session a restart restores comes back under its own row.
   writeFileSync(join(ctx.home, 'fake-claude-own-id'), '');
 
   writeFileSync(
@@ -639,7 +627,6 @@ test('it restarts through the unit when the daemon is the unit main process, han
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -733,7 +720,6 @@ test('it replaces a daemon on another protocol version and prints its refusal', 
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -814,7 +800,6 @@ test('it prints the preflight and stops the daemon nowhere on a dry run', async 
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -838,7 +823,6 @@ test('it prints the preflight and stops the daemon nowhere on a dry run', async 
     env: { PATH: ctx.path },
   });
 
-  // A request answered after the dry run proves the daemon still serves.
   await client.sendRequest('session.list');
 
   expect(restart.exitCode).toBe(0);
@@ -856,7 +840,6 @@ test('it refuses a --listen without a token file before it stops the daemon', as
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -880,7 +863,6 @@ test('it refuses a --listen without a token file before it stops the daemon', as
     env: { PATH: ctx.path },
   });
 
-  // A request answered after the refusal proves the daemon still serves.
   await client.sendRequest('session.list');
 
   expect(restart.exitCode).toBe(1);

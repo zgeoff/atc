@@ -12,9 +12,6 @@ export interface HookEntry {
 
 export type HooksConfig = Readonly<Record<string, readonly HookEntry[]>>;
 
-// One hook entry's keys. A wrong-typed optional field parses to undefined
-// rather than failing the entry, so a hook with one bad field still runs
-// with the default for it.
 const HOOK_ENTRY_SCHEMA = z.object({
   command: buildOptionalNonEmptyString(),
   directory: buildOptionalNonEmptyString(),

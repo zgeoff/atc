@@ -15,16 +15,12 @@ import { cols } from '../terminal/cols';
 import type { DaemonLinks } from './create-daemon-links';
 import { waitForRestartConsent } from './wait-for-restart-consent';
 
-// What the connection borrows from the client that owns the screen and the
-// fleet mirror.
 export interface TUIDaemonConnectionDeps {
   readonly clock: Clock;
   readonly bootDaemonClient: TUIDaemon['bootDaemon'];
 
-  // The primary daemon this connection links to; a name means a remote primary.
   readonly primary: DaemonName;
 
-  // Where the connection reports the primary link's state and boot.
   readonly links: Pick<DaemonLinks, 'setPrimary'>;
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
@@ -46,32 +42,21 @@ export interface TUIDaemonConnectionDeps {
   readonly setLastUsedAgent: (agent: AgentID) => void;
 }
 
-// What one open of the daemon gave the client: its boot, and whether the
-// user restarted a daemon on another protocol to get it, so the fleet that
-// daemon hosted is restored on the new one.
 interface DaemonLink {
   readonly boot: DaemonBoot;
   readonly restarted: boolean;
 }
 
-// The client's link to its daemon: the transport that opens it, reconnects
-// it, and brings the mirror up to date on each new connection.
 export interface TUIDaemonConnection {
   readonly transport: DaemonTransport<DaemonLink>;
 
-  // The client of the latest connection. A request on one that was lost
-  // rejects at once, as the reconnect takes its place.
   readonly getClient: () => DaemonClient;
 
-  // The boot of the latest connection: the daemon's socket, which a restart
-  // takes it out of service by, and its build.
   readonly getBoot: () => DaemonBoot;
 }
 
 export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDaemonConnection {
-  // Brings the mirror up to date on a daemon the client reconnected to. A
-  // connection lost on the way is left to the next reconnect, which runs
-  // this again.
+  // A connection lost on the way is left to the next reconnect, which runs this again.
   const refreshAfterReconnect = async (restarted: boolean, isClosed: () => boolean) => {
     await transport.waitForConnection();
 
@@ -98,9 +83,6 @@ export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDae
     }
   };
 
-  // Opens and handshakes the daemon. A daemon on another protocol is
-  // restarted only when the user confirms it: on the first open the prompt
-  // goes to stderr, and once the TUI owns the screen it replaces the screen.
   const openDaemonLink = async (phase: 'boot' | 'tui'): Promise<DaemonLink> => {
     let restarted = false;
 
@@ -117,8 +99,7 @@ export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDae
       },
     });
 
-    // A stale answer means the old daemon still holds the socket, so the
-    // open is refused and the next one boots again.
+    // A stale answer means the old daemon still holds the socket.
     if (boot.stale && deps.clock.now() < deps.service.getSnapshot().context.freshUntil) {
       boot.client.stop();
       throw new Error('the old daemon still answers');
@@ -142,8 +123,7 @@ export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDae
       return openDaemonLink(phase);
     },
 
-    // the boot's own failure ends the client, and so does a daemon on another protocol the
-    // user keeps, or a remote daemon, whose boot already waits out an unreachable one.
+    // a remote daemon's boot already waits out an unreachable one.
     isFatal: (error) =>
       transport.findLatest() === null ||
       (error instanceof DaemonError && error.code === 'protocol_mismatch') ||
@@ -158,8 +138,6 @@ export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDae
       deps.scheduleStatus();
     },
     onLost: () => {
-      // The reconnect leaves the picker, so no answer its flow still waits on
-      // draws it again. A deliberate restart keeps the screen it drew.
       deps.links.setPrimary({ kind: 'down', detail: 'the connection dropped' });
       deps.service.send({ type: 'DAEMON_LOST' });
 

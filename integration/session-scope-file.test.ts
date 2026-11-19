@@ -15,8 +15,6 @@ import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entr
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 
-// A daemon in the test's process whose one target `box` runs each harness in
-// its directory, under an agent that plans the scratch folder it is given.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-scope-file-' });
 

@@ -1,6 +1,3 @@
-// prints `<path>\0F<base64>\0` per path that exists: start files in the resolved dir, then root
-// files there, in every dir above and in the worktree's main checkout; `U` replaces `F<base64>`
-// for anything not a readable regular file within the size cap, and a missing dir exits 3
 export const READ_PROJECT_SETTINGS_SCRIPT = `cd -P -- "$1" 2>/dev/null || exit 3; shift; d=$(pwd -P)
 emit() {
   [ -e "$1" ] || [ -L "$1" ] || return 0

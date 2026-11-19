@@ -3,9 +3,6 @@ import invariant from 'tiny-invariant';
 import type { DaemonPool } from '../daemons/create-daemon-pool';
 import type { RoutedCall, RoutedOutcome } from '../types';
 
-// The pass-through at the end of the routing steps: the call goes to its
-// daemon under any method name, and a daemon's refusal comes back as an
-// outcome for the steps around it to record and rewrite.
 export async function sendRoutedCall(pool: DaemonPool, call: RoutedCall): Promise<RoutedOutcome> {
   const daemon = call.daemon;
 

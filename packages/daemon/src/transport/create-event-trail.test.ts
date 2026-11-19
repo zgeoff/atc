@@ -18,8 +18,6 @@ import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provide
 import { createEventSignal } from './create-event-signal';
 import { createEventTrail } from './create-event-trail';
 
-// A session manager on one `local` target over the in-memory provider, a
-// real state store, a stub clock, and the trail over them.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-event-trail-');
   const dbPath = join(temporaryDirectory.path, 'state.db');

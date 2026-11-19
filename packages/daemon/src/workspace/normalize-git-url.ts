@@ -5,7 +5,6 @@ type NormalizedGitURL =
 const SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:\/\//iu;
 const SCP_PATTERN = /^(?:[^@/:\s]+@)?[^@/:\s]+:[^@\s]+$/u;
 
-// the credential-free form, which is safe to record, show, and hand to another host
 export function normalizeGitURL(raw: string): NormalizedGitURL {
   const trimmed = raw.trim();
 

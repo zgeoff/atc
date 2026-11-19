@@ -23,7 +23,6 @@ interface MCPHTTPFlags {
   readonly waitForDaemon: boolean;
   readonly tokenFile: string | null;
 
-  // The file of service tokens `/mcp` accepts; null for none.
   readonly serviceTokenFile: string | null;
   readonly allowedOrigins: readonly string[];
 }
@@ -36,8 +35,6 @@ interface MCPHTTPServerIO extends Pick<
   readonly loadTokens: (path: string) => ReturnType<typeof loadListenerTokens>;
   readonly dbPath: string;
 
-  // null for the process's own daemon files, the only ones at which it starts
-  // a daemon
   readonly daemonPaths: DaemonPaths | null;
 }
 
@@ -49,25 +46,20 @@ const MCP_HTTP_SERVER_IO: MCPHTTPServerIO = {
   daemonPaths: null,
 };
 
-// How the server reaches the daemon it booted: the caller its tools use, as
-// the daemon's owner, and the opener of a live-terminal viewer's own channel.
 export interface MCPDaemonConnection {
   readonly caller: ChannelCaller;
 
-  // A null principal watches as the connection's own principal.
   readonly openWatchChannel: (principal: string | null) => Promise<WatchChannel>;
 }
 
-// What the entry wires in: the daemon boot, the connection to the booted
-// daemon, and the opener of the authorization database.
 interface MCPHTTPServerHost {
   readonly bootDaemon: (options: DaemonBootOptions) => Promise<DaemonBoot>;
   readonly connectDaemon: (boot: DaemonBoot) => MCPDaemonConnection;
   readonly openAuthDatabase: (path: string) => Database;
 }
 
-// How long `--wait-for-daemon` waits before it exits. A service manager's
-// restart covers a daemon that takes longer.
+// Thirty seconds is enough here: when a daemon takes longer, the process exits and the
+// service manager's restart brings it back to wait again.
 const DAEMON_WAIT_MS = 30_000;
 
 export async function runMCPHTTPServer(
@@ -77,9 +69,6 @@ export async function runMCPHTTPServer(
   io: MCPHTTPServerIO = MCP_HTTP_SERVER_IO,
 ): Promise<void> {
   const config = io.loadConfig();
-
-  // A token file is read once, before the daemon starts, so a bad file
-  // stops the server with nothing started.
   const loaded = flags.tokenFile === null ? null : io.loadTokens(flags.tokenFile);
 
   if (loaded !== null && !loaded.ok) {
@@ -164,7 +153,6 @@ export async function runMCPHTTPServer(
     openAuthDatabase: host.openAuthDatabase,
     ...(serviceTokens === null ? {} : { serviceTokens: serviceTokens.file }),
 
-    // Request lines go to stderr, beside the security events.
     printRequest: (line) => {
       io.printError(line);
     },

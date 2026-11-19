@@ -5,8 +5,6 @@ import { toAgentID } from '@atc/core';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createClaudeLaunchFiles } from './create-claude-launch-files';
 
-// The folders the files go to: a state folder, a home, and a mod folder,
-// none of which exists until the files write it.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-claude-launch-files-');
 

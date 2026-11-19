@@ -15,8 +15,6 @@ import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provide
 import { createSessionManager } from './create-session-manager';
 import { createSpawnReplay } from './create-spawn-replay';
 
-// A session manager on one `local` target over the in-memory provider, a
-// real state store, and the replay that reads both.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-spawn-replay-');
   const dbPath = join(temporaryDirectory.path, 'state.db');

@@ -16,12 +16,8 @@ export interface StatusView {
   readonly restarting: boolean;
   readonly waiting?: boolean;
 
-  // The remote daemon from the config the client runs against, which the
-  // bar shows beside the name so a remote fleet never passes for the local
-  // one; absent or null for the local daemon.
   readonly daemonName?: string | null;
 
-  // A line that says why the last action on a daemon sent nothing or was refused, until it times out.
   readonly notice?: string | null;
 }
 

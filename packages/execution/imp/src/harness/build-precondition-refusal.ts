@@ -5,14 +5,11 @@ import { z } from 'zod';
 import type { ImpSessionOutcome } from '../port/imp-port';
 import { formatOutcome } from './format-outcome';
 
-// How a refused precondition ends a harness: the exit, and the refusal its
-// start settles with when impd gave a reason the daemon knows.
 interface PreconditionRefusal {
   readonly refusal: DaemonError | null;
   readonly exit: HarnessExit;
 }
 
-// impd refuses a start whose broker is not ready.
 export function buildPreconditionRefusal(
   outcome: Extract<ImpSessionOutcome, { kind: 'failed' }>,
   name: string,
@@ -39,8 +36,8 @@ export function buildPreconditionRefusal(
     }));
 }
 
-// impd's reason for a refused precondition, and its detail, each read on its
-// own so a detail that is not text leaves the reason.
+// Parse impd's reason apart from its detail, so a detail that is not text
+// does not make us lose the reason.
 const PRECONDITION_REASON_SCHEMA = z.object({ reason: z.string() });
 const PRECONDITION_DETAIL_SCHEMA = z.object({ detail: z.string() });
 

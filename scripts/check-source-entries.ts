@@ -1,6 +1,3 @@
-// Fails when a test helper hard-codes the source entry of a command that
-// `scripts/with-test-home.sh` exports as an `ATC_*_ENTRY` variable, since a
-// literal path is left behind when a package move changes the entry.
 import { readFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { readSourceFiles } from './read-source-files';
@@ -62,7 +59,6 @@ function collectHardCodedEntries(
   source: string,
   entries: readonly SourceEntry[],
 ): HardCodedEntry[] {
-  // The bare file name matches too, so `'cli.ts'` in a `join` counts
   const patterns = entries.map((entry) => ({
     entry,
     pattern: new RegExp(`(?:^|[/'"\`])${RegExp.escape(basename(entry.path))}(?![\\w.-])`, 'u'),

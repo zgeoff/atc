@@ -6,7 +6,6 @@ import { buildHostFiles } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { loadClaudeName } from './load-claude-name';
 
-// A folder for the transcript a test writes.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-claude-name-');
 

@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite';
 
-// The tables atc's own OAuth server made before it moved to @zgeoff/mcp-auth,
-// as better-auth 1.7.15 wrote them, and atc's grant use table beside them.
+// The OAuth tables match what better-auth 1.7.15 created in existing databases.
+// Keep this DDL as is; regenerating it from a newer better-auth release loses that match.
 const OWNER_SCHEMA = [
   `CREATE TABLE "user" ("id" text not null primary key, "name" text not null, "email" text not null unique, "emailVerified" integer not null, "image" text, "createdAt" date not null, "updatedAt" date not null)`,
   `CREATE TABLE "session" ("id" text not null primary key, "expiresAt" date not null, "token" text not null unique, "createdAt" date not null, "updatedAt" date not null, "ipAddress" text, "userAgent" text, "userId" text not null references "user" ("id") on delete cascade)`,
@@ -41,8 +41,7 @@ export interface OwnerSchema {
   readonly ownerID: string;
 }
 
-// A database from before atc moved to @zgeoff/mcp-auth: no code here makes
-// it now. Every grant's tokens point at the one owner row this writes.
+// User databases in the field carry this owner schema, so tests must build it themselves.
 export function seedOwnerSchema(sqlite: Database): OwnerSchema {
   for (const statement of OWNER_SCHEMA) {
     sqlite.run(statement);

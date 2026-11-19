@@ -13,9 +13,6 @@ const COLUMN_INFO_ROWS_SCHEMA = z.array(
   }),
 );
 
-// Rebuilds the fleet with every column it carries, under the same types,
-// defaults, and key, but without the unique agent session id, so live
-// sessions on two targets that resume one agent session keep a row each.
 export async function updateFleetAgentSessionIDToShared(
   db: Kysely<StateStoreSchema>,
 ): Promise<void> {

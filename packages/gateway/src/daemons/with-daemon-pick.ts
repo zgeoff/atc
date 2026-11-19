@@ -2,8 +2,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import invariant from 'tiny-invariant';
 import type { GatewayRegistry, RouteNext, RoutedCall, RoutedOutcome } from '../types';
 
-// A call goes to the daemon its ids belong to, then to the one its `daemon`
-// param names, then to the default daemon, and never fails over.
 export function withDaemonPick(
   registry: GatewayRegistry,
   call: RoutedCall,

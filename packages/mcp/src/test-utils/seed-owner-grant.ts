@@ -13,8 +13,6 @@ export interface OwnerGrantInput {
   readonly resource: string;
   readonly scopes: readonly string[];
 
-  // The authorization code the tokens carry, which becomes the grant's ID;
-  // drawn at random when left out.
   readonly grantID?: string;
 }
 
@@ -26,9 +24,8 @@ export interface OwnerGrant extends OwnerTokens {
   readonly resources: string;
 }
 
-// One grant as atc's own OAuth server wrote it at the code exchange, before
-// atc moved to @zgeoff/mcp-auth: a consent and a token pair on the owner row,
-// the tokens stamped with the authorization code they came from.
+// Existing databases hold grant rows in this shape, not the one the auth library writes,
+// so seed this shape to test against the data that is actually stored.
 export function seedOwnerGrant(sqlite: Database, input: OwnerGrantInput): OwnerGrant {
   const grantID = toTagged<GrantID>(input.grantID ?? randomBytes(32).toString('base64url'));
   const scopes = JSON.stringify([...input.scopes, 'offline_access']);

@@ -18,13 +18,11 @@ interface SpritesHarnessOptions {
   readonly sprite: string;
   readonly session: string;
 
-  // the terminal exec to start when the sprite holds no harness to attach to
   readonly start: Omit<ExecRequest, 'tty'> & { readonly cols: number; readonly rows: number };
   readonly relay: OpenedRelay;
   readonly reconnectDelaysMs: readonly number[];
   readonly log: (line: string) => void;
 
-  // runs once the harness has exited or been detached
   readonly onDone: () => void;
 }
 
@@ -34,9 +32,6 @@ export interface SpritesHarness extends HarnessHandle {
   readonly killForced: NonNullable<HarnessHandle['killForced']>;
 }
 
-// Follows the harness of a session in a terminal exec. It attaches to the exec the guest folder
-// records when the sprite still holds it under the same boot, and otherwise starts the spec's
-// command, which a revive sets to the resume command. A failed start arrives as an exit.
 export function createSpritesHarness(options: SpritesHarnessOptions): SpritesHarness {
   const api = options.api;
 
@@ -49,7 +44,7 @@ export function createSpritesHarness(options: SpritesHarnessOptions): SpritesHar
   const exitWaiters: ((exited: boolean) => void)[] = [];
   const started = Promise.withResolvers<HarnessStart>();
 
-  // an unawaited rejection never crashes the daemon
+  // Node and Bun exit on an unhandled rejection, and nothing may await this promise.
   void waitOut(started.promise);
   let connection: ExecConnection | null = null;
   let execID: string | null = null;
@@ -145,9 +140,7 @@ export function createSpritesHarness(options: SpritesHarnessOptions): SpritesHar
     }
   };
 
-  // A connection that ended while the exec still stands attaches again, and the API replays the
-  // screen. An exec the sprite no longer lists is the harness's end.
-  // One loop at a time: a failed attach ends its connection, which asks for another loop.
+  // Attaching to a live exec makes the API replay the screen.
   const restoreAttach = async (): Promise<void> => {
     if (isRestoring) {
       return;
@@ -212,7 +205,6 @@ export function createSpritesHarness(options: SpritesHarnessOptions): SpritesHar
     emitExit({ exitCode: 1, reason: 'ended', detail: 'the harness cannot be reattached' });
   };
 
-  // why the sprite no longer runs the harness, or null while it does
   const readLoss = async (): Promise<string | null> => {
     if ((await api.readSprite(options.sprite)) === null) {
       return 'the sprite is gone';
@@ -251,7 +243,6 @@ export function createSpritesHarness(options: SpritesHarnessOptions): SpritesHar
 
       const recorded = record?.harness ?? null;
 
-      // an exec id from another boot can name a different exec
       const kept =
         recorded !== null &&
         recorded.boot === boot &&

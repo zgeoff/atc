@@ -7,10 +7,8 @@ interface HeadlessEnvParams {
   readonly sessionID?: SessionID;
   readonly socketPath: string;
 
-  // Variables the run goes without, such as a workspace credential.
   readonly withheldEnv?: readonly string[];
 
-  // Where the session's published record lies.
   readonly recordPath?: string;
 }
 

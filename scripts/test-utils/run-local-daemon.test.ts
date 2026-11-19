@@ -3,7 +3,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { localDigestEnv } from '../verify/constants.ts';
 import { runLocalDaemon } from './run-local-daemon.ts';
 
-// The variables with-test-home.sh exports for a run, in a temp directory.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-local-daemon-');
 

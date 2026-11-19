@@ -1,8 +1,7 @@
 import { join } from 'node:path';
 import { localMCPClient, prodMCPClient } from './constants.ts';
 
-// The variables `with-test-home.sh` removes: a session atc hosts sets them, and a process that
-// keeps one reports to the live daemon of the enclosing session.
+// A session atc hosts sets them, and a process that keeps one reports to the live daemon of the enclosing session.
 const ENCLOSING_SESSION_VARIABLES = [
   'ATC_SESSION_ID',
   'ATC_SOCKET',
@@ -20,8 +19,7 @@ const ENCLOSING_SESSION_VARIABLES = [
 // starts needs one.
 const SECRET_VARIABLES = [localMCPClient.secretEnv, prodMCPClient.secretEnv] as const;
 
-// Runs argv in the run's temp home, as `with-test-home.sh` sets it up. A wringer program or
-// stream source only adds variables to the supervisor's, so `env` removes the enclosing
+// A wringer program or stream source only adds variables to the supervisor's, so `env` removes the enclosing
 // session's and the secrets.
 export function buildHomeCommand(root: string, argv: readonly string[]): string[] {
   const home = join(root, 'home');

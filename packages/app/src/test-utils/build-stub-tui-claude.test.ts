@@ -13,8 +13,6 @@ import { buildStubTUIClaude } from './build-stub-tui-claude';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-tui-claude-');
-
-  // The reporter the script reports through sends its lines here.
   const reporter = startStubReporterSocket(join(temporaryDirectory.path, 'report.sock'));
 
   const bin = createStubBin(

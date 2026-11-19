@@ -12,8 +12,6 @@ import { toAuthRefusal } from './to-auth-refusal';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 import { verifyGate } from './verify-gate';
 
-// The rebind's own steps on a binding read under the host's lock, which
-// leave the admissions on the host to the caller.
 export async function updateBindingLocked(
   ledger: RuntimeAuthLedger,
   host: CredentialBroker,

@@ -1,6 +1,5 @@
 import type { CommandError, CommandOutcome, MessageView } from '../send/types';
 
-// What the command knew before it read the message.
 export interface OutcomeBase {
   readonly key: string | null;
   readonly session: string | null;

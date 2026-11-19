@@ -7,8 +7,6 @@ import { buildSessionSetAccess } from './build-session-set-access';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';
 import { findGrantedSpawnRefusal } from './find-granted-spawn-refusal';
 
-// Each check reads the live subtree, so a session the holder spawns is in
-// reach at once.
 export function buildGrantedContext(
   ctx: DaemonContext,
   holder: SessionID,

@@ -9,9 +9,6 @@ type PTYViewerEvent =
   | { readonly type: 'SNAPSHOT' }
   | { readonly type: 'CLOSE' };
 
-// A viewer holds output back until its socket opens and while a snapshot is
-// on its way, and drops output while the browser lags. The machine holds
-// state only; the viewer performs every effect.
 export const PTY_VIEWER_MACHINE = setup({
   types: machineTypes<{ events: PTYViewerEvent }>(),
 }).createMachine({

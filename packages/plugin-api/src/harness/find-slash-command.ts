@@ -1,6 +1,3 @@
-// A slash, a command name that may hold a plugin namespace, at least one
-// space, then the argument. A path such as `/tmp/out` has a slash after its
-// first name, so it never matches.
 const SLASH_COMMAND = /^(?<name>\/[A-Za-z0-9][\w:-]* +)(?<argument>.+)$/su;
 
 export function findSlashCommand(text: string): { name: string; argument: string } | null {

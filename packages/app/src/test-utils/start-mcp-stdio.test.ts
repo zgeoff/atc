@@ -4,8 +4,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildStubMCPStdioServer } from '@atc/mcp/test-utils/build-stub-mcp-stdio-server';
 import { startMCPStdio } from './start-mcp-stdio';
 
-// A home for the stand-in server each test writes and starts there. The
-// cases that start the real server run end to end.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-mcp-stdio-');
 

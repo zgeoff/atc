@@ -1,7 +1,5 @@
 import type { HarnessRelay } from '@atc/plugin-api';
 
-// While a line waits for room in the relay, the socket takes no bytes, so
-// the connection's own queue holds them and its cap applies.
 export function createRelayPeerSocket(relay: HarnessRelay, onDrain: () => void) {
   const decoder = new TextDecoder();
 
@@ -47,7 +45,6 @@ export function createRelayPeerSocket(relay: HarnessRelay, onDrain: () => void) 
       return data.length;
     },
 
-    // The relay closes once every line written before the end has gone.
     end: () => {
       isEnding = true;
 

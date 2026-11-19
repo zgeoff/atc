@@ -8,7 +8,6 @@ interface NamedDaemonSource {
   readonly io: Pick<ProcessIO, 'printError' | 'exit'>;
 }
 
-// Null once the command has refused the name and exited.
 export function readNamedDaemon(
   name: string,
   command: string,

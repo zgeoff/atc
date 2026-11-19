@@ -2,7 +2,7 @@ import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '@atcx/contract/light';
 
-// an installed or masked unit keeps ownership while it is stopped.
+// atc lets an installed or masked unit keep the managed daemon's slot even while it is stopped.
 export function readManagedDaemonUnit(
   env: Readonly<Record<string, string | undefined>>,
 ): string | null {
@@ -14,7 +14,7 @@ export function readManagedDaemonUnit(
 
       return path;
     } catch {
-      // A directory without this unit contributes no ownership signal.
+      // ENOENT: this directory holds no such unit.
     }
   }
 

@@ -127,8 +127,6 @@ test('it holds no target column while a single target is available', () => {
   });
 });
 
-// Every row sits on the target `box`, so the widest target is three
-// columns, while several targets are available to spawn on.
 test('it still draws the target column at the width of the one target every session sits on', () => {
   expect(
     planOverlayColumns({

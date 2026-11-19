@@ -8,8 +8,6 @@ export function startStubRestoreDaemon(socketPath: string) {
 
   const daemon = startStubPeerDaemon(socketPath, {
     answer: (request) => {
-      // The client opens its event stream once the handshake passes, which
-      // this daemon holds open and never sends to.
       if (request.method === 'events.subscribe') {
         return 'silent';
       }

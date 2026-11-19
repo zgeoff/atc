@@ -1,10 +1,8 @@
 import { BROKER_PLACEHOLDER, isRecord } from '@atc/core';
 
-// A deprecated placeholder, which atc reads as its own and warns about.
 export const LEGACY_BROKER_PLACEHOLDER = 'imp-broker-placeholder';
 
-// The fields that hold a credential's placeholder, `*` matching any key; the
-// gateways key is the one the config migration reads.
+// The config migration reads the gateways placeholder path, so that entry must stay in this list.
 const PLACEHOLDER_FIELDS: readonly (readonly string[])[] = [
   ['authProfiles', '*', 'env', '*'],
   ['agents', '*', 'auth', 'placeholderEnv', '*'],
@@ -14,7 +12,6 @@ const PLACEHOLDER_FIELDS: readonly (readonly string[])[] = [
 interface PlaceholderReplacement {
   readonly config: Record<string, unknown>;
 
-  // one line for the whole file, or null when it holds no old value.
   readonly warning: string | null;
 }
 

@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readDaemonRecord } from './read-daemon-record';
 
-// A temp directory to hold the record.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-daemon-record-');
 

@@ -7,8 +7,6 @@ import type { SessionRegistry } from './create-session-registry';
 import type { Session } from './session';
 import type { SpawnMaterializer } from './spawn-materializer';
 
-// What a spawn settled on before its first step: the agent, the target and
-// its host, the auth the harness takes, and the caller's request.
 export interface SpawnRequest {
   readonly adapter: AgentAdapter;
   readonly provider: ExecutionProvider;
@@ -37,7 +35,6 @@ export interface SpawnRequest {
   readonly parentTrustedRoot: string | null;
   readonly timer: StepTimer;
 
-  // Builds the caller's answer once the harness started, as the spawn's
-  // last step, so a failure there unwinds the spawn too.
+  // Runs as the spawn's last step, after the harness started, so a failure here unwinds the spawn.
   readonly answer: ((session: Session) => void) | null;
 }

@@ -6,13 +6,10 @@ import { startDaemon } from '../start-daemon';
 
 const STDERR_FD = 2;
 
-// The log's batch, so a flood of a hundred refusals fills what the log holds and drops the rest:
-// each refusal costs a loopback connection, and on a small host a flood of thousands can wait
-// seconds on a retried SYN.
+// A small batch lets a flood of refusals fill the log and drop the rest. Each refusal costs a
+// loopback connection, and on a small host thousands of them can wait seconds on a retried SYN.
 const LOG_BATCH_LINES = 16;
 
-// It has no execution target, so it serves the protocol and spawns nothing. It prints the port it
-// bound once it listens, and SIGTERM stops it.
 async function main() {
   const directory = process.env['ATC_TEST_DIR'] ?? '';
 

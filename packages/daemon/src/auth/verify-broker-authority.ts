@@ -8,8 +8,6 @@ interface BrokerActivation {
   readonly secrets: readonly string[];
 }
 
-// reads only, so a refusal leaves the broker as it was; whether each secret's rules
-// match the binding is a separate comparison
 export async function verifyBrokerAuthority(
   broker: Pick<CredentialBroker, 'hostPrefix' | 'verifyVersion' | 'readIdentity'>,
   activation: BrokerActivation,

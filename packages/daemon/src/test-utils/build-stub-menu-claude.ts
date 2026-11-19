@@ -17,35 +17,25 @@ interface StubMenu {
 interface StubMenuScenario {
   readonly menus: readonly [StubMenu, ...StubMenu[]];
 
-  // Held as Claude Code holds a dialog that just opened: arrows move the cursor,
-  // enter and escape do nothing but restart the hold, and the cursor goes back
-  // to its start when the hold ends.
+  // Claude Code holds a dialog that just opened: enter and escape only restart the hold.
   readonly holdMs?: number;
 
-  // Answers each enter only that long after reading it, as a busy agent does.
   readonly enterDelayMs?: number;
   readonly pickOpensNext?: boolean;
 }
 
 interface StubMenuClaude {
-  // Every key the stand-in read and every outcome it reached, in order.
   readonly log: Readonly<Record<string, unknown>>[];
 
-  // Sets the menus the next session the daemon starts shows.
   readonly load: (scenario: StubMenuScenario) => void;
 
-  // Runs the stand-in on a harness the daemon started.
   readonly start: (harness: StubMemoryHarness) => void;
 
-  // Opens the second menu of the scenario in the latest session, as when the
-  // agent moves on by itself, and resolves once the session has drawn it.
   readonly switchMenu: () => Promise<void>;
 
-  // Ends the latest session with exit code 0.
   readonly exit: () => void;
 }
 
-// The clock times the stand-in's draws, holds and delayed answers.
 export function buildStubMenuClaude(clock: Clock = systemClock): StubMenuClaude {
   const log: Readonly<Record<string, unknown>>[] = [];
   const sessions: { harness: StubMemoryHarness; open: (menu: StubMenu) => void }[] = [];
@@ -67,8 +57,8 @@ export function buildStubMenuClaude(clock: Clock = systemClock): StubMenuClaude 
       loaded = scenario;
     },
     start: (harness) => {
-      // A session started before any scenario sits idle, as another agent
-      // on the same provider does.
+      // Other agents on the same provider start sessions that never show a menu, so a session that
+      // starts with no scenario loaded must stay idle.
       if (loaded === null) {
         return;
       }
@@ -111,8 +101,6 @@ type StubMenuEvent =
   | { readonly type: 'ANSWER'; readonly data: string }
   | { readonly type: 'OPEN'; readonly menu: StubMenu };
 
-// The menu a session shows, where its cursor sits, the first option its
-// window shows, and which boxes are checked.
 interface MenuView {
   readonly menu: StubMenu;
   readonly cursor: number;
@@ -120,8 +108,6 @@ interface MenuView {
   readonly checked: readonly boolean[];
 }
 
-// Draws the first menu and answers keys as Claude Code's dialogs do, and
-// returns how to open another menu in the session.
 function runStubMenuSession(
   harness: StubMemoryHarness,
   scenario: StubMenuScenario,
@@ -130,8 +116,6 @@ function runStubMenuSession(
 ): (menu: StubMenu) => void {
   const [first] = scenario.menus;
 
-  // xstate's clock takes a timer id, and the stand-in's clock hands back a
-  // cancel.
   const cancels = new Map<number, () => void>();
 
   let nextTimerID = 0;
@@ -258,7 +242,6 @@ function runStubMenuSession(
         always: [{ guard: 'isHeld', target: 'held' }, { target: 'open' }],
       },
 
-      // Enter and escape restart the hold, so neither reaches the menu.
       held: {
         after: { hold: { target: 'open', actions: 'endHold' } },
         on: {
@@ -352,14 +335,11 @@ function renderMenu(
   ].join('\r\n');
 }
 
-// Whether one row of a windowed menu sits beside options out of view.
 interface RowMarks {
   readonly above: boolean;
   readonly below: boolean;
 }
 
-// The cursor's column of one row: the cursor, else the mark of options out
-// of view beside that row, else blank.
 function renderPointer(isCursor: boolean, more: RowMarks): string {
   if (isCursor) {
     return '❯ ';
@@ -372,15 +352,12 @@ function renderPointer(isCursor: boolean, more: RowMarks): string {
   return more.above ? '↑ ' : '  ';
 }
 
-// What one key does to an open menu: the view after it, the log entries it
-// adds, and the line the menu ends on, if it ends.
 interface KeyPlan {
   readonly view: MenuView;
   readonly logged: readonly Readonly<Record<string, unknown>>[];
   readonly outcome?: string;
 }
 
-// The plan for one key on an open menu, or null for a key the menu ignores.
 function planKey(view: MenuView, data: string, scenario: StubMenuScenario): KeyPlan | null {
   const menu = view.menu;
   const items = menu.options.length + (menu.submit === undefined ? 0 : 1);
@@ -413,13 +390,11 @@ function planKey(view: MenuView, data: string, scenario: StubMenuScenario): KeyP
   return planEnter(view, scenario);
 }
 
-// Where a windowed menu's cursor sits, and the first option it shows.
 interface WindowState {
   readonly cursor: number;
   readonly top: number;
 }
 
-// The cursor and the window's first option after the up arrow.
 function planWindowUp(menu: StubMenu, cursor: number, top: number): WindowState {
   const size = menu.window ?? menu.options.length;
   const last = menu.options.length - 1;
@@ -435,7 +410,6 @@ function planWindowUp(menu: StubMenu, cursor: number, top: number): WindowState 
   return { cursor: cursor - 1, top: cursor - 1 <= top ? Math.max(0, top - 1) : top };
 }
 
-// The cursor and the window's first option after the down arrow.
 function planWindowDown(menu: StubMenu, cursor: number, top: number): WindowState {
   const size = menu.window ?? menu.options.length;
   const last = menu.options.length - 1;
@@ -453,8 +427,6 @@ function planWindowDown(menu: StubMenu, cursor: number, top: number): WindowStat
   return { cursor: cursor + 1, top: cursor + 1 >= top + size ? cursor + 2 - size : top };
 }
 
-// The plan for an enter on an open menu: a box toggles, the submit row
-// enables the checked boxes, and an option is picked or opens the next menu.
 function planEnter(view: MenuView, scenario: StubMenuScenario): KeyPlan {
   const menu = view.menu;
   const [first, second] = scenario.menus;
@@ -484,8 +456,6 @@ function planEnter(view: MenuView, scenario: StubMenuScenario): KeyPlan {
   return { view, logged: [{ picked: label }], outcome: `Picked: ${label}` };
 }
 
-// A menu as it opens: the cursor at its start, its window around the cursor,
-// and its boxes as the menu checks them.
 function buildMenuView(menu: StubMenu): MenuView {
   const cursor = menu.cursor ?? 0;
 
@@ -497,8 +467,6 @@ function buildMenuView(menu: StubMenu): MenuView {
   };
 }
 
-// The first option a windowed menu shows when its cursor starts on
-// `cursor`: the top of the list, or the row that puts the cursor last.
 function getWindowTop(menu: StubMenu, cursor: number): number {
   const size = menu.window ?? menu.options.length;
 

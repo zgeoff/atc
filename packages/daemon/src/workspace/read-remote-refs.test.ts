@@ -4,7 +4,6 @@ import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { $ } from 'bun';
 import { readRemoteRefs } from './read-remote-refs';
 
-// A bare upstream holding one commit and a work clone that pushes to it.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-remote-refs-' });
 

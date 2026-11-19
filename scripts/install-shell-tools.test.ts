@@ -5,8 +5,6 @@ import { createStubCurl } from '@atc/core/test-utils/create-stub-curl';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 
-// A downloads folder that the stand-in curl serves from, a runner temp
-// folder, and the file that GitHub reads the added PATH entries from.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-install-shell-tools-');
   const downloads = join(temporaryDirectory.path, 'downloads');

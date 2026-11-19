@@ -4,14 +4,11 @@ import type { HookSettingsProfile } from './hooks/build-hook-settings';
 import { writeHookSettings } from './hooks/write-hook-settings';
 
 export interface ClaudeLaunchFiles {
-  // The settings file's path.
   readonly writeSettings: () => string;
 
-  // The mod's folder.
   readonly writeBridge: () => string;
 }
 
-// each file is written on its first use, so creating this touches no state, and once only
 export function createClaudeLaunchFiles(
   profile: HookSettingsProfile,
   atcArgv: readonly string[],

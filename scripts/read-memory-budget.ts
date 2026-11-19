@@ -18,7 +18,6 @@ export async function readMemoryBudget(sources: Readonly<MemoryBudgetSources>): 
 async function readCgroupCaps(sources: Readonly<MemoryBudgetSources>): Promise<number[]> {
   const membership = await sources.readText(join(sources.procRoot, 'self', 'cgroup'));
 
-  // macOS has no procfs.
   if (membership === undefined) {
     return [];
   }
@@ -57,8 +56,6 @@ async function readCgroupCap(
   return value === undefined || value === 'max' ? undefined : Number(value);
 }
 
-// Bun.file's text reads as many bytes as stat reports, and procfs and cgroupfs report 0 for every
-// file; readFile reads to the end.
 if (import.meta.main) {
   const budget = await readMemoryBudget({
     totalMemory: totalmem(),

@@ -27,7 +27,6 @@ export async function updateSessionScope(
 
   const provider = deps.registry.requireExecution(session, 'spawn').provider;
 
-  // the scope checks run on the session's host
   if (provider.remote && session.vm !== 'awake') {
     throw new DaemonError(
       'host_unavailable',

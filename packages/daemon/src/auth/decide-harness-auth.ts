@@ -13,7 +13,6 @@ export type HarnessAuthRefusal =
   | 'auth_on_stored_token'
   | 'sign_in_unsupported';
 
-// `none`: the launch takes no credential from atc.
 export type HarnessAuthDecision =
   | { readonly kind: 'none' }
   | { readonly kind: 'refused'; readonly problem: HarnessAuthRefusal }
@@ -21,8 +20,6 @@ export type HarnessAuthDecision =
   | { readonly kind: 'routed'; readonly router: CredentialRouter }
   | { readonly kind: 'stored-token' };
 
-// What a launch on a host does about credentials. Each refusal is the first row of the refusal
-// table that matches.
 export function decideHarnessAuth(
   selection: AuthSelection | null,
   credentials: HostCredentials,

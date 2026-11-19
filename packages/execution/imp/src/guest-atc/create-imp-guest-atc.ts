@@ -9,10 +9,7 @@ import { readGuestATCArchive } from './read-guest-atc-archive';
 import READ_GUEST_ATC_SCRIPT from './read-guest-atc.sh' with { type: 'text' };
 import READY_GUEST_DIR_SCRIPT from './ready-guest-dir.sh' with { type: 'text' };
 
-// The atc that hooks inside each imp run, and what the provider knows of the
-// atc each imp's image ships.
 export interface ImpGuestATC {
-  // An imp made anew, or destroyed, has no known image atc.
   readonly removeImageVersion: (name: string) => void;
 
   // A cold boot clears the guest folder, so each readying links the image's atc
@@ -38,19 +35,17 @@ export function createImpGuestATC(options: ImpGuestATCOptions): ImpGuestATC {
   const atcBinary = options.atcBinary;
   const version = options.version;
 
-  // The version the image's atc printed on each imp, or null for an imp
-  // without one, kept once a readying of the imp succeeds: an imp's image
-  // never changes, and `bin/atc` there then runs the daemon's version.
+  // Kept per imp once a readying succeeds: an imp's image never changes, so its atc
+  // prints the same version, and `bin/atc` there runs the daemon's version from then on.
   const imageATCVersions = new Map<string, string | null>();
 
-  // The signature an image's atc showed when it printed its version last, its
-  // resolved path, inode, size and mtime, so a new imp of the same image takes
-  // that version without running it.
+  // The resolved path, inode, size and mtime of the image's atc when it last printed its version.
+  // A new imp whose atc matches all four has the same binary, so it reuses that version without
+  // running it.
   let imageATC: Readonly<{ signature: string; version: string }> | null = null;
 
-  // Copies the binary to `bin/atc`, replacing a link to the image's atc.
-  // The binary crosses the network to impd, so it goes over gzipped, and an
-  // imp without gzip refuses the copy before it reads any input.
+  // The binary crosses the network to impd, so it goes over gzipped; an imp without gzip
+  // refuses the copy before it reads any input.
   const copyATCBinary = async (name: string, directory: string, binary: string): Promise<void> => {
     const unpacked = await port.runCommand(name, {
       argv: ['sh', '-c', INSTALL_GUEST_ATC_SCRIPT, 'sh', directory, String(NO_GZIP_CODE)],
@@ -68,8 +63,6 @@ export function createImpGuestATC(options: ImpGuestATCOptions): ImpGuestATC {
     }
   };
 
-  // The first readying reads the image's version in the same command that links
-  // it; a later one links again or checks the copy.
   const setupGuestATC = async (
     name: string,
     directory: string,

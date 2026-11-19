@@ -4,9 +4,6 @@ import type { ErrorCode } from '@atcx/contract/light';
 import type { SessionManager } from '../sessions/create-session-manager';
 import type { AdoptResult } from './types';
 
-// the refusals that leave one session without a terminal: its target is misconfigured,
-// gone, changed, without a provider here, or unable to start one, its agent refuses
-// every start, or its host's runtime auth binding, broker included, refuses the launch
 const REFUSED_ADOPT_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'unsupported_operation',
   'unknown_target',
@@ -30,7 +27,8 @@ const REFUSED_ADOPT_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'broker_not_ready',
   'auth_placeholder_unsupported',
 
-  // a plugin folder the session loads is not a folder, or sits on a remote target
+  // The adopt call returns bad_args or unsupported when a plugin folder the session loads is
+  // not a directory or is on a remote target.
   'bad_args',
   'unsupported',
 ]);

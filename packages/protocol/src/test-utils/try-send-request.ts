@@ -9,9 +9,6 @@ export async function trySendRequest(
     (error: unknown) => ({ error: toRefusal(error) }),
   );
 
-  // The answers for two ids then compare whole, so a refusal for a session a
-  // client may not see can be checked to read like one for a session that never
-  // existed.
   return JSON.parse(JSON.stringify(answer).replaceAll(id, '<id>'));
 }
 

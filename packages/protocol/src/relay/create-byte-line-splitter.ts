@@ -1,7 +1,6 @@
 const NEWLINE = 0x0a;
 
-// Splits a byte stream into lines on the newline byte before decoding, so a chunk that cuts a
-// multi-byte character in two never garbles it. A line that holds no text is dropped.
+// Split on the newline byte before decoding: a chunk can cut a multi-byte character in two.
 export function createByteLineSplitter(): (chunk: Uint8Array) => string[] {
   const decoder = new TextDecoder();
   let pending = new Uint8Array(0);

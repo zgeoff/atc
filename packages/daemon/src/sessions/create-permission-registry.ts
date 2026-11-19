@@ -12,7 +12,6 @@ export interface PermissionRequest {
 
 export type AnswerResult = 'ok' | 'already_answered' | 'unsupported' | 'unknown';
 
-// given at construction, so no request opens before both callbacks exist
 export interface PermissionCallbacks {
   readonly onRequested: (req: PermissionRequest) => void;
   readonly onResolved: (id: string, decision: string) => void;
@@ -30,17 +29,12 @@ export interface PermissionRegistry {
   readonly answerAll: (sessionID: SessionID, decision: string) => void;
 }
 
-// each request resolves exactly once, so the callbacks hear every resolution once
-// The clock that times each request's timeout.
 export function createPermissionRegistry(
   callbacks: PermissionCallbacks,
   timeoutMs = 60_000,
   clock: Clock = systemClock,
 ): PermissionRegistry {
   const pending = new Map<string, PendingRequest>();
-
-  // tells already_answered from unknown; it keeps the 1000 most recent, so a long-lived daemon
-  // cannot grow it without bound, and an answer to a forgotten request gets unknown
   const resolved = new LRUCache<string, SessionID>({ max: 1000 });
 
   let counter = 0;

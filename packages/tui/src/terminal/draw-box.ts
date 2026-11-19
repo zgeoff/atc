@@ -8,9 +8,7 @@ import type { Row } from './types';
 
 const ESC = '\u001B';
 
-// The extent of the last box drawn, so the next draw can erase the rows a
-// shrinking or shifting box leaves behind. Erasing an already-blank row is a
-// no-op, so a stale extent after a full clear is harmless.
+// Erasing an already-blank row is a no-op, so a stale extent after a full clear is harmless.
 let lastBoxExtent: BoxExtent | null = null;
 
 export function boxTop(width: number, title: string): Row {

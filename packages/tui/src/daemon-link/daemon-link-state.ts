@@ -15,7 +15,6 @@ export type DaemonLinkState =
   // the text of the daemon's protocol_mismatch refusal
   | { readonly kind: 'mismatched'; readonly detail: string };
 
-// One line that names the daemon and where its link stands.
 export function formatLinkState(daemon: DaemonName, state: DaemonLinkState): string {
   const name = daemon ?? 'local';
 

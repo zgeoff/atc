@@ -9,7 +9,6 @@ test('it resolves a wait at once when an event landed since the reader looked', 
 
   signal.emit();
 
-  // The clock never moves, so only a wait that holds no timer resolves.
   await expect(signal.waitForNext(generation, 10_000)).toResolve();
 });
 

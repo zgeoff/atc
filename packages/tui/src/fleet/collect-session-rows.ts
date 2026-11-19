@@ -5,14 +5,12 @@ import type { DaemonName } from './session-key';
 import type { MirrorSession } from './to-mirror-session';
 
 interface RowOptions {
-  // The daemons in the order their rows list: the primary first.
   readonly daemons: readonly DaemonName[];
   readonly grouped: boolean;
   readonly filter: string | null;
 }
 
-// The rows of the session list: each daemon's rows sort and filter on their own, so a
-// sub-session never nests under another daemon's row that has the same id.
+// Each daemon's rows sort and filter on their own, so a sub-session never nests under another daemon's row that has the same id.
 export function collectSessionRows(
   sessions: readonly MirrorSession[],
   options: RowOptions,
@@ -44,7 +42,6 @@ function collectFleetRows(fleet: readonly MirrorSession[], options: RowOptions):
       .map((session) => session.id),
   );
 
-  // A matching sub-session keeps its parent row, so it stays nested.
   return sorted.filter(
     (session) =>
       matched.has(session.id) ||

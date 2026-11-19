@@ -2,14 +2,10 @@ import { isRecord } from '@atc/core';
 import { GITHUB_OWNER_PATTERN } from './github-owner-pattern';
 
 interface LegacySources {
-  // The old source keys the file sets, in file order.
   readonly keys: readonly string[];
 
-  // The `sources` map the old keys stand for, each entry holding only the
-  // fields that differ from a default.
   readonly sources: Record<string, Record<string, unknown>>;
 
-  // One line per old value that the map leaves out.
   readonly problems: readonly string[];
 }
 
@@ -55,7 +51,6 @@ function isGitHubOwner(value: unknown): value is string {
   return typeof value === 'string' && GITHUB_OWNER_PATTERN.test(value);
 }
 
-// The roots as written, without the items the old parse skipped.
 function collectRoots(dirs: unknown): string[] {
   if (!isRecord(dirs) || !Array.isArray(dirs['roots'])) {
     return [];

@@ -14,8 +14,6 @@ interface StubConnection {
   detached: boolean;
 }
 
-// A link whose guest the test plays by hand. Each connection it opens replays the guest's whole
-// stdout from byte 0, as a host that re-attaches to a running mux does.
 export function buildStubRelayLink() {
   const encoder = new TextEncoder();
 
@@ -103,8 +101,6 @@ export function buildStubRelayLink() {
     readDaemonFrames: (): readonly DaemonFrame[] => [...daemonFrames],
     isDetached: (index: number) => connections[index]?.detached === true,
 
-    // the guest writes a frame to its stdout, which the current connection delivers and every
-    // later one replays
     writeGuestFrame: (frame: GuestFrame): void => {
       writeStdout(formatRelayFrame(frame));
     },
@@ -112,7 +108,6 @@ export function buildStubRelayLink() {
       writeStdout(text);
     },
 
-    // the guest answers the daemon's latest hello
     answerHello: (answer: HelloAnswer): void => {
       const hello = findLastHello();
 

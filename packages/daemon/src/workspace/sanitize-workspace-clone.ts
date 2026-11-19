@@ -16,8 +16,6 @@ interface SanitizeRefusal {
   readonly message: string;
 }
 
-// strips everything that could authenticate as, or run code for, the host the clone was made
-// on, before the clone leaves that host
 export async function sanitizeWorkspaceClone(
   directory: string,
   url: string,
@@ -61,7 +59,6 @@ export async function sanitizeWorkspaceClone(
   return verifyClone(directory, configFile, normalized.url);
 }
 
-// Every credential key the repository config holds.
 async function readCredentialKeys(configFile: string): Promise<string[]> {
   const listed = await runGit(['config', '--file', configFile, '--list', '-z']);
 

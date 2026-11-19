@@ -34,34 +34,23 @@ import { formatJSONKind } from './format-json-kind';
 import { REMOVED_CONFIG_KEYS } from './removed-config-keys';
 
 export interface Config {
-  // The agents atc offers, in menu order, and the problems that left an
-  // entry out.
   agents: readonly AgentEntry[];
   agentErrors: readonly string[];
 
-  // The agent a spawn without one runs.
   defaultAgent: AgentID;
 
-  // The workspace sources the daemon offers, in picker order, and the
-  // problems that left an entry out.
   sources: readonly SourceEntry[];
   sourceErrors: readonly string[];
   workspaces: WorkspacesConfig;
 
-  // The credential references an agent's auth selects from, by profile
-  // name, and the problems that kept a profile out.
   authProfiles: ReadonlyMap<string, AuthProfile>;
   authProfileErrors: readonly string[];
   hooks: HooksConfig;
   leader: LeaderKey;
 
-  // Where sessions run, and the one a spawn without a target runs on: null
-  // when the config gives none it can use.
   targets: readonly TargetConfig[];
   defaultTarget: string | null;
 
-  // The target config problems that leave a target, or every target,
-  // unusable.
   targetErrors: readonly TargetConfigError[];
 
   // The targets each principal may use: null when the config has no
@@ -69,23 +58,17 @@ export interface Config {
   principals: ReadonlyMap<string, readonly string[]> | null;
   principalErrors: readonly string[];
 
-  // The workspace config problems, one line each.
   workspaceErrors: readonly string[];
 
-  // The daemons on other hosts the TUI may connect to by name, and the
-  // problems that left an entry out.
   daemons: ReadonlyMap<string, RemoteDaemon>;
   daemonErrors: readonly string[];
 
-  // Whether the daemon restores the stored fleet by itself after a restart.
   restoreFleetOnRestart: boolean;
 
   // The keys the file sets that atc no longer reads, in the order the file
   // holds them. Values are never recorded.
   removedKeys: readonly string[];
 
-  // The values the file holds that atc still reads but a later release
-  // stops reading, one line each.
   deprecations: readonly string[];
 }
 
@@ -94,8 +77,6 @@ interface LeaderKey {
   readonly label: string;
 }
 
-// Every default but the agents and the sources, which come from the
-// first-run agents and sources maps.
 const DEFAULTS: Omit<
   Config,
   'agents' | 'agentErrors' | 'defaultAgent' | 'sources' | 'sourceErrors'
@@ -123,7 +104,6 @@ const DEFAULTS: Omit<
   deprecations: [],
 };
 
-// never throws: a file it cannot read or parse loads with no targets.
 export function loadConfig(
   plugins: readonly AgentConfigPlugin[],
   file: string = configFile,
@@ -168,12 +148,9 @@ export function loadConfig(
   return parseConfig(plugins, raw, file, home);
 }
 
-// The agents and sources maps a first run writes.
 const FIRST_RUN_AGENTS = { claude: {} };
 const FIRST_RUN_SOURCES = { dirs: { roots: [] }, github: {}, git: {} };
 
-// Every default, with the agents the plugins read from the first-run
-// agents map and the sources of the first-run sources map.
 function buildDefaultConfig(plugins: readonly AgentConfigPlugin[]): Config {
   const registry = collectAgents(FIRST_RUN_AGENTS, new Map(), plugins);
   const sources = collectSources(FIRST_RUN_SOURCES);
@@ -203,9 +180,9 @@ function buildUnusableConfig(
   };
 }
 
-// staged in a file of this process's own and linked into place whole, so a
-// process starting at the same moment reads no file or the complete one, and
-// a file that appeared since the read is never overwritten.
+// Writing the config in place lets a process starting at the same moment read half a file.
+// link() publishes the staged copy whole and fails if the file already exists, where rename()
+// would overwrite a config another process wrote after this one checked.
 function tryWriteDefaultConfig(file: string): void {
   const staged = `${file}.${process.pid}.tmp`;
 
@@ -239,8 +216,8 @@ export function renderDefaultConfig(): string {
     ...written
   } = DEFAULTS;
 
-  // The target roots are a map in memory and an object of target ids in
-  // the file.
+  // JSON.stringify writes a Map as {}, so the target roots go into the file as a plain object
+  // keyed by target id.
   const { targetRoots, ...rest } = workspaces;
 
   return `${JSON.stringify(
@@ -255,8 +232,6 @@ export function renderDefaultConfig(): string {
   )}\n`;
 }
 
-// total: no shape of `raw` throws, so a hand-edited config never stops atc
-// starting.
 export function parseConfig(
   plugins: readonly AgentConfigPlugin[],
   raw: unknown,

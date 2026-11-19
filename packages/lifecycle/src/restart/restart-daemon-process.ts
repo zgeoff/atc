@@ -1,8 +1,6 @@
 import type { LifecycleHost } from '../boot/types';
 import { stopDaemonProcess } from '../daemon-process/stop-daemon-process';
 
-// The daemon to take out of service, and the user service whose main
-// process it is, or null when no service runs it.
 interface DaemonTarget {
   readonly pid: number;
   readonly unit: string | null;

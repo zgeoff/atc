@@ -26,38 +26,28 @@ interface RuntimeAuthRebind {
   readonly attemptID: string;
 }
 
-// Keyed by the session that owns the host, and shared by its sub-sessions.
-// The binding holds secret names and rules, never a credential value.
 export interface RuntimeAuthBinding {
   readonly hostKey: SessionID;
   readonly target: string;
   readonly targetIdentity: string;
   readonly hostName: string;
 
-  // The broker's id for the host; null until the host exists.
   readonly hostID: string | null;
   readonly revision: number;
   readonly bindingHash: string;
   readonly bindingJSON: string;
   readonly state: RuntimeAuthBindingState;
 
-  // The attempt that last provisioned this revision.
   readonly attemptID: string;
 
-  // Whether that attempt created the host, which only then may be destroyed
-  // in its rollback.
   readonly hostCreatedByAttempt: boolean;
 
-  // The next revision a rebind is adding, or the failed one it left; null
-  // when no rebind is in flight or failed.
   readonly rebind: RuntimeAuthRebind | null;
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly revokedAt: number | null;
 }
 
-// The fields a binding rewrites as it moves between states; `rebind: null`
-// clears a settled rebind.
 export interface RuntimeAuthBindingUpdate {
   readonly state?: RuntimeAuthBindingState;
   readonly hostID?: string;
@@ -89,8 +79,6 @@ export interface RuntimeAuthGrant {
   readonly revision: number;
   readonly attemptID: string;
 
-  // The broker held the grant before the attempt, which rules it out of the
-  // attempt's rollback.
   readonly preexisting: boolean;
   readonly phase: RuntimeAuthGrantPhase;
   readonly updatedAt: number;

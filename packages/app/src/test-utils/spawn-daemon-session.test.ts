@@ -3,7 +3,6 @@ import { KEYS } from '@atc/core/test-utils/keys';
 import { spawnDaemonSession } from './spawn-daemon-session';
 import { startTUIHarness } from './start-tui-harness';
 
-// The client booted to its home screen, with the daemon it started.
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: () => {} });
 

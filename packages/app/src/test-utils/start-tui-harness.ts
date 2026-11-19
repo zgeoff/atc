@@ -15,24 +15,17 @@ import { buildStubTUIGrok } from './build-stub-tui-grok';
 export type TUIHarness = ReturnType<typeof startTUIHarness>;
 
 interface TUIHarnessOptions {
-  // Puts the state database in place at the path it is given before a boot.
   readonly createStateDB: (dbPath: string) => void;
 
-  // How long a wait gives the client to draw its first byte; 9 seconds
-  // unless set.
   readonly bootMs?: number;
 
-  // The clock the waits read their deadlines from; the wall clock unless
-  // set.
   readonly now?: () => number;
 
-  // Waits out the interval between a wait's retries; a real sleep unless
-  // set.
   readonly wait?: (delayMs: number) => Promise<void>;
 }
 
-// The width the client's terminal opens at. The picker box takes the
-// terminal less 4 columns, at most 90, and its input row holds the box less 8.
+// The picker box takes the terminal width less 4 columns, at most 90, and its input row holds
+// the box less 8, so at this width the box is 90 columns and the input row 82.
 const COLS = 110;
 const INPUT_MAX = Math.min(COLS - 4, 90) - 8;
 
@@ -42,8 +35,8 @@ export function startTUIHarness(options: TUIHarnessOptions) {
   const cliPath = readSourceEntry('atc');
   const temporaryDirectory = setupTempDir('atc-tui-');
 
-  // Registered after the home, so it releases first: the client and its
-  // daemon stop before their home is removed.
+  // The stack releases in reverse order, so the client and its daemon, deferred after the
+  // home, stop before their home is removed.
   const owned = new AsyncDisposableStack();
 
   const stop = registerTestCleanup(() => owned.disposeAsync());
@@ -78,8 +71,6 @@ export function startTUIHarness(options: TUIHarnessOptions) {
     writeFileSync(configPath, JSON.stringify(mergeDeep(bootConfig, fields)));
   };
 
-  // A test that drops an executable into the home's bin directory puts it
-  // on the PATH of the client and of the daemons it starts.
   const env = {
     ...process.env,
     HOME: home,
@@ -100,9 +91,8 @@ export function startTUIHarness(options: TUIHarnessOptions) {
   let exited: Promise<number> | null = null;
   let out = '';
 
-  // When the latest client boot wrote its first byte. The client draws nothing
-  // before its daemon handshake completes, so waits before that byte get the boot
-  // budget, and waits after it their own.
+  // The client draws nothing until its daemon handshake completes, so a wait that starts
+  // before the first byte of the latest boot gets the boot budget; later waits get their own.
   let firstOutputAt: number | null = null;
 
   owned.defer(() => stopClientAndDaemon(paths.daemonPidFile, pty, firstOutputAt === null));
@@ -294,7 +284,8 @@ function isRunning(pid: number): boolean {
   }
 }
 
-// The client log's lines, or none before the client writes the file.
+// The client creates this file only when it first writes to its log, so a missing file means no
+// lines yet.
 function readClientLog(path: string): string[] {
   try {
     return readFileSync(path, 'utf8')

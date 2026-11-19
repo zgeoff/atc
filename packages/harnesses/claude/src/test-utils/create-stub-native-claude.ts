@@ -15,8 +15,8 @@ int main(void) {
 }
 `;
 
-// A native program keeps its DYLD_ variables on macOS, where a script loses
-// them on the way into its protected interpreter.
+// On macOS a script loses DYLD_ variables entering its protected interpreter.
+// A native program keeps them.
 export async function createStubNativeClaude(directory: string, name: string): Promise<string> {
   const cc = Bun.which('cc');
 

@@ -10,9 +10,8 @@ const ColumnSchema = z.object({
 
 const NameSchema = z.object({ name: z.string() });
 
-// Each table's columns, foreign keys and indexes, so two databases compare
-// by shape and not by the text of their CREATE statements, which quote
-// names each in their own way.
+// Compare PRAGMA output, not the CREATE text in sqlite_master: SQLite keeps that text as
+// written, so two databases with the same schema can quote names differently.
 export function readTableShapes(sqlite: Database) {
   const tables = sqlite
     .query(

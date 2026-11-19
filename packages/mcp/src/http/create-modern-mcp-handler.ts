@@ -16,9 +16,8 @@ export interface ModernMCPHandler {
   readonly close: () => Promise<void>;
 }
 
-// Serves the stateless `2026-07-28` revision, whose requests each carry their
-// protocol version in `_meta`. The SDK builds a server for each request, and
-// that server serves the access the request's token verified to.
+// The SDK builds a fresh server for every request of the stateless `2026-07-28` revision, so each
+// server must look up the access verified for its own request instead of sharing one.
 export function createModernMCPHandler(deps: ModernMCPHandlerDeps): ModernMCPHandler {
   const accesses = new WeakMap<Request, VerifiedAccess>();
 

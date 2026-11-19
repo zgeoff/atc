@@ -3,7 +3,6 @@ import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { $ } from 'bun';
 import { checkURLCredentials } from './check-url-credentials';
 
-// A repository whose own config holds the rewrites a test adds.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-url-credentials-' });
 

@@ -4,12 +4,9 @@ import { dirname, join } from 'node:path';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
-// A temp directory standing in for a repo root, with a local and a remote
-// execution provider package linked where the bundler resolves them.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('check-bundle-');
 
-  // the local provider, which the local-only build keeps
   await Bun.write(
     join(temporaryDirectory.path, 'packages/execution/local/package.json'),
     JSON.stringify({ name: '@atc/execution-local', exports: { './*': './src/*.ts' } }),
@@ -20,7 +17,6 @@ async function setupTest() {
     "export const LOCAL_PLUGIN = { id: 'local-pty' };\n",
   );
 
-  // the remote provider, with an external package that only it depends on
   await Bun.write(
     join(temporaryDirectory.path, 'packages/execution/remote/package.json'),
     JSON.stringify({
@@ -45,7 +41,6 @@ async function setupTest() {
     'export function connect() {}\n',
   );
 
-  // the app's manifest, which the provider scan reads beside the providers'
   await Bun.write(
     join(temporaryDirectory.path, 'packages/app/package.json'),
     JSON.stringify({ name: '@atc/app' }),

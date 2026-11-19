@@ -26,7 +26,6 @@ function setupTest() {
 
   const paths = resolvePaths(env);
 
-  // The daemon and the client both expect the state directory to exist.
   mkdirSync(paths.stateDir, { recursive: true });
 
   return {
@@ -74,7 +73,7 @@ test('it makes a CLI client wait for an installed daemon unit before connecting'
 
   const probe = join(ctx.directory, 'probe.ts');
 
-  // The argv starts nothing, so a boot that tried to start a daemon fails.
+  // A boot that tried to start a daemon would fail, since the argv starts nothing.
   writeFileSync(
     probe,
     `import { bootDaemonClient } from '${ctx.bootModule}';
@@ -300,8 +299,6 @@ test('it stops a daemon on another protocol and boots its own build when the cal
 
   await legacy.stdout.getReader().read();
 
-  // The boot starts the real CLI from source, which runs this tree's build.
-  // The probe quits the daemon it booted, so nothing outlives the test.
   writeFileSync(
     join(ctx.directory, 'probe.ts'),
     `import { bootDaemonClient } from '${ctx.bootModule}';

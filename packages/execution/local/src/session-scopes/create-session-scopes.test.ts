@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { createStubSystemd } from '../test-utils/create-stub-systemd';
 import { createSessionScopes } from './create-session-scopes';
 
-// A stand-in service manager that the scopes reach through its programs.
 function setupTest() {
   const systemd = createStubSystemd(['/bin/true']);
 

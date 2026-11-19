@@ -27,7 +27,6 @@ interface ResolvedAuthProfiles {
   readonly env: Readonly<Record<string, string>>;
   readonly envOwners: Readonly<Record<string, string>>;
 
-  // the profile that turns telemetry on and the host it sends records to.
   readonly telemetry: ResolvedTelemetry | null;
 }
 
@@ -40,14 +39,11 @@ export type AuthProfileResolution =
   | { readonly resolved: ResolvedAuthProfiles }
   | { readonly problem: AuthProfileProblem };
 
-// One rule of a profile, with the profile it came from.
 interface ProfileRule {
   readonly profile: AuthProfile;
   readonly rule: AuthRule;
 }
 
-// each host must get exactly one rule, so a credential is never picked by
-// order.
 export function resolveAuthProfiles(
   profiles: ReadonlyMap<string, AuthProfile>,
   selected: readonly string[],
@@ -167,9 +163,6 @@ interface CollectReachedOptions {
   readonly reached: ReadonlyMap<string, AuthProfile>;
 }
 
-// depth-first: a profile is added once its dependencies are done, and one
-// already reached is not walked again; `path` holds the names on the way
-// here, so a name already on it closes a cycle.
 function collectReached(
   profiles: ReadonlyMap<string, AuthProfile>,
   options: CollectReachedOptions,
@@ -226,8 +219,7 @@ function isAuthProfileProblem(
   return 'code' in value;
 }
 
-// The rules atc holds for a profile's secret on the hosts it covers. A
-// github profile holds none: the broker's github secret brings its own.
+// GitHub profiles get no rules here because the broker's GitHub secret brings its own.
 function getProfileRules(profile: AuthProfile): readonly AuthRule[] {
   if (profile.kind === 'github') {
     return [];
@@ -245,9 +237,6 @@ function hasSameRule(left: ProfileRule, right: ProfileRule): boolean {
   );
 }
 
-// One entry per secret, sorted by secret, each with its rules sorted by host.
-// A secret whose profiles hold no rule, as a github secret's do, has an
-// entry with none.
 function buildSecrets(
   profiles: readonly AuthProfile[],
   entries: readonly ProfileRule[],

@@ -1,31 +1,22 @@
 import type { MessageBridge, MessageBridgeRequest } from '@atc/plugin-api';
 
 interface StubMessageBridge extends MessageBridge {
-  // Each thread the daemon moved the bridge to, in order.
   readonly threads: string[];
   readonly countDeliveryStarts: () => number;
   readonly countStops: () => number;
 
-  // Keeps each later stop pending until the test finishes the stops, as an App Server that takes
-  // time to exit.
   readonly holdStops: () => void;
   readonly finishStops: () => void;
 
-  // Makes each later stop reject, as an App Server that refuses to exit, until the test sets it
-  // back.
   readonly updateStopsFail: (fail: boolean) => void;
 }
 
 interface StubMessageBridges {
-  // Every start the daemon asked for, in order.
   readonly requests: MessageBridgeRequest[];
 
-  // Every bridge started, in order.
   readonly bridges: StubMessageBridge[];
   readonly startMessageBridge: (request: MessageBridgeRequest) => Promise<StubMessageBridge>;
 
-  // Keeps each later start pending until the test finishes the starts, so two launches overlap.
-  // The bridge joins `bridges` when its start is asked for.
   readonly holdStarts: () => void;
   readonly finishStarts: () => void;
 }

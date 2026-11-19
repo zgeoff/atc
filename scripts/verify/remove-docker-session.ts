@@ -3,8 +3,7 @@ import { collectNamedSessions } from './collect-named-sessions.ts';
 import { parseDockerRunEndpoints } from './docker-run-endpoints.ts';
 import { openDaemonConnection } from './open-daemon-connection.ts';
 
-// Kills each session with the name that still runs, then forgets it. A forget on a docker target
-// destroys the host, so the daemon offers a confirm token first and the call sends it back.
+// A forget on a docker target destroys the host, so the daemon offers a confirm token first and the call sends it back.
 export async function removeDockerSession(
   endpoints: Endpoints,
   name: string,

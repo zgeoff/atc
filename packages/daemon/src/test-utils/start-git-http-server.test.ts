@@ -6,9 +6,6 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { $ } from 'bun';
 import { startGitHTTPServer } from './start-git-http-server';
 
-// A bare repository with one commit at `upstream.git` under `dir`, for the
-// server under test to serve; `env` keeps the host's git config and any
-// credential prompt out of every git command.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-git-http-' });
 
@@ -167,9 +164,6 @@ test('it holds a request while the callback is still pending', async () => {
 
   const entered = Promise.withResolvers<null>();
   const gate = Promise.withResolvers<null>();
-
-  // The first request's callback waits on the gate; every later one returns
-  // at once.
   const waits = [gate.promise];
 
   const hooked = startGitHTTPServer(ctx.directory, ctx.env, {
@@ -185,8 +179,8 @@ test('it holds a request while the callback is still pending', async () => {
   const first = fetch(url, { headers });
   const firstSettled = Promise.allSettled([first]);
 
-  // Registered after the server, so it opens the gate and lets the first
-  // request finish before the server stops.
+  // Cleanups run in reverse order of registration, so the gate opens before the server stops.
+  // Stopping the server with a request still held would leave that request hanging.
   registerTestCleanup(async () => {
     gate.resolve(null);
 

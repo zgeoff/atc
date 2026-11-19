@@ -1,8 +1,6 @@
 import type { HostFiles, NameUpdate } from '@atc/plugin-api';
 import { z } from 'zod';
 
-// The two transcript lines a name comes from: a custom title that /rename
-// writes, and a summary that Claude writes on its own.
 const NAME_LINE_SCHEMA = z.discriminatedUnion('type', [
   z.object({ type: z.literal('custom-title'), customTitle: z.string() }),
   z.object({ type: z.literal('summary'), summary: z.string() }),

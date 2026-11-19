@@ -1,7 +1,5 @@
 import { onTestFinished } from 'bun:test';
 
-// The releases the current test registered, in registration order; null
-// before its first registration and once its hook has started.
 let pending: (() => unknown)[] | null = null;
 
 export function registerTestCleanup<T>(release: () => T): () => T {

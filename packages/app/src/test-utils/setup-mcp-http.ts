@@ -15,7 +15,6 @@ import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { buildLocalTarget } from './build-local-target';
 
 interface MCPHTTPSetupOptions {
-  // Further Host header values the server accepts.
   readonly allowedHosts?: readonly string[];
 }
 
@@ -97,7 +96,6 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   await runPasskeyEnrollment(server, enrollmentToken, authenticator);
 
-  // The lines the enrollment printed are not part of any scenario.
   requests.length = 0;
   security.length = 0;
 

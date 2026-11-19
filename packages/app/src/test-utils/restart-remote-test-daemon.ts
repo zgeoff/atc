@@ -5,9 +5,6 @@ interface RestartOptions {
   readonly restoreFleet: boolean;
 }
 
-// Stops a remote test daemon and boots it again on its state directory, listener port, token and
-// principals. With `restoreFleet` the call settles with the daemon's own fleet restore; without it
-// the daemon boots with no sessions listed.
 export async function restartRemoteTestDaemon(
   remote: StartedTestDaemon<TestDaemonConfig>,
   options: RestartOptions,

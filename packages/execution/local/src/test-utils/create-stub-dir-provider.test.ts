@@ -6,7 +6,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 import { createStubDirProvider } from './create-stub-dir-provider';
 
-// A temp directory the provider's transfers and commands run in.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-dir-provider-');
 

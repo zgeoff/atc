@@ -37,7 +37,6 @@ import { PTY_PROTOCOL } from './parse-pty-protocols';
 import { readRPCLabel } from './read-rpc-label';
 
 interface LiveTerminalOptions {
-  // The origins a browser page may open a session's live terminal from.
   readonly allowedOrigins: readonly string[];
 
   // The tokens of the owner's token file, each of which opens a live
@@ -45,15 +44,10 @@ interface LiveTerminalOptions {
   // bind.
   readonly ownerTokens: readonly string[];
 
-  // Opens the daemon connection one live-terminal viewer reads.
   readonly openWatchChannel: (principal: string | null) => Promise<WatchChannel>;
 
-  // How many bytes a viewer's socket may hold unsent before the viewer drops
-  // output; a mebibyte when unset.
   readonly viewerBufferBytes?: number;
 
-  // How often a viewer that watches with an OAuth token checks that the
-  // token still verifies with read; five seconds when unset.
   readonly viewerAccessRecheckMs?: number;
 }
 
@@ -61,7 +55,7 @@ interface MCPHTTPServerOptions {
   readonly caller: FleetCaller;
   readonly build: string;
 
-  // The address to bind; 0 as the port binds a free one.
+  // A port of 0 makes the OS pick a free port.
   readonly host: string;
   readonly port: number;
 
@@ -75,9 +69,8 @@ interface MCPHTTPServerOptions {
   // labels `trusted`, each exactly as the socket reports its address.
   readonly trustForwardedFrom: readonly string[];
 
-  // The authorization server's SQLite database, and the entry's opener for
-  // it, which makes the file owner-only and turns foreign keys on. The
-  // server opens it twice: for the package and for atc's event tables.
+  // The opener must make the file owner-only and turn foreign keys on. The server opens the
+  // database twice: once for this package's tables and once for atc's event tables.
   readonly dbPath: string;
   readonly openAuthDatabase: (path: string) => Database;
 
@@ -85,13 +78,11 @@ interface MCPHTTPServerOptions {
   // `resource` must equal the resource the server serves.
   readonly serviceTokens?: ServiceTokenFile<GrantScope>;
 
-  // Receives one line per request the server answers.
   readonly printRequest: (line: string) => void;
 
   // Receives one `atc security {json}` line per sign-in outcome or refused token.
   readonly printSecurity: (line: string) => void;
 
-  // Serves `/healthz` and `/readyz` for an orchestrator's probes.
   readonly probes?: boolean;
 
   // The time pending approvals, their challenges, the limit on approval
@@ -108,17 +99,13 @@ interface MCPHTTPServerOptions {
 }
 
 export interface MCPHTTPServer {
-  // The loopback address the server answers on, for clients on this machine.
   readonly url: string;
 
-  // The address the server is bound to.
   readonly listening: string;
 
   // The public origin: the OAuth issuer.
   readonly origin: string;
 
-  // Swaps the service-token file the server checks, so the next token
-  // request and the next `/mcp` request read the new one.
   readonly replaceServiceTokens: (file: ServiceTokenFile<GrantScope>) => void;
   readonly stop: () => Promise<void>;
 }
@@ -134,12 +121,10 @@ const VIEWER_ACCESS_RECHECK_MS = 5000;
 // A callback that holds a post open past this fails it, so one slow endpoint
 // cannot hold its watcher.
 const WEBHOOK_TIMEOUT_MS = 10_000;
-
-// How often the server removes expired tokens, sessions and grants.
 const REMOVE_EXPIRED_MS = 10 * 60 * 1000;
 
-// Paths under this belong to atc, beside the routes the adapter serves: the
-// live terminals, which the server answers before the adapter sees them.
+// atc owns paths under this prefix for its live terminals. The server answers these requests
+// itself, so they never reach the adapter's routes.
 const BESIDE_PREFIX = '/sessions';
 
 const PROBE_PATHS: ReadonlySet<string> = new Set(Object.values(GATEWAY_PATHS.probes));
@@ -207,8 +192,6 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
     };
   };
 
-  // A probe answers before the authorization server opens, and the other
-  // routes answer 503 until it does.
   const answerAppRequest = (request: Request): Response | Promise<Response> => {
     const path = new URL(request.url).pathname;
 
@@ -474,8 +457,7 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
   };
 }
 
-// `ready` is whether the probe answers ready; its body stays empty, so a
-// probe learns nothing about the fleet.
+// The body stays empty on purpose, so whoever sends a probe learns nothing about the fleet.
 function answerProbeRequest(method: string, ready: boolean): Response {
   if (method !== 'GET' && method !== 'HEAD') {
     return new Response(null, { status: 405, headers: { allow: 'GET, HEAD' } });
@@ -484,8 +466,6 @@ function answerProbeRequest(method: string, ready: boolean): Response {
   return new Response(null, { status: ready ? 200 : 503 });
 }
 
-// A client reads events while one of its grants, or its service token,
-// holds read.
 async function probeReadAccess(auth: ATCAuth, clientID: string): Promise<boolean> {
   const scopes = await auth.findClientScopes(clientID);
 
@@ -498,7 +478,7 @@ async function resolveAddresses(hostname: string): Promise<readonly string[]> {
   return found.map((entry) => entry.address);
 }
 
-// An IPv6 address takes the brackets a URL puts around it.
+// URL syntax requires brackets around an IPv6 host; without them its colons read as a port.
 function formatBindURL(host: string, port: number): string {
   const bracketed = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
 

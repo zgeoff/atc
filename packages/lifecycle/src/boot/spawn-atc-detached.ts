@@ -8,7 +8,6 @@ interface SpawnATCDetachedOptions {
   readonly stdio?: StdioOptions;
 }
 
-// a session of its own lets the child outlive the caller.
 export function spawnATCDetached(
   atcArgv: readonly string[],
   args: readonly string[],

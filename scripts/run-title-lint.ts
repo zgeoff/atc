@@ -4,17 +4,13 @@ import { join } from 'node:path';
 interface TitleLint {
   readonly title: string;
 
-  // The checkout, whose root catalog pins commitlint and whose commitlint.config.js holds the rules.
   readonly repoRoot: string;
 
-  // A folder outside the checkout, so the install never reads the workspace.
   readonly installFolder: string;
   readonly env: Readonly<Record<string, string | undefined>>;
 }
 
-// The job installs commitlint alone, never the whole workspace. The checkout's bunfig.toml goes
-// with it, because `bun add` keeps its release-age gate and `bun x` ignores it. The title reaches
-// commitlint on stdin, never through the shell, so a crafted title cannot inject a command.
+// `bun add` keeps the release-age gate from bunfig.toml and `bun x` ignores it.
 export async function runTitleLint(lint: TitleLint): Promise<number> {
   const manifestText = await Bun.file(join(lint.repoRoot, 'package.json')).text();
 

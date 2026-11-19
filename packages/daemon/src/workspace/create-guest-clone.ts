@@ -4,40 +4,25 @@ import { collectCredentialConfigKeys } from './collect-credential-config-keys';
 import { REPOSITORY_ENV_UNSET_ARGV } from './repository-env-unset-argv';
 
 interface GuestCloneRequest {
-  // The host the clone runs on, and the directory there it lands in, which
-  // exists and is empty.
   readonly host: string;
   readonly directory: string;
 
-  // The token-free URL the clone fetches from and records as its origin.
   readonly url: string;
 
-  // The commit the checkout is pinned to, and the branch it is checked out
-  // as, null for a detached checkout.
   readonly sha: string;
   readonly branch: string | null;
 
-  // The transports git may fetch over.
   readonly transports: readonly string[];
 }
 
-// The clone could not be made in the host, and its directory is empty again,
-// so the workspace can be built another way. The reason holds git's first
-// line of error.
 type GuestClone = { readonly ok: true } | { readonly ok: false; readonly reason: string };
 
 const LFS_PATHS_SHOWN = 5;
-
-// Exit statuses of the script for each refusal it reports; a clone or a
-// checkout that fails exits with git's status once the directory is empty.
 const UNREADABLE_TREE_EXIT = 81;
 const SUBMODULES_EXIT = 82;
 const LFS_EXIT = 83;
 const SANITIZE_EXIT = 84;
 
-// arguments: the directory, the URL, the commit, the branch or empty for a detached checkout,
-// and the transports joined by `:`; on success it prints the repository config as
-// `git config --list -z` does, and on an LFS refusal every LFS path, each ended by a NUL
 export const GUEST_CLONE_SCRIPT = String.raw`dir=$1 url=$2 sha=$3 branch=$4
 export GIT_CONFIG_NOSYSTEM=1 GIT_ATTR_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 LC_ALL=C GIT_ALLOW_PROTOCOL="$5"
 iso() { git -c core.attributesFile=/dev/null -c core.hooksPath=/dev/null -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false "$@"; }
@@ -58,9 +43,7 @@ rm -f .git-credentials .netrc .git/.git-credentials .git/.netrc || exit ${SANITI
 git log -1 --format=%H > /dev/null || exit ${SANITIZE_EXIT}
 exec git config --file .git/config --list -z`;
 
-// isolated from the host's system and global git config, so no filter, hook, or credential
-// helper configured there runs; the host's own network fetches, so no repository bytes cross
-// the daemon's link
+// The clone runs on the host, not in the daemon, so repository bytes never cross the daemon's link.
 export async function createGuestClone(
   provider: Pick<ExecutionProvider, 'runCommand'>,
   request: GuestCloneRequest,
@@ -127,5 +110,5 @@ export async function createGuestClone(
   return { ok: true };
 }
 
-// The host runs commands in its own environment, so the clone unsets every
-// variable that could point git at another repository first.
+// The host runs commands in its own environment, which can carry git variables such as GIT_DIR
+// that point git at a different repository.

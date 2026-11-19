@@ -1,7 +1,5 @@
 import type { SessionEvent } from './collect-session-events.ts';
 
-// The first step of a session's life that its events lack, in order: it is added, its state
-// changes while it runs, and it exits. Null when the events hold all three in that order.
 export function findLifecycleGap(events: readonly SessionEvent[]): string | null {
   const added = events.findIndex((event) => event.ev === 'SessionAdded');
 

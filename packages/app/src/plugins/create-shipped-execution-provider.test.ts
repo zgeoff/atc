@@ -29,8 +29,6 @@ test('it builds the shipped provider a target entry selects', () => {
   expect(built.problem).toBeNull();
 });
 
-// stored sessions hold this exact string for the config, so a provider that
-// builds must still give its target the plugin's versioned identity
 test('it gives a target whose imp provider builds the identity its stored sessions hold', () => {
   const built = buildExecutionTargets(
     [

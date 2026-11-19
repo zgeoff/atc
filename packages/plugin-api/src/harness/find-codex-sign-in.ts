@@ -4,14 +4,12 @@ import type { GuestOAuthState } from '../agent-adapter';
 interface CodexSignIn {
   readonly idClaims: Readonly<Record<string, unknown>>;
 
-  // Codex sends this with every request, so a sign-in without one cannot work.
+  // Codex sends the account ID with every request, so a sign-in without one cannot work.
   readonly accountID: string;
 }
 
-// The ID token claim that holds the ChatGPT account and plan.
 const OPENAI_AUTH_CLAIM = 'https://api.openai.com/auth';
 
-// The ID token claims that hold a ChatGPT account id.
 const ID_CLAIMS_SCHEMA = z.object({
   [OPENAI_AUTH_CLAIM]: z.object({ chatgpt_account_id: z.string().min(1) }),
 });

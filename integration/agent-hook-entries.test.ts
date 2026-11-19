@@ -5,8 +5,6 @@ import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { z } from 'zod';
 
-// A temp git project that holds this repo's hook entries, stub and skill-gate rules, with this
-// repo's node_modules, so each entry runs as it runs in a session in a checkout of this repo.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('agent-hook-entries-');
   const repoDir = join(import.meta.dir, '..');

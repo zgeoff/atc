@@ -14,8 +14,6 @@ import { truncate } from './truncate';
 import type { Row } from './types';
 import { writeOut } from './write-out';
 
-// The slice of a session the drawing layer needs; satisfied by both the
-// daemon's sessions and the wire descriptors a client mirrors.
 interface SessionView {
   readonly name: string;
   readonly cwd: string;
@@ -33,14 +31,11 @@ const GLYPH: Record<SessionState, string> = {
   exited: `${ESC}[90m✗${ESC}[0m`,
 };
 
-// borders included; an item row holds 4 columns fewer.
 export function getPickerWidth(): number {
   return Math.min(cols() - 4, 90);
 }
 
-// Selection-dependent hints need the liveness facts of each row.
 export interface OverlaySessionView extends SessionView {
-  // The daemon that holds the session; a sub-session nests under a parent of the same daemon.
   readonly daemon: DaemonName;
   readonly id: string;
   readonly parent: string | null;
@@ -54,49 +49,33 @@ export interface OverlaySessionView extends SessionView {
   readonly target: string;
   readonly model: string | null;
 
-  // Where the session's harness stands, apart from the attention its state
-  // carries: running, suspended inside a sleeping host, or exited.
   readonly harness: HarnessLifecycle;
 }
 
 export interface OverlayView {
   sessions: readonly OverlaySessionView[];
 
-  // The readable name per agent id, and each agent's tier-alias map, from
-  // the daemon's `agents.list` answer over the config.
   agentLabels: Readonly<Record<AgentID, string>>;
   agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>>;
 
-  // What a remote daemon's own answer says about its agents, which its rows read in place of the
-  // two maps above.
   remoteAgents?: ReadonlyMap<string, AgentMetadata>;
 
-  // Whether a column names each row's daemon, as it does while the client links to several.
   showDaemon?: boolean;
 
-  // One line for each daemon whose link is not up, drawn under the rows.
   daemonLines?: readonly string[];
 
-  // Whether more than one execution target is available to spawn on, which
-  // is what brings the target column in.
   showTarget: boolean;
   selected: number;
   confirmKill: boolean;
 
-  // A kill the daemon refused because forgetting the session destroys its
-  // host waits on a second confirm.
   confirmDestroy: boolean;
   filter: string | null;
 
-  // Shown on the hint line in place of the hints, under any confirm prompt.
   notice: string | null;
   stale: boolean;
   grouped: boolean;
 }
 
-// A session row draws status (the attention glyph plus the unread mark),
-// pin, name, the flat view's directory, then the target, harness, model,
-// harness lifecycle, and last event columns the width plan allows.
 export function buildSessionRow(
   session: Readonly<OverlaySessionView>,
   plan: Readonly<OverlayColumnPlan>,
@@ -158,8 +137,6 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
     rowsList.push(dimRow(width, empty));
   }
 
-  // The harness label and the model each row would draw, so the columns
-  // take the width of what is actually on screen.
   const harnessMax = Math.max(
     0,
     ...view.sessions.map(
@@ -198,9 +175,6 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
     modelMax,
   });
 
-  // the grouped view clusters sessions under dim repository headers, pinned ones first;
-  // the flat view shows a directory column instead. A sub-session row follows its parent
-  // indented and never opens a header.
   let lastKey: string | null = null;
 
   for (const [index, session] of view.sessions.entries()) {
@@ -267,7 +241,6 @@ function findMapValue<V>(map: Readonly<Record<string, V>>, key: string): V | und
   return Object.hasOwn(map, key) ? map[key] : undefined;
 }
 
-// The agent labels and models a row reads: its own daemon's answer, else the primary's.
 function pickAgentMetadata(view: Readonly<OverlayView>, daemon: DaemonName): AgentMetadata {
   return (
     (daemon === null ? undefined : view.remoteAgents?.get(daemon)) ?? {
@@ -277,8 +250,6 @@ function pickAgentMetadata(view: Readonly<OverlayView>, daemon: DaemonName): Age
   );
 }
 
-// A session's model as the row draws it: the daemon answer's alias target,
-// or the raw model string when the answer maps nothing for it.
 function resolveModelAlias(
   models: Readonly<Record<AgentID, Readonly<Record<string, string>>>>,
   agent: AgentID,
@@ -291,7 +262,6 @@ function resolveModelAlias(
 
 const DAEMON_COLUMN_MAX = 12;
 
-// The width of the daemon column: 0 unless the list names daemons and one of its rows has a name.
 function getDaemonWidth(view: Readonly<OverlayView>): number {
   if (view.showDaemon !== true) {
     return 0;
@@ -310,8 +280,6 @@ function isSubSession(session: Readonly<OverlaySessionView>, list: readonly Over
   );
 }
 
-// A kill acts on the selected session's whole set, so the confirm counts
-// the live sub-sessions that go with it; a forget counts the dead ones.
 function formatKillConfirm(
   session: OverlaySessionView | undefined,
   list: readonly OverlaySessionView[],
@@ -334,9 +302,7 @@ function formatKillConfirm(
 
 const GLOBAL_HINT = 'g groups · n new · ? keys';
 
-// Only the actions valid for the selected row appear; the full reference
-// lives behind ?. Grok has no headless handoff, so H is omitted there. A
-// sub-session's pin action targets its parent.
+// Grok has no headless handoff, so H is omitted there. A sub-session's pin action targets its parent.
 export function buildOverlayHint(
   session: OverlaySessionView | undefined,
   list: readonly OverlaySessionView[] = [],
@@ -386,7 +352,6 @@ export interface PickerView {
   placeholder?: string;
   hint: string;
 
-  // The indexes of items drawn dim: listed, but not a fit for the flow.
   dimmed?: ReadonlySet<number>;
 }
 
@@ -417,8 +382,6 @@ export function drawPicker(view: PickerView, write: (chunk: string) => void = wr
     rowsList.push(dimRow(width, `↓ ${view.items.length - visible.end} more`));
   }
 
-  // The cursor always sits at the end of the input, so show the tail and
-  // drop the head once the text outgrows the row.
   const inputMax = width - 8;
 
   const inputShown =
@@ -452,8 +415,6 @@ interface PickerWindow {
   readonly end: number;
 }
 
-// Each count row takes the place of an item row, so a short terminal that fits
-// the box with no count row fits it with both.
 function planPickerWindow(count: number, selected: number): PickerWindow {
   if (count <= PICKER_WINDOW_ROWS) {
     return { start: 0, end: count };

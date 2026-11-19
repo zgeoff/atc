@@ -11,8 +11,6 @@ import type { OverlayConfirm, OverlayScreen } from './create-overlay-screen';
 import { pickPinTarget } from './pick-pin-target';
 import { pickTabTarget } from './pick-tab-target';
 
-// What the overlay's keys borrow from the client that owns the screen, the
-// fleet mirror, and the daemon connection.
 export interface OverlayKeyDeps {
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
@@ -42,9 +40,6 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   const filtered = deps.overlay.pickSessions();
   const sel = filtered[deps.overlay.selected];
   const confirm = deps.getConfirm();
-
-  // A confirmation acts on the session it opened on, never on the row selected now, and only
-  // while that session is still listed and its daemon's link is up.
   const confirmKey = deps.service.getSnapshot().context.confirmKey;
 
   const confirmed =
@@ -57,8 +52,6 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   if (confirm === 'kill') {
     const session = confirmed === null ? undefined : deps.mirror.find(toSessionKey(confirmed));
 
-    // a kill of an exited session forgets it, and only the forget answers
-    // with what became of the session's workspace
     if (buf[0] === KEY.y && confirmed !== null && session !== undefined) {
       void (session.alive ? deps.actions.sendKill(confirmed) : deps.actions.sendForget(confirmed));
     }
@@ -157,8 +150,6 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   }
 
   if (ch === 'p' && sel !== undefined) {
-    // Flipped locally too so the repaint is immediate; the daemon's state
-    // event confirms it.
     const target = pickPinTarget(sel, deps.mirror.sessions);
 
     target.pinned = !target.pinned;
@@ -227,8 +218,6 @@ function applyOverlayFilterKey(buf: Buffer, deps: OverlayKeyDeps): boolean {
     return false;
   }
 
-  // esc clears the filter but stays in the overlay; enter falls through to
-  // the normal handler so it attaches the selected match.
   if (buf[0] === KEY.esc && buf.length === 1) {
     deps.overlay.filter = null;
 

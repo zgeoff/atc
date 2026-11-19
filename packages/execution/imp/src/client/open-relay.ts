@@ -1,7 +1,5 @@
 import type { ImpRelayConnection } from '../port/imp-port';
 
-// How the client hands over a guest connection: the daemon accepts it with
-// its handlers and gets the relay back.
 type RelayAccept = (
   handlers: Readonly<{
     onData: (data: Uint8Array) => void;
@@ -14,8 +12,6 @@ type RelayAccept = (
   close: () => void;
 }>;
 
-// Takes a guest connection at once, handing its bytes and its close to the
-// listeners the relay's owner adds.
 export function openRelay(accept: RelayAccept): ImpRelayConnection {
   const dataListeners: ((data: Uint8Array) => void)[] = [];
   const closeListeners: (() => void)[] = [];

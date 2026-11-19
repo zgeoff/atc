@@ -1,6 +1,6 @@
-// Claude Code loads the atc-bridge mod at start and after each write of its files, and each
-// load starts `atc tap` and ends the last one. The script removes the file it loads, since
-// mtimes in one second compare equal and a newer-file check would miss a write.
+// Stands in for Claude Code, which reloads the atc-bridge mod at start and on each write of its
+// files. The script deletes the file once seen, because mtimes within one second compare equal
+// and a newer-than check would miss a second write.
 export function buildStubBridgeClaude(atcArgv: readonly string[], guestDirectory: string): string {
   const atc = atcArgv.map((part) => formatShellWord(part)).join(' ');
   const guest = formatShellWord(guestDirectory);

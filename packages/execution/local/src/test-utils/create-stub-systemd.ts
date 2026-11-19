@@ -8,31 +8,26 @@ interface StubSystemd {
   // first on the PATH of every process that could reach a real one.
   readonly binDir: string;
 
-  // The directory `ATC_PROC_ROOT` points at, where `writeUnitCgroup` writes.
+  // The stand-in for /proc that `ATC_PROC_ROOT` points at; the pid cgroup files are written here.
   readonly procRoot: string;
 
-  // The arguments of every `systemctl` call, one line per call.
   readonly readSystemctlCalls: () => string[];
 
-  // The arguments of every `systemd-run` call, one line per call.
   readonly readSystemdRunCalls: () => string[];
 
-  // Makes `systemctl show -p MainPID` print this pid.
   readonly writeMainPID: (pid: number) => void;
 
-  // Places the pid in a user service of the given name, as the cgroup of a
-  // daemon run by a user manager reads.
+  // Makes the pid's cgroup read as that of a service with this name
+  // run by a user's systemd manager.
   readonly writeUnitCgroup: (pid: number, unit: string) => void;
 
-  // Makes `systemctl show --property=BoundBy` print these unit names.
   readonly writeBoundBy: (units: readonly string[]) => void;
 
   readonly remove: () => void;
 }
 
-// Without a main pid, systemctl prints one no process holds, so no daemon is
-// ever a unit's main process; systemd-run --scope execs the command, keeping
-// its environment, terminal and pid as a scope does.
+// A real systemd-run --scope keeps the caller's environment, terminal and pid,
+// so the stub execs a --scope command in place instead of starting it in the background.
 export function createStubSystemd(atcCommand: readonly string[]): StubSystemd {
   const root = mkdtempSync(join(tmpdir(), 'atc-stub-systemd-'));
 

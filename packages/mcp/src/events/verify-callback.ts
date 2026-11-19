@@ -20,8 +20,8 @@ export type CallbackVerdict =
   | { readonly verified: true }
   | { readonly verified: false; readonly reason: CallbackFailure };
 
-// The endpoint proves it wants the deliveries by echoing a one-time challenge
-// that only a holder of the secret can trust, since the envelope is signed.
+// A 2xx alone doesn't show the endpoint wants the deliveries; echoing a one-time challenge does.
+// The request is signed, so the endpoint can check with the secret that the challenge is ours.
 export async function verifyCallback(check: CallbackCheck): Promise<CallbackVerdict> {
   const challenge = randomBytes(24).toString('base64url');
 

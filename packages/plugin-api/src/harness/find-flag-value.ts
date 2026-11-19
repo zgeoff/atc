@@ -1,4 +1,3 @@
-// the last occurrence wins, as it does for the CLIs atc runs.
 export function findFlagValue(args: readonly string[], names: readonly string[]): string | null {
   let value: string | null = null;
 

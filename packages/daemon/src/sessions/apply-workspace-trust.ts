@@ -3,9 +3,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import { buildGuestSessionDirectory } from './build-guest-session-directory';
 import type { SpawnRequest } from './spawn-request';
 
-// Trusts a cloned workspace: in the user's own agent config on the local
-// target, returning how to take the trust back, or in the session's guest
-// folder on an imp, which takes nothing back.
 export async function applyWorkspaceTrust(
   spawn: Readonly<SpawnRequest>,
   root: string,

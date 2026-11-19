@@ -5,8 +5,6 @@ import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 import { tryRevokeGrant } from './try-revoke-grant';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 
-// Revokes each bound or recorded grant and returns the secrets it could
-// not confirm gone. A host the broker shows gone took every grant with it.
 export async function revokeGrants(
   ledger: RuntimeAuthLedger,
   host: CredentialBroker | null,
@@ -58,7 +56,6 @@ export async function revokeGrants(
   return pending;
 }
 
-// The secrets a binding grants and any its grant rows still record.
 function collectBindingSecrets(
   row: RuntimeAuthBinding,
   grants: readonly RuntimeAuthGrant[],
@@ -68,8 +65,6 @@ function collectBindingSecrets(
   return [...new Set([...bound, ...grants.map((grant) => grant.secret)])].toSorted();
 }
 
-// The phase each named secret's grant row of a binding moves to, with the
-// rows the binding recorded before the move.
 interface GrantPhaseUpdate {
   readonly row: RuntimeAuthBinding;
   readonly grants: readonly RuntimeAuthGrant[];

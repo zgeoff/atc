@@ -9,9 +9,6 @@ type PeerConnectionEvent =
   | { readonly type: 'END' }
   | { readonly type: 'CLOSE' };
 
-// A peer client's connection, from its one handshake to its close. A
-// refusal ends the connection once the refusal's bytes leave the outbound
-// queue. The connection provides the actions and performs every effect.
 export const PEER_CONNECTION_MACHINE = setup({
   types: machineTypes<{ events: PeerConnectionEvent }>(),
   actions: {

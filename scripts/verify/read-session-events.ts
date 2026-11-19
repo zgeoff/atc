@@ -8,9 +8,6 @@ import { readStreamLines } from './read-stream-lines.ts';
 // The exit line can reach the stream after the kill answers, so a read waits this long for it.
 const SETTLE_MS = 5000;
 
-// Reads what `atc events` printed since `use` last marked the stream, until the session with the
-// name was added, changed state and exited, in order, and fails with `check-failed` when it was
-// not within the settle time.
 export async function readSessionEvents(
   client: StreamClient,
   name: string,

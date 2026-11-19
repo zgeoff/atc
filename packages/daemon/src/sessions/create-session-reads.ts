@@ -23,8 +23,6 @@ interface SessionReadsDeps {
 }
 
 export interface SessionReads {
-  // The activity time counts only the session's own trail rows when there
-  // is an access.
   readonly readSessionRecord: (
     id: SessionID,
     access: TargetAccess | null,
@@ -58,9 +56,8 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       const result = live.result ?? null;
       const createdAt = live.createdAt;
 
-      // the agent session id links rows from before atc ids stayed stable,
-      // unless another target resumed it too; under an access it links nothing,
-      // since a session that shared it may be gone with its rows still in the trail
+      // Skip the agent session id for an access read: a session that shared it may be gone while its
+      // rows stay in the trail. Skip it too when another target resumed the session.
       const shared = manager.sessions.some(
         (x) =>
           x.agentSessionID === live.agentSessionID &&

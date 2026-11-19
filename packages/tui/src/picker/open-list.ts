@@ -61,8 +61,7 @@ export function openList(flow: PickerFlow) {
   const ctx = flow.ctx;
   const listedAgent = ctx.listedAgents.find((entry) => entry.id === ctx.agent);
 
-  // the daemon lists the targets whose credentials serve the agent's auth selection; a target
-  // whose provider it lacks stays, so its choice explains why it is unavailable
+  // An unavailable target stays in the list so its choice explains why it is unavailable.
   const picks = ctx.listedTargets.filter(
     (target) =>
       !target.available ||
@@ -304,8 +303,7 @@ export function openTargetStep(flow: PickerFlow): boolean {
   const eligible = collectEligibleTargets(ctx, git);
 
   if (eligible.length === 1 || (ctx.targets.length === 0 && ctx.targetGap === null)) {
-    // The spawn names the one usable target, default or not, so its provider decides whether
-    // a directory runs in place.
+    // The spawn names the one usable target, default or not, so its provider decides whether a directory runs in place.
     ctx.target = eligible[0] ?? null;
 
     return false;

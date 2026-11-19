@@ -41,8 +41,7 @@ const IPV6_BLOCKED: readonly string[] = [
 const IPV4_RANGES = IPV4_BLOCKED.map((cidr) => parseRange(cidr, 32));
 const IPV6_RANGES = IPV6_BLOCKED.map((cidr) => parseRange(cidr, 128));
 
-// An address with a zone, such as `fe80::1%eth0`, is link-local, so it is
-// never public.
+// An address with a zone, such as `fe80::1%eth0`, is link-local, so it is never public.
 export function isPublicAddress(address: string): boolean {
   if (isIPv4(address)) {
     return !isInRanges(parseIPv4(address), 32, IPV4_RANGES);

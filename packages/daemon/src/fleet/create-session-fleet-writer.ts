@@ -16,14 +16,10 @@ export interface SessionFleetWriter {
   // whole previous file, never a truncated or empty one
   readonly writeStatus: () => void;
 
-  // a stored row the daemon has not restored yet stays as it is, so a write before a
-  // restore keeps it restorable; deliberate kills rewrite the fleet and unexpected
-  // deaths do not, so the last known fleet survives for a restore
   readonly writeFleet: () => Promise<void>;
 
-  // a failed write nobody awaits must not take the daemon down unhandled; a stale
-  // ownership epoch surfaces on the next write a request awaits, and any other
-  // failure is logged with the session whose change it was writing
+  // A rejected write that no caller awaits is an unhandled rejection, which ends the daemon
+  // process.
   readonly tryWriteFleet: (sessionID: SessionID) => Promise<boolean>;
 
   readonly tryUpdateFleetEntry: (id: SessionID, fields: FleetEntryUpdate) => Promise<boolean>;

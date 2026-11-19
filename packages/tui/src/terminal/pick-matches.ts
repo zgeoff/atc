@@ -10,8 +10,6 @@ export function pickMatches(items: readonly string[], filter: string): string[] 
   const scored: { item: string; score: number }[] = [];
 
   for (const item of items) {
-    // Basename hits beat full-path hits, so `vers` ranks ~/projects/vers
-    // above every path that merely passes through a vers directory.
     const baseScore = findFuzzyScore(basename(item), filter);
     const pathScore = findFuzzyScore(item, filter);
     const score = baseScore === null ? pathScore : baseScore + 100;
@@ -44,7 +42,6 @@ export function findFuzzyScore(candidate: string, filter: string): number | null
   for (const ch of needle) {
     const hit = hay.indexOf(ch, pos);
 
-    // a miss is null, not zero, so it never ranks as a weak match.
     if (hit === -1) {
       return null;
     }

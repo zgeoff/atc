@@ -20,7 +20,6 @@ export interface VolumeSpec {
   readonly name: string;
   readonly labels: Labels;
 
-  // a volume held in memory that any user may write, with its sticky bit set
   readonly shared?: boolean;
 }
 
@@ -83,18 +82,16 @@ interface AttachOptions {
 export interface ContainerAttachment {
   readonly onData: (listener: (data: Uint8Array, stream: StreamName) => void) => void;
 
-  // the attach ended, whether the container exited, the Engine dropped it or detach ran
   readonly onEnd: (listener: () => void) => void;
   readonly write: (data: Uint8Array) => Promise<void>;
 
-  // ends the attach's write side, which ends the container's stdin when its mode is once
+  // Docker closes the container's stdin when the attach's write side ends only if the container
+  // was created with StdinOnce; otherwise its stdin stays open
   readonly closeWrite: () => void;
 
-  // lets go of the attach and leaves the container as it is
   readonly detach: () => void;
 }
 
-// The calls the provider makes of a Docker Engine, and no others.
 export interface DockerEngine {
   readonly readInfo: () => Promise<EngineInfo>;
   readonly readImage: (reference: string) => Promise<ImageInfo | null>;
@@ -110,7 +107,6 @@ export interface DockerEngine {
   readonly unpauseContainer: (name: string) => Promise<void>;
   readonly killContainer: (name: string, signal: 'SIGTERM' | 'SIGKILL') => Promise<void>;
 
-  // removes the container, running or not
   readonly removeContainer: (name: string) => Promise<void>;
   readonly resizeContainer: (name: string, cols: number, rows: number) => Promise<void>;
   readonly attachContainer: (name: string, options: AttachOptions) => Promise<ContainerAttachment>;

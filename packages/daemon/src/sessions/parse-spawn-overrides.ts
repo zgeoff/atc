@@ -17,8 +17,6 @@ interface SpawnRefusal {
 
 type ParsedOverrides = { readonly ok: true; readonly overrides: SpawnOverrides } | SpawnRefusal;
 
-// an option the agent cannot take here is unsupported, never ignored; a value outside a closed
-// set, or one that could pass for a flag, is bad_args
 export function parseSpawnOverrides(
   agent: AgentEntry,
   requested: RequestedOverrides,

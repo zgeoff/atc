@@ -22,10 +22,6 @@ export function scheduleNoticeDelivery(
     });
 }
 
-// A notice never waits for a turn to start and never joins one's carried
-// messages, so no turn reports an answer for it. An appended notice stays in
-// the conversation, so it is never sent again; a turn that ends before a step
-// shows it leaves a reminder that names it instead.
 async function sendNotice(host: BridgeHost, state: BridgeState, notice: TapNotice): Promise<void> {
   if (state.shownNotices.has(notice.id)) {
     return;
@@ -80,8 +76,6 @@ function renderAnswerNotice(notice: TapNotice): string {
   return `<atc-answer id="${encodeAttribute(notice.id)}" from="${encodeAttribute(notice.from)}" status="${encodeAttribute(notice.status)}"${reason}>\n${body}\n</atc-answer>`;
 }
 
-// A message whose session ended before it answered reaches no one unless
-// its sender sends it again, so the notice says so.
 function renderNoticeAdvice(notice: TapNotice): string {
   return notice.status === 'unanswered' && notice.reason === 'session_ended'
     ? 'This message has no answer, because its session ended before it answered. Send it again if you still need the answer.'

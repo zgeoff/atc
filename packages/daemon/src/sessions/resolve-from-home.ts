@@ -4,8 +4,6 @@ import type { SessionID } from '@atcx/contract';
 import { RESOLVE_UNLINKED_DIR_SCRIPT, resolveHostDir } from './resolve-host-dir';
 import { resolveHostHome } from './resolve-host-home';
 
-// null when any entry may lie anywhere; a relative one that cannot be entered, such as one
-// removed inside the guest, resolves from the host's home unless a missing part is a symlink
 export async function resolveFromHome(
   provider: ExecutionProvider,
   hostKey: SessionID,
@@ -15,8 +13,8 @@ export async function resolveFromHome(
     return [];
   }
 
-  // an absolute directory was resolved that way already, and the host follows `..` through
-  // symlinks rather than lexically, so either stays unknown
+  // The host follows `..` through symlinks instead of resolving it lexically, so the physical
+  // path is unknown here. An absolute directory has already been resolved that way.
   if (unresolved.some(([, cwd]) => posix.isAbsolute(cwd) || cwd.split('/').includes('..'))) {
     return null;
   }

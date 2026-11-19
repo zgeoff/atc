@@ -10,24 +10,19 @@ import type {
 } from '@atc/plugin-api';
 import { createLocalPTYProvider } from '../create-local-pty-provider';
 
-// One provider operation, in the order the daemon called it.
 type StubDirCall =
   | { readonly op: 'transfer'; readonly directory: string; readonly bytes: number }
   | { readonly op: 'run'; readonly argv: readonly string[]; readonly cwd: string };
 
 interface StubDirOptions {
-  // Capabilities the provider declares as missing.
   readonly lacking?: readonly ExecutionCapability[];
 
-  // Runs once an archive is unpacked, before the transfer resolves, so a
-  // test can change what landed on the host or hold the transfer open.
   readonly afterTransfer?: (directory: string) => Promise<void>;
 }
 
 interface StubDirProvider extends ExecutionProvider {
   readonly calls: StubDirCall[];
 
-  // Every harness the provider started, as the daemon specified it.
   readonly harnesses: HarnessSpec[];
 }
 
@@ -118,8 +113,6 @@ export function createStubDirProvider(options: StubDirOptions = {}): StubDirProv
       return { exitCode, stdout, stderr };
     },
 
-    // The host is the test's own directory tree, which neither sleeps nor
-    // goes away.
     suspendHost: (host: string): Promise<void> =>
       Promise.reject(new Error(`the fixture-dir provider cannot suspend host ${host}`)),
 

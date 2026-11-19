@@ -40,15 +40,13 @@ test('it keeps running after it records the IDs', async () => {
   const gh = createStubBin(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
   const subprocess = Bun.spawn([gh, 'repo', 'list'], { detached: true });
 
-  // kill(1) exits nonzero without throwing once the test's own kill has
-  // emptied the group.
+  // kill(1) exits nonzero, without throwing, when the group is already empty.
   registerTestCleanup(async () => {
     await Bun.spawn(['kill', '-KILL', '--', `-${subprocess.pid}`]).exited;
   });
 
   await waitFor(() => readFile(pidsFile, 'utf8'));
 
-  // A stand-in that had already exited by itself dies of no signal.
   process.kill(-subprocess.pid, 'SIGKILL');
 
   await subprocess.exited;
@@ -62,8 +60,7 @@ test('it stops its child too when its process group is killed', async () => {
   const gh = createStubBin(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
   const subprocess = Bun.spawn([gh, 'repo', 'list'], { detached: true });
 
-  // kill(1) exits nonzero without throwing once the test's own kill has
-  // emptied the group.
+  // kill(1) exits nonzero, without throwing, when the group is already empty.
   registerTestCleanup(async () => {
     await Bun.spawn(['kill', '-KILL', '--', `-${subprocess.pid}`]).exited;
   });

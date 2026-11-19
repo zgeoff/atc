@@ -18,7 +18,6 @@ const PULL_REQUEST_SCOPE_SCHEMA = z.object({
   branch: z.string(),
 });
 
-// What a session's record holds as its work: workspace, worktrees, branches, and pull requests.
 const SCOPE_SCHEMA = z.object({
   workspace: WORKSPACE_SCOPE_SCHEMA,
   worktrees: z.array(WORKTREE_SCOPE_SCHEMA),

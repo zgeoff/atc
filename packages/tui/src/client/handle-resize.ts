@@ -7,7 +7,6 @@ export interface HandleResizeDeps {
   readonly mode: ClientMode;
   readonly focusedKey: SessionKey | null;
 
-  // The restart prompt that waits for its key, or null.
   readonly restartPrompt: string | null;
   readonly ptyRows: number;
   readonly write: (chunk: string) => void;
@@ -20,8 +19,6 @@ export interface HandleResizeDeps {
 }
 
 export function handleResize(deps: HandleResizeDeps): void {
-  // The restart prompt keeps the screen until it has its key, so a resize
-  // draws it again rather than the mode under it.
   if (deps.restartPrompt !== null) {
     deps.write(ansi.clear + deps.restartPrompt);
 

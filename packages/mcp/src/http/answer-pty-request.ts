@@ -10,12 +10,9 @@ import type { PTYRefusalOutcome } from './pick-pty-admission';
 import { pickPTYPrincipal } from './pick-pty-principal';
 import { pickSnapshotStatus } from './pick-snapshot-status';
 
-// What the live-terminal route needs beyond the routes' context.
 export interface PTYRoute {
-  // The Host header values the server answers to.
   readonly hosts: ReadonlySet<string>;
 
-  // The origins a browser page may open a live terminal from.
   readonly allowedOrigins: ReadonlySet<string>;
 
   // The tokens of the owner's token file, each of which acts as the
@@ -36,16 +33,12 @@ export interface PTYRoute {
   readonly security: SecuritySink;
 }
 
-// One request for a session's live terminal, and the server's upgrade of it,
-// which answers false when the request cannot become a WebSocket.
 interface PTYRequest {
   readonly request: Request;
   readonly sessionID: string;
   readonly upgrade: (viewer: PTYViewer) => boolean;
 }
 
-// Every refusal comes before the upgrade, so a browser that may not watch
-// the session never gets a socket.
 export async function answerPTYRequest(
   route: PTYRoute,
   ctx: HTTPServerContext | null,
@@ -104,8 +97,8 @@ export async function answerPTYRequest(
     return new Response(null, { status: 503 });
   }
 
-  // Output the daemon sends while the snapshot is read reaches the viewer
-  // once it exists.
+  // The daemon keeps sending output while the snapshot is read, before any viewer exists.
+  // Buffer it and replay it into the viewer so that output is not dropped.
   const early: DaemonEvent[] = [];
 
   channel.onEvent = (event) => {
@@ -165,8 +158,6 @@ function isSameToken(expected: string, presented: string): boolean {
   return timingSafeEqual(expectedDigest, presentedDigest);
 }
 
-// A live terminal takes the owner's tokens and OAuth access tokens, and no
-// service token.
 async function readOAuthAccess(ctx: HTTPServerContext, token: string) {
   const access = await ctx.auth.verify(token);
 

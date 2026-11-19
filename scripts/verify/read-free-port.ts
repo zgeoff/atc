@@ -2,9 +2,7 @@ import { once } from 'node:events';
 import { createServer } from 'node:net';
 import type { AddressInfo } from 'node:net';
 
-// A loopback port that no process holds now. A server's OAuth issuer and resource name its port,
-// and each must be in its flags and its service-token file before it starts, so the launcher picks
-// the port first instead of asking for port 0.
+// A server's OAuth issuer and resource name its port, and each must be in its flags and its service-token file before it starts, so the launcher picks the port first instead of asking for port 0.
 export async function readFreePort(): Promise<number> {
   const server = createServer();
 

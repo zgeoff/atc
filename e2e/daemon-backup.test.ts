@@ -11,8 +11,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openDaemonClient } from '@atc/protocol/client';
 import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 
-// The source and the fresh daemon run in the test's process, and only the
-// backup command runs as a process.
 async function setupTest() {
   const source = await startStubAgentDaemon();
   const fresh = await startStubAgentDaemon();
@@ -20,7 +18,6 @@ async function setupTest() {
   const cliHome = setupTempDir('atc-e2e-backup-cli-').path;
   const work = setupTempDir('atc-e2e-backup-work-').path;
 
-  // The command finds its daemon at the socket under its runtime directory.
   symlinkSync(
     source.daemon.socketPath,
     resolvePaths({ HOME: cliHome, XDG_RUNTIME_DIR: cliHome }).daemonSocketPath,
@@ -35,8 +32,7 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
   const client = ctx.source.daemon.client;
   const events = ctx.source.daemon.events;
 
-  // Each session reports its own atc session id as its agent session, so the
-  // two sessions keep two fleet rows.
+  // Each session reports its own atc session id as its agent session, so the two sessions keep two fleet rows.
   ctx.source.agents.useOwnID();
 
   await client.sendRequest('session.spawn', {
@@ -90,8 +86,6 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
     cwd: ctx.work,
   });
 
-  // The rest of the journey reads the file this step writes, so its result
-  // is checked before the journey goes on.
   expect(backup.stderr).toBe('');
   expect(backup.exitCode).toBe(0);
   expect(backup.stdout).toMatch(/^atc backup: wrote \d+ bytes to .*\/atc-backup\.db\n$/u);

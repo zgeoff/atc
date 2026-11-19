@@ -6,7 +6,6 @@ import type { ProcessIO } from '../cli/process-io';
 import { formatPruneReport } from './format-prune-report';
 
 interface RunWorkspacesPruneOptions {
-  // Without remove, a dry run that removes nothing.
   readonly remove: boolean;
   readonly io?: Pick<ProcessIO, 'print' | 'printError'>;
 }

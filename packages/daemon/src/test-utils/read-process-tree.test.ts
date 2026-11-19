@@ -2,8 +2,8 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { readProcessTree } from './read-process-tree';
 
-// The tree is read from /proc, which only Linux has. A spawned child shows
-// its own argv only once it has exec'd, so each read is retried until then.
+// A spawned child shows its own argv only once it has exec'd, so the read is retried until
+// then.
 test.skipIf(process.platform !== 'linux')(
   'it collects the argv and environment of a running child',
   async () => {

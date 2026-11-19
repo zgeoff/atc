@@ -11,7 +11,6 @@ export type DaemonAnswer<M extends RequestMethod> =
       : never
     : never;
 
-// The procedure at a dotted request method's path in a contract router.
 type FindProcedure<Router, Path extends string> = Path extends `${infer Head}.${infer Rest}`
   ? Head extends keyof Router
     ? FindProcedure<Router[Head], Rest>

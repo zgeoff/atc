@@ -1,4 +1,3 @@
-// The path a session's live terminal answers at.
 const PTY_PATH = /^\/sessions\/(?<id>[^/]+)\/pty$/u;
 
 type PTYPath =

@@ -6,7 +6,6 @@ import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { runReleaseUpload } from './run-release-upload';
 
-// A release checkout and a stub gh that records its arguments, one per line.
 function setupTest() {
   const temporaryDirectory = setupTempDir('run-release-upload-');
   const root = join(temporaryDirectory.path, 'release');

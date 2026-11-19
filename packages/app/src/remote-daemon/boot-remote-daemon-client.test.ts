@@ -163,8 +163,6 @@ test('it rejects an unreachable daemon with its name and address and never waits
 
   writeFileSync(ctx.tokenFile, `${'a'.repeat(32)}\n`);
 
-  // A port the kernel handed out and this test then freed, so nothing
-  // listens on it.
   const freed = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
   const port = freed.port;
 
@@ -388,7 +386,6 @@ test('it waits for a daemon that drops the handshake, once asked to wait, until 
     onWaitForDaemon: () => {
       onWaitForDaemon();
 
-      // The daemon comes back on the same port once the client first waits.
       closing.stop();
 
       startStubLegacyDaemon({ hostname: '127.0.0.1', port: closing.port });

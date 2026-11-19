@@ -47,49 +47,36 @@ interface HeldSprite {
 }
 
 export interface InMemorySprites extends SpritesPort {
-  // every exec request the port took, in order, attaches included
   readonly requests: readonly { readonly sprite: string; readonly request: ExecRequest }[];
   readonly addConnector: (connector: ConnectorView) => void;
   readonly countReads: () => number;
 
-  // answers each exec that runs to completion: not a terminal, and not one that outlives clients
   readonly answerRuns: (answer: RunAnswerer) => void;
 
-  // makes the next create refuse with the message
   readonly refuseCreate: (status: number, message: string) => void;
 
-  // makes every attach to an exec fail as if the exec were gone
   readonly refuseAttaches: () => void;
 
-  // makes every call on the port fail with the message
   readonly failAll: (status: number, message: string) => void;
   readonly findFile: (sprite: string, path: string) => HeldFile | null;
   readonly hasSprite: (name: string) => boolean;
   readonly countAttached: (sprite: string) => number;
 
-  // the exec ids the sprite holds, in start order
   readonly listExecIDs: (sprite: string) => readonly string[];
 
-  // the id of the first exec whose command holds the text, or null
   readonly findExecID: (sprite: string, commandPart: string) => string | null;
   readonly readInput: (sprite: string, execID: string) => string;
   readonly writeOutput: (sprite: string, execID: string, text: string) => void;
 
-  // drops every WebSocket on an exec; the exec keeps running
   readonly dropConnections: (sprite: string, execID: string) => void;
   readonly exitExec: (sprite: string, execID: string, exitCode: number) => void;
 
-  // puts the sprite to sleep: nothing runs a client's exec down, and the processes stay
   readonly sleep: (sprite: string, status?: 'cold' | 'warm') => void;
 
-  // a reboot: the sprite gets a new boot id, and every exec on it is gone
   readonly changeBootID: (sprite: string) => void;
   readonly findBootID: (sprite: string) => string | null;
 }
 
-// A sprite fleet in memory. An exec outlives its WebSockets, a sprite sleeps with its execs
-// inside, an attach replays an exec's output from its first byte, and a run answers once its
-// stdin ends.
 export function createInMemorySprites(): InMemorySprites {
   const sprites = new Map<string, HeldSprite>();
 
@@ -184,7 +171,6 @@ export function createInMemorySprites(): InMemorySprites {
       exec.connections.add(connection);
       execID.resolve(exec.id);
 
-      // an attach replays the exec's output from its first byte
       if (request.execID !== undefined) {
         setTimeout(() => {
           for (const chunk of exec.output) {

@@ -8,7 +8,7 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { LISTING_CACHE_LIFETIME_MS } from '@atc/tui';
 import { openListingCache } from './open-listing-cache';
 
-// The test end aborts a wait before the folder it polls goes.
+// Abort any wait still polling the folder before the folder is deleted.
 function setupTest() {
   const testEnd = new AbortController();
 
@@ -221,8 +221,6 @@ test('it keeps nothing and leaves no temporary file when the folder cannot be wr
 test('it keeps every write from writers in several processes, and the latest request for a key', async () => {
   const ctx = setupTest();
 
-  // Each writer waits for the go file once it is ready, so all four write
-  // at the same time.
   const writers = Array.from({ length: 4 }, (_, writer) =>
     runCommand([
       process.execPath,
@@ -350,8 +348,6 @@ test('it keeps every write when writers in several processes take over one stale
   mkdirSync(lockPath);
   writeFileSync(join(lockPath, `${exitedPid}-dead-writer`), '');
 
-  // Each writer waits for the go file once it is ready, so all four find
-  // the stale lock at the same time.
   const writers = Array.from({ length: 4 }, (_, writer) =>
     runCommand([
       process.execPath,

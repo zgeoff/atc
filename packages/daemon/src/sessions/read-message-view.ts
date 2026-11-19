@@ -8,8 +8,6 @@ interface MessageViewDeps {
   readonly store: Pick<StateStore, 'readMessageByID' | 'readTurnSiblings'>;
 }
 
-// A message belongs to the live session holding its atc id, else to the
-// one holding its agent session id, else to the atc id it was sent to.
 export async function readMessageView(
   deps: MessageViewDeps,
   messageID: MessageID,

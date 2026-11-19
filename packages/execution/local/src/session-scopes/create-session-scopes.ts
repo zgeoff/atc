@@ -1,20 +1,20 @@
 import { randomUUID } from 'node:crypto';
 
 export interface SessionScopes {
-  // systemd-run replaces itself with the program, so the pid stays the
-  // program's own. A name of its own keeps a scope a stop still holds from
-  // blocking the session's next start.
+  // systemd-run execs the program in place, so the pid stays the program's own.
+  // Each scope gets a unique name, so a scope that is still stopping cannot block
+  // the session's next start under the same name.
   readonly buildCommand: (
     session: string,
     argv: readonly string[],
   ) => Readonly<{ file: string; args: string[] }>;
 
-  // Never rejects: a manager that does not answer leaves each leftover scope to
-  // its own stop.
+  // A systemd manager that does not answer leaves each leftover scope to its own stop,
+  // so this resolves instead of rejecting when it fails.
   readonly stopLeftovers: () => Promise<void>;
 
-  // One systemctl starts before this returns, so a daemon that exits at once
-  // still queues every stop. Never rejects.
+  // One systemctl call starts before this returns, so a daemon that exits at once
+  // still has systemd queue every stop.
   readonly stop: () => Promise<void>;
 }
 
@@ -34,13 +34,9 @@ interface SessionScopesConfig {
 }
 
 export function createSessionScopes(config: SessionScopesConfig): SessionScopes {
-  // Every scope a harness runs in starts with this, the service's name
-  // without its suffix: two daemons in services of their own never share
-  // one.
+  // Built from the service's unit name so that two daemons running as separate services
+  // never share a scope prefix.
   const prefix = `${config.unit.replace(/\.service$/u, '')}-session-`;
-
-  // Every scope this daemon run starts, from any of its targets, starts
-  // with this.
   const runPrefix = `${prefix}${config.run}-`;
 
   // The scopes this provider started harnesses in, ended or not: a process

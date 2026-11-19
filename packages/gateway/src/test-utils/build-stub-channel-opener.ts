@@ -1,8 +1,6 @@
 type ChannelOpener<Address, Channel> = (address: Address) => Promise<Channel>;
 
 interface StubChannelOpenerOptions {
-  // The position of the dial to hold, counting from 1; no dial is held
-  // without it.
   readonly holdDial?: number;
 }
 

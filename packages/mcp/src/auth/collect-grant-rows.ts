@@ -1,7 +1,5 @@
 import { parseJSONStrings } from '@atc/core';
 
-// One token row as atc wrote it before the package: every grant's tokens
-// point at the one owner row, and carry the authorization code they came from.
 export interface OwnerToken {
   readonly authorizationCodeId: string | null;
   readonly clientId: string;
@@ -34,8 +32,6 @@ interface GrantSources {
   readonly now: string;
 }
 
-// One row per authorization code that a live token still carries. The
-// package keeps offline_access out of a grant's scopes.
 export function collectGrantRows(sources: GrantSources): GrantRow[] {
   const live = sources.tokens.filter(
     (token) =>

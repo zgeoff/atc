@@ -14,8 +14,6 @@ import type { PinnedSource } from './resolve-source';
 import { sanitizeWorkspaceClone } from './sanitize-workspace-clone';
 import { toDaemonError } from './to-daemon-error';
 
-// The commit a workspace is checked out at, and the branch it is on, null
-// for a detached checkout.
 interface Checkout {
   readonly sha: string;
   readonly branch: string | null;
@@ -33,8 +31,6 @@ interface CreateCheckoutOptions extends CloneOnTargetOptions {
   readonly staging: string;
 }
 
-// Clones inside the host when it can, and uploads a clone made on the
-// daemon's host otherwise.
 export async function createCheckout(
   request: MaterializeRequest,
   deps: MaterializeDeps,
@@ -103,7 +99,7 @@ async function tryCreateCloneOnTarget(
         sha: target.sha,
         branch: target.branch,
 
-        // the host holds no ssh key
+        // The host holds no ssh key, so a clone over ssh would fail there.
         transports: transports.filter((transport) => transport !== 'ssh'),
       }),
     )
@@ -137,8 +133,6 @@ async function transferCleanClone(
     timer,
   );
 
-  // The archive is in memory, so the clone leaves the daemon's host before
-  // the target is touched.
   await rm(options.staging, { recursive: true, force: true });
 
   await recordPhase(request, deps, options.updateProgress, {

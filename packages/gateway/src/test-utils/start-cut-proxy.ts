@@ -9,33 +9,23 @@ import type { BaseMessageFormat } from '@orpc/standard-server-peer';
 import type { Socket } from 'bun';
 
 interface CutProxyOptions {
-  // The address the proxy forwards to.
   readonly target: { readonly hostname: string; readonly port: number };
 
-  // The request method whose response the proxy loses, and how many times.
   readonly method: string;
   readonly cuts: number;
 
-  // Close ends both sides where the response would pass; hold swallows it and
-  // every later byte from the target, keeping the link open; drop ends both
-  // sides in place of forwarding the request, so the target never sees it.
   readonly mode: 'close' | 'hold' | 'drop';
 }
 
 export interface CutProxy {
   readonly port: number;
 
-  // How many requests of the method the proxy has seen.
   readonly countRequests: () => number;
 
-  // How many answers the proxy has swallowed in hold mode.
   readonly countHeld: () => number;
   readonly stop: () => void;
 }
 
-// One proxied connection: what the client sent before the target side
-// connected, each side's unfinished line, the message id of the request
-// whose answer is lost, and whether every answer from now on is.
 interface ProxyLink {
   upstream: Socket | null;
   readonly pending: Uint8Array[];
@@ -46,7 +36,6 @@ interface ProxyLink {
   cutID: string | null;
   held: boolean;
 
-  // Counts an answer the link swallows in hold mode.
   readonly onHold: () => void;
 }
 
@@ -104,8 +93,6 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
           }
         }
 
-        // A dropped request ends the link with nothing of its chunk
-        // forwarded.
         if (dropped) {
           client.end();
           client.data.upstream?.end();
@@ -144,9 +131,6 @@ export function startCutProxy(options: CutProxyOptions): CutProxy {
   };
 }
 
-// The target's lines pass whole, so the answer to the cut request is lost
-// while the events the target sends before it still arrive. A target that
-// cannot be reached ends the client.
 async function openUpstream(client: Socket<ProxyLink>, options: CutProxyOptions): Promise<void> {
   try {
     const upstream = await Bun.connect({
@@ -207,8 +191,6 @@ function findResponseID(line: string): string | null {
   }
 }
 
-// A line in the shape of an oRPC peer message: a string id, a payload, and
-// a known message type when it gives one.
 function parsePeerMessage(line: string): BaseMessageFormat | null {
   let parsed: unknown;
 
@@ -238,8 +220,6 @@ function isPeerMessage(value: unknown): value is BaseMessageFormat {
   return given === undefined || MESSAGE_TYPES.some((known) => known === given);
 }
 
-// Hold swallows the answer and every later byte, keeping the link open;
-// close ends both sides.
 function applyCut(client: Socket<ProxyLink>, options: CutProxyOptions): void {
   client.data.cutID = null;
 
@@ -255,9 +235,6 @@ function applyCut(client: Socket<ProxyLink>, options: CutProxyOptions): void {
   client.data.upstream?.end();
 }
 
-// A peer request line's message id and method, the dotted path of its
-// procedure; null for any other line, a request whose payload the decoder
-// cannot read included, so the proxy never cuts its answer.
 function findPeerRequest(line: string): { readonly id: string; readonly method: string } | null {
   const message = parsePeerMessage(line);
 

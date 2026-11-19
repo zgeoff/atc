@@ -14,10 +14,8 @@ import type { Session } from './session';
 import { startBridgeRevival } from './start-bridge-revival';
 
 interface SetupTestConfig {
-  // Whether the session's host is another machine.
   readonly remote: boolean;
 
-  // How the host answers a transfer; it takes every transfer when absent.
   readonly transferArchive?: ExecutionProvider['transferArchive'];
 }
 
@@ -547,7 +545,6 @@ test('it writes the mod once a session that slept through the wait wakes', async
   ctx.taps.attach(id, ctx.client);
   ctx.taps.removeSession(id);
 
-  // a suspend drops the terminal with the host's sleep
   session.pty = null;
   session.suspended = true;
 
@@ -650,7 +647,6 @@ test('it waits at most 30 min between writes', async () => {
     ctx.taps.removeSession(id);
     ctx.clock.advance(30 * 60_000);
 
-    // each write settles before the next loss
     await waitFor(() => {
       expect(ctx.notes).toHaveLength(loss);
     });

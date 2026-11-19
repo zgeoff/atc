@@ -1,12 +1,8 @@
 import { isClientBehind } from './is-client-behind';
 
-// A daemon that refused this client's handshake because it speaks another
-// protocol version.
 export interface ProtocolMismatch {
   readonly socketPath: string;
 
-  // The daemon's pid from its record or pid file, or null when neither
-  // belongs to the socket that refused.
   readonly daemonPID: number | null;
 
   readonly clientBuild: string;
@@ -14,7 +10,6 @@ export interface ProtocolMismatch {
 
   readonly daemonProtocol: number | null;
 
-  // The daemon's own refusal, which holds its build and protocol version.
   readonly daemonMessage: string;
 }
 
@@ -30,8 +25,6 @@ export function formatProtocolMismatch(mismatch: ProtocolMismatch): string {
     ].join('\n');
   }
 
-  // Without a pid the TUI cannot stop the daemon either, so the restart is
-  // left to the user.
   const restart =
     mismatch.daemonPID === null
       ? `To restart it, find its pid with \`ss -xlp | grep ${mismatch.socketPath}\` on Linux or \`lsof -U | grep ${mismatch.socketPath}\` on macOS, stop that process, and run \`atc\` again: every hosted session ends, and \`R\` respawns them from their transcripts.`

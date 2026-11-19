@@ -1,8 +1,5 @@
 import { createStubBin } from './create-stub-bin';
 
-// A stand-in for `curl -fsSL -o <file> <url>` that writes the file in the
-// downloads folder named by the URL's last path segment, and fails as -f does
-// when the folder holds none.
 export function createStubCurl(directory: string, downloads: string): string {
   return createStubBin(
     directory,

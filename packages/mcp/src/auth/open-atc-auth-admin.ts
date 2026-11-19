@@ -6,8 +6,6 @@ import type { MCPAuthAdmin } from '@zgeoff/mcp-auth';
 import { ATC_AUTH_TABLES } from './constants';
 import { runGrantMigration } from './run-grant-migration';
 
-// The handle the `clients`, `grants` and `passkeys` commands manage the
-// authorization database with, after the grant migration.
 export function openATCAuthAdmin(
   database: Database,
   clock: Pick<Clock, 'now'>,

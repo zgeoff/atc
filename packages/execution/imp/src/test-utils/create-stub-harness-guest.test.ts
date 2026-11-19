@@ -138,8 +138,6 @@ test('it prints the burst on later once a line reaches the burst pipe', async ()
     invariant(output.join('').includes('GOT:later\n'));
   });
 
-  // The burst waits on the pipe, so the output read here holds nothing that
-  // follows the echo.
   const beforeBurst = output.join('');
 
   writeFileSync(guest.burstPath, 'go\n');

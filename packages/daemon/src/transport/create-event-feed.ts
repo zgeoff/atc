@@ -8,30 +8,19 @@ import { EVENT_FEED_MACHINE } from './event-feed-machine';
 import { findEventSession } from './find-event-session';
 
 interface EventFeedOptions {
-  // How many bytes of events the backlog holds before the next one
-  // overflows it.
   readonly capacity: number;
 
-  // Whether the connection may see a session's output when the session's
-  // dropped output is reported.
   readonly canSeeOutput: (sessionID: SessionID) => boolean;
 
-  // Repaints a session whose output was dropped, once the backlog drains.
   readonly resync: (sessionID: SessionID) => void;
 
-  // Runs when an event other than terminal output overflows the backlog of
-  // a feed with a subscriber, which ends the connection.
   readonly onOverflow: () => void;
 }
 
-// The events one connection's subscription delivers, with the backlog the
-// subscriber has not taken yet.
 export interface EventFeed {
   readonly emit: (event: EventMsg) => void;
   readonly emitOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
 
-  // Drops what the backlog holds of a session, and its dropped-output
-  // record, once the session leaves the connection's view.
   readonly forgetSession: (sessionID: SessionID) => void;
   readonly subscribe: (signal: AbortSignal) => AsyncGenerator<DaemonEvent>;
 }
@@ -42,20 +31,14 @@ interface QueuedEvent {
 }
 
 interface FeedState {
-  // Whether the feed collects, has abandoned its backlog, or has a
-  // subscriber.
   readonly actor: Actor<typeof EVENT_FEED_MACHINE>;
   readonly backlog: QueuedEvent[];
 
-  // The bytes of output each session dropped since its last report.
   readonly desynced: Map<SessionID, number>;
   queuedBytes: number;
   wake: PromiseWithResolvers<void> | null;
 }
 
-// The feed collects events from the handshake on, so a subscription that
-// starts after it misses none. An overflow drops a session's output and
-// reports the dropped bytes with a repaint once the backlog drains.
 export function createEventFeed(options: EventFeedOptions): EventFeed {
   const state: FeedState = {
     actor: createActor(EVENT_FEED_MACHINE).start(),
@@ -92,8 +75,8 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
     state.desynced.clear();
   };
 
-  // A chunk is never dropped without a report and a repaint, because a byte
-  // stream cut mid-escape corrupts the client's terminal state.
+  // Cutting a byte stream mid-escape corrupts the client's terminal state, so a dropped chunk
+  // always gets a report and a repaint.
   const emitOutput = (sessionID: SessionID, event: EventMsg, byteLength: number) => {
     if (isFeedIn(state, 'abandoned')) {
       return;
@@ -116,8 +99,6 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
     state.desynced.set(sessionID, byteLength);
   };
 
-  // A second subscription is refused before it starts, so the refusal
-  // answers the request instead of ending a stream.
   const subscribe = (signal: AbortSignal): AsyncGenerator<DaemonEvent> => {
     if (isFeedIn(state, 'subscribed')) {
       throw new DaemonError('bad_args', 'this connection already subscribes to its events');
@@ -146,8 +127,6 @@ function isFeedIn(state: FeedState, value: 'abandoned' | 'subscribed'): boolean 
   return state.actor.getSnapshot().matches(value);
 }
 
-// A payload once started is never cut, so an empty backlog takes an event
-// of any size.
 function hasRoom(state: FeedState, capacity: number, bytes: number): boolean {
   return state.backlog.length === 0 || state.queuedBytes + bytes <= capacity;
 }
@@ -204,8 +183,6 @@ async function waitForEvent(state: FeedState, signal: AbortSignal): Promise<void
   state.wake = null;
 }
 
-// Each session that dropped output is reported once the backlog drains,
-// ahead of the repaint that resynchronizes it.
 function emitDesyncs(
   state: FeedState,
   options: EventFeedOptions,

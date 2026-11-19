@@ -31,9 +31,6 @@ test('it builds the revision a daemon reported before the providers moved into p
     }),
   );
 
-  // clients compare this revision across daemons and restarts, so no change
-  // to where a provider's code lives may move it while the config stays
-  // the same
   expect(buildConfigRevision(built.targets, 'local', built.errors)).toBe('de9f7e4d5dd5c55e');
 });
 

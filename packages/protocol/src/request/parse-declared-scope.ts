@@ -10,8 +10,6 @@ export type ParsedDeclaredScope =
   | { readonly ok: true; readonly scope: DeclaredScope }
   | { readonly ok: false; readonly entry: string; readonly message: string };
 
-// An absolute path without `.` or `..` segments or control characters, so
-// the host resolves it to the directory it holds as written.
 const ABSOLUTE_PATH = z
   .string({ error: 'a path must be a string' })
   .startsWith('/', 'a path must be absolute')
@@ -29,12 +27,10 @@ const BRANCH_NAME = z
   .refine((name) => !name.startsWith('-'), 'a branch name must not start with -')
   .refine((name) => !hasControlCharacter(name), 'a branch name must not hold control characters');
 
-// A GitHub repository as `owner/name`.
 const GITHUB_REPO = z
   .string({ error: 'a pull request repo must be a string' })
   .regex(/^[\w.-]+\/[\w.-]+$/u, 'a pull request repo is a GitHub repository as owner/name');
 
-// How many entries one list of a declared scope holds at most.
 const MAX_ENTRIES = 64;
 
 const WORKTREE_ENTRY = z.strictObject(
@@ -118,22 +114,16 @@ function hasControlCharacter(text: string): boolean {
   return /\p{Cc}/u.test(text);
 }
 
-// The message for an entry that is not an object, or that holds a key its
-// kind does not define.
 function buildEntryError(unrecognized: string): (issue: Readonly<{ code?: string }>) => string {
   return (issue) =>
     issue.code === 'unrecognized_keys' ? unrecognized : 'an entry must be an object';
 }
 
-// Where an issue lies: its path, and the first key a closed object refused
-// when it refused one.
 interface IssueLocation {
   readonly path: readonly PropertyKey[];
   readonly unrecognized?: string | undefined;
 }
 
-// The entry an issue lies in: the list and index it sits under, or the key
-// a closed object refused.
 function formatEntry(issue: IssueLocation): string {
   const [list, index] = issue.path;
 

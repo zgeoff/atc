@@ -13,8 +13,6 @@ import { buildStubTUIGrok } from './build-stub-tui-grok';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-tui-grok-');
-
-  // The reporter the script reports through sends its lines here.
   const reporter = startStubReporterSocket(join(temporaryDirectory.path, 'report.sock'));
 
   const bin = createStubBin(

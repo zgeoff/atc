@@ -9,8 +9,6 @@ const TURNS_PAGE_SCHEMA = z.looseObject({
   nextCursor: z.string().nullish(),
 });
 
-// Pages back through the thread's turns until every unsettled message
-// has its turn or the history ends. A failed page rejects the whole read.
 export async function readThreadTurns(
   conn: AppServerConnection,
   thread: string | null,

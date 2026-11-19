@@ -74,8 +74,6 @@ export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
     ev: z.literal('InboxNotice'),
     sessionID: z.string(),
 
-    // The message the session sent, the session it was sent to, and how it
-    // ended: answered with an answer, or unanswered with a reason.
     message: z.string(),
     from: z.string(),
     status: z.enum(['answered', 'unanswered']),

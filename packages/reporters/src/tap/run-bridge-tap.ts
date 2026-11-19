@@ -9,12 +9,9 @@ import { z } from 'zod';
 import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';
 
-// The wait before the first reconnect, doubling up to the longest.
 const FIRST_RETRY_MS = 250;
 const LONGEST_RETRY_MS = 5000;
 
-// Where the tap prints and how it exits: stdout, stderr, and the process by
-// default.
 interface BridgeTapIO {
   readonly writeStdout: (text: string) => Promise<unknown>;
   readonly printError: (line: string) => void;
@@ -50,8 +47,6 @@ export async function runBridgeTap(
 
   let wait = FIRST_RETRY_MS;
 
-  // a dropped connection, as a host's sleep or a daemon restart leaves it,
-  // reconnects with no end
   for (;;) {
     const end = await runTapConnection({ socketPath, outbox, seen, io, notices, clock });
 
@@ -82,9 +77,6 @@ export async function runBridgeTap(
   }
 }
 
-// How one connection to the bridge ended: the inbox closed for good, the
-// bridge refused the tap, the connection dropped after it opened the tap, or
-// it dropped or went unanswered before then.
 type TapEnd = 'closed' | 'refused' | 'lost' | 'unreachable';
 
 const INBOX_MESSAGE_SCHEMA = z.looseObject({
@@ -92,8 +84,6 @@ const INBOX_MESSAGE_SCHEMA = z.looseObject({
   message: z.string(),
   from: z.string(),
 
-  // A sender this build cannot read is left out, and the message still
-  // goes out with its sender's name.
   sender: z.preprocess(
     (value) => (MESSAGE_SENDER_SCHEMA.safeParse(value).success ? value : undefined),
     MESSAGE_SENDER_SCHEMA.optional(),
@@ -111,8 +101,6 @@ const INBOX_NOTICE_SCHEMA = z.looseObject({
   reason: z.string().optional(),
 });
 
-// A relay can take the connection and never pass tap.open on, so an open with no answer by then
-// goes the way of a connection that dropped.
 const OPEN_ANSWER_TIMEOUT_MS = 10_000;
 
 interface RunTapConnectionOptions {
@@ -130,12 +118,8 @@ async function runTapConnection(options: RunTapConnectionOptions): Promise<TapEn
   let printing: Promise<void> = Promise.resolve();
   let socket: BridgeSocket;
 
-  // The outbox file behind each note this connection sent, by request id.
   let sent = new Map<string, string>();
 
-  // Prints one line once per seen key, then acks it, in arrival order: one
-  // already printed on an earlier connection is acked again and not
-  // printed twice.
   const schedulePrint = (key: string, printed: string, ack: Readonly<Record<string, unknown>>) => {
     const previous = printing;
 
@@ -178,9 +162,6 @@ async function runTapConnection(options: RunTapConnectionOptions): Promise<TapEn
       return;
     }
 
-    // A note the bridge took, or one it refuses outright, leaves the
-    // outbox: no resend would change the answer. Only the file this
-    // connection sent under the answered id is removed.
     if (typeof line['id'] === 'string' && line['id'].startsWith('note:')) {
       const path = sent.get(line['id']);
 
@@ -267,7 +248,6 @@ async function runTapConnection(options: RunTapConnectionOptions): Promise<TapEn
   return end;
 }
 
-// How many message and notice ids the tap remembers having printed.
 const SEEN_LIMIT = 10_000;
 
 function updateSeenIDs(seen: Set<string>, id: string): void {
@@ -287,9 +267,6 @@ const OUTBOX_NOTE_SCHEMA = z.object({
   payload: z.record(z.string(), z.unknown()),
 });
 
-// Sends every note the outbox holds, and returns the file behind each
-// request id it sent; a file that is no note is removed, since no answer
-// would ever clear it.
 function sendOutboxNotes(socket: BridgeSocket, outbox: string): Map<string, string> {
   const sent = new Map<string, string>();
 

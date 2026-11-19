@@ -4,7 +4,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
 import { sendReport } from './send-report';
 
-// A temp directory to hold the reporter's socket.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-send-report-');
 

@@ -6,12 +6,9 @@ export interface Token {
   readonly value: string;
   readonly start: number;
 
-  // where the comments and whitespace before the token begin
   readonly fullStart: number;
 }
 
-// What an open brace began: a block, an object literal or type, or a
-// template substitution.
 type BraceKind = 'block' | 'object' | 'substitution';
 
 // Keywords whose parenthesized condition a statement follows, so a slash
@@ -23,7 +20,6 @@ const CONTROL_KEYWORDS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.WithKeyword,
 ]);
 
-// Tokens after which an open brace begins a block rather than an object.
 const BLOCK_OPENERS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.CloseBraceToken,
   SyntaxKind.CloseParenToken,
@@ -36,14 +32,9 @@ const BLOCK_OPENERS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.TryKeyword,
 ]);
 
-// A slash where an expression can start begins a regular expression, and
-// the brace that closes a template substitution continues the template, as
-// the parser settles them.
 export function collectTokens(source: string): Token[] {
   const scanner = createScanner(true, undefined, source);
   const tokens: Token[] = [];
-
-  // whether each open parenthesis holds a control statement's condition
   const parens: boolean[] = [];
   const braces: BraceKind[] = [];
   let slashStartsRegex = true;
@@ -101,8 +92,6 @@ export function collectTokens(source: string): Token[] {
   return tokens;
 }
 
-// Keywords an expression can follow, so a slash after one starts a regular
-// expression rather than dividing.
 const EXPRESSION_KEYWORDS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.AwaitKeyword,
   SyntaxKind.CaseKeyword,

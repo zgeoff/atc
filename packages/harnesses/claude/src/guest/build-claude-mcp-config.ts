@@ -1,8 +1,6 @@
 import type { ClaudeMCPServer } from '@atc/config';
 import { BROKER_PLACEHOLDER } from '@atc/core';
 
-// atcArgv starts the atc inside the guest, whose MCP server reaches the daemon
-// through the session's bridge socket; null leaves the session without atc.
 export function buildClaudeMCPConfig(
   servers: readonly ClaudeMCPServer[],
   atcArgv: readonly string[] | null,

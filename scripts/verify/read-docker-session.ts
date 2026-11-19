@@ -12,8 +12,6 @@ export interface DockerSessionState {
   readonly tokenSeenByHarness: boolean;
 }
 
-// What the run's docker objects look like: the containers and volumes under the run's prefix,
-// whether any container's environment holds the token, and whether the harness itself saw it.
 export async function readDockerSession(endpoints: Endpoints): Promise<DockerSessionState> {
   const run = parseDockerRunEndpoints(endpoints);
   const filter = ['--filter', `name=${run.prefix}`];

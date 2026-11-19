@@ -5,21 +5,16 @@ import { z } from 'zod';
 import { pickFormulaCommitMessage } from './pick-formula-commit-message';
 
 interface FormulaUpdate {
-  // The checkout of the release, whose `dist/SHA256SUMS` holds each binary's checksum.
   readonly root: string;
 
-  // The tap repository to clone and push, with any credential it needs.
   readonly tapURL: string;
 
-  // The folder the tap is cloned into, as `tap/`.
   readonly workDir: string;
   readonly env: Readonly<Record<string, string | undefined>>;
 }
 
 const MANIFEST_SCHEMA = z.object({ version: z.string().min(1) });
 
-// A re-run after a failed push finds the formula already committed, so it commits nothing and
-// pushes what the tap lacks.
 export async function runFormulaUpdate(update: FormulaUpdate): Promise<void> {
   const manifestJSON: unknown = await Bun.file(join(update.root, 'package.json')).json();
 

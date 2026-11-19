@@ -12,7 +12,6 @@ export interface TargetConfig {
 interface TargetSectionError {
   readonly scope: 'targets' | 'target' | 'defaultTarget';
 
-  // The entry the problem is in; present only for an entry's problem.
   readonly target?: string;
   readonly problem: string;
 }
@@ -27,11 +26,8 @@ interface ConfigFileError {
 export type TargetConfigError = TargetSectionError | ConfigFileError;
 
 interface TargetsConfig {
-  // Every well-formed entry, in config order.
   readonly targets: readonly TargetConfig[];
 
-  // The target a spawn without a target runs on, or null when the config
-  // gives none it can use.
   readonly defaultTarget: string | null;
   readonly errors: readonly TargetConfigError[];
 }
@@ -77,7 +73,6 @@ interface TargetEntries {
 }
 
 function collectTargetEntries(raw: unknown): TargetEntries {
-  // A defaultTarget without a targets map names one of the implicit targets.
   if (raw === undefined) {
     return { targets: [LOCAL_TARGET], errors: [] };
   }

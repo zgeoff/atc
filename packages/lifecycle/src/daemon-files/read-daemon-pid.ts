@@ -5,8 +5,6 @@ import { probeProcessAlive } from '../daemon-process/probe-process-alive';
 import { readDaemonRecord } from './read-daemon-record';
 import { readPidFilePID } from './read-pid-file-pid';
 
-// Where the daemon's files sit, and the directory read as `/proc` to check
-// a pid that no socket vouches for.
 interface DaemonLocation {
   readonly paths: DaemonPaths;
   readonly stateDir: string;

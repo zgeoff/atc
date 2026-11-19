@@ -57,8 +57,6 @@ test('it prints the new revision, the adopt command and the sessions pending a r
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -140,8 +138,6 @@ test('it starts the terminal of a session whose host is rebound', async () => {
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -219,8 +215,6 @@ test('it prints the refusal with its code and exits 1 when the host still needs 
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',

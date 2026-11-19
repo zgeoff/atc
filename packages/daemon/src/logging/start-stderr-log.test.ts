@@ -25,21 +25,18 @@ async function setupTest() {
   // The listener refuses to start without a token file.
   writeFileSync(join(temporaryDirectory.path, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
-  // stderr is a named pipe because a pipe from the spawn itself never fills: the
-  // runtime reads it as it fills
+  // A pipe made by the spawn never fills, because the runtime reads it as it fills. The test
+  // needs a named pipe so the daemon's writes can block.
   await runCommand(['mkfifo', fifoPath]);
 
-  // The read end opens first and never blocks, so the write end opens at
-  // once, and the daemon's writes block once the pipe is full. This end
-  // never reads.
+  // A blocking open of a named pipe waits for a writer, and this process opens the writer later.
+  // The non-blocking flag keeps the read open from hanging.
   const readEnd = openSync(fifoPath, constants.O_RDONLY | constants.O_NONBLOCK);
 
   registerTestCleanup(() => {
     closeSync(readEnd);
   });
 
-  // Starts the daemon with the pipe as its stderr, and returns it with the
-  // port it listens on.
   const startListenerDaemon = async () => {
     const writeEnd = openSync(fifoPath, constants.O_WRONLY);
 
@@ -62,8 +59,8 @@ async function setupTest() {
       await subprocess.exited;
     });
 
-    // The daemon holds its own copy of the write end, and the pipe reports
-    // its end only once every writer has closed.
+    // The daemon holds its own copy of the write end. The pipe reports end of file only after
+    // every writer has closed, so the test closes its copy.
     closeWriteEnd();
 
     const first = await subprocess.stdout.getReader().read();
@@ -99,7 +96,6 @@ test('it answers another client while a flood of refusals fills a stderr nobody 
 test('it logs how many lines it dropped once the stderr reader reads again', async () => {
   const ctx = await setupTest();
 
-  // Filled before the daemon starts, so a reader takes these bytes first.
   const filledBytes = writeUntilPipeFull(ctx.fifoPath);
 
   const daemon = await ctx.startListenerDaemon();
@@ -116,8 +112,8 @@ test('it logs how many lines it dropped once the stderr reader reads again', asy
     output.push(String(chunk));
   });
 
-  // The log writes the count of the lines it dropped ahead of the next line
-  // it writes, so each check sends one more refusal.
+  // The log writes the count of dropped lines only ahead of the next line it writes, so the
+  // check has to keep sending lines.
   await waitFor(async () => {
     await sendLinesBeforeHandshake(daemon.port, 1);
 
@@ -188,7 +184,6 @@ test('it exits cleanly on SIGTERM while a flood of refusals fills the unread std
 test('it writes every line it holds at SIGTERM, and the count of the ones it dropped, to a stderr reader that starts to read after it', async () => {
   const ctx = await setupTest();
 
-  // Filled before the daemon starts, so a reader takes these bytes first.
   const filledBytes = writeUntilPipeFull(ctx.fifoPath);
 
   const daemon = await ctx.startListenerDaemon();
@@ -215,8 +210,6 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
 
   await ended;
 
-  // Every refusal arrives as a line of its own or is counted on a dropped
-  // line.
   const lines = output.join('').slice(filledBytes).split('\n');
 
   expect({

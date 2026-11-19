@@ -1,7 +1,6 @@
 import type { BridgedMessage } from '@atc/plugin-api';
 import { encodeAttribute } from './encode-attribute';
 
-// the same envelope the claude bridge delivers
 export function renderAtcEnvelope(message: BridgedMessage): string {
   const body = message.text.replaceAll('</atc-message>', '&lt;/atc-message&gt;');
   const sender = message.sender;

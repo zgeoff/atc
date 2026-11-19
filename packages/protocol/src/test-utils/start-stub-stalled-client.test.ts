@@ -12,9 +12,6 @@ import { buildPeerRequestLine } from './build-peer-request-line';
 import { startStubAnsweringListener } from './start-stub-answering-listener';
 import { startStubStalledClient } from './start-stub-stalled-client';
 
-// A temp directory and a unix socket server in it that answers the first
-// read of each connection with one line and records each connection and that
-// first read.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-stalled-client-');
   const path = join(temporaryDirectory.path, 'daemon.sock');
@@ -101,8 +98,6 @@ test('it closes its connection once the test finishes without a stop', async () 
     server.stop(true);
   });
 
-  // Releases run last registered first: the client closes, then this check
-  // runs, then the server stops, so a close it sees comes from the client.
   registerTestCleanup(async () => {
     await waitFor(() => {
       expect(closes).toStrictEqual(['closed']);

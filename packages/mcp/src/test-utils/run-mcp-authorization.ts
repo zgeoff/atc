@@ -6,7 +6,6 @@ interface MCPAuthorizationServer {
   readonly url: string;
   readonly origin: string;
 
-  // The authenticator that holds the owner's enrolled passkey.
   readonly authenticator: Pick<ReturnType<typeof buildStubAuthenticator>, 'signAssertion'>;
 }
 
@@ -14,18 +13,14 @@ interface MCPAuthorizationRequest {
   readonly clientID: string;
   readonly redirectURI: string;
 
-  // The scope the client requests.
   readonly scope: string;
 
-  // The scopes the operator leaves ticked on the consent page.
   readonly ticked: readonly string[];
 }
 
 interface MCPAuthorization {
-  // The consent page the passkey sign-in sent the browser to.
   readonly consent: URL;
 
-  // Where the consent page sent the browser back to.
   readonly callback: URL;
   readonly code: string;
   readonly verifier: string;

@@ -2,9 +2,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { GatewayRegistry, RegistryDaemon } from '../types';
 import { parseGatewayID } from './parse-gateway-id';
 
-// The request params that hold a gateway id, and the refusal a daemon
-// gives for an id it does not hold, which the gateway gives for an id that
-// routes nowhere.
 const ID_PARAMS: readonly (readonly [string, 'session' | 'message' | 'note' | 'answer'])[] = [
   ['session', 'session'],
   ['parent', 'session'],

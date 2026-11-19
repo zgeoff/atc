@@ -18,9 +18,6 @@ import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-har
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-codex-guest-auth-');
   const guestDir = join(temporaryDirectory.path, 'g');
-
-  // The imp provider hands the guest this atc binary, which prints the
-  // daemon's version, so the guest's hooks run it.
   const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
   const port = createStubImpPort();
 

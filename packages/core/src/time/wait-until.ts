@@ -3,11 +3,8 @@ import type { Clock } from './system-clock';
 interface WaitUntilOptions {
   readonly clock: Clock;
 
-  // How long the wait pauses between two checks of the condition.
   readonly intervalMs: number;
 
-  // The time, in milliseconds since the epoch on the clock, after which the
-  // wait stops checking.
   readonly deadlineMs: number;
 }
 

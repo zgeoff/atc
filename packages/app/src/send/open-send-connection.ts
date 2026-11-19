@@ -11,11 +11,9 @@ import {
 import { RemoteTokenError } from '../remote-daemon/remote-token-error';
 import type { CommandError, ConnectResult, ConnectTarget, SendConnection } from './types';
 
-// How long the daemon gets to take the connection and answer the handshake.
 const HELLO_LIMIT_MS = 8000;
 
-// The client name of a send that is no atc client: the daemon labels it
-// `local`.
+// A send is not an atc client; the daemon labels a client with this name `local`.
 const SEND_CLIENT = 'atc-send';
 
 interface SendConnectionSource {
@@ -24,11 +22,9 @@ interface SendConnectionSource {
   // The build string an atc client names itself with in the handshake.
   readonly build: string;
 
-  // The session this process runs in, if any.
   readonly session: string | undefined;
   readonly clock?: Clock;
 
-  // The `daemons` entry of a name, or why there is none.
   readonly resolveDaemon: (
     name: string,
   ) =>
@@ -36,7 +32,6 @@ interface SendConnectionSource {
     | { readonly ok: false; readonly message: string };
 }
 
-// Never starts a daemon, and tries a remote one once.
 export async function openSendConnection(
   target: Readonly<ConnectTarget>,
   source: Readonly<SendConnectionSource>,
@@ -126,8 +121,6 @@ function failed(code: string, message: string): ConnectResult {
   return { ok: false, error };
 }
 
-// A request that gets no answer within its limit closes the connection, so
-// the caller reads the failure as no reply.
 function makeSendConnection(client: DaemonClient, clock: Clock): SendConnection {
   return {
     request: async (method, params, limitMs) => {

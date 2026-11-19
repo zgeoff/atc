@@ -7,8 +7,7 @@ import { getString } from '@atc/core/test-utils/get-string';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 
-// Claude Code runs no hook while its folder-trust dialog waits, so the
-// stand-in holds its start and the test draws the dialog on its terminal.
+// Claude Code runs no hook while its folder-trust dialog waits.
 function setupTest() {
   return startStubAgentDaemon();
 }

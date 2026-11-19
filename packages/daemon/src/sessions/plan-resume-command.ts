@@ -1,8 +1,6 @@
 import type { SessionID } from '@atcx/contract';
 import type { SessionRegistry } from './create-session-registry';
 
-// The command that resumes a session outside atc, or why there is none: no
-// such session, or a session that cannot resume outside atc.
 export type ResumeCommand =
   | { readonly command: string }
   | { readonly refusal: 'missing' }
@@ -18,8 +16,8 @@ export function planResumeCommand(
     return { refusal: 'missing' };
   }
 
-  // its folder, and any settings file the command would pass, sit on a
-  // different machine than the one the command would run on
+  // The session's folder and any settings file the command passes are on another machine than
+  // the one the command would run on.
   if (!registry.isLocalTarget(session.target)) {
     return {
       refusal: 'unsupported',
@@ -32,7 +30,6 @@ export function planResumeCommand(
       .findAdapter(session.agent)
       ?.planResumeCommand(session.cwd, session.agentSessionID, session.pluginDirs ?? []) ?? null;
 
-  // e.g. a gateway that signs in through impd's broker alone
   if (command === null) {
     return {
       refusal: 'unsupported',

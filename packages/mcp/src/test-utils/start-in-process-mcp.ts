@@ -12,16 +12,12 @@ import { createTransportCaller } from '../tools/create-transport-caller';
 import { buildMCPToolCalls } from './build-mcp-tool-calls';
 
 interface InProcessMCPConfig {
-  // The socket of the daemon the server calls, and the build it greets it as.
   readonly socketPath: string;
   readonly build: string;
 
-  // The session the server runs inside; absent means a server started
-  // outside any session.
   readonly callerSessionID?: string;
 }
 
-// The params a client request of one method takes.
 type ClientRequestParams<Method extends ClientRequest['method']> = Extract<
   ClientRequest,
   { method: Method }

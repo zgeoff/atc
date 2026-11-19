@@ -3,24 +3,16 @@ import type { ImpHost } from '../port/imp-host';
 import type { ImpPort } from '../port/imp-port';
 import { ImpPortError } from '../port/imp-port-error';
 
-// The daemon's lease on each imp: its renewal while the imp is in use, and
-// its return once nothing runs or starts there.
 export interface ImpLeases {
-  // The lease label of the daemon the provider serves, once a prepare
-  // names it.
   label: string | null;
 
-  // A renewal that finds the lease gone, as a forced sleep leaves it, stops
-  // renewing: the daemon never takes a lease back behind an owner who ended
-  // it. A host with no harness left gives its lease back.
   readonly startRenewal: (host: ImpHost, label: string) => void;
 
   readonly stopRenewal: (host: ImpHost) => void;
 
   readonly restoreLease: (host: ImpHost) => Promise<void>;
 
-  // Gives an imp's lease back once nothing runs or starts there, in the
-  // imp's turn, so it never drops a lease a readying took for a launch.
+  // Runs in the imp's turn, so it never gives back a lease that a readying took for a launch.
   readonly tryReleaseLease: (host: ImpHost) => Promise<boolean>;
 }
 
@@ -41,6 +33,7 @@ export function createImpLeases(options: ImpLeasesOptions): ImpLeases {
     try {
       await port.renewLease(host.name, label, leaseSeconds);
     } catch (error) {
+      // A forced sleep removes the lease. Retaking it would override the owner who ended it.
       if (error instanceof ImpPortError && error.code === 'LEASE_NOT_HELD') {
         stopRenewal(host);
       }
@@ -72,8 +65,6 @@ export function createImpLeases(options: ImpLeasesOptions): ImpLeases {
       }
     });
 
-  // A host with no harness gives its lease back, unless a launch readies it,
-  // which keeps the lease renewed.
   const refreshLease = async (host: ImpHost, label: string): Promise<void> => {
     if (host.harnesses === 0) {
       const released = await tryReleaseLease(host);

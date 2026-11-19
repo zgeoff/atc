@@ -3,7 +3,6 @@ import { formatSecurityEvent } from './format-security-event';
 import type { SecurityEvent } from './types';
 
 interface SecurityEventLogOptions {
-  // Receives each `atc security {json}` line.
   readonly print: (line: string) => void;
   readonly clock: Clock;
 }
@@ -15,8 +14,6 @@ interface KindWindow {
   cancelFlush: (() => void) | null;
 }
 
-// Each kind prints at most this many events per window; the rest are
-// counted and written as one `suppressed` event when the window ends.
 const MAX_EVENTS_PER_WINDOW = 20;
 const WINDOW_MS = 60_000;
 

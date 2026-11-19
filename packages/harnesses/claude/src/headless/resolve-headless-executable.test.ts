@@ -5,7 +5,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
-// The folder the PATH entry with a stand-in claude binary sits in.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-headless-exec-');
 

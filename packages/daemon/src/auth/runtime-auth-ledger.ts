@@ -11,7 +11,6 @@ export type RuntimeAuthStore = Pick<
   | 'removeAuthBinding'
 >;
 
-// The store a binding's rows live in, and the clock each write stamps.
 export interface RuntimeAuthLedger {
   readonly store: RuntimeAuthStore;
   readonly now: () => number;

@@ -2,7 +2,6 @@ import type { BrokerHost, CredentialBroker } from '@atc/plugin-api';
 import { BrokerAuthorityError } from './broker-authority-error';
 import { verifyTokenHostAuthority } from './verify-token-host-authority';
 
-// The host a binding recorded when atc made it.
 interface RecordedHost {
   readonly name: string;
   readonly id: string;
@@ -14,8 +13,8 @@ export async function verifyCleanupAuthority(
 ): Promise<BrokerHost | null> {
   const identity = await broker.readIdentity();
 
-  // Checked first, so the broker's answer for the name comes from a token that
-  // can see the host, and a missing host means it is gone.
+  // The broker returns no host when the token cannot see it, not an error.
+  // Checking authority first makes a missing host mean the host is gone.
   verifyTokenHostAuthority(identity, [recorded.name], broker.hostPrefix);
 
   const found = await broker.readHost(recorded.name);

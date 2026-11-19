@@ -9,8 +9,6 @@ import { buildNotFound } from './build-not-found';
 import type { StubImp } from './stub-imp';
 import { tryKill } from './try-kill';
 
-// The imps the stand-in holds, and the moves between their states: create,
-// sleep, wake, cold boot, and destroy.
 export interface StubImpFleet {
   readonly imps: Map<string, StubImp>;
 
@@ -32,40 +30,30 @@ export interface StubImpFleet {
 
   readonly startDestroyHold: () => void;
 
-  // How many imp destroys wait for the destroy hold to stop.
   readonly countHeldDestroys: () => number;
 
   readonly stopDestroyHold: () => void;
   readonly setDestroyFailure: (code: ImpdBareRefusalCode<'imps.destroy'> | null) => void;
 
-  // The state an imp is in, or null when it does not exist.
   readonly findState: (name: string) => ImpState | null;
 
-  // The names of the imps the stub holds.
   readonly collectImpNames: () => string[];
 
-  // The boot an imp runs in.
   readonly getBootID: (name: string) => string;
 
-  // The generation running under a session name.
   readonly getGeneration: (name: string, session: string) => string;
 
-  // The command line of the process running under a session name.
   readonly getProcessArgv: (name: string, session: string) => readonly string[];
 
-  // Null while the process runs and once an attach has delivered the exit.
   readonly findUndeliveredExit: (
     name: string,
     session: string,
   ) => { readonly code: number | null } | null;
 
-  // The offset after the last byte a session's running generation wrote.
   readonly getEnd: (name: string, session: string) => number;
 
   readonly getImp: (name: string) => StubImp;
 
-  // A sleeping imp wakes from memory with every process as it was; a
-  // stopped one boots cold.
   readonly updateAwake: (imp: StubImp) => void;
 }
 
@@ -81,12 +69,8 @@ export function createStubImpFleet(deps: StubImpFleetOptions): StubImpFleet {
 
   const principal = deps.principal;
   const now = deps.now;
-
-  // The imp destroys wait for this hold to end, while one is held.
   let destroyHold: PromiseWithResolvers<void> | null = null;
   let heldDestroys = 0;
-
-  // impd's code for every imp destroy while destroys fail, or null.
   let destroyFailure: ImpdBareRefusalCode<'imps.destroy'> | null = null;
   const calls = deps.calls;
   const createSpecs = deps.createSpecs;
@@ -135,8 +119,6 @@ export function createStubImpFleet(deps: StubImpFleetOptions): StubImpFleet {
     return applyDestroy(name);
   };
 
-  // An imp as impd lists it to the port's principal: its own leases in
-  // full, and a count of the other principals that hold one.
   const buildImpdImp = (
     imp: StubImp,
   ): Pick<ImpdOutput<'imps.get'>, 'id' | 'name' | 'state' | 'leases'> => {

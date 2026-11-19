@@ -20,11 +20,8 @@ export interface SubscribeRequest {
   readonly secret: string;
   readonly secretBytes: Uint8Array;
 
-  // The client's last cursor; null starts from the newest event.
   readonly cursor: string | null;
 
-  // The lifetime the client suggests: undefined for the server's default,
-  // null for no expiry.
   readonly ttlMs: number | null | undefined;
 }
 

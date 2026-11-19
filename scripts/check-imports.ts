@@ -1,5 +1,4 @@
-// Checks the import graph under packages/app/src/ for cycles, counting
-// type-only imports.
+// Type-only imports count as edges: they still form cycles.
 import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { collectImports } from './collect-imports';
@@ -40,8 +39,6 @@ function main(): void {
   }
 }
 
-// The app's source root, relative to the repo root that paths in findings
-// start from.
 const SOURCE_ROOT = 'packages/app/src';
 
 function resolveImport(file: string, specifier: string, known: ReadonlySet<string>): string | null {
@@ -56,8 +53,6 @@ function resolveImport(file: string, specifier: string, known: ReadonlySet<strin
   return null;
 }
 
-// Tarjan's strongly connected components: every component with more than one
-// file, or a file importing itself, is a cycle
 function collectCycles(graph: ReadonlyMap<string, readonly string[]>): string[][] {
   const index = new Map<string, number>();
   const low = new Map<string, number>();

@@ -1,11 +1,8 @@
 import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 
 interface StubGrokConfig {
-  // The command atc runs as; the stub reports each hook through its
-  // `hook-report --agent grok`, as the hook file atc prints for Grok does.
   readonly atc: readonly string[];
 
-  // The composer script the stub finishes in.
   readonly composer: string;
 }
 

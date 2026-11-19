@@ -3,12 +3,7 @@ import type { TranscriptRow } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 
-// One row must stay far under the protocol's line cap.
 const MAX_ROW_TEXT_BYTES = 16_384;
-
-// A user or assistant line of the transcript. Its content is the prompt's
-// text or a list of blocks, each read on its own so a block of another
-// kind leaves the rest of the line readable.
 const ContentSchema = z.string().or(z.array(z.unknown()));
 
 const TranscriptLineSchema = z.object({

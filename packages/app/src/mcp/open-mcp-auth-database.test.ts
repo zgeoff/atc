@@ -5,7 +5,6 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
-// A temp directory for the database, opened in a folder that does not exist yet.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-mcp-auth-database-');
   const path = join(temporaryDirectory.path, 'state', 'mcp-auth.db');

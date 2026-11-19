@@ -20,16 +20,12 @@ import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildDirsSource } from '@atc/source-dirs';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
-// Plain `atc` with a `daemons` entry: the local daemon runs as the client's own, and the remote
-// daemon is a second test daemon on a loopback TCP port that takes the entry's principal.
-
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: createMigratedStateDB });
   const tokenFile = join(tui.home, 'box.token');
 
   await startTUIDaemon(tui);
 
-  // the local sessions report no prompt, so none of them needs you
   writeFileSync(join(tui.home, 'fake-claude-events.jsonl'), '');
   writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
 
@@ -39,8 +35,6 @@ async function setupTest() {
     });
   };
 
-  // Attaches the TUI to a remote session whose agent session id the daemon holds, so a restart
-  // restores it.
   const attachRemoteSession = async (remote: StartedTestDaemon<TestDaemonConfig>) => {
     const remoteID = await spawnNamedSession(
       (method, params) => remote.client.sendRequest(method, params),
@@ -94,8 +88,6 @@ async function setupTest() {
     return client;
   };
 
-  // A remote test daemon that lists one directory and one startable agent, so the picker can spawn on
-  // it. Its sessions print REMOTE_UP and echo each typed line.
   const startPickerRemote = async () => {
     const remote = await startTestDaemon({
       options: (paths) => ({

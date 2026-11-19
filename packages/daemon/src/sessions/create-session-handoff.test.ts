@@ -20,13 +20,9 @@ import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
 
 interface SetupTestConfig {
-  // The one agent the sessions run.
   readonly adapter: AgentAdapter;
 }
 
-// A session manager on one `local` target over the in-memory provider, a
-// real state store, and the handoff over them; each session the manager
-// announces gets the runtime the daemon gives it.
 async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-session-handoff-');
   const dbPath = join(temporaryDirectory.path, 'state.db');

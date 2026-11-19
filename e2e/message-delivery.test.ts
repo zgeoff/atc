@@ -25,7 +25,6 @@ import type { DaemonEvent } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {
-  // The Claude adapter's own hook reading marks a session started.
   const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     {
@@ -322,8 +321,7 @@ test('it queues a message for a session that waits for its restore boot after a 
 
       await stopSeed();
 
-      // The fake agent never reports it booted, so each later session
-      // waits out the boot cap of the one before it on the stub clock.
+      // The fake agent never reports it booted, so each later session waits out the boot timeout of the one before it on the stub clock.
       return {
         adapter: buildMockAgentAdapter({ takesMessages: true }),
         restoreFleetOnRestart: true,
@@ -553,9 +551,7 @@ test('it drains two hundred pending messages to a tap with zero loss', async () 
 
   const inbox = await startStubTap(tap, id);
 
-  // Each delivery syncs a commit to disk, so a host with slow disk syncs
-  // stretches the drain many times over; a drain fails only once it stalls,
-  // with the messages the tap got against the ones sent.
+  // Each delivery syncs a commit to disk, so a host with slow disk syncs stretches the drain many times over.
   await waitFor(
     () => {
       expect(inbox.messages.map((event) => event.message)).toStrictEqual(sent);
@@ -783,8 +779,7 @@ test('it broadcasts delivered once for a repeat ack', async () => {
   await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
   await tap.sendRequest('message.ack', { session: id, message: sent['message'] });
 
-  // The daemon answers one connection's requests in order, so the ping's
-  // answer follows every broadcast the acks made.
+  // The daemon answers one connection's requests in order, so this answer follows every broadcast made earlier.
   await daemon.client.sendRequest('daemon.ping');
 
   expect<readonly Record<string, unknown>[]>(
@@ -958,7 +953,6 @@ test('it keeps queueing messages after the tap connection drops', async () => {
 
   tap.stop();
 
-  // The daemon has let the tap go once it no longer counts the connection.
   await waitFor(() => {
     expect(daemon.daemon.countClients()).toBe(1);
   });
@@ -1254,7 +1248,6 @@ test('it keeps InboxMessage off every connection but the tap', async () => {
   await tap.sendRequest('session.tap', { session: id });
   await daemon.client.sendRequest('session.message', { session: id, text: 'hello' });
 
-  // The tap's copy shows the daemon has sent the message out.
   await waitFor(() => {
     expect(tapEvents).toPartiallyContain({ ev: 'InboxMessage' });
   });
@@ -1641,8 +1634,7 @@ test("it wakes a held read of one turn's message with the whole group already an
     waitMs: 10_000,
   });
 
-  // The daemon answers one connection's requests in the order they started,
-  // so the ping's answer means the held read already took its first look.
+  // The daemon answers one connection's requests in the order they started, so its answer to this request means the held read already took its first look.
   await daemon.client.sendRequest('daemon.ping');
 
   await daemon.sendHookLines({
@@ -1908,7 +1900,6 @@ test('it holds message.get open until the message status changes', async () => {
     waitMs: 10_000,
   });
 
-  // The held read waits on a timer for the rest of its window.
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([10_000]);
   });
@@ -2260,7 +2251,6 @@ test('it answers message.get for an unanswered message at once whatever the wait
     expect(got['status']).toBe('unanswered');
   });
 
-  // The clock never moves, so only a read that waits on no timer answers.
   const got = await daemon.client.sendRequest('message.get', {
     message: sent['message'],
     waitMs: 10_000,
@@ -2426,8 +2416,6 @@ test('it ends the tap subscription when its session is removed', async () => {
   );
 
   await tap.sendRequest('session.tap', { session: id });
-
-  // The first kill leaves an exited entry; the second removes it.
   await daemon.client.sendRequest('session.kill', { session: id });
   await daemon.client.sendRequest('session.kill', { session: id });
 
@@ -2578,7 +2566,6 @@ test('it wakes a waiting events.read when a message is queued', async () => {
     waitMs: 10_000,
   });
 
-  // The clock never moves, so only the new event ends the wait.
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([10_000]);
   });
@@ -2921,7 +2908,6 @@ test('it refuses a cursor at no trail row as an unknown note', async () => {
 });
 
 test('it refuses the cursor of an event that is not a note as an unknown note', async () => {
-  // The Claude adapter's own hook reading marks a session started.
   const claude = createClaudeAdapter(
     buildMockAgentEntry({ id: 'claude' }),
     {
@@ -2951,7 +2937,6 @@ test('it refuses the cursor of an event that is not a note as an unknown note', 
     payload: { session_id: 'c-1' },
   });
 
-  // The session start is the trail's only event.
   const event = await waitFor(async () => {
     const answer = await daemon.client.sendRequest('events.read', {});
 
@@ -3040,7 +3025,6 @@ test('it refuses the cursor of an event that is not an answered message as an un
     payload: { kind: 'note', label: 'progress', text: 'halfway through the parser' },
   });
 
-  // The note is the trail's only event.
   const event = await waitFor(async () => {
     const read = await daemon.client.sendRequest('events.read', {});
 
@@ -3147,8 +3131,6 @@ test('it gates a revived session on its own tap, not the tap its previous proces
     buildMockHostServices(),
   );
 
-  // The first terminal ends once it reads a line of input; every later one
-  // runs on.
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })).mockReturnValueOnce({
     bin: 'head',
     args: ['-n', '1'],
@@ -3222,8 +3204,6 @@ test('it queues a message to a revived session before it reports SessionStart ag
     buildMockHostServices(),
   );
 
-  // The first terminal ends once it reads a line of input; every later one
-  // runs on.
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })).mockReturnValueOnce({
     bin: 'head',
     args: ['-n', '1'],
@@ -3564,7 +3544,6 @@ test.each([
       daemon.directory,
     );
 
-    // The hello's session placeholder stands for the sending session's id.
     const handshake = 'session' in hello ? { session: from } : hello;
 
     const client = await daemon.openClient(handshake);

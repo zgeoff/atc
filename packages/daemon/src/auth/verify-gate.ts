@@ -5,9 +5,6 @@ import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
 import { verifyBrokerAuthority } from './verify-broker-authority';
 
-// The full gate on a binding: the broker's version and the token's authority
-// over the host and every bound secret, then each secret's kind and rules.
-// The secrets are read with the authority's reads and checked after them.
 export async function verifyGate(
   host: CredentialBroker,
   hostName: string,

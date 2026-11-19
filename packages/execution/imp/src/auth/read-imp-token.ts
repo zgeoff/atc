@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { ImpPortError } from '../port/imp-port-error';
 
-// A message names the path and the read's error code, never the file's content.
 export function readImpToken(path: string): string {
   let text: string;
 

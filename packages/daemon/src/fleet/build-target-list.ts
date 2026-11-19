@@ -5,26 +5,19 @@ import type { ExecutionTarget } from './build-execution-targets';
 export interface TargetEntry {
   readonly id: string;
 
-  // The provider kind the config selects for the target.
   readonly provider: string;
 
-  // The identity a session spawned on the target binds to.
   readonly identity: string;
 
-  // Whether this daemon has a provider of that kind, so a spawn can run there.
   readonly available: boolean;
 
-  // Whether its provider runs a session on a machine other than the daemon's.
   readonly remote: boolean;
   readonly default: boolean;
   readonly capabilities: ExecutionCapabilities;
 
-  // Whether the target's provider supplies credentials to an agent's auth profiles, through a
-  // broker or routes, so an agent that selects them can run there.
   readonly brokerAuth: boolean;
 }
 
-// What a target without a provider can do: nothing.
 const NO_CAPABILITIES: ExecutionCapabilities = {
   spawn: false,
   attach: false,
@@ -43,7 +36,7 @@ export function buildTargetList(
   targets: readonly ExecutionTarget[],
   defaultTarget: string | null,
 ): TargetEntry[] {
-  // never a target's options, which can hold a host's address or an account
+  // Leave a target's options out of the list. They can hold a host's address or an account.
   return targets.map((target) => ({
     id: target.id,
     provider: target.kind,

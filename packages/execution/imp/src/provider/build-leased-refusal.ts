@@ -1,8 +1,8 @@
 import { DaemonError } from '@atc/protocol/wire';
 import { z } from 'zod';
 
-// The leases that impd's refusal to suspend a leased imp holds: those the
-// caller may see, and a count of the others, each read on its own.
+// impd's refusal to suspend a leased imp carries the leases the caller may see and a count
+// of the others; each part is parsed on its own, so this reads only the list.
 const LEASES_SCHEMA = z.object({ leases: z.array(z.unknown()) });
 const OTHER_COUNT_SCHEMA = z.object({ otherCount: z.number() });
 

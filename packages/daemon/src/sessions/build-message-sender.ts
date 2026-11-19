@@ -2,7 +2,6 @@ import type { SessionID } from '@atcx/contract';
 import type { MessageSender } from '@atcx/contract/light';
 import type { MessageCaller } from './message-caller';
 
-// The name a message from the owner holds.
 const OWNER_NAME = 'owner';
 
 export function buildMessageSender(

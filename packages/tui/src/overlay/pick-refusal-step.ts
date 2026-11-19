@@ -1,6 +1,5 @@
 import type { ErrorCode } from '@atcx/contract/light';
 
-// The steps of the git spawn flow a refused spawn can return to.
 type RefusalStep = 'confirm' | 'destination' | 'ref' | 'list';
 
 const REFUSAL_STEPS: ReadonlyMap<ErrorCode, RefusalStep> = new Map<ErrorCode, RefusalStep>([
@@ -21,6 +20,5 @@ const REFUSAL_STEPS: ReadonlyMap<ErrorCode, RefusalStep> = new Map<ErrorCode, Re
 ]);
 
 export function pickRefusalStep(code: ErrorCode): RefusalStep | null {
-  // any other refusal stays on the step that sent the spawn.
   return REFUSAL_STEPS.get(code) ?? null;
 }

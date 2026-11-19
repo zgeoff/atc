@@ -5,17 +5,14 @@ import { requireOwnContainer } from './require-own-container';
 interface SidecarLinkOptions {
   readonly engine: DockerEngine;
 
-  // the sidecar container to create when the Engine holds none that runs
   readonly sidecar: ContainerSpec;
 
-  // the harness container the sidecar serves
   readonly harness: string;
   readonly log: (line: string) => void;
 }
 
-// A relay link over the attach of the session's sidecar, whose main process is `atc relay-mux`.
-// The Engine replays the sidecar's stdout from its first byte on each attach. A sidecar that
-// stopped while its harness container runs, or a replace, gets a new container.
+// With logs on, the Docker Engine replays the sidecar's stdout from its first byte on every
+// attach, so each new connection also receives output sent during earlier attaches.
 export function makeSidecarLink(options: SidecarLinkOptions): RelayLink {
   const engine = options.engine;
   const name = options.sidecar.name;

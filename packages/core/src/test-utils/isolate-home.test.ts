@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import { runCommand } from './run-command';
 import { setupTempDir } from './setup-temp-dir';
 
-// A temp directory for each test's two-test fixture file, and the
-// repository root, where the bunfig preload applies to a nested `bun test`.
+// A nested `bun test` picks up the preload from Bun's config only when it runs from the
+// repository root, so the fixture runs there rather than in the temp directory.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-isolate-home-');
   const repo = join(import.meta.dir, '..', '..', '..', '..');

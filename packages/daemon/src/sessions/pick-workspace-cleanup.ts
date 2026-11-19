@@ -6,16 +6,13 @@ import type { WorkspaceCheck } from './run-workspace-check';
 interface WorkspaceCleanupInput {
   readonly check: WorkspaceCleanupCheck;
 
-  // The folder as the materialization recorded it.
   readonly directory: string;
 
   readonly result: WorkspaceCheck;
 
-  // A listed session whose directory lies inside the folder, or null.
   readonly user: SessionID | null;
 }
 
-// `skip` leaves a folder that is already gone with nothing to report.
 export type WorkspaceCleanupPlan =
   | { readonly action: 'remove'; readonly path: string; readonly found: readonly string[] }
   | { readonly action: 'keep'; readonly path: string; readonly reasons: readonly string[] }

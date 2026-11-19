@@ -4,18 +4,14 @@ import { join, resolve } from 'node:path';
 interface WriteDeleteOnlyPushMarkOptions {
   readonly cwd: string;
 
-  // git writes one `<local ref> <local sha> <remote ref> <remote sha>` line per ref to the
-  // pre-push hook's stdin.
   readonly refs: string;
 
-  // The process id of the lefthook run, which a concurrent push in the same worktree does not share.
   readonly hookID: number;
 
   readonly env?: Readonly<Record<string, string | undefined>>;
 }
 
-// lefthook runs a skip condition with an empty stdin, so the pre-push jobs cannot read the refs
-// themselves and skip on this mark instead.
+// lefthook runs a skip condition with an empty stdin, so the pre-push jobs cannot read the refs themselves.
 export async function writeDeleteOnlyPushMark(
   options: Readonly<WriteDeleteOnlyPushMarkOptions>,
 ): Promise<void> {

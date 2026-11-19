@@ -8,7 +8,6 @@ type BridgeRevivalEvent =
   | { readonly type: 'WRITE_ENDED' };
 
 interface BridgeRevivalContext {
-  // How long the session waits without a tap before its next check.
   readonly delayMs: number;
 }
 
@@ -61,7 +60,6 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
       },
     },
     waiting: {
-      // a later loss starts the wait again
       on: {
         TAP_LEFT: { target: 'waiting', reenter: true },
         TAP_ATTACHED: 'tapped',
@@ -74,8 +72,6 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
         revivalDelay: [
           { guard: 'hasTap', target: 'tapped' },
 
-          // a sleeping host has no terminal, and its loss stays pending so a
-          // wake finds it
           { guard: 'isAsleep', target: 'waiting', reenter: true },
           { guard: 'isGone', target: 'gone' },
           {
@@ -92,8 +88,8 @@ export const BRIDGE_REVIVAL_MACHINE = setup({
     writing: {
       entry: 'writeBridge',
 
-      // Claude Code can turn the mod off again before the reload a write
-      // causes starts a tap, and then no tap leaves to start another wait
+      // Claude Code can turn the mod off again before the reload that a write causes starts a tap.
+      // Then no tap event arrives to start another wait.
       on: { WRITE_ENDED: 'waiting' },
     },
     gone: {

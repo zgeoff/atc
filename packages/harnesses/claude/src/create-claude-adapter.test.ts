@@ -18,8 +18,6 @@ import { createClaudeAdapter } from './create-claude-adapter';
 import { CLAUDE_PLUGIN } from './plugin/claude-plugin';
 import { buildStubClaudeHeadlessRun } from './test-utils/build-stub-claude-headless-run';
 
-// A folder for the files a test writes: transcripts, the atc-bridge mod, a
-// host config folder, or a guest folder a launch runs in.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-claude-adapter-');
 
@@ -1167,8 +1165,6 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
   invariant(typeof settingsFile === 'string', 'expected the revision settings file');
 
   const settings: unknown = JSON.parse(settingsFile);
-
-  // The launch script is pinned by the guest launch's own tests.
   const args: readonly unknown[] = plan.args;
 
   expect(plan.scratch).toBe('/tmp/atc/sessions/s1/scratch');
@@ -1522,7 +1518,6 @@ test('it gives a subscription guest spawn its MCP servers with the placeholder i
 
   invariant(typeof mcpConfig === 'string', 'expected the revision MCP config file');
 
-  // The launch script is pinned by the guest launch's own tests.
   const args: readonly unknown[] = plan.args;
 
   expect(args).toStrictEqual([
@@ -2065,9 +2060,6 @@ test('it plans a routed launch against its profile route, with a placeholder tok
   });
 
   expect(plan?.env).not.toContainKey('CLAUDE_CODE_OAUTH_TOKEN');
-
-  // the start script's guard refuses the variables a host sets, so a routed launch leaves out the
-  // two it sets itself
   expect(plan?.args[1]).not.toContain('ANTHROPIC_BASE_URL+x');
   expect(plan?.args[1]).not.toContain('ANTHROPIC_AUTH_TOKEN+x');
   expect(plan?.args[1]).toContain('ANTHROPIC_API_KEY+x');

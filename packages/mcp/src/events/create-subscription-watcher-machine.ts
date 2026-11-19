@@ -15,11 +15,9 @@ export interface PageDelivery {
 }
 
 export interface WatcherMachineDeps {
-  // The subscription's row while it is live; null once it is gone.
   readonly readSubscription: (subscriptionID: string) => Promise<SubscriptionRow | null>;
   readonly probeAccess: (clientID: string) => Promise<boolean>;
 
-  // Rejects with the cause when the daemon gives no page.
   readonly readTrail: (row: SubscriptionRow) => Promise<TrailPage>;
 
   // Stops between events once the signal aborts, so a stopped watcher
@@ -35,7 +33,6 @@ interface WatcherContext {
   readonly page: TrailPage | null;
   readonly isReadFailing: boolean;
 
-  // Whether a subscribe stored the row again since the watcher last read it.
   readonly isRenewed: boolean;
 }
 
@@ -51,7 +48,6 @@ interface ErrorEventArgs {
   readonly event: { readonly error: unknown };
 }
 
-// How long a watcher waits after a read the daemon could not answer.
 const READ_RETRY_MS = 5000;
 
 // The authorization server rotates a refresh token by revoking it and then
@@ -59,12 +55,10 @@ const READ_RETRY_MS = 5000;
 // read checks again after this wait before it removes the subscription.
 const ACCESS_RECHECK_MS = 5000;
 
-// How long a watcher that failed waits before it starts again, so a failure
-// that lasts, such as a position the store cannot write, posts no flood.
+// A failure that persists, such as a position the store cannot write, would otherwise restart
+// the watcher at once and post a flood.
 const RESTART_DELAY_MS = 30_000;
 
-// One subscription's watcher reads the trail as the subscription's client,
-// delivers each page, and ends once the subscription is gone.
 export function createSubscriptionWatcherMachine(deps: WatcherMachineDeps) {
   const fail = {
     target: 'failed',

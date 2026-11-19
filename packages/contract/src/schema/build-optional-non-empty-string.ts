@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-// anything else parses to undefined so the caller's default stands, rather
-// than failing the whole object.
+// Zod fails the whole object on one bad field, so a non-string or empty value becomes undefined
+// and the caller's default applies instead.
 export function buildOptionalNonEmptyString() {
   return z.preprocess(
     (value) => (typeof value === 'string' && value !== '' ? value : undefined),

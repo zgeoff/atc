@@ -11,8 +11,7 @@ import { openTestAuthDatabase } from './open-test-auth-database';
 import { runMCPTokenGrant } from './run-mcp-token-grant';
 import { runPasskeyEnrollment } from './run-passkey-enrollment';
 
-// The MCP HTTP server with the owner's passkey enrolled. A grant never
-// reaches the daemon, so the caller points at a socket nothing listens on.
+// A token grant never reaches the daemon, so the caller points at a socket nothing listens on.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-mcp-token-grant-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');

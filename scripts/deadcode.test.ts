@@ -4,8 +4,6 @@ import { join } from 'node:path';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
-// A temp directory that stands in for a checkout, with a project nested
-// inside it the way AGENTS.md places a worktree.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-deadcode-');
 

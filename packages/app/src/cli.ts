@@ -1,6 +1,3 @@
-// atc CLI entry: no subcommand opens the client TUI; `hook-report` and
-// `statusline` are the commands injected into wrangled sessions.
-
 import { resolve } from 'node:path';
 import type { RemoteDaemon } from '@atc/config';
 import { parseListenAddress } from '@atc/config/host';
@@ -10,13 +7,10 @@ import { PROCESS_IO } from './cli/process-io';
 import { runATCCLI } from './cli/run-atc-cli';
 import type { ATCCLIIO } from './cli/run-atc-cli';
 
-// This process's host services, built once, on first use. The reporters
-// never use them, so a hook or statusline command starts without loading
-// the modules behind them.
+// Built on first use: hook and statusline commands never need these, so they start
+// without loading the modules behind them.
 let pendingHostServices: Promise<HostServices> | null = null;
 
-// What each command runs in this process, loading its modules only when it
-// runs.
 const ATC_CLI_IO: ATCCLIIO = {
   ...PROCESS_IO,
   runTUI: async (daemon) => {
@@ -291,8 +285,6 @@ interface RestartFlags {
   readonly timeoutSeconds: number | null;
 }
 
-// This process's host services: the first call loads and builds them, and
-// every later call returns the same ones.
 function resolveHostServices(): Promise<HostServices> {
   pendingHostServices ??= loadHostServices();
 
@@ -305,7 +297,6 @@ async function loadHostServices(): Promise<HostServices> {
   return services.createHostServices();
 }
 
-// Null once the command has refused the name and exited.
 async function readConfiguredDaemon(name: string, command: string): Promise<RemoteDaemon | null> {
   const config = await import('@atc/config');
   const harnessPlugins = await import('./plugins/shipped-harness-plugins');
@@ -318,8 +309,7 @@ async function readConfiguredDaemon(name: string, command: string): Promise<Remo
   });
 }
 
-// What `atc send` and `atc message get` share: how they connect, without
-// ever starting a daemon.
+// Connecting here must never start a daemon.
 async function readSendDependencies() {
   const opener = await import('./send/open-send-connection');
   const config = await import('@atc/config');
@@ -347,8 +337,8 @@ async function readSendDependencies() {
   };
 }
 
-// Reads the flags the restart commands share, and stops the command on one
-// the replacement daemon would refuse after the old one is already gone.
+// Reject bad flags here: the replacement daemon would refuse them only after
+// the old daemon has already stopped, leaving no daemon running.
 function parseRestartFlags(args: RestartArgs): RestartFlags {
   const listen = args.listen;
   const parsedListen = listen === null ? null : parseListenAddress(listen);
@@ -372,8 +362,6 @@ function parseRestartFlags(args: RestartArgs): RestartFlags {
   return { listen, tokenFile, timeoutSeconds: timeout };
 }
 
-// Runs `atc workspaces prune` on the daemon, booting it when none answers, and resolves to the
-// exit code.
 async function runWorkspacesPruneCommand(remove: boolean): Promise<number> {
   const boot = await import('@atc/lifecycle');
   const lifecycle = await import('./daemon/build-lifecycle-host');
@@ -391,8 +379,6 @@ async function runWorkspacesPruneCommand(remove: boolean): Promise<number> {
   return code;
 }
 
-// Runs one `atc session` action on the daemon, booting it when none
-// answers, at this terminal's size, and resolves to the exit code.
 async function runSessionCommand(action: 'rebind' | 'adopt', id: string): Promise<number> {
   const boot = await import('@atc/lifecycle');
   const lifecycle = await import('./daemon/build-lifecycle-host');

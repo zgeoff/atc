@@ -14,13 +14,9 @@ type TransportEvent =
 interface TransportContext {
   readonly reconnect: TransportReconnect;
 
-  // How many opens in a row failed or were lost before they settled into a
-  // ready connection, which picks the next backoff.
   readonly failures: number;
 }
 
-// holds state only: the transport performs every effect and reads its
-// state back from here
 export const TRANSPORT_MACHINE = setup({
   types: machineTypes<{
     context: TransportContext;

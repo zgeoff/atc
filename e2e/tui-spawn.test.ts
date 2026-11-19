@@ -40,8 +40,6 @@ test('it leaves an agent with no installed binary out of the picker', async () =
 test('it shows a refused spawn in the picker and keeps the entered prompt', async () => {
   const ctx = setupTest();
 
-  // Claude is the only agent installed, and its plugin folder is missing, so
-  // the daemon lists it as able to start and refuses the spawn itself.
   ctx.writeConfig({
     agents: {
       claude: { pluginDirs: [join(ctx.home, 'missing-plugins')] },
@@ -53,9 +51,7 @@ test('it shows a refused spawn in the picker and keeps the entered prompt', asyn
 
   await ctx.waitFor('atc — control tower');
 
-  // One installed agent is no choice, so the flow passes the agent step on
-  // its own once the daemon answers; a key typed there would land on the
-  // directory step instead.
+  // One installed agent is no choice, so the flow passes the agent step on its own once the daemon answers; a key typed there would land on the directory step instead.
   ctx.write('n');
 
   await ctx.waitFor('spawn: workspace');
@@ -224,9 +220,6 @@ test('it sends a dirty local directory to a target off the daemon machine as a p
 
   writeFileSync(join(fixture.work, 'scratch.txt'), 'uncommitted\n');
 
-  // An imp target with a url and no token has a provider that can take a
-  // workspace. The path source, which has no origin, is refused before the
-  // daemon calls impd.
   await $`git remote remove origin`.env(fixture.env).cwd(fixture.work).quiet();
 
   ctx.writeConfig({
@@ -271,9 +264,7 @@ test('it sends a dirty local directory to a target off the daemon machine as a p
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  // Without the path workspace the spawn would reach impd. The
-  // uncommitted file stays behind, so resolution goes on to the missing
-  // origin.
+  // Without the path workspace the spawn would reach impd.
   await ctx.waitFor('no_origin', 10_000);
 
   expect(ctx.read()).not.toInclude('workspace_dirty');

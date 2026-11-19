@@ -31,28 +31,22 @@ interface ImpClientPortOptions {
   readonly clock?: Clock;
 }
 
-// How long one read of impd's slow status report answers later version,
-// scratch folder and issuer checks; both change only when impd is replaced, which the
-// doc on runtime auth weighs.
+// Reading impd's status report is slow, so one read answers version, scratch folder and
+// issuer checks for this long. Those values change only when impd is replaced.
 const INFO_MAX_AGE_MS = 30_000;
 
 export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
   const url = options.url;
   const readToken = options.readToken;
   const clock = options.clock ?? systemClock;
-
-  // The client for the token read last, rebuilt when the token changes.
   let client: Readonly<{ token: string | null; client: ImpClient }> | null = null;
 
-  // The last read of impd's status report under a token, from when it went
-  // out, dropped when it rejects.
   let info: Readonly<{
     token: string | null;
     at: number;
     read: Promise<ImpdInfo>;
   }> | null = null;
 
-  // The client that calls impd with the token as it reads now.
   const loadClient = (): ImpClient => {
     const token = readToken();
 
@@ -66,8 +60,6 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
     return client.client;
   };
 
-  // Runs one client call, turning impd's refusals and transport failures
-  // into port errors.
   const tryCall = async <T>(call: (impClient: ImpClient) => Promise<T>): Promise<T> => {
     try {
       return await call(loadClient());
@@ -76,7 +68,6 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
     }
   };
 
-  // The token as it reads now, or the port error its read throws.
   const tryReadToken = (): string | null | ImpPortError => {
     try {
       return readToken();
@@ -85,8 +76,6 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
     }
   };
 
-  // impd's status report, from a read under the same token within the
-  // maximum age when one is held.
   const readInfo = (): Promise<ImpdInfo> => {
     const token = tryReadToken();
 
@@ -159,8 +148,8 @@ export function createImpClientPort(options: ImpClientPortOptions): ImpPort {
       await tryCall((impClient) => impClient.grants.add({ name, secret }));
     },
 
-    // A grant impd no longer holds is no grant to revoke; a missing imp or
-    // secret still rejects.
+    // impd answers NOT_FOUND for a missing imp or secret as well as a missing grant, so only a
+    // missing grant counts as already revoked.
     removeGrant: async (name, secret) => {
       try {
         await tryCall((impClient) => impClient.grants.delete({ name, secret }));
@@ -378,9 +367,6 @@ function isMissingGrant(data: unknown): boolean {
   return MISSING_GRANT_SCHEMA.safeParse(data).success;
 }
 
-// A start or an attach as impd's exec protocol takes it: an attach carries
-// no requirements, and a start carries its requirements and its drop of
-// CAP_SYS_ADMIN.
 function buildExecStart(request: ImpSessionRequest): ExecSessionOptions['start'] {
   if (request.kind === 'attach') {
     return {
@@ -425,8 +411,6 @@ async function waitForSessionOutcome(outcome: Promise<ExecOutcome>): Promise<Imp
 // when one arrives, so a command's input goes over in pieces well below it.
 const STDIN_CHUNK_BYTES = 1024 * 1024;
 
-// A command that ends before it takes all its input answers with its own exit;
-// an exec that ends any other way rejects.
 async function runCommandInChunks(
   url: string,
   token: string | null,
@@ -486,8 +470,7 @@ async function runCommandInChunks(
   return { code: ended.code, stdout: mergeChunks(stdout), stderr: mergeChunks(stderr) };
 }
 
-// An exec that ended without an exit, under the code impd's client gives
-// the same ending.
+// These error codes match the ones impd's own client reports for the same endings.
 function toCommandError(ended: Exclude<ExecOutcome, { kind: 'exit' }>): ImpPortError {
   return match(ended)
     .returnType<ImpPortError>()

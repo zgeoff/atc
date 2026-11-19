@@ -1,5 +1,5 @@
-// every variable that pins git to a repository other than its working directory, such as
-// the GIT_DIR a git hook exports
+// A git hook exports GIT_DIR and similar variables, and a child git process that inherits them
+// works on the hook's repository instead of its own working directory.
 export const REPOSITORY_ENV_VARS: ReadonlySet<string> = new Set([
   'GIT_ALTERNATE_OBJECT_DIRECTORIES',
   'GIT_COMMON_DIR',

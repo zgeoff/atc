@@ -5,9 +5,6 @@ import { isInsideFolder } from './is-inside-folder.ts';
 import { openDaemonConnection } from './open-daemon-connection.ts';
 import { parseRunEndpoints } from './run-endpoints.ts';
 
-// The doctor's daemon check: the socket sits in the run's own temp home, never the live daemon's,
-// and the daemon there answers a hello. It compares real paths, so a link in the home to another
-// daemon's socket fails it.
 export async function checkDaemon(endpoints: Endpoints): Promise<{ socket: string }> {
   const run = parseRunEndpoints(endpoints);
 

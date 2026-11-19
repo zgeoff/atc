@@ -1,7 +1,6 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-// The version to stamp, and the source trees whose newest file stamps it.
 interface BuildSource {
   readonly version: string;
   readonly roots: readonly string[];

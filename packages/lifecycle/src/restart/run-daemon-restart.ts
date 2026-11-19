@@ -28,8 +28,6 @@ interface DaemonRestartOptions {
   readonly dryRun: boolean;
 }
 
-// a restart hands the work to a detached worker because the restart can
-// end the process that asked for it.
 export async function runDaemonRestart(
   host: LifecycleHost,
   options: DaemonRestartOptions,
@@ -123,9 +121,9 @@ function buildWorkerArgs(
   ];
 }
 
-// a unit restart stops the unit's whole cgroup, which holds a hosted caller,
-// so the worker runs as its own transient unit, with its environment set
-// explicitly, since the user manager's points at the real state directory.
+// A unit restart stops the unit's whole cgroup, including a hosted caller, so the
+// worker runs as its own transient unit. The user manager's environment points at
+// the real state directory, so set the worker's environment explicitly.
 function startWorkerInUnit(
   runID: string,
   logPath: string,
@@ -161,8 +159,6 @@ function startWorkerInUnit(
   return subprocess.exited;
 }
 
-// How long the follower waits for the worker to report its pid before it
-// gives up on a worker that never started.
 const WORKER_START_WAIT_MS = 30_000;
 
 async function printRunLog(
@@ -214,8 +210,6 @@ async function printRunLog(
         return true;
       }
 
-      // One more read after the worker is gone, in case its last lines
-      // landed between the read above and its exit.
       vanished =
         (workerPID !== null && !probeProcessAlive(workerPID)) ||
         (workerPID === null && clock.now() - startedAt > WORKER_START_WAIT_MS);

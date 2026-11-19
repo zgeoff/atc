@@ -3,7 +3,6 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import type { ImpCreateSpec } from '../port/imp-port';
 import { createStubImpFleet } from './create-stub-imp-fleet';
 
-// A fleet whose imps are destroyed when the test finishes.
 function setupTest() {
   const now = 1_000_000;
   const calls: string[] = [];

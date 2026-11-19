@@ -1,8 +1,7 @@
 import type { AgentID } from './agent-id';
 
-// missing and empty values read as Claude, so a fleet written before the agent
-// column restores as Claude. An unregistered id passes through so the session
-// can be shown and refused, never quietly run as Claude.
+// Saved fleets can lack an agent value, and those sessions restore as Claude.
+// An unknown id is kept as-is so the session is shown and refused, never run as Claude.
 export function toAgentID(raw: unknown): AgentID {
   return typeof raw === 'string' && raw !== '' ? raw : 'claude';
 }

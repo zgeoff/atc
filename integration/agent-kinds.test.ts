@@ -5,7 +5,6 @@ import { getString } from '@atc/core/test-utils/get-string';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 
-// A daemon in the test's process whose agents are the in-process stand-ins.
 function setupTest() {
   return startStubAgentDaemon({
     agents: (bins) => ({

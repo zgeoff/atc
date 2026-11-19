@@ -37,7 +37,6 @@ async function setupTest() {
   const stateDir = join(git.directory, 'state');
   const fakeClaude = createStubRecordingClaude(join(git.directory, 'bin'));
 
-  // The adapter reads and writes the user's Claude config under this home.
   mkdirSync(homeDir);
 
   return {

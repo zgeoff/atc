@@ -15,12 +15,8 @@ import type { MirrorSession } from '../fleet/to-mirror-session';
 import { drawOverlay } from '../terminal/draw-overlay';
 import { collectTargetPicks } from './collect-target-picks';
 
-// The confirmation the overlay draws: none, a kill, or a forget that
-// destroys the session's host.
 export type OverlayConfirm = 'none' | 'kill' | 'destroy';
 
-// What the overlay borrows from the client that owns the screen, the fleet
-// mirror, and the daemon connection.
 export interface OverlayScreenDeps {
   readonly mirror: FleetMirror;
   readonly bootMetadata: AgentMetadata;
@@ -30,7 +26,6 @@ export interface OverlayScreenDeps {
   readonly getMode: () => ClientMode;
   readonly getConfirm: () => OverlayConfirm;
 
-  // The session the pending confirmation opened on, or null when none is pending.
   readonly findConfirmKey: () => SessionKey | null;
   readonly isBootStale: () => boolean;
   readonly isDaemonRestarting: () => boolean;
@@ -38,52 +33,35 @@ export interface OverlayScreenDeps {
   readonly write: (chunk: string) => void;
 }
 
-// The session list the leader key opens, with its selection, its search,
-// and the agent and target details its rows show.
 export interface OverlayScreen {
   selected: number;
 
-  // fzf-style overlay search: null when inactive, the pattern while active.
   filter: string | null;
 
-  // Flat list by default; g toggles clustering under repository headers.
   grouped: boolean;
 
-  // What the hint line shows in place of the hints until the next keypress,
-  // such as why a forget kept a workspace.
   notice: string | null;
 
   agentLabels: Readonly<Record<AgentID, string>>;
 
   agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>>;
 
-  // How many execution targets the daemon could spawn on right now; the
-  // target column appears once more than one is available.
   availableTargets: number;
 
-  // What each remote daemon says about its agents, which the rows of that daemon's sessions read.
   readonly remoteAgents: Map<string, AgentMetadata>;
 
-  // The sessions the list shows, sorted. A daemon other than the primary whose link is not up
-  // shows none of its rows.
   readonly pickSessions: () => MirrorSession[];
 
-  // The sessions the list may show, before sorting and filtering.
   readonly listVisible: () => MirrorSession[];
 
-  // Draws the overlay with the confirmation the machine holds, or with the one
-  // given, for a caller that runs before the machine's step settles.
   readonly render: (confirm?: OverlayConfirm) => void;
 
   // target availability moves as remote hosts wake and sleep, so each overlay refresh
   // rereads it rather than trusting the boot-time answer.
   readonly refreshAgents: () => Promise<void>;
 
-  // Reads one daemon's agents through the client its link has just opened.
   readonly readAgents: (daemon: DaemonName, client: DaemonClient) => Promise<void>;
 
-  // Runs as the overlay opens, inside the machine's step that also drops any
-  // pending confirmation, so it draws without one.
   readonly open: () => void;
 }
 
@@ -91,13 +69,10 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
   const daemons = deps.links.listDaemons();
   const primary = daemons[0] ?? null;
 
-  // The primary's rows stay, as its wait for the daemon shows elsewhere; another daemon's rows
-  // wait for its link.
+  // The primary's rows stay even while it is not up, since its wait for the daemon is shown elsewhere.
   const isShown = (daemon: DaemonName): boolean =>
     daemon === primary || deps.links.stateOf(daemon).kind === 'up';
 
-  // One line for each daemon that is not the primary and whose link is not up, so a daemon never
-  // reads as one with no sessions.
   const collectDaemonLines = (): string[] =>
     daemons
       .filter((daemon) => !isShown(daemon))
@@ -124,9 +99,6 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
 
     render: (confirm = deps.getConfirm()) => {
       const sessions = self.pickSessions();
-
-      // A confirmation names the session it opened on, so the row it highlights follows that
-      // session when the rows reorder.
       const confirmKey = confirm === 'none' ? null : deps.findConfirmKey();
 
       const confirmIndex = sessions.findIndex(
@@ -168,8 +140,7 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
 
         const meta = resolveAgentMetadata(deps.readConfig(), answer);
 
-        // the primary's answer also sets the target column, which follows the daemon the picker
-        // spawns on.
+        // the target column follows the daemon the picker spawns on.
         if (daemon === primary) {
           self.agentLabels = meta.labels;
           self.agentModels = meta.models;

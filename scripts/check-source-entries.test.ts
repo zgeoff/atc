@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 
-// A temp directory standing in for a repo root.
 function setupTest() {
   const temporaryDirectory = setupTempDir('check-source-entries-');
 
@@ -23,13 +22,11 @@ test('it passes helpers that read the source entry from the wrapper variable', a
     "export const PROBE = [process.execPath, process.env['ATC_CLI_ENTRY']];\n",
   );
 
-  // a helper's own unit test holds an entry path as fixture data
   await Bun.write(
     join(ctx.directory, 'packages/test-utils/src/run-probe.test.ts'),
     "export const FIXTURE = '/checkout/packages/app/src/cli.ts';\n",
   );
 
-  // a module outside the helper folders is not a test helper
   await Bun.write(
     join(ctx.directory, 'packages/lantern/src/is-entry.ts'),
     "export const ENTRY = '/src/cli.ts';\n",

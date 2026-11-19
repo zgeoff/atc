@@ -25,14 +25,11 @@ async function setupTest() {
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-caller-',
     options: (paths) => {
-      // The token the listener takes, which every caller here presents.
       writeFileSync(join(paths.directory, 'token'), `${'a'.repeat(32)}\n`);
 
       return {
-        // Takes messages, so a message can end a long poll.
         adapter: buildMockAgentAdapter({ takesMessages: true }),
 
-        // Lets the callers' principal use the local target.
         principals: new Map([['gw', ['local']]]),
         listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'token') },
       };
@@ -163,7 +160,6 @@ test('it refuses a daemon nothing listens for as daemon_unavailable', () => {
     daemon: buildMockRegistryDaemon({
       name: 'cloud',
 
-      // Nothing can listen on port 0, so the dial fails at once.
       address: { host: '127.0.0.1', port: 0 },
     }),
     build: 'atc-gateway/test',
@@ -351,8 +347,6 @@ test('it retries a keyed spawn whose response timed out on a fresh connection', 
     { id: 'gw', name: 'Lantern Notes' },
   );
 
-  // The daemon has run the spawn whose response the proxy holds, so the
-  // retry the timeout sends replays it.
   await waitFor(async () => {
     const listed = await ctx.daemon.client.sendRequest('session.list');
 
@@ -523,7 +517,6 @@ test('it gives a long poll its own waitMs on top of the response time on the sam
     { id: 'gw', name: 'Lantern Notes' },
   );
 
-  // Once the poll is out, a message writes the event that ends its wait.
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([2000]);
   });

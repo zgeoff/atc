@@ -3,13 +3,10 @@ import type { Clock } from '@atc/core';
 import { formatToolError } from './format-tool-error';
 import type { FleetCaller } from './types';
 
-// How long the reads of one page's texts may take in all. An events read
-// can hold a call for about 35 seconds, and the HTTP server drops a call
-// idle for 60, so the text reads finish well inside what is left.
+// An events read can hold a call for about 35 seconds and the HTTP server drops a call idle
+// for 60, so the text reads for one page must finish well inside the time left.
 const TEXT_READ_DEADLINE_MS = 10_000;
 
-// What one text read gives its event: its text and whether that text is
-// whole, or the error the read failed with.
 type TextRead = Readonly<Record<string, unknown>>;
 
 export async function readEventTexts(
@@ -55,9 +52,6 @@ interface ReadPageTextsOptions {
   readonly clock: Clock;
 }
 
-// The page with its note and answer texts read, one at a time, until the
-// budget or the deadline at `endsAt` on `clock` stops it. A read still out
-// when `timeout` settles gives way to the timeout it settles with.
 async function readPageTexts(
   caller: FleetCaller,
   options: ReadPageTextsOptions,
@@ -65,7 +59,6 @@ async function readPageTexts(
   const kept: Readonly<Record<string, unknown>>[] = [];
   let used = 0;
 
-  // the reads run one at a time in page order, so at most one text is in flight.
   for (const event of options.events) {
     const source = pickTextSource(event['kind']);
 
@@ -96,8 +89,6 @@ async function readPageTexts(
   return { ...options.page, events: kept };
 }
 
-// The read that holds an event's whole text and the event field that holds
-// a gateway's handle for it, or null for an event with no text to read.
 interface TextSource {
   readonly method: 'note.get' | 'answer.get';
   readonly param: 'note' | 'answer';
@@ -115,9 +106,8 @@ function pickTextSource(kind: unknown): TextSource | null {
   return null;
 }
 
-// One event's whole text and whether it is complete, or the error its read
-// failed with. The read takes the event's handle, which a gateway adds,
-// else the event's own cursor, which a daemon reads the text by.
+// A gateway adds a handle to each event; a daemon adds none and reads text by the event's own
+// cursor.
 async function readEventText(
   caller: FleetCaller,
   event: Readonly<Record<string, unknown>>,

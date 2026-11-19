@@ -6,16 +6,10 @@ export interface TargetPick {
   readonly available: boolean;
   readonly isDefault: boolean;
 
-  // Whether a workspace can be materialized there: the daemon has the
-  // provider, and it can both transfer an archive and run a command.
   readonly takesWorkspace: boolean;
 
-  // Whether a session there runs on the daemon's own machine, where a
-  // local directory runs in place.
   readonly inPlace: boolean;
 
-  // Whether the target reaches impd's credential broker; false from a
-  // daemon that does not say.
   readonly brokerAuth: boolean;
 }
 

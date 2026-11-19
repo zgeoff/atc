@@ -1,11 +1,8 @@
 import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 
 interface StubCodexConfig {
-  // The command atc runs as; the stub reports each hook through its
-  // `hook-report --agent codex`, as the hook entries atc prints for Codex do.
   readonly atc: readonly string[];
 
-  // The composer script the stub finishes in.
   readonly composer: string;
 }
 

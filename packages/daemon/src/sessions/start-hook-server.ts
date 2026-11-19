@@ -6,7 +6,6 @@ import type { LineDecoder } from '@atc/protocol/wire';
 import { parseHookLine } from '../transport/parse-hook-line';
 import { withOwnerOnlySocket } from '../transport/with-owner-only-socket';
 
-// Per-connection read state: the connection's own line framing.
 interface HookConnection {
   readonly lines: LineDecoder;
 }

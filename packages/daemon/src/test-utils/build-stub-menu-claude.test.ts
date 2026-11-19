@@ -5,9 +5,6 @@ import invariant from 'tiny-invariant';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 import { buildStubMenuClaude } from './build-stub-menu-claude';
 
-// The stand-in on a provider of its own and a stub clock, and a start that
-// spawns one session on it, gathering what the session draws from before
-// the stand-in runs.
 function setupTest() {
   const clock = buildStubClock(0);
   const claude = buildStubMenuClaude(clock);

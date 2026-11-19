@@ -106,7 +106,6 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
 
   daemon.subprocess.kill('SIGHUP');
 
-  // The connection on the removed token closes once the reload has applied.
   await reloaded.promise;
 
   const kept = await openDaemonClient({ hostname: '127.0.0.1', port });

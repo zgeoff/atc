@@ -16,7 +16,6 @@ export function buildNoticeTrailEntry(
   return {
     at,
 
-    // addressed to the sender, so the sender's own feed holds it
     atcID: senderSession,
     agentSessionID: agentSessionID ?? null,
     kind,

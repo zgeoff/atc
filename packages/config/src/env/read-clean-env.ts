@@ -17,7 +17,6 @@ export function readCleanEnv(
     env[key] = value;
   }
 
-  // the extras go last, so one is kept even when it shares a withheld name.
   return { ...env, ...extra };
 }
 

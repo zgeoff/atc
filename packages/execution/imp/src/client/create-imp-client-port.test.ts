@@ -845,8 +845,6 @@ test("it sends impd the new imp's memory and memory max", async () => {
 test('it sends the requirements of a start to impd and ends the connection with its refusal', async () => {
   const ctx = setupTest();
 
-  // The client asks impd whether it checks exec requirements before a
-  // start that requires one.
   ctx.impd.answers.set('/rpc/system/info', {
     status: 200,
     json: { features: { sessionOffsets: true, leases: true, execRequire: true } },
@@ -997,7 +995,6 @@ test('it sends the request of a session connection whose gate stays open as it o
 
   const outcome = await connection.outcome;
 
-  // The stand-in refuses every start it is sent.
   expect(outcome).toStrictEqual({
     kind: 'failed',
     code: 'PRECONDITION_FAILED',
@@ -1248,7 +1245,6 @@ test('it runs the gate of a start that drops CAP_SYS_ADMIN once its capability c
 
   await connection.outcome;
 
-  // The gate runs after the one system.features call, with the start still unsent.
   expect(gates).toStrictEqual([1]);
   expect(ctx.impd.calls).toStrictEqual([{ path: '/rpc/system/features', input: undefined }]);
   expect(ctx.impd.execOpens).toHaveLength(1);

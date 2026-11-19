@@ -2,8 +2,6 @@ import { expect, test } from 'bun:test';
 import { startStubRefusingListener } from '@atc/protocol/test-utils/start-stub-refusing-listener';
 import { sendLinesBeforeHandshake } from './send-lines-before-handshake';
 
-// The listener the lines go to, which records each read and ends the
-// connection it came on; it stops once the test finishes.
 function setupTest() {
   const listener = startStubRefusingListener();
 

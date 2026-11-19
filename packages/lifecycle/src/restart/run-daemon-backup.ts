@@ -5,8 +5,6 @@ import type { LifecycleHost } from '../boot/types';
 import { buildHostDaemonPaths } from '../daemon-files/build-host-daemon-paths';
 import { readDaemonSocketPaths } from '../daemon-files/read-daemon-socket-paths';
 
-// Where the command prints its result and its refusal: stdout and stderr by
-// default.
 interface BackupIO {
   readonly print: (line: string) => void;
   readonly printError: (line: string) => void;
@@ -21,8 +19,6 @@ const PROCESS_IO: BackupIO = {
   },
 };
 
-// How long the handshake may take. The backup itself has no deadline, since
-// its length grows with the database.
 const PROBE_DEADLINE_MS = 3000;
 
 export async function runDaemonBackup(

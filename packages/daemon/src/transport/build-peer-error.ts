@@ -1,9 +1,6 @@
 import { DaemonError } from '@atc/protocol/wire';
 import { ORPCError, ValidationError } from '@orpc/server';
 
-// The error a peer client receives for a failed procedure, under the daemon's
-// own error code. Params the procedure's schema refuses are bad_args with the
-// first issue's message, and every error without a code is internal.
 export function buildPeerError(error: unknown): ORPCError<string, unknown> {
   if (error instanceof DaemonError) {
     return new ORPCError(error.code, { message: error.message, data: error.data, cause: error });

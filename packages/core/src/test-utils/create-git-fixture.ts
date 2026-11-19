@@ -4,7 +4,6 @@ import { $ } from 'bun';
 import { setupTempDir } from './setup-temp-dir';
 
 interface GitFixtureConfig {
-  // The temp directory's name prefix.
   readonly prefix?: string;
 }
 
@@ -60,8 +59,8 @@ interface GitTemplate {
   readonly sha: string;
 }
 
-// The template pair, built once per process: each fixture copies it, which
-// costs a copy instead of a run of git commands.
+// Each fixture copies one shared template, because a copy is cheaper than running the
+// git commands again for every fixture.
 let template: Promise<GitTemplate> | null = null;
 
 function resolveTemplate(): Promise<GitTemplate> {

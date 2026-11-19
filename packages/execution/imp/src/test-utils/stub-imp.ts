@@ -18,7 +18,6 @@ export interface StubImp {
   readonly sessions: Map<string, StubProcess>;
   readonly previous: Map<string, PreviousGeneration>;
 
-  // The secrets granted to the imp.
   readonly grants: Set<string>;
 }
 
@@ -32,7 +31,6 @@ export interface StubProcess {
   readonly pty: IPty;
   readonly generation: string;
 
-  // The command line the process started with.
   readonly argv: readonly string[];
   ring: Uint8Array;
   end: number;
@@ -42,8 +40,6 @@ export interface StubProcess {
   ended: boolean;
   connection: StubConnection | null;
 
-  // Whether its start required the broker, which a start that requires it
-  // and would join the process needs.
   readonly requireBroker: boolean;
 }
 
@@ -54,14 +50,11 @@ export interface StubConnection {
   process: StubProcess | null;
   readonly stop: (outcome: StubSessionOutcome) => void;
 
-  // Ends the connection with a refusal outside impd's contract.
   readonly stopMalformed: (
     outcome: Extract<ImpSessionOutcome, { readonly kind: 'failed' }>,
   ) => void;
 }
 
-// How a stub connection ends: as impd ends an exec, or with a local error
-// when a handler on the daemon's side throws.
 type StubSessionOutcome =
   | ImpdExecOutcome
   | Extract<ImpSessionOutcome, { readonly kind: 'local_error' }>;

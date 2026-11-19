@@ -73,7 +73,6 @@ test('it provisions the host of a spawn before readying it and starts the harnes
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -164,7 +163,6 @@ test('it lists the imp target as reaching the broker and the local target as rea
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -263,7 +261,6 @@ test('it lists an agent that takes the broker credential as spawnable on a daemo
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -451,7 +448,6 @@ test('it starts a brokered harness with the variables its guest plan holds besid
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -570,7 +566,6 @@ test('it gives the guest plan of a brokered harness the host of the profile that
 test('it refuses a brokered spawn whose guest plan sets a proxy variable before touching impd', async () => {
   const ctx = setupTest();
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -657,7 +652,6 @@ test('it refuses a spawn on an impd older than 2.2.0 after reads alone', async (
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -729,7 +723,6 @@ test('it refuses a spawn whose broker is not ready, takes back its imp, and list
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -759,7 +752,6 @@ test('it refuses a spawn whose broker is not ready, takes back its imp, and list
   const bindings = await store.readAuthBindings();
   const listed = await daemon.client.sendRequest('session.list');
 
-  // The imp the spawn created and then destroyed, in call order.
   const lifecycle = ctx.port.calls.filter(
     (call) => call.startsWith('imps.create ') || call.startsWith('imps.destroy '),
   );
@@ -809,7 +801,6 @@ test('it refuses a spawn with runtime auth on the local target before touching i
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -869,7 +860,6 @@ test('it starts an agent that takes the broker credential only where a broker is
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -935,7 +925,6 @@ test('it binds an agent that takes the broker credential only where a broker is 
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1001,7 +990,6 @@ test.each([
       }),
     });
 
-    // The token may grant glm, and impd holds glm for api.z.ai.
     ctx.port.setIdentity({
       kind: 'token',
       name: 'atc-runtime',
@@ -1042,7 +1030,6 @@ test.each([
 test('it refuses to adopt a local session with a workspace once its agent takes the broker credential', async () => {
   const ctx = setupTest();
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1154,7 +1141,6 @@ test('it refuses to adopt a local session with a workspace once its agent takes 
 test('it restores a local session with a workspace without a terminal once its agent takes the broker credential', async () => {
   const ctx = setupTest();
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1258,7 +1244,6 @@ test('it restores a local session with a workspace without a terminal once its a
 test('it refuses to revive a session whose agent dropped the broker credential while its host holds a binding', async () => {
   const ctx = setupTest();
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1328,7 +1313,6 @@ test('it refuses to revive a session whose agent dropped the broker credential w
 test('it revives a session whose agent takes no broker credential on a host that holds no binding', async () => {
   const ctx = setupTest();
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1396,7 +1380,6 @@ test('it revives a session whose agent takes no broker credential on a host that
 test('it restores a session whose agent dropped the broker credential while its host holds a binding without a terminal', async () => {
   const ctx = setupTest();
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1469,7 +1452,6 @@ test('it restores a session whose agent dropped the broker credential while its 
 test('it restores a session whose agent takes no broker credential on a host that holds no binding', async () => {
   const ctx = setupTest();
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1560,7 +1542,6 @@ test('it refuses a revive that a revoke blocks while its host wakes, sending no 
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1655,7 +1636,6 @@ test('it refuses a sub-session spawn that a revoke blocks while it readies the s
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1745,7 +1725,6 @@ test('it puts a shared host back to sleep when a revoke refuses the sub-session 
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1844,7 +1823,6 @@ test('it keeps a shared host awake when a revoke refuses a sub-session while ano
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1930,7 +1908,6 @@ test('it keeps a host awake for a sub-session that readies it while a refused re
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2032,7 +2009,6 @@ test('it puts a host to sleep after a refused revive when no other launch readie
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2060,7 +2036,6 @@ test('it puts a host to sleep after a refused revive when no other launch readie
   ctx.port.startBrokerFailure();
   ctx.port.startReleaseHold();
 
-  // A held lease release would keep the daemon's stop waiting.
   const stopReleaseHold = registerTestCleanup(() => {
     ctx.port.stopReleaseHold();
   });
@@ -2117,7 +2092,6 @@ test('it spawns a sub-session on the shared host while it readies when no revoke
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2194,7 +2168,6 @@ test('it sends no start for a revive that a revoke blocks while its connection t
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2283,7 +2256,6 @@ test('it sends the start of a revive whose connection to impd opens late when no
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2355,7 +2327,6 @@ test('it revives a session while its host wakes when no revoke comes between', a
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2428,7 +2399,6 @@ test('it revives a slept session after verifying its binding, granting nothing a
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2513,7 +2483,6 @@ test('it refuses to revive a session whose grant was revoked outside atc and gra
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2579,7 +2548,6 @@ test('it refuses to revive a session whose broker is not ready and puts its host
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2655,7 +2623,6 @@ test('it provisions concurrent spawns each in an imp of its own with only its ow
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2725,7 +2692,6 @@ test('it revokes the grants of a running session while its harness keeps running
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2785,7 +2751,6 @@ test('it refuses to revive a session revoked while it slept', async () => {
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2846,7 +2811,6 @@ test('it rebinds a revoked session so it revives under the next revision', async
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2877,8 +2841,6 @@ test('it rebinds a revoked session so it revives under the next revision', async
 
   expect(rebound).toStrictEqual({ revision: 2, restartPending: [id] });
 
-  // The adopt attaches the harness the imp kept asleep, ends it, and starts
-  // a fresh one under the new revision.
   expect<readonly unknown[]>(ctx.port.sessionRequests).toStrictEqual([
     expect.objectContaining({
       kind: 'start',
@@ -2925,8 +2887,6 @@ test('it restarts a suspended harness under the new revision when a rebind comes
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -2952,7 +2912,6 @@ test('it restarts a suspended harness under the new revision when a rebind comes
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  // The kill puts the imp to sleep with the harness kept inside it.
   await daemon.client.sendRequest('session.kill', { session: id });
 
   judgeSelected = true;
@@ -3029,13 +2988,10 @@ test('it refuses an adopt whose outdated harness ignores its kill, leaves the se
       ],
       defaultTarget: 'box',
 
-      // The kill waits this long for an exit that never comes.
       failedSpawnExitWaitMs: 100,
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3070,7 +3026,6 @@ test('it refuses an adopt whose outdated harness ignores its kill, leaves the se
     expect(ctx.port.getEnd(started.name, started.session)).toBeGreaterThan(0);
   });
 
-  // The kill puts the imp to sleep with the harness kept inside it.
   await daemon.client.sendRequest('session.kill', { session: id });
 
   judgeSelected = true;
@@ -3128,13 +3083,10 @@ test('it records an adopt whose outdated harness ignores its kill as stopped, so
       ],
       defaultTarget: 'box',
 
-      // The kill waits this long for an exit that never comes.
       failedSpawnExitWaitMs: 100,
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3169,7 +3121,6 @@ test('it records an adopt whose outdated harness ignores its kill as stopped, so
     expect(ctx.port.getEnd(started.name, started.session)).toBeGreaterThan(0);
   });
 
-  // The kill puts the imp to sleep with the harness kept inside it.
   await daemon.client.sendRequest('session.kill', { session: id });
 
   judgeSelected = true;
@@ -3223,14 +3174,11 @@ test('it leaves a session stopped and starts no fresh harness when a stop lands 
       ],
       defaultTarget: 'box',
 
-      // The kill waits long enough for the stop and the test's own kill to
-      // land inside it.
+      // The wait is long enough for the stop and the test's own kill to land inside it.
       failedSpawnExitWaitMs: 10_000,
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3265,7 +3213,6 @@ test('it leaves a session stopped and starts no fresh harness when a stop lands 
     expect(ctx.port.getEnd(started.name, started.session)).toBeGreaterThan(0);
   });
 
-  // The kill puts the imp to sleep with the harness kept inside it.
   await daemon.client.sendRequest('session.kill', { session: id });
 
   judgeSelected = true;
@@ -3274,7 +3221,6 @@ test('it leaves a session stopped and starts no fresh harness when a stop lands 
 
   const adopt = daemon.client.sendRequest('session.adopt', { session: id, cols: 80, rows: 24 });
 
-  // The adopt attached the outdated harness and now waits on its kill.
   await waitFor(async () => {
     expect(ctx.port.sessionRequests).toHaveLength(2);
 
@@ -3336,8 +3282,6 @@ test('it lists a running harness as pending a restart after a rebind and leaves 
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3412,12 +3356,10 @@ test('it refuses session.auth.revoke from a principal as unauthorized and revoke
       ],
       defaultTarget: 'box',
 
-      // The principal tests open a client as ops.
       principals: new Map([['ops', ['box']]]),
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3474,12 +3416,10 @@ test('it refuses session.auth.rebind from a principal as unauthorized and binds 
       ],
       defaultTarget: 'box',
 
-      // The principal tests open a client as ops.
       principals: new Map([['ops', ['box']]]),
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3536,12 +3476,10 @@ test('it forgets a bound session by destroying its imp and dropping its binding,
       ],
       defaultTarget: 'box',
 
-      // A forget waits this long for its confirmation.
       forgetConfirmMs: 60_000,
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3609,7 +3547,6 @@ test("it runs a sub-session under the same binding in its parent's imp without g
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3684,7 +3621,6 @@ test("it refuses a sub-session without runtime auth in a bound parent's imp", as
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3744,7 +3680,6 @@ test('it takes back, as it starts, a spawn a stopped daemon left provisioning', 
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3827,7 +3762,6 @@ test('it restores a session whose broker is not ready without a terminal', async
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3894,8 +3828,6 @@ test('it restores every session on a host whose agent added a profile on a targe
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -3937,8 +3869,7 @@ test('it restores every session on a host whose agent added a profile on a targe
   await daemon.restart();
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  // The stub agent never reports it booted, so the restore starts the
-  // sub-session once the parent's boot cap runs out.
+  // The stub agent never reports it booted, so the restore starts the sub-session once the boot cap runs out.
   await waitFor(async () => {
     const got = await daemon.client.sendRequest('session.get', { session: childID });
 
@@ -3994,8 +3925,6 @@ test('it revokes the grant of a dropped profile as it restores a session on a ta
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4064,8 +3993,6 @@ test('it refuses to restore a session whose agent added a profile on a target th
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4137,8 +4064,6 @@ test('it lists a restore refused for a changed auth selection with the rebind hi
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4227,7 +4152,6 @@ test('it reports a restore refused for a dropped auth block in the restart check
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4302,7 +4226,6 @@ test('it refuses to restore a session whose agent dropped the broker credential 
     }),
   });
 
-  // The token may grant glm, and impd holds glm for api.z.ai.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4379,8 +4302,6 @@ test('it refuses to restore a session whose agent added a profile on a target th
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4464,8 +4385,6 @@ test('it shows a running harness on the host that its auth revision applies at t
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4563,8 +4482,6 @@ test('it shows every restored harness on a host that rebinds during the first re
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4608,9 +4525,7 @@ test('it shows every restored harness on a host that rebinds during the first re
 
   await daemon.client.sendRequest('fleet.restore', { cols: 80, rows: 24 });
 
-  // A revive logs its wake once its harness's start settles and its launch
-  // revision is recorded. The stub agent never reports it booted, so the
-  // restore starts the sub-session once the parent's boot cap runs out.
+  // The stub agent never reports it booted, so the sub-session only starts once the parent's boot cap runs out.
   await waitFor(() => {
     const woken = daemon.logs.slice(logged).filter((line) => line.startsWith('atc: wake of'));
 
@@ -4666,8 +4581,6 @@ test('it shows a harness restored after a daemon restart that its auth revision 
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4724,8 +4637,6 @@ test('it shows a harness restored after a daemon restart that its auth revision 
 
   judgeSelected = true;
 
-  // The revive rebinds the host to revision 2 and starts the sub-session's
-  // harness under it, while the parent's harness keeps revision 1.
   await daemon.client.sendRequest('session.adopt', { session: childID, cols: 80, rows: 24 });
   await daemon.restart();
 
@@ -4789,8 +4700,6 @@ test('it restarts a suspended harness under the revision a revive rebinds a chan
     }),
   });
 
-  // The token may grant glm and judge, and impd holds glm for api.z.ai and
-  // judge for judge.example.
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -4816,7 +4725,6 @@ test('it restarts a suspended harness under the revision a revive rebinds a chan
 
   const id = String(getRecord(spawned, 'session')['id']);
 
-  // The kill puts the imp to sleep with the harness kept inside it.
   await daemon.client.sendRequest('session.kill', { session: id });
 
   judgeSelected = true;

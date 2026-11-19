@@ -10,7 +10,6 @@ import { createStubEchoClaude } from '@atc/harness-claude/test-utils/create-stub
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import invariant from 'tiny-invariant';
 
-// A daemon with a local target and an imp target `box` over a stub imp port.
 async function setupTest() {
   const port = createStubImpPort();
 

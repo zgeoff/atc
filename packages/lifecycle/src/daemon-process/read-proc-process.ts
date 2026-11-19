@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// What `/proc` shows of a process: its command-line arguments and its
-// environment.
 interface ProcProcess {
   readonly args: readonly string[];
   readonly env: Readonly<Record<string, string>>;

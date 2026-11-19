@@ -17,7 +17,6 @@ test("it reads the host's build again on every call", () => {
   const host = buildMockHostServices();
   const builds = ['4.2.0+src.1', '4.2.0+src.2'];
 
-  // A host whose build moves on, the way a rebuild of the checkout moves it.
   Object.defineProperty(host, 'build', { get: () => builds.shift() });
 
   const invocation = buildATCInvocation(host);

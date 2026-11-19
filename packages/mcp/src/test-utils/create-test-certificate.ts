@@ -4,13 +4,11 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { $ } from 'bun';
 
 interface TestCertificate {
-  // PEM text of a self-signed certificate that names the host.
   readonly cert: string;
   readonly key: string;
 }
 
-// A certificate for a TLS server in a test, made with the openssl CLI, since
-// neither Bun nor node:crypto writes an X.509 certificate.
+// Shells out to openssl because neither Bun nor node:crypto can create an X.509 certificate.
 export async function createTestCertificate(hostname: string): Promise<TestCertificate> {
   const temporaryDirectory = setupTempDir('atc-test-certificate-');
   const certPath = join(temporaryDirectory.path, 'cert.pem');

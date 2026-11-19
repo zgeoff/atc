@@ -1,7 +1,5 @@
 import { parsePTYProtocols } from './parse-pty-protocols';
 
-// The headers of a request for a session's live terminal, and whether the
-// server can serve one yet.
 interface PTYAdmissionRequest {
   readonly host: string | null;
   readonly upgrade: string | null;
@@ -15,7 +13,6 @@ interface PTYAdmissionPolicy {
   readonly allowedOrigins: ReadonlySet<string>;
 }
 
-// A refusal that the security log records.
 export type PTYRefusalOutcome =
   | { readonly kind: 'bad_host'; readonly reason: 'host_not_allowed' }
   | { readonly kind: 'bad_origin'; readonly reason: 'origin_not_allowed' }
@@ -30,9 +27,8 @@ type PTYAdmission =
   | { readonly kind: 'upgrade_required' }
   | { readonly kind: 'verify'; readonly token: string };
 
-// Every check before the token is verified, in the order the server answers
-// them, so a request from a host the server does not answer to learns
-// nothing else.
+// Check the host first: a request to a host the server does not answer to must learn nothing
+// else, not even whether the server is up.
 export function pickPTYAdmission(
   request: PTYAdmissionRequest,
   policy: PTYAdmissionPolicy,

@@ -13,7 +13,6 @@ test('it streams the output of a session harness on the local pty provider', asy
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      // The agent prints a marker, then echoes each line it reads.
       adapter: buildMockAgentAdapter({
         planSpawn: () => ({
           bin: 'bash',
@@ -54,7 +53,6 @@ test('it types input into a session harness on the local pty provider', async ()
   const daemon = await startTestDaemon({
     prefix: 'atc-daemon-provider-',
     options: () => ({
-      // The agent prints a marker, then echoes each line it reads.
       adapter: buildMockAgentAdapter({
         planSpawn: () => ({
           bin: 'bash',

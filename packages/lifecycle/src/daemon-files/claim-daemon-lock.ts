@@ -4,7 +4,6 @@ import type { Clock } from '@atc/core';
 import { systemClock } from '@atc/core';
 
 export interface DaemonLock {
-  // Releases the lock; safe to call more than once.
   readonly dispose: () => void;
 }
 
@@ -12,12 +11,12 @@ const LOCK_EX = 2;
 const LOCK_NB = 4;
 const O_RDWR = 2;
 
-// Kept off every child the daemon spawns, so an orphaned agent process can
-// never hold a dead daemon's lock.
+// Close-on-exec: flock locks live on the open file description, so a child that inherits
+// the fd would keep a dead daemon's lock held.
 const O_CLOEXEC = process.platform === 'darwin' ? 0x01_00_00_00 : 0o200_0000;
 const RETRY_MS = 50;
 
-// the file is never removed: removing it would let a newcomer lock a fresh
+// Never remove the lock file: flock binds to the inode, so a newcomer would lock a fresh
 // inode while an older daemon still holds the unlinked one.
 export async function claimDaemonLock(
   lockPath: string,
@@ -60,8 +59,8 @@ export async function claimDaemonLock(
   };
 }
 
-// `open` is variadic in C; it is declared here with two arguments, which is
-// sound because the lock file already exists and no mode is passed.
+// C declares open as variadic; two arguments are enough here because the file already
+// exists and no mode is passed.
 function openLibc() {
   const libcPath = process.platform === 'darwin' ? '/usr/lib/libSystem.B.dylib' : 'libc.so.6';
 

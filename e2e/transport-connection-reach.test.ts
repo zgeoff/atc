@@ -30,8 +30,6 @@ test('it answers session.get whose session leaves the view during the read as fo
     buildStubDaemonContext({ canSeeSession, readSessionRecord }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -87,8 +85,6 @@ test('it answers session.screen whose session leaves the view during the read as
     buildStubDaemonContext({ canSeeSession, readSessionScreen }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -136,8 +132,6 @@ test('it answers session.menu whose session leaves the view during the read as f
     buildStubDaemonContext({ canSeeSession, readSessionMenu }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -196,8 +190,6 @@ test('it answers session.read whose session leaves the view during the read as f
     buildStubDaemonContext({ canSeeSession, loadSessionTranscript }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -249,8 +241,6 @@ test('it leaves out of events.read the events of a session that leaves the view 
     buildStubDaemonContext({ canSeeSession, readEvents }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -311,8 +301,6 @@ test('it answers note.get whose session leaves the view during the read as for a
     buildStubDaemonContext({ canSeeSession, readNote }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -372,8 +360,6 @@ test('it answers note.get whose sender leaves the view during the read as for a 
     buildStubDaemonContext({ canSeeSession, readNote }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -433,8 +419,6 @@ test('it answers message.get whose session leaves the view during the wait as fo
     buildStubDaemonContext({ canSeeSession, readMessage }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -491,8 +475,6 @@ test('it answers message.ack whose session leaves the view during the ack as for
     buildStubDaemonContext({ canSeeSession, ackMessage }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -551,8 +533,6 @@ test('it answers session.message whose session leaves the view during the write 
     buildStubDaemonContext({ canSeeSession, writeSessionMessage }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -606,8 +586,6 @@ test('it refuses a spawn whose session leaves the view before the answer as a re
     }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',
@@ -668,8 +646,6 @@ test('it leaves out of fleet.list a session that leaves the view during the read
     buildStubDaemonContext({ canSeeSession, readFleet }),
   );
 
-  // The connection acts as a principal, the caller whose reach the daemon
-  // checks on each answer.
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', {
       client: 'atc/test',

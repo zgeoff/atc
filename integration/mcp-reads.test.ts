@@ -9,8 +9,6 @@ import { startInProcessMCP } from '@atc/mcp/test-utils/start-in-process-mcp';
 import { runNote } from '@atc/reporters';
 import invariant from 'tiny-invariant';
 
-// The MCP tools in the test's process, against a daemon in it whose Claude is
-// the in-process stand-in.
 async function setupTest() {
   const stub = await startStubAgentDaemon();
 
@@ -95,7 +93,6 @@ test('it returns the whole text of a note its event previews, and the preview on
 
   const whole = `${'option '.repeat(150)}end`;
 
-  // The test runs the note reporter as the agent inside the session would.
   updateEnv('ATC_SESSION_ID', session);
   updateEnv('ATC_SOCKET', ctx.daemon.reporterSocketPath);
 
@@ -167,7 +164,6 @@ test('it answers a session list while an events long-poll is still waiting', asy
 
   const first = await Promise.race([poll.then(() => 'poll'), list.then(() => 'list')]);
 
-  // A session start ends the poll, so the test never waits it out.
   await ctx.mcp.spawnSession({ cwd: ctx.home });
 
   await poll;

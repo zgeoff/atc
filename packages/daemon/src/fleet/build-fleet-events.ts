@@ -10,13 +10,10 @@ export interface FleetEvent {
   readonly kind: string;
   readonly detail: string | null;
 
-  // The message id on a message status event, for message.get.
   readonly message?: MessageID;
 
-  // The note label on a note event.
   readonly label?: string;
 
-  // The whole result on a daemon-restarted event.
   readonly result?: RestartResult;
 }
 

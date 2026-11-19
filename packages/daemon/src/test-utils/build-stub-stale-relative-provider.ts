@@ -1,9 +1,6 @@
 import { RESOLVE_HOME_SCRIPT } from '../sessions/create-host-dir-claims';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 
-// Stands in for a remote host whose home is /home/guest and where a relative
-// directory cannot be entered, as one removed inside the guest cannot; every
-// other command echoes its fourth argument as a resolved directory.
 export function buildStubStaleRelativeProvider() {
   return buildStubMemoryProvider({
     capabilities: { suspend: true, destroy: true },

@@ -7,17 +7,14 @@ interface CheckedWorkspaceRemoval {
   readonly manager: Pick<SessionManager, 'removeClaimedDir'>;
   readonly provider: ExecutionProvider;
 
-  // The session atc created the workspace for, and its host.
   readonly id: SessionID;
   readonly hostKey: SessionID;
   readonly target: string;
 
-  // The workspace as its host resolved it, and what its check found there.
   readonly path: string;
   readonly found: readonly string[];
 }
 
-// Reports the workspace kept, with the reason, when the removal refuses or fails.
 export async function removeCheckedWorkspace(
   removal: CheckedWorkspaceRemoval,
 ): Promise<WorkspaceCleanup> {

@@ -6,16 +6,15 @@ import type { ImpHost } from '../port/imp-host';
 import type { ImpForwardEnd, ImpPort, ImpRelayConnection } from '../port/imp-port';
 import { buildReporterSocketBase } from './build-reporter-socket-base';
 
-// What a reporter needs of the provider that opens it.
 interface ReporterContext {
   readonly port: ImpPort;
   readonly guestDir: string;
   readonly reconnectDelaysMs: readonly number[];
 }
 
-// impd ends a forward for good when its tunnel socket closes, so one that ends
-// before the harness listens again on the same path. A forward the imp's sleep
-// ended stays ended, since a listen wakes a sleeping imp.
+// impd ends a forward for good when its tunnel socket closes, so the reporter listens again on
+// the same path while the harness runs. A forward ended by the imp's sleep stays ended, because
+// a listen would wake the sleeping imp.
 export function openReporter(context: ReporterContext, host: ImpHost, spec: HarnessSpec) {
   const base = buildReporterSocketBase(context.guestDir, spec.session);
   const path = `${base}.sock`;
@@ -30,8 +29,6 @@ export function openReporter(context: ReporterContext, host: ImpHost, spec: Harn
 
   let current = openForward();
 
-  // Settles true once a sleep or destroy the provider asked for fails, so
-  // the imp stays awake, and false once the reporter stops first.
   const waitForRefusedSleep = () =>
     new Promise<boolean>((resolve) => {
       if (stopping.signal.aborted) {
@@ -56,9 +53,8 @@ export function openReporter(context: ReporterContext, host: ImpHost, spec: Harn
       stopping.signal.addEventListener('abort', onAbort, { once: true });
     });
 
-  // A listen during a sleep the provider asked for would wake the imp, so
-  // the forward waits for the sleep's outcome and listens again only when
-  // impd refuses it.
+  // A listen during a sleep the provider asked for wakes the imp again, so hooks must not listen
+  // until impd has refused the sleep.
   const waitForAwakeHost = (): Promise<boolean> => {
     if (!host.suspending) {
       return Promise.resolve(true);
@@ -131,8 +127,6 @@ export function openReporter(context: ReporterContext, host: ImpHost, spec: Harn
 
   void restoreForward();
 
-  // Notes and answers the guest has not seen answered wait in the outbox beside
-  // the socket, for the next connection to send again.
   return {
     path,
     outbox: `${base}.outbox`,
@@ -144,7 +138,6 @@ export function openReporter(context: ReporterContext, host: ImpHost, spec: Harn
   };
 }
 
-// Frames a guest connection's bytes into lines, both ways.
 function toHarnessRelay(connection: ImpRelayConnection): HarnessRelay {
   const decoder = createLineDecoder();
 

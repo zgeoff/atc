@@ -4,7 +4,7 @@ import { collectNamedSessions } from './collect-named-sessions.ts';
 import { openDaemonConnection } from './open-daemon-connection.ts';
 import { parseRunEndpoints } from './run-endpoints.ts';
 
-// Kills the one live session with the name. The daemon keeps it listed, as exited.
+// The daemon keeps the session listed, as exited.
 export async function stopSession(endpoints: Endpoints, name: string): Promise<{ id: string }> {
   const run = parseRunEndpoints(endpoints);
 

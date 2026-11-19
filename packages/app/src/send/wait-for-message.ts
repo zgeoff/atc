@@ -2,10 +2,7 @@ import type { Clock } from '@atc/core';
 import { MESSAGE_VIEW_SCHEMA } from '@atcx/contract';
 import type { MessageView, SendConnection } from './types';
 
-// The longest one read holds its request open.
 const SLICE_MS = 30_000;
-
-// How long past its wait a read gets to answer.
 const ANSWER_GRACE_MS = 10_000;
 
 interface MessageWait {
@@ -13,7 +10,6 @@ interface MessageWait {
   readonly clock: Clock;
   readonly message: string;
 
-  // How long to wait for an answer, or null to read once without waiting.
   readonly timeoutSeconds: number | null;
 }
 
@@ -22,7 +18,6 @@ interface MessageRead {
   readonly timedOut: boolean;
 }
 
-// Throws what a read throws.
 export async function waitForMessage(wait: Readonly<MessageWait>): Promise<MessageRead> {
   const read = async (waitMs: number): Promise<MessageView> => {
     const answer = await wait.connection.request(

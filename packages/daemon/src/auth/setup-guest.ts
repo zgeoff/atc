@@ -7,16 +7,12 @@ import type { SessionID } from '@atcx/contract';
 import type { SessionHarnesses } from '../sessions/create-session-harnesses';
 import type { SessionCallbacks } from '../sessions/session-callbacks';
 
-// What a guest's setup reads from the daemon: its id, its log, and whether
-// a host is idle.
 interface GuestSetupDeps {
   readonly store: Pick<FleetStore, 'daemonID'>;
   readonly callbacks: Pick<SessionCallbacks, 'log'>;
   readonly harnesses: Pick<SessionHarnesses, 'isHostIdle'>;
 }
 
-// The guest a remote launch readies: the agent and provider, the host and
-// target, the directory its planned files go to, and the step timer.
 interface GuestSetup {
   readonly adapter: AgentAdapter;
   readonly provider: ExecutionProvider;
@@ -27,8 +23,6 @@ interface GuestSetup {
   readonly timer: StepTimer;
 }
 
-// Readies a remote host and the files a guest plan reads there, after
-// the agent's sign-in check.
 export async function setupGuest(deps: GuestSetupDeps, guest: GuestSetup): Promise<void> {
   const adapter = guest.adapter;
   const provider = guest.provider;

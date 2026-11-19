@@ -6,8 +6,6 @@ import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 
-// A temp directory that holds the host config a test hands the script, and
-// the directory outside any repository that the script's command runs in.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-with-test-home-');
 
@@ -22,8 +20,6 @@ test.skipIf(process.platform !== 'linux')(
     const script = join(import.meta.dir, 'with-test-home.sh');
     const env = { ...process.env, TMPDIR: ctx.directory };
 
-    // The sleep stands in for a daemon that the killed run never stopped. The
-    // script stays running and holds the pipe, so the line is the first read.
     const killed = Bun.spawn(
       ['bash', script, 'sh', '-c', 'echo "$ATC_TEST_HOME $$"; exec sleep 30 > /dev/null'],
       { cwd: ctx.directory, env, stdout: 'pipe', detached: true },
@@ -60,8 +56,6 @@ test.skipIf(process.platform !== 'linux')(
   async () => {
     const ctx = setupTest();
 
-    // The sleep stands in for a daemon that a test never stopped. It shares
-    // the process group that the wrapper leads.
     const run = await runCommand(
       [
         'bash',

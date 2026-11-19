@@ -36,8 +36,6 @@ import type { ProjectSettingsLaunch } from './require-project-settings';
 import { setupGuest } from './setup-guest';
 import type { AuthRebound, HarnessAuth, HarnessAuthSetup, HarnessPlan } from './types';
 
-// A verified binding and the revision it held before the verify, which a
-// rebind inside the verify moves on from.
 interface VerifiedAuth {
   readonly binding: RuntimeAuthBinding;
   readonly heldRevision: number;
@@ -52,44 +50,27 @@ interface SetupHarnessOnHostParams {
   readonly spawnOptions: SpawnOptions;
   readonly auth: HarnessAuthSetup | null;
 
-  // The directory the harness starts in, whose project settings a launch
-  // behind the broker reads once the host is ready; null for a spawn
-  // whose workspace is built after this, which reads them once it is.
   readonly cwd: string | null;
 
-  // Whether the host is a spawn's new host of its own, which a failure
-  // once it is readied destroys.
   readonly isNewHost: boolean;
   readonly timer: StepTimer;
 }
 
 export interface AuthSetup {
-  // throws before a spawn or an adopt does any work, for an agent that needs a broker the
-  // target does not reach or the daemon cannot bind
   readonly requireAgentTarget: (agent: AgentID, target: string) => void;
 
-  // null when the agent may start on this provider under the host's own sign-in; an agent that
-  // starts only behind the broker is refused instead, so it never falls back to a local start
   readonly resolveHarnessAuth: (
     adapter: AgentAdapter,
     provider: ExecutionProvider,
     target: string,
   ) => HarnessAuth | null;
 
-  // A sub-session joins its parent's host only under the binding that host
-  // holds: both without runtime auth, or both bound to the same hash, and
-  // then only while that binding is ready.
   readonly requireSharedBinding: (hostKey: SessionID, binding: AuthBinding | null) => Promise<void>;
 
-  // every refusal comes before the harness starts; a failure once the host is readied takes
-  // back the binding this call created, or destroys a spawn's own new host
   readonly setupHarnessOnHost: (
     params: SetupHarnessOnHostParams,
   ) => Promise<{ readonly plan: HarnessPlan; readonly attemptID: string | null }>;
 
-  // The part of a harness spec that keeps a launch behind the broker: the
-  // requirement the provider checks, and the admission each request needs from
-  // the host's binding when it goes out.
   readonly buildBrokerSpec: (
     hostKey: SessionID,
     admission: HarnessPlan['admission'],
@@ -97,8 +78,6 @@ export interface AuthSetup {
 
   readonly requireProjectSettings: (launch: ProjectSettingsLaunch) => Promise<void>;
 
-  // launches on the host stay blocked until a rebind; a running harness keeps running while
-  // the broker fails its later requests
   readonly revokeAuth: (id: SessionID) => Promise<boolean>;
 
   readonly updateAuth: (id: SessionID) => Promise<AuthRebound | null>;
@@ -140,8 +119,6 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
     return binder;
   };
 
-  // The decision for an agent on a provider, with each refusal thrown and a broker decision
-  // thrown when the daemon holds no binder.
   const requireAuthDecision = (
     adapter: AgentAdapter,
     provider: Pick<ExecutionProvider, 'credentials'>,
@@ -212,9 +189,8 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
     };
   };
 
-  // A launch without runtime auth never starts on a host that holds a
-  // binding, whatever its state: the host may hold grants atc could not
-  // confirm gone, and only a rebind or a forget of the host clears it.
+  // A host that holds a binding in any state may hold grants that atc could not confirm gone.
+  // Only a rebind or a forget of the host clears them.
   const requireUnboundHost = async (agent: string, hostKey: SessionID): Promise<void> => {
     const binder = callbacks.findAuthBinder();
     const held = binder === null ? null : await binder.readBinding(hostKey);
@@ -234,8 +210,8 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
     hostKey: SessionID,
     auth: HarnessAuthSetup & { readonly kind: 'broker' },
   ): Promise<VerifiedAuth> => {
-    // only a host whose every session runs this agent rebinds: two agents that select
-    // different profiles would each move the host back on their own launches
+    // Two agents on one host that select different profiles would each move the host back to
+    // their own binding on every launch, so only a sole agent may rebind.
     const isSoleAgent = registry.sessions.every(
       (other) => other.hostKey !== hostKey || other.agent === agent,
     );
@@ -332,8 +308,6 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
         throw refusal;
       }
 
-      // a routed launch holds no binding, so a host that holds one is as unfit for it as for any
-      // launch without runtime auth
       if (auth?.kind !== 'broker') {
         await requireUnboundHost(adapter.id, hostKey);
       }
@@ -386,9 +360,6 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 
       const directory = buildGuestSessionDirectory(guest.directory, id);
 
-      // A launch on a bound host verifies the binding before it plans, since
-      // a target that rebinds a changed selection moves the binding to the
-      // revision the plan then launches under.
       const verified =
         auth?.kind === 'broker' && auth.mode === 'verify'
           ? await timer.withStep('auth-binding', () =>
@@ -555,8 +526,8 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 
       harnesses.authRevisions.set(session.hostKey, revision);
 
-      // a harness keeps the settings it launched with, so each one under an older revision shows
-      // that the new one applies at its next launch
+      // A running harness keeps the settings it launched with, so a new revision only applies at
+      // its next launch.
       const pending = registry.sessions.filter(
         (other) => other.hostKey === session.hostKey && harnesses.isAuthOutdated(other),
       );

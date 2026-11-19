@@ -1,7 +1,5 @@
 import type { BridgeHost, BridgeState } from './bridge-state.ts';
 
-// A prompt that wakes the model for notices already in its conversation,
-// which names them without repeating them.
 export function scheduleNoticeReminder(
   host: BridgeHost,
   state: BridgeState,

@@ -39,7 +39,6 @@ import { drawModeScreen } from './draw-mode-screen';
 import { handleResize } from './handle-resize';
 import type { TUIHost } from './tui-host';
 
-// How long the status bar keeps the reason an action sent nothing or was refused.
 const STATUS_NOTICE_MS = 8000;
 
 export async function runTUI(host: TUIHost): Promise<void> {
@@ -50,7 +49,6 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const primaryName: DaemonName = primary.name;
   const bootDaemonClient = primary.bootDaemon;
 
-  // Only the local daemon can be restarted from here; a daemon on another host restarts there.
   const restartDaemonAt =
     primary.name === null
       ? primary.restartDaemon
@@ -60,20 +58,12 @@ export async function runTUI(host: TUIHost): Promise<void> {
           );
 
   const logClientEvent = host.logEvent;
-
-  // The time and the timers every wait of this client runs on.
   const clock = systemClock;
   const mirror = createFleetMirror(primaryName);
   let focusedKey: SessionKey | null = null;
   let lastUsedAgent: AgentID = host.readConfig().defaultAgent;
-
-  // Why the last action on a daemon sent nothing or was refused, until it times out.
   let statusNotice: string | null = null;
   let cancelStatusNotice: (() => void) | null = null;
-
-  // the config alone until the daemon's `agents.list` answer arrives; it re-resolves on
-  // every overlay open, so a backend configured after this client started still lists
-  // under its name.
   const bootMetadata = resolveAgentMetadata(host.readConfig(), {});
   const stdout = process.stdout;
   const leader = host.readConfig().leader;
@@ -108,8 +98,6 @@ export async function runTUI(host: TUIHost): Promise<void> {
     findNotice: () => statusNotice,
   });
 
-  // The attached session's daemon is a remote one whose link is not up: the session waits for it
-  // on its own screen and comes back once the link does.
   const isAttachedLinkDown = (): boolean =>
     getMode() === 'attached' &&
     focusedKey !== null &&
@@ -148,8 +136,6 @@ export async function runTUI(host: TUIHost): Promise<void> {
     } catch {}
   };
 
-  // A refusal of typed input shows on the status bar, so a keystroke is never dropped without a
-  // word.
   const sendInput = async (key: SessionKey, data: string) => {
     try {
       await sendToDaemon(links, key.daemon, 'session.input', { session: key.id, data });
@@ -159,7 +145,6 @@ export async function runTUI(host: TUIHost): Promise<void> {
   };
 
   const attach = async (key: SessionKey) => {
-    // A daemon whose link is not up gets nothing, and says why on the status bar.
     if (links.clientFor(key.daemon) === null) {
       showStatusNotice(formatLinkState(key.daemon, links.stateOf(key.daemon)));
 
@@ -264,19 +249,10 @@ export async function runTUI(host: TUIHost): Promise<void> {
   // A fullscreen session can leave the terminal in an enhanced keyboard
   // encoding, so the leader arrives as a CSI chord instead of its bare byte.
   const isLeaderKey = (buf: Buffer): boolean => leaderChords.includes(buf.toString());
-
-  // The screen the client shows, as the machine's mode region holds it.
   const getMode = () => service.getSnapshot().value.mode;
-
-  // The confirmation the overlay waits on: none, a kill, or a forget that
-  // destroys the session's host.
   const getConfirm = () => service.getSnapshot().value.confirm;
-
-  // The restart prompt that waits for its key, or null.
   const findRestartConsent = (): RestartConsent | null => service.getSnapshot().context.consent;
   const getBoot = (): DaemonBoot => connection.getBoot();
-
-  // Where the client stands with the daemon, as the machine holds it.
   const isDaemonWaiting = (): boolean => service.getSnapshot().matches({ daemon: 'waiting' });
   const isDaemonRestarting = (): boolean => service.getSnapshot().matches({ daemon: 'restarting' });
 
@@ -323,7 +299,6 @@ export async function runTUI(host: TUIHost): Promise<void> {
       mirror.upsert(session);
     },
 
-    // The restart prompt keeps the screen until it has its key.
     write: (chunk) => {
       if (findRestartConsent() === null) {
         process.stdout.write(chunk);
@@ -453,15 +428,12 @@ export async function runTUI(host: TUIHost): Promise<void> {
     scheduleStatus,
   });
 
-  // The links of the daemons beside the primary open once the primary's first boot is through.
   const handleDaemonEvent = (daemon: DaemonName, raw: DaemonEvent) => {
     applyDaemonEvent(daemon, raw, eventDeps);
 
     reactions.cancelStaleConfirmations();
   };
 
-  // A boot that fails leaves before the first frame, with its message alone:
-  // the message holds the daemon and what to do, and a stack would bury it.
   links.onChange(reactions.handleLinkChange);
 
   const firstLink = await connection.transport.waitForConnection().catch((error: unknown) => {
@@ -501,8 +473,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
   process.stdin.setRawMode(true);
   process.stdin.resume();
 
-  // Stateful decode for the stdin -> daemon path: a multi-byte character split
-  // across two stdin reads must not be mangled by per-chunk toString().
+  // A multi-byte character split across two stdin reads must not be mangled by per-chunk toString().
   const stdinDecoder = new TextDecoder('utf-8');
 
   const inputDeps: InputKeyDeps = {
@@ -560,8 +531,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
   service.start();
 }
 
-// Full height: the atc status bar only exists on home/overlay screens;
-// attached sessions render fleet state via their own status line.
+// Full height: the atc status bar only exists on home/overlay screens.
 function ptyRows(): number {
   return Math.max(4, rows());
 }

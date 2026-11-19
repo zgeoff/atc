@@ -6,11 +6,8 @@ import { z } from 'zod';
 import { withClaudeConfigLock } from './with-claude-config-lock';
 import type { ClaudeConfigLockOptions } from './with-claude-config-lock';
 
-// A project entry the CLI's trust dialog has already accepted.
 const TrustedEntrySchema = z.looseObject({ hasTrustDialogAccepted: z.literal(true) });
 
-// resolves to an undo for a launch that fails before the CLI starts; the undo leaves an entry
-// something changed since as it stands
 export async function updateClaudeProjectTrust(
   configPath: string,
   root: string,
@@ -30,8 +27,8 @@ export async function updateClaudeProjectTrust(
 
       const base = isRecord(entry) ? entry : {};
 
-      // written from the values as read, never a zod parse's output, which drops a `__proto__` key
-      // and reorders the keys the CLI wrote
+      // Write the values as read, not parsed output: zod drops a `__proto__` key
+      // and reorders the keys the CLI wrote.
       await writeClaudeConfig(configPath, {
         ...config,
         projects: { ...projects, [root]: { ...base, hasTrustDialogAccepted: true } },
@@ -74,8 +71,6 @@ export async function updateClaudeProjectTrust(
     );
 }
 
-// The config as the CLI last wrote it; a missing file is an empty config,
-// and one that does not parse to an object throws rather than be replaced.
 async function loadClaudeConfig(configPath: string): Promise<Record<string, unknown>> {
   let raw: string;
 
@@ -98,9 +93,6 @@ async function loadClaudeConfig(configPath: string): Promise<Record<string, unkn
   return parsed;
 }
 
-// Writes the config in the CLI's own layout, beside the file it replaces
-// and with that file's mode, then renames it into place. A config path
-// that is a symlink keeps the link and replaces the file it points at.
 async function writeClaudeConfig(
   configPath: string,
   config: Readonly<Record<string, unknown>>,

@@ -15,8 +15,6 @@ import { createCodexAdapter } from './create-codex-adapter';
 import { buildStubMessageBridgeHost } from './test-utils/build-stub-message-bridge-host';
 import { createStubAppServerCodex } from './test-utils/create-stub-app-server-codex';
 
-// A folder for the files a test writes: a Codex home with its session index,
-// or a rollout.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-codex-');
 

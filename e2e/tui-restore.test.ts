@@ -15,9 +15,6 @@ function setupTest() {
 
 test('it restores the fleet from disk after a crash', async () => {
   const ctx = setupTest();
-
-  // The daemon that crashes runs with the client's environment, and no
-  // client is attached to it.
   const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.home, env: ctx.env });
 
   const client = await daemon.openClient();
@@ -44,7 +41,6 @@ test('it restores the fleet from disk after a crash', async () => {
     ]);
   });
 
-  // A crash: the daemon dies, and the fleet row survives on disk.
   daemon.subprocess.kill('SIGKILL');
 
   await daemon.subprocess.exited;
@@ -62,9 +58,6 @@ test('it restores the fleet from disk after a crash', async () => {
 
 test('it restores a grok session with grok --resume after a crash', async () => {
   const ctx = setupTest();
-
-  // The daemon that crashes runs with the client's environment, and no
-  // client is attached to it.
   const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.home, env: ctx.env });
 
   const client = await daemon.openClient();

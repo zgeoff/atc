@@ -18,8 +18,6 @@ import { buildMockGatewayConfig } from '../test-utils/build-mock-gateway-config'
 import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-headless-run';
 import { createGatewayAdapter } from './create-gateway-adapter';
 
-// A folder for the files a test writes: transcripts, the atc-bridge mod, or a
-// guest folder a launch runs in.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-gateway-adapter-');
 
@@ -1058,7 +1056,6 @@ test("it starts a brokered guest with the auth's own arguments in place of the g
 
   invariant(plan !== null, 'expected a guest spawn plan');
 
-  // The launch script is pinned by the guest launch's own tests.
   const args: readonly unknown[] = plan.args;
 
   expect(args).toStrictEqual([
@@ -1265,8 +1262,6 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
 
   const settings: unknown = JSON.parse(settingsFile);
   const onboarding: unknown = JSON.parse(onboardingFile);
-
-  // The launch script is pinned by the guest launch's own tests.
   const args: readonly unknown[] = plan.args;
 
   expect({ bin: plan.bin, args, env: plan.env }).toStrictEqual({
@@ -1452,8 +1447,6 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
   invariant(typeof settingsFile === 'string', 'expected the revision settings file');
 
   const settings: unknown = JSON.parse(settingsFile);
-
-  // The launch script is pinned by the guest launch's own tests.
   const args: readonly unknown[] = plan.args;
 
   expect(args).toStrictEqual([
@@ -1682,8 +1675,6 @@ test('it carries an extra placeholder variable and the gateway args into a broke
   );
 
   const settings: unknown = JSON.parse(settingsFile);
-
-  // The launch script is pinned by the guest launch's own tests.
   const args: readonly unknown[] = plan.args;
 
   expect(args).toStrictEqual([

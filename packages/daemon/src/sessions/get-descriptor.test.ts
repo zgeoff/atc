@@ -11,8 +11,6 @@ import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provide
 import { createSessionManager } from './create-session-manager';
 import { getDescriptor } from './get-descriptor';
 
-// A session manager on one `local` target over the in-memory provider and
-// a real state store.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-get-descriptor-');
   const dbPath = join(temporaryDirectory.path, 'state.db');

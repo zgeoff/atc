@@ -5,7 +5,6 @@ type ReleaseShip = 'here' | 'dispatch' | 'none';
 interface ReleaseRun {
   readonly event: string;
 
-  // Strings, because GitHub passes every job output as one.
   readonly releasesCreated: string;
   readonly releaseOutputs: string;
 
@@ -16,7 +15,7 @@ interface ReleaseRun {
 }
 
 // release-please reads main through the API, so a run can tag a merge that is not its own commit,
-// and the tag lands before the run's checks end. A run ships only its own checked commit.
+// and the tag lands before the run's checks end.
 export function pickReleaseShip(run: Readonly<ReleaseRun>): ReleaseShip {
   const checked = run.checksResult === 'success' && run.binariesResult === 'success';
 
@@ -39,8 +38,7 @@ export function pickReleaseShip(run: Readonly<ReleaseRun>): ReleaseShip {
 }
 
 // release-please lists each released package's path in `paths_released`, and sets the root
-// package's outputs, such as its tagged commit under `sha`, with no path prefix. The job that runs
-// this script installs no packages, so it parses with no schema library.
+// package's outputs, such as its tagged commit under `sha`, with no path prefix.
 function parseRootReleaseSHA(releaseOutputs: string): string | null {
   const outputs: unknown = JSON.parse(releaseOutputs);
 

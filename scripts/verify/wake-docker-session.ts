@@ -5,8 +5,6 @@ import { collectNamedSessions } from './collect-named-sessions.ts';
 import { parseDockerRunEndpoints } from './docker-run-endpoints.ts';
 import { openDaemonConnection } from './open-daemon-connection.ts';
 
-// Kills the one live session with the name, which pauses its containers, then revives it and waits
-// until the daemon lists it alive again.
 export async function wakeDockerSession(
   endpoints: Endpoints,
   name: string,

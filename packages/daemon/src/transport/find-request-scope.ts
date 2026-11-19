@@ -1,14 +1,11 @@
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import type { DaemonContext } from '../types';
 
-// The targets a request may use and the namespace of its idempotency keys.
 export interface RequestScope {
   readonly access: TargetAccess;
   readonly keyNamespace: string;
 }
 
-// Null is the daemon's owner. A connection that acts as a principal always keeps its own
-// idempotency keys, whatever principal a request acts as.
 export function findRequestScope(
   ctx: DaemonContext,
   principal: string | null,

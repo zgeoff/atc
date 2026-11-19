@@ -5,9 +5,8 @@ export function truncateToBytes(text: string, maxBytes: number): string {
 
   const bytes = Buffer.from(text, 'utf8');
 
-  // The cut leaves room for the three-byte ellipsis, or drops the ellipsis
-  // when the cap is smaller than it, and backs up off any continuation byte
-  // so it never lands inside a code point.
+  // '…' takes three bytes in UTF-8, and a byte of the form 10xxxxxx continues a code point,
+  // so a cut there would split a character.
   const hasRoomForEllipsis = maxBytes >= 3;
   let end = hasRoomForEllipsis ? maxBytes - 3 : Math.max(maxBytes, 0);
 

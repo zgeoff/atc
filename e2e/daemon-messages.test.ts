@@ -123,7 +123,6 @@ test('it delivers a message queued before a daemon crash to the restored session
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -197,7 +196,6 @@ test('it names a message event from before a daemon crash by the restored sessio
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -288,7 +286,6 @@ test('it names a message event sent before SessionStart by the restored session'
     JSON.stringify({
       agents: { claude: { bin: ctx.claude } },
 
-      // A restarted daemon restores only when the test asks it to.
       restoreFleetOnRestart: false,
     }),
   );
@@ -414,7 +411,6 @@ test('it keeps a message answered through the answer command across a daemon res
 
   await waitForEvent(events, { ev: 'SessionMessage', status: 'delivered' });
 
-  // The answer tool of the atc-bridge mod runs this command.
   await runATC({
     command: ctx.atc,
     args: ['answer', '--message', messageID],

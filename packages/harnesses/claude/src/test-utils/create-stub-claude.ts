@@ -1,16 +1,11 @@
 import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 
 interface StubClaudeConfig {
-  // The command atc runs as, which the stub's tap and restart go through.
   readonly atc: readonly string[];
 
-  // The composer script the stub finishes in when the home asks for it.
   readonly composer: string;
 }
 
-// Like the real CLI, the stand-in runs the SessionStart hook command from the
-// --settings file through a shell, so a session reports with the command line
-// atc wrote for its agent.
 export function createStubClaude(directory: string, config: StubClaudeConfig): string {
   const atc = config.atc.map((part) => `"${part}"`).join(' ');
 
