@@ -1,6 +1,6 @@
 import type { Clock } from '@atc/core';
+import type { ProtocolMismatch } from '../version-mismatch/format-protocol-mismatch';
 import type { DaemonPaths } from './daemon-paths';
-import type { ProtocolMismatch } from './format-protocol-mismatch';
 
 export interface DaemonBootOptions {
   // true stops the mismatched daemon, ending every session it hosts; false

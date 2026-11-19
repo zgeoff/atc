@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { normalizeHookEventName } from './normalize-hook-event';
+import { normalizeHookEventName } from './normalize-hook-event-name';
 
 test.each([
   ['SessionStart', 'SessionStart'],

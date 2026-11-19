@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { buildPeerRequestLine } from '../test-utils/build-peer-request-line';
 import { startStubPeerDaemon } from '../test-utils/start-stub-peer-daemon';
 import type { StubPeerAnswer, StubPeerRequest } from '../test-utils/start-stub-peer-daemon';
-import { PROTOCOL_V } from '../wire/protocol';
+import { PROTOCOL_V } from '../wire/decode-message';
 import { openDaemonClient } from './open-daemon-client';
 
 function setupTest() {
