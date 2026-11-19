@@ -23,7 +23,9 @@ import { runMCPAuthorization } from '../test-utils/run-mcp-authorization';
 import { runMCPTokenGrant } from '../test-utils/run-mcp-token-grant';
 import { runPasskeyEnrollment } from '../test-utils/run-passkey-enrollment';
 import { runPasskeySignIn } from '../test-utils/run-passkey-sign-in';
+import { seedDPoPBinding } from '../test-utils/seed-dpop-binding';
 import { sendModernMCPRequest } from '../test-utils/send-modern-mcp-request';
+import { generateDPoPKey, signDPoPProof } from '../test-utils/sign-dpop-proof';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { startMCPHTTPServer } from './start-mcp-http-server';
 
@@ -114,6 +116,7 @@ async function setupTest() {
     caller,
     admin,
     events,
+    sqlite,
     seed: buildSeeder({ db: events, clock }),
 
     // Stops the server and starts a fresh process's worth of it on the same
@@ -227,6 +230,52 @@ test('it issues an access and refresh token for an approved authorization code',
     refresh_token: expect.toBeString(),
     scope: 'read kill offline_access',
   });
+});
+
+test('it issues a Bearer token to a client that sends a DPoP proof, and binds it to no key', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
+
+  const clientID = created.clientID;
+
+  const authorized = await runMCPAuthorization(ctx, {
+    clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const proof = await signDPoPProof({
+    key: await generateDPoPKey(),
+    method: 'POST',
+    url: `${ctx.origin}/oauth2/token`,
+    now: Date.now(),
+  });
+
+  const exchanged = await fetch(`${ctx.url}/oauth2/token`, {
+    method: 'POST',
+    headers: { dpop: proof },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authorized.code,
+      redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+      client_id: clientID,
+      code_verifier: authorized.verifier,
+    }),
+  });
+
+  const tokens = await readJSONRecord(exchanged);
+
+  expect({
+    status: exchanged.status,
+    tokenType: tokens['token_type'],
+    bound: ctx.sqlite
+      .query('select "confirmation" from "oauthAccessToken" where "confirmation" is not null')
+      .all(),
+  }).toStrictEqual({ status: 200, tokenType: 'Bearer', bound: [] });
 });
 
 test('it returns to the client with the issuer and the state it sent', async () => {
@@ -957,6 +1006,49 @@ test('it asks a browser that kept its owner session for a fresh passkey sign-in'
   const next = new URL(second.headers.get('location') ?? '/', ctx.url);
 
   expect(next.pathname).toBe('/login');
+});
+
+test('it refuses an access token bound to a DPoP key when it is presented as a Bearer token', async () => {
+  const ctx = await setupTest();
+
+  const created = await ctx.admin.clients.add('Claude', [
+    'https://claude.ai/api/mcp/auth_callback',
+  ]);
+
+  const grant = await runMCPTokenGrant(ctx, {
+    clientID: created.clientID,
+    redirectURI: 'https://claude.ai/api/mcp/auth_callback',
+    scope: 'read',
+    ticked: ['read'],
+  });
+
+  const ping = () =>
+    fetch(`${ctx.url}/mcp`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${grant.accessToken}`,
+        accept: 'application/json, text/event-stream',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+    });
+
+  const unbound = await ping();
+  const key = await generateDPoPKey();
+
+  seedDPoPBinding(ctx.sqlite, key);
+
+  const bound = await ping();
+
+  expect({
+    unbound: unbound.status,
+    bound: bound.status,
+    challenge: bound.headers.get('www-authenticate'),
+  }).toStrictEqual({
+    unbound: 200,
+    bound: 401,
+    challenge: expect.stringContaining('error="invalid_token"'),
+  });
 });
 
 test('it refuses an access token once its grant is revoked', async () => {
