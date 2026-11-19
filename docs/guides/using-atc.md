@@ -141,13 +141,14 @@ it. Pass `atcAccess` to `atc_session_spawn` with the scopes the session needs, s
 its parent for messages alone, and it can grant a sub-session no scope it lacks itself
 ([a session's atc access](../architecture/protocol/principals.md#a-sessions-atc-access)).
 
-`atc_message_send` queues a message for a Claude Code session, which reads it in a new turn or
-inside the turn it is running. The session answers the message with its `answer` tool, or else with
-that turn's final output once the turn ends, and `atc_message_get` returns the answer. When the
-sender is itself a Claude Code session in atc, the outcome also arrives in the sender's conversation
-as an `<atc-answer>` notice, so the sender needs no `atc_message_get` call. Claude Code shows the
-agent a relayed message as one a plugin sent, not as your own prompt, so name every write an
-unattended session must make, such as a push or a pull request, in its launch prompt, where its
+`atc_message_send` queues a message for a Claude Code session, or for a Codex session on an
+[App Server](./configuration/agents.md#codex-sessions-that-take-messages), which reads it in a new
+turn or inside the turn it is running. The session answers the message with its `answer` tool, or
+else with that turn's final output once the turn ends, and `atc_message_get` returns the answer.
+When the sender is itself one of those sessions in atc, the outcome also arrives in the sender's
+conversation as an `<atc-answer>` notice, so the sender needs no `atc_message_get` call. Claude Code
+shows the agent a relayed message as one a plugin sent, not as your own prompt, so name every write
+an unattended session must make, such as a push or a pull request, in its launch prompt, where its
 auto-mode classifier reads your request.
 
 To restart the agent process of a session on this machine, such as after a change of the account it

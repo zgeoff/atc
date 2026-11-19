@@ -1,8 +1,5 @@
 <div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/atc-dark.png">
-    <img src="./docs/assets/atc-light.png" alt="atc" width="256">
-  </picture>
+  <h1>atc</h1>
 
   <p>
     <a href="https://github.com/zgeoff/atc/releases/latest"><img src="https://img.shields.io/github/v/release/zgeoff/atc" alt="latest release"></a>
@@ -16,12 +13,23 @@
   </p>
 </div>
 
-**atc** lets you run several coding agents at once in a single terminal pane and keep track of which
-are waiting on you.
+atc is a daemon that runs your Claude Code, Codex and Grok sessions, so other agents, scripts and
+you can drive them.
 
-`claude`, `grok`, and `codex` sessions all run in a background daemon, with a session list in front
-of them. There are no panes. One session fills the terminal, `Ctrl-Space` opens the list, a session
-that needs an answer turns red, and `Tab` takes you to it. Quit atc and the sessions keep running.
+Any MCP client can spawn a session, read its screen, type into it, pick from its menus, and send it
+a message and get the answer back. `atc send` does the messaging part from a shell script, cron, CI
+or a systemd unit:
+
+```sh
+# Ask a session something and print its answer.
+atc send reviewer "Is the migration safe to run?" --wait
+
+# Queue a job from cron. The key makes a retry send once.
+atc send planner "Start the daily triage" --key "triage-$(date +%F)" --from cron
+```
+
+The `atc` TUI is one more client. One session fills the terminal, `Ctrl-Space` opens the list, and a
+session that's waiting on you turns red. Quit it and the sessions keep running.
 
 <img src="./docs/assets/demo.gif" alt="atc: spawn a session, open the session list, jump back in" width="1100">
 
@@ -31,46 +39,42 @@ that needs an answer turns red, and `Tab` takes you to it. Quit atc and the sess
 brew install zgeoff/tap/atc
 ```
 
-atc needs at least one of the `claude`, `grok`, or `codex` CLIs on your PATH. The
-[install guide](./docs/guides/install.md) covers the install script and the prebuilt binaries for
-macOS and Linux. atc ships only as binaries; the npm package is deprecated.
+atc needs `claude`, `codex` or `grok` on your PATH. Codex and Grok take a
+[one-time hook install](./docs/guides/using-atc.md#grok-and-codex-hooks). The
+[install guide](./docs/guides/install.md) covers the other ways to install.
 
-Then run `atc`. The first run starts the daemon. Press `n` to spawn a session, `Ctrl-Space` to see
-the rest, and `?` for every other key.
+Run `atc` to start the daemon and open the TUI. Press `n` to spawn a session and `?` for the keys.
+To give an agent the fleet, register the MCP server with it:
 
-## Supported agents
-
-- **Claude Code** reports its state on its own, through a settings file atc passes at spawn, and
-  takes messages from other tools.
-- **Grok Build** and **Codex CLI** take a one-time hook install that atc prints for you
-  ([Grok and Codex hooks](./docs/guides/using-atc.md#grok-and-codex-hooks)).
-- **A Claude-compatible backend** runs as its own agent in the same fleet
-  ([gateways](./docs/guides/configuration/agents.md#gateways)).
+```sh
+claude mcp add --scope user atc -- atc mcp
+```
 
 ## Features
 
-- **Attention routing.** Sessions that need you sort to the top, and a Claude session's statusline
-  shows who's waiting ([using atc](./docs/guides/using-atc.md)).
-- **Sessions outlive the daemon.** A restart, or an upgrade with `u`, brings every session back from
-  its transcript ([restarting](./docs/guides/using-atc.md#restarting-the-daemon)).
-- **Agents that drive agents.** `atc mcp` hands any agent the fleet as MCP tools, so it can spawn,
-  read, and message other sessions
-  ([agents that drive agents](./docs/guides/using-atc.md#agents-that-drive-agents)).
-- **Hosted assistants.** `atc mcp --http` serves the same tools to ChatGPT or Claude.ai behind
-  OAuth, with the scopes you approve ([remote MCP](./docs/guides/remote-mcp.md)).
-- **Several machines.** atc-gateway serves the fleets of several daemons through one connector
-  ([gateway](./docs/guides/gateway.md)).
-- **Session sandboxing.** A session can run in its own VM, sleeping when you kill it and waking
-  where it left off ([targets](./docs/guides/configuration/targets.md)).
-- **Event stream.** `atc events` prints every fleet event, and `config.json` hooks run your own
-  commands on them ([events](./docs/guides/events.md)).
+- **Agents that drive agents.** A session an agent spawns through `atc mcp` lists under it and ends
+  with it ([agents that drive agents](./docs/guides/using-atc.md#agents-that-drive-agents)).
+- **Messages with answers.** Claude Code sessions take messages from this host or another and answer
+  them, and so do Codex sessions on an App Server
+  ([messages](./docs/architecture/protocol/messages.md)).
+- **Events.** `atc events` prints what the fleet does, hooks run your commands on it, and a webhook
+  wakes a subscribed MCP client ([events](./docs/guides/events.md),
+  [MCP Events](./docs/architecture/remote/mcp-events.md)).
+- **One fleet across hosts.** The TUI lists every configured daemon's sessions,
+  `atc mcp --daemon <name>` points an agent at one, and atc-gateway serves several through one
+  connector ([gateway](./docs/guides/gateway.md)).
+- **Hosted assistants.** `atc mcp --http` serves the tools behind OAuth, with the scopes you approve
+  ([remote MCP](./docs/guides/remote-mcp.md)).
+- **Cloud VMs.** A session can run in its own imp VM, which sleeps when you stop it and wakes where
+  it left off ([targets](./docs/guides/configuration/targets.md)).
+- **Sessions survive restarts.** A daemon restart, or an upgrade with `u`, brings every session back
+  from its transcript ([restarting](./docs/guides/using-atc.md#restarting-the-daemon)).
 
 ## Configuration
 
 atc creates `~/.config/atc/config.json` on first run. The
-[configuration guide](./docs/guides/configuration.md) covers every field: the agents and their
-arguments, the leader key, targets, gateways, principals, and hooks.
+[configuration guide](./docs/guides/configuration.md) covers each key.
 
 ## Documentation
 
-[docs/](./docs/README.md) covers how atc works, the guides, and the runbooks.
+[docs/](./docs/README.md) covers how atc works, the guides and the runbooks.

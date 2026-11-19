@@ -98,9 +98,6 @@ Designs for work that is not built yet, each with the spikes behind it.
   recommendation
 - [Remote targets: Sprites and Docker](design/remote-targets/README.md) — the provider contract
   change and the `sprites` and `docker` providers that build on it
-- [Waking a hosted assistant with MCP Events](design/mcp-events-wake.md) — which hosted assistants
-  subscribe to MCP Events, what atc answers, what full delivery needs, and the live check with
-  ChatGPT
 
 ## Guides
 
