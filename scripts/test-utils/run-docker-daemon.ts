@@ -38,6 +38,8 @@ export async function runDockerDaemon(env: Env) {
     await runDocker('rmi', '-f', image);
   };
 
+  startCleanupWatcher(env, prefix, image);
+
   await runCompile(home.cli, binary);
   await createStandInImage(home.root, image);
   await runDocker('volume', 'create', signIn);
@@ -104,6 +106,26 @@ export async function runDockerDaemon(env: Env) {
 
     await removeDockerObjects();
   }
+}
+
+// `with-test-home.sh` ends every process that holds the run's home as soon as the run stops, this
+// one included, so the watcher runs without that variable and removes the docker objects once this
+// process is gone.
+const WATCH_SCRIPT = `while kill -0 "$1" 2>/dev/null; do sleep 0.5; done
+docker ps -aq --filter "name=$2" | xargs -r docker rm -f
+docker volume ls -q --filter "name=$2" | xargs -r docker volume rm -f
+docker rmi -f "$3"`;
+
+function startCleanupWatcher(env: Env, prefix: string, image: string): void {
+  const { ATC_TEST_HOME: _home, ...rest } = env;
+
+  Bun.spawn(['sh', '-c', WATCH_SCRIPT, 'sh', String(process.pid), prefix, image], {
+    env: rest,
+    stdin: 'ignore',
+    stdout: 'ignore',
+    stderr: 'ignore',
+    detached: true,
+  }).unref();
 }
 
 // The flags of `scripts/build-binaries.sh`, for the host's own platform.
