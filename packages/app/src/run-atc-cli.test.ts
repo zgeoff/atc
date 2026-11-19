@@ -20,6 +20,8 @@ function setupTest() {
       runBackup: mock(() => Promise.resolve()),
       runWorkspacesPrune: mock(() => Promise.resolve()),
       runEvents: mock(() => Promise.resolve()),
+      runSend: mock(() => Promise.resolve()),
+      runMessageGet: mock(() => Promise.resolve()),
       printCodexHooks: mock(() => Promise.resolve()),
       printGrokHooks: mock(() => Promise.resolve()),
       runHookReport: mock(() => Promise.resolve()),
@@ -234,6 +236,74 @@ test.each([
       { message: '', messages: 'm-1', label: '', turn: 't-1', reason: 'stopped' },
     ],
   },
+  {
+    args: [
+      'send',
+      'planner',
+      'hello',
+      '--key',
+      'k-1',
+      '--wait',
+      '--timeout',
+      '9',
+      '--from',
+      ' cron ',
+      '--json',
+    ],
+    run: 'runSend',
+    with: [
+      {
+        session: 'planner',
+        text: { kind: 'literal', value: 'hello' },
+        key: 'k-1',
+        wait: true,
+        timeoutSeconds: 9,
+        from: 'cron',
+        owner: false,
+        daemon: null,
+        json: true,
+      },
+    ],
+  },
+  {
+    args: ['send', 'planner', '-', '--owner'],
+    run: 'runSend',
+    with: [
+      {
+        session: 'planner',
+        text: { kind: 'stdin', explicit: true },
+        key: null,
+        wait: false,
+        timeoutSeconds: 300,
+        from: null,
+        owner: true,
+        daemon: null,
+        json: false,
+      },
+    ],
+  },
+  {
+    args: ['send', 'planner', '--daemon', 'box'],
+    run: 'runSend',
+    with: [
+      {
+        session: 'planner',
+        text: { kind: 'stdin', explicit: false },
+        key: null,
+        wait: false,
+        timeoutSeconds: 300,
+        from: null,
+        owner: false,
+        daemon: 'box',
+        json: false,
+      },
+    ],
+  },
+  {
+    args: ['message', 'get', 'm-1', '--wait', '--timeout', '5', '--json'],
+    run: 'runMessageGet',
+    with: [{ message: 'm-1', wait: true, timeoutSeconds: 5, daemon: null, json: true }],
+  },
   { args: ['statusline'], run: 'runStatusline', with: [''] },
   { args: ['statusline', '--agent', 'grok'], run: 'runStatusline', with: ['grok'] },
 ] as const)('it hands $args to $run with the flags it parsed', async (row) => {
@@ -281,6 +351,31 @@ test.each([
   expect(ctx.io.print).toHaveBeenCalledExactlyOnceWith(expect.toInclude('USAGE:'));
   expect(ctx.io.printError).toHaveBeenCalledExactlyOnceWith(row.reason);
   expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(1);
+});
+
+test.each([
+  { args: ['send'] },
+  { args: ['send', 'planner', 'hi', '--timeout', 'x'] },
+  { args: ['send', 'planner', 'hi', '--timeout', '5'] },
+  { args: ['send', 'planner', 'hi', '--from', 'a', '--owner'] },
+  { args: ['send', 'planner', 'hi', '--daemon', 'box', '--owner'] },
+  { args: ['send', 'planner', 'hi', '--daemon', 'box', '--from', 'a'] },
+  { args: ['send', 'planner', 'hi', '--from', '   '] },
+  { args: ['send', 'planner', 'hi', '--key', ''] },
+  { args: ['send', 'planner', 'hi', '--frobnicate'] },
+  { args: ['message', 'get'] },
+  { args: ['message', 'get', 'm-1', '--timeout', '5'] },
+  { args: ['message', 'get', 'm-1', '--frobnicate'] },
+])('it writes the usage to stderr and exits 2 on $args', async (row) => {
+  const ctx = setupTest();
+
+  await runATCCLI(row.args, ctx.io);
+
+  expect(ctx.io.print).not.toHaveBeenCalled();
+  expect(ctx.io.printError).toHaveBeenCalledTimes(2);
+  expect(ctx.io.exit).toHaveBeenCalledExactlyOnceWith(2);
+  expect(ctx.io.runSend).not.toHaveBeenCalled();
+  expect(ctx.io.runMessageGet).not.toHaveBeenCalled();
 });
 
 test('it lists the commands it has when the command line names one it does not', async () => {
