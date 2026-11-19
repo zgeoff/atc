@@ -13,8 +13,8 @@ export type HarnessAuthRefusal =
   | 'auth_on_stored_token'
   | 'sign_in_unsupported';
 
+// `none`: the launch takes no credential from atc.
 export type HarnessAuthDecision =
-  // the launch takes no credential from atc
   | { readonly kind: 'none' }
   | { readonly kind: 'refused'; readonly problem: HarnessAuthRefusal }
   | { readonly kind: 'broker'; readonly broker: CredentialBroker }

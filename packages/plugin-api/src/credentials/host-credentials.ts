@@ -1,9 +1,9 @@
 import type { CredentialBroker } from './credential-broker';
 import type { CredentialRouter } from './credential-router';
 
-// How a provider's host supplies credentials to the agents that run in it.
+// How a provider's host supplies credentials to the agents that run in it: none, atc supplies no
+// credential and an agent signs in on the host by itself.
 export type HostCredentials =
-  // atc supplies no credential; an agent signs in on the host by itself
   | { readonly kind: 'none' }
 
   // the host's broker replaces a placeholder in each request with the real credential
