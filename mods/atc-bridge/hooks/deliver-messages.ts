@@ -1,22 +1,21 @@
-import type { EngineInterface } from 'claude-code';
-import type { BridgeState } from './bridge-state.ts';
+import type { BridgeHost, BridgeState } from './bridge-state.ts';
 import type { TapMessage, TapNotice, TapSender } from './parse-tap-line.ts';
 import { scheduleUnansweredReport } from './report-turns.ts';
 
-export function scheduleDelivery($: EngineInterface, state: BridgeState, msg: TapMessage): void {
+export function scheduleDelivery(host: BridgeHost, state: BridgeState, msg: TapMessage): void {
   state.delivering = state.delivering
-    .then(() => sendMessage($, state, msg))
+    .then(() => sendMessage(host, state, msg))
     .catch((error: unknown) => {
-      $.ui.log(`atc-bridge: delivering ${msg.id} failed (${String(error)})`, { to: 'debug' });
+      host.ui.log(`atc-bridge: delivering ${msg.id} failed (${String(error)})`, { to: 'debug' });
     });
 }
 
-async function sendMessage($: EngineInterface, state: BridgeState, msg: TapMessage): Promise<void> {
+async function sendMessage(host: BridgeHost, state: BridgeState, msg: TapMessage): Promise<void> {
   await waitForStepEnd(state);
 
   const turnID = state.runningTurnID;
 
-  if (turnID !== null && (await tryUpdateConversation($, msg.id, renderEnvelope(msg)))) {
+  if (turnID !== null && (await tryUpdateConversation(host, msg.id, renderEnvelope(msg)))) {
     const carried = state.carried.get(turnID);
 
     // The append can resolve after the turn completed; the turn then no
@@ -32,13 +31,13 @@ async function sendMessage($: EngineInterface, state: BridgeState, msg: TapMessa
 
   state.awaitingTurn.set(msg.id, msg);
 
-  const submitted = await $.prompt.submit({ text: renderEnvelope(msg) });
+  const submitted = await host.prompt.submit({ text: renderEnvelope(msg) });
 
   if ('drop' in submitted && submitted.drop !== undefined) {
     state.awaitingTurn.delete(msg.id);
-    $.ui.log(`atc-bridge: a hook dropped ${msg.id} (${submitted.drop})`, { to: 'debug' });
+    host.ui.log(`atc-bridge: a hook dropped ${msg.id} (${submitted.drop})`, { to: 'debug' });
 
-    scheduleUnansweredReport($, state, [msg.id], 'not_started', null);
+    scheduleUnansweredReport(host, state, [msg.id], 'not_started', null);
   }
 }
 
@@ -50,19 +49,15 @@ async function waitForStepEnd(state: BridgeState): Promise<void> {
   }
 }
 
-async function tryUpdateConversation(
-  $: EngineInterface,
-  id: string,
-  text: string,
-): Promise<boolean> {
+async function tryUpdateConversation(host: BridgeHost, id: string, text: string): Promise<boolean> {
   try {
-    const appended = await $.session.append({
+    const appended = await host.session.append({
       message: { type: 'user', content: [{ type: 'text', text }] },
     });
 
     return appended.deny === undefined;
   } catch (error) {
-    $.ui.log(`atc-bridge: appending ${id} failed (${String(error)}); submitting it instead`, {
+    host.ui.log(`atc-bridge: appending ${id} failed (${String(error)}); submitting it instead`, {
       to: 'debug',
     });
 
@@ -96,14 +91,14 @@ function encodeAttribute(value: string): string {
 }
 
 export function scheduleNoticeDelivery(
-  $: EngineInterface,
+  host: BridgeHost,
   state: BridgeState,
   notice: TapNotice,
 ): void {
   state.delivering = state.delivering
-    .then(() => sendNotice($, state, notice))
+    .then(() => sendNotice(host, state, notice))
     .catch((error: unknown) => {
-      $.ui.log(
+      host.ui.log(
         `atc-bridge: delivering the answer notice for ${notice.id} failed (${String(error)})`,
         {
           to: 'debug',
@@ -116,11 +111,7 @@ export function scheduleNoticeDelivery(
 // messages, so no turn reports an answer for it. An appended notice stays in
 // the conversation, so it is never sent again; a turn that ends before a step
 // shows it leaves a reminder that names it instead.
-async function sendNotice(
-  $: EngineInterface,
-  state: BridgeState,
-  notice: TapNotice,
-): Promise<void> {
+async function sendNotice(host: BridgeHost, state: BridgeState, notice: TapNotice): Promise<void> {
   if (state.shownNotices.has(notice.id)) {
     return;
   }
@@ -130,7 +121,7 @@ async function sendNotice(
   const turnID = state.runningTurnID;
   const text = renderAnswerNotice(notice);
 
-  if (turnID !== null && (await tryUpdateConversation($, notice.id, text))) {
+  if (turnID !== null && (await tryUpdateConversation(host, notice.id, text))) {
     state.shownNotices.add(notice.id);
 
     const unseen = state.unseenNotices.get(turnID);
@@ -138,18 +129,21 @@ async function sendNotice(
     if (unseen !== undefined && state.runningTurnID === turnID) {
       unseen.push(notice);
     } else {
-      scheduleNoticeReminder($, state, [notice.id]);
+      scheduleNoticeReminder(host, state, [notice.id]);
     }
 
     return;
   }
 
-  const submitted = await $.prompt.submit({ text });
+  const submitted = await host.prompt.submit({ text });
 
   if ('drop' in submitted && submitted.drop !== undefined) {
-    $.ui.log(`atc-bridge: a hook dropped the answer notice for ${notice.id} (${submitted.drop})`, {
-      to: 'debug',
-    });
+    host.ui.log(
+      `atc-bridge: a hook dropped the answer notice for ${notice.id} (${submitted.drop})`,
+      {
+        to: 'debug',
+      },
+    );
 
     return;
   }
@@ -160,7 +154,7 @@ async function sendNotice(
 // A prompt that wakes the model for notices already in its conversation,
 // which names them without repeating them.
 export function scheduleNoticeReminder(
-  $: EngineInterface,
+  host: BridgeHost,
   state: BridgeState,
   messageIDs: readonly string[],
 ): void {
@@ -168,16 +162,16 @@ export function scheduleNoticeReminder(
 
   state.delivering = state.delivering
     .then(async () => {
-      const submitted = await $.prompt.submit({ text });
+      const submitted = await host.prompt.submit({ text });
 
       if ('drop' in submitted && submitted.drop !== undefined) {
-        $.ui.log(`atc-bridge: a hook dropped the reminder for ${messageIDs.join(', ')}`, {
+        host.ui.log(`atc-bridge: a hook dropped the reminder for ${messageIDs.join(', ')}`, {
           to: 'debug',
         });
       }
     })
     .catch((error: unknown) => {
-      $.ui.log(
+      host.ui.log(
         `atc-bridge: reminding of the answer notices for ${messageIDs.join(', ')} failed (${String(error)})`,
         { to: 'debug' },
       );

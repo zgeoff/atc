@@ -1,6 +1,5 @@
-import type { EngineInterface } from 'claude-code';
 import { ATC_CLI } from './atc-cli.ts';
-import { ATC_CWD, type BridgeState } from './bridge-state.ts';
+import { ATC_CWD, type BridgeHost, type BridgeState } from './bridge-state.ts';
 import { scheduleDelivery, scheduleNoticeDelivery } from './deliver-messages.ts';
 import { parseTapLine } from './parse-tap-line.ts';
 
@@ -10,30 +9,30 @@ const LONGEST_TAP_RETRY_MS = 30_000;
 // atc refuses every message to a session whose tap never attached, and atc tap exits 0 only
 // once atc closed the inbox for good, so any other end starts the tap again.
 export async function runTap(
-  $: EngineInterface,
+  host: BridgeHost,
   state: BridgeState,
   sessionID: string,
 ): Promise<void> {
   let wait = FIRST_TAP_RETRY_MS;
 
   for (;;) {
-    const failure = await runTapOnce($, state, sessionID);
+    const failure = await runTapOnce(host, state, sessionID);
 
     if (failure === null) {
-      $.ui.log('atc-bridge: atc tap ended; this session takes no more atc messages', {
+      host.ui.log('atc-bridge: atc tap ended; this session takes no more atc messages', {
         to: 'debug',
       });
 
       return;
     }
 
-    $.ui.log(`atc-bridge: atc tap failed (${failure}); starting it again in ${wait}ms`, {
+    host.ui.log(`atc-bridge: atc tap failed (${failure}); starting it again in ${wait}ms`, {
       to: 'debug',
     });
 
     // An unload of the mod rejects the wait, and the next load starts its own tap.
     try {
-      await $.clock.sleep(wait);
+      await host.clock.sleep(wait);
     } catch {
       return;
     }
@@ -43,11 +42,11 @@ export async function runTap(
 }
 
 async function runTapOnce(
-  $: EngineInterface,
+  host: BridgeHost,
   state: BridgeState,
   sessionID: string,
 ): Promise<string | null> {
-  const tap = $.process.spawn({
+  const tap = host.process.spawn({
     argv: [...ATC_CLI, 'tap', '--session', sessionID, '--notices'],
     cwd: ATC_CWD,
   });
@@ -70,9 +69,9 @@ async function runTapOnce(
         const item = parseTapLine(line);
 
         if (item?.kind === 'message') {
-          scheduleDelivery($, state, item.msg);
+          scheduleDelivery(host, state, item.msg);
         } else if (item?.kind === 'answer') {
-          scheduleNoticeDelivery($, state, item.notice);
+          scheduleNoticeDelivery(host, state, item.notice);
         }
       }
     }

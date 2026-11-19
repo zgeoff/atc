@@ -1,9 +1,8 @@
-import type { EngineInterface } from 'claude-code';
 import { ATC_CLI } from './atc-cli.ts';
-import { ATC_CWD, type BridgeState } from './bridge-state.ts';
+import { ATC_CWD, type BridgeHost, type BridgeState } from './bridge-state.ts';
 
 export function scheduleAnsweredReport(
-  $: EngineInterface,
+  host: BridgeHost,
   state: BridgeState,
   messageIDs: readonly string[],
   turnID: string,
@@ -11,7 +10,7 @@ export function scheduleAnsweredReport(
 ): void {
   state.reporting = state.reporting
     .then(async () => {
-      await $.process.run(
+      await host.process.run(
         [...ATC_CLI, 'answer', '--messages', messageIDs.join(','), '--turn', turnID],
         {
           cwd: ATC_CWD,
@@ -21,14 +20,14 @@ export function scheduleAnsweredReport(
       );
     })
     .catch((error: unknown) => {
-      $.ui.log(`atc-bridge: reporting ${messageIDs.join(', ')} failed (${String(error)})`, {
+      host.ui.log(`atc-bridge: reporting ${messageIDs.join(', ')} failed (${String(error)})`, {
         to: 'debug',
       });
     });
 }
 
 export function scheduleUnansweredReport(
-  $: EngineInterface,
+  host: BridgeHost,
   state: BridgeState,
   messageIDs: readonly string[],
   reason: string,
@@ -36,7 +35,7 @@ export function scheduleUnansweredReport(
 ): void {
   state.reporting = state.reporting
     .then(async () => {
-      await $.process.run(
+      await host.process.run(
         [
           ...ATC_CLI,
           'unanswered',
@@ -50,7 +49,7 @@ export function scheduleUnansweredReport(
       );
     })
     .catch((error: unknown) => {
-      $.ui.log(`atc-bridge: reporting ${messageIDs.join(', ')} failed (${String(error)})`, {
+      host.ui.log(`atc-bridge: reporting ${messageIDs.join(', ')} failed (${String(error)})`, {
         to: 'debug',
       });
     });

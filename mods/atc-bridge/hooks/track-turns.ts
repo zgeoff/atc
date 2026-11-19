@@ -1,5 +1,4 @@
-import type { EngineInterface } from 'claude-code';
-import type { BridgeState } from './bridge-state.ts';
+import type { BridgeHost, BridgeState } from './bridge-state.ts';
 import { scheduleDelivery, scheduleNoticeReminder } from './deliver-messages.ts';
 import type { TapMessage } from './parse-tap-line.ts';
 import { scheduleAnsweredReport, scheduleUnansweredReport } from './report-turns.ts';
@@ -25,7 +24,7 @@ export function updateTurnStarted(state: BridgeState, turnID: string, text: stri
 }
 
 export function updateTurnCompleted(
-  $: EngineInterface,
+  host: BridgeHost,
   state: BridgeState,
   turnID: string,
   answer: string,
@@ -39,7 +38,7 @@ export function updateTurnCompleted(
 
   if (unseenNotices.length > 0) {
     scheduleNoticeReminder(
-      $,
+      host,
       state,
       unseenNotices.map((notice) => notice.id),
     );
@@ -57,7 +56,7 @@ export function updateTurnCompleted(
 
   for (const msg of carried) {
     if (state.unseen.delete(msg.id)) {
-      scheduleDelivery($, state, msg);
+      scheduleDelivery(host, state, msg);
     } else if (isAnswered) {
       answered.push(msg.id);
     } else {
@@ -68,11 +67,11 @@ export function updateTurnCompleted(
   // One answer carries every message the turn answered, so atc records the
   // whole group at once and no member reads as answered before the rest.
   if (answered.length > 0) {
-    scheduleAnsweredReport($, state, answered, turnID, answer);
+    scheduleAnsweredReport(host, state, answered, turnID, answer);
   }
 
   if (unanswered.length > 0) {
-    scheduleUnansweredReport($, state, unanswered, toUnansweredReason(reason), turnID);
+    scheduleUnansweredReport(host, state, unanswered, toUnansweredReason(reason), turnID);
   }
 }
 

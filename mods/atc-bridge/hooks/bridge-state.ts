@@ -1,3 +1,4 @@
+import type { EngineInterface } from 'claude-code';
 import type { TapMessage, TapNotice } from './parse-tap-line.ts';
 
 // Settles when the main loop's response, and every server tool call in it,
@@ -5,6 +6,19 @@ import type { TapMessage, TapNotice } from './parse-tap-line.ts';
 interface StepHold {
   readonly ended: Promise<void>;
   readonly end: () => void;
+}
+
+// The engine calls the helper files use. The hook entry builds it from the engine's `$`, which
+// the plugin validator follows only inside the entry file.
+export interface BridgeHost {
+  readonly process: {
+    readonly run: EngineInterface['process']['run'];
+    readonly spawn: EngineInterface['process']['spawn'];
+  };
+  readonly ui: { readonly log: EngineInterface['ui']['log'] };
+  readonly clock: { readonly sleep: EngineInterface['clock']['sleep'] };
+  readonly prompt: { readonly submit: EngineInterface['prompt']['submit'] };
+  readonly session: { readonly append: EngineInterface['session']['append'] };
 }
 
 export interface BridgeState {

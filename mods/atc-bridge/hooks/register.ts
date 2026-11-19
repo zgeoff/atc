@@ -1,6 +1,6 @@
 import type { EngineInterface, Register, TurnStepResult } from 'claude-code';
 import { ATC_CLI } from './atc-cli.ts';
-import { ATC_CWD, type BridgeState } from './bridge-state.ts';
+import { ATC_CWD, type BridgeHost, type BridgeState } from './bridge-state.ts';
 import type { TapMessage } from './parse-tap-line.ts';
 import { scheduleUnansweredReport } from './report-turns.ts';
 import { runTap } from './run-tap.ts';
@@ -111,7 +111,7 @@ export const register: Register = (on) => {
 
     const started = await next(e);
 
-    void runTap($, state, sessionID);
+    void runTap(toBridgeHost($), state, sessionID);
 
     return started;
   });
@@ -174,7 +174,7 @@ export const register: Register = (on) => {
     }
 
     if (state.sessionID !== null && e.agentId === undefined) {
-      updateTurnCompleted($, state, e.turnId, e.answer, e.reason);
+      updateTurnCompleted(toBridgeHost($), state, e.turnId, e.answer, e.reason);
     }
 
     return completed;
@@ -239,7 +239,7 @@ export const register: Register = (on) => {
       if (state.carried.get(turnID ?? '') === carried) {
         carried.push(msg);
       } else {
-        scheduleUnansweredReport($, state, [msg.id], 'error', turnID);
+        scheduleUnansweredReport(toBridgeHost($), state, [msg.id], 'error', turnID);
       }
 
       return { deny: `atc did not take the answer: ${failure}` };
@@ -304,4 +304,17 @@ async function tryRunAnswer(
 
 function isNoteLabel(value: string): value is (typeof NOTE_LABELS)[number] {
   return NOTE_LABELS.some((label) => label === value);
+}
+
+function toBridgeHost($: EngineInterface): BridgeHost {
+  return {
+    process: {
+      run: (argv, options) => $.process.run(argv, options),
+      spawn: (options) => $.process.spawn(options),
+    },
+    ui: { log: (message, options) => $.ui.log(message, options) },
+    clock: { sleep: (ms) => $.clock.sleep(ms) },
+    prompt: { submit: (input) => $.prompt.submit(input) },
+    session: { append: (input) => $.session.append(input) },
+  };
 }
