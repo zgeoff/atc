@@ -237,7 +237,7 @@ const AUTH_DB_NAMES: readonly string[] = ['mcp-auth.db', 'mcpAuthDBFile'];
 // daemon reaches that may name it.
 const AUTH_DB_PATH_MODULES: ReadonlySet<string> = new Set([
   'packages/config/src/host/resolve-paths.ts',
-  'packages/config/src/host/process-paths.ts',
+  'packages/config/src/host/constants.ts',
 ]);
 
 // The tokens that can hold a name: identifiers, strings, and template parts.

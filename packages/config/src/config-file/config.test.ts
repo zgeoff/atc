@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { buildStubHarnessPlugins } from '../test-utils/build-stub-harness-plugins';
 import { loadConfig, parseConfig, renderDefaultConfig } from './config';
-import { buildStubHarnessPlugins } from './test-utils/build-stub-harness-plugins';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-config-');

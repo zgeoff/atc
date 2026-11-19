@@ -59,7 +59,6 @@
       {
         "pending": [
           "packages/app",
-          "packages/config",
           "packages/contract",
           "packages/core",
           "packages/daemon",
@@ -74,7 +73,6 @@
       {
         "pending": [
           "packages/app",
-          "packages/config",
           "packages/contract",
           "packages/daemon",
           "packages/lifecycle",
@@ -122,7 +120,7 @@
     },
     {
       // the deprecation code reads the old broker placeholder, which names imp
-      "files": ["packages/config/src/build-current-placeholder-config.ts"],
+      "files": ["packages/config/src/config-file/build-current-placeholder-config.ts"],
       "rules": { "zgeoff/no-restricted-words": "off" }
     },
     {
@@ -142,8 +140,8 @@
         "packages/app/src/plugins/shipped-execution-plugins.test.ts",
         "packages/app/src/run-session-action.test.ts",
         "packages/app/src/shared/collect-legacy-agents.test.ts",
-        "packages/config/src/collect-targets.test.ts",
-        "packages/config/src/config.test.ts",
+        "packages/config/src/targets/collect-targets.test.ts",
+        "packages/config/src/config-file/config.test.ts",
         "packages/core/src/create-step-timer.test.ts",
         "packages/core/src/get-settled-value.test.ts",
         "packages/core/src/is-broker-variable.ts",

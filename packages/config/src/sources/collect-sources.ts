@@ -1,8 +1,8 @@
 import { isRecord } from '@atc/core';
 import { resolveHomeDir } from '@atcx/contract/light';
 import { z } from 'zod';
+import { normalizeConfigDir } from '../config-file/normalize-config-dir';
 import { GITHUB_OWNER_PATTERN } from './github-owner-pattern';
-import { normalizeConfigDir } from './normalize-config-dir';
 
 // One workspace source the daemon offers, with every default applied.
 export type SourceEntry =

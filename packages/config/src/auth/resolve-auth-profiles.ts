@@ -1,5 +1,5 @@
 import type { AuthProfile } from '@atc/plugin-api';
-import { buildTelemetryEnv } from './build-telemetry-env';
+import { buildTelemetryEnv } from '../env/build-telemetry-env';
 
 interface AuthRule {
   readonly host: string;

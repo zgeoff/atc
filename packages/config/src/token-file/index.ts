@@ -1,2 +1,2 @@
-export * from '../node-token-file-access';
-export * from '../read-owner-only-file';
+export * from './node-token-file-access';
+export * from './read-owner-only-text';

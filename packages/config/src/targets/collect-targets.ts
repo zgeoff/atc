@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core';
-import { formatJSONKind } from './format-json-kind';
+import { formatJSONKind } from '../config-file/format-json-kind';
 import { LOCAL_TARGET } from './local-target';
 
 export interface TargetConfig {
