@@ -93,9 +93,9 @@ async function openWatchedClient(socket: string, watch: Watch): Promise<DaemonCl
   return client;
 }
 
-// Staged before vhs starts, so the first list frame holds them. One pin per
-// daemon keeps every row in place: pinned rows sort by last attach, and the
-// rest by state, so docs (done) stays above builder-ui (running).
+// Staged before vhs starts, so the first list frame holds them. A pin on
+// builder-api keeps every row in place: unpinned rows sort by state, then by
+// last attach, so docs (done) stays above builder-ui (running).
 async function runStaging(
   local: DaemonClient,
   cloud: DaemonClient,
@@ -118,7 +118,6 @@ async function runStaging(
     'Build the orders API: the orders table, its routes and the status endpoint.',
   );
 
-  await local.sendRequest('session.update', { session: orchestrator, pinned: true });
   await cloud.sendRequest('session.update', { session: builderAPI, pinned: true });
 
   await waitUntil(watch, 'every staged agent settles', async () => {

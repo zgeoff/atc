@@ -9,11 +9,11 @@
 # only on a daemon event that proves the last move landed:
 #
 # 1. The drive script stages the orchestrator on the local daemon, and
-#    builder-api and docs on cloud. It pins the orchestrator and builder-api,
-#    so no row of the list moves when the tape comes back from a session, and
-#    starts vhs once each stand-in has settled: builder-api running, the
-#    others done.
-# 2. The tape opens the orchestrator and types its request. The stand-in
+#    builder-api and docs on cloud. It pins builder-api, so no row of the
+#    list moves when the tape comes back from a session, and starts vhs once
+#    each stand-in has settled: builder-api running, the others done.
+# 2. The tape opens the orchestrator, one row below the pinned builder-api,
+#    and types its request. The stand-in
 #    reads the line from its terminal, spawns builder-ui on cloud through
 #    `atc mcp --daemon cloud`, and messages builder-api the same way.
 # 3. The tape opens builder-api, where the orchestrator's message is the
@@ -54,7 +54,7 @@ Show
 Sleep 1.5s
 
 # open the orchestrator and ask it for a builder
-Type "/orc"
+Down
 Enter
 Wait+Screen /builder-api has the API/
 Type@25ms "start a builder for the UI on the cloud box and tell builder-api to coordinate with it"
@@ -66,7 +66,7 @@ Sleep 2.5s
 Ctrl+Space
 Wait+Screen /cloud\s+builder-ui/
 Sleep 1.5s
-Down
+Up
 Enter
 Wait+Screen /Agree the orders endpoint with it/
 Sleep 2.8s
@@ -75,7 +75,7 @@ Sleep 2.8s
 Ctrl+Space
 Wait+Screen /cloud\s+builder-ui/
 Sleep 1.2s
-Down 2
+Down 3
 Enter
 Wait+Screen /Messaged builder-api: What does/
 Sleep 3.5s

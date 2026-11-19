@@ -18,8 +18,8 @@
 
 <img src="./docs/assets/demo.gif" alt="atc: one session list over a local and a cloud daemon. The orchestrator starts a UI builder on the cloud box and messages the API builder, and the new builder asks the API builder a question." width="1100">
 
-atc runs your coding agents in a daemon, on as many machines as you like. The TUI is a multiplexer
-over all of them, your scripts drive them from the shell, and the agents drive each other over MCP.
+**atc** runs your agents in a daemon, on as many machines as you like. Manage them all through a
+TUI, script them via shell or the client, and have them work together via MCP.
 
 ## Usage
 
