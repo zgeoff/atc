@@ -18,8 +18,8 @@
 
 <img src="./docs/assets/demo.gif" alt="atc: spawn a session, open the session list, jump back in" width="1100">
 
-atc runs your coding agents in a daemon, on as many machines as you like. You drive them from the
-TUI, your scripts drive them from the shell, and the agents drive each other over MCP.
+atc runs your coding agents in a daemon, on as many machines as you like. The TUI is a multiplexer
+over all of them, your scripts drive them from the shell, and the agents drive each other over MCP.
 
 ## Usage
 
