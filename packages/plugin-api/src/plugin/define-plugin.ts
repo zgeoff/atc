@@ -1,10 +1,10 @@
 import type { TargetIdentityRule } from '@atc/core';
 import type { z } from 'zod';
-import type { AgentAdapter } from './agent-adapter';
-import type { AuthProfile } from './auth-profile';
-import type { ExecutionProvider } from './execution-provider';
+import type { AgentAdapter } from '../agent-adapter';
+import type { AuthProfile } from '../credentials/auth-profile';
+import type { ExecutionProvider } from '../execution/execution-provider';
+import type { SourceProvider } from '../types';
 import type { HostServices } from './host-services';
-import type { SourceProvider } from './types';
 
 // The contract each kind of plugin creates.
 interface PluginContracts {
