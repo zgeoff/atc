@@ -9,6 +9,14 @@ const everyJourney = [
 ] as const;
 
 export const featurePaths = {
+  // the docker target runs the compiled daemon, a session of the stand-in claude in containers, and
+  // the provider's own package and the helpers that build its image
+  'docker-target': [
+    ...everyJourney,
+    'packages/execution/docker/**',
+    'scripts/test-utils/run-docker-daemon.ts',
+  ],
+
   'spawn-session': [...everyJourney, 'packages/tui/**'],
   'session-list-leader': [...everyJourney, 'packages/tui/**'],
   'kill-forget': [...everyJourney, 'packages/tui/**'],
@@ -95,9 +103,10 @@ export const ignoredPaths = [
 
   // 4. Code that no journey runs. The mod's embedded copy, which the daemon writes, lives in the
   //    claude harness; the journeys run the CLI's source, never the dev shim or an installed
-  //    binary; and no journey configures an imp target.
+  //    binary; and no journey configures an imp or a sprites target.
   'mods/**',
   'bin/atc',
   'install.sh',
   'packages/execution/imp/**',
+  'packages/execution/sprites/**',
 ] as const;

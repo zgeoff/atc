@@ -106,7 +106,7 @@ pre-push:
       skip: *delete-only-push
       files:
         unset $(git rev-parse --local-env-vars); bun
-        node_modules/@zgeoff/chex/src/read-branch-files.ts
+        node_modules/@zgeoff/chex/src/branch/read-branch-files.ts
       glob: '*.{ts,tsx,toml}'
       exclude:
         - 'mods/**'

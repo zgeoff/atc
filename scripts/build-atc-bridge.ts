@@ -7,7 +7,24 @@ function main(): void {
   const modDir = join(import.meta.dir, '..', 'mods', 'atc-bridge');
 
   // The atc command file stays out: the daemon renders it when it writes the mod.
-  const embedded = ['.claude-plugin/plugin.json', 'hooks/hooks.json', 'hooks/register.ts'];
+  const embedded = [
+    '.claude-plugin/plugin.json',
+    'hooks/hooks.json',
+    'hooks/register.ts',
+    'hooks/bridge-state.ts',
+    'hooks/encode-attribute.ts',
+    'hooks/parse-tap-line.ts',
+    'hooks/run-tap.ts',
+    'hooks/schedule-answered-report.ts',
+    'hooks/schedule-delivery.ts',
+    'hooks/schedule-notice-delivery.ts',
+    'hooks/schedule-notice-reminder.ts',
+    'hooks/schedule-unanswered-report.ts',
+    'hooks/try-update-conversation.ts',
+    'hooks/update-turn-completed.ts',
+    'hooks/update-turn-started.ts',
+    'hooks/wait-for-step-end.ts',
+  ];
 
   const entries = embedded.map(
     (path) => `  '${path}': ${JSON.stringify(readFileSync(join(modDir, path), 'utf8'))},`,

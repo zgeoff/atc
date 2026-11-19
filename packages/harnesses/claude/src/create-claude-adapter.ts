@@ -23,20 +23,17 @@ import type {
   LineInputStep,
   ProjectSettingsCheck,
   ScreenMenu,
-  SpawnOptionSpecs,
   SpawnOptions,
   TerminalInputModes,
 } from '@atc/plugin-api';
 import {
   buildArgsWithoutFlags,
   buildAuthRevisionFolder,
-  findFlagValue,
   probeTranscriptResumable,
 } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID, SessionID, TranscriptRow } from '@atcx/contract';
-import { z } from 'zod';
 import { buildGuestBridgeFiles } from './bridge/build-guest-bridge-files';
 import type { ClaudeAdapterOptions } from './claude-adapter-options';
 import { createClaudeLaunchFiles } from './create-claude-launch-files';
@@ -49,17 +46,19 @@ import { buildClaudeProjectSettingsCheck } from './guest/build-claude-project-se
 import { buildGuestSettingsPath } from './guest/build-guest-settings-path';
 import { CLAUDE_CONFIG_BUNDLE_FOLDER } from './guest/claude-config-bundle-folder';
 import { loadClaudeConfigBundle } from './guest/load-claude-config-bundle';
+import { parseInlineSettings } from './guest/parse-inline-settings';
 import { planCodexHome } from './guest/plan-codex-home';
+import { toStringEntries } from './guest/to-string-entries';
 import { makeClaudeHeadlessRunner } from './headless/make-claude-headless-runner';
 import { buildClaudeHookEvent } from './hooks/build-claude-hook-event';
 import { buildHookSettings } from './hooks/build-hook-settings';
 import type { HookSettingsProfile } from './hooks/build-hook-settings';
 import { buildClaudeArgs } from './launch-args/build-claude-args';
+import { buildClaudeSpawnOptions } from './launch-args/build-claude-spawn-options';
 import { buildRestoreModeArgs } from './launch-args/build-restore-mode-args';
-import { CLAUDE_EFFORT_LEVELS } from './launch-args/claude-effort-levels';
+import { formatShellWord } from './launch-args/format-shell-word';
 import { resolveClaudeGlobalConfigPath } from './local-trust/resolve-claude-global-config-path';
 import { updateClaudeProjectTrust } from './local-trust/update-claude-project-trust';
-import { buildPluginDirsOption } from './plugin/build-plugin-dirs-option';
 import { formatPluginDirArgs } from './plugin/format-plugin-dir-args';
 import { resolveConfiguredPluginDirs } from './plugin/resolve-configured-plugin-dirs';
 import { buildScratchLaunch } from './scratch/build-scratch-launch';
@@ -72,6 +71,9 @@ import { planClaudeLineInput } from './screen/plan-claude-line-input';
 import { resolveClaudePermissionMode } from './screen/resolve-claude-permission-mode';
 import { loadClaudeName } from './transcript/load-claude-name';
 import { parseClaudeTranscriptLine } from './transcript/parse-claude-transcript-line';
+
+// The file of a host's sign-in folder that holds the token `claude setup-token` printed.
+const SIGN_IN_FILE = 'claude-oauth-token';
 
 export interface ClaudeAdapter extends AgentAdapter {
   readonly parseTranscriptLine: (line: string) => TranscriptRow | null;
@@ -91,7 +93,7 @@ export interface ClaudeAdapter extends AgentAdapter {
 
   // Claude takes its stored token from the claude-oauth-token file of a host's sign-in volume.
   readonly findGuestEnvConflict: (kind: 'broker' | 'routed' | 'stored-token') => string | null;
-  readonly signInFile: 'claude-oauth-token';
+  readonly signInFile: typeof SIGN_IN_FILE;
 
   // a remote session reports through the atc inside its host, so without one it cannot run there
   readonly planGuestSpawn: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
@@ -352,6 +354,51 @@ export function createClaudeAdapter(
     };
   };
 
+  // A launch that reads the token the host stores in its sign-in folder: the session's own config
+  // folder, and the token in the harness's environment alone.
+  const planStoredTokenGuestSpawn = (
+    opts: SpawnOptions,
+    guest: GuestPaths,
+    signIn: string,
+    argv: readonly string[],
+  ): GuestSpawnPlan => {
+    const scratch = `${guest.directory}/${SESSION_SCRATCH_FOLDER}`;
+    const atcArgv = opts.atcMCP === true ? argv : null;
+    const mcpArgs = atcArgv === null ? [] : ['--mcp-config', `${guest.directory}/mcp.json`];
+
+    const launch = buildClaudeGuestLaunch(
+      guest.directory,
+      [
+        entry.bin,
+        ...buildClaudeArgs(entry.args, opts, {
+          leadArgs: [...mcpArgs, ...buildModeArgs(opts)],
+          scratch,
+          settings: buildGuestSettingsPath(guest.directory),
+          pluginDir: `${guest.directory}/atc-bridge`,
+          pluginDirs: [],
+        }),
+      ],
+      { tokenFile: `${signIn}/${SIGN_IN_FILE}`, refusedEnv: [...OUTRANKING_VARIABLES] },
+    );
+
+    const settings = buildHookSettings(buildSettingsProfile(guest.sessionEnv ?? {}, {}), 0, argv);
+
+    return {
+      bin: launch.bin,
+      args: launch.args,
+      scratch,
+      files: {
+        'settings.json': JSON.stringify(settings, null, 2),
+        ...(atcArgv === null
+          ? {}
+          : { 'mcp.json': JSON.stringify(buildClaudeMCPConfig([], atcArgv), null, 2) }),
+        ...buildClaudeConfigSeed(null, null, scratch),
+        ...buildGuestBridgeFiles(argv),
+      },
+      env: { ...launch.env, ...(atcArgv === null ? {} : ATC_MCP_ENV) },
+    };
+  };
+
   return {
     id: entry.id,
     headlessRunner:
@@ -404,7 +451,7 @@ export function createClaudeAdapter(
 
     findGuestEnvConflict,
 
-    signInFile: 'claude-oauth-token',
+    signInFile: SIGN_IN_FILE,
 
     findAuthSelection: () => {
       const auth = entry.auth;
@@ -439,6 +486,10 @@ export function createClaudeAdapter(
 
       if (guest.auth !== undefined) {
         return planSubscriptionGuestSpawn(opts, guest, guest.auth, argv);
+      }
+
+      if (guest.signIn !== undefined) {
+        return planStoredTokenGuestSpawn(opts, guest, guest.signIn.directory, argv);
       }
 
       const scratch = `${guest.directory}/${SESSION_SCRATCH_FOLDER}`;
@@ -510,91 +561,4 @@ export function createClaudeAdapter(
       return `cd ${toShellArg(cwd)} && ${formatShellWord(entry.bin)}${mode}${settings}${plugins} --resume${resume}`;
     },
   };
-}
-
-// The string values of an object, which is all a session's environment holds.
-function toStringEntries(value: Readonly<Record<string, unknown>>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      (entry): entry is [string, string] => typeof entry[1] === 'string',
-    ),
-  );
-}
-
-// An inline `--settings` argument's env block and credential helper; any other shape holds
-// neither.
-const INLINE_SETTINGS_SCHEMA = z.looseObject({
-  env: z.record(z.string(), z.unknown()).optional(),
-  apiKeyHelper: z.unknown().optional(),
-});
-
-interface InlineSettings {
-  readonly env: Readonly<Record<string, unknown>>;
-  readonly hasAPIKeyHelper: boolean;
-}
-
-// What an inline `--settings` argument sets that could hold a credential.
-function parseInlineSettings(args: readonly string[]): InlineSettings {
-  const inline = findFlagValue(args, ['--settings']);
-
-  if (inline === null) {
-    return { env: {}, hasAPIKeyHelper: false };
-  }
-
-  let json: unknown;
-
-  try {
-    json = JSON.parse(inline);
-  } catch {
-    return { env: {}, hasAPIKeyHelper: false };
-  }
-
-  const parsed = INLINE_SETTINGS_SCHEMA.safeParse(json);
-
-  return parsed.success
-    ? { env: parsed.data.env ?? {}, hasAPIKeyHelper: parsed.data.apiKeyHelper !== undefined }
-    : { env: {}, hasAPIKeyHelper: false };
-}
-
-// The aliases Claude Code documents for `--model`, each resolving to a model
-// the account picks. A full model name is accepted as well.
-const CLAUDE_MODEL_ALIASES = [
-  'best',
-  'fable',
-  'opus',
-  'sonnet',
-  'haiku',
-  'opus[1m]',
-  'sonnet[1m]',
-  'opusplan',
-];
-
-// What a Claude spawn can override. Each default is the value the configured
-// arguments pass, or null when the CLI picks its own.
-function buildClaudeSpawnOptions(claudeArgs: readonly string[]): SpawnOptionSpecs {
-  return {
-    model: {
-      supported: true,
-      values: null,
-      examples: CLAUDE_MODEL_ALIASES.map((value) => ({ value, resolvesTo: null })),
-      default: findFlagValue(claudeArgs, ['--model']),
-      backendEffect: 'applied',
-      note: 'An alias or a full model name, passed as --model.',
-    },
-    effort: {
-      supported: true,
-      values: CLAUDE_EFFORT_LEVELS,
-      examples: [],
-      default: findFlagValue(claudeArgs, ['--effort']),
-      backendEffect: 'applied',
-      note: 'Passed as --effort. Which levels a session honours depends on its model.',
-    },
-    pluginDirs: buildPluginDirsOption(),
-  };
-}
-
-// A binary name or path that needs no quoting stays bare, so the default
-// entry resumes with plain `claude`; anything else is quoted as one word.
-function formatShellWord(value: string): string {
-  return /^[\w./-]+$/u.test(value) ? value : toShellArg(value);
 }

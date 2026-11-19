@@ -1,16 +1,15 @@
 import type { AgentID } from '@atc/core';
-import { ansi, makeSingleFlight, systemClock } from '@atc/core';
-import { countSessionStates, sortSessionViews } from '@atc/protocol';
+import { ansi, systemClock } from '@atc/core';
+import { sortSessionViews } from '@atc/protocol';
 import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonEvent } from '@atcx/contract';
 import { resolveHomeDir } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
-import { match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { createDaemonLinks } from '../daemon-link/create-daemon-links';
+import { createDaemonRestarter } from '../daemon-link/create-daemon-restarter';
 import { createTUIDaemonConnection } from '../daemon-link/create-tui-daemon-connection';
 import { formatLinkState } from '../daemon-link/daemon-link-state';
-import { restartDaemon } from '../daemon-link/restart-daemon';
 import { formatDaemonFailure, sendToDaemon } from '../daemon-link/send-to-daemon';
 import { applyDaemonEvent } from '../fleet/apply-daemon-event';
 import type { DaemonEventDeps } from '../fleet/apply-daemon-event';
@@ -24,12 +23,20 @@ import { buildLeaderChords } from '../overlay/build-leader-chords';
 import { createEjectScreen } from '../overlay/create-eject-screen';
 import { createOverlayScreen } from '../overlay/create-overlay-screen';
 import { createSpawnPicker } from '../picker/create-spawn-picker';
-import { cols, drawHelp, drawHome, drawStatusBar, rows } from '../terminal/draw-overlay';
+import { cols } from '../terminal/cols';
+import { drawHelp } from '../terminal/draw-help';
+import { drawHome } from '../terminal/draw-home';
+import { restoreTerminal } from '../terminal/restore-terminal';
+import { rows } from '../terminal/rows';
 import { applyInputKey } from './apply-input-key';
 import type { InputKeyDeps } from './apply-input-key';
 import { buildClientMachine } from './build-client-machine';
 import type { RestartConsent } from './build-client-machine';
+import { createLinkReactions } from './create-link-reactions';
 import { createSessionActions } from './create-session-actions';
+import { createStatusScheduler } from './create-status-scheduler';
+import { drawModeScreen } from './draw-mode-screen';
+import { handleResize } from './handle-resize';
 import type { TUIHost } from './tui-host';
 
 // How long the status bar keeps the reason an action sent nothing or was refused.
@@ -59,14 +66,10 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const mirror = createFleetMirror(primaryName);
   let focusedKey: SessionKey | null = null;
   let lastUsedAgent: AgentID = host.readConfig().defaultAgent;
-  let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Why the last action on a daemon sent nothing or was refused, until it times out.
   let statusNotice: string | null = null;
   let cancelStatusNotice: (() => void) | null = null;
-
-  // A notice drawn over an attached session stays on the bar's row until the bar draws again.
-  let isNoticeOverAttached = false;
 
   // the config alone until the daemon's `agents.list` answer arrives; it re-resolves on
   // every overlay open, so a backend configured after this client started still lists
@@ -92,37 +95,18 @@ export async function runTUI(host: TUIHost): Promise<void> {
     scheduleStatus();
   };
 
-  const scheduleStatus = () => {
-    if (statusTimer !== null) {
-      return;
-    }
-
-    statusTimer = setTimeout(() => {
-      statusTimer = null;
-
-      const isOverAttached = getMode() === 'attached' && !isAttachedLinkDown();
-
-      if (!isOverAttached || statusNotice !== null || isNoticeOverAttached) {
-        isNoticeOverAttached = isOverAttached && statusNotice !== null;
-
-        const focused = findFocused();
-        const visible = overlay.listVisible();
-        const urgent = sortSessionViews(visible).find((session) => session.state === 'needs_you');
-
-        drawStatusBar({
-          counts: countSessionStates(visible),
-          focusedName: focused === null ? null : focused.name,
-          urgentName: urgent === undefined ? null : urgent.name,
-          leaderLabel: leader.label,
-          stale: getBoot().stale,
-          restarting: isDaemonRestarting(),
-          waiting: isDaemonWaiting() || isAttachedLinkDown(),
-          daemonName: primaryName,
-          notice: statusNotice,
-        });
-      }
-    }, 50);
-  };
+  const scheduleStatus = createStatusScheduler({
+    primaryName,
+    leaderLabel: leader.label,
+    getMode: () => getMode(),
+    getBoot: () => getBoot(),
+    findFocused,
+    listVisible: () => overlay.listVisible(),
+    isAttachedLinkDown: () => isAttachedLinkDown(),
+    isDaemonRestarting: () => isDaemonRestarting(),
+    isDaemonWaiting: () => isDaemonWaiting(),
+    findNotice: () => statusNotice,
+  });
 
   // The attached session's daemon is a remote one whose link is not up: the session waits for it
   // on its own screen and comes back once the link does.
@@ -267,11 +251,8 @@ export async function runTUI(host: TUIHost): Promise<void> {
 
     links.stop();
     connection.transport.stop();
-    stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);
 
-    try {
-      process.stdin.setRawMode(false);
-    } catch {}
+    restoreTerminal();
 
     if (message !== undefined) {
       console.error(message);
@@ -299,96 +280,19 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const isDaemonWaiting = (): boolean => service.getSnapshot().matches({ daemon: 'waiting' });
   const isDaemonRestarting = (): boolean => service.getSnapshot().matches({ daemon: 'restarting' });
 
-  // A confirmation or the eject prompt holds the key of the session it opened on, and ends once
-  // that session leaves the list or its daemon's link leaves up.
-  const isStale = (key: SessionKey): boolean =>
-    !mirror.has(toSessionKey(key)) || links.stateOf(key.daemon).kind !== 'up';
-
-  const cancelStaleConfirmations = () => {
-    const confirmKey = service.getSnapshot().context.confirmKey;
-
-    if (confirmKey !== null && getConfirm() !== 'none' && isStale(confirmKey)) {
-      service.send({ type: 'CONFIRM_DONE' });
-
-      if (getMode() === 'overlay') {
-        overlay.render();
-      }
-    }
-
-    const ejectKey = eject.findTarget();
-
-    if (getMode() === 'picker-eject' && ejectKey !== null && isStale(ejectKey)) {
-      service.send({ type: 'OVERLAY' });
-    }
-  };
-
-  // A remote link that came back reattaches the session on screen when its refreshed list still
-  // holds it, and otherwise returns to the list.
-  const resumeAttachedSession = (daemon: DaemonName) => {
-    if (getMode() !== 'attached' || focusedKey === null || focusedKey.daemon !== daemon) {
-      return;
-    }
-
-    if (links.stateOf(daemon).kind !== 'up') {
-      return;
-    }
-
-    const focused = findFocused();
-
-    if (focused === null || !focused.alive) {
-      service.send({ type: 'OVERLAY' });
-
-      return;
-    }
-
-    stdout.write(ansi.clear);
-
-    void sendQuiet(daemon, 'session.attach', {
-      session: focused.id,
-      cols: cols(),
-      rows: ptyRows(),
-    });
-  };
-
-  // A picker open on a remote daemon that leaves `up` ends, and the status bar says where the
-  // daemon stands. The primary's own loss already ends the picker.
-  const endPickerOn = (daemon: DaemonName) => {
-    const state = links.stateOf(daemon);
-
-    if (state.kind === 'up' || getMode() !== 'picker' || !picker.isOpenOn(daemon)) {
-      return;
-    }
-
-    picker.stopFlow();
-    service.send({ type: 'OVERLAY' });
-
-    showStatusNotice(formatLinkState(daemon, state));
-  };
-
   const drawMode = () => {
-    match(getMode())
-      .with('home', () => {
-        drawHome(mirror.count, leader.label);
-      })
-      .with('overlay', () => {
-        stdout.write(ansi.clear);
-        overlay.render();
-      })
-      .with('help', () => {
-        openHelp();
-      })
-      .with('picker', () => {
-        stdout.write(ansi.clear);
-        picker.render();
-      })
-      .with('picker-eject', () => {
-        stdout.write(ansi.clear);
-        eject.render();
-      })
-      .with('attached', () => {
-        // a session repaints only through the agent, on the resize the daemon passes on.
-      })
-      .exhaustive();
+    drawModeScreen({
+      mode: getMode(),
+      sessionCount: mirror.count,
+      leaderLabel: leader.label,
+      overlay,
+      picker,
+      eject,
+      openHelp,
+      write: (chunk) => {
+        stdout.write(chunk);
+      },
+    });
 
     scheduleStatus();
   };
@@ -528,37 +432,40 @@ export async function runTUI(host: TUIHost): Promise<void> {
     setLastUsedAgent,
   });
 
+  const reactions = createLinkReactions({
+    primaryName,
+    service,
+    mirror,
+    links,
+    overlay,
+    picker,
+    eject,
+    getMode,
+    getConfirm,
+    findFocusedKey,
+    findFocused,
+    write: (chunk) => {
+      stdout.write(chunk);
+    },
+    sendQuiet,
+    ptyRows,
+    showStatusNotice,
+    scheduleStatus,
+  });
+
   // The links of the daemons beside the primary open once the primary's first boot is through.
   const handleDaemonEvent = (daemon: DaemonName, raw: DaemonEvent) => {
     applyDaemonEvent(daemon, raw, eventDeps);
-    cancelStaleConfirmations();
+
+    reactions.cancelStaleConfirmations();
   };
 
   // A boot that fails leaves before the first frame, with its message alone:
   // the message holds the daemon and what to do, and a stack would bury it.
-  links.onChange((daemon) => {
-    cancelStaleConfirmations();
-
-    picker.refreshDaemons();
-
-    if (daemon !== primaryName) {
-      resumeAttachedSession(daemon);
-      endPickerOn(daemon);
-    }
-
-    if (getMode() === 'overlay') {
-      overlay.render();
-    }
-
-    scheduleStatus();
-  });
+  links.onChange(reactions.handleLinkChange);
 
   const firstLink = await connection.transport.waitForConnection().catch((error: unknown) => {
-    stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);
-
-    try {
-      process.stdin.setRawMode(false);
-    } catch {}
+    restoreTerminal();
 
     console.error(`atc: ${error instanceof Error ? error.message : String(error)}`);
 
@@ -574,35 +481,21 @@ export async function runTUI(host: TUIHost): Promise<void> {
 
   links.openRemotes();
 
-  const restartDaemonOnce = makeSingleFlight(async () => {
-    service.send({ type: 'RESTART_STARTED' });
-    overlay.render();
-
-    try {
-      await restartDaemon({
-        service,
-        mirror,
-        overlay,
-        transport: connection.transport,
-        clock,
-        getBoot,
-        getClient: connection.getClient,
-        restartDaemonAt,
-        readConfig: host.readConfig,
-        primary: primaryName,
-        sendQuiet,
-        logClientEvent,
-        scheduleStatus,
-        ptyRows,
-      });
-    } finally {
-      service.send({
-        type: 'RESTART_ENDED',
-        connected: connection.transport.readState() === 'ready',
-      });
-
-      scheduleStatus();
-    }
+  const restartDaemonOnce = createDaemonRestarter({
+    service,
+    mirror,
+    overlay,
+    transport: connection.transport,
+    clock,
+    getBoot,
+    getClient: connection.getClient,
+    restartDaemonAt,
+    readConfig: host.readConfig,
+    primary: primaryName,
+    sendQuiet,
+    logClientEvent,
+    scheduleStatus,
+    ptyRows,
   });
 
   process.stdin.setRawMode(true);
@@ -641,33 +534,21 @@ export async function runTUI(host: TUIHost): Promise<void> {
   });
 
   stdout.on('resize', () => {
-    // The restart prompt keeps the screen until it has its key, so a resize
-    // draws it again rather than the mode under it.
-    const consent = findRestartConsent();
-
-    if (consent !== null) {
-      stdout.write(ansi.clear + consent.prompt);
-
-      return;
-    }
-
-    if (getMode() === 'attached' && focusedKey !== null) {
-      void sendQuiet(focusedKey.daemon, 'session.resize', {
-        session: focusedKey.id,
-        cols: cols(),
-        rows: ptyRows(),
-      });
-    }
-
-    drawMode();
+    handleResize({
+      mode: getMode(),
+      focusedKey,
+      restartPrompt: findRestartConsent()?.prompt ?? null,
+      ptyRows: ptyRows(),
+      write: (chunk) => {
+        stdout.write(chunk);
+      },
+      sendQuiet,
+      drawMode,
+    });
   });
 
   process.on('uncaughtException', (err) => {
-    stdout.write(ansi.resetInputModes + ansi.showCursor + ansi.altScreenOff + ansi.reset);
-
-    try {
-      process.stdin.setRawMode(false);
-    } catch {}
+    restoreTerminal();
 
     console.error(err);
     process.exit(1);

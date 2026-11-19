@@ -92,6 +92,24 @@ test('it plans the guest bridge files a running remote session gets written agai
     'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
     'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
     'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
+    'atc-bridge/hooks/bridge-state.ts': ATC_BRIDGE_FILES['hooks/bridge-state.ts'],
+    'atc-bridge/hooks/encode-attribute.ts': ATC_BRIDGE_FILES['hooks/encode-attribute.ts'],
+    'atc-bridge/hooks/parse-tap-line.ts': ATC_BRIDGE_FILES['hooks/parse-tap-line.ts'],
+    'atc-bridge/hooks/run-tap.ts': ATC_BRIDGE_FILES['hooks/run-tap.ts'],
+    'atc-bridge/hooks/schedule-answered-report.ts':
+      ATC_BRIDGE_FILES['hooks/schedule-answered-report.ts'],
+    'atc-bridge/hooks/schedule-delivery.ts': ATC_BRIDGE_FILES['hooks/schedule-delivery.ts'],
+    'atc-bridge/hooks/schedule-notice-delivery.ts':
+      ATC_BRIDGE_FILES['hooks/schedule-notice-delivery.ts'],
+    'atc-bridge/hooks/schedule-notice-reminder.ts':
+      ATC_BRIDGE_FILES['hooks/schedule-notice-reminder.ts'],
+    'atc-bridge/hooks/schedule-unanswered-report.ts':
+      ATC_BRIDGE_FILES['hooks/schedule-unanswered-report.ts'],
+    'atc-bridge/hooks/try-update-conversation.ts':
+      ATC_BRIDGE_FILES['hooks/try-update-conversation.ts'],
+    'atc-bridge/hooks/update-turn-completed.ts': ATC_BRIDGE_FILES['hooks/update-turn-completed.ts'],
+    'atc-bridge/hooks/update-turn-started.ts': ATC_BRIDGE_FILES['hooks/update-turn-started.ts'],
+    'atc-bridge/hooks/wait-for-step-end.ts': ATC_BRIDGE_FILES['hooks/wait-for-step-end.ts'],
     'atc-bridge/hooks/atc-cli.ts':
       'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n' +
       '// written again at 1793000000000: Claude Code loads a mod again only when a file of it changes\n',
@@ -1367,6 +1385,24 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
     'atc-bridge/.claude-plugin/plugin.json': ATC_BRIDGE_FILES['.claude-plugin/plugin.json'],
     'atc-bridge/hooks/hooks.json': ATC_BRIDGE_FILES['hooks/hooks.json'],
     'atc-bridge/hooks/register.ts': ATC_BRIDGE_FILES['hooks/register.ts'],
+    'atc-bridge/hooks/bridge-state.ts': ATC_BRIDGE_FILES['hooks/bridge-state.ts'],
+    'atc-bridge/hooks/encode-attribute.ts': ATC_BRIDGE_FILES['hooks/encode-attribute.ts'],
+    'atc-bridge/hooks/parse-tap-line.ts': ATC_BRIDGE_FILES['hooks/parse-tap-line.ts'],
+    'atc-bridge/hooks/run-tap.ts': ATC_BRIDGE_FILES['hooks/run-tap.ts'],
+    'atc-bridge/hooks/schedule-answered-report.ts':
+      ATC_BRIDGE_FILES['hooks/schedule-answered-report.ts'],
+    'atc-bridge/hooks/schedule-delivery.ts': ATC_BRIDGE_FILES['hooks/schedule-delivery.ts'],
+    'atc-bridge/hooks/schedule-notice-delivery.ts':
+      ATC_BRIDGE_FILES['hooks/schedule-notice-delivery.ts'],
+    'atc-bridge/hooks/schedule-notice-reminder.ts':
+      ATC_BRIDGE_FILES['hooks/schedule-notice-reminder.ts'],
+    'atc-bridge/hooks/schedule-unanswered-report.ts':
+      ATC_BRIDGE_FILES['hooks/schedule-unanswered-report.ts'],
+    'atc-bridge/hooks/try-update-conversation.ts':
+      ATC_BRIDGE_FILES['hooks/try-update-conversation.ts'],
+    'atc-bridge/hooks/update-turn-completed.ts': ATC_BRIDGE_FILES['hooks/update-turn-completed.ts'],
+    'atc-bridge/hooks/update-turn-started.ts': ATC_BRIDGE_FILES['hooks/update-turn-started.ts'],
+    'atc-bridge/hooks/wait-for-step-end.ts': ATC_BRIDGE_FILES['hooks/wait-for-step-end.ts'],
     'atc-bridge/hooks/atc-cli.ts':
       'export const ATC_CLI: readonly string[] = ["/opt/atc/bin/atc"];\n',
   });

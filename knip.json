@@ -13,7 +13,8 @@
         "rig.config.ts",
         "scripts/run-demo-agent.ts",
         "scripts/run-demo-recording.ts",
-        "scripts/test-utils/run-local-daemon.ts"
+        "scripts/test-utils/run-local-daemon.ts",
+        "scripts/test-utils/run-docker-daemon.ts"
       ],
       "project": ["e2e/**/*.ts", "integration/**/*.ts", "scripts/**/*.ts"]
     },

@@ -1,6 +1,6 @@
 {
   "name": "@atc/app",
-  "version": "7.19.0",
+  "version": "7.20.0",
   "private": true,
   "description": "The atc and atc-gateway entrypoints and the modules they wire together",
   "type": "module",
@@ -11,8 +11,10 @@
     "@atc/config": "workspace:*",
     "@atc/core": "workspace:*",
     "@atc/daemon": "workspace:*",
+    "@atc/execution-docker": "workspace:*",
     "@atc/execution-imp": "workspace:*",
     "@atc/execution-local": "workspace:*",
+    "@atc/execution-sprites": "workspace:*",
     "@atc/gateway": "workspace:*",
     "@atc/harness-claude": "workspace:*",
     "@atc/harness-codex": "workspace:*",

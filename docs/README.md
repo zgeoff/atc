@@ -64,6 +64,10 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
   target, the one check and the environment a harness gets
 - [The imp provider](architecture/execution/imp-provider.md) — leases, the guest folder, the session
   bridge and reconnecting to a harness
+- [The docker provider](architecture/execution/docker-provider.md) — the objects on the Engine, the
+  lifecycle, the token launch and the refusals
+- [The sprites provider](architecture/execution/sprites-provider.md) — the sprite and its execs, the
+  relay, the connector routes and the refusals
 - [Runtime auth](architecture/execution/runtime-auth.md) — broker bindings, spawn checks, admission,
   revoke and rebind
 - [Workspaces](architecture/execution/workspaces.md) — sources, the materialization phases, claims
@@ -96,8 +100,6 @@ Designs for work that is not built yet, each with the spikes behind it.
 - [Codex read-signal spike](design/codex-app-server-bridge/spikes/read-signal/README.md) — whether
   the Codex App Server bridge can tell that the model read a delivered message, with the runs and a
   recommendation
-- [Remote targets: Sprites and Docker](design/remote-targets/README.md) — the provider contract
-  change and the `sprites` and `docker` providers that build on it
 
 ## Guides
 

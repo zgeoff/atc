@@ -22,15 +22,20 @@ import {
   prodReadTools,
   resourceMetadataPath,
 } from './constants.ts';
+import { createDockerSession } from './create-docker-session.ts';
 import { createLocalMCPClient } from './create-local-mcp-client.ts';
 import { createSession } from './create-session.ts';
+import { parseDockerRunEndpoints } from './docker-run-endpoints.ts';
 import { featurePaths, ignoredPaths, sharedPaths } from './feature-paths.ts';
+import { readDockerSession } from './read-docker-session.ts';
 import { readHandshakeRefusals } from './read-handshake-refusals.ts';
 import { readSessionEvents } from './read-session-events.ts';
+import { removeDockerSession } from './remove-docker-session.ts';
 import { removeSession } from './remove-session.ts';
 import { runCLICommand } from './run-cli-command.ts';
 import { parseRunEndpoints } from './run-endpoints.ts';
 import { stopSession } from './stop-session.ts';
+import { wakeDockerSession } from './wake-docker-session.ts';
 
 const sessionName = z.string().regex(/^wv-[a-z0-9-]+$/u, 'Name a verify session wv-<name>.');
 const nameInput = z.strictObject({ name: sessionName });
@@ -54,6 +59,14 @@ const refusalsData = z.strictObject({ refusals: z.array(refusal) });
 const daemonData = z.strictObject({ socket: z.string() });
 const stubData = z.strictObject({ bin: z.string() });
 const doorData = z.strictObject({ resource: z.string() });
+
+const dockerSessionData = z.strictObject({
+  containers: z.array(z.string()),
+  volumes: z.array(z.string()),
+  tokenInEnv: z.boolean(),
+  tokenSeenByHarness: z.boolean(),
+});
+
 const signInData = z.strictObject({ servers: z.record(z.string(), z.number().int()) });
 
 // The HTTP servers each target's service client signs in to, which the doctor checks.
@@ -92,6 +105,19 @@ export function createVerifyRegistry(): Wringer {
           // `atc mcp --http` serves its probes and `/mcp` on the run's `remote` origin
           http: () => ({ endpoint: 'remote', healthPath: '/healthz' }),
           mcp: buildLocalMCPConfig,
+        },
+      })
+      .target('docker', {
+        mode: 'launch',
+        access: 'read-write',
+        host: local(),
+        launch: createDockerLaunchPlan,
+        drivers: {
+          db: (ctx) => ({
+            via: 'sql',
+            adapter: 'sqlite',
+            url: parseDockerRunEndpoints(ctx.endpoints).db,
+          }),
         },
       })
       .target('prod', {
@@ -142,6 +168,45 @@ export function createVerifyRegistry(): Wringer {
         input: nameInput,
         data: forgottenData,
         run: (input, ctx) => removeSession(ctx.endpoints, input.name),
+      })
+      .action({
+        name: 'spawn-docker-session',
+        summary: 'Spawn a stand-in claude session with the name on the docker target',
+        effect: 'write',
+        targets: ['docker'],
+        input: nameInput,
+        data: spawnedData,
+        run: (input, ctx) => createDockerSession(ctx.endpoints, input.name),
+      })
+      .action({
+        name: 'wake-docker-session',
+        summary:
+          'Kill the live docker session with the name, revive it, and wait until it is alive',
+        effect: 'write',
+        targets: ['docker'],
+        input: nameInput,
+        data: stoppedData,
+        run: (input, ctx) => wakeDockerSession(ctx.endpoints, input.name),
+      })
+      .action({
+        name: 'forget-docker-session',
+        summary:
+          'Kill the docker session with the name if it runs, then forget it with its confirm token',
+        effect: 'write',
+        targets: ['docker'],
+        input: nameInput,
+        data: forgottenData,
+        run: (input, ctx) => removeDockerSession(ctx.endpoints, input.name),
+      })
+      .action({
+        name: 'inspect-docker-session',
+        summary:
+          "Read the run's docker containers and volumes, whether any container's environment holds the token, and whether the harness read it",
+        effect: 'read',
+        targets: ['docker'],
+        input: noInput,
+        data: dockerSessionData,
+        run: (_input, ctx) => readDockerSession(ctx.endpoints),
       })
       .command({
         path: ['session-events'],
@@ -199,12 +264,18 @@ export function createVerifyRegistry(): Wringer {
       })
       .check({
         name: 'mcp-sign-in',
+        targets: ['local', 'prod'],
         input: noInput,
         data: signInData,
         timeoutMs: 20_000,
         run: (_input, ctx) => checkMCPSignIn(ctx.drivers.mcp, signInServers[ctx.target] ?? []),
       })
       .feature(
+        {
+          name: 'docker-target',
+          summary: 'Run a session in docker containers, wake it after a kill, and forget it',
+          paths: featurePaths['docker-target'],
+        },
         {
           name: 'spawn-session',
           summary: 'Spawn a session from the TUI picker, and see it start',
@@ -315,6 +386,20 @@ function buildLocalMCPConfig(ctx: DriverConfigContext) {
       gateway: buildHTTPMCPServer(run.gateway, localMCPClient, readTools),
       'gateway-wrong': buildHTTPMCPServer(run.gatewayWrong, localMCPClient, readTools),
     },
+  };
+}
+
+// The docker target's launcher: a compiled daemon with one docker target, in the run's temp home.
+function createDockerLaunchPlan(): LaunchPlan {
+  return {
+    command: [
+      'bash',
+      join(repoRoot, 'scripts', 'with-test-home.sh'),
+      process.execPath,
+      join(repoRoot, 'scripts', 'test-utils', 'run-docker-daemon.ts'),
+    ],
+    env: { TMPDIR: '/tmp' },
+    ready: (line) => (line['event'] === 'ready' ? parseDockerRunEndpoints(line) : null),
   };
 }
 

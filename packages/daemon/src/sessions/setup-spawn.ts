@@ -1,5 +1,6 @@
 import { DaemonError } from '@atc/protocol/wire';
-import type { AuthSetup, HarnessAuthSetup, HarnessSetup } from '../auth/create-auth-setup';
+import type { AuthSetup } from '../auth/create-auth-setup';
+import type { HarnessAuthSetup, HarnessSetup } from '../auth/types';
 import { applyWorkspaceTrust } from './apply-workspace-trust';
 import type { SpawnRollback } from './create-spawn-rollback';
 import { createSpawnWorkspace } from './create-spawn-workspace';

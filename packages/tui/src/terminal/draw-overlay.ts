@@ -1,5 +1,4 @@
 import type { AgentID } from '@atc/core';
-import { ansi } from '@atc/core';
 import { PINNED_GROUP_KEY } from '@atc/protocol';
 import type { SessionState } from '@atc/protocol';
 import type { AgentMetadata } from '../fleet/resolve-agent-metadata';
@@ -8,9 +7,12 @@ import type { HarnessLifecycle } from '../fleet/to-mirror-session';
 import { pickPinTarget } from '../overlay/pick-pin-target';
 import { planOverlayColumns } from '../overlay/plan-overlay-columns';
 import type { OverlayColumnPlan } from '../overlay/plan-overlay-columns';
-import { planVacatedRows } from '../overlay/plan-vacated-rows';
-import type { BoxExtent } from '../overlay/plan-vacated-rows';
+import { cols } from './cols';
+import { boxBottom, boxDivider, boxRow, boxTop, dimRow, drawBox } from './draw-box';
 import { formatDir } from './pick-matches';
+import { truncate } from './truncate';
+import type { Row } from './types';
+import { writeOut } from './write-out';
 
 // The slice of a session the drawing layer needs; satisfied by both the
 // daemon's sessions and the wire descriptors a client mirrors.
@@ -31,97 +33,10 @@ const GLYPH: Record<SessionState, string> = {
   exited: `${ESC}[90m✗${ESC}[0m`,
 };
 
-export function cols(): number {
-  return process.stdout.columns || 80;
-}
-
 // borders included; an item row holds 4 columns fewer.
 export function getPickerWidth(): number {
   return Math.min(cols() - 4, 90);
 }
-
-export function rows(): number {
-  return process.stdout.rows || 24;
-}
-
-export interface StatusView {
-  readonly counts: Readonly<Record<SessionState, number>>;
-  readonly focusedName: string | null;
-  readonly urgentName: string | null;
-  readonly leaderLabel: string;
-  readonly stale: boolean;
-  readonly restarting: boolean;
-  readonly waiting?: boolean;
-
-  // The remote daemon from the config the client runs against, which the
-  // bar shows beside the name so a remote fleet never passes for the local
-  // one; absent or null for the local daemon.
-  readonly daemonName?: string | null;
-
-  // A line that says why the last action on a daemon sent nothing or was refused, until it times out.
-  readonly notice?: string | null;
-}
-
-export function drawStatusBar(view: StatusView) {
-  const counts = view.counts;
-  const width = cols();
-
-  const where =
-    view.daemonName === undefined || view.daemonName === null ? '' : `@${view.daemonName}`;
-
-  const left = ` atc${where} ▏${view.focusedName ?? 'no session'} `;
-  const parts: string[] = [];
-
-  if (counts.needs_you > 0) {
-    const who = view.urgentName === null ? '' : `: ${view.urgentName}`;
-
-    parts.push(`● ${counts.needs_you} need you${who}`);
-  }
-
-  if (counts.done > 0) {
-    parts.push(`✓ ${counts.done} done`);
-  }
-
-  if (counts.running > 0) {
-    parts.push(`◐ ${counts.running} running`);
-  }
-
-  if (counts.exited > 0) {
-    parts.push(`✗ ${counts.exited}`);
-  }
-
-  if (view.notice !== undefined && view.notice !== null) {
-    parts.push(view.notice);
-  }
-
-  if (view.waiting === true) {
-    parts.push('⟳ waiting for daemon');
-  } else if (view.restarting) {
-    parts.push('⟳ restarting daemon');
-  } else if (view.stale) {
-    parts.push('⟳ update ready');
-  }
-
-  const joined = parts.join(' ▏');
-  const right = ` ${joined === '' ? 'idle' : joined} ▏${view.leaderLabel} `;
-  const pad = Math.max(1, width - left.length - right.length);
-  const bg = counts.needs_you > 0 ? `${ESC}[1;97;41m` : `${ESC}[30;47m`;
-  const text = truncate(left + ' '.repeat(pad) + right, width).padEnd(width);
-
-  out(ansi.saveCursor + ansi.moveTo(rows(), 1) + bg + text + ansi.reset + ansi.restoreCursor);
-}
-
-// All box rows are built as {styled, plainWidth} pairs so centering and edge
-// alignment never depend on ANSI-stripped length math at draw time.
-interface Row {
-  readonly styled: string;
-  readonly width: number;
-}
-
-// The extent of the last box drawn, so the next draw can erase the rows a
-// shrinking or shifting box leaves behind. Erasing an already-blank row is a
-// no-op, so a stale extent after a full clear is harmless.
-let lastBoxExtent: BoxExtent | null = null;
 
 // Selection-dependent hints need the liveness facts of each row.
 export interface OverlaySessionView extends SessionView {
@@ -233,7 +148,7 @@ export function buildSessionRow(
   };
 }
 
-export function drawOverlay(view: OverlayView, write: (chunk: string) => void = out) {
+export function drawOverlay(view: OverlayView, write: (chunk: string) => void = writeOut) {
   const width = Math.min(cols() - 4, 90);
   const rowsList: Row[] = [boxTop(width, 'sessions')];
 
@@ -346,42 +261,6 @@ export function drawOverlay(view: OverlayView, write: (chunk: string) => void = 
   drawBox(rowsList, write);
 }
 
-function out(text: string) {
-  process.stdout.write(text);
-}
-
-function boxTop(width: number, title: string): Row {
-  const framedTitle = ` ${title} `;
-
-  return {
-    styled: `┌${framedTitle}${'─'.repeat(Math.max(0, width - 2 - framedTitle.length))}┐`,
-    width,
-  };
-}
-
-function dimRow(width: number, text: string): Row {
-  const truncated = truncate(text, width - 4);
-
-  return boxRow(width, `${ESC}[90m${truncated}${ESC}[0m`, truncated.length);
-}
-
-function truncate(text: string, max: number): string {
-  // oxlint-disable-next-line no-control-regex -- stripping ANSI/newline control bytes is the point
-  const clean = text.replaceAll(/[\r\n\u001B]+/gu, ' ');
-
-  if (max <= 0) {
-    return '';
-  }
-
-  return clean.length <= max ? clean : `${clean.slice(0, Math.max(0, max - 1))}…`;
-}
-
-function boxRow(width: number, styledContent: string, contentPlainLen: number): Row {
-  const pad = ' '.repeat(Math.max(0, width - 4 - contentPlainLen));
-
-  return { styled: `│ ${styledContent}${pad} │`, width };
-}
-
 // A daemon-supplied id or alias can name an inherited property, so map
 // reads go through an own-property check instead of indexing blindly.
 function findMapValue<V>(map: Readonly<Record<string, V>>, key: string): V | undefined {
@@ -431,10 +310,6 @@ function isSubSession(session: Readonly<OverlaySessionView>, list: readonly Over
   );
 }
 
-function boxDivider(width: number): Row {
-  return { styled: `├${'─'.repeat(width - 2)}┤`, width };
-}
-
 // A kill acts on the selected session's whole set, so the confirm counts
 // the live sub-sessions that go with it; a forget counts the dead ones.
 function formatKillConfirm(
@@ -455,30 +330,6 @@ function formatKillConfirm(
   const noun = affected.length === 1 ? 'sub-session' : 'sub-sessions';
 
   return `kill selected session and its ${affected.length} ${noun}? y / n`;
-}
-
-function boxBottom(width: number): Row {
-  return { styled: `└${'─'.repeat(width - 2)}┘`, width };
-}
-
-function drawBox(rowsList: readonly Row[], write: (chunk: string) => void) {
-  const boxWidth = Math.max(...rowsList.map((row) => row.width));
-  const top = Math.max(1, Math.floor((rows() - 1 - rowsList.length) / 2));
-  const left = Math.max(1, Math.floor((cols() - boxWidth) / 2));
-  const extent: BoxExtent = { top, height: rowsList.length };
-  let buf = ansi.hideCursor;
-
-  for (const row of planVacatedRows(lastBoxExtent, extent)) {
-    buf += `${ansi.moveTo(row, 1)}${ESC}[2K`;
-  }
-
-  lastBoxExtent = extent;
-
-  for (const [index, row] of rowsList.entries()) {
-    buf += ansi.moveTo(top + index, left) + row.styled;
-  }
-
-  write(buf);
 }
 
 const GLOBAL_HINT = 'g groups · n new · ? keys';
@@ -527,37 +378,6 @@ export function buildOverlayHint(
   return `${actions.join(' · ')} ▏ ${GLOBAL_HINT}`;
 }
 
-export function drawHelp() {
-  const width = Math.min(cols() - 4, 60);
-
-  const lines = [
-    '⏎  attach the selected session',
-    '⇥  attach the most urgent needs-you, else latest done',
-    'a  ack its notification without attaching',
-    'H  eject to a headless run (Claude only)',
-    'P  revive a dead or headless session',
-    'y  yank the resume command to the clipboard',
-    'Y  yank the resume command, then kill here',
-    'K  kill (K again on a dead session forgets it)',
-    'p  pin or unpin — pinned sessions stay on top',
-    '    a sub-session pins with its parent unless pinned itself',
-    'g  toggle grouping by repository',
-    'n  new session',
-    'r  adopt an external session',
-    '/  filter · ↑↓/jk move · q quit',
-  ];
-
-  const rowsList: Row[] = [boxTop(width, 'keys')];
-
-  for (const line of lines) {
-    rowsList.push(boxRow(width, line, line.length));
-  }
-
-  rowsList.push(boxDivider(width), dimRow(width, 'esc/? back'), boxBottom(width));
-
-  drawBox(rowsList, out);
-}
-
 export interface PickerView {
   title: string;
   items: readonly string[];
@@ -572,7 +392,7 @@ export interface PickerView {
 
 const PICKER_WINDOW_ROWS = 10;
 
-export function drawPicker(view: PickerView, write: (chunk: string) => void = out) {
+export function drawPicker(view: PickerView, write: (chunk: string) => void = writeOut) {
   const width = getPickerWidth();
   const rowsList: Row[] = [boxTop(width, view.title)];
   const visible = planPickerWindow(view.items.length, view.selected);
@@ -652,27 +472,4 @@ function planPickerWindow(count: number, selected: number): PickerWindow {
   }
 
   return { start: selected - edgeItems + 2, end: selected + 1 };
-}
-
-export function drawHome(fleetCount = 0, leaderLabel = '^Space') {
-  out(ansi.clear + ansi.hideCursor);
-
-  const msgs = [
-    'atc — control tower for coding-agent sessions',
-    '',
-    'n       spawn a session',
-    'r       adopt an existing session',
-    ...(fleetCount > 0 ? [`R       restore last fleet (${fleetCount} sessions)`] : []),
-    `${leaderLabel.padEnd(7)} session list`,
-    'q       quit',
-  ];
-
-  const top = Math.max(1, Math.floor((rows() - 1 - msgs.length) / 2));
-
-  for (const [index, line] of msgs.entries()) {
-    const left = Math.max(1, Math.floor((cols() - line.length) / 2));
-    const styled = index === 0 ? `${ESC}[1m${line}${ESC}[0m` : `${ESC}[90m${line}${ESC}[0m`;
-
-    out(ansi.moveTo(top + index, left) + styled);
-  }
 }

@@ -38,6 +38,10 @@ This guide covers the keys that stand alone. One guide covers each other task:
   old source keys, the git transports a spawn may fetch over, and where a cloned workspace lands.
 - [Targets](./configuration/targets.md): where sessions run, clone trust, and the options of an imp
   target.
+- [Docker targets](./configuration/docker-targets.md): running sessions in containers on the
+  daemon's own machine, and storing the Claude token they share.
+- [Sprites targets](./configuration/sprites-targets.md): running Claude sessions in Fly.io sprites,
+  with a Sprites connector that holds the credential.
 - [Principals](./configuration/principals.md): which targets each remote client may use.
 - [Agents and gateways](./configuration/agents.md): the `agents` map, gateways to Claude-compatible
   backends, and the migration from the old agent keys.

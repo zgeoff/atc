@@ -1,16 +1,19 @@
 import type { Clock } from '@atc/core';
 import { systemClock } from '@atc/core';
 import type { HarnessHandle } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { FleetEntry, StateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
-import type { ErrorCode } from '@atcx/contract/light';
 import type { SessionManager } from '../sessions/create-session-manager';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
 import type { Session } from '../sessions/session';
 import { formatRestoreRefusal } from './format-restore-refusal';
 import { formatRestoreReport } from './format-restore-report';
 import type { RestoreLane, RestoreLaneReport } from './format-restore-report';
+import { getTopLevelSession } from './get-top-level-session';
+import { isOnEntryTarget } from './is-on-entry-target';
+import { isSameSession } from './is-same-session';
+import { tryAdoptTerminal } from './try-adopt-terminal';
+import type { AdoptResult } from './types';
 
 interface RestoreFleetParams {
   readonly manager: SessionManager;
@@ -99,12 +102,6 @@ interface RestoreFleetResult {
 // a lease or run a command yet, or a broker that is still starting; the
 // restore tries these sessions again.
 const RETRIED_ADOPT_CODES: ReadonlySet<string> = new Set(['host_unavailable', 'broker_not_ready']);
-
-// How one try at a session's terminal ended: the session it adopted, or
-// null when there was nothing to adopt, or the refusal its target gave.
-type AdoptResult =
-  | { readonly kind: 'adopted'; readonly session: Session | null }
-  | { readonly kind: 'refused'; readonly refusal: DaemonError };
 
 interface RecordRefusalOptions {
   readonly reason: string;
@@ -563,104 +560,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   await Promise.race([firstTried.promise, settled]);
 
   return { restored: registered.length, settled };
-}
-
-// A stored entry matches a listed session by its atc session id, or by its
-// agent session id when a listed session resumed the same agent session.
-function isSameSession(session: Session, entry: FleetEntry): boolean {
-  return (
-    session.id === entry.sessionID ||
-    (entry.agentSessionID !== undefined && session.agentSessionID === entry.agentSessionID)
-  );
-}
-
-// Whether a listed session runs on the target and identity a stored entry
-// was bound to. An entry without a target was bound to the `local` target,
-// and one without an identity matches any identity of its target.
-function isOnEntryTarget(session: Session, entry: FleetEntry): boolean {
-  return (
-    session.target === (entry.target ?? 'local') &&
-    (entry.targetIdentity === undefined || session.targetIdentity === entry.targetIdentity)
-  );
-}
-
-function getTopLevelSession(session: Session, sessions: readonly Session[]): Session {
-  const seen = new Set<Session>([session]);
-
-  let current = session;
-
-  for (;;) {
-    const parentID = current.parent;
-    const parent = sessions.find((candidate) => candidate.id === parentID);
-
-    if (parent === undefined || seen.has(parent)) {
-      return current;
-    }
-
-    seen.add(parent);
-
-    current = parent;
-  }
-}
-
-// the refusals that leave one session without a terminal: its target is misconfigured,
-// gone, changed, without a provider here, or unable to start one, its agent refuses
-// every start, or its host's runtime auth binding, broker included, refuses the launch
-const REFUSED_ADOPT_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
-  'unsupported_operation',
-  'unknown_target',
-  'target_unavailable',
-  'target_changed',
-  'target_config_invalid',
-  'host_unavailable',
-  'auth_not_configured',
-  'auth_target_unsupported',
-  'auth_token_scope',
-  'auth_token_too_broad',
-  'auth_host_out_of_scope',
-  'auth_secret_not_grantable',
-  'auth_secret_mismatch',
-  'auth_runtime_mismatch',
-  'auth_grant_missing',
-  'auth_grants_mismatch',
-  'auth_rebind_required',
-  'auth_blocked',
-  'auth_binding_invalid',
-  'broker_not_ready',
-  'auth_placeholder_unsupported',
-
-  // a plugin folder the session loads is not a folder, or sits on a remote target
-  'bad_args',
-  'unsupported',
-]);
-
-interface TryAdoptTerminalOptions {
-  readonly id: SessionID;
-  readonly cols: number;
-  readonly rows: number;
-  readonly canProceed: () => boolean;
-}
-
-async function tryAdoptTerminal(
-  manager: SessionManager,
-  options: TryAdoptTerminalOptions,
-): Promise<AdoptResult> {
-  try {
-    const session = await manager.adoptTerminal(
-      options.id,
-      options.cols,
-      options.rows,
-      options.canProceed,
-    );
-
-    return { kind: 'adopted', session };
-  } catch (error) {
-    if (error instanceof DaemonError && REFUSED_ADOPT_CODES.has(error.code)) {
-      return { kind: 'refused', refusal: error };
-    }
-
-    throw error;
-  }
 }
 
 function pickRestoreOutcome(ends: readonly RestoreOutcome[], failed: boolean): RestoreOutcome {

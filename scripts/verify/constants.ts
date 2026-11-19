@@ -32,3 +32,7 @@ export const resourceMetadataPath = '/.well-known/oauth-protected-resource/mcp';
 
 // The name of the run's daemon in the gateways' registry.
 export const gatewayDaemonName = 'verify';
+
+// The token the `docker` target's run stores in its sign-in volume. It is no real token, and no
+// container's environment may ever hold it.
+export const dockerTokenValue = 'verify-not-a-real-token';

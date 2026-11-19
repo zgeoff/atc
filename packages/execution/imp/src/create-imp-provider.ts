@@ -1,6 +1,5 @@
 import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
-import { isCompiledBinary } from '@atc/config/host';
 import { createStepTimer, makeKeyedLock } from '@atc/core';
 import type {
   ExecutionCapabilities,
@@ -23,15 +22,19 @@ import UNPACK_SCRIPT from './guest-atc/unpack-archive.sh' with { type: 'text' };
 import { createImpHarness } from './harness/create-imp-harness';
 import { IMPD_UPGRADE } from './impd/impd-upgrade';
 import type { ImpHost } from './port/imp-host';
-import type { ImpCreateSpec, ImpPort } from './port/imp-port';
+import type { ImpPort } from './port/imp-port';
 import { ImpPortError } from './port/imp-port-error';
 import { buildBusyRefusal } from './provider/build-busy-refusal';
+import { buildCreateImpSpec } from './provider/build-create-imp-spec';
 import { buildImpName } from './provider/build-imp-name';
+import { buildImpSessionName } from './provider/build-imp-session-name';
 import { buildLeasedRefusal } from './provider/build-leased-refusal';
-import { buildShortName } from './provider/build-short-name';
 import { createImpLeases } from './provider/create-imp-leases';
+import { emitSleepRefusal } from './provider/emit-sleep-refusal';
+import { findOwnLinuxBinary } from './provider/find-own-linux-binary';
 import { openReporter } from './provider/open-reporter';
 import { toHostRefusal } from './provider/to-host-refusal';
+import type { ImpProviderOptions, ImpTargetOptions } from './provider/types';
 
 export interface ImpProvider extends ExecutionProvider {
   readonly kind: 'imp';
@@ -60,36 +63,6 @@ export interface ImpProvider extends ExecutionProvider {
   ) => Promise<string | null>;
 
   readonly dispose: () => void;
-}
-
-interface ImpTargetOptions {
-  readonly impPrefix?: string;
-  readonly rebindChangedAuth?: boolean;
-  readonly dropSysAdmin?: boolean;
-  readonly image?: string;
-  readonly memoryMib?: number;
-  readonly maxMemoryMib?: number;
-  readonly guestDir?: string;
-  readonly guestATC?: string;
-  readonly sessionEnv?: Readonly<Record<string, string>>;
-}
-
-interface ImpProviderOptions {
-  // How long each lease the daemon takes lasts before a renewal, in seconds.
-  readonly leaseSeconds?: number;
-
-  // The wait before each reconnect to a harness whose connection ended
-  // without an exit, in milliseconds.
-  readonly reconnectDelaysMs?: readonly number[];
-
-  // The Linux atc binary on the daemon's machine that the provider copies
-  // into an imp without one, or null for none. A compiled daemon on Linux
-  // copies itself; one run from source has no binary to copy.
-  readonly atcBinary?: string | null;
-
-  // The atc version the daemon runs, which the image's atc must print for
-  // hooks to run it.
-  readonly version: string;
 }
 
 // The folder, inside the scratch folder impd declares, that atc's files go
@@ -641,36 +614,4 @@ export function createImpProvider(
       }
     },
   };
-}
-
-// The binary the provider copies into an imp: the running daemon itself
-// when it is a compiled Linux binary, since an imp runs Linux.
-function findOwnLinuxBinary(): string | null {
-  return isCompiledBinary() && process.platform === 'linux' ? process.execPath : null;
-}
-
-// The imp a target creates: its image, memory and memory max when the target
-// sets them, and impd's defaults otherwise.
-function buildCreateImpSpec(name: string, target: ImpTargetOptions): ImpCreateSpec {
-  return {
-    name,
-    ...(target.image === undefined ? {} : { image: target.image }),
-    ...(target.memoryMib === undefined ? {} : { memoryMib: target.memoryMib }),
-    ...(target.maxMemoryMib === undefined ? {} : { maxMemoryMib: target.maxMemoryMib }),
-  };
-}
-
-function emitSleepRefusal(host: ImpHost): void {
-  const listeners = [...host.sleepRefusals];
-
-  host.sleepRefusals.clear();
-
-  for (const listener of listeners) {
-    listener();
-  }
-}
-
-function buildImpSessionName(sessionID: string): string {
-  // The prefix plus 28 chars stays inside the 32-char session limit.
-  return `atc-${buildShortName(sessionID, 28)}`;
 }

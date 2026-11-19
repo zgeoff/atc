@@ -298,3 +298,49 @@ test("it adds the outside-read offer's seen mark to an empty config an earlier r
   expect(run.exitCode).toBe(0);
   expect(merged).toStrictEqual({ hasSeenAutoModeOutsideReadPrompt: true });
 });
+
+test('it starts the command with the token the file holds in its environment alone', async () => {
+  const ctx = setupTest();
+  const tokenFile = join(ctx.directory, 'claude-oauth-token');
+
+  const launch = buildClaudeGuestLaunch(
+    ctx.directory,
+    ['sh', '-c', 'printf %s "$CLAUDE_CODE_OAUTH_TOKEN"'],
+    { tokenFile },
+  );
+
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{"hasCompletedOnboarding":true}');
+  writeFileSync(tokenFile, 'not-a-real-token\n');
+
+  const run = await runCommand([launch.bin, ...launch.args], {
+    env: { PATH: process.env['PATH'] },
+  });
+
+  expect(run.stdout).toBe('not-a-real-token');
+});
+
+test('it passes the shell the token file and no variable that holds the token', () => {
+  const ctx = setupTest();
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['claude'], { tokenFile: '/sign-in/token' });
+
+  expect(launch.args).toContain('/sign-in/token');
+
+  expect(launch.env).toStrictEqual({
+    CLAUDE_CONFIG_DIR: `${ctx.directory}/claude-config`,
+    TMPDIR: `${ctx.directory}/scratch`,
+  });
+});
+
+test('it refuses to start the command when the token file is missing', async () => {
+  const ctx = setupTest();
+
+  const launch = buildClaudeGuestLaunch(ctx.directory, ['true'], {
+    tokenFile: join(ctx.directory, 'no-such-token'),
+  });
+
+  writeFileSync(join(ctx.directory, 'claude-config-seed.json'), '{"hasCompletedOnboarding":true}');
+
+  const run = await runCommand([launch.bin, ...launch.args]);
+
+  expect(run.exitCode).toBe(78);
+});

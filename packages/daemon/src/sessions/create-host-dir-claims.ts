@@ -1,11 +1,18 @@
-import { realpathSync } from 'node:fs';
 import { posix } from 'node:path';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import type { SessionRegistry } from './create-session-registry';
 import { isPathWithin } from './is-path-within';
+import { resolveFromHome } from './resolve-from-home';
+import { resolveHostDir } from './resolve-host-dir';
+import { resolveHostHome } from './resolve-host-home';
+import { resolveListedDirs } from './resolve-listed-dirs';
+import { resolveMachineDir } from './resolve-machine-dir';
 import type { Session } from './session';
+
+export { RESOLVE_DIR_SCRIPT, RESOLVE_UNLINKED_DIR_SCRIPT } from './resolve-host-dir';
+export { RESOLVE_HOME_SCRIPT } from './resolve-host-home';
 
 // A workspace directory a spawn on a shared host holds, as the spawn gave
 // it and as the host resolves it once checked there.
@@ -20,15 +27,6 @@ interface WorkspaceReservation {
   // may share.
   readonly kind: 'workspace' | 'plain';
 }
-
-// prints the nearest existing directory with every symlink resolved and a newline, which keeps a
-// name ending in newlines whole, then a NUL and the rest of the path as given
-export const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=\${p%/*}; [ -n "$p" ] || p=/; done; cd -P -- "$p" && pwd -P && printf '\\0%s' "$s"`;
-
-// Resolves a directory as the script above does, but fails when any part
-// of it that is not an existing directory is a symlink, such as one whose
-// target was removed, since the directory it stands for could lie anywhere.
-export const RESOLVE_UNLINKED_DIR_SCRIPT = `p=$1; while [ ! -d "$p" ]; do [ ! -L "$p" ] || exit 6; p=\${p%/*}; [ -n "$p" ] || p=/; done; ${RESOLVE_DIR_SCRIPT}`;
 
 // removes a directory only while it still resolves to itself, emptying it from inside so no
 // symlink changed on the way is followed, then removing it once empty
@@ -188,6 +186,17 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       ...collectPlainDirs(hostKey, target).map(([id]) => id),
     ].join(' ');
 
+  // The sessions listed on a host and the plain spawns still starting there.
+  const collectHostEntries = (
+    hostKey: SessionID,
+    target: string,
+  ): readonly { readonly id: SessionID; readonly cwd: string }[] => [
+    ...collectSessions().filter(
+      (session) => session.hostKey === hostKey && session.target === target,
+    ),
+    ...collectPlainDirs(hostKey, target).map(([id, cwd]) => ({ id, cwd })),
+  ];
+
   // The directories sessions on the daemon's own machine hold, other than
   // the given spawn's: every session listed on a target without hosts, and
   // every plain spawn still starting there, as given.
@@ -259,101 +268,16 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     }
   };
 
-  // The directory of every session listed on a host, and of every plain
-  // spawn still starting there, as the host resolves it, and its own
-  // absolute form, and the entries that failed to resolve.
-  const resolveListedDirs = async (
-    provider: ExecutionProvider,
-    hostKey: SessionID,
-    target: string,
-  ): Promise<{
-    readonly dirs: (readonly [SessionID, string])[];
-    readonly unresolved: (readonly [SessionID, string])[];
-  }> => {
-    const onHost = [
-      ...collectSessions().filter(
-        (session) => session.hostKey === hostKey && session.target === target,
-      ),
-      ...collectPlainDirs(hostKey, target).map(([id, cwd]) => ({ id, cwd })),
-    ];
-
-    const resolved = await Promise.all(
-      onHost.map(async (entry) => {
-        const directory = await resolveHostDir(provider, hostKey, entry.cwd).catch(() => null);
-
-        const dirs: (readonly [SessionID, string])[] = [];
-
-        if (posix.isAbsolute(entry.cwd)) {
-          dirs.push([entry.id, entry.cwd]);
-        }
-
-        if (directory !== null) {
-          dirs.push([entry.id, directory]);
-        }
-
-        return { dirs, unresolved: directory === null ? [[entry.id, entry.cwd] as const] : [] };
-      }),
-    );
-
-    return {
-      dirs: resolved.flatMap((resolution) => resolution.dirs),
-      unresolved: resolved.flatMap((resolution) => resolution.unresolved),
-    };
-  };
-
-  // null when any entry may lie anywhere; a relative one that cannot be entered, such as one
-  // removed inside the guest, resolves from the host's home unless a missing part is a symlink
-  const resolveFromHome = async (
-    provider: ExecutionProvider,
-    hostKey: SessionID,
-    unresolved: readonly (readonly [SessionID, string])[],
-  ): Promise<(readonly [SessionID, string])[] | null> => {
-    if (unresolved.length === 0) {
-      return [];
-    }
-
-    // an absolute directory was resolved that way already, and the host follows `..` through
-    // symlinks rather than lexically, so either stays unknown
-    if (unresolved.some(([, cwd]) => posix.isAbsolute(cwd) || cwd.split('/').includes('..'))) {
-      return null;
-    }
-
-    const home = await resolveHostHome(provider, hostKey).catch(() => null);
-
-    if (home === null) {
-      return null;
-    }
-
-    const resolved = await Promise.all(
-      unresolved.map(async ([id, cwd]) => {
-        const absolute = posix.join(home, cwd);
-
-        const physical = await resolveHostDir(
-          provider,
-          hostKey,
-          absolute,
-          RESOLVE_UNLINKED_DIR_SCRIPT,
-        ).catch(() => null);
-
-        return physical === null
-          ? null
-          : ([
-              [id, absolute],
-              [id, physical],
-            ] as const);
-      }),
-    );
-
-    return resolved.some((resolution) => resolution === null)
-      ? null
-      : resolved.flatMap((resolution) => resolution ?? []);
-  };
-
   const claimHostDir = async (options: ClaimHostDirOptions): Promise<string> => {
     const before = collectHostSessionIDs(options.hostKey, options.target);
 
     const physical = await resolveHostDir(options.provider, options.hostKey, options.directory);
-    const listed = await resolveListedDirs(options.provider, options.hostKey, options.target);
+
+    const listed = await resolveListedDirs(
+      options.provider,
+      options.hostKey,
+      collectHostEntries(options.hostKey, options.target),
+    );
 
     // the claim is checked in the turn after the last wait, against the sessions listed then
     if (collectHostSessionIDs(options.hostKey, options.target) !== before) {
@@ -463,7 +387,12 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
 
     const before = collectHostSessionIDs(options.hostKey, options.target);
 
-    const listed = await resolveListedDirs(options.provider, options.hostKey, options.target);
+    const listed = await resolveListedDirs(
+      options.provider,
+      options.hostKey,
+      collectHostEntries(options.hostKey, options.target),
+    );
+
     const fromHome = await resolveFromHome(options.provider, options.hostKey, listed.unresolved);
 
     if (collectHostSessionIDs(options.hostKey, options.target) !== before) {
@@ -629,72 +558,4 @@ function buildHostSlot(hostKey: SessionID, target: string): string {
 // the same.
 function isPathOverlapping(left: string, right: string): boolean {
   return isPathWithin(left, right) || isPathWithin(right, left);
-}
-
-async function resolveHostDir(
-  provider: ExecutionProvider,
-  hostKey: SessionID | null,
-  directory: string,
-  script: string = RESOLVE_DIR_SCRIPT,
-): Promise<string> {
-  const absolute = posix.isAbsolute(directory);
-
-  const result = await provider.runCommand({
-    argv: ['sh', '-c', script, 'sh', absolute ? posix.normalize(directory) : '.'],
-    cwd: absolute ? '/' : directory,
-    ...(hostKey === null ? {} : { host: hostKey }),
-  });
-
-  const split = result.stdout.lastIndexOf('\0');
-
-  if (result.exitCode !== 0 || split < 1 || result.stdout[split - 1] !== '\n') {
-    throw new DaemonError(
-      'host_unavailable',
-      `${hostKey === null ? 'the daemon host' : `the host of session ${hostKey}`} cannot resolve ${directory}: ${result.stderr.trim()}`,
-      { phase: 'resolving', directory },
-    );
-  }
-
-  const existing = result.stdout.slice(0, split - 1);
-  const rest = result.stdout.slice(split + 1);
-
-  return existing === '/' ? rest || '/' : `${existing}${rest}`;
-}
-
-// Prints the home directory of the user it runs as, with every symlink in
-// it resolved.
-export const RESOLVE_HOME_SCRIPT = 'cd && pwd -P';
-
-async function resolveHostHome(provider: ExecutionProvider, hostKey: SessionID): Promise<string> {
-  const result = await provider.runCommand({
-    argv: ['sh', '-c', RESOLVE_HOME_SCRIPT],
-    cwd: '/',
-    host: hostKey,
-  });
-
-  const home = result.stdout.replace(/\n$/u, '');
-
-  if (result.exitCode !== 0 || !posix.isAbsolute(home)) {
-    throw new DaemonError(
-      'host_unavailable',
-      `the host of session ${hostKey} cannot resolve its home directory: ${result.stderr.trim()}`,
-      { phase: 'resolving' },
-    );
-  }
-
-  return home;
-}
-
-// An absolute directory on the daemon's own machine with every symlink in
-// it resolved, through its nearest existing directory.
-function resolveMachineDir(directory: string): string {
-  try {
-    return realpathSync(directory);
-  } catch {
-    const parent = posix.dirname(directory);
-
-    return parent === directory
-      ? directory
-      : posix.join(resolveMachineDir(parent), posix.basename(directory));
-  }
 }

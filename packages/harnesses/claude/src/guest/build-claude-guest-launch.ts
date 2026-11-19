@@ -33,10 +33,17 @@ const SEEN_OFFER_STEP = `{ grep -q '"${SEEN_OFFER_KEY}"${COLON}true' "$1/.claude
 // the offer may wait for an answer.
 const SEEN_OFFER_CHECK = `{ grep -q '"${SEEN_OFFER_KEY}"${COLON}true' "$1/.claude.json" || echo "atc: could not mark the outside-read offer seen in $1/.claude.json, so Claude may stop to ask once" >&2; }`;
 
-// args: config folder, seed, bundle staging folder, this launch's bundle, scratch folder, argv;
-// every entry a bundle can hold is removed first, so one the host dropped leaves too, and every
-// staged bundle is removed so a later launch never reads this one
-const SEED_CONFIG_SCRIPT = [
+// the token file is the sixth argument of a launch that reads one
+const TOKEN_FILE_ARGUMENT = '$6';
+
+// reads the stored token into the launched process's environment alone, and stops the launch with
+// a line that says why when the file holds none
+const READ_TOKEN_STEP = `{ { CLAUDE_CODE_OAUTH_TOKEN=$(cat "${TOKEN_FILE_ARGUMENT}") && [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && export CLAUDE_CODE_OAUTH_TOKEN; } || { echo "atc: cannot read the stored sign-in token ${TOKEN_FILE_ARGUMENT}, so Claude does not start" >&2; exit 78; }; }`;
+
+// args: config folder, seed, bundle staging folder, this launch's bundle, scratch folder, the token
+// file when the launch reads one, argv; every bundle entry is removed first, so one the host
+// dropped leaves too, and every staged bundle goes so a later launch never reads this one
+const SEED_CONFIG_STEPS = [
   'mkdir -p "$1"',
   'mkdir -p "$5"',
   'chmod 700 "$5"',
@@ -44,11 +51,11 @@ const SEED_CONFIG_SCRIPT = [
   SEEN_OFFER_STEP,
   SEEN_OFFER_CHECK,
   '{ [ ! -d "$4" ] || { rm -rf "$1/.credentials.json" "$1/CLAUDE.md" "$1/settings.json" "$1/statusline.sh" "$1/agents" "$1/output-styles" "$1/skills" && cp -R "$4/." "$1/" && rm -rf "$3"; }; }',
-  'shift 5',
-  'exec "$@"',
-].join(' && ');
+];
 
 export interface BuildClaudeGuestLaunchOptions {
+  // the file in the host that holds the token the harness signs in with
+  readonly tokenFile?: string;
   readonly refusedEnv?: readonly string[];
   readonly bundleKey?: string;
   readonly unsetEnv?: readonly string[];
@@ -68,18 +75,27 @@ export function buildClaudeGuestLaunch(
   const guards = (options.refusedEnv ?? []).map((name) => buildEnvGuard(name)).join('');
   const unsets = buildUnsetStep(options.unsetEnv ?? []);
   const bundleKey = options.bundleKey ?? 'none';
+  const tokenFile = options.tokenFile;
+
+  const script = [
+    ...SEED_CONFIG_STEPS,
+    ...(tokenFile === undefined ? [] : [READ_TOKEN_STEP]),
+    `shift ${tokenFile === undefined ? 5 : 6}`,
+    'exec "$@"',
+  ].join(' && ');
 
   return {
     bin: 'sh',
     args: [
       '-c',
-      `${guards}${unsets}${SEED_CONFIG_SCRIPT}`,
+      `${guards}${unsets}${script}`,
       'sh',
       configDir,
       `${guestDir}/${CLAUDE_CONFIG_SEED_FILE}`,
       `${guestDir}/${CLAUDE_CONFIG_BUNDLE_FOLDER}`,
       `${guestDir}/${CLAUDE_CONFIG_BUNDLE_FOLDER}/${bundleKey}`,
       scratch,
+      ...(tokenFile === undefined ? [] : [tokenFile]),
       ...argv,
     ],
     env: { CLAUDE_CONFIG_DIR: configDir, TMPDIR: scratch },

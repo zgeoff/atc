@@ -267,3 +267,48 @@ test.each(['true', 1, null, {}])(
     });
   },
 );
+
+test('it refuses two sprites targets whose prefixes overlap, naming both, and keeps the others', () => {
+  const result = collectTargets(
+    {
+      local: { provider: 'local-pty' },
+      wide: { provider: 'sprites', spritePrefix: 'team-' },
+      narrow: { provider: 'sprites', spritePrefix: 'team-a-' },
+      apart: { provider: 'sprites', spritePrefix: 'solo-' },
+    },
+    'local',
+  );
+
+  expect(result.targets.map((target) => target.id)).toStrictEqual(['local', 'apart']);
+  expect(result.errors).toHaveLength(1);
+  expect(result.errors[0]).toMatchObject({ scope: 'target', target: 'narrow' });
+  expect(result.errors[0]).toHaveProperty('problem', expect.stringContaining('"wide"'));
+  expect(result.errors[0]).toHaveProperty('problem', expect.stringContaining('"narrow"'));
+});
+
+test('it counts the default prefix of a sprites target that sets none', () => {
+  const result = collectTargets(
+    {
+      first: { provider: 'sprites' },
+      second: { provider: 'sprites', spritePrefix: 'atc-x-' },
+    },
+    undefined,
+  );
+
+  expect(result.targets).toStrictEqual([]);
+  expect(result.errors).toHaveLength(1);
+});
+
+test('it takes two sprites targets whose prefixes differ, and ignores another provider', () => {
+  const result = collectTargets(
+    {
+      first: { provider: 'sprites', spritePrefix: 'one-' },
+      second: { provider: 'sprites', spritePrefix: 'two-' },
+      other: { provider: 'imp', spritePrefix: 'one-' },
+    },
+    undefined,
+  );
+
+  expect(result.targets).toHaveLength(3);
+  expect(result.errors).toStrictEqual([]);
+});
