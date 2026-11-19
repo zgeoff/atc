@@ -1,12 +1,12 @@
 import type { IPty } from 'bun-pty';
+import type { ImpdExecOutcome } from '../impd/impd-procedure';
 import type {
   ColdBoot,
   ImpSessionHandlers,
   ImpSessionOutcome,
   ImpState,
   PreviousGeneration,
-} from '../imp-port';
-import type { ImpdExecOutcome } from '../impd-contract';
+} from '../port/imp-port';
 
 export interface StubImp {
   readonly id: string;

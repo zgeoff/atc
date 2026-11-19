@@ -1,4 +1,4 @@
-import { ImpPortError } from './imp-port-error';
+import { ImpPortError } from '../port/imp-port-error';
 import { MIN_IMPD_VERSION } from './min-impd-version';
 
 export function requireImpdVersion(version: string): void {

@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { isBrokerVariable } from '@atc/core';
 import { spawn } from 'bun-pty';
-import type { ImpSessionRequest, ResumeResult } from '../imp-port';
-import type { ImpdExecRefusal, ImpdSessionOutput } from '../impd-contract';
+import type { ImpdExecRefusal, ImpdSessionOutput } from '../impd/impd-procedure';
+import type { ImpSessionRequest, ResumeResult } from '../port/imp-port';
 import type { StubImpCommands } from './create-stub-imp-commands';
 import type { StubImpFleet } from './create-stub-imp-fleet';
 import { mergeTail } from './merge-tail';

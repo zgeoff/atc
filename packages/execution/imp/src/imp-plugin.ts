@@ -3,7 +3,7 @@ import {
   TargetUnavailableError,
   definePlugin,
 } from '@atc/plugin-api';
-import { collectAuthProfileProblems } from './collect-auth-profile-problems';
+import { collectAuthProfileProblems } from './auth/collect-auth-profile-problems';
 import { createConfiguredImpProvider } from './create-configured-imp-provider';
 
 export const IMP_PLUGIN = definePlugin({

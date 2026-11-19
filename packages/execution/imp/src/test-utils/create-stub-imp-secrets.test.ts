@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import type { ImpSecretRule } from '../imp-port';
+import type { ImpSecretRule } from '../port/imp-port';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
 import { createStubImpFleet } from './create-stub-imp-fleet';
 import { createStubImpSecrets } from './create-stub-imp-secrets';

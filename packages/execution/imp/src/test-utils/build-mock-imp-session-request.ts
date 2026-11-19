@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker';
-import type { ImpSessionRequest } from '../imp-port';
+import type { ImpSessionRequest } from '../port/imp-port';
 
 type StartRequest = Extract<ImpSessionRequest, { readonly kind: 'start' }>;
 

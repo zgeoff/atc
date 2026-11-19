@@ -1,5 +1,5 @@
 import { DaemonError } from '@atc/protocol/wire';
-import { ImpPortError } from './imp-port-error';
+import { ImpPortError } from '../port/imp-port-error';
 
 export function toHostRefusal(error: unknown, name: string): DaemonError {
   if (error instanceof DaemonError) {

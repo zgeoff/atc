@@ -17,7 +17,7 @@ import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import type { ImpSessionStarted } from '../imp-port';
+import type { ImpSessionStarted } from '../port/imp-port';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
 import { createStubHarnessGuest } from './create-stub-harness-guest';
 import { createStubImpPort } from './create-stub-imp-port';

@@ -1,7 +1,7 @@
 import { posix } from 'node:path';
 import type { Subprocess } from 'bun';
-import { buildImpdRefusal } from '../build-impd-refusal';
-import type { ImpCommand, ImpCommandResult } from '../imp-port';
+import { buildImpdRefusal } from '../impd/build-impd-refusal';
+import type { ImpCommand, ImpCommandResult } from '../port/imp-port';
 import { buildNotFound } from './build-not-found';
 import type { StubImp } from './stub-imp';
 

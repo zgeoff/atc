@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, rename, writeFile } from 'node:fs/promises';
 import { posix } from 'node:path';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { buildImpdRefusal } from '../build-impd-refusal';
+import { requireGuestScratchDir } from '../client/require-guest-scratch-dir';
+import { buildImpdRefusal } from '../impd/build-impd-refusal';
+import type { ImpdBareRefusalCode, ImpdExecRefusal, ImpdOutput } from '../impd/impd-procedure';
+import { MIN_IMPD_VERSION } from '../impd/min-impd-version';
+import { requireImpdVersion } from '../impd/require-impd-version';
 import type {
   ColdBootCause,
   ImpCreateSpec,
@@ -13,12 +17,8 @@ import type {
   ImpSecretRule,
   ImpSessionRequest,
   ImpState,
-} from '../imp-port';
-import { ImpPortError } from '../imp-port-error';
-import type { ImpdBareRefusalCode, ImpdExecRefusal, ImpdOutput } from '../impd-contract';
-import { MIN_IMPD_VERSION } from '../min-impd-version';
-import { requireGuestScratchDir } from '../require-guest-scratch-dir';
-import { requireImpdVersion } from '../require-impd-version';
+} from '../port/imp-port';
+import { ImpPortError } from '../port/imp-port-error';
 import { buildNotFound } from './build-not-found';
 import { createStubImpCommands } from './create-stub-imp-commands';
 import type { StubCommandHold } from './create-stub-imp-commands';

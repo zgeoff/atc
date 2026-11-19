@@ -63,7 +63,6 @@
           "packages/contract",
           "packages/core",
           "packages/daemon",
-          "packages/execution/imp",
           "packages/harnesses/claude",
           "packages/harnesses/codex",
           "packages/lifecycle",
@@ -82,7 +81,6 @@
           "packages/config",
           "packages/contract",
           "packages/daemon",
-          "packages/execution/imp",
           "packages/lifecycle",
           "packages/protocol",
           "packages/tui"

@@ -1,10 +1,10 @@
+import type { ImpdExecRefusal } from '../impd/impd-procedure';
 import type {
   ImpSessionConnection,
   ImpSessionHandlers,
   ImpSessionOutcome,
   ImpSessionRequest,
-} from '../imp-port';
-import type { ImpdExecRefusal } from '../impd-contract';
+} from '../port/imp-port';
 import { answerStubSession } from './answer-stub-session';
 import type { StubSessionContext, StubSessionFaults } from './answer-stub-session';
 import type { StubConnection } from './stub-imp';

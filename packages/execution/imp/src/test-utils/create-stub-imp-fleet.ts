@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { buildImpdRefusal } from '../build-impd-refusal';
-import type { ColdBootCause, ImpCreateSpec, ImpState, ImpView } from '../imp-port';
-import { ImpPortError } from '../imp-port-error';
-import type { ImpdBareRefusalCode, ImpdOutput } from '../impd-contract';
-import { toImpView } from '../to-imp-view';
+import { toImpView } from '../client/to-imp-view';
+import { buildImpdRefusal } from '../impd/build-impd-refusal';
+import type { ImpdBareRefusalCode, ImpdOutput } from '../impd/impd-procedure';
+import type { ColdBootCause, ImpCreateSpec, ImpState, ImpView } from '../port/imp-port';
+import { ImpPortError } from '../port/imp-port-error';
 import { buildImpdLease } from './build-impd-lease';
 import { buildNotFound } from './build-not-found';
 import type { StubImp } from './stub-imp';

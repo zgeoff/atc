@@ -1,5 +1,5 @@
 import { rmSync } from 'node:fs';
-import type { ImpForwardEnd, ImpRelayConnection, ImpReverseForward } from '../imp-port';
+import type { ImpForwardEnd, ImpRelayConnection, ImpReverseForward } from '../port/imp-port';
 import { mergeTail } from './merge-tail';
 
 // The reverse forwards impd opens from a guest socket to the daemon, the

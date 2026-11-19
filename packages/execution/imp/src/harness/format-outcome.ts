@@ -1,6 +1,6 @@
 import { truncateSummary } from '@atc/core';
 import { match } from 'ts-pattern';
-import type { ImpSessionOutcome } from './imp-port';
+import type { ImpSessionOutcome } from '../port/imp-port';
 import { sanitizeDetail } from './sanitize-detail';
 
 // An end other than an exit, as a session's last message.

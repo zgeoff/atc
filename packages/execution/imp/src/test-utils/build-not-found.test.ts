@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { ImpPortError } from '../imp-port-error';
+import { ImpPortError } from '../port/imp-port-error';
 import { buildNotFound } from './build-not-found';
 
 test('it builds an imp port error', () => {

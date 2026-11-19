@@ -2,9 +2,9 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import type { HarnessRelay, HarnessSpec } from '@atc/plugin-api';
 import { createLineDecoder } from '@atc/protocol/wire';
 import { match } from 'ts-pattern';
+import type { ImpHost } from '../port/imp-host';
+import type { ImpForwardEnd, ImpPort, ImpRelayConnection } from '../port/imp-port';
 import { buildReporterSocketBase } from './build-reporter-socket-base';
-import type { ImpHost } from './imp-host';
-import type { ImpForwardEnd, ImpPort, ImpRelayConnection } from './imp-port';
 
 // What a reporter needs of the provider that opens it.
 interface ReporterContext {

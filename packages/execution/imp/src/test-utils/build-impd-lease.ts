@@ -1,4 +1,4 @@
-import type { ImpdLease } from '../to-imp-lease';
+import type { ImpdLease } from '../client/to-imp-lease';
 
 export function buildImpdLease(
   name: string,

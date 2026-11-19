@@ -1,14 +1,6 @@
 import type { HarnessExit, HarnessHandle, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
 import { P, match } from 'ts-pattern';
-import { buildLostExit } from './build-lost-exit';
-import { buildPreconditionRefusal } from './build-precondition-refusal';
-import { buildStateExit } from './build-state-exit';
-import { createImpHarnessEvents } from './create-imp-harness-events';
-import { createImpHarnessOutput } from './create-imp-harness-output';
-import { createImpHarnessState } from './create-imp-harness-state';
-import { formatOutcome } from './format-outcome';
-import type { ImpHarnessHost } from './imp-harness-host';
 import type {
   ImpPort,
   ImpSessionConnection,
@@ -17,7 +9,15 @@ import type {
   ImpSessionRequest,
   ImpSessionStarted,
   PreviousGeneration,
-} from './imp-port';
+} from '../port/imp-port';
+import { buildLostExit } from './build-lost-exit';
+import { buildPreconditionRefusal } from './build-precondition-refusal';
+import { buildStateExit } from './build-state-exit';
+import { createImpHarnessEvents } from './create-imp-harness-events';
+import { createImpHarnessOutput } from './create-imp-harness-output';
+import { createImpHarnessState } from './create-imp-harness-state';
+import { formatOutcome } from './format-outcome';
+import type { ImpHarnessHost } from './imp-harness-host';
 import { makeConnectionGate } from './make-connection-gate';
 import { waitForAdmission } from './wait-for-admission';
 

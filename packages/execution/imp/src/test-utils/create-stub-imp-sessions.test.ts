@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import type { ImpSessionRequest } from '../imp-port';
+import type { ImpSessionRequest } from '../port/imp-port';
 import { createStubImpCommands } from './create-stub-imp-commands';
 import { createStubImpFleet } from './create-stub-imp-fleet';
 import { createStubImpSessions } from './create-stub-imp-sessions';

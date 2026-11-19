@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker';
-import type { ImpIdentity } from '../imp-port';
+import type { ImpIdentity } from '../port/imp-port';
 
 export function buildMockImpIdentity(overrides: Partial<ImpIdentity> = {}): ImpIdentity {
   return {

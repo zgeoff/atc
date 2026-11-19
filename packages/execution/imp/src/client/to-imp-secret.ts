@@ -1,5 +1,5 @@
-import type { ImpSecret } from './imp-port';
-import type { ImpdOutput } from './impd-contract';
+import type { ImpdOutput } from '../impd/impd-procedure';
+import type { ImpSecret } from '../port/imp-port';
 
 type ImpdSecret = ImpdOutput<'secrets.list'>[number];
 

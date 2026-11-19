@@ -6,11 +6,11 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
+import { readImpToken } from '../auth/read-imp-token';
+import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
+import { startStubImpd } from '../test-utils/start-stub-impd';
+import { startStubStallingProxy } from '../test-utils/start-stub-stalling-proxy';
 import { createImpClientPort } from './create-imp-client-port';
-import { readImpToken } from './read-imp-token';
-import { buildMockImpSessionRequest } from './test-utils/build-mock-imp-session-request';
-import { startStubImpd } from './test-utils/start-stub-impd';
-import { startStubStallingProxy } from './test-utils/start-stub-stalling-proxy';
 
 function setupTest() {
   const impd = startStubImpd();

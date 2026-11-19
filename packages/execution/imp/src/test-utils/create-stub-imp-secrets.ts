@@ -1,11 +1,11 @@
 import { isHostNameAllowed } from '@atc/plugin-api';
-import { buildImpdRefusal } from '../build-impd-refusal';
-import type { ImpIdentity, ImpSecret, ImpSecretRule } from '../imp-port';
-import { ImpPortError } from '../imp-port-error';
-import type { ImpdBareRefusalCode, ImpdOutput } from '../impd-contract';
-import { toImpIdentity } from '../to-imp-identity';
-import { toImpSecret } from '../to-imp-secret';
-import type { ImpdListedSecret } from '../to-imp-secret';
+import { toImpIdentity } from '../client/to-imp-identity';
+import { toImpSecret } from '../client/to-imp-secret';
+import type { ImpdListedSecret } from '../client/to-imp-secret';
+import { buildImpdRefusal } from '../impd/build-impd-refusal';
+import type { ImpdBareRefusalCode, ImpdOutput } from '../impd/impd-procedure';
+import type { ImpIdentity, ImpSecret, ImpSecretRule } from '../port/imp-port';
+import { ImpPortError } from '../port/imp-port-error';
 import { buildNotFound } from './build-not-found';
 import type { StubImpFleet } from './create-stub-imp-fleet';
 

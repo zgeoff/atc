@@ -5,12 +5,12 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { HarnessAttachment, HarnessExit, LaunchTicket } from '@atc/plugin-api';
 import { DaemonError } from '@atc/protocol/wire';
+import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
+import { buildStubFailingAttachmentListener } from '../test-utils/build-stub-failing-attachment-listener';
+import { buildStubLaunchAdmission } from '../test-utils/build-stub-launch-admission';
+import { createStubHarnessGuest } from '../test-utils/create-stub-harness-guest';
+import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createImpHarness } from './create-imp-harness';
-import { buildMockImpSessionRequest } from './test-utils/build-mock-imp-session-request';
-import { buildStubFailingAttachmentListener } from './test-utils/build-stub-failing-attachment-listener';
-import { buildStubLaunchAdmission } from './test-utils/build-stub-launch-admission';
-import { createStubHarnessGuest } from './test-utils/create-stub-harness-guest';
-import { createStubImpPort } from './test-utils/create-stub-imp-port';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-imp-harness-');

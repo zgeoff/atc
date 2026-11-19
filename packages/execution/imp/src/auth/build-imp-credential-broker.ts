@@ -1,9 +1,9 @@
 import type { BrokerSecret, CredentialBroker } from '@atc/plugin-api';
 import { CredentialBrokerError } from '@atc/plugin-api';
 import { match } from 'ts-pattern';
-import type { ImpPort, ImpSecret, ImpView } from './imp-port';
-import { ImpPortError } from './imp-port-error';
-import { IMPD_UPGRADE } from './impd-upgrade';
+import { IMPD_UPGRADE } from '../impd/impd-upgrade';
+import type { ImpPort, ImpSecret, ImpView } from '../port/imp-port';
+import { ImpPortError } from '../port/imp-port-error';
 
 interface ImpBrokerHosts {
   readonly impPrefix: string;
