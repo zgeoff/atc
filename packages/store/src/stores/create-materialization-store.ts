@@ -2,13 +2,13 @@ import type { SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
-import { parseWithheldEnv } from './parse-withheld-env';
-import type { StateStoreSchema } from './sqlite/state-store-schema';
 import type {
   MaterializationUpdate,
   NewMaterialization,
   WorkspaceMaterialization,
-} from './workspace-materialization';
+} from '../materializations/workspace-materialization';
+import type { StateStoreSchema } from '../sqlite/state-store-schema';
+import { parseWithheldEnv } from '../utils/parse-withheld-env';
 
 // Each spawn's workspace on its way to the execution target.
 export interface MaterializationStore {

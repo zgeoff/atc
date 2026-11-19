@@ -2,7 +2,7 @@ import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
-import type { FleetEntry } from '../fleet-entry';
+import type { FleetEntry } from '../fleet/fleet-entry';
 
 type DefaultedKey = 'sessionID' | 'name' | 'cwd' | 'agentSessionID' | 'agent';
 

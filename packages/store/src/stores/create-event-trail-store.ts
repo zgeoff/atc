@@ -5,9 +5,15 @@ import type { AgentSessionID, RestartResult, SessionID } from '@atcx/contract';
 import { RESTART_RESULT_SCHEMA, toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import { sql } from 'kysely';
 import type { Expression, ExpressionBuilder, Kysely, SqlBool } from 'kysely';
-import type { StateStoreSchema } from './sqlite/state-store-schema';
-import type { EventScope, StoredAnswer, StoredEvent, StoredNote, TrailRow } from './stored-event';
-import type { TrailEntry } from './trail-entry';
+import type {
+  EventScope,
+  StoredAnswer,
+  StoredEvent,
+  StoredNote,
+  TrailRow,
+} from '../events/stored-event';
+import type { TrailEntry } from '../events/trail-entry';
+import type { StateStoreSchema } from '../sqlite/state-store-schema';
 
 const ATTENTION_KINDS = ['turn-done', 'needs-input', 'prompt-submitted'] as const;
 

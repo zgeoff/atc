@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker';
-import type { IdempotencyRecord } from '../idempotency-record';
+import type { IdempotencyRecord } from '../idempotency/idempotency-record';
 
 export function buildMockIdempotencyRecord(
   overrides: Partial<IdempotencyRecord> = {},

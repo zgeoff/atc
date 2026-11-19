@@ -14,6 +14,36 @@ import { toDaemonID } from '@atcx/contract';
 import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
 import { Kysely } from 'kysely';
 import type { CompiledQuery, LogEvent } from 'kysely';
+import type {
+  RuntimeAuthBinding,
+  RuntimeAuthBindingUpdate,
+  RuntimeAuthGrant,
+} from '../auth-bindings/runtime-auth-binding';
+import { writeBackup } from '../backup/write-backup';
+import type {
+  EventScope,
+  StoredAnswer,
+  StoredEvent,
+  StoredNote,
+  TrailRow,
+} from '../events/stored-event';
+import type { TrailEntry } from '../events/trail-entry';
+import type { AgentSessionHolder, FleetEntry, FleetEntryUpdate } from '../fleet/fleet-entry';
+import type {
+  EffectTarget,
+  IdempotencyClaim,
+  IdempotencyRecord,
+} from '../idempotency/idempotency-record';
+import type {
+  MaterializationUpdate,
+  NewMaterialization,
+  WorkspaceMaterialization,
+} from '../materializations/workspace-materialization';
+import type { MessageOwner } from '../messages/message-owner';
+import type { MessageRecord, TurnSibling } from '../messages/message-record';
+import { openSQLite } from '../sqlite/open-sqlite';
+import { runMigrations } from '../sqlite/run-migrations';
+import type { StateStoreSchema } from '../sqlite/state-store-schema';
 import { createAuthBindingStore } from './create-auth-binding-store';
 import { createEventTrailStore } from './create-event-trail-store';
 import type { AttentionKind } from './create-event-trail-store';
@@ -26,26 +56,6 @@ import type {
   UpdateMessagesUnansweredOptions,
 } from './create-message-store';
 import { createPublishedRecordStore } from './create-published-record-store';
-import type { AgentSessionHolder, FleetEntry, FleetEntryUpdate } from './fleet-entry';
-import type { EffectTarget, IdempotencyClaim, IdempotencyRecord } from './idempotency-record';
-import type { MessageOwner } from './message-owner';
-import type { MessageRecord, TurnSibling } from './message-record';
-import type {
-  RuntimeAuthBinding,
-  RuntimeAuthBindingUpdate,
-  RuntimeAuthGrant,
-} from './runtime-auth-binding';
-import { openSQLite } from './sqlite/open-sqlite';
-import { runMigrations } from './sqlite/run-migrations';
-import type { StateStoreSchema } from './sqlite/state-store-schema';
-import type { EventScope, StoredAnswer, StoredEvent, StoredNote, TrailRow } from './stored-event';
-import type { TrailEntry } from './trail-entry';
-import type {
-  MaterializationUpdate,
-  NewMaterialization,
-  WorkspaceMaterialization,
-} from './workspace-materialization';
-import { writeBackup } from './write-backup';
 
 // The target a spawn ran on: its name and the identity the spawned session
 // was bound to there.

@@ -2,7 +2,7 @@ import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
 import { toSessionID } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
-import type { NewMaterialization } from '../workspace-materialization';
+import type { NewMaterialization } from '../materializations/workspace-materialization';
 
 export function buildMockNewMaterialization(
   overrides: MockOverrides<NewMaterialization, keyof NewMaterialization> = {},

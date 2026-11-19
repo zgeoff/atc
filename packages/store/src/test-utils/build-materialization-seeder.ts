@@ -1,4 +1,4 @@
-import type { NewMaterialization } from '../workspace-materialization';
+import type { NewMaterialization } from '../materializations/workspace-materialization';
 import { seedCloningMaterialization } from './seed-cloning-materialization';
 import { seedFailedMaterialization } from './seed-failed-materialization';
 import { seedMaterialization } from './seed-materialization';

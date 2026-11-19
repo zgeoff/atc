@@ -1,7 +1,7 @@
 import type { PublishedRecord, SessionID } from '@atcx/contract';
 import type { Kysely } from 'kysely';
-import { parsePublishedRecord } from './parse-published-record';
-import type { StateStoreSchema } from './sqlite/state-store-schema';
+import { parsePublishedRecord } from '../published-records/parse-published-record';
+import type { StateStoreSchema } from '../sqlite/state-store-schema';
 
 // The record each session last published, keyed by the session.
 export interface PublishedRecordStore {

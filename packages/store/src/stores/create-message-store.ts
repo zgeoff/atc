@@ -4,10 +4,10 @@ import { MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
 import type { MessageSender } from '@atcx/contract/light';
 import { sql } from 'kysely';
 import type { Expression, ExpressionBuilder, Kysely, SqlBool } from 'kysely';
-import { getMessageSources } from './get-message-sources';
-import type { MessageOwner } from './message-owner';
-import type { MessageRecord, TurnSibling } from './message-record';
-import type { StateStoreSchema } from './sqlite/state-store-schema';
+import { getMessageSources } from '../messages/get-message-sources';
+import type { MessageOwner } from '../messages/message-owner';
+import type { MessageRecord, TurnSibling } from '../messages/message-record';
+import type { StateStoreSchema } from '../sqlite/state-store-schema';
 
 export interface UpdateMessagesAnsweredOptions {
   readonly answer: string;

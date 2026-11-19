@@ -1,6 +1,6 @@
 import { toSessionID } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
-import type { RuntimeAuthBinding } from '../runtime-auth-binding';
+import type { RuntimeAuthBinding } from '../auth-bindings/runtime-auth-binding';
 
 export function buildMockRuntimeAuthBinding(
   overrides: Partial<RuntimeAuthBinding> = {},

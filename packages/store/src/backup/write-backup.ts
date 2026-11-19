@@ -13,7 +13,7 @@ import { basename, dirname, join as joinPath } from 'node:path';
 import { DaemonError } from '@atc/protocol/wire';
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
-import type { StateStoreSchema } from './sqlite/state-store-schema';
+import type { StateStoreSchema } from '../sqlite/state-store-schema';
 
 // VACUUM INTO reads in one transaction, so the copy never holds half of a
 // write; the flushed copy is renamed over the path, which then holds its

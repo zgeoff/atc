@@ -1,7 +1,10 @@
 import type { Clock } from '@atc/core';
 import invariant from 'tiny-invariant';
-import type { StateStore } from '../create-state-store';
-import type { NewMaterialization, WorkspaceMaterialization } from '../workspace-materialization';
+import type {
+  NewMaterialization,
+  WorkspaceMaterialization,
+} from '../materializations/workspace-materialization';
+import type { StateStore } from '../stores/create-state-store';
 import { buildMockNewMaterialization } from './build-mock-new-materialization';
 
 export interface MaterializationSeedDeps {

@@ -21,15 +21,15 @@ import type { CompiledQuery } from 'kysely';
 import { Migrator } from 'kysely/migration';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
-import { buildTargetIdentity } from './build-target-identity';
+import { buildTargetIdentity } from '../fleet/build-target-identity';
+import { MIGRATIONS } from '../sqlite/migrations';
+import { PreLadderDatabaseError } from '../sqlite/pre-ladder-database-error';
+import type { StateStoreSchema } from '../sqlite/state-store-schema';
+import { buildMockFleetEntry } from '../test-utils/build-mock-fleet-entry';
+import { buildMockMessageRecord } from '../test-utils/build-mock-message-record';
+import { createMigratedStateDB } from '../test-utils/create-migrated-state-db';
+import { readQueryPlan } from '../test-utils/read-query-plan';
 import { createStateStore } from './create-state-store';
-import { MIGRATIONS } from './sqlite/migrations';
-import { PreLadderDatabaseError } from './sqlite/pre-ladder-database-error';
-import type { StateStoreSchema } from './sqlite/state-store-schema';
-import { buildMockFleetEntry } from './test-utils/build-mock-fleet-entry';
-import { buildMockMessageRecord } from './test-utils/build-mock-message-record';
-import { createMigratedStateDB } from './test-utils/create-migrated-state-db';
-import { readQueryPlan } from './test-utils/read-query-plan';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-store-');
