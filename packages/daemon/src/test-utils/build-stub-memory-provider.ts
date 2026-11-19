@@ -144,6 +144,7 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
       headless: true,
       suspend: false,
       destroy: false,
+      relay: config.remote ?? false,
       ...config.capabilities,
     },
     ...(guest === undefined ? {} : { readGuest: () => Promise.resolve(guest) }),

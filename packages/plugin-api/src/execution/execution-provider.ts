@@ -170,6 +170,9 @@ export interface ExecutionCapabilities {
 
   // Delete the host and everything on it.
   readonly destroy: boolean;
+
+  // Carry `HarnessSpec.onRelay`: the session bridge, from a socket inside the host to the daemon.
+  readonly relay: boolean;
 }
 
 export type ExecutionCapability = keyof ExecutionCapabilities;

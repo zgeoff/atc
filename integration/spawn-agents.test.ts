@@ -259,6 +259,7 @@ test('it lists each registered agent with what it can do and the host it runs on
           headless: true,
           suspend: false,
           destroy: false,
+          relay: false,
         },
         brokerAuth: false,
       },

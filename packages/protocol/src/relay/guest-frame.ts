@@ -1,8 +1,7 @@
 /* oxlint-disable id-length -- `t` and `v` are the relay's frame keys, which the mux and the daemon both write */
 
-// The frames the mux writes to the daemon.
+// The frames the mux writes to the daemon. A welcome echoes the hello's relay and gen.
 export type GuestFrame =
-  // echoes the hello's relay and gen
   | { t: 'welcome'; v: 1; relay: string; gen: number; ack: number; reset: boolean }
 
   // a reporter connected to the socket

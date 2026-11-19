@@ -539,6 +539,11 @@ test('it passes reporters whose static imports load only light entry points', as
     'export const TAP = 1;\n',
   );
 
+  await Bun.write(
+    join(ctx.directory, 'packages/reporters/src/relay-mux/index.ts'),
+    'export const MUX = 1;\n',
+  );
+
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
@@ -614,6 +619,11 @@ test('it fails on a reporter whose static imports load a root entry point', asyn
   await Bun.write(
     join(ctx.directory, 'packages/reporters/src/tap/index.ts'),
     'export const TAP = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/reporters/src/relay-mux/index.ts'),
+    'export const MUX = 1;\n',
   );
 
   const checked = await runCommand([
@@ -697,6 +707,11 @@ test('it fails on a CLI entry whose static imports load the core schema entry', 
     'export const TAP = 1;\n',
   );
 
+  await Bun.write(
+    join(ctx.directory, 'packages/reporters/src/relay-mux/index.ts'),
+    'export const MUX = 1;\n',
+  );
+
   const checked = await runCommand([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
@@ -754,8 +769,9 @@ test('it fails on a missing reporter entry beside the CLI entry', async () => {
     stderr: checked.stderr,
   }).toStrictEqual({
     exitCode: 1,
-    stdout: 'check-reach: 1 files reached, 1 bundled, 1 findings\n',
-    stderr: 'missing reporter: packages/reporters/src/tap/index.ts does not exist\n',
+    stdout: 'check-reach: 1 files reached, 1 bundled, 2 findings\n',
+    stderr:
+      'missing reporter: packages/reporters/src/tap/index.ts does not exist\nmissing reporter: packages/reporters/src/relay-mux/index.ts does not exist\n',
   });
 });
 
@@ -848,6 +864,11 @@ test('it fails on a missing daemon entry beside the CLI entry', async () => {
   );
 
   await Bun.write(
+    join(ctx.directory, 'packages/reporters/src/relay-mux/index.ts'),
+    'export const MUX = 1;\n',
+  );
+
+  await Bun.write(
     join(ctx.directory, 'packages/app/src/mcp/open-mcp-auth-database.ts'),
     'export const OPEN = 1;\n',
   );
@@ -884,6 +905,11 @@ test('it fails on a missing mcp-auth.db opener beside the CLI entry', async () =
   await Bun.write(
     join(ctx.directory, 'packages/reporters/src/tap/index.ts'),
     'export const TAP = 1;\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'packages/reporters/src/relay-mux/index.ts'),
+    'export const MUX = 1;\n',
   );
 
   await Bun.write(

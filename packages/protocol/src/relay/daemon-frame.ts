@@ -2,8 +2,8 @@
 
 // The frames the daemon writes to a guest's `atc relay-mux`, one JSON object per line. Each side
 // numbers the frames it sends in `seq`, and applies only the frame one past the last it applied.
+// A hello's relay is new per `openStreamRelay` call, and its gen is new per connection.
 export type DaemonFrame =
-  // relay: new per `openStreamRelay` call; gen: new per connection
   | { t: 'hello'; v: 1; relay: string; gen: number; ack: number }
 
   // a line the daemon writes to a reporter

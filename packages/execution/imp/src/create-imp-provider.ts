@@ -128,6 +128,7 @@ export function createImpProvider(
     headless: false,
     suspend: true,
     destroy: true,
+    relay: true,
   };
 
   const hosts = new Map<string, ImpHost>();

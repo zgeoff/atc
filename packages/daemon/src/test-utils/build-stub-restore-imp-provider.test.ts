@@ -23,6 +23,7 @@ test('it reports itself as a remote imp with the imp capabilities and guest layo
     headless: false,
     suspend: true,
     destroy: true,
+    relay: true,
   });
 });
 

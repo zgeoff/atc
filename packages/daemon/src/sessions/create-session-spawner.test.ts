@@ -266,6 +266,42 @@ test("it tags a remote session's telemetry with its ID alone, without the daemon
   );
 });
 
+test('it refuses a remote spawn on a provider that cannot carry the session bridge, before it readies a host', async () => {
+  const directory = setupTempDir('atc-session-spawner-guest-').path;
+
+  const provider = buildStubMemoryProvider({
+    kind: 'cloud',
+    remote: true,
+    capabilities: { relay: false },
+    guest: { directory, atc: null },
+  });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [
+      buildMockExecutionTarget({ id: 'far', kind: 'cloud', identity: 'cloud:test', provider }),
+    ],
+  });
+
+  const spawned = ctx.spawner.spawn({
+    cwd: ctx.directory,
+    name: 'work',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    target: 'far',
+  });
+
+  expect(spawned).rejects.toMatchObject({
+    code: 'unsupported_operation',
+    data: { problem: 'no_session_bridge' },
+  });
+
+  await spawned.catch(() => null);
+
+  expect(provider.prepared).toStrictEqual([]);
+});
+
 test('it boots a session before output its harness writes at once can reach it', async () => {
   const booted: number[] = [];
 

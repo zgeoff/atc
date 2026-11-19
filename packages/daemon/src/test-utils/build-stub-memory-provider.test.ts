@@ -21,6 +21,7 @@ test('it builds a provider with the capabilities of a local pseudo-terminal by d
     headless: true,
     suspend: false,
     destroy: false,
+    relay: false,
   });
 });
 

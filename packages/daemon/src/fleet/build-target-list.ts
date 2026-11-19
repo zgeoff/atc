@@ -35,6 +35,7 @@ const NO_CAPABILITIES: ExecutionCapabilities = {
   headless: false,
   suspend: false,
   destroy: false,
+  relay: false,
 };
 
 export function buildTargetList(
