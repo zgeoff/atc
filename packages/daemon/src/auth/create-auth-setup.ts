@@ -210,8 +210,8 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
     hostKey: SessionID,
     auth: HarnessAuthSetup & { readonly kind: 'broker' },
   ): Promise<VerifiedAuth> => {
-    // only a host whose every session runs this agent rebinds: two agents that select
-    // different profiles would each move the host back on their own launches
+    // Two agents on one host that select different profiles would each move the host back to
+    // their own binding on every launch, so only a sole agent may rebind.
     const isSoleAgent = registry.sessions.every(
       (other) => other.hostKey !== hostKey || other.agent === agent,
     );
@@ -526,8 +526,8 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 
       harnesses.authRevisions.set(session.hostKey, revision);
 
-      // a harness keeps the settings it launched with, so each one under an older revision shows
-      // that the new one applies at its next launch
+      // A running harness keeps the settings it launched with, so a new revision only applies at
+      // its next launch.
       const pending = registry.sessions.filter(
         (other) => other.hostKey === session.hostKey && harnesses.isAuthOutdated(other),
       );

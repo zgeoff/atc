@@ -137,9 +137,8 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
         return startReviveHarness(deps, session, launch);
       }
     } finally {
-      // every path that starts no harness, a throwing kill included, writes
-      // the session stopped to the fleet before the adopt answers, so a
-      // restore after a daemon restart does not revive it
+      // A restore after a daemon restart revives any session the fleet does not show as stopped, so
+      // every path that starts no harness must write that state before the adopt answers.
       try {
         if (session.pty === null) {
           session.state = 'exited';
@@ -478,8 +477,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
   };
 }
 
-// the held revision is the host's from before the revive, used when the
-// session recorded none at its latest launch
 function isLaunchOutdated(
   session: Session,
   revision: number,

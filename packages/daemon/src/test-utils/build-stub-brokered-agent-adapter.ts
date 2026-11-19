@@ -11,11 +11,10 @@ interface StubBrokeredAgentAdapterConfig {
   readonly isSelected: () => boolean;
 
   // Read at each call, not once, because a config change can add or drop the judge profile for an
-  // agent whose sessions already exist. Absent selects only glm.
+  // agent whose sessions already exist.
   readonly isJudgeSelected?: () => boolean;
 
   // Read at each spawn, not once. A guest that ignores hangup never confirms an exit after a kill.
-  // Absent plans a shell that exits on it.
   readonly ignoresHangup?: () => boolean;
 }
 

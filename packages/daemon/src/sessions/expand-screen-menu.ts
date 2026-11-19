@@ -33,8 +33,6 @@ export function expandScreenMenu(part: ScreenMenu, whole: ScreenMenu): ScreenMen
   return { text: whole.text, options: [...list, ...shown.after], highlighted };
 }
 
-// Repeated labels can match a window in several places. The screen does not show which one
-// the cursor is in, so the match is ambiguous.
 function findListOffset(
   part: ScreenMenu,
   shown: readonly ScreenMenuOption[],

@@ -90,8 +90,6 @@ export interface MessageService {
     gone?: boolean,
   ) => Promise<void>;
 
-  // While another live session resumes the same agent session, the store
-  // cannot tell which process holds a message, so none is marked.
   readonly updateEndedSessionMessages: (session: Session, gone?: boolean) => Promise<void>;
 
   readonly writeSessionMessage: (
@@ -342,7 +340,7 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
     };
 
     try {
-      // The reach check and the start of the row write run in one synchronous step, so the session's
+      // The reach check and the start of the write run in one synchronous step, so the session's
       // tree cannot leave the access between the check and the write it allows.
       options.requireWriteInReach();
 
@@ -525,9 +523,9 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
       void drainSessionInbox(sessionID);
 
       if (delivered !== null) {
-        // a tap can outlive its process, so an ack can land after the end marked its messages; a
-        // process is surely gone once its exit was seen or a local session has no terminal, while a
-        // remote host that lost the connection or went to sleep may still run it
+        // A tap can outlive its process, so an ack can arrive after the end marked its messages.
+        // A process is surely gone once its exit was seen or a local session has no terminal.
+        // A remote host that lost the connection or went to sleep may still run it.
         const live =
           session.pty !== null || (session.kind === 'headless' && session.state !== 'exited');
 

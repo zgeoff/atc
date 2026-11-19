@@ -99,8 +99,9 @@ fi`,
   },
 };
 
-// git status starts an fsmonitor that the repository's own config names, so the script turns it
-// off; atc never builds a workspace as a symlink, so one there leads to a folder that is not atc's
+// git status would start an fsmonitor command named in the repository's own config, so the
+// script turns it off. atc never makes a workspace a symlink, so a symlink here leads to a
+// folder that is not atc's.
 export const WORKSPACE_CHECK_SCRIPT = `dir=$1 sha=$2
 if [ -L "$dir" ]; then exit ${FOREIGN_EXIT}; fi
 if [ ! -e "$dir" ]; then exit ${MISSING_EXIT}; fi
@@ -161,7 +162,7 @@ function buildLineCount(gitArgs: string, pattern: string): string {
 }
 
 // git rev-list counts no commits for a ref that points at a tree or a blob, so such a ref would
-// look clean. The script fails the check instead.
+// look clean.
 function buildRefField(prefix: string, describe: (ref: string) => CountNouns): CheckField {
   return {
     print: (

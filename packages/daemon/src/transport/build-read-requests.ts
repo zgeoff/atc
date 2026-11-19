@@ -126,8 +126,6 @@ export function buildReadRequests(): ReadRequests {
       const read =
         decoded === null || decoded.kind !== 'events' ? null : await ctx.readNote(decoded.id, null);
 
-      // Reach is checked against the session that sent the note, never the
-      // session its view is named by.
       if (read === null || !ctx.isSessionVisible(read.owner)) {
         throw new DaemonError('bad_args', `no note '${data.note}'`);
       }

@@ -167,8 +167,7 @@ function readClaudeHookAgent(args: readonly string[]): string {
   return agent.replaceAll("'", '');
 }
 
-// A socket write takes only what fits in its buffer. The rest must go out on drain, as the
-// real hook reporter does.
+// A socket write takes only what fits in its buffer, so the rest must go out on drain.
 async function writeReportLine(socket: string, line: string): Promise<void> {
   const bytes = Buffer.from(line);
   const closed = Promise.withResolvers<void>();

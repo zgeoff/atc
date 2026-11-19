@@ -47,9 +47,8 @@ export interface HarnessPlan extends SpawnPlan {
     readonly attemptID: string | null;
   } | null;
 
-  // The binding revision the host held before this launch verified it. It is the latest revision
-  // that an attached process can have launched under. Null when the launch creates its binding
-  // or takes no runtime auth.
+  // The binding revision the host held before this launch checked it. No attached process can have
+  // launched under a later revision. Null when the launch creates its binding or has no runtime auth.
   readonly heldRevision: number | null;
 }
 

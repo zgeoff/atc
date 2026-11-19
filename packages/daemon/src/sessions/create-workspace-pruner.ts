@@ -125,7 +125,6 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
       home: deps.homeDir,
     });
 
-    // a root relative to a remote home has no absolute form here to compare rows against
     return root.startsWith('/') ? readHostSubdirs(provider, root) : Promise.resolve([]);
   };
 
@@ -160,8 +159,6 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
       .with({ kind: 'check' }, (checked) => {
         const check = () => checkWorkspace(row, checked, run);
 
-        // the hold starts before the check, since a session that starts in the folder while the
-        // check runs would find its work removed
         return run.remove
           ? manager.withRemovalHold(
               {
@@ -274,7 +271,6 @@ export function createWorkspacePruner(deps: WorkspacePrunerDeps): WorkspacePrune
 
     const bytes = await deps.readDirBytes(path);
 
-    // a session with the id may have listed or started while the prune checked other folders
     const plan = pickPruneStatePlan({ remove: run.remove, owned: isOwned(id, run.fleet) });
 
     if (plan === 'report') {

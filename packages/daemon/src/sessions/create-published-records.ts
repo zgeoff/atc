@@ -61,8 +61,6 @@ export interface PublishedRecords {
 
   readonly restoreCopy: (subject: RecordSubject) => Promise<string>;
 
-  // A host that sleeps takes its copy at its next harness start, so the copy is not placed
-  // while it sleeps.
   readonly updateIdentity: (subject: RecordSubject, placeCopy: boolean) => Promise<void>;
 
   readonly updateScope: (
@@ -117,9 +115,9 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
       options.ghBin,
     );
 
-  // a harness started before its host kept read-only files reads the guest-folder copy and scope
-  // file, and a later start reattaches to it with that environment, so both stay current while
-  // they exist; a cold boot clears the folder and ends that process with it
+  // A harness started before its host kept read-only files reads the guest-folder copy and keeps
+  // that environment on reattach, so the copy must stay current. A cold boot clears the folder
+  // and ends that process.
   const refreshGuestCopy = async (
     subject: RecordSubject,
     record: PlacedFile,
@@ -241,8 +239,6 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
 
     const merged = mergeRecordedScope(current.scope, checked);
 
-    // A change that adds nothing still places the copy, so a retry after a
-    // failed copy write brings the copy level with the store.
     if (stored !== null && merged === current.scope) {
       await writeCopy(subject, stored);
 
@@ -300,8 +296,6 @@ export function createPublishedRecords(options: PublishedRecordsOptions): Publis
 
         const record = await writeIdentity(subject, stored);
 
-        // An unchanged identity still places the copy, so a retry after a
-        // failed copy write brings the copy level with the store.
         if (placeCopy) {
           await writeCopy(subject, record);
         }

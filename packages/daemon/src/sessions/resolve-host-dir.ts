@@ -7,8 +7,8 @@ import type { SessionID } from '@atcx/contract';
 // resolved directory is followed by a NUL and the unresolved rest of the path comes after it.
 export const RESOLVE_DIR_SCRIPT = `p=$1; s=; while [ ! -d "$p" ]; do s=/\${p##*/}$s; p=\${p%/*}; [ -n "$p" ] || p=/; done; cd -P -- "$p" && pwd -P && printf '\\0%s' "$s"`;
 
-// A symlink whose target is missing could stand for a directory anywhere, so the script exits
-// with status 6 instead of treating it as a plain missing name.
+// A symlink with a missing target could have been a directory anywhere, so walking up past it
+// would resolve the wrong parent.
 export const RESOLVE_UNLINKED_DIR_SCRIPT = `p=$1; while [ ! -d "$p" ]; do [ ! -L "$p" ] || exit 6; p=\${p%/*}; [ -n "$p" ] || p=/; done; ${RESOLVE_DIR_SCRIPT}`;
 
 export async function resolveHostDir(

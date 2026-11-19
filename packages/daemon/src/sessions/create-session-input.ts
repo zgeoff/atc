@@ -131,8 +131,8 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
     const pty = session.pty;
     const runtime = getRuntime(sessionID);
 
-    // Input from outside a menu read or choice can open another list that
-    // reads like the kept whole menu, so the kept menu is dropped.
+    // Keys sent from outside a menu read can open a different list that looks like the cached
+    // full menu. The cached copy would then be stale, so it is discarded.
     runtime.wholeMenu = null;
 
     runtime.input.schedule(() => {
@@ -154,9 +154,8 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
 
       manager.requireExecution(session, 'input');
 
-      // Typed text would confirm the prompt's highlighted option. Attaching
-      // or a screen judgment changes the state while the prompt stays open,
-      // so only the flag decides.
+      // Typed text would confirm the option the permission prompt has highlighted. Attaching or a
+      // screen check can change state while the prompt is still open, so only the flag is reliable.
       if (session.permissionPending === true) {
         return Promise.resolve('permission_pending');
       }
@@ -164,8 +163,8 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
       const runtime = getRuntime(sessionID);
       const bracketedPaste = runtime.screen?.hasBracketedPaste() ?? false;
 
-      // A typed line can open another list that reads like the kept whole
-      // menu, so the kept menu is dropped.
+      // A typed line can open a different list that looks like the cached full menu. The cached
+      // copy would then be stale, so it is discarded.
       runtime.wholeMenu = null;
 
       const adapter = manager.findAdapter(session.agent);

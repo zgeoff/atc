@@ -78,8 +78,8 @@ export async function runGit(
       ...options.env,
       ...(isolated ? ISOLATED_ENV : {}),
 
-      // GIT_ALLOW_PROTOCOL stays in force when a url rewrite in the host config points a fetch at
-      // another transport.
+      // A url rewrite in the host config can point a fetch at another transport. This protocol list
+      // still limits it.
       GIT_TERMINAL_PROMPT: '0',
       LC_ALL: 'C',
       GIT_ALLOW_PROTOCOL: (options.transports ?? DEFAULT_GIT_TRANSPORTS).join(':'),

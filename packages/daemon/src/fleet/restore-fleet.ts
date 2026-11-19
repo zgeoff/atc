@@ -91,9 +91,9 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const isStopped = () => params.isStopped?.() === true;
   const beganAtMs = clock.now();
 
-  // a session an earlier restore could not start a terminal for is not live until a
-  // headless turn starts for it; a live session that resumed the entry's agent session
-  // on another target leaves the entry to restore, as the fleet keeps a row per target
+  // A session whose terminal an earlier restore could not start is not live until a headless turn
+  // starts for it. A session that resumed the same agent session on another target does not count,
+  // because the fleet keeps one row per target.
   const hasLiveSession = (entry: FleetEntry) =>
     manager.sessions.some(
       (session) =>
@@ -114,8 +114,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const recency = await store.readFleetRecency();
   const stored = await store.loadFleet();
 
-  // Exited entries dedupe against every listed session, so repeated restores never list the
-  // killed archive twice.
   const kept = stored
     .filter((entry) => (entry.exited === true ? !hasAnySession(entry) : !hasLiveSession(entry)))
     .toSorted((left, right) => findRecency(right).localeCompare(findRecency(left)));
@@ -236,8 +234,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     };
 
     runtime.bootWaiter = waiter;
-
-    // an agent the host still ran, or a harness that never starts, reports no start
     void watchHarnessStart(session.id, harness, stop);
 
     return { released: released.promise, recorded: recorded.promise, stop };

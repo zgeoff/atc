@@ -23,8 +23,8 @@ interface WorkspaceReservation {
   readonly kind: 'workspace' | 'plain';
 }
 
-// Empties the directory from inside after checking it still resolves to itself, so a symlink
-// swapped in during the removal is never followed.
+// A symlink swapped in during the removal must not be followed, so the script checks from inside
+// the directory that it still resolves to itself before it deletes anything.
 export const REMOVE_DIR_SCRIPT =
   'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
 
@@ -85,8 +85,8 @@ export interface HostDirClaims {
 
   readonly withRemovalHold: <T>(hold: RemovalHold, run: () => Promise<T>) => Promise<T>;
 
-  // a relative directory resolves as a harness started in it sees it, since the provider starts
-  // both from the home of the user they run as; a stricter script must print the same form
+  // A relative directory resolves from the home of the user the provider runs as, which is where a
+  // harness starts. A custom script must print the same form.
   readonly resolveHostDir: (
     provider: ExecutionProvider,
     hostKey: SessionID | null,

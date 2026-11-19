@@ -20,8 +20,6 @@ export interface DaemonOptions {
   readonly build: string;
   readonly adapter?: AgentAdapter | null;
 
-  // Lookup never falls back across ids: a session whose agent has no registered adapter is
-  // unsupported, not a spawn of the default agent.
   readonly adapters?: readonly AgentAdapter[];
 
   readonly defaultAgent?: AgentID;

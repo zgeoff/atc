@@ -10,8 +10,8 @@ interface HashedBinding {
   readonly telemetryHost: string | null;
 }
 
-// A github secret's rules hash as no rules, since the broker's github secret holds the same rules.
-// The legacy placeholder hashes as the current one, so stored bindings keep their hash.
+// Stored hashes must stay valid, so a github secret with the default rules hashes with none
+// and the old broker placeholder hashes the same as the current one.
 export function buildBindingHash(binding: HashedBinding): string {
   const secrets = binding.secrets.map((secret) =>
     secret.kind === 'github' && isDeepStrictEqual(secret.rules, GITHUB_SECRET_RULES)
@@ -26,8 +26,7 @@ export function buildBindingHash(binding: HashedBinding): string {
     ]),
   );
 
-  // An empty part is left out of the hash so a binding stored before that part existed keeps its
-  // hash.
+  // Empty parts are left out so the hashes of bindings stored earlier stay unchanged.
   const hashed = {
     secrets,
     ...(Object.keys(profileEnv).length === 0 ? {} : { profileEnv }),

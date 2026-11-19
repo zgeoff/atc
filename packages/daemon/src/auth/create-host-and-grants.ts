@@ -82,8 +82,8 @@ export async function createHostAndGrants(
     }),
   );
 
-  // every grant settles before a failed one rejects, so a take-back never runs beside a grant
-  // still in flight
+  // The first failure must not reject while other grants are still running, or the take-back would
+  // race them. Wait for every grant to finish, then throw.
   for (const result of granted) {
     getSettledValue(result);
   }

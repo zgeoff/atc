@@ -116,7 +116,8 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
 
         await applyNote({ atcId: sessionID, event: 'Note', payload: { ...payload } });
 
-        // The bridge settles a message the App Server refused without an ack, so the tap is freed here.
+        // The bridge settles a message the App Server refused without an ack, so the inbox drains here
+        // to free the tap.
         void messages.drainSessionInbox(sessionID);
 
         return true;
@@ -189,8 +190,6 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
     }
   };
 
-  // A start in flight has no bridge to stop until it returns, so a stop takes over each pending
-  // start and stops the bridge it yields.
   const starting = new Map<SessionID, Set<Promise<MessageBridge>>>();
   const stoppedStarts = new Set<Promise<MessageBridge>>();
 
@@ -250,15 +249,14 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
 
     const stopped = stoppedStarts.has(start);
 
-    // the check and the map write share one turn, so no stop lands between them
     untrack();
 
     if (stopped) {
       return bridge;
     }
 
-    // A second launch of the session can start its bridge while this one
-    // started, so the bridge this one replaces stops here.
+    // A second launch of the session can finish starting its bridge while this one is still
+    // starting, so the bridge this one replaces is stopped here.
     const replaced = bridges.get(sessionID);
 
     bridges.set(sessionID, bridge);

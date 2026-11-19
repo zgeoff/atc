@@ -6,7 +6,6 @@ export interface HandshakeThrottle {
   readonly getDelay: (address: string, now: number) => number;
 }
 
-// A delay slows a token guesser without locking out a legitimate peer that later recovers.
 export function createHandshakeThrottle(delayMs: number): HandshakeThrottle {
   const failures = new Map<string, number[]>();
 

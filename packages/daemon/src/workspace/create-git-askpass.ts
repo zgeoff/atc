@@ -24,8 +24,8 @@ interface MissingCredential {
 const ASKPASS_SECRET_VAR = 'ATC_GIT_ASKPASS_SECRET';
 const ASKPASS_ORIGIN_VAR = 'ATC_GIT_ASKPASS_ORIGIN';
 
-// Git and this script can read the same URL differently, so any odd URL is refused whole.
-// GitHub and GitLab both accept x-access-token as the username.
+// Git and this script can parse the same URL differently, so the script refuses any URL with
+// unusual characters outright. GitHub and GitLab both accept x-access-token as the username.
 export const ASKPASS_SCRIPT = `#!/bin/sh
 q="'"
 case "$1" in

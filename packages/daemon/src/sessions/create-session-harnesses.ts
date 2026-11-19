@@ -34,8 +34,6 @@ export interface SessionHarnesses {
 
   readonly attachHarness: (session: Session, pty: HarnessHandle, hostLifecycle: boolean) => void;
 
-  // A harness attached to a process the host still ran keeps the revision that process launched
-  // under. The revision is written to the fleet so a restore after a daemon restart finds it.
   readonly updateLaunchRevision: (
     session: Session,
     revision: number,

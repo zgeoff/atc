@@ -14,7 +14,8 @@ export interface InboxSource {
 export async function drainInbox(sessionID: SessionID, source: InboxSource): Promise<void> {
   const linkedOwner = source.findLinkedOwner(sessionID);
 
-  // bound to the tap found before the read: a tap another attach makes meanwhile gets nothing
+  // Find the tap before the read. A tap another attach makes during the read must get nothing
+  // from it.
   const tap = source.taps.findTap(sessionID);
 
   if (linkedOwner === null || tap === null) {
@@ -26,8 +27,7 @@ export async function drainInbox(sessionID: SessionID, source: InboxSource): Pro
   const owner = tap.linked ? linkedOwner : { atcID: linkedOwner.atcID };
 
   try {
-    // One item goes out per call and the tap's ack drains again, so the backlog stays small.
-    // Nothing is sent before this read, so the tap's ok reaches the client first.
+    // Nothing is sent before this read finishes, so the tap's ok reaches the client first.
     const pending = await source.readPendingMessages(owner);
 
     for (const record of pending) {

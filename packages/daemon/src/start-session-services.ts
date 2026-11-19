@@ -139,8 +139,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
 
   manager.authBinder = authBinder;
 
-  // Reconciling reaches each target's broker, so it runs in the background. A binding a stopped
-  // daemon left mid-change stays blocked until it is settled.
+  // Reconciling calls each target's broker over the network, so startup does not wait for it.
   void tryReconcileAuthBindings(authBinder, store, targetsByID, manager.log);
 
   const ledger = createIdempotencyLedger(

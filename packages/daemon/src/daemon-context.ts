@@ -64,9 +64,6 @@ export interface SpawnParams {
 
   readonly scope: DeclaredScope | null;
 
-  // Whether the daemon picked cwd for a git workspace the spawn gave no
-  // directory for, so a held directory moves the spawn to a numbered one
-  // beside it.
   readonly autoDir: boolean;
 }
 
@@ -96,15 +93,11 @@ export type ForgetResult =
       readonly workspace: WorkspaceCleanup;
     };
 
-// a pinned session, or a sub-session of one unless the pin belongs to the caller or a
-// session above the caller; and a live session
 export interface ForgetRefusals {
   readonly pinned: boolean;
   readonly live: boolean;
 }
 
-// A transcript page with the file it came from, so a cursor into a replaced
-// transcript is distinguishable from one into a grown transcript.
 export interface SessionTranscriptRead {
   readonly path: string;
   readonly page: TranscriptPage;
@@ -174,8 +167,6 @@ export interface DaemonContext {
   readonly build: string;
   readonly daemonID: DaemonID;
 
-  // How long the daemon keeps a completed idempotency key, which the
-  // handshake announces so a caller knows how long a retry stays deduplicated.
   readonly idempotencyRetentionMs: number;
   readonly collectSessions: () => SessionDescriptor[];
 
@@ -201,15 +192,10 @@ export interface DaemonContext {
 
   readonly canSeeSession: (id: SessionID, access: TargetAccess) => boolean;
 
-  // any session for the daemon's owner, and for a principal only one whose whole tree
-  // it reaches; a read asks this in the same step as it sends, with no await between
   readonly isSessionVisible: (id: SessionID) => boolean;
 
   readonly findPermissionSession: (request: string) => SessionID | null;
 
-  // The session a spawn under the given session lands under: that session,
-  // or its own parent for a sub-session, so a set stays one level deep.
-  // Null spawns the session top-level; 'missing' for an unknown session.
   readonly resolveSpawnParent: (id: SessionID) => SessionID | null | 'missing';
 
   readonly resolveSpawnTarget: (requested: string | undefined) => string;
@@ -303,9 +289,8 @@ export interface DaemonContext {
     data: string,
   ) => 'busy' | 'ok' | 'missing' | 'dead';
 
-  // submits a line the way the session's agent accepts one, settling once its last write
-  // has gone; a session waiting on a permission prompt refuses it, since typed text
-  // would confirm the prompt's highlighted option
+  // A session waiting on a permission prompt refuses typed lines, because the text would confirm
+  // the option the prompt has highlighted.
   readonly writeSessionLine: (
     sessionID: SessionID,
     text: string,

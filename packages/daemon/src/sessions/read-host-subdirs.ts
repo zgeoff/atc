@@ -1,9 +1,8 @@
 import { posix } from 'node:path';
 import type { ExecutionProvider } from '@atc/plugin-api';
 
-// A failed `test` cannot tell a missing path from an error such as a name too long. The script
-// reads find's errors in the C locale so the message text is stable, and treats the folder as
-// missing only when every error is ENOENT.
+// A failed `test` cannot tell a missing path from an error such as a name too long, so the
+// script reads find's errors instead. It sets the C locale so the error message text is stable.
 export const LIST_SUBDIRS_SCRIPT = String.raw`
 LC_ALL=C
 export LC_ALL

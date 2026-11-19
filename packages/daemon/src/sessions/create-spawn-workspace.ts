@@ -75,8 +75,8 @@ export async function createSpawnWorkspace(
                 });
               }
 
-              // held before the clone creates it, so a removal running now refuses it and one
-              // that starts later keeps a directory that holds it
+              // Claim the directory before the clone creates it. A removal running at that moment refuses it,
+              // and a removal that starts later keeps the directory because it holds a claim.
               deps.claims.claimMachineDir(id, target, candidate, spawn.autoDir);
 
               return deps.claims.resolveHostDir(provider, null, candidate);

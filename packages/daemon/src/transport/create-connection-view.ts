@@ -13,8 +13,6 @@ interface ViewUpdate {
 export interface ConnectionView {
   readonly startView: (access: TargetAccess) => void;
 
-  // The event reaches the connection when its session is in the view, or when the session
-  // is gone from the daemon after the connection was shown it.
   readonly updateView: (event: EventMsg, access: TargetAccess) => ViewUpdate;
 }
 

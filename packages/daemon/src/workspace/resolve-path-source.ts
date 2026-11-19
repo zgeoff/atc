@@ -94,7 +94,7 @@ export async function resolvePathSource(
   }
 
   if (dirty) {
-    // A display that cuts the warning short must still show the commit, so the commit comes first.
+    // Some displays truncate the warning, so the commit goes first to stay visible.
     warnings.push(
       `cloned commit ${sha.slice(0, 12)}; left ${changed} uncommitted or untracked ${changed === 1 ? 'path' : 'paths'} behind in ${root}`,
     );
@@ -133,14 +133,14 @@ export async function resolvePathSource(
   };
 }
 
-// a workspace clone never initializes submodules, so either would ship an incomplete tree
+// A workspace clone never initializes submodules, so a repo that uses them would ship an
+// incomplete tree.
 function hasSubmodules(listing: string): boolean {
   return listing
     .split('\n')
     .some((line) => line.startsWith('160000 ') || line.endsWith('\t.gitmodules'));
 }
 
-// only the count leaves this module: a path's name can itself be sensitive
 function countChangedPaths(porcelain: string): number {
   return porcelain.split('\n').filter((line) => line.trim() !== '').length;
 }

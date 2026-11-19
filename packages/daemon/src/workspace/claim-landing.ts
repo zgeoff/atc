@@ -63,8 +63,6 @@ async function claimTargetDir(
     host: landing.host,
   });
 
-  // a claim that passes for two spawns of one directory leaves no other trace, so each
-  // claim's arguments and exit code go to the log
   deps.log(
     `atc: debug: workspace for session ${request.sessionID} ran the directory claim with ${JSON.stringify(args)} on target '${request.target}': exit ${claim.exitCode}`,
   );

@@ -112,8 +112,8 @@ test('it logs how many lines it dropped once the stderr reader reads again', asy
     output.push(String(chunk));
   });
 
-  // The log writes the count of the lines it dropped ahead of the next line
-  // it writes, so each check sends one more refusal.
+  // The log writes the count of dropped lines only ahead of the next line it writes, so the
+  // check has to keep sending lines.
   await waitFor(async () => {
     await sendLinesBeforeHandshake(daemon.port, 1);
 

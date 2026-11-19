@@ -41,8 +41,6 @@ export interface SessionWatch {
 export interface SessionOutput {
   readonly recordOutput: (session: Session, data: string) => void;
 
-  // The clear leads so a client screen that is stale or out of sync resets before the replay
-  // paints.
   readonly sendReplay: (sessionID: SessionID, client: OutputClient) => Promise<void>;
 
   readonly attachSession: (
@@ -274,8 +272,8 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
       manager.requireExecution(session, 'attach');
 
-      // The watcher joins before the capture so output recorded during the capture reaches it. The
-      // seq is read when the replay renders, so the replay holds exactly the output up to that seq.
+      // The watcher joins before the capture so output recorded while the capture runs still reaches
+      // it.
       const clients = watchers.get(sessionID) ?? new Set<OutputClient>();
 
       clients.add(client);

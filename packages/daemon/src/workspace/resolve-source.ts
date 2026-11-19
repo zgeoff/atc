@@ -76,8 +76,6 @@ export async function resolveSource(
   };
 }
 
-// A credential in the origin URL itself is stripped when the source resolves, so only a rewrite
-// can still carry one.
 async function requireNoOriginRewriteCredentials(path: string): Promise<void> {
   const origin = await runGit(['config', '--get', 'remote.origin.url'], { cwd: path }).catch(
     requireStartFailure,

@@ -16,8 +16,6 @@ export interface MaterializeDeps {
 
   readonly readyHost: (attempt: number) => Promise<Landing>;
 
-  // Leave the directory in place when it holds data another session needs, or when it no longer
-  // resolves to the path this call claimed.
   readonly removeClaim: (directory: string) => Promise<boolean>;
 
   readonly stagingRoot: string;

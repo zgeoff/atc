@@ -129,8 +129,8 @@ export function createEventTrail(deps: EventTrailDeps): EventTrail {
         if (rows.length > 0 || remaining <= 0 || eventSignal.disposed) {
           const naming = collectNamingDescriptors(access);
 
-          // Under an access an alias would replace the atc id the send check reads, so each event keeps
-          // the atc id it was recorded under.
+          // Under an access an alias would replace the atc id that the send check reads, so each event
+          // keeps the atc id it was recorded under.
           const aliases = access === null ? naming : [];
 
           return {

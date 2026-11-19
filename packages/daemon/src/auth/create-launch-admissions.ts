@@ -11,8 +11,6 @@ export interface LaunchAdmissions {
 }
 
 export function createLaunchAdmissions(): LaunchAdmissions {
-  // A request still opening its connection checks its ticket just before it sends.
-  // Blocking a host marks these tickets before any write, so that request closes unsent.
   const pending = new Map<SessionID, Set<{ refusal: DaemonError | null }>>();
 
   return {

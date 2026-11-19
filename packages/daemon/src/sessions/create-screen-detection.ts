@@ -83,8 +83,6 @@ export function createScreenDetection(deps: ScreenDetectionDeps): ScreenDetectio
     }
   };
 
-  // A menu that flags a done session starts no turn, so lowering the flag restores done with its
-  // own message instead of running.
   const updateLoweredAttention = (
     sessionID: SessionID,
     runtime: SessionRuntime,

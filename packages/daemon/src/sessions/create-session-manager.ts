@@ -227,8 +227,6 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
   const startMessageBridge = events.startMessageBridge ?? (() => Promise.resolve(null));
   const stopMessageBridge = events.stopMessageBridge ?? (() => Promise.resolve());
 
-  // Each module reads the daemon's settings at the moment it acts, since
-  // the daemon sets them after the manager is built.
   const callbacks: SessionCallbacks = {
     onOutput,
     onChange,

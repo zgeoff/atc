@@ -51,8 +51,6 @@ export interface DaemonConnection {
 
   readonly sendOutput: (sessionID: SessionID, event: EventMsg, byteLength: number) => void;
 
-  // Decodes with state kept across reads, so a multi-byte character split
-  // between two reads decodes whole.
   readonly decodeChunk: (buf: Uint8Array) => string;
 
   readonly applyChunk: (chunk: string) => void;

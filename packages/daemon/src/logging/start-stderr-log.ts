@@ -50,8 +50,6 @@ async function stopLog(clock: Clock): Promise<void> {
 }
 
 async function disposeLog(): Promise<void> {
-  // A sink that fails to close loses only its last lines, which must not
-  // keep the process from exiting.
   try {
     await dispose();
   } catch {}

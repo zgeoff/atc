@@ -144,9 +144,8 @@ async function applySpawn(
     throw new DaemonError('bad_args', 'session.spawn requires a cwd');
   }
 
-  // Every refusal is thrown from the plan, which runs only once a key is
-  // claimed: a retry of a held key answers from the key without checking
-  // anything again, and a refused spawn drops its claim.
+  // Every refusal must be thrown while the key is being claimed. A retry of a held key answers
+  // from the key without any check, and a refused spawn drops its claim.
   const plan = (): SpawnParams => {
     // The target goes first: a config or target problem is the cause a
     // spawn reports, ahead of any agent check that problem can skew.

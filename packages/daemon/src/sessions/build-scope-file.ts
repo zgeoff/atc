@@ -11,8 +11,8 @@ interface ScopeReplyChannel {
   readonly recipient: string;
 }
 
-// version 1 of the launcher scope format that auto-mode documents in
-// docs/guides/scope-file.md, which refuses a file holding a field it does not define
+// The auto-mode launcher refuses a scope file that holds a field its format does not define.
+// The format is documented in docs/guides/scope-file.md.
 export interface ScopeFile {
   readonly format: 'auto-mode.scope';
   readonly version: 1;

@@ -20,8 +20,6 @@ export interface SessionCallbacks {
   readonly onOutput: (session: Session, data: string) => void;
   readonly onChange: () => void;
 
-  // Called as a harness starts, before its first output can arrive, with
-  // the terminal size it starts at.
   readonly onBoot: (session: Session, cols: number, rows: number) => void;
 
   readonly onRelay: (binding: BridgeBinding, relay: HarnessRelay) => void;
@@ -37,7 +35,6 @@ export interface SessionCallbacks {
 
   readonly now: () => number;
 
-  // The daemon sets these after the modules are built, so each is read when a module acts.
   readonly getClock: () => Clock;
 
   readonly getReporterSocketPath: () => string;

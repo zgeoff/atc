@@ -20,7 +20,6 @@ interface StubMenuScenario {
   // Claude Code holds a dialog that just opened: enter and escape only restart the hold.
   readonly holdMs?: number;
 
-  // Answers each enter only that long after reading it, as a busy agent does.
   readonly enterDelayMs?: number;
   readonly pickOpensNext?: boolean;
 }
@@ -58,8 +57,8 @@ export function buildStubMenuClaude(clock: Clock = systemClock): StubMenuClaude 
       loaded = scenario;
     },
     start: (harness) => {
-      // A session started before any scenario sits idle, as another agent
-      // on the same provider does.
+      // A session that starts before any scenario loads stays idle, because other agents on the same
+      // provider start sessions that never show a menu.
       if (loaded === null) {
         return;
       }

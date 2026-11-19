@@ -27,7 +27,8 @@ const REFUSED_ADOPT_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'broker_not_ready',
   'auth_placeholder_unsupported',
 
-  // a plugin folder the session loads is not a folder, or sits on a remote target
+  // The adopt call returns bad_args or unsupported when a plugin folder the session loads is
+  // not a directory or is on a remote target.
   'bad_args',
   'unsupported',
 ]);

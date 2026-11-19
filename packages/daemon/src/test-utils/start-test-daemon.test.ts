@@ -568,8 +568,8 @@ test('it stops the daemon and removes its directory once the test finishes witho
 
   const closes: string[] = [];
 
-  // Registered before the client opens, so it runs after the harness's
-  // release and before the client's own stop below.
+  // Cleanup hooks run in reverse order. Registering this one first makes it run after the harness
+  // releases the daemon and after the client stops.
   onTestFinished(async () => {
     await waitFor(() => {
       expect(closes).toStrictEqual(['closed']);

@@ -38,13 +38,11 @@ export interface Session {
   namedBy: 'user' | 'auto' | 'agent';
   createdAt: number;
 
-  // The session that spawned this one as a sub-session; null for a
-  // top-level session. One level deep: a sub-session never owns another.
+  // A sub-session never owns another, so nesting is one level deep.
   parent: SessionID | null;
 
-  // The session the spawn request came from, which may differ from the
-  // parent when a sub-session spawns; null for a spawn from outside every
-  // session.
+  // The session the spawn request came from, which can be a sub-session spawning a sibling.
+  // Null when the request came from outside every session.
   spawner: SessionID | null;
 
   atcAccess?: readonly GrantScope[];
@@ -53,22 +51,18 @@ export interface Session {
 
   result?: string;
 
-  // the transcript file the agent's hooks last reported. Kept apart from the
-  // resume check so a restored path never changes whether a revive is allowed.
+  // A restored path never changes whether a revive is allowed.
   transcriptPath?: string;
 
-  // the model and effort the session was spawned with; absent leaves the
-  // agent's configured default, and every revive passes them again.
+  // Absent means the agent's configured default. Every revive passes both again.
   model?: string;
   effort?: string;
 
-  // the plugin folders the spawn asked for, as absolute paths on the
-  // daemon's machine; every revive loads them again.
+  // Absolute paths on the daemon's machine. Every revive loads them again.
   pluginDirs?: readonly string[];
 
-  // the execution target the session runs on, and the identity it had
-  // when the session started there; every revive runs there too, and only
-  // while the target keeps that identity.
+  // Every revive runs on the same target, and only while the target still has the identity it
+  // had when the session started there.
   target: string;
   targetIdentity: string;
 

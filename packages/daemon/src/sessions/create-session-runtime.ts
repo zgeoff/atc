@@ -47,8 +47,7 @@ export interface SessionRuntime {
 
   needsInputUnrecorded: boolean;
 
-  // Whether a tap has attached since the terminal last booted. A tap that
-  // later dropped may be restarting, so it keeps the inbox open.
+  // A tap that dropped after attaching may be restarting, so the inbox stays open for it.
   tapAttached: boolean;
 
   hasAgentHookLines: boolean;

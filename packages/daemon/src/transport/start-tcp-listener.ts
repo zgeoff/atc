@@ -33,8 +33,6 @@ interface TCPListenerOptions {
 }
 
 export interface TCPListener {
-  // The port the listener bound, which a requested port of 0 leaves to the
-  // kernel.
   readonly port: number;
 
   readonly setTokens: (tokens: readonly string[] | null) => void;

@@ -30,8 +30,6 @@ export function planResumeCommand(
       .findAdapter(session.agent)
       ?.planResumeCommand(session.cwd, session.agentSessionID, session.pluginDirs ?? []) ?? null;
 
-  // Some agents have no outside command, such as a gateway that signs in only through the
-  // daemon's broker.
   if (command === null) {
     return {
       refusal: 'unsupported',

@@ -113,8 +113,7 @@ export function createSpawnReplay(deps: SpawnReplayDeps): SpawnReplay {
   };
 }
 
-// A key with no recorded target keeps the session's target only inside its stored answer.
-// Read it from there to name the target in the refusal.
+// A key with no recorded target holds the session's target only inside its stored answer.
 function getReplayTarget(record: IdempotencyRecord): string {
   const stored: unknown = record.result === null ? null : JSON.parse(record.result);
   const session = isRecord(stored) ? stored['session'] : null;

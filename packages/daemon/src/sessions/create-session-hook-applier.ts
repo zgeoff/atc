@@ -228,8 +228,8 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
 
     dirty ||= changed;
 
-    // A fleet rewrite marks every session without a PTY as exited, so only a new agent session id
-    // takes it.
+    // A full fleet write marks every session without a PTY as exited, so only a changed agent
+    // session id may use it. Every other update patches the one row.
     if (persist) {
       void fleet.tryWriteFleet(session.id);
     } else {

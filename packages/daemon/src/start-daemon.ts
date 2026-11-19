@@ -216,8 +216,8 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     const event = buildSessionEvent(manager, kind, session);
 
     if (event !== null) {
-      // The scope comes from the session object rather than a descriptor
-      // lookup, so dir-filtered hooks still fire for a removed session.
+      // A removed session is already gone from the manager's list, so a lookup by ID finds nothing.
+      // Reading the scope from the session itself keeps dir-filtered hooks firing for removals.
       emitEvent(event, { cwd: session.cwd, repoRoot: session.repoRoot });
     }
   };

@@ -16,8 +16,6 @@ export type SpawnStepName =
   | 'auth-ready'
   | 'answer';
 
-// a step that fails takes back its own partial work before it throws: only
-// the steps before it are undone
 export interface SpawnSteps {
   readonly run: <T>(
     name: SpawnStepName,

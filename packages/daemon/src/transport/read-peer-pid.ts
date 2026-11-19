@@ -29,7 +29,6 @@ export function readPeerPID(socket: object): number | null {
 }
 
 // A Linux system without glibc, such as one built on musl, has no libc.so.6 to open.
-// Peer reads on such a system return null.
 let libc: ReturnType<typeof openLibc> | 'missing' | null = null;
 
 function tryOpenLibc(): ReturnType<typeof openLibc> | 'missing' {
