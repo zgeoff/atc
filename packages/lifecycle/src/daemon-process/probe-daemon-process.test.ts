@@ -10,8 +10,6 @@ function setupTest() {
   const directory = setupTempDir('is-daemon-process-').path;
   const cli = join(directory, 'checkout', 'src', 'cli.ts');
 
-  // A checkout entry that a process started as `cli.ts daemon` runs, so its
-  // command line reads as the daemon's: it prints once it runs, then idles.
   mkdirSync(join(directory, 'checkout', 'src'), { recursive: true });
   writeFileSync(cli, "process.stdout.write('ready\\n');\nsetInterval(() => {}, 1000);\n");
 
@@ -33,8 +31,8 @@ test('it accepts a daemon process whose home holds this state directory', async 
     await daemon.exited;
   });
 
-  // Until the child prints, its /proc entry can still hold the command line
-  // it was forked with, before the exec that makes it the daemon.
+  // Before the child prints, its /proc entry can still show the pre-exec command line,
+  // not the daemon's.
   await daemon.stdout.getReader().read();
 
   const accepted = probeDaemonProcess(
@@ -61,8 +59,8 @@ test('it rejects a daemon process of another home', async () => {
     await daemon.exited;
   });
 
-  // Until the child prints, its /proc entry can still hold the command line
-  // it was forked with, before the exec that makes it the daemon.
+  // Before the child prints, its /proc entry can still show the pre-exec command line,
+  // not the daemon's.
   await daemon.stdout.getReader().read();
 
   const accepted = probeDaemonProcess(

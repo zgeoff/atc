@@ -52,8 +52,6 @@ test('it stops the daemon its pid file holds before removing the home', async ()
   const records = setupTempDir('atc-mcp-home-records-');
   const seen = join(records.path, 'seen');
 
-  // A daemon that writes the status of a test for its home when the stop
-  // signals it, 0 while the home exists, and prints a line once it can.
   const daemon = Bun.spawn(
     [
       'bash',
@@ -98,8 +96,7 @@ test("it kills every process in a recorded stand-in's process group", async () =
 
   invariant(group !== undefined, 'the stand-in did not start');
 
-  // The append creates the file before it writes the pid, so the wait is on
-  // the pid itself.
+  // The append creates the file before the pid is written, so wait for the pid.
   await waitFor(() => {
     expect(readFileSync(join(mcpHome.home, 'stub-pids'), 'utf8')).toBe(`${group}\n`);
   });
@@ -135,8 +132,6 @@ test('it removes a home that holds no daemon pid', async () => {
 test("it kills a recorded stand-in's process group and removes the home once the test finishes", async () => {
   const mcpHome = setupMCPHome();
 
-  // The group's leader records itself and leaves a child in its group, so
-  // only a kill of the whole group ends that child.
   const stub = spawn('bash', ['-c', 'echo $$ >> "$HOME/stub-pids"; sleep 30 & exec sleep 30'], {
     detached: true,
     env: { HOME: mcpHome.home, PATH: '/usr/bin:/bin' },
@@ -151,8 +146,7 @@ test("it kills a recorded stand-in's process group and removes the home once the
 
   invariant(group !== undefined, 'the stand-in did not start');
 
-  // The append creates the file before it writes the pid, so the wait is on
-  // the pid itself.
+  // The append creates the file before the pid is written, so wait for the pid.
   await waitFor(() => {
     expect(readFileSync(join(mcpHome.home, 'stub-pids'), 'utf8')).toBe(`${group}\n`);
   });

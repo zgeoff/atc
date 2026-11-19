@@ -1,9 +1,9 @@
 import { BROKER_PLACEHOLDER } from '@atc/core';
 import type { GuestFile } from '@atc/plugin-api';
 
-// Claude Code strips the placeholder variable from every tool it runs, so a CLI a tool starts,
-// such as a `claude -p` judge, signs in from this file; with no refresh token or expiry the
-// CLI never tries to refresh it
+// Claude Code strips the placeholder variable from every tool it runs, so a nested CLI
+// such as a `claude -p` judge signs in from this file. Without a refresh token or expiry
+// the CLI never tries to refresh it.
 export function buildClaudeCredentialsFile(): GuestFile {
   const credentials = {
     claudeAiOauth: {

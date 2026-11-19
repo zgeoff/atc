@@ -13,8 +13,6 @@ const INBOX_MESSAGE_SCHEMA = z.looseObject({
   message: z.string(),
   from: z.string(),
 
-  // A sender this build cannot read is left out, and the message still
-  // goes out with its sender's name.
   sender: z.preprocess(
     (value) => (MESSAGE_SENDER_SCHEMA.safeParse(value).success ? value : undefined),
     MESSAGE_SENDER_SCHEMA.optional(),
@@ -31,8 +29,6 @@ const INBOX_NOTICE_SCHEMA = z.looseObject({
   reason: z.string().optional(),
 });
 
-// Where the tap prints and how it exits: stdout, stderr, and the process by
-// default.
 interface TapIO {
   readonly writeStdout: (text: string) => Promise<unknown>;
   readonly printError: (line: string) => void;
@@ -55,7 +51,6 @@ interface RunTapOptions {
   readonly notices?: boolean;
 }
 
-// `build` is the build the tap's handshake names.
 export async function runTap(
   session: string,
   build: string,
@@ -66,8 +61,6 @@ export async function runTap(
   const notices = options.notices ?? false;
   const inherited = readSessionEnv(process.env);
 
-  // Inside a remote host the daemon's own socket is out of reach, and the
-  // session bridge serves the tap instead.
   if (inherited.bridge === true && inherited.socket !== undefined) {
     await runBridgeTap(inherited.socket, inherited.outbox ?? '', { io, notices });
 
@@ -77,8 +70,6 @@ export async function runTap(
   let client: DaemonClient;
 
   try {
-    // never boots a daemon: a tap runs inside the session it serves, so a
-    // restart from here would take the whole fleet down
     client = await openDaemonClient(socketPath);
   } catch {
     io.printError(`atc tap: no daemon at ${socketPath} — start atc first`);
@@ -220,7 +211,6 @@ async function ackInboxMessage(options: AckInboxMessageOptions): Promise<void> {
   }
 
   try {
-    // acks only once the line is written
     await options.client.sendRequest('message.ack', {
       session: options.session,
       message: options.message,

@@ -3,9 +3,8 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { ConnectorView, SpritesPort } from '../port/types';
 import { toSpritesRefusal } from './to-sprites-refusal';
 
-// Routes each auth profile through the Sprites connector whose id its secret holds. A connector
-// admits every sprite whose name starts with its name prefix, so it serves the target only when the
-// target's prefix starts with that prefix.
+// A Sprites connector admits every sprite whose name starts with the connector's prefix,
+// so a target is served only when its prefix starts with that prefix.
 export function createConnectorRouter(
   api: Pick<SpritesPort, 'readConnectors'>,
   spritePrefix: string,
@@ -48,8 +47,6 @@ export function createConnectorRouter(
   };
 }
 
-// Throws the refusal for a profile whose connector cannot serve every sprite of the target, and
-// returns the connector otherwise.
 function requireRoute(
   profile: AuthProfile,
   connector: ConnectorView | undefined,

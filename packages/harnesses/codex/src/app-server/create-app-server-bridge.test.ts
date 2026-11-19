@@ -613,8 +613,6 @@ test('it sends a message the daemon hands over during an overload wait only afte
   const stub = buildStubMessageBridgeHost();
   let queuedSecond = false;
 
-  // The daemon hands a new message over as soon as it is queued, even while
-  // the tap still holds the overloaded one.
   const server = startStubCodexAppServer(ctx.socket, { overloadTurnStarts: 1 }, (request) => {
     if (request.method === 'turn/start' && !queuedSecond) {
       queuedSecond = true;
@@ -721,8 +719,6 @@ test('it moves when the terminal moves while an overloaded send waits for its an
 
   onTestFinished(() => server.stop());
 
-  // The bridge sees the overload answer to its first turn/start only once
-  // the test lets it through, after the terminal moved.
   let held = false;
 
   const bridge = createAppServerBridge({
@@ -1084,9 +1080,6 @@ test('it sends a message the old thread took nowhere else when the terminal move
 
   onTestFinished(() => server.stop());
 
-  // The bridge sees the answer to its first turn/start, and every
-  // notification after it, only once the test lets them through, after the
-  // server took the message.
   let held = false;
 
   const bridge = createAppServerBridge({
@@ -1132,7 +1125,6 @@ test('it sends a message the old thread took nowhere else when the terminal move
 
           await Promise.allSettled([pending, answer.promise]);
 
-          // An answer held past the connection's close never arrives.
           if (disposed) {
             throw new AppServerError(-1, 'the connection closed');
           }

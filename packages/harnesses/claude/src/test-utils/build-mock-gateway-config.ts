@@ -5,7 +5,6 @@ import type { GatewayConfig } from '../config/collect-gateways';
 
 type DefaultedKey = 'id' | 'label' | 'mark' | 'bin' | 'args' | 'baseURL' | 'env';
 
-// overrides merge into fresh defaults at every depth
 export function buildMockGatewayConfig(
   overrides: MockOverrides<GatewayConfig, DefaultedKey> = {},
 ): GatewayConfig {

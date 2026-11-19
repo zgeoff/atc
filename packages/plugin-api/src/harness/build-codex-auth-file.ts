@@ -1,6 +1,6 @@
 import { BROKER_PLACEHOLDER } from '@atc/core';
 
-// A last refresh Codex never counts as stale.
+// Far-future date so Codex never treats the token as stale and refreshes it.
 const LAST_REFRESH = '2099-01-01T00:00:00Z';
 
 export function buildCodexAuthFile(
@@ -29,13 +29,9 @@ export function buildCodexAuthFile(
   return `${JSON.stringify(auth, null, 2)}\n`;
 }
 
-// The claims of OpenAI's ID token that Codex reads: the account's email and
-// the object that holds its plan and account ids.
 const KEPT_CLAIMS = ['email', 'https://api.openai.com/auth'] as const;
 
-// A JWT of three base64url segments whose header says it is unsigned and
-// whose signature segment holds the placeholder, since Codex needs three
-// non-empty segments.
+// Codex needs three non-empty segments, so the signature segment holds a placeholder.
 function buildUnsignedIDToken(idClaims: Readonly<Record<string, unknown>>): string {
   const payload = Object.fromEntries(
     KEPT_CLAIMS.filter((claim) => idClaims[claim] !== undefined).map((claim) => [

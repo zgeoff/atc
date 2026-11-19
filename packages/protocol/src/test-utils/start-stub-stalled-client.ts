@@ -4,10 +4,8 @@ import { PROTOCOL_V } from '../wire/index';
 import { buildPeerRequestLine } from './build-peer-request-line';
 
 interface StubStalledClient {
-  // Each chunk the client has read off its connection, in order.
   readonly chunks: readonly unknown[];
 
-  // How many bytes have arrived on the connection and wait unread.
   readonly countUnreadBytes: () => number;
   readonly stop: () => void;
 }
@@ -25,8 +23,6 @@ export async function startStubStalledClient(
     socket.destroy();
   });
 
-  // The handshake and the event subscription go out in one write, so the
-  // daemon pushes events the client never reads.
   const hello = { client, protocol: PROTOCOL_V, auth: { scheme: 'none' } };
 
   socket.write(

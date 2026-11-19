@@ -6,13 +6,11 @@ import {
   planPastedLineInput,
 } from '@atc/plugin-api';
 
-// Long enough for Codex to read the command name between frames of a busy
-// session, short enough that input held behind the line waits unnoticed.
 const COMMAND_NAME_PAUSE_MS = 100;
 
-// codex shows a paste over 1,000 chars as a placeholder, so a long slash command pasted whole
-// would go out as a message; the name goes alone first because codex reads 1,024 bytes at a
-// time and stops reading after a read that completes an input event
+// codex collapses a paste over 1,000 chars into a placeholder, so a long slash command
+// would be sent as a message. The name goes first on its own because codex reads 1,024
+// bytes at a time and stops after a read that completes an input event.
 export function planCodexLineInput(
   text: string,
   modes: TerminalInputModes,

@@ -5,7 +5,6 @@ import { buildHookSettings } from './build-hook-settings';
 import type { HookSettingsProfile } from './build-hook-settings';
 import { buildHookSettingsPath } from './build-hook-settings-path';
 
-// the statusline takes the padding of the person's own, which atc's chains, so the two line up
 export function writeHookSettings(
   profile: HookSettingsProfile,
   cliArgv: readonly string[],

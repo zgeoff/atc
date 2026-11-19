@@ -40,16 +40,12 @@ export interface SpritesProvider extends ExecutionProvider {
 }
 
 interface SpritesProviderOptions {
-  // the id of the target the provider serves, which a host record names
   readonly targetID: string;
 
-  // the daemon's compiled binary, which the provider uploads into each sprite
   readonly atcBinary: string;
 
-  // the daemon's build stamp, which tells a sprite's copy of the binary from a stale one
   readonly getBuild: () => string;
 
-  // the wait before each reconnect to a harness or a relay whose connection ended
   readonly reconnectDelaysMs?: readonly number[];
   readonly log?: (line: string) => void;
 }
@@ -260,7 +256,7 @@ export function createSpritesProvider(
 
         const view = await api.readSprite(sprite);
 
-        // a read of a sleeping sprite would wake it, so its sessions stay unknown
+        // Reading a sleeping sprite wakes it, so skip the read and leave its sessions unknown.
         if (view?.status !== 'running') {
           return fates;
         }
@@ -361,7 +357,6 @@ export function createSpritesProvider(
       };
     },
 
-    // The agent's user owns the file, so the agent can change its mode and overwrite it.
     writeReadOnlyFile: async (host, path, content) => {
       const file = buildRecordPath(target.guestDir, path);
 
@@ -387,7 +382,6 @@ export function createSpritesProvider(
           );
         }
 
-        // the sprite sleeps once no client is attached, the relay's included
         detachHarnesses(host);
 
         tracked.detachAll(buildSpriteName(host));
@@ -434,7 +428,6 @@ export function createSpritesProvider(
   };
 }
 
-// runs a call on the API, with any failure as the refusal a caller sees
 async function guard<T>(call: () => Promise<T>): Promise<T> {
   try {
     return await call();

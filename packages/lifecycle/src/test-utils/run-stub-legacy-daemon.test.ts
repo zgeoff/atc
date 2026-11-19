@@ -9,8 +9,6 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openDaemonClient } from '@atc/protocol/client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 
-// The legacy daemon started on a socket in a temp directory, which is also
-// its state directory. Cleanup kills the daemon, then removes the directory.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-legacy-');
   const socketPath = join(temporaryDirectory.path, 'daemon.sock');

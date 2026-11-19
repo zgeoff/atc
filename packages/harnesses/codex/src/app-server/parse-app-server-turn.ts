@@ -9,7 +9,6 @@ interface AppServerItem {
 export interface AppServerTurn {
   readonly id: string;
 
-  // `inProgress`, `completed`, `interrupted` or `failed`
   readonly status: string;
   readonly items: readonly AppServerItem[];
 }

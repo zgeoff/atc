@@ -16,7 +16,6 @@ function setupTest() {
 
   const atc = createStubBin(directory, 'atc', buildStubRecordingATC(join(directory, 'hooks.log')));
 
-  // The stub finishes in the composer, so every start needs one to run.
   writeFileSync(join(directory, 'composer.js'), "console.log('COMPOSER_RAN');\n");
 
   const stub = createStubSharedServerCodex(directory, {

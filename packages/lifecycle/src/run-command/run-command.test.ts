@@ -10,7 +10,6 @@ import invariant from 'tiny-invariant';
 import { buildStubForkingGH } from '../test-utils/build-stub-forking-gh';
 import { runCommand } from './run-command';
 
-// A directory for stand-in commands and the files they write.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-command-');
 
@@ -32,7 +31,6 @@ test('it returns once a command exits when told to ignore stderr that a child ke
     { signal: AbortSignal.timeout(1000), stderr: 'ignore' },
   );
 
-  // A run that aborted has already killed the child's process group.
   const pid = await readFile(pidFile, 'utf8');
 
   registerTestCleanup(() => {
@@ -93,9 +91,6 @@ test('it stops a command at once when the signal aborted before the call', async
 
   expect(result).toStrictEqual({ code: -1, stdout: '', stderr: '', aborted: true });
 
-  // The command leads its own process group. A killed group lingers until
-  // it is reaped, and one that escaped the kill hangs far longer than this
-  // wait.
   await waitFor(() => {
     expect(() => process.kill(-group, 0)).toThrow('ESRCH');
   });
@@ -126,8 +121,6 @@ test('it stops every process a command that is still running at abort started', 
 
   expect(result).toStrictEqual({ code: -1, stdout: '', stderr: '', aborted: true });
 
-  // The killed group's processes linger until the kernel reaps them, and a
-  // child that escaped the kill would outlive this wait by far.
   await waitFor(
     () => {
       expect(() => process.kill(-Number(group), 0)).toThrow('ESRCH');

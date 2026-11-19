@@ -38,8 +38,8 @@ export function buildSessionEnv(values: SessionEnv): Record<string, string> {
 
 const SESSION_ATTRIBUTE = 'atc.session.id';
 
-// OpenTelemetry SDKs differ on which of two equal keys wins, so the session
-// attribute a daemon started inside another session inherits is dropped.
+// OpenTelemetry SDKs disagree on which of two equal resource attribute keys wins,
+// so an inherited session attribute must be dropped before adding ours.
 function buildResourceAttributes(inherited: string | undefined, sessionID: string): string {
   const kept = (inherited ?? '')
     .split(',')

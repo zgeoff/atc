@@ -3,10 +3,7 @@ import { dirname } from 'node:path';
 import type { Clock } from '@atc/core';
 import { systemClock, waitUntil } from '@atc/core';
 
-// How often a held lock's age is refreshed, well inside the stale age.
 const REFRESH_MS = 1000;
-
-// How long a caller waits for the lock before it gives up.
 const WAIT_MS = 5000;
 const RETRY_MS = 50;
 
@@ -23,9 +20,8 @@ interface OwnedLock {
   readonly mtimeMs: number;
 }
 
-// takes the lock the Claude CLI takes before it writes its global config: a `.lock` directory
-// beside the file, made with `mkdir` so one holder wins; release removes it only while it is
-// still the directory this call created
+// Matches the lock the Claude CLI takes before writing its global config: a `.lock` directory
+// beside the file, made with `mkdir` so only one holder wins.
 export async function withClaudeConfigLock<T>(
   configPath: string,
   run: () => Promise<T>,
@@ -90,12 +86,10 @@ export async function withClaudeConfigLock<T>(
   }
 }
 
-// A lock older than this belongs to a holder that died: the Claude CLI's
-// lock library refreshes a held lock's age well inside it.
+// A lock older than this belongs to a dead holder: the Claude CLI's lock library
+// refreshes a held lock's age well inside it.
 const STALE_MS = 10_000;
 
-// Creates the lock directory and resolves to it while this call holds the
-// lock, or null; a stale directory is removed so the next try can take it.
 async function tryCreateLockDir(lockPath: string, clock: Clock): Promise<OwnedLock | null> {
   try {
     await mkdir(lockPath);
@@ -122,9 +116,6 @@ function isExistsError(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'EEXIST';
 }
 
-// Moves the lock's age forward to the given time while it is still the
-// directory this call created, and resolves to the lock as it then stands;
-// null leaves the lock to go stale, as a holder that stopped refreshing it does.
 async function refreshOwnedLock(
   lockPath: string,
   owned: OwnedLock,

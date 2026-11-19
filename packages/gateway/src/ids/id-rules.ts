@@ -1,8 +1,5 @@
-// `cursor` is left for the event merge to replace; `keep` passes a value that looks like an
-// id but is none of atc's, still rewriting ruled fields below it; `opaque` passes it unread
 export type IDRule = 'id' | 'locator' | 'cursor' | 'keep' | 'opaque';
 
-// The fields of a session descriptor, relative to the descriptor.
 const DESCRIPTOR_RULES: readonly (readonly [string, IDRule])[] = [
   ['id', 'id'],
   ['parent', 'id'],
@@ -10,13 +7,11 @@ const DESCRIPTOR_RULES: readonly (readonly [string, IDRule])[] = [
   ['locator', 'locator'],
   ['agentSessionID', 'keep'],
 
-  // the provider's own values for the host, never atc's ids
   ['host.name', 'keep'],
   ['host.id', 'keep'],
   ['host.issuer', 'keep'],
 ];
 
-// by field path: object keys joined with `.`, and `[]` for every element of an array
 export const ID_RULES: Readonly<Record<string, ReadonlyMap<string, IDRule>>> = {
   'agents.list': new Map(),
   'dirs.list': new Map([['dirs', 'opaque']]),

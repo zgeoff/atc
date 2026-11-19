@@ -24,8 +24,6 @@ export async function waitForOutcome<T>(
     }
   })();
 
-  // a call still pending at the timeout keeps running, and whatever it settles to later is
-  // dropped
   const outcome = await Promise.race([settled, timeout.promise]);
 
   cancel();

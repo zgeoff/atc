@@ -4,12 +4,9 @@ import { planTurnSettlement } from './plan-turn-settlement';
 import type { TurnSettlement } from './plan-turn-settlement';
 
 export interface ThreadRecovery {
-  // queued messages a stored turn holds, which the server took before they were marked
-  // delivered
   readonly acks: readonly string[];
   readonly settlements: readonly TurnSettlement[];
 
-  // delivered messages no stored turn holds
   readonly lost: readonly string[];
   readonly carried: ReadonlyMap<string, string>;
   readonly replies: ReadonlyMap<string, string>;

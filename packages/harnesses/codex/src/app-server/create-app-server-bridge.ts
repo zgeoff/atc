@@ -38,23 +38,17 @@ export interface AppServerBridgeConfig {
   readonly resumeThread: string | null;
   readonly model?: string;
 
-  // the file that keeps the thread of each unconfirmed send across a daemon restart; without it
-  // the threads live in memory alone
   readonly unconfirmedFile?: string;
 
-  // the waits between reconnects and between overloaded sends, doubling from `first` up to `max`
   readonly retryMs?: { readonly first: number; readonly max: number };
 }
 
 export interface AppServerBridge {
   threadID: string | null;
 
-  // a thread that cannot be resumed is replaced by a new one
   readonly open: () => Promise<string>;
   readonly startDelivery: () => void;
 
-  // the move waits behind the send in flight, so a message the old thread took is tracked there
-  // and never sent again; then the connection drops and the next one resumes the new thread
   readonly updateThread: (thread: string) => void;
   readonly stop: () => void;
 }
@@ -68,42 +62,28 @@ const NOTIFICATION_SCHEMA = z.looseObject({
   item: z.unknown().optional(),
 });
 
-// each connection settles every unsettled message from the thread's stored turns before it
-// delivers, since the server keeps no record of which client message ids it took
+// The server keeps no record of which client message ids it took, so settle unsettled
+// messages from the thread's stored turns on each connection.
 export function createAppServerBridge(config: AppServerBridgeConfig): AppServerBridge {
   let conn: AppServerConnection | null = null;
   let ready = false;
   let delivering = false;
   let stopped = false;
   const waitingNotifications: AppServerNotification[] = [];
-
-  // Tool calls a resumed thread replays before recovery restores the turn
-  // that carries each message; they are answered once recovery ends.
   const waitingToolCalls: AppServerRequest[] = [];
 
-  // The turn that carries each message the bridge tracks, until it settles.
   const carried = new Map<string, string>();
-
-  // The last reply each tracked turn has given so far.
   const replies = new Map<string, string>();
   const settledTurns = new Set<string>();
 
   let sending: Promise<void> = Promise.resolve();
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
-
-  // Ends the overload wait in progress early, so its send gives up.
   let endOverloadWait: (() => void) | undefined;
-
-  // The thread of the last move that waits in the send queue. While it
-  // waits, no send goes out, so nothing more reaches the thread it leaves.
   let pendingThread: string | null = null;
   let threadID = config.resumeThread;
   let retryDelay = config.retryMs?.first ?? 500;
   let overloadDelay = config.retryMs?.first ?? 500;
 
-  // The thread each message went to when its connection dropped before the
-  // answer to its send, until a recovery reads that thread. The server may
-  // have taken the message, and only that thread's turns show whether it did.
   const unconfirmed = createUnconfirmedSends(config.unconfirmedFile ?? null, (line) => {
     config.host.log(line);
   });
@@ -142,7 +122,6 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
   const openThread = async (isFirst: boolean): Promise<string> => {
     const opened = await config.openConnection();
 
-    // A stop that landed while the connection opened leaves it unused.
     if (stopped) {
       opened.dispose();
       throw new AppServerError(-1, 'the bridge stopped');
@@ -237,9 +216,6 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
     return startedID;
   };
 
-  // Settles every unsettled message from the thread's stored turns, applies
-  // the notifications that waited, and only then attaches the tap. A failed
-  // read changes nothing and tries again on a new connection.
   const reconcileMessages = async (): Promise<void> => {
     const current = conn;
 
@@ -263,8 +239,6 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
         isLeft: (message) => isLeft(message),
       });
 
-      // A message a left thread holds belongs to that thread alone, so the
-      // thread the bridge serves never sends it again.
       unsettled = [
         ...left.flatMap((recovery) => recovery.kept),
         ...all.filter((message) => !isLeft(message.id)),
@@ -328,8 +302,6 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
     }
   };
 
-  // Whether the message went unconfirmed to a thread other than the one the
-  // bridge serves.
   const isLeft = (message: string): boolean => {
     const thread = unconfirmed.findThread(message);
 
@@ -400,9 +372,6 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
 
     threadID = thread;
 
-    // Only the messages end here. Their turn may still run, and when the
-    // terminal comes back to it, a later message joins it and settles
-    // with it.
     const stranded = [...carried.keys()];
 
     carried.clear();
@@ -414,8 +383,6 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
       detachConnection();
     }
 
-    // The next recovery starts only after this note, so it never reads one
-    // of these messages as unsettled.
     try {
       if (stranded.length > 0) {
         await config.host.applyNote({
@@ -433,7 +400,6 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
     }
   };
 
-  // Sends go out one at a time, in the order the tap handed them over.
   const scheduleSend = (send: () => Promise<void>): void => {
     const previous = sending;
 
@@ -448,7 +414,6 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
     })();
   };
 
-  // Sends a message once the bridge is ready on a thread it is not leaving.
   const sendMessage = async (message: BridgedMessage): Promise<void> => {
     const current = conn;
     const thread = threadID;
@@ -480,8 +445,6 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
     });
   };
 
-  // waits inside the send in flight so later items queue behind it and the order holds; true
-  // means send again on the same connection, and a drop, stop or thread move ends it with false
   const waitOutOverload = async (overloaded: AppServerConnection): Promise<boolean> => {
     if (pendingThread !== null) {
       return false;
@@ -510,21 +473,13 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
     return !ended && overloaded === conn && !stopped;
   };
 
-  // Closes the connection and detaches the tap, so nothing is delivered
-  // until a new connection recovers.
   const detachConnection = (): void => {
     const detached = conn;
 
     conn = null;
     ready = false;
     endOverloadWait?.();
-
-    // The next connection's recovery reads the stored turns, which hold
-    // everything these held, and a stale reply here would outrank them.
     waitingNotifications.length = 0;
-
-    // A tool call waits on the connection that carried it, and that
-    // connection is gone.
     waitingToolCalls.length = 0;
 
     config.host.detachTap(tap);
@@ -589,9 +544,6 @@ export function createAppServerBridge(config: AppServerBridgeConfig): AppServerB
     },
 
     updateThread: (thread) => {
-      // A send that waits out an overload holds the queue, so the move ends
-      // the wait rather than wait behind it. A send whose overload answer
-      // comes later finds the move pending and does not wait.
       if (thread !== (pendingThread ?? threadID)) {
         pendingThread = thread;
         endOverloadWait?.();

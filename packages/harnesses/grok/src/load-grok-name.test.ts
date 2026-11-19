@@ -6,8 +6,6 @@ import { buildHostFiles } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { loadGrokName } from './load-grok-name';
 
-// A Grok home of the test's own, where summaries sit under each working
-// directory's session folder.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-grok-name-');
 

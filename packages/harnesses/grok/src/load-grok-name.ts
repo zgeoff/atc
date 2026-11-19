@@ -9,8 +9,6 @@ export async function loadGrokName(
   namedBy: 'user' | 'auto' | 'agent',
   files: HostFiles,
 ): Promise<NameUpdate | null> {
-  // grok files a session under the directory it started in, so a gone `source` falls back to the
-  // same session id under any directory in `home`
   const found = await readSummary(files, source);
 
   if (found !== null) {
@@ -22,8 +20,6 @@ export async function loadGrokName(
   return moved === null ? null : buildNameUpdate(moved, namedBy);
 }
 
-// The fields of a session's summary.json a name comes from. A wrong-typed
-// title or summary reads as absent.
 const SUMMARY_SCHEMA = z.object({
   title_is_manual: z.unknown().optional(),
   generated_title: buildOptionalString(),
@@ -55,7 +51,6 @@ function buildNameUpdate(
   const title = summary.generated_title ?? '';
   const sessionSummary = summary.session_summary ?? '';
 
-  // a title the person set in grok wins over every name, a name typed in atc included
   if (summary.title_is_manual === true && title !== '') {
     return { name: title, namedBy: 'agent' };
   }
@@ -93,7 +88,6 @@ async function readMovedSummary(
       continue;
     }
 
-    // each read is a command on a remote host, so the scan stops at the first summary it finds
     const summary = await readSummary(files, candidate);
 
     if (summary !== null) {

@@ -1,8 +1,6 @@
 import type { SpawnOverrides } from '@atc/plugin-api';
 import { buildArgsWithoutFlags } from '@atc/plugin-api';
 
-// an override replaces every `--model` or `--effort` with its value, so the session never
-// depends on which occurrence the CLI honours
 export function buildClaudeOverrideArgs(
   configured: readonly string[],
   overrides: SpawnOverrides,

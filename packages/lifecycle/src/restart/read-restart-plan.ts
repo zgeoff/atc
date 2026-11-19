@@ -11,7 +11,6 @@ import { readDaemonSocketPaths } from '../daemon-files/read-daemon-socket-paths'
 import { readRestartUnit } from './read-restart-unit';
 import type { DaemonAnswer, PlanSession, ReplacementPlan, RestartPlan } from './types';
 
-// How long the handshake and the session list may take together.
 const PROBE_DEADLINE_MS = 3000;
 
 export async function readRestartPlan(

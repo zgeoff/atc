@@ -1,5 +1,3 @@
-// A failure of the Sprites API, with its HTTP status when it has one. The message never holds the
-// token.
 export class SpritesApiError extends Error {
   readonly status: number | null;
 

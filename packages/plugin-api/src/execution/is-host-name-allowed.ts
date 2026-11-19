@@ -14,7 +14,6 @@ function isPatternMatch(pattern: string, name: string): boolean {
     return false;
   }
 
-  // Each middle part in order, between the prefix and the suffix.
   let at = first.length;
   const end = name.length - last.length;
 

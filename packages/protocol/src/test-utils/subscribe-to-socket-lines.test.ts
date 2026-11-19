@@ -79,7 +79,6 @@ test('it sends a payload larger than one socket write whole', async () => {
 });
 
 test('it throws on a write while the unsent bytes fill the queue', async () => {
-  // A server that accepts connections and never reads them.
   const temporaryDirectory = setupTempDir('atc-sock-lines-');
   const stalledPath = join(temporaryDirectory.path, 'stalled.sock');
 
@@ -156,9 +155,6 @@ test('it ends its connection once the test finishes without an unsubscribe', asy
     server.stop(true);
   });
 
-  // Releases run last registered first: the subscriber ends, then this
-  // check runs, then the server stops, so a close it sees comes from the
-  // subscriber.
   registerTestCleanup(async () => {
     await waitFor(() => {
       expect(closes).toStrictEqual(['closed']);

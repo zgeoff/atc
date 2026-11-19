@@ -15,8 +15,6 @@ export function buildMockHostServices(
       version,
       build: `${version}+bin.${faker.string.alphanumeric(8)}`,
 
-      // Answers as a shell does for a command missing from PATH, so no test runs a
-      // command on the machine.
       runCommand: (argv) =>
         Promise.resolve({
           code: 127,

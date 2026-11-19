@@ -3,7 +3,6 @@ import { readDaemonSocketPaths } from '../daemon-files/read-daemon-socket-paths'
 import { tryOpenDaemon } from './try-open-daemon';
 import type { LifecycleHost } from './types';
 
-// How long the handshake may take.
 const PROBE_DEADLINE_MS = 3000;
 
 export async function runDaemonID(host: LifecycleHost): Promise<void> {

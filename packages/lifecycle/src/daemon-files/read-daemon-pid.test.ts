@@ -10,8 +10,6 @@ function setupTest() {
   const procRoot = join(directory, 'proc');
   const stateDir = resolvePaths({ HOME: join(directory, 'home') }).stateDir;
 
-  // The test process stands in for a live daemon: its `/proc` entry shows
-  // the daemon's command line and a home that holds the state directory.
   mkdirSync(join(procRoot, String(process.pid)), { recursive: true });
   writeFileSync(join(procRoot, String(process.pid), 'cmdline'), 'atc\0daemon\0');
 

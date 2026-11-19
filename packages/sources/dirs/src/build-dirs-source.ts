@@ -5,19 +5,13 @@ import { readPathCompletions } from './complete/read-path-completions';
 import { resolvePathInput } from './complete/resolve-path-input';
 import { readRootDirs } from './read-root-dirs';
 
-// What the source reads besides the spawn history a request brings.
 interface DirsSourceServices {
-  // The id of the config entry the source comes from.
   readonly id: string;
 
-  // The configured roots, each listing its child directories and their
-  // worktrees.
   readonly roots: readonly string[];
 
-  // zoxide's frecency list on the daemon's host, most visited first.
   readonly readZoxideDirs: () => Promise<string[]>;
 
-  // The daemon user's home directory, which a leading `~` stands for.
   readonly homeDir: string;
 }
 

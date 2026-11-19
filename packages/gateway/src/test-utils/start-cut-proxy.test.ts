@@ -5,7 +5,6 @@ import { openDaemonClient } from '@atc/protocol/client';
 import { startStubTCPDaemon } from '@atc/protocol/test-utils/start-stub-tcp-daemon';
 import { startCutProxy } from './start-cut-proxy';
 
-// The stand-in daemon the proxy forwards to.
 function setupTest() {
   const daemon = startStubTCPDaemon();
 
@@ -247,8 +246,6 @@ test('it closes the connection in place of forwarding a cut request in drop mode
     client.stop();
   });
 
-  // A request that got through first proves the link to the target is
-  // open, so a forwarded request would have reached it.
   await client.sendRequest('daemon.ping');
 
   const closed = Promise.withResolvers<void>();

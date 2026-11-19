@@ -12,14 +12,11 @@ export interface MessageSend {
   readonly thread: string;
   readonly message: BridgedMessage;
 
-  // sends the message again once an overload wait ends, checking the bridge's state anew
   readonly resend: () => Promise<void>;
 }
 
 const TURN_RESULT_SCHEMA = z.looseObject({ turn: z.looseObject({ id: z.string() }) });
 
-// A message that fails to send stays queued: the connection drops, and
-// the next one recovers before the tap hands the message over again.
 export async function sendBridgedMessage(
   context: TurnSendContext,
   send: MessageSend,
@@ -52,8 +49,6 @@ export async function sendBridgedMessage(
       return;
     }
 
-    // An error the server answered shows it refused the message, and a
-    // resend would meet the same refusal, so the message ends unanswered.
     if (isRefusal(error)) {
       context.host.log(
         `codex app server: the App Server refused message ${send.message.id} (${error.message})`,

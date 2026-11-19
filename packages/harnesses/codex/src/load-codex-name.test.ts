@@ -6,7 +6,6 @@ import { buildHostFiles } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { loadCodexName } from './load-codex-name';
 
-// A Codex home for the session index a test writes.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-codex-name-');
 

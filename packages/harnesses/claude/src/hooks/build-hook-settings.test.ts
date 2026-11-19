@@ -141,7 +141,6 @@ test('it hands a dash-led agent ID to each reporter as the value of its --agent 
   invariant(typeof statusLine === 'object' && statusLine !== null && 'command' in statusLine);
   invariant(typeof statusLine.command === 'string');
 
-  // printf stands in for atc and prints each word the shell hands it.
   const ran = await runCommand(['sh', '-c', statusLine.command]);
 
   expect(ran.stdout).toBe('statusline\n--agent=-custom\n');
@@ -169,8 +168,6 @@ test('it registers a configured hook on an event of its own', () => {
   expect(settings['hooks']).toContainEntry(['PermissionRequest', [entry]]);
 });
 
-// The fleet stops tracking a session whose reporter was replaced, so a
-// configured hook on an event atc uses runs beside it rather than instead.
 test('it runs its own reporter before a configured hook on the same event', () => {
   const entry = { hooks: [{ type: 'command', command: 'say-hello' }] };
 
@@ -226,7 +223,6 @@ test('it passes through a configured key it sets nothing of its own for', () => 
   expect(settings['permissions']).toStrictEqual({ allow: ['Bash(ls:*)'] });
 });
 
-// A hooks block that is not one costs its own entries and none of atc's.
 test('it keeps its own hooks when the configured ones are malformed', () => {
   const settings = buildHookSettings({ id: 'zai', settings: { hooks: 'all of them' } }, 0, [
     '/usr/local/bin/atc',

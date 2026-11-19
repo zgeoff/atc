@@ -10,8 +10,6 @@ export interface ExecResult {
 
 const STDIN_CHUNK = 64 * 1024;
 
-// Runs a command in a sprite to its exit, with the bytes as its stdin. Rejects when the
-// connection ends before the exit.
 export async function runExec(
   api: SpritesPort,
   sprite: string,

@@ -1,8 +1,8 @@
 import { findFlagValue } from '@atc/plugin-api';
 import { findClaudePermissionMode } from '../screen/find-claude-permission-mode';
 
-// a resumed session takes back the mode it was saved in, which only an explicit
-// `--permission-mode` overrides, so a mode the settings alone set travels as the flag
+// A resumed session restores its saved mode; only an explicit --permission-mode flag
+// overrides it, so a mode set only in settings must be passed as the flag.
 export function buildRestoreModeArgs(
   args: readonly string[],
   settings: Readonly<Record<string, unknown>> | undefined,

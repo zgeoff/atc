@@ -6,8 +6,8 @@ import { formatAgentEnvFile } from './format-agent-env-file';
 
 const OWNER_ONLY_MODE = 0o600;
 
-// writeFileSync applies the mode only to a file it creates, so the values go
-// into a new file that then replaces any file an earlier run left.
+// The file mode applies only when a write creates the file, so write a new file
+// and rename it over any file an earlier run left.
 export function writeAgentEnvFile(
   directory: string,
   agentID: AgentID,

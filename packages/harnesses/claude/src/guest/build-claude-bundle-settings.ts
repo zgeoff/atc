@@ -15,8 +15,6 @@ const SETTINGS_ALLOW_LIST = [
   'tui',
 ] as const;
 
-// any key off the allow-list stays on the host, so a credential, plugin or host path never
-// reaches a guest; auto mode is the default here since Claude Code honours it at user scope only
 export function buildClaudeBundleSettings(
   settings: unknown,
   hostDirs: readonly string[],
@@ -42,8 +40,6 @@ export function buildClaudeBundleSettings(
   };
 }
 
-// The variables an `env` block may ship. A variable off this list may hold
-// a credential, so it stays on the host.
 const ENV_ALLOW_LIST: ReadonlySet<string> = new Set(['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS']);
 
 function buildBundleEnv(env: unknown): Record<string, string> | null {
@@ -78,8 +74,7 @@ function buildBundleStatusLine(
   return { ...statusLine, command };
 }
 
-// A deny rule takes an absolute path after `//`, so a relative config
-// folder would give a rule that matches nothing.
+// A deny rule needs an absolute path after `//`; a relative path matches nothing.
 function buildBundlePermissions(permissions: unknown, guestDir: string): Record<string, unknown> {
   if (!guestDir.startsWith('/')) {
     throw new Error(`guest config folder ${guestDir} is not an absolute path`);

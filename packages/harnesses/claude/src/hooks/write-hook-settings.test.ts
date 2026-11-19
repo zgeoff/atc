@@ -6,8 +6,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
 import { writeHookSettings } from './write-hook-settings';
 
-// A state folder for the settings file and a home for the Claude settings
-// a test writes.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-hook-settings-');
 

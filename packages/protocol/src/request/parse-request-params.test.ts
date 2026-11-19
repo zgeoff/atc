@@ -41,8 +41,6 @@ test.each([
   ['sources.interpret', { source: 'dirs', input: './pro', clientCwd: '/srv/work' }],
   ['git.probe', { url: 'zgeoff/atc', ref: 'main', target: 'box' }],
 ] as const)('it parses the valid %s payload %j as it is', (method, payload) => {
-  // Each row's expected data is its own payload, which carries plain
-  // strings where the parse result holds branded ids.
   const parsed: unknown = parseRequestParams(method, payload);
 
   expect(parsed).toStrictEqual({ ok: true, data: payload });

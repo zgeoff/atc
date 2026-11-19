@@ -6,11 +6,8 @@ type BridgeRequest = Readonly<Record<string, unknown>>;
 type BridgeResponder = (request: BridgeRequest) => readonly BridgeRequest[] | null;
 
 interface StubSessionBridge {
-  // Every request line received so far, parsed, in arrival order.
   readonly requests: readonly BridgeRequest[];
 
-  // How many reads the stand-in has taken from its connections, so a test
-  // can wait until one piece of a split write has arrived.
   readonly reads: number;
   readonly stop: () => void;
 }
@@ -51,7 +48,6 @@ export function startStubSessionBridge(
             continue;
           }
 
-          // The real bridge answers tap.open with ok once it attaches the tap.
           const answers =
             request['op'] === 'tap.open' ? [{ id: request['id'], ok: true }] : respond(request);
 

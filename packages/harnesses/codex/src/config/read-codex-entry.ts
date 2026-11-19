@@ -15,8 +15,6 @@ interface CodexEntryArgs {
   readonly authProfiles: ReadonlyMap<string, AuthProfile>;
 }
 
-// codex takes no placeholder variable: atc writes the sign-in file the cli reads in place of a
-// credential
 export function readCodexEntry(args: CodexEntryArgs): AgentEntryRead {
   const entry = args.entry;
   const raw = args.raw['auth'];
@@ -48,8 +46,6 @@ export function readCodexEntry(args: CodexEntryArgs): AgentEntryRead {
   };
 }
 
-// Codex reads its endpoint from its config alone, so no endpoint variable is
-// refused here.
 function isCodexSignInOverrideVariable(key: string): boolean {
   return CODEX_CREDENTIAL_VARIABLES.includes(key) || isBrokerVariable(key);
 }

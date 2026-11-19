@@ -3,7 +3,6 @@ import { MAX_EVENTS_CURSOR_BYTES } from '@atcx/contract';
 import { z } from 'zod';
 import type { GatewayRegistry } from '../types';
 
-// The fields are read one by one, so each refusal names the field it failed on.
 const CURSOR_SCHEMA = z.object({
   version: z.unknown().optional(),
   filter: z.unknown().optional(),

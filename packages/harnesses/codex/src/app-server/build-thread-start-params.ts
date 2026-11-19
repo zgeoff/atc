@@ -1,6 +1,5 @@
 import { NOTE_LABELS } from './note-labels';
 
-// the tools and instructions stay in the thread's rollout, so a resumed thread keeps them
 export function buildThreadStartParams(session: string, cwd: string, model?: string) {
   return {
     cwd,

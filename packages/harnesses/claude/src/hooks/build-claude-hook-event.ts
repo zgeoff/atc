@@ -5,9 +5,6 @@ import { buildOptionalString } from '@atcx/contract/schema';
 import { z } from 'zod';
 import { CLAUDE_HOOKS } from './claude-hooks';
 
-// Claude's hook payload keys, snake_case. An absent or wrong-typed field
-// parses to undefined rather than failing the payload, so a broken reporter
-// never breaks the session it reports on.
 const CLAUDE_HOOK_PAYLOAD_SCHEMA = z.object({
   session_id: buildOptionalString(),
   transcript_path: buildOptionalString(),
@@ -38,8 +35,6 @@ export function buildClaudeHookEvent(hookEvent: HookEvent): AdapterEvent {
   });
 }
 
-// A permission prompt waits on a person; an idle notice shows that no prompt
-// is open. Any other notice says neither, so it leaves the field out.
 function buildPermissionPending(type: string | undefined): { permissionPending?: boolean } {
   if (type === 'permission_prompt') {
     return { permissionPending: true };

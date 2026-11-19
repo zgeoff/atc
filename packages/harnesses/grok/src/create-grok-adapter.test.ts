@@ -12,7 +12,6 @@ import invariant from 'tiny-invariant';
 import { createGrokAdapter } from './create-grok-adapter';
 import { GROK_PLUGIN } from './grok-plugin';
 
-// A Grok home of the test's own, where the adapter looks for session summaries.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-grok-home-');
 

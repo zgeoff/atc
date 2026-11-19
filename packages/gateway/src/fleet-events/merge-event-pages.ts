@@ -21,11 +21,9 @@ type DaemonEventPage =
 export interface MergeSource {
   readonly daemon: Pick<RegistryDaemon, 'name' | 'incarnation'>;
 
-  // null for a daemon the cursor left out, a null cursor for a read of its latest events
   readonly before: { readonly cursor: string | null } | null;
   readonly page: DaemonEventPage;
 
-  // set for a latest page of a daemon that has not answered since the cursor started
   readonly unstarted?: { readonly olderUnread: boolean };
 }
 
@@ -40,8 +38,6 @@ interface MergedEvents {
 
 const EVENT_PREFIX = 'events[].';
 
-// The id fields of one event, relative to the event: the events read's
-// rules under each event, less the event's cursor, which the merge rebuilds.
 const EVENT_RULES: ReadonlyMap<string, IDRule> = new Map(
   [...(ID_RULES['events.read'] ?? [])].flatMap(([path, rule]) =>
     path.startsWith(EVENT_PREFIX) && rule !== 'cursor'
@@ -91,8 +87,8 @@ export function mergeEventPages(
           truncated.push(source.daemon.name);
         }
 
-        // until one of a page's events goes out, its daemon resumes right before the first one,
-        // a concrete position, since a daemon reads no cursor as its latest events
+        // A daemon treats a missing cursor as 'latest events', so resume from a concrete position
+        // before the first event until one of the page's events goes out.
         const [first] = page.events;
         const position = first === undefined ? page.cursor : buildPositionBefore(first);
 
@@ -147,9 +143,6 @@ export function mergeEventPages(
   };
 }
 
-// The daemon cursor that resumes a read right before an event, from the
-// event's own cursor. Throws for an event whose cursor is not a daemon's
-// events cursor, which no daemon sends.
 function buildPositionBefore(event: Readonly<Record<string, unknown>>): string {
   const raw = event['cursor'];
   const decoded = typeof raw === 'string' ? decodeCursor(raw) : null;
@@ -161,9 +154,6 @@ function buildPositionBefore(event: Readonly<Record<string, unknown>>): string {
   return encodeCursor({ kind: 'events', id: decoded.id - 1 });
 }
 
-// The queue whose next event goes out next: the one with the earliest
-// timestamp, ties going to the daemon that sorts first by name, or null
-// once every queue is spent.
 function pickNextQueue<
   T extends {
     readonly source: MergeSource;
@@ -196,8 +186,6 @@ function pickNextQueue<
   return best;
 }
 
-// the daemon's own cursor of the event, which the daemon reads the text by, kept apart from
-// the merged feed cursor that replaces it
 function findTextHandle(
   event: Readonly<Record<string, unknown>>,
   daemon: Pick<RegistryDaemon, 'name' | 'incarnation'>,

@@ -5,33 +5,21 @@ import { readGitProtocol } from './read-git-protocol';
 import { readGitHubRepos } from './read-github-repos';
 
 interface GitHubSourceOptions {
-  // The id of the config entry the source comes from.
   readonly id: string;
 
-  // The host's command runner, which runs gh.
   readonly run: HostServices['runCommand'];
 
-  // The gh executable: a name looked up on PATH, or a path.
   readonly bin: string;
 
-  // The owner a listing without a scope lists; null lists the gh account's
-  // own repositories.
   readonly owner: string | null;
 
-  // How long each gh command may take; 20 s when unset.
   readonly timeoutMs?: number;
 }
 
-// How long a gh command may take before the request is refused.
 const GH_TIMEOUT_MS = 20_000;
-
-// A GitHub account or organization login.
 const GITHUB_OWNER_PATTERN = /^[A-Za-z\d][A-Za-z\d-]{0,38}$/u;
-
-// Typed `owner/`, which lists that owner, with or without `github:`.
 const OWNER_INPUT_PATTERN = /^(?:github:)?(?<owner>[A-Za-z\d][A-Za-z\d-]{0,38})\/$/u;
 
-// Typed `owner/repo`, with or without `github:` and `.git`.
 const REPO_INPUT_PATTERN =
   /^(?:github:)?(?<owner>[A-Za-z\d][A-Za-z\d-]{0,38})\/(?<repo>[\w-][\w.-]*?)(?:\.git)?$/u;
 
@@ -110,7 +98,6 @@ export function buildGitHubSource(options: GitHubSourceOptions): SourceProvider 
   };
 }
 
-// The https clone URL of a repository's web URL.
 function toCloneURL(url: string): string {
   return url.endsWith('.git') ? url : `${url}.git`;
 }

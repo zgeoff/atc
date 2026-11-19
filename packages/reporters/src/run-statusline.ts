@@ -5,16 +5,11 @@ import { isRecord } from '@atc/core';
 import { readSessionEnv, sendBridgeRequest } from '@atc/protocol/session';
 import { sendReport } from './send-report';
 
-// Where the statusline reads its payload and the fleet's status, how it runs
-// the user's own statusline, where it prints, and how it exits: the process
-// by default.
 interface StatuslineIO {
   readonly readStdin: () => Promise<string>;
 
-  // Throws when the status file is missing or unreadable.
   readonly readStatusFile: () => string;
 
-  // Runs a command with the payload as its stdin and resolves with its stdout.
   readonly runChained: (command: string, stdin: string) => Promise<string>;
   readonly print: (line: string) => void;
   readonly exit: (code: number) => void;
@@ -73,12 +68,9 @@ export async function runStatusline(agent: string, io: StatuslineIO = PROCESS_IO
       : readFleetSegment(io);
 
   io.print([chained, segment].filter((part) => part !== '').join(' \u001B[90m▏\u001B[0m '));
-
-  // always 0, so the statusline never breaks the session it renders for
   io.exit(0);
 }
 
-// The user's statusline gets this long before atc renders without it.
 const CHAINED_TIMEOUT_MS = 1500;
 
 async function runChainedCommand(command: string, stdin: string): Promise<string> {
@@ -99,15 +91,10 @@ async function runChainedCommand(command: string, stdin: string): Promise<string
   return text;
 }
 
-// A user statusline that is atc's own injected command would chain into
-// itself; the injected command ends with the bare subcommand, or with the
-// subcommand and its agent flag, its value after a space or an `=`.
 function isSelfCommand(cmd: string): boolean {
   return cmd.includes('statusline.ts') || /\sstatusline(?:\s+--agent[\s=].*)?$/u.test(cmd);
 }
 
-// Inside a remote host the status file is out of reach, and the session
-// bridge returns the session's own state alone, never the rest of the fleet.
 async function readOwnSegment(sock: string): Promise<string> {
   const status = await sendBridgeRequest(sock, 'status.read', {}, 500);
 
@@ -126,7 +113,6 @@ async function readOwnSegment(sock: string): Promise<string> {
   return status['state'] === 'running' ? '\u001B[36m◐ running\u001B[0m' : '';
 }
 
-// The fleet segment, from the status file the daemon writes beside it.
 function readFleetSegment(io: StatuslineIO): string {
   let segment = '';
 

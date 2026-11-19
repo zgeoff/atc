@@ -5,7 +5,6 @@ import type { Server, Socket } from 'node:net';
 import { createByteLineSplitter, formatRelayFrame, parseDaemonFrame } from '@atc/protocol/relay';
 import type { DaemonFrame, GuestFrame } from '@atc/protocol/relay';
 
-// The most frame bytes the mux holds unacked.
 const MAX_UNACKED_BYTES = 1024 * 1024;
 
 type NumberedFrame = Extract<GuestFrame, { seq: number }>;
@@ -20,15 +19,12 @@ interface Bridge {
   readonly socket: Socket;
   readonly splitLines: (chunk: Uint8Array) => string[];
 
-  // the seq of the close frame, once the socket closed; the bridge goes once the daemon acks it
   closeSeq: number | null;
 
-  // a reset retired the connection, so nothing it does reaches the daemon
   retired: boolean;
 }
 
 export interface RelayMux {
-  // takes bytes the daemon wrote to the mux's stdin
   readonly feed: (bytes: Uint8Array) => void;
   readonly stop: () => Promise<void>;
 }
@@ -36,13 +32,9 @@ export interface RelayMux {
 interface RelayMuxOptions {
   readonly socketPath: string;
 
-  // writes bytes to the mux's stdout, which a link may replay
   readonly writeStdout: (text: string) => void;
 }
 
-// Binds the bridge socket, then serves the daemon's frames. A reporter's connection becomes a
-// bridge connection whose frames wait here until the daemon acks them. The mux never ends
-// because its stdin did.
 export async function startRelayMux(options: RelayMuxOptions): Promise<RelayMux> {
   const bridges = new Map<number, Bridge>();
 
@@ -133,7 +125,6 @@ export async function startRelayMux(options: RelayMuxOptions): Promise<RelayMux>
     socket.resume();
   };
 
-  // a bridge connection waits, unread, until acks leave room for its frames
   const admitWaiting = (): void => {
     while (waiting.length > 0 && hasRoom()) {
       const socket = waiting.shift();
@@ -182,7 +173,6 @@ export async function startRelayMux(options: RelayMuxOptions): Promise<RelayMux>
     const reset = hello.relay !== relayID;
 
     if (reset) {
-      // frames held before any daemon spoke are already numbered from 1
       if (relayID !== null) {
         resetBridges();
       }
@@ -247,10 +237,8 @@ export async function startRelayMux(options: RelayMuxOptions): Promise<RelayMux>
     return true;
   };
 
-  // the socket is bound before the first byte of stdin is read
   rmSync(options.socketPath, { force: true });
 
-  // a reporter that shuts its write side still waits for the daemon's reply and close
   const server: Server = createServer({ allowHalfOpen: true }, (socket) => {
     if (hasRoom() && waiting.length === 0) {
       attach(socket);

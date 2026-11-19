@@ -40,63 +40,38 @@ import { planCodexLineInput } from './plan-codex-line-input';
 import { buildCodexTrustSeed } from './trust-seed/build-codex-trust-seed';
 
 export interface CodexAdapter extends AgentAdapter {
-  // The hook files a user installs print the kind for every entry of it, so
-  // the hook lines of every codex entry carry it.
   readonly hookAgent: AgentID;
   readonly profile: AgentProfile;
 
-  // Present only for an entry with `appServer`.
   readonly startMessageBridge?: (request: MessageBridgeRequest) => Promise<MessageBridge>;
 
-  // Codex's TUI keeps a newline that arrives inside a burst of input, so a
-  // line is pasted and then submitted, a slash command as two pastes.
+  // Codex's TUI keeps a newline that arrives inside a burst of input, so a line is
+  // pasted and then submitted. A slash command takes two pastes.
   readonly planLineInput: (text: string, modes: TerminalInputModes) => readonly LineInputStep[];
 
-  // Present only for an entry with `auth`: any other entry runs on a
-  // remote host as a local spawn plans it, under the sign-in of the host's
-  // image, and needs no atc there.
   readonly planGuestSpawn?: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
 
-  // With `auth` configured, Codex signs in with the ChatGPT sign-in the
-  // target's broker holds on a target that reaches a broker, and with the
-  // sign-in of the host it runs on anywhere else.
   readonly findAuthSelection: () => AuthSelection | null;
 
-  // Seeds the config of a session that signs in through the target's broker with
-  // trust for the clone; any other remote session reads the config of the
-  // host's image, which atc never writes.
   readonly planGuestWorkspaceTrust: (root: string) => Readonly<Record<string, string>> | null;
 
-  // Shell command that re-opens this session outside atc (or anywhere).
   readonly planResumeCommand: (
     cwd: string,
     agentSessionID: AgentSessionID | undefined,
   ) => string | null;
 }
 
-// The spellings of the Codex CLI's model flag.
 const CODEX_MODEL_FLAGS = ['-m', '--model'];
-
-// The Codex CLI flag that runs a terminal without the shared background
-// server, and the flag that connects it to a remote server instead.
 const NO_DAEMON_FLAG = '--no-daemon';
 const REMOTE_FLAG = '--remote';
-
-// Where Codex sends its ChatGPT sign-in: the endpoint its model requests go
-// to, and the host the target's broker sets the access token on.
 const CHATGPT_CODEX_URL = 'https://chatgpt.com/backend-api/codex';
 const CHATGPT_HOST = 'chatgpt.com';
-
-// Codex's documented flag that runs hooks without the trust a person
-// gives them in the TUI, meant for automation that vets its hook sources.
 const HOOK_TRUST_FLAG = '--dangerously-bypass-hook-trust';
 
 // A config override on the command line, which outranks every config file.
 const FILE_CREDENTIALS_OVERRIDE = 'cli_auth_credentials_store="file"';
 const CODEX_HOME_LOCATION: AgentHomeLocation = { env: 'CODEX_HOME', folder: '.codex' };
 
-// atc never writes the user's codex config: hooks are an entry the user installs and trusts
-// once in the codex TUI
 export function createCodexAdapter(
   entry: AgentEntry,
   config?: Pick<Config, 'authProfiles'>,
@@ -112,19 +87,16 @@ export function createCodexAdapter(
   const planSpawn = (opts: SpawnOptions): SpawnPlan => ({
     bin: entry.bin,
     args: [
-      // codex's shared background server runs every thread's hooks and tools in the environment
-      // of the terminal that started it, so each terminal runs its own; configured arguments
-      // that carry the flag or a remote server, which codex refuses to combine with it, add none
+      // Codex's shared background server runs every thread's hooks and tools in the environment
+      // of the terminal that started it. Codex rejects the no-daemon option together with a
+      // remote server, so omit it when the arguments already choose either.
       ...(entry.args.some(isDaemonChoiceFlag) ? [] : [NO_DAEMON_FLAG]),
 
-      // A model override replaces any model flag the configured arguments
-      // carry, and travels as its own argument.
       ...(opts.model === undefined
         ? entry.args
         : [...buildArgsWithoutFlags(entry.args, CODEX_MODEL_FLAGS), '-m', opts.model]),
 
-      // Bare resume opens Codex's own session picker; an id resumes that
-      // session directly. Both accept a prompt afterwards.
+      // A bare resume opens Codex's own session picker.
       ...(opts.resume === true ? ['resume'] : []),
       ...(typeof opts.resume === 'string' ? ['resume', opts.resume] : []),
       ...(opts.prompt === '' ? [] : [opts.prompt]),
@@ -132,9 +104,6 @@ export function createCodexAdapter(
     ...(Object.keys(entry.env).length === 0 ? {} : { env: entry.env }),
   });
 
-  // The bridge owns the thread a terminal on its App Server joins, so a
-  // resume through Codex's own session picker, which picks the thread in
-  // the terminal, is refused rather than started as a new thread.
   const startAppServerBridge = (request: MessageBridgeRequest): Promise<MessageBridge> => {
     if (request.options.resume === true) {
       const refusal = new DaemonError(
@@ -152,8 +121,6 @@ export function createCodexAdapter(
     });
   };
 
-  // a terminal on the session's own app server resumes the bridge's thread there instead of
-  // running a server of its own; a server choice in the configured arguments gives way to it
   const planRemoteTerminal = (opts: SpawnOptions, remote: string, thread: string): SpawnPlan => {
     const replaced = opts.model === undefined ? [REMOTE_FLAG] : [REMOTE_FLAG, ...CODEX_MODEL_FLAGS];
 
@@ -176,12 +143,7 @@ export function createCodexAdapter(
     };
   };
 
-  // without the broker a remote session runs as a local spawn plans it; behind the broker it needs
-  // the atc inside its host to report, and its own codex home's hooks are trusted at launch, since
-  // atc wrote them
   const planSignedInGuestSpawn = (opts: SpawnOptions, guest: GuestPaths): GuestSpawnPlan | null => {
-    // the daemon lays a guest plan's env over the target's session env, which
-    // outranks the entry's own, so the plan lays the two itself
     const env = { ...entry.env, ...guest.sessionEnv };
 
     if (guest.auth === undefined) {
@@ -196,8 +158,8 @@ export function createCodexAdapter(
     const signIn = requireSignIn(guest.auth.oauth ?? {});
     const plan = planSpawn(opts);
 
-    // the flag outranks a trusted clone's own config, which could move the
-    // sign-in out of the file atc writes
+    // A command-line flag outranks a trusted clone's own config, which could move the
+    // sign-in out of the file atc writes.
     const launch = buildCodexGuestLaunch(guest.directory, authDir, [
       plan.bin,
       HOOK_TRUST_FLAG,
@@ -218,9 +180,6 @@ export function createCodexAdapter(
     };
   };
 
-  // The ID token claims and account id of the oauth secret this entry's
-  // profiles send to chatgpt.com, or the refusal for a sign-in that is not
-  // ready or that holds no account id.
   const requireSignIn = (
     states: Readonly<Record<string, GuestOAuthState>>,
   ): {
@@ -253,8 +212,6 @@ export function createCodexAdapter(
     return signIn;
   };
 
-  // The secret this entry's profiles send to chatgpt.com, or null when
-  // they no longer resolve to one.
   const findChatGPTSecret = (): string | null => {
     const auth = entry.auth;
 
@@ -279,10 +236,8 @@ export function createCodexAdapter(
     id: entry.id,
     hookAgent: 'codex',
 
-    // Codex has no headless handoff.
     headlessRunner: null,
 
-    // Codex's hooks are authoritative; no screen heuristics needed.
     screenDetector: null,
 
     profile: {
@@ -293,15 +248,12 @@ export function createCodexAdapter(
       spawnOptions: buildCodexSpawnOptions(entry.args),
     },
 
-    // Only a session on an App Server of its own takes messages, through the
-    // bridge the daemon runs beside it.
     takesMessages: entry.appServer === true,
 
     ...(entry.appServer === true ? { startMessageBridge: startAppServerBridge } : {}),
 
     planLineInput: planCodexLineInput,
 
-    // A session resumes while its rollout exists.
     canResume: probeTranscriptResumable,
 
     ...(entry.auth === undefined ? {} : { planGuestSpawn: planSignedInGuestSpawn }),
@@ -351,16 +303,12 @@ export function createCodexAdapter(
   };
 }
 
-// Whether a configured argument already decides which server a terminal
-// uses: the flag that runs it without the shared one, or the remote server
-// flag in either of its spellings.
 function isDaemonChoiceFlag(arg: string): boolean {
   return arg === NO_DAEMON_FLAG || arg === REMOTE_FLAG || arg.startsWith(`${REMOTE_FLAG}=`);
 }
 
-// What a Codex spawn can override. Codex documents its reasoning effort as
-// whatever the selected model advertises, with no closed list of levels, so
-// atc takes no effort for it.
+// Codex documents reasoning effort as whatever the selected model advertises, with no
+// closed list of levels, so no effort option is offered.
 function buildCodexSpawnOptions(codexArgs: readonly string[]): SpawnOptionSpecs {
   return {
     model: {

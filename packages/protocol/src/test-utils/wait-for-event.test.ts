@@ -15,7 +15,6 @@ test('it resolves with an event collected before the wait began', async () => {
 test('it resolves with an event collected while it waits', async () => {
   const events: EventMsg[] = [];
 
-  // The event arrives during the wait after the first attempt misses.
   const found = await waitForEvent(
     events,
     { ev: 'SessionRemoved' },

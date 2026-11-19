@@ -4,9 +4,6 @@ import { CODEX_TRUST_SEED_FILE } from '../trust-seed/codex-trust-seed-file';
 
 const CODEX_HOME_FOLDER = 'codex-home';
 
-// The arguments are the Codex home, the staged folder, the trust seed, and
-// the CLI's own command line. The home and its sign-in file are its
-// owner's alone; the CLI itself starts under the host's own umask.
 const SEED_HOME_SCRIPT = [
   '( umask 077 && mkdir -p "$1" && cp "$2/auth.json" "$1/auth.json" )',
   'cp "$2/config.toml" "$1/config.toml"',
@@ -17,8 +14,6 @@ const SEED_HOME_SCRIPT = [
   'exec "$@"',
 ].join(' && ');
 
-// a codex home of the session's own in its guest folder keeps the host image's sign-in and
-// settings out, and lasts the session so a resume finds the threads codex recorded there
 export function buildCodexGuestLaunch(
   guestDir: string,
   authDir: string,

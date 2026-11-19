@@ -1,9 +1,6 @@
 import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 
-// Runs the legacy daemon in a process of its own, which a client can signal
-// by the pid it records, and resolves once it listens; the test's cleanup
-// kills it.
 export async function startStubLegacyDaemonProcess(
   socketPath: string,
   stateDir: string,

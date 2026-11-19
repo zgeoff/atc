@@ -6,13 +6,9 @@ type ClientEvent =
   | { readonly type: 'CLOSE'; readonly reason: string };
 
 interface ClientContext {
-  // Why the connection ended: the first reason given, kept once closed.
   readonly closedReason: string | null;
 }
 
-// A daemon client's connection: open until it ends, and quiet until its one
-// event subscription starts. It holds state only; the client performs every
-// effect and reads its state back from here.
 export const CLIENT_MACHINE = setup({
   types: machineTypes<{ context: ClientContext; events: ClientEvent }>(),
   actions: {

@@ -7,20 +7,14 @@ import { sendReport } from './send-report';
 interface NoteOptions {
   readonly message: string;
 
-  // Comma-separated ids of every message one turn answered, recorded together.
   readonly messages: string;
   readonly label: string;
 
-  // The turn whose final reply an `answered` envelope carries; empty when unknown.
   readonly turn: string;
 
-  // Why the turn behind an `unanswered` envelope ended without an answer; empty
-  // when unknown.
   readonly reason?: string;
 }
 
-// Where the reporter reads its text, prints its delivery result, and how it
-// exits: stdin, stdout and the process by default.
 interface NoteIO {
   readonly readStdin: () => Promise<string>;
   readonly print: (text: string) => void;
@@ -63,13 +57,9 @@ export async function runNote(
     }
   } catch {}
 
-  // The exit code stays 0, so a caller that must know whether atc took the
-  // note reads this line instead.
   const delivery = isDelivered ? 'delivered' : 'undelivered';
 
   io.print(`${delivery}\n`);
-
-  // always 0, so the note never blocks the session it reports on
   io.exit(0);
 }
 
@@ -113,12 +103,9 @@ async function sendBridgeNote(
   outbox: string,
   payload: Readonly<Record<string, string | readonly string[]>>,
 ): Promise<boolean> {
-  // an id of its own, so a resent note lands once
   const noteID = randomUUID();
   const file = outbox === '' ? null : join(outbox, `${noteID}.json`);
 
-  // the outbox holds the note until the bridge takes or refuses it, so the
-  // session's tap sends it again after a dropped connection
   if (file !== null) {
     try {
       mkdirSync(outbox, { recursive: true });
@@ -128,14 +115,11 @@ async function sendBridgeNote(
 
   const answer = await sendBridgeRequest(sock, 'note', { noteID, payload }, 2000);
 
-  // a refused note is final too, so it is never resent
   const isFinal = answer?.['ok'] === true || answer?.['code'] === 'forbidden';
 
   if (isFinal && file !== null) {
     rmSync(file, { force: true });
   }
 
-  // Only a note the bridge took counts as delivered. A caller may then send
-  // an answer again, which changes nothing once atc holds one.
   return answer?.['ok'] === true;
 }

@@ -5,8 +5,6 @@ import { tryOpenDaemon } from '../boot/try-open-daemon';
 
 const SNAPSHOT_DEADLINE_MS = 3000;
 
-// a restart takes this before it stops the daemon, so the rows keep their
-// original exit status.
 export async function readFleetSnapshot(
   socketPath: string,
   build: string,

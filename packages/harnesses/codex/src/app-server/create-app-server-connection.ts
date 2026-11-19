@@ -19,8 +19,6 @@ export interface AppServerConnection {
   readonly isOpen: boolean;
   sendRequest: (method: string, params: unknown) => Promise<unknown>;
 
-  // Answers one server request; an answer after the connection closed goes
-  // nowhere.
   readonly sendResult: (id: number | string, result: unknown) => void;
   dispose: () => void;
 }
@@ -38,7 +36,6 @@ interface Waiting {
   readonly reject: (error: Readonly<AppServerError>) => void;
 }
 
-// `ws+unix://<path>` reaches a unix socket
 export async function createAppServerConnection(url: string): Promise<AppServerConnection> {
   const ws = new WebSocket(url);
 

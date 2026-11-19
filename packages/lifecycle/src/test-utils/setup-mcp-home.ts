@@ -15,8 +15,6 @@ import { buildStubMCPGrok } from './build-stub-mcp-grok';
 export function setupMCPHome() {
   const temporaryDirectory = setupTempDir('atc-mcp-');
 
-  // Registered after the home, so it releases first: the daemon and the
-  // stand-ins stop before the home that records them is removed.
   const stack = new AsyncDisposableStack();
 
   const teardown = registerTestCleanup(() => stack.disposeAsync());
@@ -24,8 +22,6 @@ export function setupMCPHome() {
   stack.defer(temporaryDirectory.teardown);
 
   const home = temporaryDirectory.path;
-
-  // The server and the daemon it starts run with the home as their HOME and XDG_RUNTIME_DIR.
   const paths = resolvePaths({ HOME: home, XDG_RUNTIME_DIR: home });
 
   stack.defer(async () => {
@@ -69,7 +65,7 @@ async function killProcessGroups(groups: readonly number[]): Promise<void> {
     try {
       process.kill(-group, 'SIGKILL');
     } catch {
-      // The group is already empty.
+      // ESRCH: the group is already empty.
     }
   }
 

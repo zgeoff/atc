@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 
-// The folder the host's Claude config folder and its symlink targets sit in.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-claude-bundle-');
 

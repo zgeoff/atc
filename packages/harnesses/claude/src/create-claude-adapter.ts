@@ -72,46 +72,34 @@ import { resolveClaudePermissionMode } from './screen/resolve-claude-permission-
 import { loadClaudeName } from './transcript/load-claude-name';
 import { parseClaudeTranscriptLine } from './transcript/parse-claude-transcript-line';
 
-// The file of a host's sign-in folder that holds the token `claude setup-token` printed.
 const SIGN_IN_FILE = 'claude-oauth-token';
 
 export interface ClaudeAdapter extends AgentAdapter {
   readonly parseTranscriptLine: (line: string) => TranscriptRow | null;
 
-  // Claude's TUI takes a long burst of input as a paste and keeps its
-  // newline in the composer, so a line is pasted and then submitted, with a
-  // leading slash command's name typed so the command still runs.
+  // Claude's TUI treats a long burst of input as a paste and keeps its newline in the composer.
+  // A slash command's name must be typed so the command still runs.
   readonly planLineInput: (text: string, modes: TerminalInputModes) => readonly LineInputStep[];
 
-  // Claude's dialogs draw a `❯` cursor beside their options.
   readonly findMenu: (screen: string, rows?: number) => ScreenMenu | null;
   readonly profile: AgentProfile;
 
-  // with `auth`, Claude signs in with the broker's subscription token on a target that reaches
-  // the broker and with its host's own sign-in anywhere else
   readonly findAuthSelection: () => AuthSelection | null;
 
-  // Claude takes its stored token from the claude-oauth-token file of a host's sign-in volume.
   readonly findGuestEnvConflict: (kind: 'broker' | 'routed' | 'stored-token') => string | null;
   readonly signInFile: typeof SIGN_IN_FILE;
 
-  // a remote session reports through the atc inside its host, so without one it cannot run there
   readonly planGuestSpawn: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
   readonly planGuestBridgeFiles: (
     atc: string,
     writtenAt: number,
   ) => Readonly<Record<string, string>>;
 
-  // Seeds the config folder of a session that signs in through the target's
-  // broker with trust for the clone; any other remote session reads the
-  // config of the host's image, which atc never writes.
   readonly planGuestWorkspaceTrust: (
     root: string,
     guestDirectory: string,
   ) => Readonly<Record<string, string>> | null;
 
-  // The repository's own settings files outrank what the session's user
-  // settings hold, so a launch behind the target's broker reads them first.
   readonly planProjectSettingsCheck: () => ProjectSettingsCheck;
 
   // Claude 2.1.328 asks for trust on each `--add-dir` folder, so a local
@@ -119,15 +107,11 @@ export interface ClaudeAdapter extends AgentAdapter {
   // the session's life.
   readonly trustLocalScratch: (scratch: string) => Promise<void>;
 
-  // A session on the daemon's machine reads the user's own Claude config,
-  // so trust for the clone is that config's entry for the clone alone.
   readonly updateLocalWorkspaceTrust: (root: string) => Promise<() => Promise<void>>;
 
-  // Claude keeps no state across a session's hook lines.
   readonly planHookEvents: (hookEvent: HookEvent) => HookPlan;
 }
 
-// The endpoint Claude Code sends a subscription token to.
 const ANTHROPIC_API_URL = 'https://api.anthropic.com';
 
 export function createClaudeAdapter(
@@ -140,9 +124,6 @@ export function createClaudeAdapter(
   const authProfiles = config.authProfiles;
   const pluginDirs = resolveConfiguredPluginDirs(entry.pluginDirs, options.homeDir);
 
-  // The generated settings file's hooks, statusline, settings and env. Each
-  // later env layer outranks the ones before it: settings env, entry env,
-  // the target's session env, then `extraEnv`.
   const buildSettingsProfile = (
     sessionEnv: Readonly<Record<string, string>>,
     extraEnv: Readonly<Record<string, string>>,
@@ -165,13 +146,9 @@ export function createClaudeAdapter(
 
   const files = createClaudeLaunchFiles(buildSettingsProfile({}, {}), host.atcArgv, options);
 
-  // A resumed session restores the permission mode the configured
-  // arguments or settings set.
   const buildModeArgs = (opts: SpawnOptions): string[] =>
     opts.resume === false ? [] : buildRestoreModeArgs(entry.args, entry.settings);
 
-  // The first key in the agent's own config that would replace the credentials of a kind, or
-  // route the CLI around them. A broker launch matters only to an agent that signs in through it.
   const findGuestEnvConflict = (kind: 'broker' | 'routed' | 'stored-token'): string | null => {
     if (kind === 'broker' && entry.auth === undefined) {
       return null;
@@ -201,9 +178,6 @@ export function createClaudeAdapter(
       : 'settings.apiKeyHelper';
   };
 
-  // The placeholder variables a launch holds: the broker's, or on a routed host the placeholder
-  // token and the route in place of the subscription token, with the names the script's guard
-  // lets through because the launch sets them itself.
   const planRoutedEnv = (
     auth: NonNullable<GuestPaths['auth']>,
   ): {
@@ -260,8 +234,6 @@ export function createClaudeAdapter(
     const bundleKey = randomUUID();
     const scratch = `${directory}/${SESSION_SCRATCH_FOLDER}`;
 
-    // when the profiles send a ChatGPT sign-in too, the Codex CLI the session runs as a tool signs
-    // in through the broker, with every variable that would sign it in another way unset
     const codexHome = routed.routed
       ? { files: {}, env: {}, unsetEnv: [] }
       : planCodexHome({
@@ -276,8 +248,6 @@ export function createClaudeAdapter(
     const telemetryEnv =
       auth.telemetryHost === undefined ? {} : buildTelemetryEnv(auth.telemetryHost);
 
-    // the configured arguments drop their permission mode, so the mode the session's own user
-    // settings set applies
     const launch = buildClaudeGuestLaunch(
       directory,
       [
@@ -306,8 +276,6 @@ export function createClaudeAdapter(
       ...(routed.routed ? {} : { '.credentials.json': buildClaudeCredentialsFile() }),
     };
 
-    // atc's statusline renders the one the bundle's user settings set
-    // first, so it mirrors that one's padding.
     const userSettings = bundle['settings.json'];
 
     const padding =
@@ -354,8 +322,6 @@ export function createClaudeAdapter(
     };
   };
 
-  // A launch that reads the token the host stores in its sign-in folder: the session's own config
-  // folder, and the token in the harness's environment alone.
   const planStoredTokenGuestSpawn = (
     opts: SpawnOptions,
     guest: GuestPaths,
@@ -430,8 +396,6 @@ export function createClaudeAdapter(
     takesMessages: true,
     takesAtcMCP: true,
 
-    // A session's scratch folder lies under its own folder in atc's state
-    // folder, and is its temporary folder too.
     planSpawn: (opts, session?: SessionID) => {
       const scratch =
         session === undefined ? null : createLocalScratchDir(session, options.stateDir);
@@ -544,8 +508,6 @@ export function createClaudeAdapter(
 
     planHookEvents: (hookEvent) => ({ events: [buildClaudeHookEvent(hookEvent)] }),
 
-    // the generated settings file sits on the daemon's machine, so it travels only for an entry
-    // that sets its own settings or environment
     planResumeCommand: (cwd, agentSessionID: AgentSessionID | undefined, sessionPluginDirs) => {
       const configured = findClaudePermissionMode(entry.args, entry.settings);
       const mode = configured === null ? '' : ` --permission-mode ${toShellArg(configured)}`;

@@ -1,4 +1,3 @@
-// The slice of a Bun socket the queue needs; `write` returns bytes accepted.
 export interface SocketWriter {
   readonly write: (data: Uint8Array) => number;
 }
@@ -6,18 +5,16 @@ export interface SocketWriter {
 export interface OutboundQueue {
   readonly queuedBytes: number;
 
-  // false: the payload was refused whole because the queue is over capacity.
   readonly send: (payload: string) => boolean;
   readonly drain: () => void;
 }
 
 const encoder = new TextEncoder();
 
-// The bytes a queue holds when its owner gives no capacity.
 export const DEFAULT_QUEUE_BYTES = 2 * 1024 * 1024;
 
-// `socket.write()` drops whatever it does not accept, so a short write parks
-// the rest here; a payload once started is never cut, even past capacity
+// A socket write drops whatever it does not accept, so a short write must be kept
+// and retried later.
 export function createOutboundQueue(
   socket: SocketWriter,
   capacity = DEFAULT_QUEUE_BYTES,

@@ -1,6 +1,5 @@
 import { faker } from '@faker-js/faker';
 
-// A repository as GitHub's REST API returns it, in the fields a listing reads.
 interface GitHubAPIRepo {
   readonly full_name: string;
   readonly description: string | null;

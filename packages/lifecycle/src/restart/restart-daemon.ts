@@ -40,9 +40,6 @@ export async function restartDaemon(
     .filter((session) => session.state === 'running')
     .map((session) => ({ name: session.name, id: session.id }));
 
-  // Taken while the old daemon still runs, so a row that the restore marks
-  // exited is not mistaken for one that was archived before. A daemon this
-  // build cannot speak to is read from its database instead.
   const snapshot =
     (plan.answer?.kind === 'ok' && plan.socketPath !== null
       ? await readFleetSnapshot(plan.socketPath, clientBuild, host.clock)

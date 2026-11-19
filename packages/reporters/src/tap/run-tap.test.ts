@@ -15,7 +15,6 @@ import invariant from 'tiny-invariant';
 import { runTap } from './run-tap';
 
 async function setupTest() {
-  // The adapter takes messages, so a session has an inbox to tap.
   const testDaemon = await startTestDaemon({
     prefix: 'atc-tap-',
     options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
@@ -202,8 +201,6 @@ test('it exits 0 once the daemon closes the connection', async () => {
 
   await ctx.actor.sendRequest('session.message', { session: id, text: 'ping' });
 
-  // A message reaching delivered proves the tap is connected before the
-  // daemon goes away.
   await waitFor(() => {
     expect(ctx.events).toPartiallyContain({ ev: 'SessionMessage', status: 'delivered' });
   });
@@ -241,7 +238,6 @@ test('it exits 0 when another tap replaces it', async () => {
 
   await ctx.actor.sendRequest('session.message', { session: id, text: 'ping' });
 
-  // A message reaching delivered proves the tap is subscribed.
   await waitFor(() => {
     expect(ctx.events).toPartiallyContain({ ev: 'SessionMessage', status: 'delivered' });
   });
@@ -260,7 +256,6 @@ test('it taps through the session bridge inside a remote host', async () => {
   const sock = join(temporaryDirectory.path, 'bridge.sock');
   const outbox = join(temporaryDirectory.path, 'outbox');
 
-  // The bridge closes the inbox once it answers the note the tap sends.
   const bridge = startStubSessionBridge(sock, (request) => [
     { id: request['id'], ok: true },
     { ev: 'InboxClosed' },

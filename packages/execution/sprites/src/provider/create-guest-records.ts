@@ -7,7 +7,7 @@ import { runExec } from './run-exec';
 
 const HOST_RECORD_SCHEMA = z.object({ target: z.string(), host: z.string(), daemon: z.string() });
 
-// the exec's id, and the boot of the sprite it ran under; exec ids mean nothing after a reboot
+// Exec ids mean nothing after a sprite reboot, so each record keeps the boot it ran under.
 const EXEC_RECORD_SCHEMA = z.object({ exec: z.string(), boot: z.string() });
 
 const SESSION_RECORD_SCHEMA = z.object({
@@ -24,7 +24,6 @@ export interface GuestRecords {
   readonly writeHostRecord: (sprite: string, record: HostRecord) => Promise<void>;
   readonly readSessionRecord: (sprite: string, session: string) => Promise<SessionRecord | null>;
 
-  // reads the session's record, applies the change and writes it back, one turn at a time
   readonly updateSessionRecord: (
     sprite: string,
     session: string,
@@ -33,9 +32,6 @@ export interface GuestRecords {
   readonly readBootID: (sprite: string) => Promise<string>;
 }
 
-// The files that the provider keeps in a sprite's guest folder: the host record, the exec ids of
-// each session, and the boot id they were recorded under. A file that holds no valid record reads
-// as none.
 export function createGuestRecords(api: SpritesPort, guestDir: string): GuestRecords {
   const withTurn = makeKeyedLock();
 

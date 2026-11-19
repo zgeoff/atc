@@ -2,17 +2,14 @@ import { join } from 'node:path';
 import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 
 interface StubSharedServerCodexConfig {
-  // The command atc runs as; the stub reports each hook through its
-  // `hook-report --agent codex`, as the hook entries atc prints for Codex do.
   readonly atc: readonly string[];
 
-  // The composer script the stub finishes in.
   readonly composer: string;
 }
 
-// Codex runs hooks inside the background server its first terminal starts, which
-// keeps that start's environment, so every start without --no-daemon reports
-// with the session id and socket the first start recorded.
+// Codex runs hooks in the background server its first terminal starts, which keeps that
+// start's environment. Later starts without --no-daemon report the first start's session
+// id and socket.
 export function createStubSharedServerCodex(
   directory: string,
   config: StubSharedServerCodexConfig,

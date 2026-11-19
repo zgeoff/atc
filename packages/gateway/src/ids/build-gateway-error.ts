@@ -29,8 +29,6 @@ export function buildGatewayError(
   return new DaemonError(error.code, buildQuotedMessage(error.message, quoted), data);
 }
 
-// The message with each quoted daemon id replaced, longest first so an id
-// that contains another is replaced whole.
 function buildQuotedMessage(message: string, ids: ReadonlyMap<string, string>): string {
   const ordered = [...ids].toSorted(([leftID], [rightID]) => rightID.length - leftID.length);
 

@@ -17,9 +17,6 @@ interface GatewayAuthEntry {
   readonly settings?: Readonly<Record<string, unknown>> | undefined;
 }
 
-// The gateway's auth, or every problem that refuses it. The checks cover
-// each place a session's environment comes from: the gateway env, the
-// settings env, and the placeholders, and which of them would win.
 export function checkGatewayAuth(
   raw: unknown,
   entry: GatewayAuthEntry,
@@ -127,14 +124,10 @@ function parseGatewayAuth(raw: unknown): GatewayAuth | string {
   return { profiles: profiles.map(String), placeholderEnv: env, args: args.map(String) };
 }
 
-// A settings env's variable names; anything but an object sets none.
 function toEnvKeys(value: unknown): string[] {
   return isRecord(value) && !Array.isArray(value) ? Object.keys(value) : [];
 }
 
-// Variables Claude reads its endpoint and credential from. Only the
-// placeholders may set a credential variable, and the base URL comes from
-// `baseURL` alone, whose host is checked against the profiles.
 const CREDENTIAL_VARIABLES: ReadonlySet<string> = new Set([
   CLAUDE_CREDENTIAL_VARIABLES.authToken,
   CLAUDE_CREDENTIAL_VARIABLES.apiKey,
@@ -157,9 +150,7 @@ function collectPlaceholderProblems(env: Readonly<Record<string, string>>): stri
     .map((key) => `placeholderEnv must not set ${key}`);
 }
 
-// The broker matches a request by the exact host it connects to on the
-// default https port, so the base URL must be https on that port, with a
-// host one of the selected profiles covers.
+// The broker matches requests by exact host on the default https port.
 function findBaseURLProblem(baseURL: string, hosts: readonly string[]): string | null {
   let url: URL;
 

@@ -14,14 +14,9 @@ export interface KeyBinding {
   readonly outcome: BindingOutcome;
   readonly outcomeAt: number;
 
-  // When a request under the key first left for its daemon, null while
-  // none has, and the daemon's id of the effect an uncertain answer
-  // returned, null without one.
   readonly sentAt: number | null;
   readonly effectRef: string | null;
 
-  // The id of the claim that wrote the binding, so a call can tell its own
-  // binding from one another call wrote first.
   readonly claimID: string;
 }
 
@@ -40,8 +35,7 @@ const BINDING_ROW_SCHEMA = z.object({
   claim_id: z.string(),
 });
 
-// The part of a SQLite handle the store uses. The app opens the file, with
-// named parameters bound without their prefix.
+// Named parameters are bound without their prefix.
 export interface BindingDatabase {
   readonly run: (sql: string) => unknown;
   readonly query: (sql: string) => {
@@ -140,7 +134,6 @@ export function createGatewayStore(db: BindingDatabase): GatewayStore {
         throw new Error('a claimed key binding is missing');
       }
 
-      // a reused key never reaches a daemon that may have dropped it already
       if (held.payloadHash !== binding.payloadHash) {
         throw new DaemonError(
           'idempotency_conflict',
@@ -153,8 +146,6 @@ export function createGatewayStore(db: BindingDatabase): GatewayStore {
 
     findBinding,
 
-    // one conditional statement, so of any number of calls, across gateway processes too,
-    // exactly one takes the first send and every later one may only replay
     claimFirstSend: (principal, operation, key, now) =>
       db
         .query(
@@ -165,8 +156,6 @@ export function createGatewayStore(db: BindingDatabase): GatewayStore {
         .run({ principal, operation, key, now }).changes === 1,
 
     updateOutcome: (principal, operation, key, update) => {
-      // a completed outcome stays completed, and an answer without an effect id keeps the one
-      // recorded earlier
       db.query(
         `UPDATE key_binding
          SET outcome = $outcome, outcome_at = $now, effect_ref = COALESCE($effectRef, effect_ref)
@@ -190,8 +179,6 @@ export function createGatewayStore(db: BindingDatabase): GatewayStore {
       ).run({ principal, operation, key, claimID });
     },
 
-    // a binding outlives the daemon's promise to deduplicate its key: only a completed one
-    // goes, at twice the announced retention, as the daemon keeps every other key
     removeExpiredBindings: (now) =>
       db
         .query(
@@ -226,8 +213,6 @@ function toKeyBinding(row: BindingRow): KeyBinding {
   };
 }
 
-// A stored outcome; anything unreadable counts as uncertain, which keeps
-// the binding.
 function pickOutcome(value: string): BindingOutcome {
   return value === 'pending' || value === 'completed' ? value : 'uncertain';
 }

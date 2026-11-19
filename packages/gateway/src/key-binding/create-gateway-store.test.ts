@@ -305,8 +305,6 @@ test('#removeBinding keeps a sent binding when its claim is withdrawn', () => {
 
   ctx.store.claimBinding(claim, 10);
   ctx.store.claimFirstSend('c1', 'session.spawn', 'k', 20);
-
-  // The binding's request went out before its claim is withdrawn.
   ctx.store.removeBinding('c1', 'session.spawn', 'k', 'claim');
 
   expect(ctx.store.findBinding('c1', 'session.spawn', 'k')).toStrictEqual({
@@ -343,7 +341,6 @@ test('#updateOutcome keeps a completed outcome when a later request under the ke
   ctx.store.claimBinding(claim, 10);
   ctx.store.updateOutcome('c1', 'session.spawn', 'k', { outcome: 'completed', now: 20 });
 
-  // The key's request completed before a later request under it goes unanswered.
   ctx.store.updateOutcome('c1', 'session.spawn', 'k', {
     outcome: 'uncertain',
     now: 30,

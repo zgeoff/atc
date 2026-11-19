@@ -124,9 +124,6 @@ export async function bootDaemonClient(
         daemonMessage: error.message,
       };
 
-      // Without a pid there is no daemon this client could stop, so the
-      // caller is not asked. A restart cannot help a client older than the
-      // daemon either, since the daemon comes back on its own build.
       if (
         mismatch.daemonPID === null ||
         isClientBehind(mismatch) ||
@@ -182,8 +179,6 @@ async function openOrBootDaemon(
   return booted;
 }
 
-// Opens the first socket a running daemon may answer on that takes the
-// connection, sending no handshake.
 async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | null> {
   for (const socketPath of readDaemonSocketPaths(paths)) {
     try {
@@ -196,8 +191,6 @@ async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | nu
   return null;
 }
 
-// A boot given its own paths starts no daemon, since `atc daemon` would
-// listen at this process's paths instead, so the message says so.
 function readGivenPathsFailure(paths: DaemonPaths): string {
   return (
     readUnreachableDaemon(paths) ??
@@ -215,8 +208,6 @@ function readUnreachableDaemon(paths: DaemonPaths): string | null {
   return null;
 }
 
-// One boot in flight per clock and daemon socket, which every boot of this
-// process on that clock for that socket shares.
 const bootFlights = new WeakMap<Clock, Map<string, () => Promise<void>>>();
 
 function bootDaemonOnce(
@@ -243,8 +234,6 @@ function bootDaemonOnce(
   return flight();
 }
 
-// How long a boot waits for a daemon to answer. It covers a daemon that
-// waits out the state lock of one still shutting down.
 const BOOT_DEADLINE_MS = 8000;
 
 async function bootDaemon(
@@ -271,8 +260,6 @@ async function bootDaemon(
         return;
       }
 
-      // A daemon that found the state lock still held by one shutting down
-      // exits; once the old one is gone, a fresh spawn takes the lock.
       if (child.exitCode !== null || child.signalCode !== null) {
         closeReadyPipe(child);
 
@@ -283,8 +270,6 @@ async function bootDaemon(
         return;
       }
 
-      // The poll still finds a daemon that another process started, and
-      // paces the spawns when each daemon exits at once.
       const cancel = clock.schedule(wake, 100);
 
       await woken.promise;
@@ -308,8 +293,8 @@ function spawnDaemonDetached(atcArgv: readonly string[], onReady: () => void): C
 
   pipe?.on('data', onReady);
 
-  // A daemon that dies mid-write can break the pipe, and the poll covers
-  // that daemon.
+  // A daemon that dies mid-write can break the pipe, and the boot poll still
+  // finds that daemon.
   pipe?.on('error', () => {});
 
   return child;
@@ -319,9 +304,6 @@ function closeReadyPipe(child: ChildProcess): void {
   child.stdio.at(3)?.destroy();
 }
 
-// A live daemon this process cannot reach, such as one whose runtime
-// directory a sandbox hides, needs a different fix than one that never
-// started, so the message tells them apart.
 function readBootFailure(paths: DaemonPaths): string {
   return (
     readUnreachableDaemon(paths) ??
@@ -329,15 +311,12 @@ function readBootFailure(paths: DaemonPaths): string {
   );
 }
 
-// The time a waiting boot gives up, and the length of its wait for the
-// error text.
 interface DaemonWait {
   readonly deadline: number;
   readonly timeoutMs: number;
   readonly clock: Clock;
   readonly paths: DaemonPaths;
 
-  // Called on every miss; the boot reports only the first to its caller.
   readonly onWait: () => void;
 }
 
@@ -363,8 +342,6 @@ async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
   }
 }
 
-// A waiting caller was told not to start a daemon, so the message says so
-// and points at starting the managed one.
 function readWaitFailure(wait: DaemonWait): string {
   return (
     readUnreachableDaemon(wait.paths) ??
@@ -372,8 +349,6 @@ function readWaitFailure(wait: DaemonWait): string {
   );
 }
 
-// the deadline rejects so a daemon that takes the connection but never
-// answers cannot hold the wait open.
 async function waitForHello(
   sendHello: () => Promise<Readonly<Record<string, unknown>>>,
   wait: DaemonWait,

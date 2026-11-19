@@ -28,7 +28,6 @@ test('it stops a daemon no unit runs with SIGTERM', async () => {
 });
 
 test('it kills a daemon that still runs once the wait after SIGTERM ends', async () => {
-  // A shell that ignores SIGTERM and says so once the trap is in place.
   const daemon = Bun.spawn(['bash', '-c', 'trap "" TERM; echo ready; while :; do sleep 1; done'], {
     stdout: 'pipe',
   });

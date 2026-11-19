@@ -16,13 +16,9 @@ test('it reports a process that exited as not running', async () => {
   expect(probeProcessAlive(child.pid)).toBeFalse();
 });
 
-// The zombie state and its thread count come from Linux's /proc, and the
-// child loads glibc by its Linux name.
 test.skipIf(process.platform !== 'linux')(
   'it reports a process whose main thread exited as running while another of its threads runs',
   async () => {
-    // Once its worker thread runs, the main thread ends through pthread_exit,
-    // which leaves the process a zombie in /proc while the worker runs on.
     const child = Bun.spawn(
       [
         process.execPath,

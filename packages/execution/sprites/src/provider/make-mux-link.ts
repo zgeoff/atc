@@ -9,20 +9,14 @@ interface MuxLinkOptions {
   readonly sprite: string;
   readonly session: string;
 
-  // the mux's command: the guest's atc binary, `relay-mux` and the bridge socket
   readonly argv: readonly string[];
 
-  // makes ready what the mux needs in the sprite before it starts
   readonly prepare: () => Promise<void>;
   readonly log: (line: string) => void;
 }
 
-// how long a replaced mux has to exit before the link lets go of it
 const STOP_WAIT_MS = 2000;
 
-// A relay link over a non-terminal exec of `atc relay-mux` that outlives every WebSocket. The exec
-// keeps its stdout, and an attach replays it from the first byte. The link records the exec's id
-// beside the boot it ran under, and starts a new mux when the recorded one is gone.
 export function makeMuxLink(options: MuxLinkOptions): RelayLink {
   const api = options.api;
 
@@ -47,7 +41,6 @@ export function makeMuxLink(options: MuxLinkOptions): RelayLink {
     }
   };
 
-  // lost: the sprite or the mux is gone, so no attach brings it back
   const readEnd = async (execID: string): Promise<'dropped' | 'lost'> => {
     try {
       if ((await api.readSprite(options.sprite)) === null) {
@@ -97,7 +90,6 @@ export function makeMuxLink(options: MuxLinkOptions): RelayLink {
         });
       }
 
-      // output and an end that arrive before the caller listens wait for it
       const early: Uint8Array[] = [];
       let dataListener: ((data: Uint8Array) => void) | null = null;
       let endListener: ((end: 'dropped' | 'lost') => void) | null = null;

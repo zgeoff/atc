@@ -1,9 +1,6 @@
 import type { RelayMux } from './start-relay-mux';
 import { startRelayMux } from './start-relay-mux';
 
-// Runs the guest's end of a relay: the bridge socket at the given path, and frames over this
-// process's stdin and stdout. It returns once the socket is bound, and the process then lives
-// until the provider or the host ends it, whether or not stdin closes.
 export async function runRelayMux(socketPath: string): Promise<void> {
   process.stdout.on('error', () => {});
 

@@ -12,7 +12,6 @@ export interface NoticeSend {
   readonly thread: string | null;
   readonly notice: BridgedNotice;
 
-  // sends the notice again once an overload wait ends, checking the bridge's state anew
   readonly resend: () => Promise<void>;
 }
 
@@ -39,8 +38,6 @@ export async function sendBridgedNotice(context: TurnSendContext, send: NoticeSe
       return;
     }
 
-    // A notice the server refused is taken all the same, so it holds up
-    // no later item of the inbox.
     if (isRefusal(error)) {
       context.host.log(
         `codex app server: the App Server refused notice ${send.notice.id} (${error.message})`,

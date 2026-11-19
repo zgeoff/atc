@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readProcProcess } from './read-proc-process';
 
-// A temp directory that stands in for `/proc`.
 function setupTest() {
   const procRoot = setupTempDir('read-proc-process-').path;
 

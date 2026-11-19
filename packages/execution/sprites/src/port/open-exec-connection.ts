@@ -4,23 +4,20 @@ import type { ExecConnection, ExecEnd, ExecRequest } from './types';
 import { waitOut } from './wait-out';
 
 interface ExecConnectionOptions {
-  // the API's origin, `https://api.sprites.dev`
   readonly apiURL: string;
   readonly token: string;
   readonly sprite: string;
   readonly request: ExecRequest;
 }
 
-// the exec's frame prefixes on a connection that is not a terminal
 const STDIN = 0;
 const STDOUT = 1;
 const STDERR = 2;
 const EXIT = 3;
 const STDIN_EOF = 4;
 
-// An exec over the API's WebSocket: binary frames for a terminal's bytes, and frames that lead
-// with a stream id otherwise. The SDK drops the session id that a new exec that is no terminal
-// announces, which the provider records to attach again.
+// The SDK drops the session id that the API announces for a non-terminal exec,
+// so read it from the stream frames to allow attaching again.
 export function openExecConnection(options: ExecConnectionOptions): ExecConnection {
   const request = options.request;
 
@@ -35,7 +32,6 @@ export function openExecConnection(options: ExecConnectionOptions): ExecConnecti
   const execID = Promise.withResolvers<string>();
   const opened = Promise.withResolvers<void>();
 
-  // an unawaited rejection never crashes the daemon
   void waitOut(execID.promise);
   void waitOut(opened.promise);
   let isEnded = false;
@@ -122,7 +118,7 @@ export function openExecConnection(options: ExecConnectionOptions): ExecConnecti
     }
   };
 
-  // a frame sent while the socket still connects is discarded, so the frame waits for the open
+  // A frame sent while the socket is still connecting is discarded, so wait for open first.
   const sendEndOfInput = async (): Promise<void> => {
     await opened.promise;
 
@@ -178,7 +174,7 @@ export function openExecConnection(options: ExecConnectionOptions): ExecConnecti
   };
 }
 
-// a year: the longest the API takes in place of no limit
+// One year, the longest max_run_after_disconnect value the API accepts.
 const OUTLIVE_CLIENTS = '8760h';
 
 function buildExecURL(options: ExecConnectionOptions): string {

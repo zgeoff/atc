@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildDirsSource } from './build-dirs-source';
 
-// A temp directory that stands for the daemon user's home.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-dirs-source-');
 

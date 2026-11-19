@@ -210,8 +210,6 @@ test('it falls back to every default when an entry has a valid base URL but ever
   });
 });
 
-// The hook that judges a gateway session's tool calls is registered here, so
-// the block reaches the generated settings file whole.
 test('it carries a settings block through to the gateway', () => {
   const settings = {
     hooks: {

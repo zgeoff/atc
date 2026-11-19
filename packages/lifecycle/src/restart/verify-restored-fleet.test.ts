@@ -57,15 +57,12 @@ test('it reports the last answered list when the deadline overtakes a later list
     restoreBootTimeoutMs: 15_000,
   });
 
-  // The first list answers with a row still without a terminal, so the
-  // check waits a poll interval before it lists again.
   await waitFor(() => {
     expect(clock.collectPending()).toStrictEqual([250]);
   });
 
   clock.advance(250);
 
-  // The daemon withholds the second list, which only the deadline ends.
   await waitFor(() => {
     expect(ctx.daemon.methods).toStrictEqual([
       'fleet.restore',
@@ -396,8 +393,6 @@ test('it lists the rows within the deadline when the agent list gets no answer',
     restoreBootTimeoutMs: 15_000,
   });
 
-  // Nothing is queued, so the daemon withholds the agent list, which only
-  // its own time limit ends.
   await waitFor(() => {
     expect(ctx.daemon.methods).toStrictEqual(['fleet.restore', 'agents.list']);
     expect(clock.collectPending()).toStrictEqual([5000]);
