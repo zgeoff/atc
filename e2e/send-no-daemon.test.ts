@@ -19,7 +19,9 @@ test('it exits 4 within 10 s and starts no daemon when atc send finds none', asy
     home: ctx.directory,
   });
 
-  expect({ code: ran.exitCode, stdout: JSON.parse(ran.stdout), stderr: ran.stderr }).toStrictEqual({
+  const stdout: unknown = JSON.parse(ran.stdout);
+
+  expect({ code: ran.exitCode, stdout, stderr: ran.stderr }).toStrictEqual({
     code: 4,
     stdout: { key: 'k-1', error: { code: 'unreachable', message: expect.any(String) } },
     stderr: '',
