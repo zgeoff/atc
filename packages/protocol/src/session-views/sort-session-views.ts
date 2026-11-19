@@ -1,8 +1,6 @@
 import type { SessionState } from './session-state';
 import type { SortableSessionView } from './sortable-session-view';
 
-// a sub-session ranks among its siblings alone, so its attention never moves
-// its parent's row
 export function sortSessionViews<T extends SortableSessionView>(list: readonly T[]): T[] {
   const rank: Record<SessionState, number> = {
     needs_you: 0,

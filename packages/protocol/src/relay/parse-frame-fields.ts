@@ -1,7 +1,6 @@
 export type FrameFields = Readonly<Record<string, unknown>>;
 
-// The fields of a line that holds a JSON object, or null for any other line, such as bytes a host
-// printed before the mux started.
+// A host may print non-JSON bytes before the mux starts.
 export function parseFrameFields(line: string): FrameFields | null {
   let json: unknown;
 

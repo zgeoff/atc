@@ -18,7 +18,6 @@ import { toDaemonError } from './to-daemon-error';
 
 const QUEUE_BYTES = 8 * 1024 * 1024;
 
-// Connects to the daemon at a unix socket path, or at a TCP address.
 export async function openDaemonClient(
   address: string | { readonly hostname: string; readonly port: number },
 ): Promise<DaemonClient> {
@@ -42,8 +41,6 @@ export async function openDaemonClient(
   return client;
 }
 
-// What one client connection holds: its lifecycle, the peer that pairs
-// requests with responses, and the socket and queue once it connects.
 interface ClientConnection {
   readonly actor: Actor<typeof CLIENT_MACHINE>;
   readonly lines: LineDecoder;
@@ -54,15 +51,12 @@ interface ClientConnection {
   socket: { readonly end: () => void } | null;
   events: AbortController | null;
 
-  // The lines read so far, each handed to the peer after the one before.
   inbound: Promise<void>;
 
-  // The principal a call acts as when it gives none: the client's own.
   findDefaultPrincipal: () => string | null;
 }
 
 function createClientConnection(): ClientConnection {
-  // The peer sends only once the connection below holds its queue.
   const peer = new ClientPeer((message) => {
     if (typeof message !== 'string' || conn.queue?.send(`${message}\n`) === false) {
       throw new DaemonError('internal', 'outbound queue full');
@@ -71,8 +65,6 @@ function createClientConnection(): ClientConnection {
 
   const link = new StandardRPCLink<CallContext>(
     {
-      // Every call, a typed procedure's included, refuses at once on a
-      // closed connection with the reason it closed.
       call: async (request) => {
         requireOpenConnection(conn);
 
@@ -142,8 +134,6 @@ function buildDaemonClient(conn: ClientConnection): DaemonClient {
     procedures: conn.procedures,
     isClosed: () => isClientClosed(conn),
 
-    // a client inside an atc session gives that session, so the daemon
-    // never takes a change to the session's own record from it
     sendHello: (build, options = {}) =>
       sendClientRequest(conn, client, {
         method: 'daemon.hello',
@@ -182,9 +172,6 @@ interface SendClientRequestOptions {
   readonly asName?: string | undefined;
 }
 
-// A request with a principal acts as that principal and carries its name.
-// A handshake gives this client's protocol version unless its params give
-// one, and the connection's events start once it passes.
 async function sendClientRequest(
   conn: ClientConnection,
   client: DaemonClient,
@@ -218,8 +205,6 @@ async function sendClientRequest(
   return ok;
 }
 
-// The subscription acts as the principal the handshake gave, which a
-// daemon reached over TCP requires of every request.
 function startClientEvents(
   conn: ClientConnection,
   client: DaemonClient,
@@ -237,9 +222,6 @@ function startClientEvents(
   void readClientEvents(conn, client, controller.signal, principal);
 }
 
-// A subscription that fails or ends while its connection stays open, a
-// throw from the event handler included, closes the connection with the
-// reason, so the caller sees the loss and every later request gets it.
 async function readClientEvents(
   conn: ClientConnection,
   client: DaemonClient,
@@ -275,7 +257,6 @@ function drainPending(conn: ClientConnection, reason: string): void {
   conn.peer.close({ reason: new DaemonError('internal', reason) });
 }
 
-// A closed client's machine has stopped, and takes no event.
 function sendClose(conn: ClientConnection, reason: string): void {
   if (!isClientClosed(conn)) {
     conn.actor.send({ type: 'CLOSE', reason });
@@ -288,8 +269,6 @@ function findHelloPrincipal(params: Readonly<Record<string, unknown>>): string |
   return typeof principal === 'string' ? principal : undefined;
 }
 
-// The lines that arrived before the close settle their requests first, so
-// a refusal the daemon wrote before it ended reaches its caller.
 function buildSocketHandlers(conn: ClientConnection, client: DaemonClient): SocketHandler {
   return {
     data(_s, buf) {

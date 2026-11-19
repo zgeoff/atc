@@ -8,7 +8,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startStubRecordingListener } from './start-stub-recording-listener';
 
-// A temp directory to hold the listener's socket.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-recording-listener-');
 
@@ -39,8 +38,6 @@ test('it records what a connection sends and sends nothing back', async () => {
     expect(listener.received).toStrictEqual(['go']);
   });
 
-  // The test's own marker follows anything the listener sent on the same
-  // connection, so its arrival shows every reply has arrived.
   peer.write('end');
 
   await waitFor(() => {
@@ -85,13 +82,9 @@ test('it stops listening once stopped', () => {
 });
 
 test('it stops listening once the test finishes without a stop', () => {
-  // The socket sits outside any directory the test removes, so only the
-  // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-recording-${randomUUID()}.sock`);
   let left: boolean | null = null;
 
-  // Runs after the helper's own release, which registers later; it
-  // records whether that release left the socket, then removes it.
   registerTestCleanup(() => {
     left = existsSync(path);
 

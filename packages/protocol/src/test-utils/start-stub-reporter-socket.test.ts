@@ -8,7 +8,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startStubReporterSocket } from './start-stub-reporter-socket';
 
-// A temp directory to hold the reporter's socket.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-reporter-');
 
@@ -145,13 +144,9 @@ test('it stops listening once stopped', () => {
 });
 
 test('it stops listening once the test finishes without a stop', () => {
-  // The socket sits outside any directory the test removes, so only the
-  // listener's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-reporter-${randomUUID()}.sock`);
   let left: boolean | null = null;
 
-  // Runs after the helper's own release, which registers later; it
-  // records whether that release left the socket, then removes it.
   registerTestCleanup(() => {
     left = existsSync(path);
 

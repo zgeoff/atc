@@ -10,8 +10,8 @@ export type ParsedRequestParams<M extends RequestMethod> =
   | { readonly ok: true; readonly data: RequestParams<M> }
   | { readonly ok: false; readonly message: string };
 
-// typed as a mapped type, so an indexed lookup with a generic method keeps the
-// method's own params type, which TypeScript loses on the schema object's type
+// Typed as a mapped type so an indexed lookup with a generic method keeps that
+// method's params type, which TypeScript loses on the plain object type.
 const TYPED_REQUEST_PARAM_SCHEMAS: {
   readonly [K in RequestMethod]: z.ZodType<RequestParams<K>>;
 } = REQUEST_PARAM_SCHEMAS;

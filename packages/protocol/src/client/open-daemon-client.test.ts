@@ -80,7 +80,6 @@ test('it sends the principal a request acts as, and its name, as headers', async
     expect(ctx.received).toHaveLength(1);
   });
 
-  // The request id is the client's own choice, so the expected line takes it.
   const expected = ctx.received.map((line) => {
     const parsed: unknown = JSON.parse(line);
     const request = z.record(z.string(), z.unknown()).parse(parsed);
@@ -264,7 +263,6 @@ test('it delivers every request whole once a reader that took nothing reads agai
 
   const client = await openDaemonClient(ctx.socketPath);
 
-  // The requests stay unanswered, and the stop rejects them.
   const sent = Array.from({ length: 10 }, (_, index) =>
     client.sendRequest('session.message', { session: 's-1', text: `${index}`.repeat(200_000) }),
   );

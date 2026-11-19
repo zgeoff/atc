@@ -1,8 +1,6 @@
 import { MAX_CHUNK, MAX_LINE } from '../wire/index';
 import { startStubPeerDaemon } from './start-stub-peer-daemon';
 
-// A daemon that drops the connection on the first request after a
-// handshake, and answers every later one with a spawned session.
 export function startStubDroppingDaemon(socketPath: string) {
   const keys: unknown[] = [];
   const params: (Readonly<Record<string, unknown>> | undefined)[] = [];
@@ -20,8 +18,6 @@ export function startStubDroppingDaemon(socketPath: string) {
         };
       }
 
-      // The client opens its event stream once the handshake passes, which
-      // this daemon never sends to.
       if (request.method === 'events.subscribe') {
         return 'silent';
       }

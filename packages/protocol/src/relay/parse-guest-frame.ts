@@ -3,8 +3,6 @@ import type { ParsedGuestFrame } from './guest-frame';
 import { isFrameCount } from './is-frame-count';
 import { parseFrameFields } from './parse-frame-fields';
 
-// null for a line that is no frame. A welcome of another version comes back as a foreign welcome,
-// whatever else it holds.
 export function parseGuestFrame(line: string): ParsedGuestFrame | null {
   const fields = parseFrameFields(line);
 

@@ -3,8 +3,6 @@ import { MessageType, serializeRequestMessage } from '@orpc/standard-server-peer
 
 const SERIALIZER = new StandardRPCSerializer(new StandardRPCJsonSerializer());
 
-// One peer request line, encoded the way a peer client encodes a call of the
-// procedure at the path with the input, for a test that writes the raw bytes.
 export function buildPeerRequestLine(
   id: string,
   path: string,

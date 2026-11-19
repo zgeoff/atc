@@ -3,7 +3,6 @@ import type { DaemonFrame } from './daemon-frame';
 import { isFrameCount } from './is-frame-count';
 import { parseFrameFields } from './parse-frame-fields';
 
-// null for a line that is no frame.
 export function parseDaemonFrame(line: string): DaemonFrame | null {
   const fields = parseFrameFields(line);
 

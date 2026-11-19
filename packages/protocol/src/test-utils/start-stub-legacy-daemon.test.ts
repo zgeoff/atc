@@ -10,7 +10,6 @@ import invariant from 'tiny-invariant';
 import { openDaemonClient } from '../client/index';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
-// A temp directory to hold the daemon's socket.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-legacy-');
 
@@ -233,13 +232,9 @@ test('it holds no port when it listens on a unix socket', () => {
 });
 
 test('it stops listening once the test finishes without a stop', () => {
-  // The socket sits outside any directory the test removes, so only the
-  // daemon's own stop takes it away.
   const path = join(tmpdir(), `atc-stub-legacy-${randomUUID()}.sock`);
   let left: boolean | null = null;
 
-  // Runs after the helper's own release, which registers later; it
-  // records whether that release left the socket, then removes it.
   registerTestCleanup(() => {
     left = existsSync(path);
 
@@ -261,8 +256,6 @@ test('it leaves a daemon its caller owns listening once the test finishes', () =
     expect(existsSync(path)).toBeTrue();
   });
 
-  // Runs after the check; the stop removes the socket, and the removal
-  // takes away one a failed stop left.
   onTestFinished(() => {
     daemon.stop();
 

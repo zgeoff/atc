@@ -7,16 +7,12 @@ interface ReceivedRequest {
   readonly params: Readonly<Record<string, unknown>> | undefined;
 }
 
-// A TCP address to listen on in place of a unix socket; port 0 lets the
-// kernel choose one.
 interface StubLegacyDaemonTCPAddress {
   readonly hostname: string;
   readonly port: number;
 }
 
 interface StubLegacyDaemonOptions {
-  // The protocol version the daemon speaks; a hello on any other version is
-  // refused with `protocol_mismatch`, as a real daemon refuses it.
   readonly protocol?: number;
 
   // Released daemons can omit the protocol version from their refusal's data.
@@ -24,20 +20,13 @@ interface StubLegacyDaemonOptions {
 
   readonly replies?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 
-  // Methods the daemon refuses with this error, in place of a reply.
   readonly refusals?: Readonly<Record<string, { readonly code: string; readonly message: string }>>;
 
-  // Drops the connection when this request arrives, without a response.
   readonly closeOnRequest?: string;
 
-  // Who stops the daemon: the current test, once it finishes, or the
-  // caller alone, for a process that runs it outside any test; the test
-  // unless set.
   readonly owner?: 'test' | 'caller';
 }
 
-// A daemon of another build, which answers each request from its table of
-// replies.
 export function startStubLegacyDaemon(
   address: string | StubLegacyDaemonTCPAddress,
   options: StubLegacyDaemonOptions = {},
@@ -59,8 +48,6 @@ export function startStubLegacyDaemon(
   const daemon = startStubPeerDaemon(address, {
     owner: options.owner ?? 'test',
     answer: (request) => {
-      // The client opens its event stream once the handshake passes, which
-      // a scripted daemon holds open and never sends to.
       if (request.method === 'events.subscribe') {
         return 'silent';
       }

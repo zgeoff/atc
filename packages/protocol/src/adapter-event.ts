@@ -5,22 +5,13 @@ export interface AdapterEvent {
   agentSessionID?: AgentSessionID;
   message?: string;
 
-  // On a needs-input event: true when it is a permission prompt that only a
-  // person can answer, false when it is an idle notice that shows no prompt
-  // is open, and absent when the notice says neither.
   permissionPending?: boolean;
 
-  // Fuller activity text than message: what the agent last said or was
-  // asked, for briefing. Bounded by the adapter.
   detail?: string;
 
-  // Opaque handle the adapter can later pull a session name from.
   nameSource?: string;
 
-  // Claude resume-existence path. Distinct from nameSource: a naming
-  // handle is not a resume gate.
   transcriptSource?: string;
 
-  // The agent's whole final message for a finished turn; detail holds a bounded preview of it.
   result?: string;
 }

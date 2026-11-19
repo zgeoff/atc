@@ -2,13 +2,7 @@ import { isRecord } from '@atc/core';
 import { ERROR_CODES } from '@atcx/contract/light';
 import type { ErrorCode } from '@atcx/contract/light';
 
-// Raised by any change to a procedure, an input field, or an answer field,
-// because a client trusts a daemon on its own version to serve its whole
-// contract.
 export const PROTOCOL_V = 14;
-
-// Control lines are capped before buffering; PTY output is split into chunks
-// so a queued response is delayed by at most one chunk.
 export const MAX_LINE = 1_048_576;
 export const MAX_CHUNK = 65_536;
 
@@ -16,7 +10,6 @@ interface ProtocolError {
   readonly code: ErrorCode;
   readonly message: string;
 
-  // Structured detail an error code defines for itself.
   readonly data?: Readonly<Record<string, unknown>>;
 }
 
@@ -26,12 +19,8 @@ export interface RequestMsg {
   readonly method: string;
   readonly params?: Readonly<Record<string, unknown>>;
 
-  // The principal the request acts as, which narrows what the connection
-  // may reach for this request alone.
   readonly as?: string;
 
-  // The name of the principal in `as`, which the daemon labels a message
-  // the request sends with; only ever beside `as`.
   readonly asName?: string;
 }
 
@@ -79,8 +68,6 @@ export function decodeMessage(line: string): DecodedMsg {
     const params = parsed['params'];
     const as = parsed['as'];
 
-    // A principal that is not a string would otherwise drop out and leave the
-    // request with the connection's whole reach.
     if (as !== undefined && (typeof as !== 'string' || as === '')) {
       return { kind: 'malformed', reason: 'as must be a non-empty string' };
     }
@@ -91,8 +78,6 @@ export function decodeMessage(line: string): DecodedMsg {
       return { kind: 'malformed', reason: 'asName must be a non-empty string' };
     }
 
-    // A name without the principal it belongs to would label a message with
-    // a name nobody vouched for.
     if (asName !== undefined && as === undefined) {
       return { kind: 'malformed', reason: 'asName needs as' };
     }

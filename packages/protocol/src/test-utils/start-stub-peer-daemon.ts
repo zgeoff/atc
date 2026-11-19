@@ -8,18 +8,14 @@ import type { SocketHandler } from 'bun';
 import { PRINCIPAL_HEADERS, createLineDecoder } from '../wire/index';
 import type { LineDecoder } from '../wire/index';
 
-// One request a client sent, as the stand-in reads it.
 export interface StubPeerRequest {
   readonly method: string;
   readonly params: Readonly<Record<string, unknown>> | undefined;
 
-  // The principal the request acts as, from its headers.
   readonly as: string | undefined;
   readonly asName: string | undefined;
 }
 
-// What the stand-in sends for one request: an answer, a refusal, an end of
-// the connection with no response, or no response at all.
 export type StubPeerAnswer =
   | { readonly ok: Readonly<Record<string, unknown>> }
   | {
@@ -32,8 +28,6 @@ export type StubPeerAnswer =
   | 'close'
   | 'silent';
 
-// A TCP address to listen on in place of a unix socket; port 0 lets the
-// kernel choose one.
 interface StubPeerDaemonTCPAddress {
   readonly hostname: string;
   readonly port: number;
@@ -42,9 +36,6 @@ interface StubPeerDaemonTCPAddress {
 interface StubPeerDaemonOptions {
   readonly answer: (request: StubPeerRequest) => StubPeerAnswer;
 
-  // Who stops the daemon: the current test, once it finishes, or the
-  // caller alone, for a process that runs it outside any test; the test
-  // unless set.
   readonly owner?: 'test' | 'caller';
 }
 
@@ -53,8 +44,6 @@ interface StubPeerConnection {
   readonly peer: ServerPeer;
 }
 
-// A daemon stand-in that speaks oRPC peer messages, one JSON message per
-// line, and answers each request as the caller's answer function says.
 export function startStubPeerDaemon(
   address: string | StubPeerDaemonTCPAddress,
   options: StubPeerDaemonOptions,
@@ -67,7 +56,7 @@ export function startStubPeerDaemon(
       socket.data = {
         lines: createLineDecoder(),
 
-        // The peer encodes every message as a JSON string.
+        // oRPC peers encode every message as a JSON string.
         peer: new ServerPeer((message) => {
           if (typeof message === 'string') {
             socket.write(`${message}\n`);
@@ -87,7 +76,6 @@ export function startStubPeerDaemon(
       reads += 1;
 
       for (const line of socket.data.lines.splitChunk(chunk)) {
-        // A line the peer cannot decode ends the connection.
         void (async () => {
           try {
             await socket.data.peer.message(line, (request) => {
@@ -136,7 +124,6 @@ function readStubPeerRequest(request: StandardRequest): StubPeerRequest {
   };
 }
 
-// A request left without a response waits until the connection ends.
 function buildStubPeerResponse(answer: StubPeerAnswer): Promise<StandardResponse> {
   if (answer === 'close' || answer === 'silent') {
     return Promise.withResolvers<StandardResponse>().promise;
@@ -158,8 +145,6 @@ function buildStubPeerResponse(answer: StubPeerAnswer): Promise<StandardResponse
   });
 }
 
-// Listens on the unix socket path, or on the TCP address in its place, and
-// returns the port bound, `null` for a unix socket.
 function startListener(
   address: string | StubPeerDaemonTCPAddress,
   handlers: Readonly<SocketHandler<StubPeerConnection>>,

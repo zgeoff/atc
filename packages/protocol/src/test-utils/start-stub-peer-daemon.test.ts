@@ -106,7 +106,6 @@ test('it leaves a request unanswered when the caller says silent', async () => {
 
   const listed = client.sendRequest('session.list');
 
-  // Closing the client rejects the withheld list; nothing awaits it.
   void Promise.allSettled([listed]);
 
   await client.sendRequest('daemon.ping');
