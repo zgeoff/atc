@@ -1,7 +1,7 @@
 import type { TargetConfigError } from '@atc/config';
 import { socketPath, statusFile } from '@atc/config';
 import type { AgentID, Clock } from '@atc/core';
-import { systemClock, truncateDetail, truncateToBytes } from '@atc/core';
+import { systemClock } from '@atc/core';
 import type {
   AgentAdapter,
   ExecutionCapability,
@@ -45,7 +45,10 @@ import type { MessageBridgeLaunch, SessionCallbacks } from './session-callbacks'
 import type { SessionChanges } from './session-changes';
 import type { SessionEventKind } from './session-event-kind';
 import { updateSession } from './update-session';
+import { updateSessionAttention } from './update-session-attention';
 import { updateSessionScope } from './update-session-scope';
+import { updateSessionSurfaceState } from './update-session-surface-state';
+import { yankSessionHeadless } from './yank-session-headless';
 
 type SessionManagerEvents = Partial<
   Pick<
@@ -529,82 +532,18 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
 
     writeFleet: () => fleet.writeFleet(),
 
-    yankHeadless: (id) => {
-      const session = registry.sessions.find((x) => x.id === id);
-
-      if (!session || session.pty === null || session.agentSessionID === undefined) {
-        return null;
-      }
-
-      const pty = session.pty;
-
-      session.pty = null;
-      session.kind = 'headless';
-      session.state = 'running';
-      session.lastMsg = 'ejected to headless';
-
-      pty.kill();
-
-      onEvent('state', session);
-
-      fleet.emitChange();
-
-      return session;
-    },
+    yankHeadless: (id) => yankSessionHeadless({ registry, fleet, callbacks }, id),
 
     updateScope: (id, scope) => updateSessionScope({ registry, records }, id, scope),
 
     updateSession: (id, changes) => updateSession({ registry, fleet, callbacks }, id, changes),
 
     updateSurfaceState: (id, state, message, result) => {
-      const session = registry.sessions.find((x) => x.id === id);
-
-      if (!session || session.kind !== 'headless') {
-        return;
-      }
-
-      session.state = state;
-      session.lastMsg = message;
-      session.unread = registry.focusedId !== session.id;
-
-      if (result !== undefined) {
-        session.result = truncateToBytes(result, 16_384);
-        session.lastDetail = truncateDetail(result);
-        void fleet.tryUpdateFleetEntry(session.id, { result: session.result });
-      }
-
-      onEvent('state', session);
-
-      fleet.emitChange();
+      updateSessionSurfaceState({ registry, fleet, callbacks }, { id, state, message, result });
     },
 
-    updateAttention: (id, state, message) => {
-      const session = registry.sessions.find((x) => x.id === id);
-
-      if (!session || session.pty === null || session.state === state) {
-        return false;
-      }
-
-      const isRaise = state === 'needs_you' && session.state !== 'exited';
-      const isLower = state !== 'needs_you' && session.state === 'needs_you';
-
-      if (!isRaise && !isLower) {
-        return false;
-      }
-
-      session.state = state;
-      session.lastMsg = message;
-
-      if (state === 'needs_you') {
-        session.unread = registry.focusedId !== session.id;
-      }
-
-      onEvent('state', session);
-
-      fleet.emitChange();
-
-      return true;
-    },
+    updateAttention: (id, state, message) =>
+      updateSessionAttention({ registry, fleet, callbacks }, id, state, message),
 
     get focused(): Session | null {
       return registry.sessions.find((session) => session.id === registry.focusedId) ?? null;
