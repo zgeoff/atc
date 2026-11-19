@@ -160,7 +160,7 @@ async function runTape(tape: string, watch: Watch, beats: () => Promise<void>): 
     return 1;
   }
 
-  return await vhs.exited;
+  return vhs.exited;
 }
 
 async function watchExit(vhs: Bun.Subprocess, watch: Watch): Promise<void> {
