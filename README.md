@@ -32,40 +32,24 @@ claude mcp add --scope user atc-box -- atc mcp --daemon box
 
 Then ask it:
 
-> spawn a reviewer on each open PR, and message me when they're all done
+> start a builder on the cloud box for each issue in this milestone, merge each PR once CI is green
+> and its review is clean, and tell me only when one needs a decision
+
+Each builder is a session in your TUI, so you can jump into any of them.
 
 Message a session from anywhere a shell runs:
 
 ```sh
 atc send reviewer "Is the migration safe to run?" --wait
-git log -1 --format=%B | atc send reviewer - --key "commit-$(git rev-parse HEAD)"
-atc send planner "Start the daily triage" --key "triage-$(date +%F)" --from cron
 ```
 
-Watch the fleet and react. This one pings your phone when an agent needs you:
+Ping your phone when an agent needs you:
 
 ```sh
 atc events |
   jq --unbuffered -r 'select(.ev == "SessionState" and .session.state == "needs_you") | .session.name' |
   while read -r name; do ntfy publish me "$name is waiting on you"; done
 ```
-
-And this one hands work down the line when a session finishes:
-
-```sh
-atc events |
-  jq --unbuffered -r 'select(.ev == "SessionState" and .session.name == "builder" and .session.state == "done") | .session.name' |
-  while read -r _; do atc send reviewer "builder is done, review its PR"; done
-```
-
-Or skip the CLI. The events socket is plain NDJSON, with no handshake:
-
-```sh
-socat - UNIX-CONNECT:"$XDG_RUNTIME_DIR/atc-events.sock" | jq .
-```
-
-Everything else the TUI and the MCP server do goes through one typed API: the daemon's oRPC
-contract, published as [`@atcx/contract`](./packages/contract/README.md).
 
 ## Install
 
