@@ -403,14 +403,6 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
         throw refusal;
       }
 
-      if (auth?.kind === 'stored-token') {
-        throw new DaemonError(
-          'unsupported_operation',
-          `agent '${adapter.id}' cannot launch on target '${target}' yet: a launch that reads the stored token inside the host is not built`,
-          { agent: adapter.id, target, problem: 'stored_token_launch' },
-        );
-      }
-
       // a routed launch holds no binding, so a host that holds one is as unfit for it as for any
       // launch without runtime auth
       if (auth?.kind !== 'broker') {
@@ -482,7 +474,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
         directory,
         sessionEnv,
         ...(guest.signIn === null ? {} : { signIn: { directory: guest.signIn } }),
-        ...(auth === null
+        ...(auth === null || auth.kind === 'stored-token'
           ? {}
           : {
               auth: await timer.withStep('auth-plan', () =>
@@ -505,7 +497,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 
       const env = { ...sessionEnv, ...plan.env };
 
-      requireGuestEnv(adapter.id, target, env, auth !== null);
+      requireGuestEnv(adapter.id, target, env, auth !== null && auth.kind !== 'stored-token');
 
       const attemptID =
         auth?.kind === 'broker' && auth.mode === 'create'

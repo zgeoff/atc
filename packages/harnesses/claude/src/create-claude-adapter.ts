@@ -73,6 +73,9 @@ import { resolveClaudePermissionMode } from './screen/resolve-claude-permission-
 import { loadClaudeName } from './transcript/load-claude-name';
 import { parseClaudeTranscriptLine } from './transcript/parse-claude-transcript-line';
 
+// The file of a host's sign-in folder that holds the token `claude setup-token` printed.
+const SIGN_IN_FILE = 'claude-oauth-token';
+
 export interface ClaudeAdapter extends AgentAdapter {
   readonly parseTranscriptLine: (line: string) => TranscriptRow | null;
 
@@ -91,7 +94,7 @@ export interface ClaudeAdapter extends AgentAdapter {
 
   // Claude takes its stored token from the claude-oauth-token file of a host's sign-in volume.
   readonly findGuestEnvConflict: (kind: 'broker' | 'routed' | 'stored-token') => string | null;
-  readonly signInFile: 'claude-oauth-token';
+  readonly signInFile: typeof SIGN_IN_FILE;
 
   // a remote session reports through the atc inside its host, so without one it cannot run there
   readonly planGuestSpawn: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
@@ -352,6 +355,51 @@ export function createClaudeAdapter(
     };
   };
 
+  // A launch that reads the token the host stores in its sign-in folder: the session's own config
+  // folder, and the token in the harness's environment alone.
+  const planStoredTokenGuestSpawn = (
+    opts: SpawnOptions,
+    guest: GuestPaths,
+    signIn: string,
+    argv: readonly string[],
+  ): GuestSpawnPlan => {
+    const scratch = `${guest.directory}/${SESSION_SCRATCH_FOLDER}`;
+    const atcArgv = opts.atcMCP === true ? argv : null;
+    const mcpArgs = atcArgv === null ? [] : ['--mcp-config', `${guest.directory}/mcp.json`];
+
+    const launch = buildClaudeGuestLaunch(
+      guest.directory,
+      [
+        entry.bin,
+        ...buildClaudeArgs(entry.args, opts, {
+          leadArgs: [...mcpArgs, ...buildModeArgs(opts)],
+          scratch,
+          settings: buildGuestSettingsPath(guest.directory),
+          pluginDir: `${guest.directory}/atc-bridge`,
+          pluginDirs: [],
+        }),
+      ],
+      { tokenFile: `${signIn}/${SIGN_IN_FILE}`, refusedEnv: [...OUTRANKING_VARIABLES] },
+    );
+
+    const settings = buildHookSettings(buildSettingsProfile(guest.sessionEnv ?? {}, {}), 0, argv);
+
+    return {
+      bin: launch.bin,
+      args: launch.args,
+      scratch,
+      files: {
+        'settings.json': JSON.stringify(settings, null, 2),
+        ...(atcArgv === null
+          ? {}
+          : { 'mcp.json': JSON.stringify(buildClaudeMCPConfig([], atcArgv), null, 2) }),
+        ...buildClaudeConfigSeed(null, null, scratch),
+        ...buildGuestBridgeFiles(argv),
+      },
+      env: { ...launch.env, ...(atcArgv === null ? {} : ATC_MCP_ENV) },
+    };
+  };
+
   return {
     id: entry.id,
     headlessRunner:
@@ -404,7 +452,7 @@ export function createClaudeAdapter(
 
     findGuestEnvConflict,
 
-    signInFile: 'claude-oauth-token',
+    signInFile: SIGN_IN_FILE,
 
     findAuthSelection: () => {
       const auth = entry.auth;
@@ -439,6 +487,10 @@ export function createClaudeAdapter(
 
       if (guest.auth !== undefined) {
         return planSubscriptionGuestSpawn(opts, guest, guest.auth, argv);
+      }
+
+      if (guest.signIn !== undefined) {
+        return planStoredTokenGuestSpawn(opts, guest, guest.signIn.directory, argv);
       }
 
       const scratch = `${guest.directory}/${SESSION_SCRATCH_FOLDER}`;
