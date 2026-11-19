@@ -1,4 +1,4 @@
-import { CONTRACT_VERSION } from './contract-version';
+import { CONTRACT_VERSION } from '../daemon-contract/contract-version';
 import { DAEMON_FEATURES } from './daemon-features';
 import type { DaemonFeature } from './daemon-features';
 import type { HelloResult } from './hello-result';

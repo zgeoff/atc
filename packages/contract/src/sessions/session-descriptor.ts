@@ -1,9 +1,9 @@
 import { z } from 'zod';
+import { toAgentSessionID } from '../ids/to-agent-session-id';
+import { toDaemonID } from '../ids/to-daemon-id';
+import { toSessionID } from '../ids/to-session-id';
 import { SESSION_LIFECYCLE_SCHEMA } from './session-lifecycle';
 import { SESSION_WORKSPACE_SCHEMA } from './session-workspace';
-import { toAgentSessionID } from './to-agent-session-id';
-import { toDaemonID } from './to-daemon-id';
-import { toSessionID } from './to-session-id';
 
 const SESSION_HOST_SCHEMA = z.object({
   // the host's name on its provider

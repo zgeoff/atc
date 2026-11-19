@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { ERROR_CODES } from './light/error-codes';
-import type { ErrorCode } from './light/error-codes';
+import { ERROR_CODES } from '../light/error-codes';
+import type { ErrorCode } from '../light/error-codes';
 
 // The detail an error carries as `data`, whose fields each code defines.
 const ERROR_DATA_SCHEMA = z.record(z.string(), z.unknown()).optional();

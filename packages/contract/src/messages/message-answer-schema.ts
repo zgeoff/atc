@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MESSAGE_STATUS_SCHEMA } from './message-status';
+import { MESSAGE_STATUS_SCHEMA } from './message-status-schema';
 
 export const MESSAGE_ANSWER_SCHEMA = z.object({
   message: z.string(),

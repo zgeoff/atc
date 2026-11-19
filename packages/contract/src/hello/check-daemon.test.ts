@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
+import { CONTRACT_VERSION } from '../daemon-contract/contract-version';
 import { checkDaemon } from './check-daemon';
 import type { DaemonCheck } from './check-daemon';
-import { CONTRACT_VERSION } from './contract-version';
 
 test.each<[string, string, string[], DaemonCheck]>([
   [

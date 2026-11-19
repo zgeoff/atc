@@ -59,7 +59,6 @@
       {
         "pending": [
           "packages/app",
-          "packages/contract",
           "packages/core",
           "packages/daemon",
           "packages/lifecycle",
@@ -71,13 +70,7 @@
     "zgeoff/file-named-for-export": [
       "error",
       {
-        "pending": [
-          "packages/app",
-          "packages/contract",
-          "packages/daemon",
-          "packages/lifecycle",
-          "packages/tui"
-        ]
+        "pending": ["packages/app", "packages/daemon", "packages/lifecycle", "packages/tui"]
       }
     ]
   },

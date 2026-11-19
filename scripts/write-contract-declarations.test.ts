@@ -87,6 +87,28 @@ test('it rewrites each relative import in the emitted files to the file Node res
   });
 });
 
+test('it points a bare parent import at the parent folder index', async () => {
+  const ctx = setupTest();
+
+  await Bun.write(join(ctx.out, 'index.d.ts'), "export * from './session-id';\n");
+
+  await Bun.write(
+    join(ctx.out, 'daemon/contract.d.ts'),
+    "export type A = import('..').SessionID;\nexport type { SessionID } from '..';\nexport type L = '.';\n",
+  );
+
+  await Bun.write(join(ctx.out, 'session-id.d.ts'), 'export type SessionID = string;\n');
+
+  await writeContractDeclarations('/repo', ctx.out, {
+    ...DECLARATION_TOOLS,
+    runCompiler: () => Promise.resolve({ exitCode: 0, output: '' }),
+  });
+
+  expect(readFileSync(join(ctx.out, 'daemon/contract.d.ts'), 'utf8')).toBe(
+    "export type A = import('../index.js').SessionID;\nexport type { SessionID } from '../index.js';\nexport type L = '.';\n",
+  );
+});
+
 test('it throws with the compiler output when the compiler fails', () => {
   expect(
     writeContractDeclarations('/repo', '/out', {

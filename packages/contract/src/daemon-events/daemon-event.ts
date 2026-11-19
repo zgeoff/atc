@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { MESSAGE_SENDER_SCHEMA } from './light/message-sender';
-import { MESSAGE_STATUS_SCHEMA } from './message-status';
-import { RESTART_RESULT_SCHEMA } from './restart-result';
-import { SESSION_DESCRIPTOR_SCHEMA } from './session-descriptor';
+import { RESTART_RESULT_SCHEMA } from '../hello/restart-result';
+import { MESSAGE_SENDER_SCHEMA } from '../light/message-sender';
+import { MESSAGE_STATUS_SCHEMA } from '../messages/message-status-schema';
+import { SESSION_DESCRIPTOR_SCHEMA } from '../sessions/session-descriptor';
 
 const SESSION_EVENT = z.object({ session: SESSION_DESCRIPTOR_SCHEMA });
 
