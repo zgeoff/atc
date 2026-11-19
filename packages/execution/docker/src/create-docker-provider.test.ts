@@ -523,7 +523,7 @@ test.each([
   ['a running container', 'running', 'boot-1', 'kept'],
   ['a paused container', 'paused', 'boot-1', 'kept'],
   ['an exited container of an earlier boot', 'exited', 'boot-0', 'lost'],
-  ['an exited container of this boot', 'exited', 'boot-1', undefined],
+  ['an exited container that an Engine restart stopped on this boot', 'exited', 'boot-1', 'lost'],
 ] as const)('it reads %s as the fate %s', async (_label, status, bootID, fate) => {
   const ctx = await setupTest();
 
@@ -546,20 +546,17 @@ test('it reads a session with no container as lost', async () => {
   expect(fates.get('s1')).toBe('lost');
 });
 
-test('it lists no fate for a sleeping session once the Engine restarted on the same boot', async () => {
+test('it reads a sleeping session as lost once the Engine restarted on the same boot', async () => {
   const ctx = await setupTest();
 
   await ctx.provider.prepareHost(ctx.request);
 
   ctx.seed.harness('s1', 'paused', 'boot-1');
-
-  const before = await ctx.provider.readHarnessFates('h1', ['s1']);
-
   ctx.engine.restart();
 
-  const after = await ctx.provider.readHarnessFates('h1', ['s1']);
+  const fates = await ctx.provider.readHarnessFates('h1', ['s1']);
 
-  expect([before.get('s1'), after.get('s1')]).toStrictEqual(['kept', undefined]);
+  expect(fates.get('s1')).toBe('lost');
 });
 
 test('it reads a sleeping session as lost once the machine booted again', async () => {

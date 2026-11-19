@@ -495,7 +495,7 @@ export function createDockerProvider(
           }),
         );
 
-        return collectHarnessFates(sessions, containers, readBootID() ?? '');
+        return collectHarnessFates(sessions, containers);
       } catch (error) {
         throw toRefusal(error);
       }

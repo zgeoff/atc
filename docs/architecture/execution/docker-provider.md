@@ -46,11 +46,9 @@ refuses the call with `host_unavailable` and the problem `host_leased`, a forget
 - **Forget.** `destroyHost` removes the host's containers, its volumes and its records folder. It
   keeps the sign-in volume.
 
-A harness the Engine still holds reports `kept`. A missing container, or an exited one whose
-`atc.boot` differs from the machine's current `boot_id`, reports `lost`, so a reboot lists sleeping
-sessions as exited. An exited container of this boot reports nothing, because its harness exited by
-itself. An Engine restart stops every container on the same boot, so a sleeping session whose
-container the restart stopped reports nothing and keeps its state until the owner revives it.
+A harness container that runs or is paused reports `kept`. A missing or exited one reports `lost`,
+so a sleeping session lists as exited after a reboot or an Engine restart. The daemon asks only
+about sleeping sessions, whose containers a kill paused, and a paused harness cannot exit by itself.
 
 ## The token
 

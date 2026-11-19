@@ -173,11 +173,9 @@ sub-session's sidecar ends with its harness.
 - Each Claude session runs with a `CLAUDE_CONFIG_DIR` of its own on the host volume. The launch
   seeds that folder as Claude's launch on imp does, so the session's transcripts never reach another
   session, and a forget removes them.
-- `readHarnessFates` reports:
-  - `kept` for a running or paused container;
-  - `lost` for a missing container, or an exited one whose `atc.boot` differs from the machine's
-    current `boot_id`;
-  - nothing for an exited container whose `atc.boot` matches, because its harness exited by itself.
+- `readHarnessFates` reports `kept` for a running or paused container, and `lost` for a missing or
+  exited one. The daemon asks only about sleeping sessions, whose containers a kill paused, so an
+  exited container means a reboot or an Engine restart stopped it.
 - `spawnHarness` removes an exited harness container and starts the resume command in a new one, and
   reports that it started the harness.
 - When a sidecar has stopped and its harness container runs, the next `open` creates a new sidecar
