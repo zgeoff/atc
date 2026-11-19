@@ -14,8 +14,9 @@ metadata:
 
 Use `bun verify` to start the app, use each feature your change touches the way a user would, and
 record a verdict that it works. Put the report in the PR with `bun verify publish`, and hand back
-the PR link and each feature you could not verify. Leave `bun verify gate` to CI: it reads the
-report from the PR description, and fails a PR that changes a feature with no verdict there.
+the PR link and each feature you could not verify, or the blocker that stopped you before `publish`.
+Leave `bun verify gate` to CI: it reads the report from the PR description, and fails a PR that
+changes a feature with no verdict there.
 
 The mistakes that cost the most time:
 
@@ -98,12 +99,23 @@ Read a feature's file before you run its journey.
    to run a feature's journey last, run it after every other journey.
 8. Run `bun verify report --human` to read the report. Expect: `verified` on each changed feature
    you did not skip in step 5. Repeat steps 4 to 6 for each `stale` feature.
-9. Push the branch, and open a PR for it when none is open. Without an open PR, `publish` fails and
-   writes nothing. Run `bun verify publish`, even when you skipped a feature. To write to a PR other
-   than the branch's own, add `--pr <number>`. Expect: `ok: true`, and `data.action` of `created`,
-   `replaced` or `unchanged`. It writes the report into the PR's description, the only report the
-   gate reads.
-10. End the run: `bun verify down` after `up`, or `bun verify detach` after `attach`.
+9. Push the branch. When no PR is open for it, open one: `publish` fails without it.
+10. Check that both `VERIFY_UPLOAD_URL` (the file host for the evidence) and
+    `VERIFY_UPLOAD_TOKEN_REF` (the token's 1Password `op://` reference) are set. When either is
+    empty, stop and report a blocker. Never run `op read` on its own: it prints the token.
+11. Publish the report, even when you skipped a feature. The subshell keeps the token out of your
+    shell, and `&&` stops the command before `publish` when `op read` fails: report that as a
+    blocker.
+
+    ```bash
+    (VERIFY_UPLOAD_TOKEN="$(op read "$VERIFY_UPLOAD_TOKEN_REF")" && export VERIFY_UPLOAD_TOKEN && bun verify publish)
+    ```
+
+    For another PR, put `--pr <number>` after `publish`, inside the parentheses. Expect: `ok: true`,
+    and `data.action` of `created`, `replaced` or `unchanged`.
+
+12. End the run, even after a blocker: `bun verify down` after `up`, or `bun verify detach` after
+    `attach`.
 
 ## Read the envelope
 
@@ -163,11 +175,10 @@ session-name, `db` and `mcp --server` rules that `--help` leaves out.
 
 <!-- repo: registry -->
 
-The registry, [`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts),
-declares the targets, commands and features, and takes each feature's `paths` and the `.ignore` list
-from [`feature-paths.ts`](../../../scripts/verify/feature-paths.ts). Add a new file's glob to each
-feature whose journey runs it. Ignore it only when atc never reads it at run time: an ignore glob
-beats a feature's glob.
+Add each feature's `paths` and the `.ignore` list in
+[`feature-paths.ts`](../../../scripts/verify/feature-paths.ts), which
+[`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts) reads. An ignore
+glob beats a feature's glob.
 
 <!-- /repo -->
 
@@ -180,6 +191,6 @@ When a change to a feature breaks its journey, fix the journey in the same PR. B
 skill or a feature file, read [Edit the skill](references/edit-the-skill.md). After you change this
 skill, a feature file or the registry, run `bun verify lint`, and fix each failure it reports.
 
-**Reply:** the PR link that `bun verify publish` returned in `data.pr.url`, and each feature you
-could not verify, with the command that failed and its `error.code`, or the end state you expected
-and the `data` you got.
+**Reply:** the PR link that `bun verify publish` returned in `data.pr.url`, or the blocker that
+stopped you before `publish`, and each feature you could not verify, with the command that failed
+and its `error.code`, or the end state you expected and the `data` you got.
