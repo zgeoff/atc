@@ -8,7 +8,7 @@ import type { FleetMirror } from '../fleet/create-fleet-mirror';
 import { resolveAgentMetadata } from '../fleet/resolve-agent-metadata';
 import type { DaemonName } from '../fleet/session-key';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
-import { cols } from '../terminal/draw-overlay';
+import { cols } from '../terminal/cols';
 
 // What a restart borrows from the client that owns the screen, the fleet
 // mirror, and the daemon connection.

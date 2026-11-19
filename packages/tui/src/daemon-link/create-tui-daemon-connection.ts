@@ -11,7 +11,7 @@ import type { FleetMirror } from '../fleet/create-fleet-mirror';
 import type { DaemonName } from '../fleet/session-key';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
 import type { SpawnPicker } from '../picker/create-spawn-picker';
-import { cols } from '../terminal/draw-overlay';
+import { cols } from '../terminal/cols';
 import type { DaemonLinks } from './create-daemon-links';
 import { waitForRestartConsent } from './wait-for-restart-consent';
 
