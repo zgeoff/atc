@@ -35,7 +35,15 @@ function setupTest() {
     stateDir: paths.stateDir,
     sockPath: paths.daemonSocketPath,
     env,
-    bootModule: join(import.meta.dir, '..', 'packages', 'lifecycle', 'src', 'boot-daemon.ts'),
+    bootModule: join(
+      import.meta.dir,
+      '..',
+      'packages',
+      'lifecycle',
+      'src',
+      'boot',
+      'boot-daemon-client.ts',
+    ),
     hostModule: join(import.meta.dir, '..', 'packages', 'app', 'src', 'build-lifecycle-host.ts'),
     servicesModule: join(
       import.meta.dir,

@@ -1,0 +1,600 @@
+import { expect, mock, test } from 'bun:test';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { buildDaemonStatePaths, resolvePaths } from '@atc/config/host';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
+import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { waitFor } from '@atc/core/test-utils/wait-for';
+import type { ProtocolMismatch } from '@atc/protocol';
+import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
+import { PROTOCOL_V } from '@atc/protocol/wire';
+import { buildMockLifecycleHost } from '../test-utils/build-mock-lifecycle-host';
+import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unanswering-unix-listener';
+import { bootDaemonClient } from './boot-daemon-client';
+
+function setupTest() {
+  const temporaryDirectory = setupTempDir('atc-boot-daemon-');
+
+  const paths = resolvePaths({
+    HOME: temporaryDirectory.path,
+    XDG_RUNTIME_DIR: temporaryDirectory.path,
+  });
+
+  // The daemon and the client both expect the state directory to exist.
+  mkdirSync(paths.stateDir, { recursive: true });
+
+  return {
+    directory: temporaryDirectory.path,
+    stateDir: paths.stateDir,
+    sockPath: paths.daemonSocketPath,
+    paths,
+    legacyDaemon: join(import.meta.dir, '..', 'test-utils', 'run-stub-legacy-daemon.ts'),
+  };
+}
+
+test('it leaves a daemon on another protocol running and rejects with both builds and versions', async () => {
+  const ctx = setupTest();
+
+  const legacy = Bun.spawn([process.execPath, ctx.legacyDaemon, ctx.sockPath, ctx.stateDir], {
+    stdout: 'pipe',
+    stderr: 'inherit',
+  });
+
+  registerTestCleanup(async () => {
+    legacy.kill('SIGTERM');
+
+    await legacy.exited;
+  });
+
+  const up = await legacy.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+
+  // The argv starts nothing, so a boot that tried to start a daemon fails.
+  const host = buildMockLifecycleHost({ paths: ctx.paths });
+
+  expect(bootDaemonClient(host)).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message: [
+      `the atc daemon (pid ${legacy.pid}, socket ${ctx.sockPath}) speaks another protocol than this client, atc/test-build on protocol v${PROTOCOL_V}.`,
+      `The daemon answered: atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+      'It was left running, so the sessions it hosts keep running.',
+      'To restart it, run `atc` from the build you want and confirm its restart prompt: every hosted session ends, and the fleet is restored on the new daemon.',
+    ].join('\n'),
+  });
+
+  expect(() => process.kill(legacy.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
+});
+
+test('it leaves a daemon on another protocol running and rejects when the caller declines the restart', async () => {
+  const ctx = setupTest();
+
+  const legacy = Bun.spawn([process.execPath, ctx.legacyDaemon, ctx.sockPath, ctx.stateDir], {
+    stdout: 'pipe',
+    stderr: 'inherit',
+  });
+
+  registerTestCleanup(async () => {
+    legacy.kill('SIGTERM');
+
+    await legacy.exited;
+  });
+
+  const up = await legacy.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+  const asked: (number | null)[] = [];
+
+  const booting = bootDaemonClient(buildMockLifecycleHost({ paths: ctx.paths }), {
+    onProtocolMismatch: (mismatch) => {
+      asked.push(mismatch.daemonPID);
+
+      return Promise.resolve(false);
+    },
+  });
+
+  expect(booting).rejects.toMatchObject({ code: 'protocol_mismatch' });
+  expect(asked).toStrictEqual([legacy.pid]);
+  expect(() => process.kill(legacy.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
+});
+
+test('it never offers to restart a daemon on a later protocol, and tells the user to reopen the client', async () => {
+  const ctx = setupTest();
+
+  const newer = Bun.spawn(
+    [process.execPath, ctx.legacyDaemon, ctx.sockPath, ctx.stateDir, 'newer'],
+    { stdout: 'pipe', stderr: 'inherit' },
+  );
+
+  registerTestCleanup(async () => {
+    newer.kill('SIGTERM');
+
+    await newer.exited;
+  });
+
+  const up = await newer.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+  const onProtocolMismatch = mock(() => Promise.resolve(true));
+
+  const booting = bootDaemonClient(buildMockLifecycleHost({ paths: ctx.paths }), {
+    onProtocolMismatch,
+  });
+
+  expect(booting).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message: [
+      `this client, atc/test-build on protocol v${PROTOCOL_V}, is older than the atc daemon (pid ${newer.pid}, socket ${ctx.sockPath}), which speaks protocol v${PROTOCOL_V + 1}.`,
+      `The daemon answered: atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
+      'It was left running, so the sessions it hosts keep running.',
+      'To reconnect, update atc if this build is out of date, then quit this client and run `atc` again. A daemon restart cannot help, because the daemon comes back on its own build.',
+    ].join('\n'),
+  });
+
+  expect(onProtocolMismatch).not.toHaveBeenCalled();
+  expect(() => process.kill(newer.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
+});
+
+test('it offers to restart a daemon on an earlier protocol that names its version', () => {
+  const ctx = setupTest();
+
+  startStubLegacyDaemon(ctx.sockPath, { protocol: PROTOCOL_V - 1, refusalHoldsProtocol: true });
+  writeFileSync(join(ctx.directory, 'atc-daemon.pid'), '4242');
+
+  const asked: ProtocolMismatch[] = [];
+
+  const booting = bootDaemonClient(buildMockLifecycleHost(), {
+    paths: {
+      socketPath: ctx.sockPath,
+      recordFile: join(ctx.directory, 'daemon.json'),
+      pidFile: join(ctx.directory, 'atc-daemon.pid'),
+    },
+    onProtocolMismatch: (mismatch) => {
+      asked.push(mismatch);
+
+      return Promise.resolve(false);
+    },
+  });
+
+  expect(booting).rejects.toMatchObject({ code: 'protocol_mismatch' });
+
+  expect(asked).toStrictEqual([
+    {
+      socketPath: ctx.sockPath,
+      daemonPID: 4242,
+      clientBuild: 'atc/test-build',
+      clientProtocol: PROTOCOL_V,
+      daemonProtocol: PROTOCOL_V - 1,
+      daemonMessage: `atc/test-build speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V - 1}; restart the daemon so both run the same build`,
+    },
+  ]);
+});
+
+test('it never asks to restart a daemon on another protocol whose pid it cannot find', async () => {
+  const ctx = setupTest();
+
+  const legacy = Bun.spawn([process.execPath, ctx.legacyDaemon, ctx.sockPath, ctx.stateDir], {
+    stdout: 'pipe',
+    stderr: 'inherit',
+  });
+
+  registerTestCleanup(async () => {
+    legacy.kill('SIGTERM');
+
+    await legacy.exited;
+  });
+
+  const up = await legacy.stdout.getReader().read();
+
+  const sessionPID = Number(new TextDecoder().decode(up.value).trim().split(' ')[1]);
+
+  rmSync(ctx.paths.daemonRecordFile);
+
+  const asked: (number | null)[] = [];
+
+  const booting = bootDaemonClient(buildMockLifecycleHost({ paths: ctx.paths }), {
+    onProtocolMismatch: (mismatch) => {
+      asked.push(mismatch.daemonPID);
+
+      return Promise.resolve(true);
+    },
+  });
+
+  expect(booting).rejects.toMatchObject({ code: 'protocol_mismatch' });
+  expect(asked).toStrictEqual([]);
+  expect(() => process.kill(legacy.pid, 0)).not.toThrow();
+  expect(() => process.kill(sessionPID, 0)).not.toThrow();
+});
+
+test('it rejects with the socket it waited on, and starts no daemon, when none answers before the wait ends', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+  const notices: string[] = [];
+
+  const booting = bootDaemonClient(buildMockLifecycleHost({ paths: ctx.paths }), {
+    waitForDaemonMs: 300,
+    clock,
+    onWaitForDaemon: () => {
+      notices.push('waiting without starting a daemon');
+    },
+  });
+
+  // The wait polls every 100 ms of the stepped clock, so a 300 ms wait
+  // misses four polls: the test steps past three of them and the fourth
+  // ends the wait.
+  const steps: number[] = [];
+
+  for (let poll = 0; poll < 3; poll++) {
+    const pending = await waitFor(() => {
+      const [next] = clock.collectPending();
+
+      if (next === undefined) {
+        throw new Error('no poll is waiting');
+      }
+
+      return next;
+    });
+
+    steps.push(pending);
+    clock.advance(100);
+  }
+
+  expect(booting).rejects.toThrowWithMessage(
+    Error,
+    `no atc daemon answered at ${ctx.sockPath} within 0.3s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+  );
+
+  expect(notices).toStrictEqual(['waiting without starting a daemon']);
+  expect(steps).toStrictEqual([100, 100, 100]);
+  expect(existsSync(buildDaemonStatePaths(ctx.paths.stateDir).lockFile)).toBeFalse();
+  expect(existsSync(ctx.sockPath)).toBeFalse();
+});
+
+test('it rejects when a socket takes the connection but never answers the handshake before the wait ends', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+
+  startStubUnansweringUnixListener(ctx.sockPath);
+
+  const booting = bootDaemonClient(buildMockLifecycleHost({ paths: ctx.paths }), {
+    waitForDaemonMs: 300,
+    clock,
+  });
+
+  // The socket takes the connection, so the boot waits on the handshake
+  // until the stepped clock reaches the end of the wait.
+  const step = await waitFor(() => {
+    const [pending] = clock.collectPending();
+
+    if (pending === undefined) {
+      throw new Error('no handshake wait is pending');
+    }
+
+    return pending;
+  });
+
+  clock.advance(step);
+
+  expect(booting).rejects.toThrowWithMessage(
+    Error,
+    `no atc daemon answered at ${ctx.sockPath} within 0.3s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+  );
+
+  expect(step).toBe(300);
+});
+
+test('it reports the start of a wait once across every poll of that wait', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+  let waits = 0;
+
+  const booting = bootDaemonClient(buildMockLifecycleHost({ paths: ctx.paths }), {
+    waitForDaemonMs: 500,
+    clock,
+    onWaitForDaemon: () => {
+      waits += 1;
+    },
+  });
+
+  // The wait polls every 100 ms of the stepped clock, so a 500 ms wait
+  // misses six polls: the test steps past five of them and the sixth ends
+  // the wait.
+  const steps: number[] = [];
+
+  for (let poll = 0; poll < 5; poll++) {
+    const pending = await waitFor(() => {
+      const [next] = clock.collectPending();
+
+      if (next === undefined) {
+        throw new Error('no poll is waiting');
+      }
+
+      return next;
+    });
+
+    steps.push(pending);
+    clock.advance(100);
+  }
+
+  expect(booting).rejects.toThrowWithMessage(
+    Error,
+    `no atc daemon answered at ${ctx.sockPath} within 0.5s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+  );
+
+  expect(waits).toBe(1);
+  expect(steps).toStrictEqual([100, 100, 100, 100, 100]);
+});
+
+test('it waits for a daemon instead of starting one when the host finds an installed user unit', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+
+  const booting = bootDaemonClient(
+    buildMockLifecycleHost({
+      paths: ctx.paths,
+      findManagedUnit: () => join(ctx.directory, 'atc-daemon.service'),
+    }),
+    { clock, onWaitForDaemon: () => {} },
+  );
+
+  const step = await waitFor(() => {
+    const [pending] = clock.collectPending();
+
+    if (pending === undefined) {
+      throw new Error('no poll is waiting');
+    }
+
+    return pending;
+  });
+
+  startStubLegacyDaemon(ctx.sockPath);
+
+  clock.advance(step);
+
+  const boot = await booting;
+
+  registerTestCleanup(() => {
+    boot.client.stop();
+  });
+
+  expect(boot.socketPath).toBe(ctx.sockPath);
+  expect(step).toBe(100);
+});
+
+test('it waits for its own daemon while a boot on the same clock waits for another', async () => {
+  const first = setupTest();
+  const second = setupTest();
+  const clock = buildStubClock(0);
+
+  // The argv starts nothing, and the clock never reaches the end of the
+  // first boot's wait, so that boot neither settles nor rejects.
+  void bootDaemonClient(buildMockLifecycleHost({ paths: first.paths }), { clock });
+
+  await waitFor(() => {
+    if (clock.collectPending().length === 0) {
+      throw new Error('the first boot is not waiting yet');
+    }
+  });
+
+  const booting = bootDaemonClient(buildMockLifecycleHost({ paths: second.paths }), { clock });
+
+  await waitFor(() => {
+    if (clock.collectPending().length < 2) {
+      throw new Error('the second boot is not waiting on its own daemon');
+    }
+  });
+
+  startStubLegacyDaemon(second.sockPath, { replies: { 'daemon.hello': { daemon: 'atc/1.2.3' } } });
+
+  clock.advance(100);
+
+  const boot = await booting;
+
+  registerTestCleanup(() => {
+    boot.client.stop();
+  });
+
+  expect(boot.socketPath).toBe(second.sockPath);
+});
+
+test('it rejects at the 8 s boot deadline when the daemon it starts never becomes ready', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+  const pidFile = join(ctx.directory, 'silent-daemon.pid');
+
+  registerTestCleanup(() => {
+    process.kill(Number(readFileSync(pidFile, 'utf8')), 'SIGKILL');
+  });
+
+  // The daemon stays up but neither listens nor signals ready.
+  const booting = bootDaemonClient(
+    buildMockLifecycleHost({
+      paths: ctx.paths,
+      invocation: { argv: ['sh', '-c', `echo $$ > ${pidFile}; exec sleep 30`] },
+    }),
+    { clock },
+  );
+
+  const steps: number[] = [];
+
+  for (let poll = 0; poll < 80; poll++) {
+    const pending = await waitFor(() => {
+      const [next] = clock.collectPending();
+
+      if (next === undefined) {
+        throw new Error('no poll is waiting');
+      }
+
+      return next;
+    });
+
+    steps.push(pending);
+    clock.advance(100);
+  }
+
+  expect(booting).rejects.toThrowWithMessage(
+    Error,
+    'the atc daemon did not come up; try `atc daemon` for its output',
+  );
+
+  expect(steps).toStrictEqual(Array.from({ length: 80 }, () => 100));
+});
+
+test('it rejects at the 8 s boot deadline when the daemon it starts signals ready but never listens', async () => {
+  const ctx = setupTest();
+  const clock = buildStubClock(0);
+  const pidFile = join(ctx.directory, 'unlistening-daemon.pid');
+
+  registerTestCleanup(() => {
+    process.kill(Number(readFileSync(pidFile, 'utf8')), 'SIGKILL');
+  });
+
+  const booting = bootDaemonClient(
+    buildMockLifecycleHost({
+      paths: ctx.paths,
+      invocation: {
+        argv: ['sh', '-c', `echo $$ > ${pidFile}; echo ready >&3; exec sleep 30`],
+      },
+    }),
+    { clock },
+  );
+
+  // Before the clock moves, only the ready line can wake the boot to try the
+  // socket again and schedule a second poll.
+  const delaysBeforeDeadline = await waitFor(() => {
+    const delays = clock.collectDelays();
+
+    if (delays.length < 2) {
+      throw new Error('the ready line has not woken the boot');
+    }
+
+    return delays;
+  });
+
+  const steps: number[] = [];
+
+  for (let poll = 0; poll < 80; poll++) {
+    const pending = await waitFor(() => {
+      const [next] = clock.collectPending();
+
+      if (next === undefined) {
+        throw new Error('no poll is waiting');
+      }
+
+      return next;
+    });
+
+    steps.push(pending);
+    clock.advance(100);
+  }
+
+  expect(booting).rejects.toThrowWithMessage(
+    Error,
+    'the atc daemon did not come up; try `atc daemon` for its output',
+  );
+
+  expect(delaysBeforeDeadline).toStrictEqual([100, 100]);
+  expect(steps).toStrictEqual(Array.from({ length: 80 }, () => 100));
+});
+
+test('it rejects with the socket path it is given when a wait finds no daemon there', () => {
+  const ctx = setupTest();
+
+  expect(
+    bootDaemonClient(buildMockLifecycleHost(), {
+      waitForDaemonMs: 0,
+      paths: {
+        socketPath: join(ctx.directory, 'given', 'atc-daemon.sock'),
+        recordFile: join(ctx.directory, 'given', 'daemon.json'),
+        pidFile: join(ctx.directory, 'given', 'atc-daemon.pid'),
+      },
+    }),
+  ).rejects.toThrowWithMessage(
+    Error,
+    `no atc daemon answered at ${join(ctx.directory, 'given', 'atc-daemon.sock')} within 0s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`,
+  );
+});
+
+test('it rejects at once, saying a boot given its own paths starts no daemon, when none answers there', () => {
+  const ctx = setupTest();
+
+  expect(
+    bootDaemonClient(buildMockLifecycleHost(), {
+      paths: {
+        socketPath: join(ctx.directory, 'given', 'atc-daemon.sock'),
+        recordFile: join(ctx.directory, 'given', 'daemon.json'),
+        pidFile: join(ctx.directory, 'given', 'atc-daemon.pid'),
+      },
+    }),
+  ).rejects.toThrowWithMessage(
+    Error,
+    `no atc daemon answered at ${join(ctx.directory, 'given', 'atc-daemon.sock')}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`,
+  );
+});
+
+test('it reads the pid of a daemon on another protocol from the pid file at the paths it is given', () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.directory, 'given'));
+
+  startStubLegacyDaemon(join(ctx.directory, 'given', 'atc-daemon.sock'), {
+    protocol: PROTOCOL_V + 1,
+  });
+
+  writeFileSync(join(ctx.directory, 'given', 'atc-daemon.pid'), '4242');
+
+  expect(
+    bootDaemonClient(buildMockLifecycleHost(), {
+      paths: {
+        socketPath: join(ctx.directory, 'given', 'atc-daemon.sock'),
+        recordFile: join(ctx.directory, 'given', 'daemon.json'),
+        pidFile: join(ctx.directory, 'given', 'atc-daemon.pid'),
+      },
+    }),
+  ).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message: expect.toStartWith(
+      `the atc daemon (pid 4242, socket ${join(ctx.directory, 'given', 'atc-daemon.sock')}) speaks another protocol than this client`,
+    ),
+  });
+});
+
+test('it reads the pid of a daemon on another protocol from the record at the paths it is given', () => {
+  const ctx = setupTest();
+
+  mkdirSync(join(ctx.directory, 'given'));
+
+  startStubLegacyDaemon(join(ctx.directory, 'given', 'atc-daemon.sock'), {
+    protocol: PROTOCOL_V + 1,
+  });
+
+  writeFileSync(
+    join(ctx.directory, 'given', 'daemon.json'),
+    JSON.stringify({
+      pid: 4343,
+      socketPath: join(ctx.directory, 'given', 'atc-daemon.sock'),
+      reporterSocketPath: join(ctx.directory, 'given', 'atc.sock'),
+      eventsSocketPath: null,
+      listenPort: null,
+    }),
+  );
+
+  expect(
+    bootDaemonClient(buildMockLifecycleHost(), {
+      paths: {
+        socketPath: join(ctx.directory, 'given', 'atc-daemon.sock'),
+        recordFile: join(ctx.directory, 'given', 'daemon.json'),
+        pidFile: join(ctx.directory, 'given', 'atc-daemon.pid'),
+      },
+    }),
+  ).rejects.toMatchObject({
+    code: 'protocol_mismatch',
+    message: expect.toStartWith(
+      `the atc daemon (pid 4343, socket ${join(ctx.directory, 'given', 'atc-daemon.sock')}) speaks another protocol than this client`,
+    ),
+  });
+});

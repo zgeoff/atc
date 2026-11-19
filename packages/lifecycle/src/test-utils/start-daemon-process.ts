@@ -8,7 +8,7 @@ import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import type { Subprocess } from 'bun';
-import { readDaemonRecord } from '../read-daemon-record';
+import { readDaemonRecord } from '../daemon-files/read-daemon-record';
 import { buildStderrReportingClient } from './build-stderr-reporting-client';
 
 interface DaemonProcessConfig {
