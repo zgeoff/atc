@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { ErrorCode } from '@atcx/contract/light';
-import { decodeMessage, encodeMessage } from './protocol';
+import { decodeMessage, encodeMessage } from './decode-message';
 
 test('#decodeMessage decodes a request with its params', () => {
   const decoded = decodeMessage(

@@ -64,7 +64,6 @@
           "packages/core",
           "packages/daemon",
           "packages/lifecycle",
-          "packages/protocol",
           "packages/tui"
         ]
       }
@@ -79,7 +78,6 @@
           "packages/contract",
           "packages/daemon",
           "packages/lifecycle",
-          "packages/protocol",
           "packages/tui"
         ]
       }

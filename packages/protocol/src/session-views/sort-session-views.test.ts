@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
+import { buildMockSortableSessionView } from '../test-utils/build-mock-sortable-session-view';
 import { sortSessionViews } from './sort-session-views';
-import { buildMockSortableSessionView } from './test-utils/build-mock-sortable-session-view';
 
 test('it leads with pinned sessions in most-recently-attached order', () => {
   const fleet = [
