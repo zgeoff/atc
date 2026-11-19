@@ -33,6 +33,7 @@ export function createImpLeases(options: ImpLeasesOptions): ImpLeases {
     try {
       await port.renewLease(host.name, label, leaseSeconds);
     } catch (error) {
+      // A forced sleep removes the lease. Retaking it would override the owner who ended it.
       if (error instanceof ImpPortError && error.code === 'LEASE_NOT_HELD') {
         stopRenewal(host);
       }
