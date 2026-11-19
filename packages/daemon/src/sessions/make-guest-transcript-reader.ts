@@ -1,11 +1,8 @@
 import type { ExecutionProvider } from '@atc/plugin-api';
-import {
-  NO_TRANSCRIPT_CODE,
-  READ_TRANSCRIPT_WINDOW_SCRIPT,
-  buildTranscriptWindowArgs,
-  parseTranscriptWindow,
-} from './guest-transcript-window';
+import { buildTranscriptWindowArgs } from './build-transcript-window-args';
+import { NO_TRANSCRIPT_CODE, READ_TRANSCRIPT_WINDOW_SCRIPT } from './constants';
 import type { ReadTranscriptWindow } from './load-transcript-page';
+import { parseTranscriptWindow } from './parse-transcript-window';
 
 export function makeGuestTranscriptReader(
   provider: Pick<ExecutionProvider, 'runCommand'>,

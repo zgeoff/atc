@@ -1,5 +1,5 @@
 import type { Clock } from '@atc/core';
-import { formatLogField } from '../format-log-field';
+import { formatLogField } from '../logging/format-log-field';
 import type { DaemonConnection } from './create-daemon-connection';
 import { createHandshakeThrottle } from './create-handshake-throttle';
 import { createRefusalLog } from './create-refusal-log';

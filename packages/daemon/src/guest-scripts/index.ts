@@ -1,5 +1,6 @@
 import { RESOLVE_AGENT_HOME_SCRIPT } from '../auth/read-host-agent-home';
 import { READ_PROJECT_SETTINGS_SCRIPT } from '../auth/read-project-settings-script';
+import { READ_TRANSCRIPT_WINDOW_SCRIPT } from '../sessions/constants';
 import {
   REMOVE_DIR_SCRIPT,
   RESOLVE_DIR_SCRIPT,
@@ -7,7 +8,6 @@ import {
   RESOLVE_UNLINKED_DIR_SCRIPT,
 } from '../sessions/create-host-dir-claims';
 import { PLACE_COPY_SCRIPT, REFRESH_COPY_SCRIPT } from '../sessions/create-published-records';
-import { READ_TRANSCRIPT_WINDOW_SCRIPT } from '../sessions/guest-transcript-window';
 import { DIR_BYTES_SCRIPT } from '../sessions/read-host-dir-bytes';
 import { LIST_SUBDIRS_SCRIPT } from '../sessions/read-host-subdirs';
 import { WORKSPACE_CHECK_SCRIPT } from '../sessions/run-workspace-check';

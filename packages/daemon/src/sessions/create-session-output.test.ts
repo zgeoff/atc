@@ -12,11 +12,11 @@ import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-sta
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import invariant from 'tiny-invariant';
-import type { OutputClient } from '../daemon-context';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
 import { buildStubLateOutputScreen } from '../test-utils/build-stub-late-output-screen';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
+import type { OutputClient } from '../types';
 import { createScreenModel } from './create-screen-model';
 import { createSessionManager } from './create-session-manager';
 import { createSessionOutput } from './create-session-output';

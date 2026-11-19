@@ -1,6 +1,6 @@
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID, WorkspaceCleanup } from '@atcx/contract';
-import type { ForgetRefusals, ForgetResult, KillOutcome } from '../daemon-context';
+import type { ForgetRefusals, ForgetResult, KillOutcome } from '../types';
 import type { ConfirmTokens } from './create-confirm-tokens';
 import type { ForgetCleanup } from './create-forget-cleanup';
 import type { SessionHold } from './create-host-dir-claims';

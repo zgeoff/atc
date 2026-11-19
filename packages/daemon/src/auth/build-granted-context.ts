@@ -1,7 +1,7 @@
 import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import { match } from 'ts-pattern';
-import type { DaemonContext, HeldAtcAccess } from '../daemon-context';
+import type { DaemonContext, HeldAtcAccess } from '../types';
 import { buildScopedContext } from './build-scoped-context';
 import { buildSessionSetAccess } from './build-session-set-access';
 import { buildTargetForbiddenError } from './build-target-forbidden-error';

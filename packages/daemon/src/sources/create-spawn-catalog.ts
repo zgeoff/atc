@@ -4,12 +4,12 @@ import type { AgentID } from '@atc/core';
 import type { SourceProvider } from '@atc/plugin-api';
 import type { StateStore } from '@atc/store';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
-import type { DaemonContext } from '../daemon-context';
 import { buildConfigRevision } from '../fleet/build-config-revision';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildTargetList } from '../fleet/build-target-list';
 import { buildAgentList } from '../sessions/build-agent-list';
 import type { SessionManager } from '../sessions/create-session-manager';
+import type { DaemonContext } from '../types';
 import { checkRepositoryAccess } from '../workspace/check-repository-access';
 import { requireGitTransports } from '../workspace/require-git-transports';
 

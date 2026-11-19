@@ -14,14 +14,9 @@ import type { MessageID, SessionID } from '@atcx/contract';
 import { MESSAGE_ANSWER_SCHEMA, toMessageID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
-import type {
-  DaemonContext,
-  MessageRefusal,
-  TapClient,
-  WriteSessionMessageParams,
-} from '../daemon-context';
 import type { EventSignal } from '../transport/create-event-signal';
 import type { IdempotencyLedger } from '../transport/create-idempotency-ledger';
+import type { DaemonContext, MessageRefusal, TapClient, WriteSessionMessageParams } from '../types';
 import { buildMessageOwner } from './build-message-owner';
 import { buildMessageSender } from './build-message-sender';
 import { buildMessageTrailEntry } from './build-message-trail-entry';

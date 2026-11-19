@@ -3,11 +3,11 @@ import type { EventScope, StateStore } from '@atc/store';
 import type { RestartResult, SessionDescriptor, SessionID } from '@atcx/contract';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
-import type { DaemonContext, ReadEventsParams } from '../daemon-context';
 import { buildFleetEvents } from '../fleet/build-fleet-events';
 import { buildAnswerView } from '../sessions/build-answer-view';
 import { buildNoteView } from '../sessions/build-note-view';
 import type { SessionManager } from '../sessions/create-session-manager';
+import type { DaemonContext, ReadEventsParams } from '../types';
 import type { EventSignal } from './create-event-signal';
 import { formatRestartDetail } from './format-restart-detail';
 

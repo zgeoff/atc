@@ -1,5 +1,5 @@
 import type { SessionID } from '@atcx/contract';
-import type { DaemonContext, OutputClient, TapClient } from '../daemon-context';
+import type { DaemonContext, OutputClient, TapClient } from '../types';
 
 // Who one connection acts as, which its handshake settles and its requests
 // read.

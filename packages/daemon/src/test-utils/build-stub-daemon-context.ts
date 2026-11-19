@@ -1,6 +1,6 @@
 import { toDaemonID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
-import type { DaemonContext } from '../daemon-context';
+import type { DaemonContext } from '../types';
 
 export function buildStubDaemonContext(overrides: Partial<DaemonContext> = {}): DaemonContext {
   return {

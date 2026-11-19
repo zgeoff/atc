@@ -23,7 +23,7 @@ import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-gr
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { GRANTED_METHOD_SCOPES } from '../auth/granted-method-scopes';
 import { isOwnerOnlyMethod } from '../auth/is-owner-only-method';
-import type { DaemonContext } from '../daemon-context';
+import type { DaemonContext } from '../types';
 import { answerPeerRequest } from './answer-peer-request';
 import { buildConnectionRequests } from './build-connection-requests';
 import { checkTCPHello } from './check-tcp-hello';

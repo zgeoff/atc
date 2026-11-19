@@ -57,14 +57,14 @@
     "zgeoff/feature-folders": [
       "error",
       {
-        "pending": ["packages/app", "packages/core", "packages/daemon", "packages/tui"]
+        "pending": ["packages/app", "packages/core", "packages/tui"]
       }
     ],
     // these packages still hold files that no export is named for
     "zgeoff/file-named-for-export": [
       "error",
       {
-        "pending": ["packages/app", "packages/daemon", "packages/tui"]
+        "pending": ["packages/app", "packages/tui"]
       }
     ]
   },

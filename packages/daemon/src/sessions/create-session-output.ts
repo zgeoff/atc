@@ -3,7 +3,7 @@ import { ansi } from '@atc/core';
 import { MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
-import type { OutputClient } from '../daemon-context';
+import type { OutputClient } from '../types';
 import { createAttachRegistry } from './create-attach-registry';
 import type { Dims } from './create-attach-registry';
 import type { SessionManager } from './create-session-manager';

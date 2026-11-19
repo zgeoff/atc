@@ -13,9 +13,9 @@ import type { DaemonEvent, SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
-import type { DaemonContext } from '../daemon-context';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
 import { startConnectionListener } from '../test-utils/start-connection-listener';
+import type { DaemonContext } from '../types';
 import { createDaemonConnection } from './create-daemon-connection';
 
 function setupTest() {

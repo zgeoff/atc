@@ -4,12 +4,9 @@ import { join } from 'node:path';
 import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import {
-  NO_TRANSCRIPT_CODE,
-  READ_TRANSCRIPT_WINDOW_SCRIPT,
-  buildTranscriptWindowArgs,
-  parseTranscriptWindow,
-} from './guest-transcript-window';
+import { buildTranscriptWindowArgs } from './build-transcript-window-args';
+import { NO_TRANSCRIPT_CODE, READ_TRANSCRIPT_WINDOW_SCRIPT } from './constants';
+import { parseTranscriptWindow } from './parse-transcript-window';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-transcript-window-');
@@ -121,14 +118,4 @@ test('it parses no window from a response without the size line', () => {
 
 test('it parses no window from a response whose blocks are not base64', () => {
   expect(parseTranscriptWindow('11\nfirst turn', 0, 10)).toBeNull();
-});
-
-test.each([
-  ['the start of the file', 0, 10, ['0', '1']],
-  ['a whole block', 65_536, 65_536, ['1', '1']],
-  ['a window across a block boundary', 65_530, 10, ['0', '2']],
-])('it asks for the whole blocks that hold %s', (_label, offset, length, blocks) => {
-  expect(
-    buildTranscriptWindowArgs('/tmp/atc/sessions/s-1/a-1.jsonl', offset, length),
-  ).toStrictEqual(['/tmp/atc/sessions/s-1/a-1.jsonl', ...blocks]);
 });

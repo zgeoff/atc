@@ -1,8 +1,8 @@
 import { expect, mock, test } from 'bun:test';
 import { toSessionID } from '@atcx/contract';
-import type { DaemonContext, OutputClient } from '../daemon-context';
 import type { SessionWatch } from '../sessions/create-session-output';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
+import type { DaemonContext, OutputClient } from '../types';
 import { buildScopedContext } from './build-scoped-context';
 import { buildTargetAccessFromGrants } from './build-target-access-from-grants';
 import { CONTEXT_MEMBER_SCOPES } from './context-member-scopes';

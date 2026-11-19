@@ -1,8 +1,8 @@
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import type { DaemonContext } from '../daemon-context';
 import { createDaemonConnection } from '../transport/create-daemon-connection';
 import type { DaemonConnection, PeerSession } from '../transport/create-daemon-connection';
 import type { TCPPeer } from '../transport/tcp-peer';
+import type { DaemonContext } from '../types';
 
 // Serves the daemon's connections on a unix socket the way its listener
 // wires them, as TCP or session connections when given that peer, and

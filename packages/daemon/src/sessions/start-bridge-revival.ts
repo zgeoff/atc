@@ -5,7 +5,7 @@ import type { HookEvent } from '@atc/protocol/session';
 import type { SessionID } from '@atcx/contract';
 import { createActor } from 'xstate';
 import type { Actor, SnapshotFrom } from 'xstate';
-import type { TapClient } from '../daemon-context';
+import type { TapClient } from '../types';
 import { BRIDGE_REVIVAL_MACHINE } from './bridge-revival-machine';
 import { buildGuestSessionDirectory } from './build-guest-session-directory';
 import type { SessionManager } from './create-session-manager';

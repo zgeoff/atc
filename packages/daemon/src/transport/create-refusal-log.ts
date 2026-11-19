@@ -1,4 +1,4 @@
-import { formatLogField } from '../format-log-field';
+import { formatLogField } from '../logging/format-log-field';
 
 // Why the TCP listener refused a handshake, each before the handshake passed.
 type HandshakeRefusalReason =

@@ -1,5 +1,5 @@
 import { expectTypeOf, test } from 'bun:test';
-import type { DaemonContext } from '../daemon-context';
+import type { DaemonContext } from '../types';
 import type { ContextMemberScope } from './context-member-scopes';
 import { CONTEXT_MEMBER_SCOPES } from './context-member-scopes';
 

@@ -4,7 +4,7 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import { DAEMON_CONTRACT } from '@atcx/contract';
 import { implement } from '@orpc/server';
-import type { DaemonContext } from '../daemon-context';
+import type { DaemonContext } from '../types';
 import type { ProcedureContext } from './procedure-context';
 
 // Answers each procedure a connection admits.
