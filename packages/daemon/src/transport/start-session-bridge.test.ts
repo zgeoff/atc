@@ -7,9 +7,6 @@ import { buildStubHarnessRelay } from '../test-utils/build-stub-harness-relay';
 import { startSessionBridge } from './start-session-bridge';
 import type { BridgeContext, BridgeSession } from './start-session-bridge';
 
-// An in-memory relay, the way a provider hands one over, and the daemon's
-// side of a bridge: the live fleet the bridge checks its binding against,
-// and a recorder of every hook event the bridge applied.
 function setupTest() {
   const sessions = new Map<SessionID, BridgeSession>();
 

@@ -7,8 +7,8 @@ export interface MenuTerminal {
   readonly write: (data: string) => void;
   readonly isLive: () => boolean;
 
-  // the whole menu last read through a scrolling list, so a later read of part of it numbers its
-  // options the same way
+  // A menu read through a scrolling list is numbered differently from a partial read of the same
+  // menu, so later partial reads reuse this one's numbering.
   readonly findWholeMenu: () => ScreenMenu | null;
   readonly recordWholeMenu: (menu: ScreenMenu | null) => void;
 }
@@ -16,18 +16,16 @@ export interface MenuTerminal {
 export interface MenuTiming {
   readonly pollMs: number;
 
-  // before the first key: no output for quietMs, waiting at most quietCapMs in all
   readonly quietMs: number;
   readonly quietCapMs: number;
   readonly moveMs: number;
 
-  // after the last key: settled once the screen holds for stableMs, or once settleMs passes
   readonly settleMs: number;
   readonly stableMs: number;
 }
 
-// The quiet wait outlasts the hold Claude Code puts on a dialog that has
-// just opened.
+// Claude Code holds a freshly opened dialog for a while before it accepts input, so the quiet
+// wait has to be longer than that hold.
 export const MENU_TIMING: MenuTiming = {
   pollMs: 50,
   quietMs: 4000,

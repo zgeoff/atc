@@ -6,13 +6,8 @@ import { withOwnerOnlySocket } from './with-owner-only-socket';
 interface EventsServerOptions {
   readonly socketPath: string;
 
-  // Events replayed to a subscriber the moment it connects, ahead of any
-  // live broadcast, so a subscriber learns the current fleet without
-  // speaking the client protocol.
   readonly collectSnapshot: () => readonly EventMsg[];
 
-  // Outbound queue capacity per subscriber; small values force the overflow
-  // disconnect in tests.
   readonly queueBytes?: number;
 }
 
@@ -75,8 +70,6 @@ export function startEventsServer(opts: EventsServerOptions): EventsServer {
 
       for (const subscriber of subscribers) {
         if (!subscriber.queue.send(line)) {
-          // a subscriber that falls behind is dropped rather than stalled; on reconnect it gets
-          // a fresh snapshot instead of the backlog it missed
           subscriber.end();
         }
       }

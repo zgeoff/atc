@@ -1,9 +1,6 @@
 import { statSync } from 'node:fs';
 import { DaemonError } from '@atc/protocol/wire';
 
-// A remote target's folders are out of the daemon's sight, so any folder
-// there refuses the launch, as does a path that is not a folder the daemon
-// can read.
 export function requirePluginDirsOnTarget(
   dirs: readonly string[],
   target: string,
@@ -33,8 +30,8 @@ export function requirePluginDirsOnTarget(
   }
 }
 
-// A path the daemon cannot stat, such as one under a folder it may not
-// search, counts as missing.
+// statSync still throws on EACCES and ENOTDIR when the missing-entry option is off. Both mean
+// the daemon cannot use the folder, so they count as missing.
 function readPathKind(path: string): 'folder' | 'other' | 'missing' {
   try {
     const stats = statSync(path, { throwIfNoEntry: false });

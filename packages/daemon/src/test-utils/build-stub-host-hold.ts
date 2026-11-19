@@ -5,8 +5,6 @@ export function buildStubHostHold() {
 
   return {
     waitForRelease: (): Promise<void> => {
-      // Before the hold starts, calls pass straight through, so the arrange steps
-      // run unhindered.
       if (!armed) {
         return Promise.resolve();
       }

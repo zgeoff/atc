@@ -5,8 +5,6 @@ import { P, match } from 'ts-pattern';
 import type { DaemonContext } from '../types';
 import type { RequestDeps } from './request-deps';
 
-// The requests that drive a session's terminal: attaching to it, typing
-// into it, resizing it, and answering its menus and permission prompts.
 export interface TerminalRequests {
   readonly applyAttach: (
     data: RequestParams<'session.attach'>,
@@ -28,16 +26,11 @@ export interface TerminalRequests {
     ctx: DaemonContext,
   ) => Promise<DaemonAnswer<'session.submit'>>;
 
-  // A read rejects with a DaemonError when the menu changes or ignores a key. The session
-  // can leave the caller's view while the read runs, so its view is checked again before
-  // the menu goes out.
   readonly applySessionMenu: (
     data: RequestParams<'session.menu'>,
     ctx: DaemonContext,
   ) => Promise<DaemonAnswer<'session.menu'>>;
 
-  // A choice whose menu, label, or cursor does not match the screen rejects
-  // with its DaemonError, which answers with that error's code.
   readonly applySessionChoose: (
     data: RequestParams<'session.choose'>,
     ctx: DaemonContext,
@@ -191,8 +184,6 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
   };
 }
 
-// Text typed into a session goes through only when the session is live,
-// idle, and shows no permission prompt.
 function requireInputResult(
   sessionID: SessionID,
   result: 'busy' | 'ok' | 'missing' | 'dead' | 'permission_pending',

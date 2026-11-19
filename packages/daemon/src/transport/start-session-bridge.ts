@@ -23,12 +23,8 @@ export interface BridgeSession {
 export interface BridgeContext {
   readonly findSession: (sessionID: SessionID) => BridgeSession | undefined;
 
-  // Settles once the report is applied; a session's start report settles once its tap attached
-  // or the daemon wrote its mod again, and the connection stays open until then.
   readonly applyHookEvent: (hookEvent: HookEvent) => Promise<void>;
 
-  // Applies a note under the id its reporter gave it, and settles once
-  // the note is recorded; false when the payload is no note.
   readonly applyNote: (
     sessionID: SessionID,
     payload: Readonly<Record<string, unknown>>,
@@ -68,9 +64,9 @@ const TAP_OPEN_SCHEMA = z.looseObject({ notices: z.boolean().optional() });
 
 type BridgeRefusal = 'forbidden' | 'stale_binding' | 'not_tapping' | 'unknown_message';
 
-// the binding holds no secret: reaching the host's socket proves being inside that host, so
-// the per-session socket and binding stop processes crossing sessions by accident, never a
-// hostile process inside the same host
+// No secret guards this bridge: reaching the host's socket already proves the caller is inside
+// that host. The per-session socket stops sessions crossing by accident, but a hostile process
+// inside the same host can still connect.
 export function startSessionBridge(
   relay: HarnessRelay,
   binding: Readonly<BridgeBinding>,
@@ -79,8 +75,6 @@ export function startSessionBridge(
   let closed = false;
   let writing: Promise<void> = Promise.resolve();
 
-  // Lines go out one at a time, in the order they were written, and none
-  // after the bridge closed.
   const writeLine = async (value: Readonly<Record<string, unknown>>) => {
     const line = JSON.stringify(value);
     const previous = writing;
@@ -109,7 +103,6 @@ export function startSessionBridge(
     relay.close();
   };
 
-  // Answers a refusal, then closes once the answer has gone out.
   const answerRefusal = async (id: string | null, code: BridgeRefusal) => {
     await writeLine({ id, ok: false, code });
 
@@ -211,7 +204,6 @@ export function startSessionBridge(
     void answerRefusal(id, 'forbidden');
   };
 
-  // Lines are applied one at a time, in the order they arrived.
   let applying: Promise<void> = Promise.resolve();
 
   const applyLine = async (line: string) => {
@@ -288,9 +280,8 @@ export function startSessionBridge(
     })();
   });
 
-  // A guest that has written its last line gets the answers to the lines before it, then the
-  // bridge closes: a host can hold the connection open until the daemon closes it, and takes
-  // no new connections once it holds its most.
+  // A host keeps the connection open until the daemon closes it, and accepts no new connections
+  // once it holds its maximum, so the bridge must close itself after the last answer.
   relay.onEnd(() => {
     void (async () => {
       await applying;

@@ -28,8 +28,6 @@ import { updateBindingLocked } from './update-binding-locked';
 import { verifyCleanupAuthority } from './verify-cleanup-authority';
 import { verifyGate } from './verify-gate';
 
-// The host a fresh spawn provisions: its key, the target and identity it
-// runs on, and the binding its agent asks for.
 interface BindingRequest {
   readonly hostKey: SessionID;
   readonly target: string;
@@ -37,15 +35,10 @@ interface BindingRequest {
   readonly binding: AuthBinding;
 }
 
-// How a verify moves a binding whose auth selection changed to the current
-// one: the log each rebind writes its line to.
 interface ChangedAuthRebind {
   readonly log: (line: string) => void;
 }
 
-// What a launch was planned under: the binding's revision and hash, and
-// the spawn attempt still provisioning the host, or null for a launch on a
-// host already ready.
 interface LaunchAdmission {
   readonly revision: number;
   readonly hash: string;
@@ -55,12 +48,10 @@ interface LaunchAdmission {
 export interface RuntimeAuthBinder {
   readonly readBinding: (hostKey: SessionID) => Promise<RuntimeAuthBinding | null>;
 
-  // a take-back that cannot be confirmed rejects with an effect that remains
   readonly createBinding: (host: CredentialBroker, request: BindingRequest) => Promise<string>;
 
   readonly updateReady: (hostKey: SessionID, attemptID: string) => Promise<void>;
 
-  // every check only reads, so a refusal changes nothing
   readonly verifyBinding: (
     host: CredentialBroker,
     hostKey: SessionID,
@@ -75,11 +66,8 @@ export interface RuntimeAuthBinder {
     send: (ticket: LaunchTicket) => void,
   ) => Promise<void>;
 
-  // How many admitted requests on a host have not gone out or ended yet.
   readonly countPendingAdmissions: (hostKey: SessionID) => number;
 
-  // rejects with an effect that remains when it cannot confirm the host gone, leaving the
-  // binding pending its take-back
   readonly removeAttempt: (
     host: CredentialBroker,
     hostKey: SessionID,
@@ -94,8 +82,6 @@ export interface RuntimeAuthBinder {
     binding: AuthBinding,
   ) => Promise<number>;
 
-  // resolves false for a host with no binding, leaving the destroy to the caller; never
-  // deletes a secret
   readonly forgetBinding: (host: CredentialBroker | null, hostKey: SessionID) => Promise<boolean>;
 
   readonly reconcileBindings: (
@@ -109,7 +95,6 @@ export function createRuntimeAuthBinder(
   store: RuntimeAuthStore,
   now: () => number = systemClock.now,
 ): RuntimeAuthBinder {
-  // Runs each call on a host after the one before it on that host.
   const withHostLock = makeKeyedLock();
   const admissions = createLaunchAdmissions();
   const ledger: RuntimeAuthLedger = { store, now };
@@ -153,8 +138,6 @@ export function createRuntimeAuthBinder(
       );
     }
 
-    // a failed rebind's added grants go first, so one whose removal failed does not read as a
-    // grant the binding never made
     if (row.state === 'rebind_failed' && row.rebind !== null) {
       await removeRebindGrants(ledger, host, {
         hostKey: row.hostKey,
@@ -201,8 +184,6 @@ export function createRuntimeAuthBinder(
     return requireBinding(row.hostKey);
   };
 
-  // a failed rebind whose grant removal never finished stays blocked and is tried again on
-  // each start
   const reconcileRebind = async (
     host: CredentialBroker | null,
     row: RuntimeAuthBinding,
@@ -263,8 +244,6 @@ export function createRuntimeAuthBinder(
         const hostName = host.getHostName(request.hostKey);
         const binding = request.binding;
 
-        // The read of the name goes out with the gate's reads, and the gate
-        // still refuses first.
         const [gate, existing] = await Promise.allSettled([
           verifyGate(host, hostName, binding),
           host.readHost(hostName),
@@ -356,8 +335,6 @@ export function createRuntimeAuthBinder(
           );
         }
 
-        // The host and its grants are read with the gate's reads, and each
-        // check still refuses in the gate, host, grants order.
         const [gate, hostRead, grantsRead] = await Promise.allSettled([
           verifyGate(host, row.hostName, binding),
           tryReadHost(host, row.hostName),
@@ -414,9 +391,6 @@ export function createRuntimeAuthBinder(
           return row;
         }
 
-        // the stored binding grants what this one does in an older form, so the
-        // row takes this form at its revision, and a launch admission or a
-        // sub-session compares against it
         await store.updateAuthBinding(
           hostKey,
           { bindingHash: binding.hash, bindingJSON: JSON.stringify(binding) },
@@ -564,7 +538,6 @@ export function createRuntimeAuthBinder(
   };
 }
 
-// A stored binding's profile names, or none when they do not read.
 const BINDING_PROFILES_SCHEMA = z.object({ profiles: z.array(z.string()) });
 
 function parseBoundProfiles(json: string): string[] {

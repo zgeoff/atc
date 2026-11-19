@@ -2,8 +2,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { StubMemoryProvider } from './build-stub-memory-provider';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 
-// What the provider does in place of the in-memory defaults beyond the
-// imp's own kind, remoteness, capabilities, guest layout, and workspace flags.
 type StubRestoreImpProviderConfig = Pick<
   NonNullable<Parameters<typeof buildStubMemoryProvider>[0]>,
   'runCommand' | 'clock'
@@ -12,24 +10,16 @@ type StubRestoreImpProviderConfig = Pick<
 export interface StubRestoreImpProvider extends StubMemoryProvider {
   readonly checkExistingHost: (host: string) => Promise<boolean>;
 
-  // The imp a host key runs on: the host key under the `atc-` prefix.
   readonly getImpName: (hostKey: string) => string;
 
-  // Every host key a host check asked about, in order.
   readonly checked: string[];
 
-  // Every host key a prepare created an imp for, in order.
   readonly created: string[];
 
-  // Adds an imp for the host key, as an operator or an earlier daemon
-  // leaves one.
   readonly createHost: (hostKey: string) => void;
 
-  // Refuses the next prepare as impd's refusal of the lease with the code
-  // given; the prepares after it go through.
   readonly refuseNextPrepare: (code: string) => void;
 
-  // Holds every prepare, and the next ones, until the hold stops.
   readonly startPrepareHold: () => void;
   readonly countHeldPrepares: () => number;
   readonly stopPrepareHold: () => void;
@@ -69,8 +59,8 @@ export function buildStubRestoreImpProvider(
       if (code !== null) {
         refusal = null;
 
-        // a refused prepare leaves no imp behind, as the imp provider destroys an imp
-        // its failed prepare created
+        // The real provider destroys an imp that its failed prepare created, so a refused prepare
+        // leaves no imp behind.
 
         throw new DaemonError(
           'host_unavailable',

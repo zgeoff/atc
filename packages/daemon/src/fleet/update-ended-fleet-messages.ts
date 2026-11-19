@@ -9,9 +9,8 @@ interface EndedFleetMessagesDeps {
   readonly messages: Pick<MessageService, 'updateEndedMessages'>;
 }
 
-// every harness on the daemon's own machine ended with the previous daemon, so each delivered
-// message of a local session is marked unanswered, a revived one's too: its agent may already
-// hold the message, and a second delivery would repeat the work
+// Every local harness ended with the previous daemon, including those of revived sessions.
+// A revived agent may already hold a delivered message, and delivering it again repeats the work.
 export async function updateEndedFleetMessages(deps: EndedFleetMessagesDeps): Promise<void> {
   try {
     const fleet = await deps.store.loadFleet();

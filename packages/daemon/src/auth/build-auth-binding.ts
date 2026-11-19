@@ -12,14 +12,10 @@ export interface AuthBinding {
   readonly placeholderEnv: Readonly<Record<string, string>>;
   readonly profileEnv: Readonly<Record<string, string>>;
 
-  // the host the session's agents send their log records to, null when no
-  // profile turns telemetry on.
   readonly telemetryHost: string | null;
   readonly hash: string;
 }
 
-// The parts of a gateway entry a binding reads: its agent id, its endpoint,
-// and the auth it asks for.
 interface AuthGateway {
   readonly id: AgentID;
   readonly baseURL: string;

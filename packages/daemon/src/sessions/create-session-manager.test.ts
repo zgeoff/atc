@@ -17,7 +17,6 @@ import { createSessionManager } from './create-session-manager';
 import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';
 
-// a manager the test holds after this setup detaches before the store goes
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-sessions-');
   const dbPath = join(temporaryDirectory.path, 'state.db');

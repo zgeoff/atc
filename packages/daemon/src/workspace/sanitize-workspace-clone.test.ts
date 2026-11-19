@@ -6,7 +6,6 @@ import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { $ } from 'bun';
 import { sanitizeWorkspaceClone } from './sanitize-workspace-clone';
 
-// A work clone of a bare upstream, holding one pushed commit, for the sanitizer to strip.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-sanitize-' });
 

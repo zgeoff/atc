@@ -55,79 +55,49 @@ interface MessageServiceDeps {
   readonly taps: TapRegistry<TapClient>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
-  // Wakes the reads that wait for the trail to grow.
   readonly eventSignal: Pick<EventSignal, 'emit' | 'generation' | 'disposed' | 'waitForNext'>;
   readonly emitEvent: (event: EventMsg, scope: HookScope | null) => void;
   readonly findHookScope: (sessionID: SessionID) => HookScope | null;
 
-  // Whether the daemon saw the session's process end, until a harness
-  // starts for it again.
   readonly isProcessEnded: (sessionID: SessionID) => boolean;
 
-  // How long a started session may go without a tap before a message to it
-  // is refused.
   readonly tapGraceMs: number;
 }
 
-// every status change lands in the trail before it is broadcast; a keyed send writes at most
-// once per key, and a retry answers with the message's current status
 export interface MessageService {
-  // A trail write that fails never fails the message request or note
-  // behind it. Returns false when the entry was not written: a failed
-  // write, or a note the trail already holds.
   readonly recordTrailEntry: (entry: TrailEntry) => Promise<boolean>;
 
-  // Notes a message status change in the trail before broadcasting it, so
-  // a client reading the trail on the broadcast finds the change already
-  // there.
   readonly recordMessageStatus: (sessionID: SessionID, record: MessageRecord) => Promise<void>;
 
-  // Marks the message delivered and notes it in the trail in one commit, then broadcasts it.
-  // Returns null when the mark missed. A failed write rejects.
   readonly markMessageDelivered: (
     sessionID: SessionID,
     messageID: MessageID,
     owner: MessageOwner,
   ) => Promise<MessageRecord | null>;
 
-  // Notes an answer notice change in the sender session's trail.
   readonly recordNoticeStatus: (
     record: MessageRecord,
     kind: 'notice-queued' | 'notice-delivered',
   ) => Promise<void>;
 
-  // the store queues each notice once, in the settling statement, so a stop after it keeps the
-  // notice queued and a repeated report queues nothing; a sender with no tap gets it on attach
   readonly recordAnswerNotice: (record: MessageRecord) => Promise<void>;
 
-  // Hands the session's tap the next message or notice it waits for.
   readonly drainSessionInbox: (sessionID: SessionID) => Promise<void>;
 
-  // A session whose process ended leaves no turn to report on the messages
-  // it was given, so each one it holds delivered becomes unanswered; a
-  // session gone for good also leaves each one it holds queued.
   readonly updateEndedMessages: (
     sessionID: SessionID,
     owner: MessageOwner,
     gone?: boolean,
   ) => Promise<void>;
 
-  // While another live session resumes the same agent session, the store
-  // cannot tell which process holds a message, so none is marked.
   readonly updateEndedSessionMessages: (session: Session, gone?: boolean) => Promise<void>;
 
-  // under an access, a session whose tree leaves it before the write refuses as an unknown one
-  // does; a refusal in a keyed send's start throws, so the claim drops and a retry runs fresh
   readonly writeSessionMessage: (
     params: WriteSessionMessageParams,
   ) => Promise<DaemonAnswer<'session.message'> | MessageRefusal>;
 
-  // every status change wakes the signal, so a wake rereads the message and returns once its
-  // status moved from the one at call time; answered and unanswered are final
   readonly readMessage: (messageID: MessageID, waitMs: number) => Promise<MessageView | null>;
 
-  // A tap attached here replaces the session's previous tap, which learns
-  // its subscription is over.
   readonly attachTap: (
     client: TapClient,
     sessionID: SessionID,
@@ -137,8 +107,6 @@ export interface MessageService {
 
   readonly detachTap: (client: TapClient, sessionID: SessionID) => void;
 
-  // Under an access, only a message sent to this atc id is the session's
-  // to ack, as with the inbox drain.
   readonly ackMessage: (
     client: TapClient,
     sessionID: SessionID,
@@ -298,7 +266,6 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
     }
   };
 
-  // Why the session refuses a message right now, or null when it takes one.
   const findMessageRefusal = (sessionID: SessionID): MessageRefusal | null => {
     const session = manager.sessions.find((x) => x.id === sessionID);
 
@@ -328,8 +295,6 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
     return null;
   };
 
-  // a caller outside a session that takes messages, or whose tree is out of reach, gets no
-  // notice and reads the answer with message.get
   const findNoticeSender = (
     callerSession: SessionID | null,
     access: TargetAccess | null,
@@ -351,8 +316,6 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
     return session.id;
   };
 
-  // only the write itself can reject: every later step swallows its own failure, so a rejection
-  // means nothing was written; the caller's check runs again once earlier writes land
   const writeQueuedMessage = async (options: WriteQueuedMessageOptions): Promise<MessageRecord> => {
     const session = manager.sessions.find((x) => x.id === options.sessionID);
     const previousWrite = lastMessageWrite;
@@ -362,7 +325,6 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
 
     await previousWrite;
 
-    // A session sender's name is the one it holds as its message is written.
     const sender = buildMessageSender(options.caller, manager.sessions);
 
     const record: MessageRecord = {
@@ -378,9 +340,8 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
     };
 
     try {
-      // The write boundary: the reach check and the start of the row write
-      // run in one synchronous step, so no wait lets the session's tree
-      // leave the access between the check and the write it allows.
+      // The reach check and the start of the write run in one synchronous step, so the session's
+      // tree cannot leave the access between the check and the write it allows.
       options.requireWriteInReach();
 
       await store.writeMessage(record);
@@ -471,7 +432,6 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
             return { message: record.id, status: record.status };
           },
 
-          // The message row is the effect, and the start already wrote it.
           settle: () => Promise.resolve(),
           replay: (record) => loadMessageReplay(store, record),
         });
@@ -563,9 +523,9 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
       void drainSessionInbox(sessionID);
 
       if (delivered !== null) {
-        // a tap can outlive its process, so an ack can land after the end marked its messages; a
-        // process is surely gone once its exit was seen or a local session has no terminal, while a
-        // remote host that lost the connection or went to sleep may still run it
+        // A tap can outlive its process, so an ack can arrive after the end marked its messages.
+        // A process is surely gone once its exit was seen or a local session has no terminal.
+        // A remote host that lost the connection or went to sleep may still run it.
         const live =
           session.pty !== null || (session.kind === 'headless' && session.state !== 'exited');
 

@@ -1,9 +1,6 @@
 import { isBrokerVariable } from '@atc/core';
 import { DaemonError } from '@atc/protocol/wire';
 
-// A guest plan's variables start the harness as they are, so none may be
-// one atc sets for its own reporting, and behind the broker none may be a
-// proxy or CA variable that would route around the broker.
 export function requireGuestEnv(
   agent: string,
   target: string,

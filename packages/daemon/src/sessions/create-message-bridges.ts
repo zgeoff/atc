@@ -29,18 +29,12 @@ interface MessageBridgesDeps {
   >;
   readonly taps: Pick<TapRegistry<TapClient>, 'detachAll'>;
 
-  // Lands a note as the reporter's would.
   readonly applyNote: (hookEvent: HookEvent) => Promise<void>;
 
-  // The daemon's state directory, under which each bridge keeps its files.
   readonly stateDir: string;
 }
 
-// a bridge's tap, acks, and notes act for its own session alone
 export interface MessageBridges {
-  // Starts the bridge a launch's agent has, stopping the session's earlier
-  // one first, and answers with the plan the terminal starts against it;
-  // null for an agent with no bridge.
   readonly startBridge: (launch: MessageBridgeLaunch) => Promise<SpawnPlan | null>;
 
   readonly stopBridge: (sessionID: SessionID) => Promise<void>;
@@ -49,10 +43,8 @@ export interface MessageBridges {
   // terminal, so it ends with the daemon.
   readonly stopAll: () => Promise<void>;
 
-  // A bridge delivers only once its session lists and its terminal boots.
   readonly startDelivery: (sessionID: SessionID) => void;
 
-  // Moves the session's bridge to the conversation its terminal shows.
   readonly updateThread: (sessionID: SessionID, agentSessionID: string) => void;
 }
 
@@ -124,8 +116,8 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
 
         await applyNote({ atcId: sessionID, event: 'Note', payload: { ...payload } });
 
-        // A message the bridge settled without an ack, as one the App
-        // Server refused, frees the tap for the next one.
+        // The bridge settles a message the App Server refused without sending an ack, so no ack path
+        // drains the inbox. This drain frees the tap for the next queued message.
         void messages.drainSessionInbox(sessionID);
 
         return true;
@@ -155,8 +147,8 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
   // a caller may remove the folder the bridge writes in once its stop resolves.
   const stopping = new Map<SessionID, Set<Promise<void>>>();
 
-  // A bridge whose stop failed may still write in the folder, so the next stop of its session
-  // tries it again, and fails while it still fails.
+  // A bridge whose stop failed may still write in its folder, so the next stop of that session
+  // retries it.
   const failedStops = new Map<SessionID, Set<MessageBridge>>();
 
   const updateFailedStop = (sessionID: SessionID, bridge: MessageBridge, failed: boolean) => {
@@ -198,8 +190,6 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
     }
   };
 
-  // The bridge starts still running, by session. A stop takes each one over and stops the bridge
-  // it gives, since the start's caller has no bridge to stop until the start returns.
   const starting = new Map<SessionID, Set<Promise<MessageBridge>>>();
   const stoppedStarts = new Set<Promise<MessageBridge>>();
 
@@ -207,7 +197,6 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
     sessionID: SessionID,
     start: Promise<MessageBridge>,
   ): Promise<void> => {
-    // a start that fails stops what it started before it rejects, and its caller sees the error
     const bridge = await start.catch(() => null);
 
     if (bridge !== null) {
@@ -260,15 +249,14 @@ export function createMessageBridges(deps: MessageBridgesDeps): MessageBridges {
 
     const stopped = stoppedStarts.has(start);
 
-    // the check and the map write share one turn, so no stop lands between them
     untrack();
 
     if (stopped) {
       return bridge;
     }
 
-    // A second launch of the session can start its bridge while this one
-    // started, so the bridge this one replaces stops here.
+    // A second launch of the session can finish starting its bridge while this one is still
+    // starting, so the bridge this one replaces is stopped here.
     const replaced = bridges.get(sessionID);
 
     bridges.set(sessionID, bridge);

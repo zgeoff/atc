@@ -20,8 +20,6 @@ interface ReviveHarnessDeps {
   >;
 }
 
-// Starts the harness that revives a session, or attaches the one its
-// host still runs, and follows it as the session's terminal.
 export function startReviveHarness(
   deps: ReviveHarnessDeps,
   session: Session,
@@ -71,8 +69,8 @@ export function startReviveHarness(
   session.kind = 'pty';
   session.lastMsg = 'revived';
 
-  // a revive starts no turn, so a restored session keeps the state its agent last reported
-  // before the daemon restarted; a stop before its first terminal leaves the mark in place
+  // A revive starts no turn, so a restored session keeps the state its agent last reported.
+  // Forcing running would hide that state until the agent reports again.
   const isRestored = registry.unrestored.delete(session.id);
 
   if (!isRestored || session.state === 'exited') {

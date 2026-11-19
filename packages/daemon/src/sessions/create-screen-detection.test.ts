@@ -21,7 +21,6 @@ import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
 
 interface SetupTestConfig {
-  // The agents the sessions may run.
   readonly adapters: readonly AgentAdapter[];
 }
 

@@ -5,7 +5,6 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
 import { runGit } from './run-git';
 
-// A directory outside any repository for git to run in.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-git-');
 
@@ -50,8 +49,7 @@ test('it stops a command that runs past its time limit and reports it timed out'
   expect(run).toStrictEqual({ exitCode: -1, stdout: '', stderr: '', timedOut: true });
   expect(groups).toHaveLength(1);
 
-  // The timed git leads its own process group. A killed group is gone once
-  // the kernel reaps it, a moment after the signal.
+  // A killed process group is gone only once the kernel reaps it, a moment after the signal.
   await waitFor(() => {
     expect(() => process.kill(-(groups[0] ?? 0), 0)).toThrow('ESRCH');
   });
@@ -83,7 +81,6 @@ test('it fails with git_output_open, by subcommand only, when a child a git left
     },
   );
 
-  // The bound arms once git exits; the sleep it left still holds the output.
   const bound = await waitFor(() => {
     invariant(armed[0]);
 
@@ -133,8 +130,7 @@ test('it kills the process group of a git whose output stays open past the bound
 
   await run.catch(() => null);
 
-  // Every git leads its own process group, so the kill reaches the sleep
-  // it left. A killed group is gone once the kernel reaps it.
+  // A killed process group is gone only once the kernel reaps it, a moment after the signal.
   await waitFor(() => {
     expect(() => process.kill(-(groups[0] ?? 0), 0)).toThrow('ESRCH');
   });
@@ -161,8 +157,6 @@ test('it disarms the bound when a command passes its time limit', async () => {
     },
   });
 
-  // The killed git exits a moment after the time limit, which arms the
-  // bound only to disarm it.
   await waitFor(() => {
     expect(watched).toStrictEqual([{ disarmed: true }]);
   });

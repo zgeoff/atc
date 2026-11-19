@@ -17,8 +17,6 @@ export function buildNoteView(
   sessions: readonly SessionDescriptor[],
   aliases: readonly SessionDescriptor[],
 ): NoteView {
-  // a row can hold an older atc id of a restored session, so an alias holding its agent session
-  // id names it; the alias only names it, and a read check still uses the row's own atc id
   const live =
     sessions.find((session) => session.id === stored.atcID) ??
     (stored.agentSessionID === null

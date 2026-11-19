@@ -6,9 +6,6 @@ import { REPOSITORY_ENV_UNSET_ARGV } from './repository-env-unset-argv';
 // The provider runs commands in its own environment, so the verify unsets
 // every variable that could point git at another repository first.
 
-// prints the commit HEAD resolves to and a NUL, then every tracked file whose content differs
-// from HEAD, so a file the unpack left out or changed refuses the checkout whatever tar did;
-// a HEAD that resolves to no commit exits at once, before the NUL
 export const VERIFY_SCRIPT = String.raw`git rev-parse --verify 'HEAD^{commit}' || exit 1; printf '\0'; exec git -c core.fsmonitor=false status --porcelain --untracked-files=no`;
 
 export async function verifyTargetHead(

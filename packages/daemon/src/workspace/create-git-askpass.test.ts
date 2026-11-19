@@ -4,7 +4,6 @@ import { updateEnv } from '@atc/core/test-utils/update-env';
 import invariant from 'tiny-invariant';
 import { createGitAskpass } from './create-git-askpass';
 
-// The helper createGitAskpass writes for a source URL, run against one git prompt at a time.
 async function setupTest(sourceURL: string) {
   updateEnv('ATC_TEST_ASKPASS_TOKEN', 'tok-c81d');
 

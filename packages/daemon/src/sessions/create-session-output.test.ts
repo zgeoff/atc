@@ -24,7 +24,6 @@ import { createSessionRuntime } from './create-session-runtime';
 import type { SessionRuntime } from './create-session-runtime';
 
 interface SetupTestConfig {
-  // Whether the session's host can resize its terminal.
   readonly resize: boolean;
 }
 

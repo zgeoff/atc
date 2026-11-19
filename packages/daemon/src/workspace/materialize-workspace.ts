@@ -25,11 +25,9 @@ interface ReadyWorkspace {
   readonly kind: 'ready';
   readonly workspace: SessionWorkspace;
 
-  // The branch the checkout is on, null for a detached checkout.
   readonly branch: string | null;
   readonly warnings: readonly string[];
 
-  // The variables every harness the session starts goes without.
   readonly withheldEnv: readonly string[];
 }
 
@@ -64,8 +62,6 @@ export async function materializeWorkspace(
     Object.assign(progress, update);
   };
 
-  // every phase is recorded before it starts, so a daemon that stops partway leaves a row the
-  // next start fails as interrupted
   await deps.store.createMaterialization(
     {
       sessionID: request.sessionID,
@@ -77,8 +73,6 @@ export async function materializeWorkspace(
     (deps.clock ?? systemClock).now(),
   );
 
-  // The staging directory exists only once the row does, and only inside
-  // the block that removes it, so neither can outlive a failure of the other.
   try {
     const staging = await mkdtemp(join(deps.stagingRoot, 'atc-workspace-'));
 
@@ -91,10 +85,6 @@ export async function materializeWorkspace(
     }
   } catch (error) {
     const refusal = toScrubbedRefusal(error, progress.phase, secret);
-
-    // A failure that may have left an effect standing, such as a host the
-    // spawn could not take back, reaches the caller as it is, so a keyed
-    // spawn keeps its key as outcome_unknown.
     const remains = error instanceof EffectRemainsError;
     const code = remains ? 'outcome_unknown' : refusal.code;
 
@@ -110,7 +100,6 @@ export async function materializeWorkspace(
       throw error;
     }
 
-    // A directory the failure left is reported, so the caller can remove it.
     throw left === null
       ? refusal
       : new DaemonError(refusal.code, refusal.message, { ...refusal.data, leftDir: left });
@@ -140,9 +129,8 @@ async function probeOutsideWorkTree(path: string): Promise<boolean> {
   );
 }
 
-// a harness inherits the daemon's environment, so the session withholds from every harness
-// it starts the git source's credential variable and the askpass variables the clone hands
-// its network commands
+// A harness inherits the daemon's environment, so the clone's credential and askpass variables
+// would reach it unless the session withholds them.
 const ASKPASS_ENV = ['GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'];
 
 function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
@@ -172,8 +160,6 @@ async function runMaterialization(
     resolveSource(request.source, staging, transports),
   );
 
-  // What is recorded and returned is scrubbed of the credential, even
-  // where a caller's own ref happens to spell it.
   const repoURL = secret === null ? pinned.repoURL : toRedacted(pinned.repoURL, secret);
   const ref = secret === null || pinned.ref === null ? pinned.ref : toRedacted(pinned.ref, secret);
 
@@ -226,8 +212,6 @@ function toRedacted(text: string, secret: string): string {
   return text.replaceAll(secret, '[credential]');
 }
 
-// Writes the identity into the checkout's own config file, passing each
-// value as its own argument so no shell reads it.
 async function writeGitIdentity(
   deps: MaterializeDeps,
   landing: Landing,
@@ -258,8 +242,6 @@ async function writeGitIdentity(
   }
 }
 
-// The refusal a failure becomes, with the credential's value scrubbed from
-// its message and every string in its data.
 function toScrubbedRefusal(
   error: unknown,
   phase: MaterializationPhase,
@@ -284,8 +266,6 @@ function toScrubbedRefusal(
   return new DaemonError(refusal.code, toRedacted(refusal.message, secret), data);
 }
 
-// a directory left behind blocks the next materialization into it with `workspace_exists`
-// until an operator removes it
 async function tryRemoveClaimedDir(
   request: MaterializeRequest,
   deps: MaterializeDeps,

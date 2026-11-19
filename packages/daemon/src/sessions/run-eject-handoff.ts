@@ -11,7 +11,6 @@ interface EjectHandoffParams {
   readonly runtime: SessionRuntime;
   readonly startHeadlessTurn: (sessionID: SessionID, prompt: string) => boolean;
 
-  // Starts the settle timer; the wall clock's timers when unset.
   readonly scheduleSettle?: SettleScheduler | undefined;
 }
 
@@ -23,8 +22,7 @@ export function runEjectHandoff(params: EjectHandoffParams): void {
   params.runtime.pendingEject = settled.resolve;
 
   void (async () => {
-    // resuming an agent session while its old process still shuts down corrupts the handoff, so
-    // the turn waits for the final report or the settle timeout
+    // Resuming an agent session while its old process is still shutting down corrupts the handoff.
     await settled.promise;
 
     cancelSettle();

@@ -1,6 +1,5 @@
 import { formatLogField } from '../logging/format-log-field';
 
-// Why the TCP listener refused a handshake, each before the handshake passed.
 type HandshakeRefusalReason =
   | 'missing_token'
   | 'unauthorized'
@@ -24,23 +23,17 @@ interface RefusalLogOptions {
   readonly log: (line: string) => void;
   readonly now: () => number;
 
-  // How long a window of repeated refusals lasts before the next one is
-  // logged again.
   readonly intervalMs: number;
 
-  // How many windows are tracked at once; a refusal that would start one
-  // past the cap counts toward one overflow window instead.
   readonly maxWindows: number;
 }
 
 interface RefusalWindow {
   readonly startedAt: number;
 
-  // The refusals in the window after the first, which no line holds yet.
   pending: number;
 }
 
-// The line of the window that counts refusals past the cap of windows.
 const OVERFLOW_LINE = 'atc tcp event=refused peer=overflow';
 
 export interface RefusalLog {
@@ -48,10 +41,7 @@ export interface RefusalLog {
   readonly drain: () => void;
 }
 
-// one line per peer and kind of refusal per window, so a flood across many peers logs no
-// more lines than the cap of windows allows; the counts of every line sum to every refusal
 export function createRefusalLog(opts: RefusalLogOptions): RefusalLog {
-  // Keyed by the line without its count, in the order the windows started.
   const windows = new Map<string, RefusalWindow>();
 
   let overflow: RefusalWindow | null = null;
@@ -65,8 +55,6 @@ export function createRefusalLog(opts: RefusalLogOptions): RefusalLog {
     }
   };
 
-  // Windows start in map order and all last the same interval, so the
-  // ended ones lead the map.
   const drainEnded = (now: number): void => {
     if (overflow !== null && hasEnded(overflow, now)) {
       logPending(OVERFLOW_LINE, overflow);

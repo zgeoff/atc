@@ -11,7 +11,6 @@ interface CloneRequest {
   readonly directory: string;
   readonly credential?: GitCredential;
 
-  // The transports git may fetch over.
   readonly transports: readonly string[];
 }
 
@@ -79,7 +78,8 @@ async function createCloneAtRef(
     return { ok: false, code: 'clone_failed', message: clone.stderr.trim() };
   }
 
-  // isolated, so no filter the host configured, LFS or otherwise, runs or reaches the network
+  // Git runs any filter the host configured, LFS included, during checkout. Isolation stops that
+  // filter from running or reaching the network.
   const checkout = await runGit(
     [
       '-c',
@@ -92,8 +92,8 @@ async function createCloneAtRef(
   );
 
   if (checkout.exitCode !== 0) {
-    // A pinned commit that no upstream ref reaches never arrives in the
-    // clone, so its checkout fails on a commit the upstream does not have.
+    // A pinned commit that no upstream ref reaches is never fetched by clone. Checkout then fails
+    // on a commit the upstream does not have.
     const present = await runGit(['cat-file', '-e', `${target.sha}^{commit}`], {
       cwd: request.directory,
       isolated: true,

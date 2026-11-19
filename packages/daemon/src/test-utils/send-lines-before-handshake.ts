@@ -1,5 +1,4 @@
-// How many connections are open at once, so a flood stays within the
-// host's open-file limit.
+// Capped at 100 open connections so the flood stays under the host's open-file limit.
 const BATCH = 100;
 
 export async function sendLinesBeforeHandshake(port: number, count: number): Promise<void> {

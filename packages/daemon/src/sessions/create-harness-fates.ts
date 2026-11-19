@@ -5,8 +5,6 @@ import { HARNESS_EXIT_TRANSITIONS } from './harness-exit-transitions';
 import type { SessionCallbacks } from './session-callbacks';
 
 export interface HarnessFates {
-  // Asks each host with sleeping sessions in the scope whether it still holds their harnesses. A
-  // lost harness lists as ended and leaves the fleet row as it is; a failed read changes nothing.
   readonly readFates: (scope?: FateScope) => Promise<void>;
 }
 
@@ -44,7 +42,6 @@ export function createHarnessFates(deps: HarnessFatesDeps): HarnessFates {
             return;
           }
 
-          // a session revived, killed or forgotten while the read ran keeps what that left
           for (const session of read.sessions) {
             if (
               fates.get(session.id) === 'lost' &&

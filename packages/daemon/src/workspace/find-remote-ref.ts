@@ -1,7 +1,6 @@
 interface RemoteRefMatch {
   readonly sha: string;
 
-  // The branch the ref names, or null for a tag.
   readonly branch: string | null;
 }
 

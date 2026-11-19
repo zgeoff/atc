@@ -8,9 +8,6 @@ interface UpdateRecordIdentityDeps {
   readonly callbacks: Pick<SessionCallbacks, 'findRecords' | 'log'>;
 }
 
-// Records the session's current name and transcript path in its record. A
-// failure is only logged, because the record's next write takes the same
-// values from the session.
 export async function updateRecordIdentity(
   deps: UpdateRecordIdentityDeps,
   session: Readonly<Session>,
@@ -24,8 +21,8 @@ export async function updateRecordIdentity(
   try {
     const provider = deps.registry.requireExecution(session, 'spawn').provider;
 
-    // a remote host that sleeps, or whose state is unknown, runs no command, so
-    // its copy waits for the next harness start, which places the stored record
+    // A remote host that is asleep or in an unknown state cannot run a command, so the copy of the
+    // record on it is skipped. The next harness start writes the stored record there.
     const placeCopy = !provider.remote || session.vm === 'awake' || session.vm === 'none';
 
     await records.updateIdentity(buildRecordSubject(session, provider), placeCopy);

@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-// A stored binding's secrets, each read on its own so one that does not read
-// leaves the rest.
 const BINDING_SECRETS_SCHEMA = z.object({ secrets: z.array(z.unknown()) });
 const BOUND_SECRET_SCHEMA = z.object({ secret: z.string() });
 

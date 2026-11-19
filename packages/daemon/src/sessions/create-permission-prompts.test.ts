@@ -5,7 +5,6 @@ import { toSessionID } from '@atcx/contract';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { createPermissionPrompts } from './create-permission-prompts';
 
-// The prompts over a stopped clock, with every event they send recorded.
 function setupTest() {
   const emitted: EventMsg[] = [];
 

@@ -1,5 +1,3 @@
-// How far back failures count, and how many within that window delay the
-// next handshake from the same address.
 const FAILURE_WINDOW_MS = 60_000;
 const FAILURE_LIMIT = 5;
 
@@ -8,8 +6,6 @@ export interface HandshakeThrottle {
   readonly getDelay: (address: string, now: number) => number;
 }
 
-// a delay rather than a lockout slows a token guesser without locking out a peer that
-// recovers
 export function createHandshakeThrottle(delayMs: number): HandshakeThrottle {
   const failures = new Map<string, number[]>();
 
@@ -18,8 +14,6 @@ export function createHandshakeThrottle(delayMs: number): HandshakeThrottle {
 
   return {
     recordFailure: (address, now) => {
-      // Only the latest failures up to the limit decide a delay, so an
-      // address never holds more than that many, however often it fails.
       const recent = [...collectRecent(address, now), now].slice(-FAILURE_LIMIT);
 
       failures.set(address, recent);

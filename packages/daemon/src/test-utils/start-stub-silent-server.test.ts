@@ -34,7 +34,7 @@ test('it records the path of each request in order', async () => {
 
   const first = fetch(`${server.url}first`, { signal: controller.signal });
 
-  // The abort at the end rejects the request; nothing awaits it.
+  // The cleanup abort rejects this fetch, and an unhandled rejection would fail the test run.
   void Promise.allSettled([first]);
 
   await waitFor(() => {
@@ -43,7 +43,7 @@ test('it records the path of each request in order', async () => {
 
   const second = fetch(`${server.url}second`, { signal: controller.signal });
 
-  // The abort at the end rejects the request; nothing awaits it.
+  // The cleanup abort rejects this fetch, and an unhandled rejection would fail the test run.
   void Promise.allSettled([second]);
 
   await waitFor(() => {

@@ -11,8 +11,7 @@ interface ScopeReplyChannel {
   readonly recipient: string;
 }
 
-// version 1 of the launcher scope format that auto-mode documents in
-// docs/guides/scope-file.md, which refuses a file holding a field it does not define
+// The auto-mode launcher refuses a scope file that holds a field its format does not define.
 export interface ScopeFile {
   readonly format: 'auto-mode.scope';
   readonly version: 1;
@@ -29,8 +28,8 @@ export interface ScopeFile {
   readonly replyChannels: readonly ScopeReplyChannel[];
 }
 
-// the tool name Claude Code gives atc_message_send under the server name `atc`,
-// which the setup guide registers the MCP server as
+// Claude Code names an MCP tool mcp__<server>__<tool>, and the server is registered under the
+// name atc.
 const MESSAGE_SEND_TOOL = 'mcp__atc__atc_message_send';
 
 export function buildScopeFile(record: PublishedRecord): ScopeFile {

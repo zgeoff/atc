@@ -14,22 +14,17 @@ import type { Session } from './session';
 export { RESOLVE_DIR_SCRIPT, RESOLVE_UNLINKED_DIR_SCRIPT } from './resolve-host-dir';
 export { RESOLVE_HOME_SCRIPT } from './resolve-host-home';
 
-// A workspace directory a spawn on a shared host holds, as the spawn gave
-// it and as the host resolves it once checked there.
 interface WorkspaceReservation {
   readonly hostKey: SessionID;
   readonly target: string;
   directory: string;
   resolved: string | null;
 
-  // A workspace spawn builds its directory and may remove it on a failure;
-  // a plain spawn only starts in its directory, which another plain spawn
-  // may share.
   readonly kind: 'workspace' | 'plain';
 }
 
-// removes a directory only while it still resolves to itself, emptying it from inside so no
-// symlink changed on the way is followed, then removing it once empty
+// A symlink swapped in during the removal must not be followed, so the script checks from inside
+// the directory that it still resolves to itself before it deletes anything.
 export const REMOVE_DIR_SCRIPT =
   'cd -P -- "$1" || exit 3; [ "$(pwd -P; printf x)" = "$2" ] || exit 4; find . -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + || exit 5; cd / && rmdir -- "$1"';
 
@@ -51,28 +46,18 @@ interface HostDirClaimsDeps {
   readonly registry: Pick<SessionRegistry, 'sessions' | 'hasHostLifecycle'>;
 }
 
-// One kill's or forget's hold; it releases only the sessions this hold has.
 export interface SessionHold {
   readonly release: (sessions: readonly Session[]) => void;
 }
 
 export interface HostDirClaims {
-  // The workspace directory each spawn on a shared host, and each spawn on
-  // the daemon's own machine, holds from its overlap check until its session
-  // lists or its spawn fails, by spawn id.
   readonly reservations: Map<SessionID, WorkspaceReservation>;
 
-  // Each session a kill or forget may take off the list, until atc sees its processes end; every
-  // check here counts a held session's directory as a listed one's. A session stays held while
-  // any hold has it, so a kill that ends never lets go of one a concurrent forget waits on.
   readonly collectHeldSessions: () => Session[];
   readonly holdSessions: (sessions: readonly Session[]) => SessionHold;
 
-  // a failed spawn whose effects may still stand keeps its reservation, so no other workspace
-  // lands in or around what it left
   readonly releaseWorkspace: (id: SessionID) => void;
 
-  // the check and the reservation run in one turn, so of two concurrent spawns at most one passes
   readonly claimWorkspace: (
     id: SessionID,
     hostKey: SessionID,
@@ -87,8 +72,6 @@ export interface HostDirClaims {
     directory: string,
   ) => void;
 
-  // the check and the hold run in one turn: a running removal resolves each held directory and
-  // keeps a directory that holds one
   readonly claimMachineDir: (
     id: SessionID,
     target: string,
@@ -96,21 +79,12 @@ export interface HostDirClaims {
     picked: boolean,
   ) => void;
 
-  // every later step creates, fills, and removes the physical path this resolves to, never the
-  // requested one
   readonly claimHostDir: (options: ClaimHostDirOptions) => Promise<string>;
 
-  // removes nothing while the directory, as resolved in the turn after the last wait, holds a
-  // listed session's or another claim's directory, or no longer resolves to itself; it then
-  // stays for an operator to remove
   readonly removeClaimedDir: (options: RemoveClaimedDirOptions) => Promise<boolean>;
 
-  // Refuses every spawn that a removal of the directory refuses, from before the run starts
-  // until it ends, so no session starts in a directory whose removal is still being decided.
   readonly withRemovalHold: <T>(hold: RemovalHold, run: () => Promise<T>) => Promise<T>;
 
-  // a relative directory resolves as a harness started in it sees it, since the provider starts
-  // both from the home of the user they run as; a stricter script must print the same form
   readonly resolveHostDir: (
     provider: ExecutionProvider,
     hostKey: SessionID | null,
@@ -118,8 +92,6 @@ export interface HostDirClaims {
     script?: string,
   ) => Promise<string>;
 
-  // The home directory of the user commands run as on a host, with every
-  // symlink in it resolved.
   readonly resolveHostHome: (provider: ExecutionProvider, hostKey: SessionID) => Promise<string>;
 }
 
@@ -134,17 +106,11 @@ interface RequireSeparateWorkspaceOptions {
 
 export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   const reservations = new Map<SessionID, WorkspaceReservation>();
-
-  // The shared hosts with a workspace rollback removing a directory now,
-  // each with how many removals run there.
   const removals = new Map<string, number>();
 
-  // The directories workspace rollbacks remove on the daemon's own machine
-  // now, each with the spawn whose rollback removes it.
   const machineRemovals: { readonly id: SessionID; readonly directory: string }[] = [];
   const registry = deps.registry;
 
-  // The sessions each live hold still has.
   const sessionHolds = new Set<Set<Session>>();
 
   const collectHeldSessions = (): Session[] => {
@@ -159,13 +125,11 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     return [...held];
   };
 
-  // The listed sessions and the held ones a forget took off the list.
   const collectSessions = (): Session[] => [
     ...registry.sessions,
     ...collectHeldSessions().filter((session) => !registry.sessions.includes(session)),
   ];
 
-  // The directories plain spawns still starting on a host hold, as given.
   const collectPlainDirs = (hostKey: SessionID, target: string): (readonly [SessionID, string])[] =>
     [...reservations]
       .filter(
@@ -176,8 +140,6 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       )
       .map(([id, reservation]) => [id, reservation.directory] as const);
 
-  // The ids of the sessions listed on a host and of the plain spawns still
-  // starting there, as one string a later read compares against.
   const collectHostSessionIDs = (hostKey: SessionID, target: string): string =>
     [
       ...collectSessions()
@@ -186,7 +148,6 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       ...collectPlainDirs(hostKey, target).map(([id]) => id),
     ].join(' ');
 
-  // The sessions listed on a host and the plain spawns still starting there.
   const collectHostEntries = (
     hostKey: SessionID,
     target: string,
@@ -197,9 +158,6 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     ...collectPlainDirs(hostKey, target).map(([id, cwd]) => ({ id, cwd })),
   ];
 
-  // The directories sessions on the daemon's own machine hold, other than
-  // the given spawn's: every session listed on a target without hosts, and
-  // every plain spawn still starting there, as given.
   const collectMachineDirs = (id: SessionID): (readonly [SessionID, string])[] => [
     ...collectSessions()
       .filter((session) => session.id !== id && !registry.hasHostLifecycle(session.target))
@@ -214,8 +172,6 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       .map(([other, reservation]) => [other, reservation.directory] as const),
   ];
 
-  // The directories other sessions on a host hold: the listed ones given,
-  // and every other spawn's reservation in each form it has.
   const collectOtherWorkspaceDirs = (
     id: SessionID,
     hostKey: SessionID,
@@ -226,8 +182,6 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
 
     for (const [other, reservation] of reservations) {
       if (other !== id && reservation.hostKey === hostKey && reservation.target === target) {
-        // A relative plain directory counts only once the host resolves
-        // it, since it resolves against the session's home there.
         dirs.push(
           ...[reservation.directory, reservation.resolved ?? reservation.directory]
             .filter((held) => posix.isAbsolute(held))
@@ -279,15 +233,12 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       collectHostEntries(options.hostKey, options.target),
     );
 
-    // the claim is checked in the turn after the last wait, against the sessions listed then
     if (collectHostSessionIDs(options.hostKey, options.target) !== before) {
       return claimHostDir(options);
     }
 
     const reservation = reservations.get(options.id);
 
-    // a picked directory is reserved only here, once checked, so two spawns that picked the same
-    // one never refuse each other before either holds it
     if (reservation !== undefined || options.picked === true) {
       requireNoHostRemoval(options.hostKey, options.target, options.directory);
 
@@ -312,8 +263,6 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     return physical;
   };
 
-  // a target without hosts runs on the daemon's machine, where a hold refuses spawns in or around
-  // its directory; on a shared host it refuses every spawn there
   const withRemovalHold = async <T>(hold: RemovalHold, run: () => Promise<T>): Promise<T> => {
     if (!registry.hasHostLifecycle(hold.target)) {
       const removal = { id: hold.id, directory: hold.directory };
@@ -345,9 +294,6 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   };
 
   const removeClaimedDir = async (options: RemoveClaimedDirOptions): Promise<boolean> => {
-    // targets without hosts run on the daemon's machine, so the directory stays while a session on
-    // any of them, or a plain spawn starting there, runs inside; while the removal runs, a plain
-    // spawn there inside or around the directory is refused
     if (!registry.hasHostLifecycle(options.target)) {
       const others = collectMachineDirs(options.id);
 
@@ -399,8 +345,8 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       return removeClaimedDir(options);
     }
 
-    // A directory the host could not resolve, even from its home, may lie
-    // inside through a symlink, so the rollback keeps its own.
+    // A directory of another session that the host could not resolve may point into this one through
+    // a symlink, so the directory stays in place.
     if (fromHome === null) {
       return false;
     }
@@ -471,7 +417,6 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     claimPlainDir: (id, hostKey, target, directory) => {
       requireNoHostRemoval(hostKey, target, directory);
 
-      // a workspace still being built may be removed by its rollback; plain spawns share freely
       for (const [other, reservation] of reservations) {
         if (!posix.isAbsolute(directory)) {
           break;
@@ -514,8 +459,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
       }
 
       if (machineRemovals.length > 0) {
-        // symlinks are resolved only while a removal runs, since resolving blocks the daemon; a
-        // relative directory is refused while any removal runs
+        // Resolving a symlink blocks the daemon, so it runs only while a removal is in progress.
         const forms = posix.isAbsolute(directory)
           ? [directory, resolveMachineDir(directory)]
           : null;
@@ -549,13 +493,10 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   };
 }
 
-// The key of a shared host on one target, for state kept per host.
 function buildHostSlot(hostKey: SessionID, target: string): string {
   return `${target}\0${hostKey}`;
 }
 
-// Whether either of two directories on a host holds the other, or they are
-// the same.
 function isPathOverlapping(left: string, right: string): boolean {
   return isPathWithin(left, right) || isPathWithin(right, left);
 }

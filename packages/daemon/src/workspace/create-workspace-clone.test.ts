@@ -12,7 +12,6 @@ import type { TreeProcess } from '../test-utils/read-process-tree';
 import { startGitHTTPServer } from '../test-utils/start-git-http-server';
 import { createWorkspaceClone } from './create-workspace-clone';
 
-// A bare upstream holding one pushed commit and a work clone of it.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-clone-' });
 
@@ -209,9 +208,6 @@ test.skipIf(process.platform !== 'linux')(
   async () => {
     const ctx = await setupTest();
 
-    // While a request is held, every process this test run started is
-    // recorded, so the test can check what git and its helpers were started
-    // with.
     const processes: TreeProcess[] = [];
 
     const server = startGitHTTPServer(ctx.directory, ctx.env, {

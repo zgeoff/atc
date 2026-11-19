@@ -27,7 +27,6 @@ import type { SessionRuntime } from './create-session-runtime';
 import { createTapRegistry } from './create-tap-registry';
 
 interface SetupTestConfig {
-  // The events each hook event name means to the one agent.
   readonly hooks: Readonly<Record<string, readonly Readonly<AdapterEvent>[]>>;
 }
 

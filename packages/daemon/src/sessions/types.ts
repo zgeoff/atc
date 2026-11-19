@@ -9,7 +9,6 @@ export interface TranscriptWindow {
 
 export type MessageView = NonNullable<Awaited<ReturnType<DaemonContext['readMessage']>>>;
 
-// What a revive starts its harness with on the session's host.
 export interface HarnessLaunch {
   readonly provider: ExecutionProvider;
   readonly plan: Omit<HarnessPlan, 'args'> & { readonly args: readonly string[] };

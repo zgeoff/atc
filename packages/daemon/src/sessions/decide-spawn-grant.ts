@@ -9,7 +9,6 @@ export interface SpawnGrantRequest {
   readonly isRemote: boolean;
   readonly takesAtcMCP: boolean;
 
-  // The session whose host the new one runs on, and the scopes it holds.
   readonly hostKey: SessionID;
   readonly hostAccess: readonly GrantScope[];
 }

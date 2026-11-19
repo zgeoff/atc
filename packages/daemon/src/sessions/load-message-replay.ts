@@ -3,8 +3,6 @@ import { DaemonError } from '@atc/protocol/wire';
 import type { IdempotencyRecord, StateStore } from '@atc/store';
 import { MESSAGE_ANSWER_SCHEMA, toMessageID } from '@atcx/contract';
 
-// A retried send answers with the message's current status, so a caller
-// that lost the first answer learns where its message stands now.
 export async function loadMessageReplay(
   store: Pick<StateStore, 'readMessageByID'>,
   record: IdempotencyRecord,

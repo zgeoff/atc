@@ -12,23 +12,17 @@ import { findExecutionRefusal } from '../fleet/find-execution-refusal';
 import type { Session } from './session';
 import type { SessionCallbacks } from './session-callbacks';
 
-// The identity of the implicit `local` target, which a fleet row without a
-// stored identity ran on.
 export const LOCAL_TARGET_IDENTITY = buildTargetIdentity(
   LOCAL_TARGET.provider,
   LOCAL_TARGET.options,
 );
 
-// The target a session runs on and the identity it is bound to there; null
-// binds a new session to the target as it stands now.
 export interface TargetBinding {
   readonly target: string;
   readonly targetIdentity: string | null;
 }
 
 interface SessionRegistryDeps {
-  // The agent registered first, which a later adapter of the same id
-  // replaces, as every later one replaces an earlier one.
   readonly fallback: AgentAdapter | null | undefined;
   readonly adapters: readonly AgentAdapter[];
   readonly targets: readonly ExecutionTarget[];
@@ -41,20 +35,12 @@ export interface SessionRegistry {
 
   focusedId: SessionID | null;
 
-  // Whether any registered adapter has a screen detector, decided once at
-  // construction since the registry never changes afterward. Lets a hot path
-  // that only cares about this answer skip walking live sessions to find it.
   readonly hasScreenDetector: boolean;
 
   readonly targets: ReadonlyMap<string, ExecutionTarget>;
 
-  // Sessions a restore registered that have had neither a terminal nor a
-  // headless turn since, so a later restore tries them again rather than
-  // taking them for live headless runs.
   readonly unrestored: Set<SessionID>;
 
-  // Sessions dropped from the list on purpose whose rows the next fleet
-  // write deletes; each stays here until a write carrying it lands.
   readonly removedIDs: Set<SessionID>;
 
   readonly requireExecution: (
@@ -62,39 +48,23 @@ export interface SessionRegistry {
     capability: ExecutionCapability,
   ) => { readonly provider: ExecutionProvider; readonly identity: string };
 
-  // The refusal for running work of a capability on a binding's target, or
-  // null when the target serves it. A null target is a spawn that names
-  // none when the config gives no default, which is always refused.
   readonly findExecutionRefusal: (
     binding: Readonly<{ target: string | null; targetIdentity: string | null }>,
     capability: ExecutionCapability,
   ) => DaemonError | null;
 
-  // The provider a session's harness runs on, or null when its target is
-  // gone from the config or has no provider here.
   readonly findProvider: (session: Session) => ExecutionProvider | null;
 
-  // never falls back to another id: a session whose agent is not registered
-  // is unsupported, not somebody else's spawn
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
 
-  // Every registered adapter, one per id, in registration order.
   readonly collectAdapters: () => AgentAdapter[];
 
-  // Whether a target's host has a lifecycle of its own that the daemon
-  // follows: one that can sleep or be destroyed. The daemon's own machine
-  // has none.
   readonly hasHostLifecycle: (target: string) => boolean;
 
-  // Whether a target runs its harnesses on the daemon's own machine, where
-  // each one ends with the daemon.
   readonly isLocalTarget: (target: string) => boolean;
 
-  // Whether the session is the caller or a session the caller sits under,
-  // following each parent link the fleet holds.
   readonly isCallerTree: (id: SessionID, caller: SessionID) => boolean;
 
-  // The live and dead sub-sessions of a session, in list order.
   readonly collectChildren: (id: SessionID) => Session[];
 
   readonly remove: (session: Session) => void;
@@ -103,8 +73,6 @@ export interface SessionRegistry {
 }
 
 export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistry {
-  // Each adapter names the id it answers to, so a registry key can never
-  // disagree with the adapter behind it. A later one wins the id.
   const adapters: Readonly<Record<AgentID, AgentAdapter>> = Object.fromEntries(
     [
       ...(deps.fallback === null || deps.fallback === undefined ? [] : [deps.fallback]),

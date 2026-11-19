@@ -29,12 +29,8 @@ interface SessionForgetterDeps {
 }
 
 export interface SessionForgetter {
-  // Every live session of the tree must take the kill on its target before
-  // any of them is killed.
   readonly killSession: (id: SessionID, stopOnly: boolean) => Promise<KillOutcome>;
 
-  // the refusals read the session in the same step that starts the forget,
-  // so a pin or revive that lands first is seen
   readonly forgetSession: (
     id: SessionID,
     confirmToken: string | undefined,
@@ -46,12 +42,10 @@ export interface SessionForgetter {
 interface ForgottenFolders {
   readonly session: Session;
 
-  // Every session the forget may take off the list, read before it went.
   readonly forgettable: readonly Session[];
   readonly headlessRunning: ReadonlySet<Session>;
   readonly destroyed: boolean;
 
-  // The kill's or forget's own hold, which it releases session by session.
   readonly hold: SessionHold;
 }
 
@@ -61,9 +55,6 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
   const tokens = deps.tokens;
   const cleanup = deps.cleanup;
 
-  // runs once the manager has acted: a removed session already lost its run
-  // with its runtime, and a promoted sub-session, or any session of a failed
-  // kill or forget, keeps working
   const stopEndedHeadlessRuns = (set: readonly Session[]): void => {
     for (const session of set) {
       if (session.state === 'exited') {
@@ -72,8 +63,6 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
     }
   };
 
-  // A forget may take off the list the session, its sub-sessions, and every session on its host,
-  // which a destroy takes with it; read before the forget, which changes all three.
   const collectForgettable = (session: Session): Session[] => [
     ...new Set([
       session,
@@ -125,8 +114,6 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
 
     hold.release(forgettable.filter((other) => manager.sessions.includes(other)));
 
-    // the sessions taken with it go first, so a sub-session that ran in the session's workspace
-    // and ended no longer holds it
     for (const other of removed) {
       if (other !== session) {
         await removeFolders(other);
@@ -136,8 +123,6 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
     return removeFolders(session);
   };
 
-  // A kill or forget that throws leaves its sessions listed, so they need no hold. Each one
-  // releases only through its own hold, so it never ends another's.
   const withHeldSessions = async <T>(
     forgettable: readonly Session[],
     run: (hold: SessionHold) => Promise<T>,
@@ -175,7 +160,6 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
 
         stopEndedHeadlessRuns(set);
 
-        // a kill of a session that already exited forgets it
         if (outcome === 'removed') {
           await removeForgottenFolders({
             session,
@@ -265,15 +249,12 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
 interface SessionEndFacts {
   readonly bridgeStopped: boolean;
 
-  // Whether the forget destroyed the session's host, which ends every process inside it.
   readonly hostDestroyed: boolean;
   readonly harnessEnded: boolean;
 
-  // Whether the session ran a headless turn, whose runner reports no exit.
   readonly headless: boolean;
 }
 
-// Whether nothing of a forgotten session can still write in its folders.
 function isSessionEnded(facts: SessionEndFacts): boolean {
   return facts.bridgeStopped && (facts.hostDestroyed || (facts.harnessEnded && !facts.headless));
 }

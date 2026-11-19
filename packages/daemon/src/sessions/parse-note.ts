@@ -5,25 +5,19 @@ import { z } from 'zod';
 interface TurnAnswer {
   readonly kind: 'answered';
 
-  // Every message the turn answered, recorded together.
   readonly messages: readonly MessageID[];
   readonly answer: string;
 
-  // The turn whose final reply the answer is; null from a reporter that
-  // sends none.
   readonly turn: string | null;
 }
 
 interface TurnUnanswered {
   readonly kind: 'unanswered';
 
-  // Every message the turn carried and ended without answering.
   readonly messages: readonly MessageID[];
 
-  // One word for why: interrupted, error, refusal, or not_started.
   readonly reason: string;
 
-  // The turn that ended; null when the reporter sends none.
   readonly turn: string | null;
 }
 
@@ -35,8 +29,8 @@ export interface SentNote {
 
 export type Note = TurnAnswer | TurnUnanswered | SentNote;
 
-// Optional, so a note from an older bridge still parses; a missing, empty,
-// or wrong-typed turn reads as unknown.
+// Notes from older bridges send no turn, so a missing, empty, or non-string value reads as
+// unknown instead of failing the parse.
 const TURN_SCHEMA = z.preprocess(
   (value) => (typeof value === 'string' && value !== '' ? value : undefined),
   z.string().optional(),
@@ -50,7 +44,6 @@ const REPORT_SCHEMA = z.discriminatedUnion('kind', [
     .object({
       kind: z.literal('answered'),
 
-      // One message, or every message one turn answered.
       message: z.string().min(1).optional(),
       messages: MESSAGE_IDS_SCHEMA,
       answer: z.string(),

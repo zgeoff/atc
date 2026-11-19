@@ -3,24 +3,18 @@ import type { GitCredential } from './create-git-askpass';
 import { runGit } from './run-git';
 
 export interface RemoteRef {
-  // The short name: `main`, `feat/x`, `v1.0`.
   readonly name: string;
   readonly kind: 'branch' | 'tag';
 
-  // The commit the ref points at; an annotated tag's is the commit it
-  // peels to.
   readonly sha: string;
 }
 
 interface RemoteRefListing {
   readonly ok: true;
 
-  // The branch the upstream's HEAD points at, or null when it reports none.
   readonly head: string | null;
   readonly refs: readonly RemoteRef[];
 
-  // Every listed ref by full name, each annotated tag's peeled `^{}` entry
-  // beside it, for resolving one ref the way a clone does.
   readonly byName: ReadonlyMap<string, string>;
 }
 
@@ -30,8 +24,6 @@ interface RemoteRefRefusal {
   readonly message: string;
 }
 
-// How long a listing may take: a host that never answers holds a client
-// waiting on it no longer than this.
 const REMOTE_TIMEOUT_MS = 20_000;
 
 interface ReadRemoteRefsOptions {
@@ -41,7 +33,6 @@ interface ReadRemoteRefsOptions {
   readonly onSpawn?: ((pid: number) => void) | undefined;
 }
 
-// authenticates exactly as a clone of the same URL does
 export async function readRemoteRefs(
   url: string,
   options: ReadRemoteRefsOptions,
@@ -97,8 +88,6 @@ export async function readRemoteRefs(
   return parseListing(listed.stdout);
 }
 
-// An ssh connection that takes longer than the limit is given up by ssh.
-// A host that chose its own ssh command keeps it.
 async function readSSHTimeoutEnv(timeoutMs: number): Promise<Readonly<Record<string, string>>> {
   if (process.env['GIT_SSH_COMMAND'] !== undefined || process.env['GIT_SSH'] !== undefined) {
     return {};
@@ -115,8 +104,6 @@ async function readSSHTimeoutEnv(timeoutMs: number): Promise<Readonly<Record<str
   return { GIT_SSH_COMMAND: `ssh -o ConnectTimeout=${seconds}` };
 }
 
-// An HTTP transfer that moves under a byte a second for the whole limit is
-// given up by git itself.
 function buildHTTPTimeoutArgs(timeoutMs: number): string[] {
   const seconds = String(Math.max(1, Math.ceil(timeoutMs / 1000)));
 

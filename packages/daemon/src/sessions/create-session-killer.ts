@@ -19,17 +19,12 @@ interface SessionKillerDeps {
     'onEvent' | 'onProcessEnded' | 'log' | 'findAuthBinder'
   >;
 
-  // Stops a revive's restart that waits on the kill of its outdated
-  // harness, and returns whether one was waiting.
   readonly restarts: { readonly stopRestart: (id: SessionID) => Promise<boolean> };
 
-  // How long a wait for a killed harness to exit runs before it is ended by force.
   readonly readExitWaitMs: () => number;
 }
 
 export interface SessionKiller {
-  // the response is the caller's cue that the session is safely archived,
-  // so the fleet write lands before it
   readonly kill: (
     id: SessionID,
     stopOnly?: boolean,
@@ -37,12 +32,8 @@ export interface SessionKiller {
   readonly forget: (id: SessionID) => Promise<boolean>;
   readonly pickKillCapability: (session: Session) => ExecutionCapability;
 
-  // A harness inside a host that went to sleep: the daemon lets go of it,
-  // and the process stays inside the host for a revive to find.
   readonly updateSuspended: (session: Session) => void;
 
-  // Whether every harness a kill or forget ended for the session has exited, ending each by
-  // force when a wait runs out; a forget removes nothing the session ran in until it has.
   readonly probeHarnessEnded: (id: SessionID) => Promise<boolean>;
 }
 
@@ -52,8 +43,6 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
   const callbacks = deps.callbacks;
   const restarts = deps.restarts;
 
-  // The harnesses each kill or forget ended, by session, until a probe sees each exit; a revive
-  // between two kills leaves more than one.
   const endingHarnesses = new Map<SessionID, HarnessHandle[]>();
 
   const removeWithChildren = (session: Session, forgettable: readonly Session[]): void => {
@@ -63,8 +52,6 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
     for (const child of registry.collectChildren(session.id)) {
       const live = child.pty !== null || (child.kind === 'headless' && child.state !== 'exited');
 
-      // a pin of its own guards a sub-session from its parent; one whose
-      // target can destroy its host takes its own confirmed forget
       if (
         live ||
         child.pinned ||
@@ -79,9 +66,6 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
       }
     }
 
-    // kept sub-sessions are top-level before the removal is announced and
-    // announced after it, so no announcement finds a parent gone or one
-    // standing without the sub-sessions that leave with it
     registry.remove(session);
 
     for (const child of kept) {
@@ -117,8 +101,6 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
     callbacks.onEvent('state', session);
   };
 
-  // Ends a live session, terminal or headless, leaving a dead entry; a
-  // session already dead is left as it is.
   const killTerminal = (session: Session) => {
     if (session.pty !== null) {
       // a provider may report the exit inside the kill call, which clears the session's handle
@@ -140,9 +122,6 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
     callbacks.onProcessEnded(session);
   };
 
-  // Puts the session's host to sleep when it owns one that can sleep, and
-  // ends its harness otherwise. A refused sleep throws before anything
-  // changes.
   const stopHarness = async (session: Session): Promise<void> => {
     const provider = registry.findProvider(session);
 
@@ -161,9 +140,6 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
     }
   };
 
-  // A sub-session whose host stays awake is ended instead, and one whose
-  // revive waits on the kill of its outdated harness starts no fresh one,
-  // so a kill never leaves part of its set running.
   const tryStopHarness = async (session: Session): Promise<void> => {
     if (session.pty === null) {
       const restartStopped = await restarts.stopRestart(session.id);
@@ -194,8 +170,6 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
         return 'unchanged';
       }
 
-      // taken before the first await, so a sub-session spawned while the kill
-      // waits on a host is not part of it
       const children = registry.collectChildren(id);
 
       const restartStopped = await restarts.stopRestart(id);
@@ -258,17 +232,12 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
         return false;
       }
 
-      // taken before the first await, so a sub-session spawned while the
-      // forget waits on a host becomes top-level
       const children = registry.collectChildren(id);
       const provider = registry.findProvider(session);
 
       const destroys =
         provider !== null && provider.capabilities.destroy && session.hostKey === session.id;
 
-      // a harness asleep in a host it does not own has a process the daemon
-      // cannot reach or end; its record keeps that process owned until the
-      // host wakes or its owner's forget destroys the host
       if (!destroys && session.pty === null && session.vm === 'asleep') {
         throw new DaemonError(
           'unsupported_operation',
@@ -285,7 +254,6 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
             ? false
             : await binder.forgetBinding(findHostBroker(provider), session.hostKey);
 
-        // a failed destroy throws before anything is forgotten
         if (!bound) {
           await provider.destroyHost(session.hostKey);
         }
@@ -330,7 +298,6 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
         ptys.map(async (pty) => ({ pty, exited: await waitForKilledExit(pty, waitMs) })),
       );
 
-      // a kill during the wait may have added a harness this probe never waited for
       const running = collectRunningHarnesses(endingHarnesses.get(id) ?? [], waits);
 
       if (running.length === 0) {
@@ -349,7 +316,6 @@ interface HarnessWait {
   readonly exited: boolean;
 }
 
-// The ending harnesses still to wait for: each one but those whose wait saw an exit.
 function collectRunningHarnesses(
   ending: readonly HarnessHandle[],
   waits: readonly HarnessWait[],

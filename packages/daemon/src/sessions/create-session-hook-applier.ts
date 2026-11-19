@@ -28,9 +28,6 @@ interface SessionHookApplierDeps {
 }
 
 export interface SessionHookApplier {
-  // the adapter plans from the state it returned for the previous line; the
-  // plan goes back so the caller can key its bookkeeping and trail on its
-  // events and keep the next state
   readonly applyHook: (hookEvent: HookEvent, previous?: unknown) => HookPlan | null;
 }
 
@@ -48,8 +45,6 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
 
     const provider = registry.findProvider(session);
 
-    // a remote read runs a command on the session's target, which reads nothing once the target
-    // the session was bound to changed or went away
     if (provider?.remote === true && registry.findExecutionRefusal(session, 'run') !== null) {
       return;
     }
@@ -76,9 +71,8 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
     fleet.emitChange();
   };
 
-  // A conversation on another host never resumes on this one, so a remote
-  // session keeps its own agent session id when a session on another host
-  // holds the one it reports, whether that session is live or only stored.
+  // A conversation on another host never resumes on this one, so sessions on different hosts
+  // must not share an agent session id.
   const claimRemoteAgentSession = async (
     session: Session,
     agentSessionID: AgentSessionID,
@@ -162,21 +156,16 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
       void refreshName(session, ev.nameSource);
     }
 
-    // A permission prompt stays pending until an event shows it closed: a
-    // prompt, a finished turn, a start, an end, or an idle notice. A heartbeat
-    // or a notice that says nothing about the prompt leaves it pending.
     if (ev.kind === 'needs-input') {
       session.permissionPending = ev.permissionPending ?? session.permissionPending === true;
     } else if (ev.kind !== 'heartbeat') {
       session.permissionPending = false;
     }
 
-    // Each event kind returns whether it changed what the session lists.
     const changed = match(ev.kind)
       .with('started', () => {
-        // Clearing or resuming inside a live terminal ends the old agent
-        // session and starts a new one in the same process, so the start
-        // supersedes the end's message. A gone terminal keeps it.
+        // Clearing or resuming inside a live terminal ends the old agent session and starts a new one
+        // in the same process.
         if (session.lastMsg === 'adopting…') {
           session.lastMsg = 'adopted';
 
@@ -204,7 +193,6 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
         session.lastMsg = 'turn done';
 
         if (ev.result !== undefined) {
-          // A runaway final message cannot bloat the fleet row.
           session.result = truncateToBytes(ev.result, 16_384);
           rowUpdate.result = session.result;
         }
@@ -239,9 +227,8 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
 
     dirty ||= changed;
 
-    // A fleet rewrite marks every session without a PTY as exited, so only a
-    // new agent session id takes it. Anything else touches this session's
-    // own row.
+    // A full fleet write marks every session without a PTY as exited, so use it only when the agent
+    // session id changed.
     if (persist) {
       void fleet.tryWriteFleet(session.id);
     } else {
@@ -283,7 +270,6 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
   };
 }
 
-// the session's target is gone, so nothing reaches its host
 const UNREACHABLE_HOST_FILES: HostFiles = {
   readMatchingLines: () => Promise.resolve(null),
   readDirectory: () => Promise.resolve(null),

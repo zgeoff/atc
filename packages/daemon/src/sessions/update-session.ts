@@ -32,8 +32,6 @@ export function updateSession(
     return 'shared_host';
   }
 
-  // detach before any pin applies, so the pin, kill, and forget no longer
-  // follow the former parent
   if (changes.parent === null && session.parent !== null) {
     session.parent = null;
 
@@ -45,9 +43,6 @@ export function updateSession(
 
   if (changes.name !== undefined && changes.name !== '' && !renameSkipped) {
     session.name = changes.name;
-
-    // auto-summaries stop overwriting a user-strength name, while an
-    // in-session rename still wins
     session.namedBy = 'user';
     void updateRecordIdentity(deps, session);
     deps.callbacks.onEvent('renamed', session);

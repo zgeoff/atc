@@ -17,7 +17,6 @@ import { createSessionManager } from './create-session-manager';
 import { createSessionReads } from './create-session-reads';
 
 interface SetupTestConfig {
-  // The one agent the sessions run.
   readonly adapter: AgentAdapter;
 }
 

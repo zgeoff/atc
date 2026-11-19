@@ -10,7 +10,6 @@ export interface BridgeBinding {
   readonly epoch: number;
 }
 
-// The fields of a live session a binding is checked against.
 interface BoundSession {
   readonly id: SessionID;
   readonly target: string;

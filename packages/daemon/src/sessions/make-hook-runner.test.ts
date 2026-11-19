@@ -8,9 +8,6 @@ import type { EventMsg } from '@atc/protocol/wire';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookOutcome } from './make-hook-runner';
 
-// A temp directory for the hooks to write into, the outcomes of the hooks a
-// runner call started, which resolve once every one of them has ended, and
-// a clock that holds the kills the runner armed until the test advances it.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-hook-runner-');
   const settled = Promise.withResolvers<readonly HookOutcome[]>();

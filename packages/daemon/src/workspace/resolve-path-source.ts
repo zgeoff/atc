@@ -5,7 +5,6 @@ import { runGit } from './run-git';
 interface PathSourceOptions {
   readonly allowDirty?: 'refuse' | 'warn';
 
-  // The transports git may fetch over when it asks origin for its refs.
   readonly transports: readonly string[];
 }
 
@@ -72,8 +71,6 @@ export async function resolvePathSource(
     return { ok: false, code: 'has_submodules', message: `${root} uses submodules` };
   }
 
-  // Every untracked file is listed on its own, so an untracked directory
-  // counts each file inside it.
   const status = await runGit(['status', '--porcelain', '--untracked-files=all'], { cwd: root });
 
   if (status.exitCode !== 0) {
@@ -97,7 +94,7 @@ export async function resolvePathSource(
   }
 
   if (dirty) {
-    // The commit leads, so a display that cuts the note short keeps it.
+    // Some displays truncate the warning, so the commit goes first to stay visible.
     warnings.push(
       `cloned commit ${sha.slice(0, 12)}; left ${changed} uncommitted or untracked ${changed === 1 ? 'path' : 'paths'} behind in ${root}`,
     );
@@ -136,14 +133,14 @@ export async function resolvePathSource(
   };
 }
 
-// a workspace clone never initializes submodules, so either would ship an incomplete tree
+// A workspace clone never initializes submodules, so a repo that uses them would ship an
+// incomplete tree.
 function hasSubmodules(listing: string): boolean {
   return listing
     .split('\n')
     .some((line) => line.startsWith('160000 ') || line.endsWith('\t.gitmodules'));
 }
 
-// only the count leaves this module: a path's name can itself be sensitive
 function countChangedPaths(porcelain: string): number {
   return porcelain.split('\n').filter((line) => line.trim() !== '').length;
 }

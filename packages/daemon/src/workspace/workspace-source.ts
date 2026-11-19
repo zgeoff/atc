@@ -5,6 +5,5 @@ export type WorkspaceSource =
       readonly url: string;
       readonly ref: string;
 
-      // The commit to check out when the ref only names its branch.
       readonly sha?: string;
     };

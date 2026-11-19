@@ -12,7 +12,6 @@ import { startGitHTTPServer } from '../test-utils/start-git-http-server';
 import { startStubSilentServer } from '../test-utils/start-stub-silent-server';
 import { checkRepositoryAccess } from './check-repository-access';
 
-// A bare upstream holding one pushed commit and a work clone of it.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-repo-access-test-' });
 
@@ -282,8 +281,7 @@ test('it refuses an upstream that does not answer within its time limit and leav
 
   expect(groups).toHaveLength(1);
 
-  // The listing's git leads its own process group. A killed group is gone
-  // once the kernel reaps it, a moment after the signal.
+  // A killed process group is only gone once the kernel reaps it, a moment after the signal.
   await waitFor(() => {
     expect(() => process.kill(-(groups[0] ?? 0), 0)).toThrow('ESRCH');
   });
@@ -304,8 +302,6 @@ test.each([
 ])('it refuses the URL %s before any git runs', async (url, message) => {
   const ctx = await setupTest();
 
-  // A git first on the PATH records each run, so a refusal that runs git
-  // leaves the record behind.
   createStubBin(ctx.directory, 'git', buildStubRecordingGit(join(ctx.directory, 'git-ran')));
   updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
 

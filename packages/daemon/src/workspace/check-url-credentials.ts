@@ -4,8 +4,6 @@ type URLCredentialFinding =
   | { readonly ok: true }
   | { readonly ok: false; readonly code: 'credential_in_url'; readonly message: string };
 
-// neither the URL nor what a host `insteadOf` rewrite expands it into may carry a credential,
-// so a token never surfaces in git's own messages or in the clone
 export async function checkURLCredentials(url: string, cwd: string): Promise<URLCredentialFinding> {
   // git prints the URL as it would fetch it, with every rewrite applied.
   const expanded = await runGit(['ls-remote', '--get-url', url], { cwd });

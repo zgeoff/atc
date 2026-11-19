@@ -36,7 +36,8 @@ export async function checkWorkspaceCompleteness(
 
   const entries = tree.stdout.split('\n');
 
-  // submodules are never initialized, so either would leave a hole in the checkout
+  // The daemon never initializes submodules, so a gitlink entry or a .gitmodules file would leave
+  // an empty directory in the checkout.
   if (entries.some((line) => line.startsWith('160000 ') || line.endsWith('\t.gitmodules'))) {
     return { ok: false, code: 'has_submodules', message: `${sha} uses submodules` };
   }

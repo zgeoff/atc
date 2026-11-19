@@ -19,8 +19,6 @@ interface SetupTestConfig {
   readonly gitTransports: readonly string[] | { readonly invalid: string };
 }
 
-// A session manager with the stub harness as its one agent, a real state
-// store, and the catalog over both.
 async function setupTest(config: SetupTestConfig) {
   const temporaryDirectory = setupTempDir('atc-spawn-catalog-');
   const dbPath = join(temporaryDirectory.path, 'state.db');

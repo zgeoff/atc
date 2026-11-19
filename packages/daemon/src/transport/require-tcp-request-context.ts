@@ -7,7 +7,6 @@ import { findRequestScope } from './find-request-scope';
 import type { RequestPrincipal } from './request-deps';
 import type { TCPPeer } from './tcp-peer';
 
-// What a TCP connection's request is checked against.
 export interface TCPRequestSource {
   readonly ctx: DaemonContext;
   readonly tcp: TCPPeer;
@@ -15,8 +14,6 @@ export interface TCPRequestSource {
   readonly access: TargetAccess | null;
 }
 
-// The context a request over TCP runs on, scoped to the principal it acts
-// as; a refusal throws.
 export function requireTCPRequestContext(
   source: TCPRequestSource,
   method: string,

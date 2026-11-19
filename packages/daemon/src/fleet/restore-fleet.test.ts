@@ -57,8 +57,6 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
   const recorder = buildStubLog();
   const statusPath = join(temporaryDirectory.path, 'status.json');
 
-  // with no targets of the test's own, sessions run on the `local` target
-  // under the identity a local row binds to
   const targets = config.targets ?? [
     {
       id: 'local',
@@ -81,7 +79,6 @@ async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[]
     manager.detachAll();
   });
 
-  // no session holds a runtime, so a stagger waits on no boot
   const runtimes = new Map<SessionID, SessionRuntime>();
 
   return {
@@ -228,7 +225,6 @@ test('it revives a listed dead session in place instead of listing its id twice'
 test('it keeps a sub-session under the session that resumed its parent agent session', async () => {
   const ctx = await setupTest();
 
-  // the next daemon life, over the same store
   const restarted = createSessionManager({
     fallback: buildMockAgentAdapter(),
     store: ctx.store,
@@ -302,7 +298,6 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
 test('it keeps a sub-session under a sub-session that resumed their parent agent session', async () => {
   const ctx = await setupTest();
 
-  // the next daemon life, over the same store
   const restarted = createSessionManager({
     fallback: buildMockAgentAdapter(),
     store: ctx.store,
@@ -348,8 +343,6 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
     parent: parent.id,
   });
 
-  // Spawned under the session whose agent session it resumes, so the
-  // row it replaces is its own parent.
   const resumed = await ctx.manager.spawn({
     cwd: ctx.directory,
     name: 'wrangler',
@@ -384,7 +377,6 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
 test('it restores two crossed resumes with the earlier one top-level and the later one under it', async () => {
   const ctx = await setupTest();
 
-  // the next daemon life, over the same store
   const restarted = createSessionManager({
     fallback: buildMockAgentAdapter(),
     store: ctx.store,
@@ -656,8 +648,6 @@ test('it starts no terminal for a queued session whose headless turn starts whil
     }),
   ]);
 
-  // The first session never reports it has booted, so the restore waits on
-  // it until the test releases the wait.
   const firstRuntime = createSessionRuntime();
 
   const restored = await restoreFleet({
@@ -738,8 +728,6 @@ test('it restores sessions stored before the providers moved into packages by ta
 
   const ctx = await setupTest({ targets: built.targets });
 
-  // these are the identities a daemon stored for these targets before the providers
-  // moved; the cloud row is a killed session, so its restore reaches no impd
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-on-local'),
@@ -871,8 +859,6 @@ test('it restores a stored session on its own target config revision after anoth
 
   const ctx = await setupTest({ targets: built.targets });
 
-  // the added target changes the daemon-wide revision, and the row stays
-  // bound to the revision of its own target alone
   await ctx.store.writeFleet([
     buildMockFleetEntry({
       sessionID: toSessionID('s-on-local'),

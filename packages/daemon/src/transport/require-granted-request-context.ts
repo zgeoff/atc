@@ -8,16 +8,12 @@ import type { DaemonContext } from '../types';
 import type { RequestPrincipal } from './request-deps';
 import type { BridgeGrant } from './types';
 
-// What a bridge connection's request is checked against.
 export interface GrantedRequestSource {
   readonly ctx: DaemonContext;
   readonly connectionAccess: TargetAccess | null;
   readonly bridge: BridgeGrant;
 }
 
-// The context a request through a session's bridge runs on: the scope its
-// method needs must be one the session holds now, under a binding that
-// still matches the live session; a refusal throws.
 export function requireGrantedRequestContext(
   source: GrantedRequestSource,
   method: string,
@@ -54,7 +50,6 @@ export function requireGrantedRequestContext(
     );
   }
 
-  // A subscription delivers only what the connection's own view admits.
   if (method === 'events.subscribe') {
     return buildScopedContext(
       source.ctx,

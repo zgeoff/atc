@@ -15,7 +15,6 @@ export async function readWholeMenu(
 ): Promise<ScreenMenu | null> {
   const shown = await readKnownMenu(terminal);
 
-  // a menu that fits, or one the kept whole menu holds, takes no key
   if (shown?.scroll === undefined || !terminal.isLive()) {
     return shown;
   }
@@ -35,13 +34,8 @@ export async function readWholeMenu(
   return whole;
 }
 
-// The most arrow keys one read presses, so a list that never ends, or a
-// screen that keeps changing, stops the read instead of holding the
-// session's input.
 const MAX_STEPS = 400;
 
-// Moves the cursor up to the first option, down to the end of the list,
-// and back to where it started, gathering the list's rows on the way down.
 async function readScrolledMenu(
   terminal: MenuTerminal,
   start: ScreenMenu,
@@ -98,8 +92,6 @@ async function readScrolledMenu(
 
     const moved = splitScreenMenu(now).list;
 
-    // A cursor that leaves the list for an item after it, or lands on the
-    // first row again, has passed the list's last option.
     if (now.highlighted >= moved.length) {
       at = list.length + now.highlighted - moved.length;
       break;
@@ -120,9 +112,6 @@ async function readScrolledMenu(
   }
 
   const after = splitScreenMenu(now).after;
-
-  // A walk that starts on an item after the list goes up into the list
-  // first, so its count of up keys includes that step.
   const target = start.highlighted < startList ? ups : list.length + start.highlighted - startList;
 
   while (at !== target) {
@@ -148,8 +137,6 @@ async function readScrolledMenu(
   return whole;
 }
 
-// Presses one arrow key and waits for the screen to show the cursor or the
-// list's rows move. A read with another menu, or none, stops the walk.
 async function sendArrow(
   terminal: MenuTerminal,
   before: ScreenMenu,

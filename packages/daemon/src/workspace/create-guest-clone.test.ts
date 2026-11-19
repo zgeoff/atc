@@ -7,8 +7,6 @@ import { $ } from 'bun';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { createGuestClone } from './create-guest-clone';
 
-// A bare upstream holding one pushed commit, and the empty directory a
-// clone lands in, on this machine standing in for the host.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-guest-clone-' });
 

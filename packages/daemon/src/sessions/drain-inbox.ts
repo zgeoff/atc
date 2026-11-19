@@ -14,21 +14,20 @@ export interface InboxSource {
 export async function drainInbox(sessionID: SessionID, source: InboxSource): Promise<void> {
   const linkedOwner = source.findLinkedOwner(sessionID);
 
-  // bound to the tap found before the read: a tap another attach makes meanwhile gets nothing
+  // Find the tap before the read. A tap another attach makes during the read must get nothing
+  // from it.
   const tap = source.taps.findTap(sessionID);
 
   if (linkedOwner === null || tap === null) {
     return;
   }
 
-  // A tap a principal holds takes only the messages sent to this atc id:
-  // another session that shares the agent session id may be out of its
-  // reach.
+  // A tap a principal holds takes only messages sent to this atc id, because another session
+  // that shares the agent session id may not be allowed to see the rest.
   const owner = tap.linked ? linkedOwner : { atcID: linkedOwner.atcID };
 
   try {
-    // one item per call, and the tap's ack drains again, so the backlog never outgrows the
-    // connection's outbound queue; nothing is sent before this read, so the tap's ok goes first
+    // Nothing is sent before this read finishes, so the tap's ok reaches the client first.
     const pending = await source.readPendingMessages(owner);
 
     for (const record of pending) {
@@ -51,7 +50,6 @@ export async function drainInbox(sessionID: SessionID, source: InboxSource): Pro
   } catch {}
 }
 
-// the event goes to the tap connection alone: never other clients, the events socket, or hooks
 function sendInboxMessage(
   sessionID: SessionID,
   record: MessageRecord,
@@ -83,9 +81,6 @@ function sendInboxMessage(
   return true;
 }
 
-// Hands one queued answer notice to the tap the drain was made for, once,
-// and reports whether it did. Like a message, the event goes to the tap
-// connection alone.
 function sendInboxNotice(
   sessionID: SessionID,
   record: MessageRecord,

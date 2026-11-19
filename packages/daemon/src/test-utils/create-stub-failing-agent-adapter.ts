@@ -8,24 +8,17 @@ interface Plan {
   readonly args: readonly string[];
 }
 
-// A named pipe the first spawn's process writes its pid to once it is ready
-// to be killed, and how long the first failing read waits for that pid.
 interface ReadyPipe {
   readonly path: string;
   readonly timeoutMs: number;
 }
 
 interface FailingAgentAdapterConfig {
-  // What the first spawn runs, and what every later spawn runs.
   readonly firstPlan: Plan;
   readonly laterPlan: Plan;
 
-  // How many reads of the headless runner throw once the first spawn is
-  // planned: one fails the start after its process started, and a second
-  // fails the kill that takes the process back.
   readonly failedReads: number;
 
-  // The pipe the first failing read waits on. Null fails at once.
   readonly ready: ReadyPipe | null;
 }
 
@@ -88,9 +81,9 @@ async function createPipe(path: string): Promise<void> {
 
 const PIPE_POLL_MS = 5;
 
-// The adapter reads the pid inside a synchronous getter, so the read polls
-// without blocking. A read finds the pipe at its end before a writer opens it
-// too, so the pid is whole only once bytes came and a later read finds the end.
+// The caller is a synchronous getter, so the read polls with sleeps instead of blocking.
+// A nonblocking read of a FIFO returns end-of-file before any writer has opened it, so the pid
+// is complete only after bytes arrived and a later read returns end-of-file.
 function readPID(ready: ReadyPipe): number {
   const fd = openSync(ready.path, constants.O_RDONLY | constants.O_NONBLOCK);
   const deadline = performance.now() + ready.timeoutMs;
@@ -119,7 +112,6 @@ function readPID(ready: ReadyPipe): number {
   throw new Error(`no process wrote ${ready.path} within ${String(ready.timeoutMs)}ms`);
 }
 
-// Null when a writer holds the pipe open with nothing written yet.
 function tryReadPipe(fd: number, chunk: Buffer): number | null {
   try {
     return readSync(fd, chunk);

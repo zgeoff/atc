@@ -2,9 +2,6 @@ import { buildConnectionRequests } from '../transport/build-connection-requests'
 import type { ProcedureContext } from '../transport/procedure-context';
 import { buildStubDaemonContext } from './build-stub-daemon-context';
 
-// A procedure's context for the daemon's owner on the local socket. The
-// connection's handlers run on the given daemon context unless the
-// overrides give handlers of their own.
 export function buildMockProcedureContext(
   overrides: Partial<ProcedureContext> = {},
 ): ProcedureContext {

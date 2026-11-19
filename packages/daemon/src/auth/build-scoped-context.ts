@@ -11,26 +11,20 @@ import { CONTEXT_MEMBER_SCOPES } from './context-member-scopes';
 
 type ContextMemberScopes = typeof CONTEXT_MEMBER_SCOPES;
 
-// The members the principal's context replaces.
 type NarrowedMember = {
   [K in keyof ContextMemberScopes]: ContextMemberScopes[K] extends 'narrowed' ? K : never;
 }[keyof ContextMemberScopes];
 
-// a session outside the access answers as an unknown session does, so a
-// refusal never shows the principal that it exists; a spawn may use only a
-// target the access holds, a held key's replayed answer included
 export function buildScopedContext(
   ctx: DaemonContext,
   access: TargetAccess,
   keyNamespace: string,
 ): DaemonContext {
-  // A keyed request's key, held in this namespace alone.
   const buildPrincipalKey = (keyed: KeyedRequest | null): KeyedRequest | null =>
     keyed === null ? null : { ...keyed, principal: keyNamespace };
 
   const canSee = (id: SessionID): boolean => ctx.canSeeSession(id, access);
 
-  // A request's own access narrowed to this one.
   const mergeAccess = (outer: TargetAccess | null): TargetAccess =>
     outer === null ? access : outer.merge(access);
 
@@ -40,8 +34,6 @@ export function buildScopedContext(
     return targetIdentity !== null && access.canUse({ target, targetIdentity });
   };
 
-  // The target a session is bound to: the live session's, else its fleet
-  // row's, else null for a session the daemon holds nowhere.
   const readGrant = async (id: SessionID): Promise<TargetGrant | null> => {
     const live = ctx.findSessionGrant(id);
 
@@ -60,8 +52,6 @@ export function buildScopedContext(
     return buildGrantFromFleetEntry(entry);
   };
 
-  // Throws the refusal a fresh spawn to the session's target gets when a
-  // held key's refusal carries a session out of reach.
   const requireSessionInReach = async (id: SessionID): Promise<void> => {
     const grant = await readGrant(id);
 
@@ -83,8 +73,6 @@ export function buildScopedContext(
       return {
         ...list,
 
-        // An agent can spawn only on the targets the principal may use, so
-        // its spawn flags follow those targets alone.
         agents: list.agents.map((agent) => {
           const listedTargets = agent.spawnTargets;
           const usableTargets = listedTargets.filter((target) => canUseTarget(target));
@@ -151,12 +139,9 @@ export function buildScopedContext(
       return target;
     },
     spawnSession: async (plan, keyed) => {
-      // A held key's replay is checked against the target its session was
-      // bound to, inside the spawn, before its answer leaves the daemon.
       try {
         return await ctx.spawnSession(plan, buildPrincipalKey(keyed), access);
       } catch (error) {
-        // A held key's refusal may carry the session its spawn made.
         if (error instanceof DaemonError && typeof error.data?.['effectRef'] === 'string') {
           await requireSessionInReach(toSessionID(error.data['effectRef']));
         }
@@ -170,8 +155,6 @@ export function buildScopedContext(
     killSession: (id, stopOnly) =>
       canSee(id) ? ctx.killSession(id, stopOnly) : Promise.resolve('missing' as const),
 
-    // A session out of reach answers before any confirm token is handed
-    // out or taken, so its host is never touched.
     forgetSession: (id, confirmToken, refuse, caller) =>
       canSee(id)
         ? ctx.forgetSession(id, confirmToken, refuse, caller)
@@ -254,8 +237,6 @@ export function buildScopedContext(
           })
         : Promise.resolve('missing' as const),
     readMessage: async (messageID, waitMs) => {
-      // The owner is checked before any wait, so a message outside the
-      // access answers at once, as an unknown message does.
       const view = await ctx.readMessage(messageID, 0);
 
       // Only the session the message was sent to owns it here, never one
@@ -291,7 +272,6 @@ export function buildScopedContext(
   return { ...pick(ctx, shared), ...narrowed };
 }
 
-// Throws the refusal of a spawn to a target the access leaves out.
 function requireTarget(canUseTarget: (target: string) => boolean, target: string): void {
   if (!canUseTarget(target)) {
     throw buildTargetForbiddenError(target);
@@ -300,8 +280,6 @@ function requireTarget(canUseTarget: (target: string) => boolean, target: string
 
 type SharedMember = Exclude<keyof DaemonContext, NarrowedMember>;
 
-// Whether the key is a member of the daemon's context that the principal's
-// context keeps as it is, as the scope table holds a key for each member.
 function isSharedMember(member: string): member is SharedMember {
   return isContextMember(member) && CONTEXT_MEMBER_SCOPES[member] !== 'narrowed';
 }

@@ -22,40 +22,21 @@ interface RestoreFleetParams {
   readonly cols: number;
   readonly rows: number;
 
-  // Caps how long a staggered restore waits for a revived session to report
-  // it has booted before moving on regardless; zero waits on the signal
-  // alone.
   readonly capMs: number;
 
-  // Whether the daemon has begun to stop; never when unset. A restore
-  // checks it before each terminal it starts and after each one it has
-  // started, and starts no more once it holds.
   readonly isStopped?: () => boolean;
 
-  // The waits before each further try at the sessions whose host refused
-  // for now; three waits of 5, 15, and 45 seconds when unset, and none
-  // tries no session twice.
   readonly retryDelaysMs?: readonly number[];
 
-  // The clock behind the per-session cap and the retry delays; the wall
-  // clock when unset.
   readonly clock?: Clock;
 }
 
 const RESTORE_RETRY_DELAYS_MS: readonly number[] = [5000, 15_000, 45_000];
 const RESTORE_LANES: readonly RestoreLane[] = ['local', 'remote'];
-
-// The longest single timer a retry delay waits on, so a stop ends the wait
-// soon after.
 const RETRY_SLICE_MS = 1000;
 
-// How the staggered terminal adoption behind a restore ended: every queued
-// session was tried, the daemon began to stop first, or a revive threw.
 type RestoreOutcome = 'finished' | 'stopped' | 'failed';
 
-// How one round of terminal adoption ended: the daemon began to stop, or
-// every session was tried, with the session it started last, still to boot,
-// and the sessions whose host refused them for now.
 type RoundEnd =
   | { readonly stopped: true }
   | {
@@ -64,8 +45,6 @@ type RoundEnd =
       readonly retrying: readonly Session[];
     };
 
-// A started terminal's boot: released ends the lane's wait, and recorded ends
-// once the start is in the record or no start can come.
 interface BootWatch {
   readonly released: Promise<void>;
   readonly recorded: Promise<void>;
@@ -78,29 +57,19 @@ const SETTLED_BOOT: BootWatch = {
   stop: () => {},
 };
 
-// How one try at a queued session ended: its terminal started, it got none,
-// or its host refused it for now and it waits for another try.
 type QueuedTry = 'started' | 'skipped' | 'retrying';
 
-// How many sessions a restore registered, and how its staggered terminal
-// adoption ended.
 export interface RestoreSettled {
   readonly restored: number;
   readonly outcome: RestoreOutcome;
 }
 
 interface RestoreFleetResult {
-  // How many sessions the restore registered.
   readonly restored: number;
 
-  // Resolves with how the staggered terminal adoption behind the restore
-  // ended, at once when nothing was queued.
   readonly settled: Promise<RestoreOutcome>;
 }
 
-// The refusals a host can lift by itself, such as a remote machine that cannot take
-// a lease or run a command yet, or a broker that is still starting; the
-// restore tries these sessions again.
 const RETRIED_ADOPT_CODES: ReadonlySet<string> = new Set(['host_unavailable', 'broker_not_ready']);
 
 interface RecordRefusalOptions {
@@ -122,9 +91,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const isStopped = () => params.isStopped?.() === true;
   const beganAtMs = clock.now();
 
-  // a session an earlier restore could not start a terminal for is not live until a
-  // headless turn starts for it; a live session that resumed the entry's agent session
-  // on another target leaves the entry to restore, as the fleet keeps a row per target
   const hasLiveSession = (entry: FleetEntry) =>
     manager.sessions.some(
       (session) =>
@@ -145,24 +111,15 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
   const recency = await store.readFleetRecency();
   const stored = await store.loadFleet();
 
-  // the most recently active sessions revive first, and entries that never reported an
-  // event keep their stored order at the end; exited entries dedupe against every
-  // listed session, so repeated restores never double up the killed archive
   const kept = stored
     .filter((entry) => (entry.exited === true ? !hasAnySession(entry) : !hasLiveSession(entry)))
     .toSorted((left, right) => findRecency(right).localeCompare(findRecency(left)));
 
-  // Sub-sessions register after every top-level entry, so each one links
-  // to a parent that is already listed; the wrangling session also boots
-  // before the sessions it wrangles.
   const entries = [
     ...kept.filter((entry) => entry.parent === undefined),
     ...kept.filter((entry) => entry.parent !== undefined),
   ];
 
-  // the whole fleet registers terminal-less up front, so the list shows every incoming
-  // session at once; a row that cannot register is skipped, so one bad row never keeps
-  // the rest of the fleet down
   const registered: { session: Session; revive: boolean }[] = [];
 
   for (const entry of entries) {
@@ -185,7 +142,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
         manager.updateRestoredIdentity(listed, resolved.targetIdentity);
       }
 
-      // a session still listed, though dead, revives in place rather than listing twice
       if (listed === undefined) {
         const attention = await store.readLatestAttention(
           resolved.sessionID,
@@ -203,27 +159,20 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     }
   }
 
-  // The hosts that hold sleeping sessions answer in the background, so a slow host never delays
-  // the restore.
   void manager.readHarnessFates();
 
-  // exited entries only register: they stay killed until revived by hand
   const queued = registered
     .filter((row) => row.revive || row.session.state !== 'exited')
     .map((row) => row.session);
 
-  // A headless turn removes the unrestored mark from its session, so a
-  // queued session that loses the mark without a terminal runs a turn that
-  // began during this restore, and the restore starts no terminal beside it.
+  // A headless turn clears a session's unrestored mark. A marked session that lost the mark
+  // without a terminal is running a turn, so the restore starts no terminal beside it.
   const markedAtQueue = new Set(queued.filter((session) => manager.isUnrestored(session.id)));
 
   const hasHeadlessTurnStarted = (session: Session) =>
     markedAtQueue.has(session) && session.pty === null && !manager.isUnrestored(session.id);
 
   const attached = new Set<SessionID>();
-
-  // The start each terminal's agent reported first, recorded once, so a
-  // later restart of the session never moves the report.
   const startTimes = new Map<SessionID, number>();
   const boots = new Map<SessionID, BootWatch>();
 
@@ -245,8 +194,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     }
   };
 
-  // The cap releases the lane but leaves the watch listening, so a start that
-  // comes later still reaches the record.
   const watchBoot = (session: Session): BootWatch => {
     const runtime = findRuntime(session.id);
     const harness = session.pty;
@@ -275,7 +222,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
       released.resolve();
     };
 
-    // The agent's start and the runtime's dispose both call the waiter.
     const waiter = () => {
       if (runtime.startedAt !== null) {
         startTimes.set(session.id, runtime.startedAt);
@@ -285,8 +231,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     };
 
     runtime.bootWaiter = waiter;
-
-    // an agent the host still ran, or a harness that never starts, reports no start
     void watchHarnessStart(session.id, harness, stop);
 
     return { released: released.promise, recorded: recorded.promise, stop };
@@ -303,32 +247,19 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return { restored: registered.length, settled: Promise.resolve('finished') };
   }
 
-  // A sub-session boots in the lane of the top-level session above it, so a
-  // wrangling session still boots before the sessions it wrangles.
   const pickLane = (session: Session): RestoreLane =>
     manager.findProvider(getTopLevelSession(session, manager.sessions))?.remote === true
       ? 'remote'
       : 'local';
 
-  // The local and remote lanes boot side by side, so a remote host's wake
-  // never holds up a session on this machine, and each lane still boots one
-  // session at a time.
   const lanes = Map.groupBy(queued, pickLane);
 
   const started = new Set<Session>();
 
-  // a failed or refused revive lists its reason without a terminal and the restore moves
-  // on, so one host's failure never keeps other hosts' sessions down; a refusal the host
-  // can lift by itself queues the session for another try after the next retry delay
   let failed = false;
 
-  // The reason each session lists after its last refused try, so a retry
-  // skips a session that something else has changed since.
   const refusals = new Map<Session, string>();
 
-  // a session a caller stopped, revived, or forgot while the try ran keeps what the
-  // caller left and gets no further try; a refusal no later try lifts lists with its
-  // code, so a reader knows only an action of its own brings the session back
   const recordRefusal = (session: Session, options: RecordRefusalOptions): QueuedTry => {
     const listed = options.unchanged && session.pty === null && manager.sessions.includes(session);
     const retried = options.retry && listed;
@@ -394,13 +325,8 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return 'started';
   };
 
-  // The restore answers once the first queued session's try ends, so a
-  // caller can attach to it at once.
   const firstTried = Promise.withResolvers<void>();
 
-  // a daemon that stopped before a terminal started, while one started, or while the
-  // previous session booted starts no more; a round returns the session it started
-  // last, so the next round waits for it to boot before starting another
   const adoptEach = async (
     sessions: readonly Session[],
     previous: Session | null,
@@ -411,8 +337,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     const retrying: Session[] = [];
 
     for (const session of sessions) {
-      // a heavy fleet comes up one process at a time; the per-session cap keeps a
-      // session that never reports its boot from stalling the rest
       if (lastStarted !== null) {
         await waitForBoot(lastStarted.id);
       }
@@ -444,8 +368,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return { stopped: false, last: lastStarted, retrying };
   };
 
-  // Waits out a retry delay a slice at a time, so a daemon that stops
-  // meanwhile ends the wait within a slice; false once it has stopped.
   const waitForRetry = async (delayMs: number): Promise<boolean> => {
     const due = clock.now() + delayMs;
 
@@ -458,16 +380,11 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return !isStopped();
   };
 
-  // a retry round tries only sessions still listed under their last refusal, checked
-  // before each try and while the host readies, so one a caller revived, killed, or
-  // forgot meanwhile is left as it is
   const isStillRefused = (session: Session) =>
     session.pty === null &&
     manager.sessions.includes(session) &&
     session.lastMsg === refusals.get(session);
 
-  // A lane retries its own refused sessions, so a refusal in one lane never
-  // delays the other.
   const adoptLane = async (sessions: readonly Session[]): Promise<RestoreOutcome> => {
     let ended = await adoptEach(sessions, null, retryDelaysMs.length > 0, () => true);
 
@@ -531,8 +448,6 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
     return outcome;
   };
 
-  // The watches still listening get one more cap, side by side, so a start or
-  // an attach that came after its lane moved on still counts.
   const writeReportOnceBooted = async (): Promise<void> => {
     const cap = Promise.withResolvers<void>();
     const cancelCap = capMs > 0 ? clock.schedule(cap.resolve, capMs) : null;

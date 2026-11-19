@@ -8,8 +8,6 @@ import type { SessionRegistry } from './create-session-registry';
 import type { SessionCallbacks } from './session-callbacks';
 import { waitForKilledExit } from './wait-for-killed-exit';
 
-// How long a failed spawn's rollback waits for the killed process to exit
-// unless the manager is given another wait.
 const FAILED_SPAWN_EXIT_WAIT_MS = 2000;
 
 interface SpawnRollbackDeps {
@@ -40,14 +38,8 @@ interface RemoveSpawnWorkspaceOptions {
 }
 
 export interface SpawnRollback {
-  // How long a failed spawn's rollback waits for the killed process to
-  // exit, in milliseconds, once after its kill and once more after a forced
-  // kill.
   failedSpawnExitWaitMs: number;
 
-  // Failed spawns whose rollback is running, and those whose killed process
-  // it could not confirm gone, each with the harness it ran in, so no revive
-  // starts a second harness while the first may still run.
   readonly rollingBack: Set<SessionID>;
 
   readonly unconfirmedKills: Map<SessionID, HarnessHandle>;
@@ -59,16 +51,10 @@ export interface SpawnRollback {
     attemptID: string | null,
   ) => Promise<void>;
 
-  // Takes back the trust a failed spawn accepted in the user's own agent
-  // config. A take-back that fails is logged and leaves the entry, so the
-  // spawn's own failure is the one it reports.
   readonly removeLocalTrust: (remove: (() => Promise<void>) | null, id: SessionID) => Promise<void>;
 
   readonly shouldTakeHost: (options: ShouldTakeHostOptions) => boolean;
 
-  // Whether a failed spawn's host is destroyed, with the workspace on it: a
-  // host of the spawn's own that its provider can destroy, while no other
-  // session or launch uses it.
   readonly shouldDestroyHost: (
     provider: ExecutionProvider,
     id: SessionID,
@@ -135,8 +121,6 @@ export function createSpawnRollback(deps: SpawnRollbackDeps): SpawnRollback {
 
     const errorOptions = failure === null ? undefined : { cause: failure.cause };
 
-    // the directory stays reserved, so no other workspace lands in or
-    // around it
     callbacks.log(
       `atc: left ${options.root} on target '${options.target}' after the spawn of session ${options.id} failed to start, since ${reason}; remove it by hand`,
     );
@@ -147,8 +131,6 @@ export function createSpawnRollback(deps: SpawnRollbackDeps): SpawnRollback {
     );
   };
 
-  // Takes back what a spawn attempt bound when the spawn fails before its
-  // session lists; a take-back that cannot be confirmed throws.
   const tryRemoveAuthAttempt = async (
     provider: ExecutionProvider,
     hostKey: SessionID,
@@ -165,8 +147,6 @@ export function createSpawnRollback(deps: SpawnRollbackDeps): SpawnRollback {
   };
 
   const killHarness = async (id: SessionID, pty: HarnessHandle): Promise<boolean> => {
-    // stays recorded as possibly running, blocking revives, until a check
-    // finds the process gone
     unconfirmedKills.set(id, pty);
     pty.kill();
 
@@ -256,26 +236,18 @@ export function createSpawnRollback(deps: SpawnRollbackDeps): SpawnRollback {
       const pty = session.pty;
 
       harnesses.startingSpawns.delete(id);
-
-      // the session counts as rolling back until the spawn's caller ends the
-      // rollback
       rollingBack.add(id);
 
-      // an unconfirmed exit keeps the session listed, so the spawn's caller
-      // can still find it
       if (pty !== null && !(await killHarness(id, pty))) {
         throw new Error(`session ${id} did not exit after its kill`);
       }
 
-      // A harness other than the killed one would outlive the rollback.
       if (session.pty !== null && session.pty !== pty) {
         throw new Error(`session ${id} started another harness while its spawn rolled back`);
       }
 
       session.pty = null;
 
-      // the directory stays held once the session leaves the list, so no
-      // other workspace lands in or around it before it goes
       if (root !== null && session.hostKey !== id) {
         claims.reservations.set(id, {
           hostKey: session.hostKey,

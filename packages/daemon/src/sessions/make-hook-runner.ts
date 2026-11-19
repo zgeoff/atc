@@ -18,14 +18,11 @@ export interface HookOutcome {
 }
 
 interface HookRunnerOptions {
-  // once per call, after every hook it started has ended; a call that starts none settles at once
   readonly onSettled?: (event: EventMsg, outcomes: readonly HookOutcome[]) => void;
 
   readonly clock?: Clock;
 }
 
-// hooks are fire-and-forget: the daemon never waits on one, and a nonzero exit or spawn failure
-// is only logged to stderr
 export function makeHookRunner(hooks: HooksConfig, options: HookRunnerOptions = {}): RunHooks {
   const onSettled = options.onSettled ?? (() => {});
   const clock = options.clock ?? systemClock;
@@ -53,14 +50,12 @@ function isInScope(directory: string, scope: HookScope | null): boolean {
   return isUnderDir(scope.repoRoot, directory) || isUnderDir(scope.cwd, directory);
 }
 
-// Path-segment containment: /a/b contains /a/b and /a/b/c, never /a/bc.
 function isUnderDir(candidate: string, directory: string): boolean {
   const prefix = directory === '/' ? '/' : `${directory}/`;
 
   return candidate === directory || candidate.startsWith(prefix);
 }
 
-// Starts every hook at once and reports their outcomes once all have ended.
 async function runHooks(
   entries: readonly HookEntry[],
   event: EventMsg,
@@ -107,7 +102,6 @@ async function runHook(entry: HookEntry, event: EventMsg, clock: Clock): Promise
       signalCode: subprocess.signalCode,
     };
   } finally {
-    // disarmed on exit, so the armed kill never holds the process open past the hook
     disarm();
   }
 }

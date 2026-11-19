@@ -4,8 +4,6 @@ import { match } from 'ts-pattern';
 import { z } from 'zod';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 
-// `foreign` is a folder that is not the top of a git checkout holding the workspace's commit, or
-// a symlink where atc built a folder.
 export type WorkspaceCheck =
   | { readonly kind: 'checked'; readonly path: string; readonly findings: readonly string[] }
   | { readonly kind: 'unchecked'; readonly reason: string }
@@ -15,20 +13,16 @@ export type WorkspaceCheck =
 interface WorkspaceCheckRequest {
   readonly provider: Pick<ExecutionProvider, 'runCommand'>;
 
-  // The host the workspace lies on; the daemon's own machine takes none.
   readonly host: string | null;
   readonly directory: string;
 
-  // The commit the workspace was checked out at.
   readonly sha: string;
 }
 
-// Exit statuses of the script for each outcome other than a full answer.
 const MISSING_EXIT = 80;
 const FOREIGN_EXIT = 81;
 const GIT_FAILED_EXIT = 82;
 
-// How many lines a field prints: exactly one, at most one, or one per local ref with its name.
 type FieldLines = 'one' | 'optional' | 'per-ref';
 
 interface CountNouns {
@@ -37,8 +31,6 @@ interface CountNouns {
 }
 
 interface CheckField {
-  // The shell that prints the field's lines, each `<label> <count>` or `<label> <count> <ref>`,
-  // given the label; it exits with the git failure status when git fails.
   readonly print: (label: string) => string;
   readonly lines: FieldLines;
   readonly describe: (ref: string | null) => CountNouns;
@@ -56,9 +48,9 @@ const FIELD_NAMES = [
   'detached',
 ] as const;
 
-// git status skips what a submodule's ignore setting or an assume-unchanged or skip-worktree flag
-// hides, so the script overrides the one and counts the other; a linked worktree or a submodule
-// counts as work, since no check sees inside one
+// git status omits paths hidden by a submodule ignore setting or an assume-unchanged or
+// skip-worktree flag. No git check sees inside a linked worktree or a submodule, so each counts
+// as work.
 const CHECK_FIELDS: Readonly<Record<(typeof FIELD_NAMES)[number], CheckField>> = {
   changes: buildCountField(
     buildLineCount('status --porcelain --untracked-files=all --ignore-submodules=none', '^'),
@@ -107,8 +99,9 @@ fi`,
   },
 };
 
-// git status starts an fsmonitor that the repository's own config names, so the script turns it
-// off; atc never builds a workspace as a symlink, so one there leads to a folder that is not atc's
+// git status would start an fsmonitor command named in the repository's own config, so the
+// script turns it off. atc never makes a workspace a symlink, so a symlink here leads to a
+// folder that is not atc's.
 export const WORKSPACE_CHECK_SCRIPT = `dir=$1 sha=$2
 if [ -L "$dir" ]; then exit ${FOREIGN_EXIT}; fi
 if [ ! -e "$dir" ]; then exit ${MISSING_EXIT}; fi
@@ -168,8 +161,8 @@ function buildLineCount(gitArgs: string, pattern: string): string {
   return `out=$(g ${gitArgs}) || exit ${GIT_FAILED_EXIT}; printf '%s' "$out" | grep -c -- '${pattern}' || true`;
 }
 
-// Prints, for each ref under the prefix, the commits it reaches that no remote-tracking ref holds.
-// rev-list counts no commit behind a ref to a tree or a blob, so such a ref fails the check.
+// git rev-list counts no commits for a ref that points at a tree or a blob, so such a ref would
+// look clean.
 function buildRefField(prefix: string, describe: (ref: string) => CountNouns): CheckField {
   return {
     print: (

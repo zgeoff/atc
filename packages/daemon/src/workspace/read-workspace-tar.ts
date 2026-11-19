@@ -7,8 +7,6 @@ interface WorkspaceTar {
   readonly done: Promise<TarOutcome>;
 }
 
-// a failure partway through still ends the stream, so a consumer drains it and then awaits
-// the outcome before trusting what it received
 export function readWorkspaceTar(directory: string): WorkspaceTar {
   // a host's TAR_OPTIONS could follow symlinks out of the directory or leave files out
   const { TAR_OPTIONS: _ignored, ...env } = process.env;

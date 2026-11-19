@@ -19,93 +19,61 @@ export interface StubMemoryHarness extends HarnessHandle {
   readonly written: string[];
   readonly sizes: (readonly [cols: number, rows: number])[];
 
-  // The exit the harness reported, or null while it runs.
   readonly readExit: () => HarnessExit | null;
 
-  // Whether the daemon let go of the harness without ending it.
   readonly isDetached: () => boolean;
   readonly emitData: (data: string) => void;
 
-  // Calls the listener with each write the daemon makes, after recording it.
   readonly onInput: (listener: (data: string) => void) => ReturnType<HarnessHandle['onData']>;
 
-  // Ends the harness with the exit given; a harness that already ended, or
-  // that the daemon let go of, records nothing more.
   readonly emitExit: (exit: HarnessExit) => void;
 
-  // Keeps the harness running through each later kill and forced kill, as a process that exits
-  // only when the test ends it.
   readonly holdExit: () => void;
 
-  // Whether a wait for the harness's exit is pending.
   readonly hasExitWaiters: () => boolean;
 }
 
 interface StubMemoryProviderConfig {
-  // The provider kind the stand-in reports; `memory` when absent.
   readonly kind?: string;
 
-  // Capabilities that differ from the defaults, which are a local
-  // pseudo-terminal's: everything but suspend and destroy.
   readonly capabilities?: Partial<ExecutionCapabilities>;
 
-  // Whether the daemon treats the host as another machine; false when absent.
   readonly remote?: boolean;
 
-  // the layout the host reports; a stored-token mount is absent unless given
   readonly guest?: Omit<GuestLayout, 'signIn'> & { readonly signIn?: string | null };
   readonly credentials?: HostCredentials;
   readonly cloneOnTarget?: boolean;
   readonly hostGitIdentity?: boolean;
   readonly guestWorkspaceTrust?: boolean;
 
-  // Called with each harness spec before the harness starts; a throw from it
-  // aborts the spawn, and no harness is recorded.
   readonly onSpawn?: (spec: HarnessSpec) => void;
 
-  // Runs a stand-in program on each harness once the harness is recorded, such
-  // as an agent CLI that draws output and answers input.
   readonly onStart?: (harness: StubMemoryHarness) => void;
 
-  // What each harness reports once it starts; absent, a harness starts at once and reports
-  // nothing.
   readonly harnessStart?: HarnessStart;
 
-  // What each harness's start rejects with, as a host that ends the harness
-  // before it starts; absent, the start follows the reported start.
   readonly harnessStartRefusal?: Error;
 
-  // Answers each read of the harness fates; absent, the provider reads none.
   readonly readHarnessFates?: ExecutionProvider['readHarnessFates'];
 
-  // Answers each command; absent, every command exits 0 and prints nothing.
   readonly runCommand?: (spec: CommandSpec) => Promise<CommandResult>;
 
-  // Unpacks each archive after the stand-in records it; absent, each
-  // transfer resolves with nothing unpacked.
   readonly transferArchive?: ExecutionProvider['transferArchive'];
 
-  // Host operations of the test's own, run after the stand-in records the
-  // call; absent, each resolves.
   readonly prepareHost?: ExecutionProvider['prepareHost'];
   readonly suspendHost?: ExecutionProvider['suspendHost'];
   readonly destroyHost?: ExecutionProvider['destroyHost'];
 
-  // The clock behind each harness's wait for its exit; the wall clock when
-  // absent.
   readonly clock?: Clock;
 }
 
 export interface StubMemoryProvider extends ExecutionProvider {
-  // Every harness started, in order.
   readonly harnesses: StubMemoryHarness[];
 
-  // Every host readied, put to sleep, or destroyed, in order.
   readonly prepared: HostRequest[];
   readonly suspended: string[];
   readonly destroyed: string[];
 
-  // Every archive unpacked and every command run, in order.
   readonly transfers: {
     readonly archive: Uint8Array;
     readonly directory: string;
@@ -113,13 +81,10 @@ export interface StubMemoryProvider extends ExecutionProvider {
   }[];
   readonly commands: CommandSpec[];
 
-  // Keeps each later command pending, recorded but not yet run, until the test finishes the
-  // commands, as a host that answers slowly.
   readonly holdCommands: () => void;
   readonly finishCommands: () => void;
   readonly hasHeldCommands: () => boolean;
 
-  // How many times the daemon disposed of the provider.
   readonly countDisposals: () => number;
 }
 
@@ -240,8 +205,6 @@ function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarn
   let detached = false;
   let exitHeld = false;
 
-  // Settles every pending exit wait: true on an exit, false once the
-  // harness stops being followed without one.
   const emitWaitOutcome = (exited: boolean): void => {
     for (const waiter of exitWaiters) {
       waiter(exited);

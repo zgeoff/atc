@@ -3,9 +3,6 @@ import type { ExecutionProvider } from '@atc/plugin-api';
 import type { SessionID } from '@atcx/contract';
 import { resolveHostDir } from './resolve-host-dir';
 
-// The directory of every session listed on a host, and of every plain
-// spawn still starting there, as the host resolves it, and its own
-// absolute form, and the entries that failed to resolve.
 export async function resolveListedDirs(
   provider: ExecutionProvider,
   hostKey: SessionID,

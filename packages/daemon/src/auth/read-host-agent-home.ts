@@ -6,8 +6,8 @@ import type { SessionID } from '@atcx/contract';
 export const RESOLVE_AGENT_HOME_SCRIPT = `home=$(printenv "$1") && [ -n "$home" ] && { printf '%s\\n' "$home"; exit 0; }
 cd && printf '%s/%s\\n' "$(pwd -P)" "$2"`;
 
-// The launch env wins over the host's own, because the harness starts with the launch env on
-// top of what it inherits there.
+// The harness starts the agent with the launch env layered over the host's inherited env, so
+// the agent sees the launch value.
 export async function readHostAgentHome(
   provider: Pick<ExecutionProvider, 'runCommand'>,
   hostKey: SessionID,

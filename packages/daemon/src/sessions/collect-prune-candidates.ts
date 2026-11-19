@@ -11,36 +11,28 @@ interface MaterializationRow {
   readonly sha: string | null;
 }
 
-// A session the fleet lists, or one a kill or forget still holds, and the folder it runs in.
 export interface ListedSession {
   readonly id: SessionID;
   readonly cwd: string;
 
-  // Whether its target runs on the daemon's machine, where the folder is the one a row names.
   readonly onMachine: boolean;
 }
 
 interface PruneSnapshot<Row extends MaterializationRow> {
-  // Every materialization row, oldest first.
   readonly rows: readonly Row[];
 
-  // The targets whose hosts are permanent, which a prune covers.
   readonly permanentTargets: ReadonlySet<string>;
   readonly listed: readonly ListedSession[];
   readonly spawning: ReadonlySet<SessionID>;
 
-  // The folders directly under the workspaces root of each permanent target.
   readonly rootFolders: readonly string[];
 
-  // The names of the folders under the state folder's `sessions/`.
   readonly stateFolders: readonly string[];
 }
 
 interface PruneCandidates<Row extends MaterializationRow> {
-  // The newest ready row of each folder no listed session or spawn owns, to check.
   readonly workspaces: readonly Row[];
 
-  // The folders under a workspaces root that a prune leaves, each with why.
   readonly skipped: readonly { readonly path: string; readonly reason: string }[];
 
   readonly states: readonly SessionID[];
@@ -62,8 +54,6 @@ export function collectPruneCandidates<Row extends MaterializationRow>(
     (row) => toFolderKey(row.directory),
   );
 
-  // a folder stays whole while any row's session still lists or spawns, or any listed session
-  // runs inside it, whichever row is newest
   const workspaces = [...rowsByDir].flatMap(([directory, rows]) => {
     const ready = rows.findLast((row) => row.phase === 'ready');
 

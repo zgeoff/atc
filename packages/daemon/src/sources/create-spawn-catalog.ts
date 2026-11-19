@@ -17,21 +17,14 @@ import { requireGitTransports } from '../workspace/require-git-transports';
 type AgentList = ReturnType<DaemonContext['collectAgents']>;
 
 export interface SpawnCatalog {
-  // An agent counts as installed when its binary is on the daemon's PATH,
-  // which only a target whose provider runs the agent here needs. A target
-  // without a provider starts nothing.
   readonly collectAgents: () => AgentList;
 
-  // Each directory once, under an access only those spawned on targets it
-  // may use.
   readonly readSpawnDirs: (access: TargetAccess | null) => Promise<string[]>;
 
   readonly findSource: (id: string) => SourceProvider | null;
 
   readonly collectAlternateGitURLs: (url: string) => readonly string[];
 
-  // Throws the refusal of every git operation when the config holds an
-  // invalid transport list.
   readonly checkRepositoryAccess: (
     request: Omit<Parameters<typeof checkRepositoryAccess>[0], 'transports'>,
   ) => ReturnType<typeof checkRepositoryAccess>;
@@ -41,16 +34,13 @@ interface SpawnCatalogDeps {
   readonly manager: Pick<SessionManager, 'collectAdapters'>;
   readonly store: Pick<StateStore, 'readSpawnDirs'>;
 
-  // The build string the daemon answers its handshake with.
   readonly build: string;
   readonly targets: readonly ExecutionTarget[];
   readonly defaultTarget: string | null;
   readonly targetErrors: readonly TargetConfigError[];
 
-  // The agent a spawn without one runs; `claude` when absent.
   readonly defaultAgent?: AgentID;
 
-  // The sources the spawn picker offers, in order.
   readonly sources: readonly SourceProvider[];
   readonly gitTransports: readonly string[] | InvalidGitTransports;
 }
@@ -65,8 +55,6 @@ export function createSpawnCatalog(deps: SpawnCatalogDeps): SpawnCatalog {
   const defaultAgent = deps.defaultAgent ?? 'claude';
   const sources = deps.sources;
   const gitTransports = deps.gitTransports;
-
-  // A digest of the target config, which changes with any target or error.
   const configRevision = buildConfigRevision(deps.targets, deps.defaultTarget, deps.targetErrors);
 
   return {

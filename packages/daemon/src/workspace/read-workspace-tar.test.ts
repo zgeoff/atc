@@ -5,7 +5,6 @@ import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { $ } from 'bun';
 import { readWorkspaceTar } from './read-workspace-tar';
 
-// A work clone holding one commit, for the archive to stream.
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-tar-' });
 

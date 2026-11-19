@@ -4,10 +4,8 @@ import { buildTargetIdentity } from '@atc/store';
 import type { DaemonOptions } from '../types';
 
 interface RawTargetConfig {
-  // The raw `targets` key of a config file.
   readonly targets?: unknown;
 
-  // The raw `defaultTarget` key of a config file.
   readonly defaultTarget?: unknown;
 }
 

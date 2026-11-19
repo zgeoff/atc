@@ -12,31 +12,17 @@ import type { SessionFleetWriter } from './create-session-fleet-writer';
 import { isUnconfirmedBinding } from './is-unconfirmed-binding';
 import { resolveRestoredTargetIdentity } from './resolve-restored-target-identity';
 
-// a restored session lists without a terminal, so the fleet lists before any harness starts
 export interface SessionRestorer {
-  // Checks the configured target before resolving an unversioned binding
-  // against an existing host. Invalid config never reaches the provider.
   readonly resolveRestoredEntry: (entry: FleetEntry) => Promise<FleetEntry>;
 
-  // Registers a fleet entry without a terminal, so the fleet lists before
-  // adoption. Exited entries stay exited until revived by hand.
   readonly restore: (entry: FleetEntry, attention: AttentionKind | null) => Session;
 
-  // Whether a restore registered the session and neither a terminal nor a
-  // headless turn has started for it since.
   readonly isUnrestored: (id: SessionID) => boolean;
 
-  // Counts the session as a live headless session from now on, so a later
-  // restore never starts a terminal beside the headless turn it runs.
   readonly removeUnrestoredMark: (id: SessionID) => void;
 
-  // Lists why a restore could not start a session's terminal, in place of
-  // the wait it listed before, with the refusal's code when no later try
-  // lifts it.
   readonly updateRestoreRefusal: (session: Session, reason: string, code: string | null) => void;
 
-  // Publishes a checked binding and clears the refusal from its earlier
-  // restore before a terminal adoption can fail for a different reason.
   readonly updateRestoredIdentity: (session: Session, identity: string) => void;
 }
 
@@ -59,9 +45,8 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
   const fleet = deps.fleet;
   const callbacks = deps.callbacks;
 
-  // An exited row never runs again until revived, and a row on a remote
-  // target holds a path from another machine, so neither resolves a
-  // repository on this one: the directory is its own root.
+  // A remote target's cwd is a path from another machine and cannot resolve to a repo here.
+  // An exited row never runs again, so it needs no repo root either.
   const pickRestoredRepoRoot = (cwd: string, exited: boolean, target: string): string => {
     if (exited || registry.targets.get(target)?.provider?.remote === true) {
       return cwd;
@@ -85,9 +70,6 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
     return formatTargetRefusal(refusal.code, target, isUnconfirmed);
   };
 
-  // The host state a restored session lists with: asleep when the harness
-  // was left inside a sleeping host, unknown for any other remote host until
-  // the daemon reaches it, and none on the daemon's own machine.
   const pickRestoredVM = (target: string, suspended: boolean): SessionLifecycle['vm'] => {
     if (!registry.hasHostLifecycle(target)) {
       return 'none';
@@ -119,19 +101,10 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
       const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
       const targetRefusal = findTargetRefusal(entry);
 
-      // A session whose target this daemon cannot use comes back exited, so
-      // nothing runs it anywhere else: neither a terminal nor a headless turn.
       const exited =
         entry.exited === true || entry.agentSessionID === undefined || targetRefusal !== null;
 
-      // A harness kept inside a host that went to sleep, whether the operator
-      // or the host's own owner put it there, comes back asleep, so a restore
-      // leaves the host asleep until a revive wakes it.
       const suspended = exited && (entry.suspended === true || entry.desired === 'sleep');
-
-      // An entry whose agent is no longer registered still gets its row, so a
-      // backend dropped from the config shows as itself instead of vanishing or
-      // reviving under another agent. Adopting a terminal for it is refused.
       let lastMsg = 'waiting to restore';
 
       if (suspended) {
@@ -235,7 +208,6 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
   };
 }
 
-// A target refusal as a session's last message, short enough for a list row.
 function formatTargetRefusal(code: ErrorCode, target: string, isUnconfirmed: boolean): string {
   if (code === 'target_config_invalid') {
     return `target '${target}' misconfigured`;
@@ -260,9 +232,8 @@ function formatTargetRefusal(code: ErrorCode, target: string, isUnconfirmed: boo
   return `target '${target}' cannot start a terminal`;
 }
 
-// A relaunched agent shows no prompt it showed before the restart, and the screen flags one an
-// attached agent still shows, so a prompt restores as done. A session with no attention event in
-// the trail may be inside a turn, so it lists as running.
+// A relaunched agent does not redraw a prompt shown before the restart, so a prompt restores as
+// done. With no attention event the session may be mid-turn, so it lists as running.
 function pickRestoredState(attention: AttentionKind | null): 'running' | 'done' {
   return match(attention)
     .with('turn-done', 'needs-input', () => 'done' as const)

@@ -3,8 +3,6 @@ import { buildTargetAccessFromGrants } from './build-target-access-from-grants';
 import type { TargetAccess, TargetGrant } from './build-target-access-from-grants';
 import { intersectTargetAccess } from './intersect-target-access';
 
-// An access that may use one target and reaches the sessions canReach
-// admits, wherever each one runs.
 export function buildSessionSetAccess(
   grant: TargetGrant,
   canReach: (id: SessionID) => boolean,

@@ -1,7 +1,7 @@
 import { isRecord } from '@atc/core';
 
-// Whether a line is an oRPC peer message, which carries a string message id;
-// a line-protocol message carries a numeric one under another key.
+// Line-protocol messages share this stream and carry a numeric id under a different key.
+// Only oRPC peer messages put a string id under "i".
 export function isPeerMessage(line: string): boolean {
   let parsed: unknown;
 

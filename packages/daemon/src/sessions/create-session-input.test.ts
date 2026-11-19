@@ -21,7 +21,6 @@ import type { SessionRuntime } from './create-session-runtime';
 import { MENU_TIMING } from './menu-terminal';
 
 interface SetupTestConfig {
-  // The one agent the sessions run.
   readonly adapter: AgentAdapter;
 }
 
