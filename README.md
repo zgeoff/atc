@@ -47,8 +47,8 @@ claude mcp add --scope user atc -- atc mcp
 
 ## Features
 
-- An agent in an atc session can spawn sub-sessions, which list under it and stop with it
-  ([agents that drive agents](./docs/guides/using-atc.md#agents-that-drive-agents)).
+- An agent in an atc session can spawn sub-sessions, which list under the top-level session and stop
+  with it ([agents that drive agents](./docs/guides/using-atc.md#agents-that-drive-agents)).
 - A session can message a Claude Code session on another host and read the answer
   ([messages](./docs/architecture/protocol/messages.md)).
 - `atc events` streams what the sessions do, `config.json` hooks run your commands on each event,
