@@ -4,15 +4,9 @@ import type { BoxExtent } from '../overlay/plan-vacated-rows';
 import { cols } from './cols';
 import { rows } from './rows';
 import { truncate } from './truncate';
+import type { Row } from './types';
 
 const ESC = '\u001B';
-
-// All box rows are built as {styled, plainWidth} pairs so centering and edge
-// alignment never depend on ANSI-stripped length math at draw time.
-export interface Row {
-  readonly styled: string;
-  readonly width: number;
-}
 
 // The extent of the last box drawn, so the next draw can erase the rows a
 // shrinking or shifting box leaves behind. Erasing an already-blank row is a

@@ -8,13 +8,11 @@ import type { runPasskeys } from '../auth/run-passkeys';
 import { createDaemonCommand } from '../daemon/create-daemon-command';
 import type { DaemonCommandIO } from '../daemon/create-daemon-command';
 import { createMCPCommand } from './create-mcp-command';
-import type { MCPCommandIO } from './create-mcp-command';
 import { createMessageCommand } from './create-message-command';
-import type { MessageCommandIO } from './create-message-command';
 import { createSendCommand } from './create-send-command';
-import type { SendCommandIO } from './create-send-command';
 import { makeMissingCommandRun, runCommandLine } from './run-command-line';
 import type { CommandLineIO } from './run-command-line';
+import type { MCPCommandIO, MessageCommandIO, SendCommandIO } from './types';
 
 export interface ATCCLIIO
   extends CommandLineIO, DaemonCommandIO, MCPCommandIO, SendCommandIO, MessageCommandIO {

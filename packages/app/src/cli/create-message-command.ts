@@ -1,14 +1,8 @@
 import { define, lazy } from 'gunshi';
 import { integer } from 'gunshi/combinators';
 import { parseMessageGetArgs } from '../message-get/parse-message-get-args';
-import type { MessageGetRequest } from '../send/types';
 import { makeMissingCommandRun, refuseCommandLine } from './run-command-line';
-import type { CommandLineIO } from './run-command-line';
-
-// The run the `atc message get` command hands its parsed request to.
-export interface MessageCommandIO extends CommandLineIO {
-  readonly runMessageGet: (request: MessageGetRequest) => Promise<void>;
-}
+import type { MessageCommandIO } from './types';
 
 export function createMessageCommand(io: MessageCommandIO) {
   return define({

@@ -1,14 +1,8 @@
 import { lazy } from 'gunshi';
 import { integer } from 'gunshi/combinators';
 import { parseSendArgs } from '../send/parse-send-args';
-import type { SendRequest } from '../send/types';
 import { refuseCommandLine } from './run-command-line';
-import type { CommandLineIO } from './run-command-line';
-
-// The run the `atc send` command hands its parsed request to.
-export interface SendCommandIO extends CommandLineIO {
-  readonly runSend: (request: SendRequest) => Promise<void>;
-}
+import type { SendCommandIO } from './types';
 
 export function createSendCommand(io: SendCommandIO) {
   return lazy(

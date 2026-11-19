@@ -1,25 +1,6 @@
 import { define, lazy } from 'gunshi';
 import { integer } from 'gunshi/combinators';
-import type { CommandLineIO } from './run-command-line';
-
-// The `atc mcp` flags, parsed.
-interface MCPFlags {
-  readonly http: boolean;
-  readonly host: string | null;
-  readonly port: number | null;
-  readonly publicURL: string | null;
-  readonly waitForDaemon: boolean;
-  readonly tokenFile: string | null;
-  readonly serviceTokenFile: string | null;
-  readonly allowedOrigins: readonly string[];
-  readonly daemon: string | null;
-}
-
-// The runs the `atc mcp` command and its subcommand hand their flags to.
-export interface MCPCommandIO extends CommandLineIO {
-  readonly runMCP: (flags: MCPFlags) => Promise<void>;
-  readonly runMCPServiceSecret: () => Promise<void>;
-}
+import type { MCPCommandIO } from './types';
 
 export function createMCPCommand(io: MCPCommandIO) {
   return define({

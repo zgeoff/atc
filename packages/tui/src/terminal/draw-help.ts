@@ -1,6 +1,6 @@
 import { cols } from './cols';
 import { boxBottom, boxDivider, boxRow, boxTop, dimRow, drawBox } from './draw-box';
-import type { Row } from './draw-box';
+import type { Row } from './types';
 import { writeOut } from './write-out';
 
 export function drawHelp() {

@@ -9,9 +9,9 @@ import { planOverlayColumns } from '../overlay/plan-overlay-columns';
 import type { OverlayColumnPlan } from '../overlay/plan-overlay-columns';
 import { cols } from './cols';
 import { boxBottom, boxDivider, boxRow, boxTop, dimRow, drawBox } from './draw-box';
-import type { Row } from './draw-box';
 import { formatDir } from './pick-matches';
 import { truncate } from './truncate';
+import type { Row } from './types';
 import { writeOut } from './write-out';
 
 // The slice of a session the drawing layer needs; satisfied by both the
