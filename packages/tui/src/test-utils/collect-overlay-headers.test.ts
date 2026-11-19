@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { drawOverlay } from '../ui';
+import { drawOverlay } from '../terminal/draw-overlay';
 import { buildMockMirrorSession } from './build-mock-mirror-session';
 import { buildStubTerminal } from './build-stub-terminal';
 import { collectOverlayHeaders } from './collect-overlay-headers';

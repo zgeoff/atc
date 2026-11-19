@@ -2,16 +2,17 @@ import { ansi } from '@atc/core';
 import { machineTypes } from '@zgeoff/std';
 import { P, match } from 'ts-pattern';
 import { assertEvent, enqueueActions, raise, setup } from 'xstate';
-import { drawPicker } from '../ui';
+import { drawPicker } from '../terminal/draw-overlay';
+import { applyLinksChanged, openFirstStep } from './apply-daemon-submit';
+import { applyCompletion, applyListing } from './apply-list-submit';
 import { applyPickerKey } from './apply-picker-key';
 import { applyRequestOutcome } from './apply-request-outcome';
 import { buildPickerContext } from './build-picker-context';
 import { buildPickerView } from './build-picker-view';
+import { getSelectedIndex } from './collect-list-items';
 import type { CompletionOutcome, ListingOutcome, RequestOutcome } from './create-picker-actors';
 import { createPickerActors } from './create-picker-actors';
-import { applyLinksChanged, openFirstStep } from './daemon-step';
-import { applyCompletion, applyListing } from './list-step';
-import { renderFlow, stopListings } from './navigate-picker';
+import { renderFlow, stopListings } from './open-list';
 import type {
   CompletionRequest,
   OnDaemon,
@@ -20,7 +21,6 @@ import type {
   PickerRequest,
   SpawnPickerDeps,
 } from './picker-flow';
-import { getSelectedIndex } from './picker-queries';
 
 const COMPLETION_DELAY_MS = 120;
 

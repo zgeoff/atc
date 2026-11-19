@@ -1,9 +1,9 @@
 import type { AgentEntry, GitProbeResult, SourceEntry, SourceInterpretation } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import { fromPromise } from 'xstate';
-import { collectTargetPicks } from '../collect-target-picks';
-import type { TargetPick } from '../collect-target-picks';
-import type { DaemonName } from '../session-key';
+import type { DaemonName } from '../fleet/session-key';
+import { collectTargetPicks } from '../overlay/collect-target-picks';
+import type { TargetPick } from '../overlay/collect-target-picks';
 import { canTakeReading } from './can-take-reading';
 import { formatPickerError } from './format-picker-error';
 import {
@@ -12,7 +12,7 @@ import {
   parseInterpretation,
   parseListedAgents,
   parseProbeResult,
-} from './parse-picker-answers';
+} from './parse-candidates';
 import type {
   CompletionRequest,
   DroppedAnswer,

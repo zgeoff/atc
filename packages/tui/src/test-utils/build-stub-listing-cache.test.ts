@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { LISTING_CACHE_LIFETIME_MS } from '../listing-cache';
+import { LISTING_CACHE_LIFETIME_MS } from '../client/listing-cache';
 import { buildStubListingCache } from './build-stub-listing-cache';
 
 test('it finds the listing written under a key', async () => {
