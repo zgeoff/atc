@@ -17,7 +17,6 @@ number of atc's version, which `CONTRACT_VERSION` in `@atcx/contract` holds.
 - A new input field that changes what a call does gets a feature name in `DAEMON_FEATURES`. A daemon
   lists the feature names it serves in its hello answer, and the client checks that list before it
   sends the field.
-- [Protocol](../architecture/protocol/protocol.md#versions) holds the rules for each kind of change.
 
 ## Why
 
