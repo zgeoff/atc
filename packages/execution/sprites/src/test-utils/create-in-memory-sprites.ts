@@ -58,6 +58,9 @@ export interface InMemorySprites extends SpritesPort {
   // makes the next create refuse with the message
   readonly refuseCreate: (status: number, message: string) => void;
 
+  // makes every attach to an exec fail as if the exec were gone
+  readonly refuseAttaches: () => void;
+
   // makes every call on the port fail with the message
   readonly failAll: (status: number, message: string) => void;
   readonly findFile: (sprite: string, path: string) => HeldFile | null;
@@ -100,6 +103,7 @@ export function createInMemorySprites(): InMemorySprites {
   let reads = 0;
   let createRefusal: { status: number; message: string } | null = null;
   let failure: { status: number; message: string } | null = null;
+  let isAttachRefused = false;
   let answer: RunAnswerer = answerExited;
 
   const requireWorking = (): void => {
@@ -163,7 +167,7 @@ export function createInMemorySprites(): InMemorySprites {
     void waitOut(execID.promise);
     const isRun = !request.tty && request.outlivesClients !== true;
 
-    if (exec === null) {
+    if (exec === null || isAttachRefused) {
       setTimeout(() => {
         execID.reject(new SpritesApiError(404, `exec ${request.execID ?? ''} does not exist`));
 
@@ -234,6 +238,9 @@ export function createInMemorySprites(): InMemorySprites {
     },
     refuseCreate: (status, message) => {
       createRefusal = { status, message };
+    },
+    refuseAttaches: () => {
+      isAttachRefused = true;
     },
     failAll: (status, message) => {
       failure = { status, message };

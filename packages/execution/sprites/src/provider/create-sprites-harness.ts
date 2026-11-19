@@ -55,6 +55,7 @@ export function createSpritesHarness(options: SpritesHarnessOptions): SpritesHar
   let execID: string | null = null;
   let isFinished = false;
   let hasExited = false;
+  let isRestoring = false;
   let isKillRequested: 'SIGTERM' | 'SIGKILL' | null = null;
   let size = { cols: options.start.cols, rows: options.start.rows };
   const queuedInput: Uint8Array[] = [];
@@ -146,7 +147,22 @@ export function createSpritesHarness(options: SpritesHarnessOptions): SpritesHar
 
   // A connection that ended while the exec still stands attaches again, and the API replays the
   // screen. An exec the sprite no longer lists is the harness's end.
+  // One loop at a time: a failed attach ends its connection, which asks for another loop.
   const restoreAttach = async (): Promise<void> => {
+    if (isRestoring) {
+      return;
+    }
+
+    isRestoring = true;
+
+    try {
+      await retryAttach();
+    } finally {
+      isRestoring = false;
+    }
+  };
+
+  const retryAttach = async (): Promise<void> => {
     emitAttachment('reattaching');
 
     for (let attempt = 0; attempt <= options.reconnectDelaysMs.length; attempt += 1) {
@@ -218,6 +234,10 @@ export function createSpritesHarness(options: SpritesHarnessOptions): SpritesHar
       const boot = await options.records.readBootID(options.sprite);
       const record = await options.records.readSessionRecord(options.sprite, options.session);
       const execs = await api.listExecs(options.sprite);
+
+      if (isFinished) {
+        return;
+      }
 
       const recorded = record?.harness ?? null;
 

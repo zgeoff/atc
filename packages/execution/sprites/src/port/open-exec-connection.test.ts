@@ -121,6 +121,30 @@ test('it names the exec by its session id, and reads stdout, stderr and the exit
   ]);
 });
 
+test('it ends the input of a command that takes none, once the socket is open', async () => {
+  const ctx = setupTest();
+  const ends: ExecEnd[] = [];
+
+  const connection = openExecConnection({
+    apiURL: ctx.apiURL,
+    token: 'secret-token',
+    sprite: 'atc-h1',
+    request: { argv: ['cat'], tty: false },
+  });
+
+  connection.onEnd((end) => {
+    ends.push(end);
+  });
+
+  connection.endInput();
+
+  await waitFor(() => {
+    expect(ends).toStrictEqual([{ kind: 'exit', exitCode: 7 }]);
+  });
+
+  expect(ctx.received).toStrictEqual([new Uint8Array([4])]);
+});
+
 test('it attaches by exec id in a path of its own', async () => {
   const ctx = setupTest();
 

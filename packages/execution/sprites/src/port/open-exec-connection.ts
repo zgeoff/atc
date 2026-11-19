@@ -122,6 +122,13 @@ export function openExecConnection(options: ExecConnectionOptions): ExecConnecti
     }
   };
 
+  // a frame sent while the socket still connects is discarded, so the frame waits for the open
+  const sendEndOfInput = async (): Promise<void> => {
+    await opened.promise;
+
+    socket.send(new Uint8Array([STDIN_EOF]));
+  };
+
   return {
     execID: execID.promise,
     onData: (listener) => {
@@ -147,8 +154,8 @@ export function openExecConnection(options: ExecConnectionOptions): ExecConnecti
       socket.send(frame);
     },
     endInput: () => {
-      if (!request.tty && socket.readyState === WebSocket.OPEN) {
-        socket.send(new Uint8Array([STDIN_EOF]));
+      if (!request.tty) {
+        void waitOut(sendEndOfInput());
       }
     },
     resize: (cols, rows) => {

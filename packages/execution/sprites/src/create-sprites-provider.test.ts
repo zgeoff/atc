@@ -2,6 +2,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { setImmediate } from 'node:timers/promises';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { updateEnv } from '@atc/core/test-utils/update-env';
 import { waitFor } from '@atc/core/test-utils/wait-for';
@@ -11,6 +12,7 @@ import type { GuestFrame } from '@atc/protocol/relay';
 import type { SpritesTarget } from './config/parse-sprites-target';
 import { createSpritesProvider } from './create-sprites-provider';
 import { UNPACK_ARCHIVE_SCRIPT } from './guest-scripts/unpack-archive-script';
+import type { SpritesPort } from './port/types';
 import { createInMemorySprites } from './test-utils/create-in-memory-sprites';
 
 interface WelcomeAnswer {
@@ -51,7 +53,27 @@ function setupTest() {
 
   sprites.addConnector({ id: 'conn_example', provider: 'custom_api', namePrefix: 'atc-' });
 
-  const provider = createSpritesProvider(sprites, target, {
+  // holds the second listExecs call after holdExecLists() until the returned release runs: the
+  // relay's mux link lists first, and the harness lists next
+  let held: Promise<void> | null = null;
+  let listCalls = 0;
+
+  const heldSprites: SpritesPort = {
+    ...sprites,
+    listExecs: async (name) => {
+      if (held !== null) {
+        listCalls += 1;
+
+        if (listCalls > 1) {
+          await held;
+        }
+      }
+
+      return sprites.listExecs(name);
+    },
+  };
+
+  const provider = createSpritesProvider(heldSprites, target, {
     targetID: 'box',
     atcBinary: binary,
     getBuild: () => 'build-1',
@@ -115,6 +137,14 @@ function setupTest() {
       onRelay: () => {},
     } satisfies HarnessSpec,
     waitForMux,
+    holdExecLists: () => {
+      const gate = Promise.withResolvers<void>();
+
+      held = gate.promise;
+
+      return gate.resolve;
+    },
+    countExecLists: () => listCalls,
 
     // the stand-in for the mux: answers the daemon's latest hello once it is on the mux's stdin
     guest: {
@@ -507,6 +537,61 @@ test('it reattaches to the harness exec when its WebSocket drops, and replays th
   const attaches = ctx.sprites.requests.filter((entry) => entry.request.execID === execID);
 
   expect(attaches).toHaveLength(1);
+});
+
+test('it gives up after one retry per delay when the harness exec refuses every attach', async () => {
+  const ctx = setupTest();
+  const exits: unknown[] = [];
+
+  await ctx.provider.prepareHost(ctx.request);
+
+  const harness = ctx.provider.spawnHarness(ctx.spec);
+
+  harness.onExit((exit) => {
+    exits.push(exit);
+  });
+
+  await ctx.guest.welcome('s1', { ack: 0, reset: true });
+  await harness.waitForStart?.();
+
+  const execID = ctx.findHarnessExecID() ?? '';
+
+  ctx.sprites.refuseAttaches();
+  ctx.sprites.dropConnections(ctx.sprite, execID);
+
+  await waitFor(() => {
+    expect(exits).toStrictEqual([
+      { exitCode: 1, reason: 'ended', detail: 'the harness cannot be reattached' },
+    ]);
+  });
+
+  const attaches = ctx.sprites.requests.filter((entry) => entry.request.execID === execID);
+
+  expect(attaches).toHaveLength(2);
+});
+
+test('it opens no harness exec when it is detached while the sprite still lists its execs', async () => {
+  const ctx = setupTest();
+
+  await ctx.provider.prepareHost(ctx.request);
+
+  const release = ctx.holdExecLists();
+  const harness = ctx.provider.spawnHarness(ctx.spec);
+
+  await ctx.guest.welcome('s1', { ack: 0, reset: true });
+
+  await waitFor(() => {
+    expect(ctx.countExecLists()).toBe(2);
+  });
+
+  harness.detach();
+
+  release();
+
+  // one macrotask turn lets every in-memory call the start would make settle
+  await setImmediate();
+
+  expect(ctx.sprites.requests.filter((entry) => entry.request.tty)).toStrictEqual([]);
 });
 
 test('it reports the harness exit when the exec exits', async () => {
