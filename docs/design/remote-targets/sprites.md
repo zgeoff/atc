@@ -49,8 +49,9 @@ flowchart LR
 | `apiURL`       | `https://api.sprites.dev` | the Sprites API                                                                   |
 | `guestDir`     | the provider's own        | the folder inside each sprite that atc's files go under                           |
 
-An auth profile on a Sprites target names a connector id in `secret`. The target's identity covers
-`tokenEnv`, `tokenFile`, `spritePrefix`, `apiURL` and `guestDir`.
+An auth profile on a Sprites target names a connector id in `secret`, the field that names an impd
+secret on an imp target, so one profile schema serves both. The target's identity covers `tokenEnv`,
+`tokenFile`, `spritePrefix`, `apiURL` and `guestDir`.
 
 ### The provider's declaration
 
@@ -120,17 +121,17 @@ replaces the placeholder `authorization` header with the stored token.
 
 ## How each imp duty maps
 
-| imp does                                            | Sprites does                                                                                      | Gap, and what atc does                                                                                        |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| creates and wakes the host, holds it with a lease   | `prepareHost` creates or reads the sprite; any exec wakes it; an attached exec keeps it awake     | no lease: another client attached to the sprite keeps it awake, and the daemon cannot see that client         |
-| sleeps the host on a kill                           | `suspendHost` detaches every exec of the host, the relay's included; the sprite sleeps on its own | no sleep call: the session lists asleep when the detach ends, about 10 to 30 seconds before the sprite sleeps |
-| keeps the harness in memory across a sleep          | a warm sprite freezes the process and resumes it with the same pid                                | a cold sprite can drop memory; `readHarnessFates` reports `lost` and an adopt resumes from the transcript     |
-| reattaches a harness by its impd session            | a TTY exec per harness, found by the exec id the provider records on the sprite's disk            | none: a TTY reattach replays the screen                                                                       |
-| carries hooks through a reverse unix forward        | `openStreamRelay` over a non-TTY exec of `atc relay-mux` with `max_run_after_disconnect`          | none                                                                                                          |
-| swaps the credential through its broker             | a connector gateway adds it; `routed` credentials                                                 | no revoke or rebind in atc: the owner changes access in the connector's policy                                |
-| writes the session record read-only                 | none                                                                                              | the record takes the 0444 fallback, which the agent's user can overwrite                                      |
-| clones the workspace on the host                    | none: the GitHub connector serves the API, not git                                                | the daemon clones on its own machine and transfers the result                                                 |
-| runs the image's atc or uploads the daemon's binary | `writeFile` uploads the compiled daemon binary into the guest folder                              | a daemon run from source refuses a Claude spawn, as on imp                                                    |
+| imp does                                            | Sprites does                                                                                      | Gap, and what atc does                                                                                             |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| creates and wakes the host, holds it with a lease   | `prepareHost` creates or reads the sprite; any exec wakes it; an attached exec keeps it awake     | no lease: another client attached to the sprite keeps it awake, and the daemon cannot see that client              |
+| sleeps the host on a kill                           | `suspendHost` detaches every exec of the host, the relay's included; the sprite sleeps on its own | no sleep call: the session lists asleep when the detach ends, about 10 to 30 seconds before the sprite sleeps      |
+| keeps the harness in memory across a sleep          | a warm sprite freezes the process and resumes it with the same pid                                | a cold sprite can drop memory; `readHarnessFates` reports `lost` and an adopt resumes from the transcript          |
+| reattaches a harness by its impd session            | a TTY exec per harness, found by the exec id the provider records on the sprite's disk            | none: a TTY reattach replays the screen                                                                            |
+| carries hooks through a reverse unix forward        | `openStreamRelay` over a non-TTY exec of `atc relay-mux` with `max_run_after_disconnect`          | none                                                                                                               |
+| swaps the credential through its broker             | a connector gateway adds it; `routed` credentials                                                 | no revoke or rebind in atc: the owner changes access in the connector's policy                                     |
+| writes the session record read-only                 | none                                                                                              | the record takes the 0444 fallback, which the agent's user can overwrite                                           |
+| clones the workspace on the host                    | none: the GitHub connector serves the API, not git                                                | the daemon clones on its own machine and transfers the result                                                      |
+| runs the image's atc or uploads the daemon's binary | `writeFile` uploads the compiled daemon binary into the guest folder                              | a daemon run from source refuses every spawn, problem `compiled_binary_required`, since the relay needs the binary |
 
 ## Constraints
 
@@ -138,13 +139,15 @@ replaces the placeholder `authorization` header with the stored token.
 - `verifyRoutes` reads the connectors once per launch and refuses with `auth_target_unsupported`,
   problem `route_missing`, when a profile's connector is missing or its `namePrefix` does not start
   `spritePrefix`.
-- An existing sprite under the name refuses a spawn, so a spawn never reuses another session's
-  sprite.
+- A `prepareHost` with `isNew` refuses with `host_unavailable`, problem `host_exists`, when a sprite
+  already has the name, so a spawn never reuses another session's sprite.
+- v1 runs Claude only. Any other agent has no route and is refused with `route_required`.
 - The provider records each harness's exec id and the sprite's `boot_id` in the guest folder. A
   start whose recorded `boot_id` differs from the sprite's current one finds the harness lost and
   starts the spec's argv.
 - `readHarnessFates` answers `unknown` for a sprite whose `status` is not `running`, until a
-  measurement shows that listing execs leaves a sleeping sprite asleep.
+  measurement shows that listing execs leaves a sleeping sprite asleep. Until then, a sleeping
+  sprite's lost harness shows only when an adopt finds it gone.
 - `suspendHost` keeps no exec open on the host after it resolves.
 - A forget deletes the sprite, which ends every exec on it.
 - A Sprites API error reaches the caller as `host_unavailable` with the API's status and message,
