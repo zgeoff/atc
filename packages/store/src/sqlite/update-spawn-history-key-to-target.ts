@@ -2,7 +2,7 @@ import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { StateStoreSchema } from './state-store-schema';
 
-// Every spawn from before spawns recorded their target ran on the local target with no options.
+// A spawn recorded with no target ran on the local target with no options.
 const LEGACY_SPAWN_TARGET_IDENTITY = 'local-pty:44136fa355b3678a';
 
 export async function updateSpawnHistoryKeyToTarget(db: Kysely<StateStoreSchema>): Promise<void> {
