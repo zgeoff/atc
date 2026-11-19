@@ -1,7 +1,8 @@
 # Records docs/assets/demo.gif. Run `bun run demo:record` from the repo root:
 # scripts/record-demo.sh starts two throwaway daemons, a local one and "cloud",
-# whose agents are the stand-in in scripts/demo-agent.ts, and
-# scripts/drive-demo.ts runs this tape while it drives the fleet.
+# whose agents are the stand-in in scripts/run-demo-agent.ts, and
+# scripts/run-demo-recording.ts, the drive script, runs this tape while it
+# drives the fleet.
 #
 # No step rests on a guessed delay. The tape waits with Wait+Screen for the
 # text that proves a beat is on screen, and the drive script moves the fleet

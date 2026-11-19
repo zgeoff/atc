@@ -58,7 +58,7 @@ if (mode === 'record' && args.length === 5) {
   await removeSessions(args[0] ?? '');
 } else {
   console.error(
-    'usage: drive-demo.ts record <local socket> <cloud socket> <local project> <cloud project> <tape> | kill-all <socket>',
+    'usage: run-demo-recording.ts record <local socket> <cloud socket> <local project> <cloud project> <tape> | kill-all <socket>',
   );
 
   process.exitCode = 2;
@@ -150,8 +150,8 @@ async function runTape(tape: string, watch: Watch, beats: () => Promise<void>): 
   try {
     await beats();
   } catch (error) {
-    console.error(`drive-demo: ${error instanceof Error ? error.message : String(error)}`);
-    console.error(`drive-demo: the events so far: ${formatEvents(watch.events)}`);
+    console.error(`run-demo-recording: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`run-demo-recording: the events so far: ${formatEvents(watch.events)}`);
 
     stopProcessGroup(vhs.pid);
 

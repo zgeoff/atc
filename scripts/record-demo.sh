@@ -3,8 +3,8 @@
 # and a second one, "cloud", that the local config reaches over a loopback
 # listener. Each has its own home directory, config and state, so nothing
 # from the recording machine's fleet reaches the GIF. Every agent is the
-# stand-in in demo-agent.ts, so the recording spends no model usage.
-# drive-demo.ts stages the sessions, runs vhs on the tape and drives each
+# stand-in in run-demo-agent.ts, so the recording spends no model usage.
+# run-demo-recording.ts stages the sessions, runs vhs on the tape and drives each
 # beat; the header of docs/assets/demo.tape says how each beat is gated.
 # Needs vhs, ttyd, ffmpeg, jq and bun on PATH.
 set -euo pipefail
@@ -27,7 +27,7 @@ DONE=
 stop_daemon() {
   local home=$1 run=$2 pid=$3
   [ -n "$pid" ] || return 0
-  HOME=$home XDG_RUNTIME_DIR=$run bun "$ROOT/scripts/drive-demo.ts" kill-all "$run/atc-daemon.sock" 2> /dev/null || true
+  HOME=$home XDG_RUNTIME_DIR=$run bun "$ROOT/scripts/run-demo-recording.ts" kill-all "$run/atc-daemon.sock" 2> /dev/null || true
   for _ in $(seq 1 100); do
     pgrep -P "$pid" > /dev/null || break
     sleep 0.1
@@ -51,7 +51,7 @@ trap teardown EXIT INT TERM
 mkdir -p "$DEMO/bin" "$DEMO/run" "$DEMO/cloud-run" "$DEMO/cloud/.config/atc" \
   "$DEMO/home/.config/atc" "$DEMO/home/projects/shop" "$DEMO/home/projects/search"
 printf '#!/bin/sh\nexec bun "%s/packages/app/src/cli.ts" "$@"\n' "$ROOT" > "$DEMO/bin/atc"
-printf '#!/bin/sh\nexec bun "%s/scripts/demo-agent.ts" "$@"\n' "$ROOT" > "$DEMO/bin/demo-agent"
+printf '#!/bin/sh\nexec bun "%s/scripts/run-demo-agent.ts" "$@"\n' "$ROOT" > "$DEMO/bin/demo-agent"
 chmod +x "$DEMO/bin/atc" "$DEMO/bin/demo-agent"
 export PATH="$DEMO/bin:$PATH"
 export DEMO_HOME="$DEMO/home"
@@ -97,7 +97,7 @@ wait_for_file "$XDG_RUNTIME_DIR/atc-daemon.sock"
 # vhs writes the GIF into its working folder, and logs a failed encode without
 # failing, so the GIF replaces the committed one only once it decodes.
 cd "$DEMO"
-bun "$ROOT/scripts/drive-demo.ts" record "$DEMO/run/atc-daemon.sock" "$DEMO/cloud-run/atc-daemon.sock" \
+bun "$ROOT/scripts/run-demo-recording.ts" record "$DEMO/run/atc-daemon.sock" "$DEMO/cloud-run/atc-daemon.sock" \
   "$DEMO/home/projects/shop" "$DEMO/home/projects/search" "$ROOT/docs/assets/demo.tape"
 FRAMES=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 demo.gif)
 # ffprobe prints N/A for a GIF with a header and no frames.

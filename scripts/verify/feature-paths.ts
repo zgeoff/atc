@@ -80,7 +80,7 @@ export const ignoredPaths = [
   '.vscode/**',
 
   // the repo scripts, by their verbs; the test home's scripts are shared paths above
-  'scripts/{build,check,collect,declaration,demo,drive,find,install,load,pack,pick,probe,publish,read,record,restore,run,stage,test,write}-*',
+  'scripts/{build,check,collect,declaration,find,install,load,pack,pick,probe,publish,read,record,restore,run,stage,test,write}-*',
   'scripts/{deadcode.ts,with-e2e-paths.sh,disable-baseline.json}',
   'scripts/verify-gate/**',
 
