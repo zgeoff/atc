@@ -1,11 +1,10 @@
 import type { Database } from 'bun:sqlite';
 import { lookup } from 'node:dns/promises';
-import { isRecord, systemClock } from '@atc/core';
+import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { MAX_LINE } from '@atc/protocol/wire';
 import { GATEWAY_PATHS } from '@atcx/contract';
 import type { GrantScope } from '@atcx/contract';
-import type { McpServer } from '@modelcontextprotocol/server';
 import type { ServiceTokenFile } from '@zgeoff/mcp-auth';
 import { createMCPHTTPApp } from '@zgeoff/mcp-auth/elysia';
 import type { Server } from 'bun';
@@ -14,27 +13,28 @@ import invariant from 'tiny-invariant';
 import { createSecurityEventLog } from '../auth/create-security-event-log';
 import { openATCAuth } from '../auth/open-atc-auth';
 import type { ATCAuth } from '../auth/open-atc-auth';
-import type { HTTPServerContext, Requester, VerifiedAccess } from '../auth/types';
+import type { HTTPServerContext, Requester } from '../auth/types';
 import { createEventDeliverer } from '../events/create-event-deliverer';
 import { createSubscriptionStore } from '../events/create-subscription-store';
 import { createWebhookSender } from '../events/create-webhook-sender';
 import { isPublicAddress } from '../events/is-public-address';
 import { openEventDatabase } from '../events/open-event-database';
-import { registerEventMethods } from '../events/register-event-methods';
 import { removeUnreadableSubscriptions } from '../events/remove-unreadable-subscriptions';
 import type { WebhookSender } from '../events/types';
-import { buildPrincipalCaller } from '../tools/build-principal-caller';
-import { createMCPServer } from '../tools/create-mcp-server';
 import type { FleetCaller } from '../tools/types';
 import { answerMCPRequest } from './answer-mcp-request';
 import { answerPTYRequest } from './answer-pty-request';
 import type { PTYRoute } from './answer-pty-request';
 import { createModernMCPHandler } from './create-modern-mcp-handler';
+import { createPrincipalServer } from './create-principal-server';
 import type { PTYViewer, WatchChannel } from './create-pty-viewer';
+import { formatRequestLine } from './format-request-line';
+import { isLabelledRequest } from './is-labelled-request';
 import { isLoopbackHost } from './is-loopback-host';
 import { normalizePublicURL } from './normalize-public-url';
 import { parsePTYPath } from './parse-pty-path';
 import { PTY_PROTOCOL } from './parse-pty-protocols';
+import { readRPCLabel } from './read-rpc-label';
 
 interface LiveTerminalOptions {
   // The origins a browser page may open a session's live terminal from.
@@ -484,91 +484,6 @@ function answerProbeRequest(method: string, ready: boolean): Response {
   return new Response(null, { status: ready ? 200 : 503 });
 }
 
-// The JSON-RPC method and tool name of an MCP request, for its request line.
-interface RPCLabel {
-  readonly method: string;
-  readonly tool: string | null;
-}
-
-// Client-sent values in a request line are cut to this many characters.
-const LABEL_LENGTH = 64;
-
-// The line names the path without its query, which carries authorization
-// codes and signed state.
-function formatRequestLine(
-  request: Request,
-  rpc: RPCLabel | null,
-  status: number,
-  durationMs: number,
-): string {
-  const path = new URL(request.url).pathname;
-
-  const version = request.headers.get('mcp-protocol-version');
-
-  const fields = [
-    request.method,
-    toLogText(path, 128),
-    String(status),
-    `${Math.round(durationMs)}ms`,
-    ...(rpc === null ? [] : [`rpc=${toLogText(rpc.method, LABEL_LENGTH)}`]),
-    ...(rpc === null || rpc.tool === null ? [] : [`tool=${toLogText(rpc.tool, LABEL_LENGTH)}`]),
-    ...(version === null ? [] : [`mcp-protocol-version=${toLogText(version, LABEL_LENGTH)}`]),
-  ];
-
-  return fields.join(' ');
-}
-
-// Control and format characters are dropped, so a client cannot write
-// escape sequences into the operator's terminal.
-function toLogText(value: string, length: number): string {
-  return value.replaceAll(/[\p{Cc}\p{Cf}\s]/gu, '').slice(0, length);
-}
-
-const MCP_PATHS: ReadonlySet<string> = new Set([
-  GATEWAY_PATHS.machine.mcp,
-  GATEWAY_PATHS.machine.root,
-]);
-
-// The method and tool of an MCP request, read from a copy of its body, so
-// the route still reads the body itself.
-function isLabelledRequest(
-  request: Request,
-  hosts: ReadonlySet<string>,
-  origins: ReadonlySet<string>,
-): boolean {
-  const requestOrigin = request.headers.get('origin');
-
-  return (
-    request.method === 'POST' &&
-    MCP_PATHS.has(new URL(request.url).pathname) &&
-    hosts.has(request.headers.get('host') ?? '') &&
-    (requestOrigin === null || origins.has(requestOrigin))
-  );
-}
-
-async function readRPCLabel(request: Request): Promise<RPCLabel | null> {
-  const body = await request.clone().text();
-
-  let message: unknown;
-
-  try {
-    message = JSON.parse(body);
-  } catch {
-    return null;
-  }
-
-  if (!isRecord(message) || typeof message['method'] !== 'string') {
-    return null;
-  }
-
-  const params = message['params'];
-
-  return {
-    method: message['method'],
-    tool: isRecord(params) && typeof params['name'] === 'string' ? params['name'] : null,
-  };
-}
-
 // A client reads events while one of its grants, or its service token,
 // holds read.
 async function probeReadAccess(auth: ATCAuth, clientID: string): Promise<boolean> {
@@ -581,30 +496,6 @@ async function resolveAddresses(hostname: string): Promise<readonly string[]> {
   const found = await lookup(hostname, { all: true });
 
   return found.map((entry) => entry.address);
-}
-
-// A server for one modern request, with the tools and the event methods the
-// request's token allows.
-function createPrincipalServer(ctx: HTTPServerContext, access: VerifiedAccess): McpServer {
-  const caller = buildPrincipalCaller(ctx.caller, { id: access.clientID, name: access.clientName });
-
-  const server = createMCPServer({
-    caller,
-    build: ctx.build,
-    toolContext: { callerSessionID: null },
-    scopes: access.scopes,
-  });
-
-  registerEventMethods(server, {
-    db: ctx.events,
-    caller,
-    clientID: access.clientID,
-    send: ctx.sendWebhook,
-    clock: ctx.clock,
-    deliverer: ctx.deliverer,
-  });
-
-  return server;
 }
 
 // An IPv6 address takes the brackets a URL puts around it.
