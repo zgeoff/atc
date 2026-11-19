@@ -60,7 +60,7 @@
     },
     "packages/app": {
       "name": "@atc/app",
-      "version": "7.18.0",
+      "version": "7.18.1",
       "dependencies": {
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
@@ -109,7 +109,7 @@
     },
     "packages/contract": {
       "name": "@atcx/contract",
-      "version": "7.18.0",
+      "version": "7.18.1",
       "dependencies": {
         "@orpc/contract": "catalog:",
         "zod": "catalog:",
