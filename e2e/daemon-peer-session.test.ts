@@ -44,8 +44,7 @@ test.skipIf(process.platform !== 'linux')(
 
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    // The session's harness waits for one input line, so the probe runs
-    // only once the daemon holds the session, and runs as its grandchild.
+    // The session's harness waits for one input line, so the probe runs only once the daemon holds the session.
     createStubBin(
       ctx.home,
       'probe-agent',
@@ -335,8 +334,7 @@ test.skipIf(process.platform !== 'linux')(
 
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    // The session inherits the daemon's runtime directory, so `atc events` finds the events socket
-    // without either variable. Its first line is the snapshot's entry for the session itself.
+    // The session inherits the daemon's runtime directory, so `atc events` finds the events socket without either variable.
     createStubBin(
       ctx.home,
       'probe-agent',

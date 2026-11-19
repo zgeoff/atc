@@ -6,9 +6,6 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openDaemonClient } from '@atc/protocol/client';
 
-// The listener daemon running on state in a temp directory, with what it
-// printed once it listened and everything it writes to stderr. Cleanup kills
-// the daemon, then removes the directory.
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-listener-');
 

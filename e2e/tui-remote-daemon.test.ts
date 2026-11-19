@@ -21,8 +21,6 @@ function setupTest() {
 test('it shows the fleet of the remote daemon the flag selects and starts no local daemon', async () => {
   const ctx = setupTest();
 
-  // A second daemon on a loopback TCP port stands in for one on another
-  // host.
   const remote = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
@@ -78,8 +76,6 @@ test('it shows the fleet of the remote daemon the flag selects and starts no loc
 test("it lists only the remote daemon's directories and spawns in the first of them", async () => {
   const ctx = setupTest();
 
-  // The remote daemon's home is its own temp directory, so no path on it
-  // is a path under the client's home.
   const remote = await startTestDaemon({
     options: (paths) => {
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
@@ -167,7 +163,7 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
       writeFileSync(join(paths.directory, 'gateway-token'), `${'a'.repeat(32)}\n`);
 
       return {
-        // a binary the daemon finds, so it lists the agent as one it can start
+        // The daemon lists an agent as startable only if it finds the binary, so use one that exists on the host.
         adapter: buildMockAgentAdapter({ profile: buildMockAgentProfile({ bin: 'sleep' }) }),
         principals: new Map([['laptop', ['local']]]),
         listen: { host: '127.0.0.1', port: 0, tokenFile: join(paths.directory, 'gateway-token') },
@@ -274,8 +270,6 @@ test('it exits with the refusal when a reconnect to the remote daemon is refused
 
   await ctx.tui.waitFor('atc — control tower');
 
-  // The daemon drops the token the client holds, which closes its
-  // connection, so the client's reconnect presents a token it refuses.
   writeFileSync(join(remote.directory, 'gateway-token'), `${'b'.repeat(32)}\n`);
 
   remote.daemon.refreshTokens();
@@ -292,8 +286,7 @@ test('it exits with the refusal when a reconnect to the remote daemon is refused
 test('it exits with the daemon and its address when the remote daemon is unreachable, starting no local daemon', async () => {
   const ctx = setupTest();
 
-  // A port the kernel handed out and this test then freed, so nothing
-  // listens on it.
+  // The port is freed so nothing listens on it.
   const freed = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
   const port = freed.port;
 

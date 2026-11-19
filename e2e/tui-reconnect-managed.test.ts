@@ -11,9 +11,6 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
-// A client that waits for an installed unit's daemon after that daemon
-// stopped, so a daemon on another protocol that takes the socket next is
-// what its reconnect meets.
 async function setupTest() {
   const harness = startTUIHarness({ createStateDB: createMigratedStateDB });
   const stateDir = harness.paths.stateDir;

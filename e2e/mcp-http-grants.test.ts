@@ -13,8 +13,6 @@ import { seedOwnerGrant } from '@atc/mcp/test-utils/seed-owner-grant';
 import { seedOwnerSchema } from '@atc/mcp/test-utils/seed-owner-schema';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
-// An authorization database from before atc moved to its shared OAuth
-// server, under a home of its own, holding one grant with the given ID.
 function setupTest(grantID: string) {
   const home = setupTempDir('atc-e2e-grants-').path;
   const dbPath = resolvePaths({ HOME: home }).mcpAuthDBFile;
@@ -46,9 +44,7 @@ function setupTest(grantID: string) {
   };
 }
 
-// A grant made before the move keeps its authorization code as its ID, which
-// can start with a dash and an underscore, the shape an argument parser reads
-// as a group of short flags.
+// A grant ID can start with a dash, the shape an argument parser reads as a group of short flags.
 test('it revokes a grant whose id starts with a dash with --revoke=<id> so its access token stops working', async () => {
   const ctx = setupTest('-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc');
 

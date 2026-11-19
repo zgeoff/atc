@@ -19,7 +19,6 @@ function setupTest() {
     env: {
       PATH: process.env['PATH'] ?? '',
 
-      // Nothing creates this home, so a write under it shows in the directory listing.
       HOME: join(temporaryDirectory.path, 'home'),
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
     },

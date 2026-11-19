@@ -32,7 +32,6 @@ async function setupTest(
         takesMessages: true,
         planSpawn,
 
-        // Hook lines read as Claude's read, so a SessionStart makes a session revivable.
         planHookEvents: (hook) => claude.planHookEvents(hook),
       }),
       onNoteIgnored: noteIgnored,
@@ -50,7 +49,7 @@ async function setupTest(
   const sender = await spawnNamedSession(send, 'sender', daemon.directory);
   const recipient = await spawnNamedSession(send, 'recipient', daemon.directory);
 
-  // Its handshake holds the sender's id, as an `atc mcp` started in that session sends it.
+  // The handshake holds the sender's id, as an `atc mcp` started in that session sends it.
   const inside = await daemon.openClient({ session: sender });
 
   return { daemon, sender, recipient, inside, noteIgnored };
@@ -126,7 +125,6 @@ test('it hands the sending session an unanswered notice with the reason when the
 });
 
 test('it hands the sending session an unanswered notice when the recipient session ends', async () => {
-  // The sender runs on; the recipient ends once it reads a line of input.
   const planSpawn = mock(() => ({ bin: 'head', args: ['-n', '1'] })).mockReturnValueOnce({
     bin: 'sleep',
     args: ['30'],
@@ -195,7 +193,6 @@ test('it hands the sending session one unanswered notice when the recipient of a
     ]);
   });
 
-  // A second tap replays nothing the first one took.
   const replayClient = await ctx.daemon.openClient();
   const replay = await startStubTap(replayClient, ctx.sender, { notices: true });
 
@@ -226,7 +223,6 @@ test('it hands one answer notice for a message whose answer is reported twice', 
     expect(tap.notices).toHaveLength(1);
   });
 
-  // A second tap replays nothing the first one took.
   const replayClient = await ctx.daemon.openClient();
   const replay = await startStubTap(replayClient, ctx.sender, { notices: true });
   const read = await ctx.daemon.client.sendRequest('events.read', { session: ctx.sender });
@@ -254,7 +250,6 @@ test('it hands one answer notice after a restart when the daemon stopped right a
     text: 'tag the release',
   });
 
-  // An agent session id makes each session revivable after the restart.
   await ctx.daemon.sendHookLines(
     { atcId: ctx.sender, event: 'SessionStart', payload: { session_id: 'agent-sender' } },
     { atcId: ctx.recipient, event: 'SessionStart', payload: { session_id: 'agent-recipient' } },
@@ -271,8 +266,6 @@ test('it hands one answer notice after a restart when the daemon stopped right a
 
   await ctx.daemon.stop();
 
-  // The settling statement a daemon commits before it stops, with nothing
-  // after it.
   const store = await createStateStore(ctx.daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
@@ -318,7 +311,6 @@ test('it hands no second answer notice when the answer is reported again after a
     text: 'bump the version',
   });
 
-  // An agent session id makes each session revivable after the restart.
   await ctx.daemon.sendHookLines(
     { atcId: ctx.sender, event: 'SessionStart', payload: { session_id: 'agent-sender' } },
     { atcId: ctx.recipient, event: 'SessionStart', payload: { session_id: 'agent-recipient' } },
@@ -335,8 +327,6 @@ test('it hands no second answer notice when the answer is reported again after a
 
   await ctx.daemon.stop();
 
-  // The settling statement a daemon commits before it stops, with nothing
-  // after it.
   const store = await createStateStore(ctx.daemon.dbPath);
 
   registerTestCleanup(() => store.stop());
@@ -374,7 +364,6 @@ test('it hands no second answer notice when the answer is reported again after a
     expect(ctx.noteIgnored).toHaveBeenCalledWith(ctx.recipient, 'answered');
   });
 
-  // A second tap replays nothing the first one took.
   const replayClient = await ctx.daemon.openClient();
   const replay = await startStubTap(replayClient, ctx.sender, { notices: true });
 
@@ -385,7 +374,6 @@ test('it hands no second answer notice when the answer is reported again after a
 test('it marks a message delivered before a restart unanswered for its sender and never hands it to the revived recipient', async () => {
   const ctx = await setupTest(undefined, { restoreFleetOnRestart: true });
 
-  // An agent session id makes each session revivable after the restart.
   await ctx.daemon.sendHookLines(
     { atcId: ctx.sender, event: 'SessionStart', payload: { session_id: 'agent-sender' } },
     { atcId: ctx.recipient, event: 'SessionStart', payload: { session_id: 'agent-recipient' } },
@@ -426,8 +414,6 @@ test('it marks a message delivered before a restart unanswered for its sender an
   const afterClient = await ctx.daemon.openClient();
   const after = await startStubTap(afterClient, ctx.recipient);
 
-  // The inbox drains in sent order, so a later message that arrives alone
-  // shows the revived tap was handed nothing before it.
   const later = await ctx.daemon.client.sendRequest('session.message', {
     session: ctx.recipient,
     text: 'archive the build logs',
@@ -470,8 +456,6 @@ test('it marks a message delivered before a restart unanswered for its sender an
 });
 
 test('it keeps the answer notice of an exited sender queued and hands it over once the sender revives', async () => {
-  // The sender ends once it reads a line of input; every later process
-  // runs on.
   const planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })).mockReturnValueOnce({
     bin: 'head',
     args: ['-n', '1'],

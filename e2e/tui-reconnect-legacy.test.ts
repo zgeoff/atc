@@ -7,8 +7,6 @@ import { PROTOCOL_V } from '@atc/protocol/wire';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import invariant from 'tiny-invariant';
 
-// A client on an idle daemon whose socket a daemon on another protocol has
-// taken, so the client's reconnect after the first daemon dies meets it.
 async function setupTest() {
   const harness = startTUIHarness({ createStateDB: createMigratedStateDB });
   const stateDir = harness.paths.stateDir;

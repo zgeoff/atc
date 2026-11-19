@@ -24,8 +24,6 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   const stateDir = ctx.paths.stateDir;
   const socketPath = ctx.paths.daemonSocketPath;
 
-  // The fleet a daemon that already ran here left behind: one resumable
-  // Claude session in the home.
   mkdirSync(stateDir, { recursive: true });
 
   const seed = await createStateStore(ctx.paths.dbFile);
@@ -42,8 +40,6 @@ test('it restarts a daemon on another protocol after the user confirms and resto
 
   await seed.stop();
 
-  // A daemon on another protocol takes the socket and records its pid, as
-  // a daemon from another release would.
   const legacy = Bun.spawn(
     [
       process.execPath,
@@ -127,8 +123,7 @@ test('it stops a daemon on another protocol after the user confirms, and the man
 
   await legacy.exited;
 
-  // The unit's manager starts the new daemon once the old one stops, and
-  // the new daemon restores the stored fleet.
+  // The unit's manager starts the new daemon once the old one stops.
   const next = await startDaemon({
     restoreFleetOnRestart: true,
     socketPath,
@@ -158,9 +153,7 @@ test('it stops a daemon of an older build when the user asks for the update and 
 
   mkdirSync(stateDir, { recursive: true });
 
-  // A daemon of an older build on this protocol takes the socket and
-  // records its pid. It answers no quit request, so only a stop from
-  // outside ends it.
+  // It answers no quit request, so only a stop from outside ends it.
   const older = Bun.spawn(
     [
       process.execPath,

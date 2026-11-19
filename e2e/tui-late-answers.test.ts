@@ -26,8 +26,6 @@ test('it stops a repository listing on esc to the agent step and lists again on 
 
   const fixture = await createGitFixture();
 
-  // The repository listing answers only once the test removes the hold
-  // file.
   writeFileSync(join(ctx.home, 'gh-hold'), '');
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubHeldGH());
 
@@ -72,16 +70,13 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  // Every authenticated request waits on the server until the test
-  // releases the gate.
   const gate = Promise.withResolvers<void>();
 
   const server = startGitHTTPServer(fixture.directory, fixture.env, {
     onRequest: () => gate.promise,
   });
 
-  // The home's git config supplies the basic auth the server asks for, so
-  // the probe's request reaches the hold.
+  // The server asks for basic auth, so without credentials the request would never get past it.
   writeFileSync(
     join(ctx.home, '.gitconfig'),
     '[credential]\n\thelper = "!f() { echo username=atc; echo password=fixture; }; f"\n',
@@ -131,8 +126,6 @@ test('it keeps the ref the user moved to when a repository listing answers late'
 
   await $`git push --quiet origin main:feat`.env(fixture.env).cwd(fixture.work).quiet();
 
-  // The repository listing answers only once the test removes the hold
-  // file.
   writeFileSync(join(ctx.home, 'gh-hold'), '');
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubHeldGH());
 
@@ -174,13 +167,11 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  // Authenticated requests pass until the test points the hold at the
-  // gate, and then wait until it releases the gate.
   const gate = Promise.withResolvers<void>();
   let hold = Promise.resolve();
   const server = startGitHTTPServer(fixture.directory, fixture.env, { onRequest: () => hold });
 
-  // The home's git config supplies the basic auth the server asks for.
+  // The server asks for basic auth, which git config in the home supplies.
   writeFileSync(
     join(ctx.home, '.gitconfig'),
     '[credential]\n\thelper = "!f() { echo username=atc; echo password=fixture; }; f"\n',
@@ -209,8 +200,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   await ctx.waitFor('spawn: initial prompt');
 
-  // The clone behind the spawn waits on the server until the test releases
-  // it, so the spawn is still in flight when esc stops waiting on it.
+  // The spawn must still be in flight when esc stops waiting on it, so the clone waits on the server until the test releases it.
   hold = gate.promise;
 
   const served = server.authorizations.length;
@@ -256,9 +246,7 @@ test('it stays where the user moved when a directory listing answers late', asyn
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
 
-  // The daemon runs zoxide from the PATH the client gives it. While the
-  // hold file exists, zoxide marks that it started and waits, so the
-  // directory listing answers only once the test removes the file.
+  // The daemon runs zoxide from the PATH the client gives it.
   createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
   writeFileSync(join(ctx.home, 'zoxide-hold'), '');
 
@@ -298,19 +286,13 @@ test('it keeps a probe of a typed URL while the directory listing answers, spawn
   const fixture = await createGitFixture();
 
   createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
-
-  // While the hold file exists, zoxide marks that it started and waits, so
-  // the directory listing answers only once the test removes it.
   createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
   writeFileSync(join(ctx.home, 'zoxide-hold'), '');
 
-  // Authenticated requests pass until the test points the hold at the
-  // gate, and then wait until it releases the gate.
   const gate = Promise.withResolvers<void>();
   let hold = Promise.resolve();
   const server = startGitHTTPServer(fixture.directory, fixture.env, { onRequest: () => hold });
 
-  // The home's git config supplies the basic auth the server asks for.
   writeFileSync(
     join(ctx.home, '.gitconfig'),
     '[credential]\n\thelper = "!f() { echo username=atc; echo password=fixture; }; f"\n',
@@ -341,8 +323,6 @@ test('it keeps a probe of a typed URL while the directory listing answers, spawn
 
   ctx.write(KEYS.enter);
 
-  // The probe's request reaches the server and is held there, so the
-  // directory listing answers first.
   await waitFor(() => {
     expect(server.authorizations).not.toBeEmpty();
   });

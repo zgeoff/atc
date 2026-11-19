@@ -117,8 +117,6 @@ test('it keeps answering the owner after it refuses an owner-only method to a pr
   expect(pinged).toStrictEqual({});
 });
 
-// The owner's quit stops the daemon under the test, so the daemon e2e suite
-// covers it instead.
 test('it admits fleet.restore from the owner', async () => {
   const ctx = setupTest();
 

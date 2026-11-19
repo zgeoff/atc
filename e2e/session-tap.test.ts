@@ -23,8 +23,6 @@ async function setupTest() {
 
   const paths = resolvePaths(env);
 
-  // The tap dials this path, so the daemon listens exactly there; the
-  // adapter takes messages, so a session has an inbox to tap.
   const daemon = await startDaemon({
     socketPath: paths.daemonSocketPath,
     reporterSocketPath: join(temporaryDirectory.path, 'reporter.sock'),

@@ -26,8 +26,7 @@ async function setupTest() {
 test('it narrows the overlay to sessions matching the slash filter', async () => {
   const ctx = await setupTest();
 
-  // The sessions report no prompt, so neither names itself in the status
-  // bar as the session that needs you.
+  // The sessions report no prompt, so neither names itself in the status bar as the session that needs you.
   writeFileSync(join(ctx.home, 'fake-claude-events.jsonl'), '');
 
   ctx.boot();
@@ -68,8 +67,7 @@ test('it opens the overlay with a configured leader key', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  // The home screen's status bar ends with the leader's label; an attached
-  // session draws no status bar.
+  // An attached session draws no status bar, so this label only appears on the home screen.
   await ctx.waitFor('▏^] ');
 
   await spawnDaemonSession(ctx, 'leadertest');
@@ -138,7 +136,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   await ctx.waitFor('spawn: name');
 
-  // The first spawn's prompt step is still in the buffer.
+  // The first spawn's prompt step is still in the buffer and would satisfy the next wait.
   ctx.reset();
   ctx.write(`second${KEYS.enter}`);
 

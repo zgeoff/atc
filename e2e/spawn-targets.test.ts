@@ -77,7 +77,6 @@ test('it spawns a session on the target the spawn names and records it in the fl
         sessionID: session['id'],
         target: 'box',
 
-        // The kind, then the first 16 hex digits of sha256('{"size":2}').
         targetIdentity: 'local-pty:7028e13f78f6f7ad',
       },
     ],
@@ -497,7 +496,6 @@ test('it refuses input to a restored headless session on local once the targets 
 test('it refuses input to a restored headless session whose provider runs no headless turns, without running it', async () => {
   const ctx = setupTest();
 
-  // A provider that can neither start a terminal nor run a headless turn.
   const providers = new Map([
     ...ctx.providers,
     [
@@ -527,7 +525,6 @@ test('it refuses input to a restored headless session whose provider runs no hea
           agentSessionID: toAgentSessionID('a-box'),
           target: 'box',
 
-          // The kind, then the first 16 hex digits of sha256('{}').
           targetIdentity: 'no-headless:44136fa355b3678a',
         }),
       ]);
@@ -653,7 +650,6 @@ test.each([
   async (_label, changed) => {
     const ctx = setupTest();
 
-    // A provider that can neither start a terminal nor run a headless turn.
     const providers = new Map([
       ...ctx.providers,
       [
@@ -730,7 +726,6 @@ test.each([
   async (_label, changed) => {
     const ctx = setupTest();
 
-    // A provider that can neither start a terminal nor run a headless turn.
     const providers = new Map([
       ...ctx.providers,
       [
@@ -806,7 +801,6 @@ test.each([
   async (_label, changed) => {
     const ctx = setupTest();
 
-    // A provider that can neither start a terminal nor run a headless turn.
     const providers = new Map([
       ...ctx.providers,
       [

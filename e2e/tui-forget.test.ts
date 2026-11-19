@@ -9,7 +9,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { openDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
-// The client boots its own daemon, so the test's client connects once the tower draws.
+// The client boots its own daemon, so the test's client can only connect once the tower draws.
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: createMigratedStateDB });
 
