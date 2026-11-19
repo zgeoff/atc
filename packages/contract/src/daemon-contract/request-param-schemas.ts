@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { COMMIT_ID_PATTERN } from './commit-id-pattern';
-import { GRANT_SCOPES } from './grant-scope';
-import { RESTART_RESULT_SCHEMA } from './restart-result';
-import { buildOptionalBoolean } from './schema/build-optional-boolean';
-import { buildOptionalString } from './schema/build-optional-string';
-import { toAgentSessionID } from './to-agent-session-id';
-import { toMessageID } from './to-message-id';
-import { toSessionID } from './to-session-id';
+import { RESTART_RESULT_SCHEMA } from '../hello/restart-result';
+import { toAgentSessionID } from '../ids/to-agent-session-id';
+import { toMessageID } from '../ids/to-message-id';
+import { toSessionID } from '../ids/to-session-id';
+import { buildOptionalBoolean } from '../schema/build-optional-boolean';
+import { buildOptionalString } from '../schema/build-optional-string';
+import { GRANT_SCOPES } from '../sessions/grant-scope';
+import { COMMIT_ID_PATTERN } from '../workspaces/commit-id-pattern';
 
 const EJECT_DEFAULT_PROMPT =
   'Continue the task autonomously. Verify your work as you go and stop when it is complete.';

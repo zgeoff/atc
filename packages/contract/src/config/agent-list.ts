@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { SOURCE_ENTRY_SCHEMA } from './source-entry';
-import { SPAWN_OPTION_SPEC_SCHEMA } from './spawn-option-spec';
+import { SOURCE_ENTRY_SCHEMA } from '../sources/source-entry';
+import { SPAWN_OPTION_SPEC_SCHEMA } from '../sources/spawn-option-spec';
 
 // A spawn option as `agents.list` shows it: the agent's own spec, plus
 // whether a spawn can pass it now. Only the supported option of an agent

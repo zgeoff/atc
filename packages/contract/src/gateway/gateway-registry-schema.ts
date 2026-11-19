@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MAX_EVENTS_CURSOR_BYTES } from './max-events-cursor-bytes';
+import { MAX_EVENTS_CURSOR_BYTES } from '../daemon-events/max-events-cursor-bytes';
 import { MAX_REGISTRY_DAEMONS } from './max-registry-daemons';
 
 // A daemon name: never a `.`, which separates the parts of a gateway id.
