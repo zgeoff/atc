@@ -46,11 +46,8 @@ export function collectRemoteDaemons(raw: unknown, home: string): RemoteDaemonsC
 
 // The gateway's daemon name rule, so one name works in both places.
 const NAME_PATTERN = /^[a-z][a-z0-9-]{0,30}$/u;
-
-// `<host>:<port>`, with an IPv6 host in brackets.
 const ADDRESS_PATTERN = /^(?:\[(?<v6>[^\]]+)\]|(?<host>[^:[\]]+)):(?<port>\d{1,5})$/u;
 
-// The daemon an entry holds, or the first rule it breaks.
 function parseRemoteDaemon(name: string, entry: unknown, home: string): RemoteDaemon | string {
   if (!NAME_PATTERN.test(name)) {
     return 'a daemon name must match ^[a-z][a-z0-9-]{0,30}$';

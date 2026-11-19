@@ -1,7 +1,6 @@
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// The label that marks every image and volume the e2e suite creates, so a cleanup finds them
 export const STAND_IN_LABEL = 'atc.e2e-docker';
 
 const DOCKERFILE = `FROM debian:stable-slim
@@ -12,9 +11,8 @@ USER agent
 WORKDIR /home/agent
 `;
 
-// Like the real CLI, it runs each hook command from the --settings file through a shell. The
-// daemon holds a remote session's start report until a bridge attaches, which this stand-in has
-// none of, so the start report runs in the background.
+// The daemon holds a remote session's start report until a bridge attaches, and no bridge
+// attaches to this stand-in, so the start report runs in the background.
 const STAND_IN_CLAUDE = `#!/bin/bash
 settings=""
 prev=""
@@ -36,7 +34,6 @@ printf '{"hook_event_name":"Notification","session_id":"stand-in-1","message":"n
 while read -r line; do echo "GOT:$line"; done
 `;
 
-// Builds an image on a glibc base that holds a stand-in for the Claude CLI, and returns its tag.
 export async function createStandInImage(directory: string, tag: string): Promise<string> {
   const context = join(directory, 'stand-in-image');
 

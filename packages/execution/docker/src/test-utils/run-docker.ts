@@ -1,4 +1,3 @@
-// Runs the docker CLI against the machine's Engine and returns its trimmed output.
 export async function runDocker(...args: string[]): Promise<string> {
   const process = Bun.spawn(['docker', ...args], { stdout: 'pipe', stderr: 'pipe' });
 

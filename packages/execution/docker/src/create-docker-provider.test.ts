@@ -113,9 +113,7 @@ async function setupTest() {
       onRelay: () => {},
     } satisfies HarnessSpec,
 
-    // the stand-in for the mux in a session's sidecar
     guest: {
-      // answers the daemon's latest hello once it is on the sidecar's stdin
       welcome: async (session: string, answer: HelloAnswer) => {
         const answered = answeredHellos.get(session) ?? 0;
 

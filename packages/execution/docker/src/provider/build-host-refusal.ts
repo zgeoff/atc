@@ -11,7 +11,6 @@ export type HostProblem =
   | 'busy'
   | 'engine_error';
 
-// A refusal of the host: `host_unavailable`, with the problem and the facts a caller needs.
 export function buildHostRefusal(
   problem: HostProblem,
   message: string,

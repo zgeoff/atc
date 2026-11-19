@@ -2,8 +2,6 @@ import { expect, test } from 'bun:test';
 import { createStubImpPort } from './create-stub-imp-port';
 import { getOnlyImpName } from './get-only-imp-name';
 
-// The stub port whose imps a test reads; every process it started is killed
-// once the test finishes.
 function setupTest() {
   const port = createStubImpPort();
 

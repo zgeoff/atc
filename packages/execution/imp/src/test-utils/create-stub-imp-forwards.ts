@@ -2,8 +2,6 @@ import { rmSync } from 'node:fs';
 import type { ImpForwardEnd, ImpRelayConnection, ImpReverseForward } from '../port/imp-port';
 import { mergeTail } from './merge-tail';
 
-// The reverse forwards impd opens from a guest socket to the daemon, the
-// connections they relay, and the faults a test puts on them.
 export interface StubImpForwards {
   readonly openReverseForward: (
     name: string,
@@ -16,18 +14,15 @@ export interface StubImpForwards {
   // impd ends a forward when its tunnel socket closes or it loses the guest.
   readonly stopForwards: (end: Exclude<ImpForwardEnd, { kind: 'stopped' }>) => void;
 
-  // Stops every forward the stand-in holds.
   readonly stop: () => void;
 
   readonly startRelayRefusal: () => void;
   readonly stopRelayRefusal: () => void;
 
-  // What the daemon writes still reaches the guest.
   readonly startGuestByteDrop: () => void;
 
   readonly stopGuestByteDrop: () => void;
 
-  // How many bytes guests wrote that the drop threw away.
   readonly countDroppedGuestBytes: () => number;
 }
 
@@ -36,8 +31,6 @@ interface StubRelay {
   readonly closeListeners: (() => void)[];
   readonly endListeners: (() => void)[];
 
-  // Bytes a write handed over that the socket has not taken yet, and the
-  // writes waiting for them to go.
   unsent: Uint8Array;
   readonly roomWaiters: (() => void)[];
 }
@@ -47,14 +40,8 @@ interface StubImpForwardsOptions {
 }
 
 export function createStubImpForwards(deps: StubImpForwardsOptions): StubImpForwards {
-  // Whether every reverse forward closes each new guest connection at once.
   let refusingRelays = false;
-
-  // Whether every relayed connection drops what the guest writes, while
-  // what the daemon writes still reaches the guest.
   let droppingGuestBytes = false;
-
-  // How many guest bytes the drop has thrown away.
   let droppedGuestBytes = 0;
 
   const forwards = new Set<{
@@ -167,8 +154,6 @@ export function createStubImpForwards(deps: StubImpForwardsOptions): StubImpForw
 
       const ended = Promise.withResolvers<ImpForwardEnd>();
 
-      // The first end counts, as each end stops the listener and removes the
-      // guest socket.
       const forward = {
         end: (end: ImpForwardEnd) => {
           if (!forwards.delete(forward)) {

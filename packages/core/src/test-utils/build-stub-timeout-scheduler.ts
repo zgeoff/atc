@@ -1,5 +1,3 @@
-// One timer the scheduler started: its delay, what it runs, and whether it
-// is still pending, has run, or was cancelled.
 interface StubTimer {
   readonly delayMs: number;
   readonly onTimeout: () => void;

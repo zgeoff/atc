@@ -7,8 +7,6 @@ import { buildImpdLease } from './build-impd-lease';
 import { buildNotFound } from './build-not-found';
 import type { StubImpFleet } from './create-stub-imp-fleet';
 
-// The leases that keep imps awake: their acquisition, renewal, and release,
-// with the holds and failures a test puts in their way.
 export interface StubImpLeases {
   readonly acquireLease: (name: string, label: string, ttlSeconds: number) => Promise<ImpLease>;
   readonly renewLease: (name: string, label: string, ttlSeconds: number) => Promise<ImpLease>;
@@ -20,24 +18,19 @@ export interface StubImpLeases {
     ttlSeconds: number,
   ) => void;
 
-  // Fails once skip more acquisitions have gone through.
   readonly setAcquireFailure: (skip: number, code: ImpdBareRefusalCode<'leases.acquire'>) => void;
 
-  // A listener runs before the acquisition returns or waits on a hold, so the
-  // caller's turn has not yet ended.
   readonly subscribeToLeaseAcquires: (
     listener: (name: string, label: string) => void,
   ) => () => void;
 
   readonly startLeaseHold: () => void;
 
-  // How many lease acquisitions wait for the lease hold to stop.
   readonly countHeldLeases: () => number;
 
   readonly stopLeaseHold: () => void;
   readonly startReleaseHold: () => void;
 
-  // How many lease releases wait for the release hold to stop.
   readonly countHeldReleases: () => number;
 
   readonly stopReleaseHold: () => void;
@@ -49,24 +42,16 @@ interface StubImpLeasesOptions {
 }
 
 export function createStubImpLeases(deps: StubImpLeasesOptions): StubImpLeases {
-  // Lease acquisitions that go through before the next one fails, and
-  // impd's code for that failure, or null for none.
   let acquireFailure: {
     skip: number;
     readonly code: ImpdBareRefusalCode<'leases.acquire'>;
   } | null = null;
 
-  // The lease releases wait for this hold to end, while one is held.
   let releaseHold: PromiseWithResolvers<void> | null = null;
-
-  // The lease acquisitions wait for this hold to end, while one is held.
   let leaseHold: PromiseWithResolvers<void> | null = null;
-
-  // How many lease acquisitions and releases wait on their holds.
   let heldLeases = 0;
   let heldReleases = 0;
 
-  // Called at the start of every lease acquisition, in the caller's turn.
   const leaseAcquireListeners = new Set<(name: string, label: string) => void>();
 
   const calls = deps.calls;

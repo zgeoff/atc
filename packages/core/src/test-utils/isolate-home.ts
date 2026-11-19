@@ -18,9 +18,8 @@ afterEach(() => {
   removeEnvOverrides();
 });
 
-// An inherited marker is trusted only when every isolated variable points under
-// it and no enclosing session's variables remain; an inherited
-// CLAUDE_CONFIG_DIR would move the Claude config folder out of the home.
+// Claude reads its config folder from CLAUDE_CONFIG_DIR, so an inherited value would put that
+// folder outside the test home even when every home variable matches.
 function requireTestHome(root: string): void {
   const expected: Readonly<Record<string, string>> = {
     HOME: join(root, 'home'),

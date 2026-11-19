@@ -4,20 +4,15 @@ import type { Socket } from 'bun';
 interface StubStallingProxy {
   readonly port: number;
 
-  // Drops every byte in both directions from now on, and every close, as a
-  // network path that loses its packets does: neither end hears anything.
   readonly stall: () => void;
 
-  // How many bytes it has dropped, in both directions together.
   readonly countDroppedBytes: () => number;
 
-  // How many client connections it has seen close.
   readonly countClosedClients: () => number;
 
   readonly stop: () => void;
 }
 
-// One end of a proxied connection, with the bytes it has yet to take.
 interface ProxiedEnd {
   socket: Socket<unknown> | null;
   readonly unwritten: Uint8Array[];
@@ -28,9 +23,6 @@ interface ProxiedConnection {
   readonly upstream: ProxiedEnd;
 }
 
-// A TCP proxy to a port on 127.0.0.1 that forwards each connection until it
-// stalls. It keeps every connection until it stops, so a stop ends each
-// upstream socket that a stalled close left open.
 export function startStubStallingProxy(targetPort: number): StubStallingProxy {
   const state = { stalled: false, droppedBytes: 0, closedClients: 0 };
 

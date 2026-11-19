@@ -13,7 +13,6 @@ import type {
   VolumeSpec,
 } from '../engine/types';
 
-// What a command that runs to completion prints and exits with.
 export interface RunResult {
   readonly stdout?: string;
   readonly stderr?: string;
@@ -38,28 +37,22 @@ interface FakeContainer {
 }
 
 export interface InMemoryEngine extends DockerEngine {
-  // arrangement
   readonly addImage: (reference: string) => void;
   readonly removeImage: (reference: string) => void;
   readonly setInfo: (info: EngineInfo) => void;
   readonly setUnreachable: (isUnreachable: boolean) => void;
 
-  // answers each command that runs to completion, once its stdin closed when it has one
   readonly answerRuns: (answer: (spec: ContainerSpec, stdin: Uint8Array) => RunResult) => void;
 
-  // what a long-running container does
   readonly writeOutput: (name: string, text: string) => void;
   readonly exitContainer: (name: string, exitCode: number) => void;
   readonly dropAttachments: (name: string) => void;
 
-  // the Engine restarts: every container that ran or was paused stops
   readonly restart: () => void;
   readonly seedContainer: (spec: ContainerSpec, status: ContainerStatus, exitCode?: number) => void;
 
-  // observation
   readonly collectContainers: () => readonly ContainerSpec[];
 
-  // every container the Engine was asked to create, those it removed since included
   readonly collectCreated: () => readonly ContainerSpec[];
   readonly collectVolumes: () => readonly VolumeSpec[];
   readonly readInput: (name: string) => string;

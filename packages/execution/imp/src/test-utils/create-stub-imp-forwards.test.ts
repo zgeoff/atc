@@ -7,8 +7,6 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { ImpRelayConnection } from '../port/imp-port';
 import { createStubImpForwards } from './create-stub-imp-forwards';
 
-// The forwards under test and a guest socket path in a temp directory; every
-// forward still open stops when the test finishes.
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-stub-imp-forwards-');
   const calls: string[] = [];
@@ -19,8 +17,6 @@ function setupTest() {
     forwards.stop();
   });
 
-  // Opens a forward and connects a guest to it. The guest's bytes and close
-  // are collected as the daemon sees them, and the daemon's relay is returned.
   const connectGuest = async () => {
     const relay = Promise.withResolvers<ImpRelayConnection>();
     const received: string[] = [];

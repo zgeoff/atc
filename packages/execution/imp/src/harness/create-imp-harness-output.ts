@@ -3,11 +3,7 @@ import type { ImpSessionStarted } from '../port/imp-port';
 
 type SessionOffsets = Extract<ImpSessionStarted['output'], { continuity: 'offsets' }>;
 
-// The output a harness's connections carry, decoded for its listeners, and
-// where in the session's output the daemon stands.
 export interface ImpHarnessOutput {
-  // A start that resumes nothing meets the screen afresh when asked to, and
-  // the daemon's position restarts at the connection's first offset.
   readonly applyStart: (offsets: SessionOffsets | null, needsFreshScreen: boolean) => void;
 
   // The mode bytes ahead of a fresh replay go to the screen uncounted; every
@@ -23,21 +19,17 @@ export interface ImpHarnessOutput {
   readonly resetCursor: () => void;
 }
 
-// The bytes a fresh attach sends listeners ahead of its replay: reset the
-// attributes, home the cursor, and clear the screen. A full terminal reset
-// would also undo the modes of every attached client's own terminal.
+// A full terminal reset would also undo the modes of every attached client's own terminal,
+// so clear only attributes, cursor and screen.
 const SCREEN_RESET = `${ansi.reset}${ansi.cursorHome}${ansi.eraseScreen}`;
 
 export function createImpHarnessOutput(emitData: (text: string) => void): ImpHarnessOutput {
   let decoder = new TextDecoder();
 
-  // The boot and generation the daemon's output came from, while impd
-  // carries offsets for the session.
   let cursor: { readonly bootId: string; readonly generation: string } | null = null;
 
-  // The offset after the last byte the daemon has, the offset the current
-  // connection's next byte sits at, and the mode bytes still owed before
-  // it, which have no offset.
+  // The daemon sends mode bytes before each connection's stream, and those bytes carry no
+  // offset, so they pass through before offset counting starts.
   let highWater = 0;
   let nextOffset = 0;
   let preludeLeft = 0;

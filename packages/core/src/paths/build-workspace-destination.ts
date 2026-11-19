@@ -3,10 +3,9 @@ interface DestinationParts {
   // to the target user's home, where an empty root is the home itself.
   readonly root: string;
 
-  // The repository URL the checkout comes from, as the daemon resolved it.
+  // Holds the URL as the daemon resolved it, not as the caller first wrote it.
   readonly url: string;
 
-  // The branch or tag the commit was chosen by, or null for a bare commit.
   readonly ref: string | null;
 
   // The commit checked out, or null when only the ref picks it.

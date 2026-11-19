@@ -10,9 +10,6 @@ import type { StubConnection } from './stub-imp';
 
 type StartRequest = Extract<ImpSessionRequest, { readonly kind: 'start' }>;
 
-// A context over a fleet holding one running imp, and the means to make a
-// request and a connection that records what it is sent. Every process the
-// sessions started is killed when the test finishes.
 async function setupTest(settings: StubSessionContext['settings']) {
   const calls: string[] = [];
 
@@ -57,8 +54,6 @@ async function setupTest(settings: StubSessionContext['settings']) {
     overrides: Partial<Extract<ImpSessionRequest, { readonly kind: 'attach' }>> = {},
   ): ImpSessionRequest => ({ kind: 'attach', ...target, wake: true, ...overrides });
 
-  // Answers a request on a new connection that records what it is sent;
-  // overrides replace the members of the connection.
   const answer = (request: ImpSessionRequest, overrides: Partial<StubConnection> = {}) => {
     const outcomes: ImpSessionOutcome[] = [];
     const started: ImpSessionStarted[] = [];

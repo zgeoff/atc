@@ -3,8 +3,6 @@ import type { DockerEngine, Labels } from '../engine/types';
 import { buildHostNames } from './build-host-names';
 import { buildHostRefusal } from './build-host-refusal';
 
-// Refuses an object another daemon created, and a volume of the host's name that is not this
-// target's host. Containers are found by their labels, so another target's never match.
 export async function requireHostObjects(
   engine: DockerEngine,
   target: DockerTarget,

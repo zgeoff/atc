@@ -1,6 +1,4 @@
 export interface ImpPort {
-  // Rejects with `IMPD_OUTDATED` when impd is older than the oldest impd
-  // this atc supports, or reports a version that does not parse.
   readonly verifyVersion: () => Promise<void>;
 
   // The folder inside each imp that impd declares for scratch files.
@@ -11,24 +9,19 @@ export interface ImpPort {
   // identity is off. A fact of impd, shared by all its imps.
   readonly readIssuer: () => Promise<string | null>;
 
-  // The caller's own identity: its scope, the imps it may reach, and the
-  // secrets it may grant.
   readonly readIdentity: () => Promise<ImpIdentity>;
 
   // Every secret impd holds, with its rules and never its value.
   readonly readSecrets: () => Promise<readonly ImpSecret[]>;
 
-  // The names of the secrets granted to an imp.
   readonly readGrants: (name: string) => Promise<readonly string[]>;
 
   // impd's grant add is idempotent and returns no receipt, so nothing in the
   // result tells a new grant from an existing one or shows who added it.
   readonly createGrant: (name: string, secret: string) => Promise<void>;
 
-  // Revokes a secret from an imp, and reports whether impd held the grant.
   readonly removeGrant: (name: string, secret: string) => Promise<boolean>;
 
-  // The imp under a name, or null when impd holds none.
   readonly readImp: (name: string) => Promise<ImpView | null>;
   readonly createImp: (spec: ImpCreateSpec) => Promise<ImpView>;
 
@@ -39,16 +32,14 @@ export interface ImpPort {
   // Extends the caller's unexpired lease; `LEASE_NOT_HELD` when it ended.
   readonly renewLease: (name: string, label: string, ttlSeconds: number) => Promise<ImpLease>;
 
-  // Ends the caller's lease, and reports whether there was one.
   readonly releaseLease: (name: string, label: string) => Promise<boolean>;
 
   // Puts the imp to sleep without force: `LEASED` while any lease holds it.
   readonly suspendImp: (name: string) => Promise<void>;
   readonly destroyImp: (name: string) => Promise<void>;
 
-  // Opens a connection as impd's single attacher; a start attaches when the
-  // command already runs. gate runs as the request goes out, after any feature
-  // check; false closes the connection unsent, and an earlier end never runs it.
+  // impd allows a single attacher per session, and a start request attaches to the command
+  // instead of starting it again when the command already runs.
   readonly openSession: (
     request: ImpSessionRequest,
     handlers: ImpSessionHandlers,
@@ -58,13 +49,10 @@ export interface ImpPort {
   // Runs a command in the imp to its exit, without a terminal.
   readonly runCommand: (name: string, command: ImpCommand) => Promise<ImpCommandResult>;
 
-  // Replaces a file the imp's processes see read-only, root included, and
-  // resolves to its path inside the imp. `AGENT_OUTDATED` when the imp's
-  // agent is from before read-only files.
+  // Replaces a file that the imp's processes, root included, see as read-only, and resolves
+  // to its path inside the imp. `AGENT_OUTDATED` when the imp's agent lacks read-only files.
   readonly writeReadOnlyFile: (name: string, path: string, content: string) => Promise<string>;
 
-  // Listens on a unix socket path inside the imp and hands each connection
-  // the guest opens there to the daemon.
   readonly openReverseForward: (
     name: string,
     guestPath: string,
@@ -83,12 +71,8 @@ export interface ImpIdentity {
   readonly name: string;
   readonly scope: ImpScope;
 
-  // Imp name patterns with `*` for any run of characters; null reaches
-  // every imp on the host.
   readonly imps: readonly string[] | null;
 
-  // The secrets the caller may grant to the imps it reaches and revoke
-  // from them.
   readonly grantable: readonly string[];
 }
 
@@ -97,22 +81,17 @@ export interface ImpSecret {
   readonly kind: 'anthropic' | 'custom' | 'github' | 'npm' | 'oauth' | 'static';
   readonly rules: readonly ImpSecretRule[];
 
-  // The imps holding a grant of the secret.
   readonly imps: readonly string[];
 
-  // The sign-in state of an `oauth` secret; absent for any other kind.
   readonly oauth?: ImpOAuthState;
 }
 
-// pending lasts until a refresh first works, and needs_login follows the token
-// endpoint refusing the refresh token for good. idClaims holds the last ID
-// token's identifiers, never a credential.
+// The stored ID claims are the last ID token's identifiers, never a credential.
 interface ImpOAuthState {
   readonly status: 'pending' | 'ready' | 'needs_login';
   readonly idClaims: Readonly<Record<string, unknown>> | null;
 }
 
-// How impd adds a secret to requests for one host.
 export interface ImpSecretRule {
   readonly host: string;
   readonly header: string;
@@ -129,7 +108,6 @@ export interface ImpView {
   readonly name: string;
   readonly state: ImpState;
 
-  // The caller's own leases in full, and a count of everyone else's.
   readonly leases: readonly ImpLease[];
   readonly otherLeaseCount: number;
 }
@@ -163,8 +141,6 @@ export interface ColdBoot {
   readonly at: string;
 }
 
-// The last generation that ran under a session name in this boot, final
-// once written.
 export interface PreviousGeneration {
   readonly executionGeneration: string;
   readonly end: number;
@@ -241,7 +217,6 @@ export interface ImpSessionHandlers {
 }
 
 export interface ImpSessionStarted {
-  // Whether this connection started the process rather than attaching.
   readonly created: boolean;
   readonly output: SessionOutput;
 }
@@ -278,10 +253,9 @@ export interface ImpSessionConnection {
   readonly write: (data: Uint8Array) => void;
   readonly resize: (cols: number, rows: number) => void;
 
-  // Sends the process a signal by name, such as `SIGHUP`.
   readonly sendSignal: (signal: string) => void;
 
-  // Closes the connection; the process runs on under its session name.
+  // The process keeps running under its session name; only this connection ends.
   readonly close: () => void;
 }
 
@@ -305,25 +279,19 @@ export interface ImpRelayConnection {
   // and counts it against the forward's relays, until the daemon closes it.
   readonly onEnd: (listener: () => void) => void;
 
-  // Sends bytes to the guest's end of the connection, and settles once the
-  // relay has room for more.
   readonly write: (data: Uint8Array) => Promise<void>;
   readonly close: () => void;
 }
 
 export interface ImpReverseForward {
-  // Settles once impd listens on the guest path.
   readonly listening: Promise<void>;
 
-  // Settles once the forward listens no more, with why. A forward never
-  // listens again after it ends, so a guest connection after that reaches
-  // nothing until a new forward listens on the path.
+  // impd never resumes listening for an ended forward, so a guest connection after this settles
+  // reaches nothing until a new forward listens on the path.
   readonly ended: Promise<ImpForwardEnd>;
   readonly stop: () => void;
 }
 
-// Why a reverse forward ended: its own stop, the imp going away (lost), its
-// tunnel socket closing with a code, or impd refusing it.
 export type ImpForwardEnd =
   | { readonly kind: 'stopped' }
   | { readonly kind: 'lost' }

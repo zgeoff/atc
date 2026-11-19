@@ -6,8 +6,7 @@ export const MESSAGE_VIEW_SCHEMA = z.object({
   message: z.string(),
   session: z.string(),
 
-  // The sender's name, and who sent it, absent on a message stored before
-  // the daemon typed its senders.
+  // Messages already in the store may have no typed sender, so parsing them must accept it missing.
   from: z.string(),
   sender: MESSAGE_SENDER_SCHEMA.optional(),
   text: z.string(),

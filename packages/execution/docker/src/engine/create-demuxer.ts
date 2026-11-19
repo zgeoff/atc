@@ -3,7 +3,6 @@ import type { StreamName } from './types';
 const HEADER_BYTES = 8;
 
 interface Demuxer {
-  // takes the next bytes of a multiplexed stream and reports each whole frame's payload
   readonly feed: (chunk: Uint8Array) => void;
 }
 

@@ -4,8 +4,6 @@ import { dirname, join } from 'node:path';
 
 const SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/u;
 
-// Replaces a file in a host's records folder in one step, readable by every user and writable by
-// none. Rejects a path that is not relative, or whose segments leave the folder.
 export function writeRecordFile(recordsDir: string, path: string, content: string): void {
   const segments = path.split('/');
 

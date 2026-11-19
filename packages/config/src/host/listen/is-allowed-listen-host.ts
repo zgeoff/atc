@@ -1,14 +1,11 @@
 import { isIPv4, isIPv6 } from 'node:net';
 
-// An IPv6 range as its leading 16-bit groups and how many of their bits
-// must match.
 interface IPv6Range {
   readonly groups: readonly number[];
   readonly bits: number;
 }
 
-// The IPv6 ranges a listener may bind in: loopback `::1/128` and the
-// tailnet range `fd7a:115c:a1e4::/48`.
+// fd7a:115c:a1e4::/48 is the IPv6 range Tailscale assigns to tailnet nodes.
 const IPV6_RANGES: readonly IPv6Range[] = [
   { groups: [0, 0, 0, 0, 0, 0, 0, 1], bits: 128 },
   { groups: [0xfd_7a, 0x11_5c, 0xa1_e4], bits: 48 },
@@ -35,8 +32,7 @@ export function isAllowedListenHost(host: string): boolean {
   return false;
 }
 
-// The eight 16-bit groups of an IPv6 literal, or null for a literal with an
-// embedded IPv4 tail, which no allowed range holds.
+// Literals with an embedded IPv4 tail are not parsed, because no allowed range holds one.
 function expandIPv6Groups(host: string): number[] | null {
   if (host.includes('.')) {
     return null;

@@ -5,7 +5,6 @@ export interface InvalidGitTransports {
   readonly invalid: string;
 }
 
-// unpushed removes a workspace only once its work is pushed; none removes it whatever it holds
 export type WorkspaceCleanupCheck = 'unpushed' | 'none';
 
 export interface WorkspaceCleanupConfig {
@@ -25,7 +24,6 @@ export interface WorkspacesConfig {
 interface CollectedWorkspacesConfig {
   readonly workspaces: WorkspacesConfig;
 
-  // The config problems the section holds, one line each.
   readonly errors: readonly string[];
 }
 
@@ -51,8 +49,6 @@ export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig
   };
 }
 
-// The git transports a config may allow: the defaults, and the two
-// opt-ins.
 const KNOWN_TRANSPORTS: ReadonlySet<string> = new Set(['https', 'ssh', 'http', 'file']);
 
 // Transports that run a command or read a descriptor on the daemon's host.

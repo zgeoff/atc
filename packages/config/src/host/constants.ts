@@ -1,6 +1,5 @@
 import { resolvePaths } from './resolve-paths';
 
-// The paths of the environment this process started in.
 const paths = resolvePaths(process.env);
 
 export const configFile = paths.configFile;

@@ -8,8 +8,6 @@ import { createStubImpSessions } from './create-stub-imp-sessions';
 
 type StartRequest = Extract<ImpSessionRequest, { readonly kind: 'start' }>;
 
-// Sessions over a fleet holding one running imp. Every process they started
-// is killed when the test finishes.
 async function setupTest() {
   const calls: string[] = [];
   const sessionRequests: ImpSessionRequest[] = [];
@@ -51,7 +49,6 @@ async function setupTest() {
     ...overrides,
   });
 
-  // Opens a session and collects what its handlers receive.
   const open = (request: ImpSessionRequest, gate?: () => boolean) => {
     const output: string[] = [];
     const started: boolean[] = [];

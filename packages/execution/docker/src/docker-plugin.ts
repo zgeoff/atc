@@ -32,7 +32,6 @@ export const DOCKER_PLUGIN = definePlugin({
       throw new TargetUnavailableError(config.id, parsed.problem);
     }
 
-    // each container runs the daemon's own binary, which a daemon run from source lacks
     if (!isCompiledBinary()) {
       throw new TargetUnavailableError(
         config.id,

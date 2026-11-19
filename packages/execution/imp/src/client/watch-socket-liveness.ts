@@ -1,10 +1,6 @@
 import type { Clock } from '@atc/core';
 
-// How often an open socket pings impd.
 const PING_INTERVAL_MS = 10_000;
-
-// How long an open socket may hear nothing from impd, pongs included, before
-// it ends.
 const SILENCE_LIMIT_MS = 30_000;
 
 // A network path that drops every packet leaves a socket open with nothing

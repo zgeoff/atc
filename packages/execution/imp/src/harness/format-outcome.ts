@@ -3,7 +3,6 @@ import { match } from 'ts-pattern';
 import type { ImpSessionOutcome } from '../port/imp-port';
 import { sanitizeDetail } from './sanitize-detail';
 
-// An end other than an exit, as a session's last message.
 export function formatOutcome(outcome: Exclude<ImpSessionOutcome, { kind: 'exit' }>): string {
   return match(outcome)
     .with({ kind: 'failed' }, (ended) => {

@@ -60,7 +60,6 @@ function parseAgentEntryFields(
     : spec.read({ entry, raw, authProfiles: context.authProfiles });
 }
 
-// The fields every kind takes.
 const COMMON_FIELDS: ReadonlySet<string> = new Set(['kind', 'label', 'mark', 'bin', 'args', 'env']);
 
 function collectFieldProblems(
@@ -102,9 +101,8 @@ interface FieldCheck {
 
 const NON_EMPTY_STRING = z.string().min(1);
 
-// The type of each field that takes a plain type check, with the problem a
-// value of another type reports. `kind` is checked before the entry
-// reaches its kind, and `auth` by the kind's own check.
+// `kind` and `auth` are left out: `kind` is checked before the entry reaches its kind,
+// and each kind checks `auth` itself.
 const FIELD_CHECKS: ReadonlyMap<string, FieldCheck> = new Map([
   ['label', { schema: NON_EMPTY_STRING, problem: 'label must be a non-empty string' }],
   ['mark', { schema: NON_EMPTY_STRING, problem: 'mark must be a non-empty string' }],
@@ -134,7 +132,6 @@ const FIELD_CHECKS: ReadonlyMap<string, FieldCheck> = new Map([
   ],
 ]);
 
-// The problem with one field's value, or null.
 function findFieldProblem(name: string, value: unknown): string | null {
   const check = FIELD_CHECKS.get(name);
 
@@ -157,7 +154,6 @@ function isStringRecord(value: unknown): value is Record<string, string> {
 // from a shell file.
 const SHELL_VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 
-// An entry's value for an `ATC_` name would replace the one atc sets.
 function collectEnvNameProblems(env: Readonly<Record<string, string>>): string[] {
   return Object.keys(env).flatMap((key) => {
     if (!SHELL_VARIABLE_NAME.test(key)) {
@@ -172,8 +168,6 @@ function collectEnvNameProblems(env: Readonly<Record<string, string>>): string[]
   });
 }
 
-// An entry with every default applied, from fields already checked. The id
-// that is the kind's own shows the kind's label; any other id shows itself.
 function buildEntry(
   id: string,
   spec: AgentEntrySpec,

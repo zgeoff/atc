@@ -31,8 +31,6 @@ const CONTAINER_SCHEMA = z.object({
 const NAMES_SCHEMA = z.array(z.string());
 const CONTAINER_LIST_SCHEMA = z.array(z.object({ Names: NAMES_SCHEMA }));
 
-// The Engine API over the unix socket at `socketPath`: Bun's fetch for each call, and a raw
-// connection for an attach.
 export function createEngineClient(socketPath: string): DockerEngine {
   const call = async (
     method: string,
@@ -224,7 +222,8 @@ function buildFilters(labels: Labels): string {
   return encodeURIComponent(JSON.stringify({ label }));
 }
 
-// the local driver's own name for the mount options, which is one letter
+// Docker's local volume driver reads mount options only from the key `o`; a longer key name does
+// not work.
 function buildTmpfsOptions(): Record<string, string> {
   return Object.fromEntries([
     ['type', 'tmpfs'],

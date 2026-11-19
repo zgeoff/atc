@@ -1,8 +1,6 @@
 import { isRecord } from '@atc/core';
 
 interface PrincipalsConfig {
-  // The targets each principal may use, by principal; null when the config
-  // has no `principals` key.
   readonly principals: ReadonlyMap<string, readonly string[]> | null;
   readonly errors: readonly string[];
 }

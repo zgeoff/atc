@@ -69,9 +69,8 @@ function buildHeader(path: string, size: number, mode: number): Uint8Array {
 const NAME_BYTES = 100;
 const PREFIX_BYTES = 155;
 
-// The ustar fields a path fills: the whole path as the name when it fits,
-// otherwise the part before the last slash that leaves a name short enough,
-// with that slash dropped, as the prefix.
+// ustar readers rebuild the path as prefix + '/' + name, so the slash at the split point
+// belongs to neither field.
 function splitArchivePath(path: string): { readonly prefix: string; readonly name: string } {
   if (countBytes(path) <= NAME_BYTES) {
     return { prefix: '', name: path };
@@ -93,7 +92,6 @@ function countBytes(text: string): number {
   return new TextEncoder().encode(text).length;
 }
 
-// An octal number padded to fill its field, ending in a NUL.
 function formatOctal(value: number, width: number): string {
   return `${value.toString(8).padStart(width - 1, '0')}\u0000`;
 }

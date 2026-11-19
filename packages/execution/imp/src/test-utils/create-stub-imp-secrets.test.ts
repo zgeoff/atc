@@ -5,8 +5,6 @@ import { buildMockImpIdentity } from './build-mock-imp-identity';
 import { createStubImpFleet } from './create-stub-imp-fleet';
 import { createStubImpSecrets } from './create-stub-imp-secrets';
 
-// Secrets over a fleet holding one imp, called by an identity that may grant
-// the secret `token-a`.
 async function setupTest() {
   const rule: ImpSecretRule = {
     host: 'api.example.test',

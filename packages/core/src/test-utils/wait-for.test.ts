@@ -2,8 +2,6 @@ import { expect, test } from 'bun:test';
 import { buildStubWaitClock } from './build-stub-wait-clock';
 import { waitFor } from './wait-for';
 
-// A clock that moves only when a wait waits it out, so a deadline passes
-// after a known number of attempts.
 function setupTest() {
   return buildStubWaitClock();
 }

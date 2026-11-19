@@ -5,9 +5,6 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStubImpCommands } from './create-stub-imp-commands';
 import { createStubImpFleet } from './create-stub-imp-fleet';
 
-// Commands over a fleet holding one running imp. A command still running
-// when the test finishes is killed, and the lines the commands report are
-// collected.
 async function setupTest() {
   const calls: string[] = [];
   const reported: string[] = [];

@@ -1,7 +1,7 @@
 import type { AuthProfile } from '@atc/plugin-api';
 
-// impd's secret name rule: an imp name's form, so a secret name is never a
-// path or a flag.
+// impd accepts only this form for secret names, the same form as an imp name, so a secret
+// name can never be read as a path or a flag.
 const SECRET_NAME = /^[a-z][a-z0-9-]{0,30}$/u;
 
 // impd's header name rule.

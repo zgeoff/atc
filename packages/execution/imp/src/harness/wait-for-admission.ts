@@ -2,7 +2,6 @@ import type { LaunchTicket } from '@atc/plugin-api';
 import type { ImpSessionRequest } from '../port/imp-port';
 import type { ImpHarnessHost } from './imp-harness-host';
 
-// What an admission needs of the harness whose request waits for it.
 interface AdmissionContext {
   readonly host: ImpHarnessHost;
   readonly isDone: () => boolean;
@@ -10,7 +9,6 @@ interface AdmissionContext {
   readonly applyAdmissionRefusal: (error: unknown) => void;
 }
 
-// A request with requirements opens only once the host admits it.
 export async function waitForAdmission(
   kind: ImpSessionRequest['kind'],
   context: AdmissionContext,

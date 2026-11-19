@@ -25,9 +25,6 @@ import { REQUEST_PARAM_SCHEMAS } from './request-param-schemas';
 
 const EMPTY = z.object({});
 const STRINGS = z.array(z.string()).readonly();
-
-// A forget that destroys a host answers first with the token its confirming
-// retry carries, and then with what it forgot and what became of the session's workspace.
 const FORGET_CONFIRM = z.object({ confirmToken: z.string(), expiresAt: z.number() });
 
 const FORGET_DONE = z.object({
@@ -36,10 +33,7 @@ const FORGET_DONE = z.object({
   workspace: WORKSPACE_CLEANUP_SCHEMA,
 });
 
-// The message a session's pending permission prompt shows.
 const PENDING_PROMPT = z.object({ message: z.string() });
-
-// A procedure open to principals that changes something and takes no key.
 const ACT: ProcedureMeta = { access: 'principal', readOnly: false, keyed: false };
 const READ: ProcedureMeta = { access: 'principal', readOnly: true, keyed: false };
 const KEYED: ProcedureMeta = { access: 'principal', readOnly: false, keyed: true };
@@ -47,8 +41,6 @@ const OWNER: ProcedureMeta = { access: 'owner', readOnly: false, keyed: false };
 const base = oc.$meta<ProcedureMeta>(ACT).errors(DAEMON_ERROR_MAP);
 const PARAMS = REQUEST_PARAM_SCHEMAS;
 
-// a procedure's path joined with dots is its request method;
-// `events.subscribe` has no request method
 export const DAEMON_CONTRACT = {
   daemon: {
     hello: base.meta(READ).input(PARAMS['daemon.hello']).output(HELLO_RESULT_SCHEMA),
@@ -61,8 +53,6 @@ export const DAEMON_CONTRACT = {
       .output(z.object({ path: z.string(), bytes: z.number() })),
   },
   workspaces: {
-    // Removes the workspaces atc created and the state folders that no listed session or spawn
-    // owns, as the forget's checks allow; without remove, reports what it would remove.
     prune: base.meta(OWNER).input(PARAMS['workspaces.prune']).output(WORKSPACE_PRUNE_SCHEMA),
   },
   dirs: {
@@ -90,8 +80,8 @@ export const DAEMON_CONTRACT = {
       .input(PARAMS['sources.interpret'])
       .output(SOURCE_INTERPRETATION_SCHEMA),
 
-    // Completes typed input against the daemon host, such as a path against
-    // its filesystem, with a relative path under the daemon user's home.
+    // Completion runs on the daemon host, not the client: a path completes against the daemon's
+    // filesystem, and a relative path resolves under the daemon user's home.
     complete: base
       .meta(READ)
       .input(PARAMS['sources.complete'])
@@ -134,8 +124,6 @@ export const DAEMON_CONTRACT = {
         .output(z.object({ revision: z.number(), restartPending: STRINGS })),
     },
 
-    // renameSkipped holds why a requested rename did not apply: 'agent_named'
-    // when the agent named the session itself. Other changes still applied.
     update: base
       .input(PARAMS['session.update'])
       .output(z.object({ renameSkipped: z.string().optional() })),
@@ -174,8 +162,6 @@ export const DAEMON_CONTRACT = {
       .input(PARAMS['session.menu'])
       .output(z.object({ menu: MENU_VIEW_SCHEMA.nullable() })),
 
-    // menu is what the screen settles on after the last key pressed; partial
-    // means the daemon could read only the part of it the screen shows
     choose: base.input(PARAMS['session.choose']).output(
       z.object({
         pressed: z.string(),
@@ -217,8 +203,6 @@ export const DAEMON_CONTRACT = {
   events: {
     read: base.meta(READ).input(PARAMS['events.read']).output(EVENTS_PAGE_SCHEMA),
 
-    // The live events of one connection: session views, terminal output for
-    // attached sessions, permission prompts, and inbox traffic.
     subscribe: base.meta(READ).input(EMPTY).output(eventIterator(DAEMON_EVENT_SCHEMA)),
   },
   message: {

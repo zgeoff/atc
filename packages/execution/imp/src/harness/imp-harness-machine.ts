@@ -12,7 +12,6 @@ type ImpHarnessEvent =
   | { readonly type: 'END'; readonly confirmed: boolean; readonly refusal: DaemonError };
 
 interface ImpHarnessContext {
-  // The refusal the harness's start settled with, once it settles that way.
   readonly refusal: DaemonError | null;
 }
 
