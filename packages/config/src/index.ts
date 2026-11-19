@@ -30,6 +30,7 @@ export * from './token-file/load-listener-tokens';
 export * from './token-file/read-owner-only-text';
 export * from './mcp-http/load-mcp-http-config';
 export * from './targets/local-target';
+export * from './targets/default-sprite-prefix';
 export * from './token-file/node-token-file-access';
 export * from './config-file/parse-restore-boot-timeout-ms';
 export * from './config-file/removed-config-keys';
