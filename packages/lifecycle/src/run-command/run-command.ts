@@ -94,5 +94,7 @@ async function waitForEnd<T>(
 function killProcessGroup(group: number): void {
   try {
     process.kill(-group, 'SIGKILL');
-  } catch {}
+  } catch {
+    // ESRCH: the group already exited.
+  }
 }

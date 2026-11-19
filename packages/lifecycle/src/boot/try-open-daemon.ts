@@ -63,6 +63,7 @@ export async function tryOpenDaemon<T>(
           session: readSessionEnv(process.env).sessionID,
         });
       } catch (error) {
+        // a refused hello still identifies the daemon, so it ends the probe.
         if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
           return { kind: 'refused', socketPath, message: error.message };
         }

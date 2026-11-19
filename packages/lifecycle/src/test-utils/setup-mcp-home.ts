@@ -64,7 +64,9 @@ async function killProcessGroups(groups: readonly number[]): Promise<void> {
   for (const group of groups) {
     try {
       process.kill(-group, 'SIGKILL');
-    } catch {}
+    } catch {
+      // ESRCH: the group is already empty.
+    }
   }
 
   await waitFor(() => {

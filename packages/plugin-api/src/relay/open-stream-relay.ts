@@ -493,5 +493,7 @@ export function openStreamRelay(
 async function ignoreRejection(promise: Promise<unknown>): Promise<void> {
   try {
     await promise;
-  } catch {}
+  } catch {
+    // the caller of the promise sees the rejection
+  }
 }

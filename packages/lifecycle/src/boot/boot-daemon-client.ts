@@ -56,6 +56,8 @@ export async function bootDaemonClient(
         };
 
   for (let attempt = 0; attempt < 2;) {
+    // read on every attempt: a build held since this process booted would flag
+    // daemons that are already current as stale.
     const build = host.invocation.readBuild();
 
     const opened =
@@ -77,6 +79,8 @@ export async function bootDaemonClient(
       return {
         client,
 
+        // an older daemon stays in service, since stopping it would end every
+        // hosted session; the caller can offer a deliberate restart.
         stale: hello['daemon'] !== build,
         lastUsedAgent: toAgentID(hello['lastUsedAgent']),
         socketPath: opened.socketPath,
@@ -87,6 +91,8 @@ export async function bootDaemonClient(
 
       client.stop();
 
+      // A daemon on another protocol closes the connection as it refuses
+      // the handshake, so its refusal ends the wait instead of a new poll.
       if (wait !== null && closed && !isMismatch && clock.now() < wait.deadline) {
         wait.onWait();
 
@@ -177,7 +183,9 @@ async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | nu
   for (const socketPath of readDaemonSocketPaths(paths)) {
     try {
       return { client: await openDaemonClient(socketPath), socketPath };
-    } catch {}
+    } catch {
+      // A socket that refuses the connection passes the boot to the next.
+    }
   }
 
   return null;
@@ -285,7 +293,8 @@ function spawnDaemonDetached(atcArgv: readonly string[], onReady: () => void): C
 
   pipe?.on('data', onReady);
 
-  // A daemon that dies mid-write can break the pipe; the resulting error is safe to ignore.
+  // A daemon that dies mid-write can break the pipe, and the boot poll still
+  // finds that daemon.
   pipe?.on('error', () => {});
 
   return child;

@@ -2,7 +2,7 @@ import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '@atcx/contract/light';
 
-// systemd treats an installed or masked unit as owned even while it is stopped.
+// atc lets an installed or masked unit keep the managed daemon's slot even while it is stopped.
 export function readManagedDaemonUnit(
   env: Readonly<Record<string, string | undefined>>,
 ): string | null {
@@ -13,7 +13,9 @@ export function readManagedDaemonUnit(
       lstatSync(path);
 
       return path;
-    } catch {}
+    } catch {
+      // ENOENT: this directory holds no such unit.
+    }
   }
 
   return null;
