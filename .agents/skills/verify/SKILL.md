@@ -13,10 +13,10 @@ metadata:
 # Verify atc
 
 Use `bun verify` to start the app, use each feature your change touches the way a user would, and
-record a verdict that it works. Put the report in the PR with step 11 of
-[Check a change](#check-a-change), and hand back the PR link and each feature you could not verify.
-When a blocker stops you before `publish`, hand back the blocker. Leave `bun verify gate` to CI: it
-fails a PR with a changed feature and no verdict.
+record a verdict that it works. Put the report in the PR with `bun verify publish`, and hand back
+the PR link and each feature you could not verify, or the blocker that stopped you before `publish`.
+Leave `bun verify gate` to CI: it reads the report from the PR description, and fails a PR that
+changes a feature with no verdict there.
 
 The mistakes that cost the most time:
 
@@ -99,11 +99,13 @@ Read a feature's file before you run its journey.
    to run a feature's journey last, run it after every other journey.
 8. Run `bun verify report --human` to read the report. Expect: `verified` on each changed feature
    you did not skip in step 5. Repeat steps 4 to 6 for each `stale` feature.
-9. Push the branch, and open a PR when none is open: `publish` fails without one.
-10. Check that `VERIFY_UPLOAD_URL` and `VERIFY_UPLOAD_TOKEN_REF` are set. When either is empty, stop
-    and report it as a blocker. Never run `op read` on its own: it prints the token.
-11. Publish the report, even when you skipped a feature. Read the token in a subshell: `&&` stops
-    the command before `publish` runs when `op read` fails, a blocker:
+9. Push the branch, and open a PR when none is open: without one, `publish` fails.
+10. Check that `VERIFY_UPLOAD_URL`, the file host, and `VERIFY_UPLOAD_TOKEN_REF`, the token's
+    1Password `op://` reference, are set. When either is empty, stop and report a blocker. Never run
+    `op read` on its own: it prints the token.
+11. Publish the report, even when you skipped a feature. The subshell keeps the token out of your
+    shell. Because `&&` joins them, a failed `op read` stops the command before `publish` runs:
+    report that as a blocker.
 
     ```bash
     (VERIFY_UPLOAD_TOKEN="$(op read "$VERIFY_UPLOAD_TOKEN_REF")" && export VERIFY_UPLOAD_TOKEN && bun verify publish)
@@ -172,11 +174,10 @@ session-name, `db` and `mcp --server` rules that `--help` leaves out.
 
 <!-- repo: registry -->
 
-The registry, [`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts),
-declares the targets, commands and features, and takes each feature's `paths` and the `.ignore` list
-from [`feature-paths.ts`](../../../scripts/verify/feature-paths.ts). Add a new file's glob to each
-feature whose journey runs it. Ignore it only when atc never reads it at run time: an ignore glob
-beats a feature's glob.
+The registry is [`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts),
+with each feature's `paths` and the `.ignore` list in
+[`feature-paths.ts`](../../../scripts/verify/feature-paths.ts). An ignore glob beats a feature's
+glob, so ignore a file only when atc never reads it at run time.
 
 <!-- /repo -->
 
