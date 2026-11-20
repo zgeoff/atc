@@ -37,18 +37,20 @@ Then ask it:
 
 Each builder is a session in your TUI, so you can jump into any of them.
 
-Message a session from anywhere a shell runs:
+Hand a stuck cloud agent to your orchestrator, after `bun add @atcx/client`:
 
-```sh
-atc send reviewer "Is the migration safe to run?" --wait
-```
-
-Ping your phone when an agent needs you:
-
-```sh
-atc events |
-  jq --unbuffered -r 'select(.ev == "SessionState" and .session.state == "needs_you") | .session.name' |
-  while read -r name; do ntfy publish me "$name is waiting on you"; done
+```ts
+import { connect } from '@atcx/client';
+const address = { hostname: 'cloud', port: 7420 };
+await using local = await connect();
+await using cloud = await connect({ address, token: process.env.CLOUD_TOKEN, principal: 'laptop' });
+const { sessions } = await local.session.list({});
+const orchestrator = sessions.find((session) => session.name === 'orchestrator')!.id;
+for await (const event of cloud.events()) {
+  if (event.ev !== 'SessionState' || event.session.state !== 'needs_you') continue;
+  const text = `cloud ${event.session.name} is stuck. Unblock it or tell me.`;
+  await local.session.message({ session: orchestrator, text });
+}
 ```
 
 ## Install
