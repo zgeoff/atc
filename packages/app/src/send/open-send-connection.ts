@@ -123,7 +123,12 @@ function failed(code: string, message: string): ConnectResult {
 function makeRemoteSendConnection(client: DaemonClient, clock: Clock): SendConnection {
   return makeSendConnection(
     (method, params) => client.sendRequest(method, params),
-    { isClosed: () => client.isClosed(), stop: () => client.stop() },
+    {
+      isClosed: () => client.isClosed(),
+      stop: () => {
+        client.stop();
+      },
+    },
     clock,
   );
 }

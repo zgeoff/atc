@@ -5,6 +5,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
+import { openRawDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import type { DaemonEvent } from '@atcx/contract';
 import type { Socket } from 'bun';
@@ -210,20 +211,20 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
       return current.client;
     },
     openClient,
-    openTCPClient(): Promise<DaemonClient> {
+    async openTCPClient(): Promise<DaemonClient> {
       const port = current.daemon.listenPort;
 
       if (port === null) {
-        return Promise.reject(new Error('the test daemon started without a TCP listener'));
+        throw new Error('the test daemon started without a TCP listener');
       }
 
-      const client = createDaemonClient({ hostname: '127.0.0.1', port });
+      const client = await openRawDaemonClient({ hostname: '127.0.0.1', port });
 
       client.onAnswer = assertContractAnswer;
 
       clients.add(client);
 
-      return Promise.resolve(client);
+      return client;
     },
     async sendHookLines(...lines: readonly Readonly<Record<string, unknown>>[]): Promise<void> {
       const payload = Buffer.from(lines.map((line) => `${JSON.stringify(line)}\n`).join(''));

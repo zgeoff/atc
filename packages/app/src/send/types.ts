@@ -57,7 +57,7 @@ export interface CommandOutcome {
 
 // The params of each call a send makes.
 export interface SendCalls {
-  readonly 'session.list': Record<never, never>;
+  readonly 'session.list': Record<string, never>;
 
   readonly 'session.message': {
     readonly session: string;

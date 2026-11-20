@@ -45,7 +45,10 @@ export async function openDaemonConnection(
     controller.signal.addEventListener(
       'abort',
       () => {
-        reject(controller.signal.reason);
+        const reason: unknown = controller.signal.reason;
+        const error = reason instanceof Error ? reason : new Error(String(reason));
+
+        reject(error);
       },
       { once: true },
     );
