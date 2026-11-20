@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
-import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import type { DaemonEvent } from '@atcx/contract';
 import type { Socket } from 'bun';
@@ -102,7 +102,7 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
   let live: DaemonHandle | null = null;
 
   const openClient = async (hello: Readonly<Record<string, unknown>> = {}) => {
-    const client = await openDaemonClient(paths.socketPath);
+    const client = createDaemonClient(paths.socketPath);
 
     client.onAnswer = assertContractAnswer;
 
@@ -210,20 +210,20 @@ export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<Te
       return current.client;
     },
     openClient,
-    async openTCPClient(): Promise<DaemonClient> {
+    openTCPClient(): Promise<DaemonClient> {
       const port = current.daemon.listenPort;
 
       if (port === null) {
-        throw new Error('the test daemon started without a TCP listener');
+        return Promise.reject(new Error('the test daemon started without a TCP listener'));
       }
 
-      const client = await openDaemonClient({ hostname: '127.0.0.1', port });
+      const client = createDaemonClient({ hostname: '127.0.0.1', port });
 
       client.onAnswer = assertContractAnswer;
 
       clients.add(client);
 
-      return client;
+      return Promise.resolve(client);
     },
     async sendHookLines(...lines: readonly Readonly<Record<string, unknown>>[]): Promise<void> {
       const payload = Buffer.from(lines.map((line) => `${JSON.stringify(line)}\n`).join(''));

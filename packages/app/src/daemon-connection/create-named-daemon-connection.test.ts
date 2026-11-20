@@ -1,13 +1,30 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
+import { openDaemonConnection } from '@atcx/client/connection';
+import { startStubDaemon } from '@atcx/client/test-utils/start-stub-daemon';
 import { AtcError } from '@atcx/contract/light';
 import { createNamedDaemonConnection } from './create-named-daemon-connection';
 import type { NamedDaemonChannel } from './create-named-daemon-connection';
 
+async function setupTest() {
+  const daemon = await startStubDaemon();
+
+  onTestFinished(() => daemon.stop());
+
+  const connection = await openDaemonConnection({ path: daemon.path }, { client: 'atc/test' });
+
+  onTestFinished(() => connection.close());
+
+  return { connection };
+}
+
 test("it opens the tools' channel with no viewer", async () => {
+  const ctx = await setupTest();
+
   const sendRequest = mock<NamedDaemonChannel['sendRequest']>(() => Promise.resolve({}));
 
   const openChannel = mock<(viewer: string | null) => Promise<NamedDaemonChannel>>(() =>
     Promise.resolve({
+      connection: ctx.connection,
       onClose: () => {},
       onEvent: () => {},
       principal: undefined,
@@ -31,12 +48,15 @@ test("it opens the tools' channel with no viewer", async () => {
 });
 
 test('it gives two connectors that pass the same idempotency key different keys on the daemon', async () => {
+  const ctx = await setupTest();
+
   const sendRequest = mock<NamedDaemonChannel['sendRequest']>(() => Promise.resolve({}));
 
   const connection = createNamedDaemonConnection({
     name: 'box',
     openChannel: () =>
       Promise.resolve({
+        connection: ctx.connection,
         onClose: () => {},
         onEvent: () => {},
         principal: undefined,
@@ -68,12 +88,15 @@ test('it gives two connectors that pass the same idempotency key different keys 
 });
 
 test('it gives one connector that passes two idempotency keys two different keys on the daemon', async () => {
+  const ctx = await setupTest();
+
   const sendRequest = mock<NamedDaemonChannel['sendRequest']>(() => Promise.resolve({}));
 
   const connection = createNamedDaemonConnection({
     name: 'box',
     openChannel: () =>
       Promise.resolve({
+        connection: ctx.connection,
         onClose: () => {},
         onEvent: () => {},
         principal: undefined,
@@ -105,12 +128,15 @@ test('it gives one connector that passes two idempotency keys two different keys
 });
 
 test('it gives one connector the same key on the daemon each time it passes a key', async () => {
+  const ctx = await setupTest();
+
   const sendRequest = mock<NamedDaemonChannel['sendRequest']>(() => Promise.resolve({}));
 
   const connection = createNamedDaemonConnection({
     name: 'box',
     openChannel: () =>
       Promise.resolve({
+        connection: ctx.connection,
         onClose: () => {},
         onEvent: () => {},
         principal: undefined,
@@ -141,12 +167,15 @@ test('it gives one connector the same key on the daemon each time it passes a ke
 });
 
 test('it sends the key of a request that acts as no connector unchanged', async () => {
+  const ctx = await setupTest();
+
   const sendRequest = mock<NamedDaemonChannel['sendRequest']>(() => Promise.resolve({}));
 
   const connection = createNamedDaemonConnection({
     name: 'box',
     openChannel: () =>
       Promise.resolve({
+        connection: ctx.connection,
         onClose: () => {},
         onEvent: () => {},
         principal: undefined,
@@ -170,11 +199,14 @@ test('it sends the key of a request that acts as no connector unchanged', async 
   });
 });
 
-test('it names the connector principal and the daemon when the daemon refuses a connector', () => {
+test('it names the connector principal and the daemon when the daemon refuses a connector', async () => {
+  const ctx = await setupTest();
+
   const connection = createNamedDaemonConnection({
     name: 'box',
     openChannel: () =>
       Promise.resolve({
+        connection: ctx.connection,
         onClose: () => {},
         onEvent: () => {},
         principal: undefined,
@@ -213,11 +245,14 @@ test.each([
     code: 'no_such_session',
     principal: { id: 'phone-app', name: 'Phone app' },
   },
-])('it passes $refusal through unchanged', (row) => {
+])('it passes $refusal through unchanged', async (row) => {
+  const ctx = await setupTest();
+
   const connection = createNamedDaemonConnection({
     name: 'box',
     openChannel: () =>
       Promise.resolve({
+        connection: ctx.connection,
         onClose: () => {},
         onEvent: () => {},
         principal: undefined,
@@ -236,8 +271,11 @@ test.each([
 });
 
 test('it opens a live-terminal channel with no viewer when the viewer gives no principal', async () => {
+  const ctx = await setupTest();
+
   const openChannel = mock<(viewer: string | null) => Promise<NamedDaemonChannel>>(() =>
     Promise.resolve({
+      connection: ctx.connection,
       onClose: () => {},
       onEvent: () => {},
       principal: 'laptop',
@@ -256,7 +294,10 @@ test('it opens a live-terminal channel with no viewer when the viewer gives no p
 });
 
 test('it opens a live-terminal channel narrowed to its viewer, whose requests act as the viewer', async () => {
+  const ctx = await setupTest();
+
   const watched: NamedDaemonChannel = {
+    connection: ctx.connection,
     onClose: () => {},
     onEvent: () => {},
     principal: 'laptop',

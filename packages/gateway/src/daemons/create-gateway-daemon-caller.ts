@@ -215,7 +215,7 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
   const transport: DaemonTransport<OpenConnection> = createDaemonTransport({
     reconnect: 'on-demand',
     open: () => openTimedConnection(),
-    getChannel: (connection) => connection.channel,
+    getConnection: (connection) => connection.channel.connection,
   });
 
   const trySend = async (

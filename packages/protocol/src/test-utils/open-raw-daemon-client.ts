@@ -148,6 +148,11 @@ function buildDaemonClient(conn: ClientConnection): DaemonClient {
     onClose: () => {},
     onAnswer: () => {},
     principal: undefined,
+
+    // This client speaks the wire by hand, so it holds no connection layer to hand out.
+    get connection(): never {
+      throw new AtcError('internal', 'the raw test client has no connection layer');
+    },
     procedures: conn.procedures,
     isClosed: () => isClientClosed(conn),
 

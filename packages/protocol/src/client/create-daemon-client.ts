@@ -30,6 +30,9 @@ export function createDaemonClient(
     onClose: () => {},
     onAnswer: () => {},
     principal: undefined,
+    get connection() {
+      return requireConnection();
+    },
     get procedures() {
       return requireConnection().procedures;
     },

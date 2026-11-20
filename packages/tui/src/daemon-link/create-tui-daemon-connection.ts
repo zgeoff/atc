@@ -116,7 +116,7 @@ export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDae
     reconnect: 'always',
     backoffMs: [0, 200, 1000, 2000],
     clock: deps.clock,
-    getChannel: (link) => link.boot.client,
+    getConnection: (link) => link.boot.client.connection,
     open: (opened) => {
       const phase = opened === 0 ? 'boot' : 'tui';
 

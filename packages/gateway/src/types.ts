@@ -1,4 +1,5 @@
 import type { Principal } from '@atc/protocol';
+import type { DaemonChannel } from '@atc/protocol/wire';
 import type { AtcError } from '@atcx/contract/light';
 
 export interface RegistryDaemon {
@@ -19,6 +20,7 @@ export type GatewayFeature = 'fleet.daemons';
 
 export interface GatewayChannel {
   onClose: () => void;
+  readonly connection: DaemonChannel['connection'];
   readonly sendRequest: (
     method: string,
     params?: Readonly<Record<string, unknown>>,
