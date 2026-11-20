@@ -18,9 +18,9 @@ afterAll(async () => {
   await Promise.all(stopped);
 });
 
-// Starts one impd for each set of options and keeps it for the rest of the
-// file, which stops it in afterAll. Each acquire clears the faults and removes
-// the imps, secrets and tokens an earlier test made, and keeps the root token.
+// A test file declares only setupTest, so it has no beforeAll: the first acquire starts the impd.
+// Version, features and env are fixed at start, so each distinct set of options gets its own impd,
+// and each acquire clears the faults and what an earlier test made, keeping the root token.
 export async function acquireSharedImpd(options: TestImpdOptions = {}): Promise<TestImpd> {
   const key = JSON.stringify(options);
   const starting = running.get(key) ?? startSeededImpd(options);
