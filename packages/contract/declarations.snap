@@ -2013,7 +2013,7 @@ export {};
 // daemon-contract/daemon-procedures.d.ts
 import type { ContractRouterClient } from '@orpc/contract';
 import type { DAEMON_CONTRACT } from './daemon-contract.js';
-export type DaemonProcedures<TContext extends Record<PropertyKey, any> = Record<never, never>> = ContractRouterClient<typeof DAEMON_CONTRACT, TContext>;
+export type DaemonProcedures<TContext extends Record<PropertyKey, any> = Record<string, never>> = ContractRouterClient<typeof DAEMON_CONTRACT, TContext>;
 
 // daemon-contract/procedure-meta.d.ts
 import { z } from 'zod';

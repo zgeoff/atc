@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -16,6 +16,7 @@ import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { encodeCursor } from '@atc/protocol';
 import { createDaemonClient } from '@atc/protocol/client';
+import { openRawDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { startStubStalledClient } from '@atc/protocol/test-utils/start-stub-stalled-client';
 import { trySendRequest } from '@atc/protocol/test-utils/try-send-request';
 import { seedTargetlessCompletedIdempotencyKeys } from '@atc/store/test-utils/seed-targetless-completed-idempotency-keys';
@@ -3374,7 +3375,19 @@ test('it refuses a handshake whose principal it cannot read', async () => {
     },
   });
 
-  expect(daemon.openClient({ principal: 5 })).rejects.toMatchObject({ code: 'bad_args' });
+  const client = await openRawDaemonClient(daemon.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  expect(
+    client.sendRequest('daemon.hello', {
+      client: 'atc/test-build',
+      auth: { scheme: 'none' },
+      principal: 5,
+    }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it answers message.get for a message of a session outside the principal as for an unknown message', async () => {
