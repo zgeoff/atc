@@ -171,6 +171,39 @@ test('it leaves each imp target unusable and the local target usable for a profi
   ]);
 });
 
+test('it starts and lists the target for a config with a sprites target', async () => {
+  const ctx = setupTest();
+  const tokenPath = join(ctx.home, 'sprites-token');
+
+  writeFileSync(tokenPath, 'example-org/example-id/example-token-id/example-secret', {
+    mode: 0o600,
+  });
+
+  writeFileSync(
+    ctx.configPath,
+    JSON.stringify({
+      agents: { claude: { kind: 'claude', bin: ctx.claude } },
+      targets: {
+        local: { provider: 'local-pty' },
+        cloud: { provider: 'sprites', tokenFile: tokenPath, spritePrefix: 'atc-e2e-' },
+      },
+    }),
+  );
+
+  const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const listed = await client.sendRequest('agents.list');
+
+  expect(getRecords(listed, 'targets').map((target) => target['id'])).toStrictEqual([
+    'local',
+    'cloud',
+  ]);
+});
+
 test('it lists exactly the agents of an agents map and prints no old-key line', async () => {
   const ctx = setupTest();
 
