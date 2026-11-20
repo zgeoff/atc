@@ -7,7 +7,8 @@ own terminal client, MCP server, gateway and CLI open their daemon connections t
 package, so the published client and atc's clients behave alike.
 
 The package runs on Node 22 or later and on Bun 1.3 or later. It uses `node:net` and no Bun global.
-It depends on `@atcx/contract` and two oRPC libraries.
+It depends on `@atcx/contract` at `^` its own version, so a caller that also imports the contract
+gets one copy of it, and on two oRPC libraries at exact versions.
 
 ## Two entries
 
@@ -16,11 +17,11 @@ It depends on `@atcx/contract` and two oRPC libraries.
 | `@atcx/client`            | `connect()`, `readDaemonSocketPaths()`, the `AtcClient` type and `AtcError`             |
 | `@atcx/client/connection` | `openDaemonConnection()`, one connection to a named daemon, which `connect()` builds on |
 
-`connect()` tries the computed socket path and then the path the daemon record holds. It throws
-`no_daemon` with every path it tried when none answers. A connection to a remote daemon needs an
-`address`, a `token` and a `principal`, and `connect()` refuses an address without them. A caller
-that routes calls by method name, such as the gateway, uses `openDaemonConnection()` and its
-`request(method, params)`.
+`connect()` tries the computed socket path and then the path the daemon record holds. It never
+starts a daemon: it throws `no_daemon` with every path it tried when none answers. A connection to a
+remote daemon needs an `address`, a `token` and a `principal`, and `connect()` refuses an address
+without them. A caller that routes calls by method name, such as the gateway, uses
+`openDaemonConnection()` and its `request(method, params)`.
 
 ## What a connection does
 
@@ -31,7 +32,9 @@ that routes calls by method name, such as the gateway, uses `openDaemonConnectio
   `feature_missing` before it leaves the process when the hello did not list the feature.
 - **One event stream.** A connection holds one `events.subscribe` stream, opened on the first
   `events()` call. Each `events()` iterator reads from it and holds at most 10,000 unread events,
-  then ends with `events_overflow`.
+  then ends with `events_overflow`. The daemon holds the events from the hello until the first
+  subscription only up to a limit, and drops them all without notice when that limit fills, so a
+  caller that must not miss an event reads `events.read` with a cursor ([events](./events.md)).
 - **Output cap.** A connection stops sending once its socket holds more unwritten output than the
   client allows, and the call fails with `internal`.
 - **No reconnect and no resend.** A dropped socket rejects each pending call with `connection_lost`.
@@ -45,7 +48,8 @@ that routes calls by method name, such as the gateway, uses `openDaemonConnectio
 
 Every failure is an `AtcError` with a `code` and a `data` object, which is never undefined. The
 codes come from `@atcx/contract/light`, and the client adds four: `no_daemon`, `connection_lost`,
-`timeout` and `events_overflow`.
+`timeout` and `events_overflow`. The bearer token never appears in an error's message or data, or in
+a log line.
 
 ## How atc uses it
 
@@ -58,7 +62,8 @@ a bad hello or a foreign protocol version opens a raw client from
 
 `bun run check:daemon-sockets` lists the files that open a socket, a `connect` import from
 `node:net` among them, and fails on a new one, so a daemon connection cannot appear beside the
-client.
+client. The hook, statusline and note reporters never load the client: each writes one line to the
+reporter socket in `ATC_SOCKET`.
 
 ## Packing and publishing
 
