@@ -15,7 +15,10 @@ minimumReleaseAge = 604800
 minimumReleaseAgeExcludes = [
   # @fly/sprites 0.2.5 (published 2026-11-19) ages past the gate ~2026-11-26 — remove then
   "@fly/sprites",
+  # @impz/client 7.6.0 (published 2026-11-20) ages past the gate ~2026-11-27 — remove then
   "@impz/client",
+  # @impz/testing 7.6.0 (published 2026-11-20) ages past the gate ~2026-11-27 — remove then
+  "@impz/testing",
   "@wringer/core",
   "@wringer/db",
   "@wringer/gunshi",

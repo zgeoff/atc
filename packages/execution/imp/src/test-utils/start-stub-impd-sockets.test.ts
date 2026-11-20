@@ -1,59 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { startStubImpd } from './start-stub-impd';
-
-test('it answers a call as system info until the caller sets an answer for its path', async () => {
-  const impd = startStubImpd();
-
-  const response = await fetch(`${impd.url}/rpc/system/info`, { method: 'POST', body: '{}' });
-  const body: unknown = await response.json();
-
-  expect(body).toStrictEqual({
-    json: {
-      version: '2.2.0',
-      features: {
-        sessionOffsets: true,
-        leases: true,
-        grantableTokens: true,
-        secretRebind: true,
-        execRequire: true,
-        oauthSecrets: true,
-        readOnlyFiles: true,
-        execDropSysAdmin: true,
-      },
-    },
-  });
-});
-
-test('it answers a call with the answer the caller set for its path', async () => {
-  const impd = startStubImpd();
-
-  impd.answers.set('/rpc/grants/list', { status: 404, json: { code: 'NOT_FOUND' } });
-
-  const response = await fetch(`${impd.url}/rpc/grants/list`, { method: 'POST', body: '{}' });
-
-  expect({ status: response.status, body: await response.json() }).toStrictEqual({
-    status: 404,
-    body: { json: { code: 'NOT_FOUND' } },
-  });
-});
-
-test('it records the authorization header and the input of each call', async () => {
-  const impd = startStubImpd();
-
-  await fetch(`${impd.url}/rpc/grants/add`, {
-    method: 'POST',
-    headers: { authorization: 'Bearer t' },
-    body: JSON.stringify({ json: { name: 'atc-s1' } }),
-  });
-
-  expect(impd.authorizations).toStrictEqual(['Bearer t']);
-  expect(impd.calls).toStrictEqual([{ path: '/rpc/grants/add', input: { name: 'atc-s1' } }]);
-});
+import { TEST_TOKEN, startTestImpd } from '@impz/testing';
+import { startStubImpdSockets } from './start-stub-impd-sockets';
 
 test('it refuses an exec open as a start whose broker is not ready', async () => {
-  const impd = startStubImpd();
+  const impd = startStubImpdSockets();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
 
@@ -84,7 +36,7 @@ test('it refuses an exec open as a start whose broker is not ready', async () =>
 });
 
 test('it counts the stdin bytes of a started exec once stdin ends', async () => {
-  const impd = startStubImpd();
+  const impd = startStubImpdSockets();
 
   impd.exec.reply = 'count';
 
@@ -120,7 +72,7 @@ test('it counts the stdin bytes of a started exec once stdin ends', async () => 
 });
 
 test('it exits a started exec with code 2 at once when told to exit early', async () => {
-  const impd = startStubImpd();
+  const impd = startStubImpdSockets();
 
   impd.exec.reply = 'exit-early';
 
@@ -151,7 +103,7 @@ test('it exits a started exec with code 2 at once when told to exit early', asyn
 });
 
 test('it answers a tunnel listen as listening and keeps its control socket', async () => {
-  const impd = startStubImpd();
+  const impd = startStubImpdSockets();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/tunnel`);
 
@@ -182,7 +134,7 @@ test('it answers a tunnel listen as listening and keeps its control socket', asy
 });
 
 test('it answers a relay accept as opened and keeps its relay socket', async () => {
-  const impd = startStubImpd();
+  const impd = startStubImpdSockets();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/tunnel`);
 
@@ -207,8 +159,8 @@ test('it answers a relay accept as opened and keeps its relay socket', async () 
   expect(impd.controls).toBeEmpty();
 });
 
-test('it records the authorization header of a WebSocket upgrade and no call', async () => {
-  const impd = startStubImpd();
+test('it records the authorization header of a WebSocket upgrade', async () => {
+  const impd = startStubImpdSockets();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`, {
     headers: { authorization: 'Bearer w' },
@@ -227,11 +179,10 @@ test('it records the authorization header of a WebSocket upgrade and no call', a
   await opened.promise;
 
   expect(impd.authorizations).toStrictEqual(['Bearer w']);
-  expect(impd.calls).toStrictEqual([]);
 });
 
 test('it closes a WebSocket that sends a message over 2 MiB', async () => {
-  const impd = startStubImpd();
+  const impd = startStubImpdSockets();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
 
@@ -256,7 +207,7 @@ test('it closes a WebSocket that sends a message over 2 MiB', async () => {
 });
 
 test('it drops an open WebSocket once stopped', async () => {
-  const impd = startStubImpd();
+  const impd = startStubImpdSockets();
 
   const socket = new WebSocket(`${impd.url.replace('http', 'ws')}/exec`);
 
@@ -287,9 +238,36 @@ test('it drops an open WebSocket once stopped', async () => {
 });
 
 test('it stops serving once the test finishes without a stop', () => {
-  const impd = startStubImpd();
+  const impd = startStubImpdSockets();
 
   onTestFinished(() => {
     expect(fetch(`${impd.url}/rpc/system/info`)).rejects.toThrow();
   });
+});
+
+test('it sends a request that is no socket to the upstream impd and returns its answer', async () => {
+  const upstream = await startTestImpd({ version: '3.1.0' });
+
+  onTestFinished(upstream.stop);
+
+  const impd = startStubImpdSockets({ upstreamUrl: upstream.url });
+
+  const response = await fetch(`${impd.url}/rpc/system/info`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${TEST_TOKEN}`, 'content-type': 'application/json' },
+    body: '{}',
+  });
+
+  const body = await response.json();
+
+  expect(body).toMatchObject({ json: { version: '3.1.0' } });
+  expect(upstream.calls.map((call) => call.procedure)).toStrictEqual(['system/info']);
+});
+
+test('it answers a request that is no socket with 404 when it has no upstream impd', async () => {
+  const impd = startStubImpdSockets();
+
+  const response = await fetch(`${impd.url}/rpc/system/info`, { method: 'POST', body: '{}' });
+
+  expect(response.status).toBe(404);
 });

@@ -4,26 +4,11 @@ import type { Server, ServerWebSocket } from 'bun';
 
 type StubExecReply = 'refuse' | 'count' | 'exit-early';
 
-const SYSTEM_INFO = {
-  version: '2.2.0',
-  features: {
-    sessionOffsets: true,
-    leases: true,
-    grantableTokens: true,
-    secretRebind: true,
-    execRequire: true,
-    oauthSecrets: true,
-    readOnlyFiles: true,
-    execDropSysAdmin: true,
-  },
-};
-
-export function startStubImpd() {
+// Answers the sockets that @impz/testing cannot: impd's exec socket, which
+// needs a VM, and its tunnel socket, whose unix-socket forwards the package's
+// guest lacks. Another request goes to the upstream impd, when there is one.
+export function startStubImpdSockets(options: { readonly upstreamUrl?: string } = {}) {
   const authorizations: (string | null)[] = [];
-  const calls: { path: string; input: unknown }[] = [];
-
-  const answers = new Map<string, { status: number; json: unknown }>();
-
   const controls: ServerWebSocket[] = [];
   const relays: ServerWebSocket[] = [];
   const execOpens: unknown[] = [];
@@ -31,22 +16,37 @@ export function startStubImpd() {
 
   const counted = new WeakMap<ServerWebSocket, number>();
 
-  const answerRequest = async (request: Request, bunServer: Server<undefined>) => {
-    authorizations.push(request.headers.get('authorization'));
-
+  const answerRequest = async (
+    request: Request,
+    bunServer: Server<undefined>,
+  ): Promise<Response | undefined> => {
     const path = new URL(request.url).pathname;
 
-    const isUpgraded = (path === '/tunnel' || path === '/exec') && bunServer.upgrade(request);
-    const text = isUpgraded ? '' : await request.text();
-    const body: unknown = text === '' ? null : JSON.parse(text);
+    if ((path === '/tunnel' || path === '/exec') && bunServer.upgrade(request)) {
+      authorizations.push(request.headers.get('authorization'));
 
-    if (!isUpgraded) {
-      calls.push({ path, input: isRecord(body) ? body['json'] : undefined });
+      return undefined;
     }
 
-    const answer = answers.get(path) ?? { status: 200, json: SYSTEM_INFO };
+    if (options.upstreamUrl === undefined) {
+      return new Response('no upstream impd', { status: 404 });
+    }
 
-    return isUpgraded ? undefined : Response.json({ json: answer.json }, { status: answer.status });
+    const body = request.method === 'GET' ? null : await request.arrayBuffer();
+
+    const upstream = await fetch(
+      new URL(`${path}${new URL(request.url).search}`, options.upstreamUrl),
+      { method: request.method, headers: request.headers, body },
+    );
+
+    const headers = new Headers(upstream.headers);
+
+    headers.delete('content-encoding');
+    headers.delete('content-length');
+
+    const answer = await upstream.arrayBuffer();
+
+    return new Response(answer, { status: upstream.status, headers });
   };
 
   const server = Bun.serve({
@@ -132,8 +132,6 @@ export function startStubImpd() {
   return {
     url: `http://127.0.0.1:${String(server.port)}`,
     authorizations,
-    calls,
-    answers,
     controls,
     relays,
     execOpens,

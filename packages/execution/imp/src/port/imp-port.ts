@@ -67,7 +67,7 @@ type ImpExecRequirement = 'broker';
 type ImpScope = 'read' | 'exec' | 'manage';
 
 export interface ImpIdentity {
-  readonly kind: 'token' | 'ssh' | 'tailnet' | 'dashboard' | 'oauth';
+  readonly kind: 'token' | 'ssh' | 'tailnet' | 'dashboard' | 'oauth' | 'service';
   readonly name: string;
   readonly scope: ImpScope;
 
