@@ -1,7 +1,7 @@
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { StepTimer } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { createGuestClone } from './create-guest-clone';
 import { createWorkspaceClone } from './create-workspace-clone';
 import type { ProgressTracker } from './materialization-progress';
@@ -87,7 +87,7 @@ async function tryCreateCloneOnTarget(
   );
 
   if (!target.ok) {
-    throw new DaemonError(target.code, target.message, { phase: 'cloning' });
+    throw new AtcError(target.code, target.message, { phase: 'cloning' });
   }
 
   const clone = await timer
@@ -182,7 +182,7 @@ async function createCleanClone(
   if (!clone.ok) {
     const { ok: _ok, code, message, ...detail } = clone;
 
-    throw new DaemonError(code, message, { phase: 'cloning', ...detail });
+    throw new AtcError(code, message, { phase: 'cloning', ...detail });
   }
 
   const sanitized = await timer.withStep('sanitize', () =>
@@ -190,7 +190,7 @@ async function createCleanClone(
   );
 
   if (!sanitized.ok) {
-    throw new DaemonError(sanitized.code, sanitized.message, { phase: 'cloning' });
+    throw new AtcError(sanitized.code, sanitized.message, { phase: 'cloning' });
   }
 
   const read = await timer.withStep('archive', async () => {
@@ -205,7 +205,7 @@ async function createCleanClone(
   const outcome = read.outcome;
 
   if (!outcome.ok) {
-    throw new DaemonError(outcome.code, outcome.message, { phase: 'cloning' });
+    throw new AtcError(outcome.code, outcome.message, { phase: 'cloning' });
   }
 
   return { sha: clone.sha, branch: clone.branch, archive };

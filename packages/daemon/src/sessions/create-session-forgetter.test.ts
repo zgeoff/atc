@@ -7,11 +7,11 @@ import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
@@ -231,7 +231,7 @@ test('it refuses a pinned session when the caller asks it to', async () => {
     null,
   );
 
-  expect(forgotten).rejects.toThrowWithMessage(DaemonError, /is pinned/u);
+  expect(forgotten).rejects.toThrowWithMessage(AtcError, /is pinned/u);
 });
 
 test('it forgets a sub-session of a pinned session when its parent asks', async () => {
@@ -301,7 +301,7 @@ test('it refuses a sub-session of a pinned session that another caller asks to f
     null,
   );
 
-  expect(forgotten).rejects.toThrowWithMessage(DaemonError, /is pinned/u);
+  expect(forgotten).rejects.toThrowWithMessage(AtcError, /is pinned/u);
 });
 
 test('it refuses a live session when the caller asks it to', async () => {
@@ -322,7 +322,7 @@ test('it refuses a live session when the caller asks it to', async () => {
     null,
   );
 
-  expect(forgotten).rejects.toThrowWithMessage(DaemonError, /is live/u);
+  expect(forgotten).rejects.toThrowWithMessage(AtcError, /is live/u);
 });
 
 test('it answers a forget of a session the manager does not hold as missing', async () => {

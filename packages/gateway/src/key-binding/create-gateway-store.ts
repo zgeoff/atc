@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { z } from 'zod';
 
 export type BindingOutcome = 'pending' | 'completed' | 'uncertain';
@@ -135,7 +135,7 @@ export function createGatewayStore(db: BindingDatabase): GatewayStore {
       }
 
       if (held.payloadHash !== binding.payloadHash) {
-        throw new DaemonError(
+        throw new AtcError(
           'idempotency_conflict',
           `idempotency key '${binding.key}' was first used with a different ${binding.operation} payload`,
         );

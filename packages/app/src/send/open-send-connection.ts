@@ -3,7 +3,7 @@ import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import {
   RemoteDaemonUnreachableError,
   bootRemoteDaemonClient,
@@ -56,7 +56,7 @@ export async function openSendConnection(
     client.stop();
 
     expired.reject(
-      new DaemonError('internal', `no handshake answer within ${HELLO_LIMIT_MS / 1000}s`),
+      new AtcError('internal', `no handshake answer within ${HELLO_LIMIT_MS / 1000}s`),
     );
   }, HELLO_LIMIT_MS);
 
@@ -68,7 +68,11 @@ export async function openSendConnection(
   } catch (error) {
     client.stop();
 
-    if (error instanceof DaemonError && error.code !== 'internal') {
+    if (
+      error instanceof AtcError &&
+      error.code !== 'internal' &&
+      error.code !== 'connection_lost'
+    ) {
       return failed(error.code, error.message);
     }
 
@@ -107,7 +111,7 @@ async function openRemoteSendConnection(
       return failed('unreachable', error.message);
     }
 
-    if (error instanceof DaemonError) {
+    if (error instanceof AtcError) {
       return failed(error.code, error.message);
     }
 
@@ -130,7 +134,7 @@ function makeSendConnection(client: DaemonClient, clock: Clock): SendConnection 
         client.stop();
 
         expired.reject(
-          new DaemonError('internal', `no answer to ${method} within ${limitMs / 1000}s`),
+          new AtcError('internal', `no answer to ${method} within ${limitMs / 1000}s`),
         );
       }, limitMs);
 

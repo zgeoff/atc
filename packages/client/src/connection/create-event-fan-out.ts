@@ -1,7 +1,7 @@
 import { AtcError } from '@atcx/contract/light';
 
 // How many events one iterator may hold that its caller has not read.
-export const MAX_UNREAD_EVENTS = 10_000;
+const MAX_UNREAD_EVENTS = 10_000;
 
 export interface EventFanOut<T> {
   // An iterator gets the events that arrive after this call.

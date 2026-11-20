@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { buildGrantedContext } from '../auth/build-granted-context';
 import { buildScopedContext } from '../auth/build-scoped-context';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
@@ -20,11 +20,11 @@ export function requireGrantedRequestContext(
   as: RequestPrincipal | null,
 ): DaemonContext {
   if (as !== null) {
-    throw new DaemonError('unauthorized', "a session's atc access acts as no principal");
+    throw new AtcError('unauthorized', "a session's atc access acts as no principal");
   }
 
   if (!source.bridge.isCurrent()) {
-    throw new DaemonError(
+    throw new AtcError(
       'unauthorized',
       `session '${source.bridge.holder}' started or moved again since this connection opened`,
     );
@@ -33,17 +33,17 @@ export function requireGrantedRequestContext(
   const held = source.ctx.findHeldAtcAccess(source.bridge.holder);
 
   if (held === null) {
-    throw new DaemonError('unauthorized', `session '${source.bridge.holder}' holds no atc access`);
+    throw new AtcError('unauthorized', `session '${source.bridge.holder}' holds no atc access`);
   }
 
   const needed = GRANTED_METHOD_SCOPES[method];
 
   if (needed === undefined) {
-    throw new DaemonError('unauthorized', `${method} is closed to a session's atc access`);
+    throw new AtcError('unauthorized', `${method} is closed to a session's atc access`);
   }
 
   if (needed !== 'any' && !held.scopes.includes(needed)) {
-    throw new DaemonError(
+    throw new AtcError(
       'unauthorized',
       `${method} needs atc scope ${needed}, which session '${source.bridge.holder}' does not hold`,
       { scope: needed },

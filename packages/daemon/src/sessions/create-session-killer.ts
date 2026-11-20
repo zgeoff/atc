@@ -1,7 +1,7 @@
 import { findHostBroker } from '@atc/plugin-api';
 import type { ExecutionCapability, HarnessHandle } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import type { SessionRegistry } from './create-session-registry';
 import type { Session } from './session';
@@ -202,7 +202,7 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
         }
       } else {
         if (registry.findProvider(session)?.capabilities.destroy === true) {
-          throw new DaemonError(
+          throw new AtcError(
             'confirmation_required',
             `forgetting session ${id} destroys its host on target '${session.target}'; confirm it with session.forget`,
             { session: id },
@@ -239,7 +239,7 @@ export function createSessionKiller(deps: SessionKillerDeps): SessionKiller {
         provider !== null && provider.capabilities.destroy && session.hostKey === session.id;
 
       if (!destroys && session.pty === null && session.vm === 'asleep') {
-        throw new DaemonError(
+        throw new AtcError(
           'unsupported_operation',
           `session ${id} sleeps inside the host of session ${session.hostKey}; revive it or forget session ${session.hostKey} first`,
           { provider: provider?.kind ?? null, problem: 'host_asleep', host: session.hostKey },

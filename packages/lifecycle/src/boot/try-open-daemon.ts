@@ -2,8 +2,8 @@ import type { Clock } from '@atc/core';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
-import { DaemonError } from '@atc/protocol/wire';
 import { HELLO_RESULT_SCHEMA } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 
 const HELLO_FIELDS = HELLO_RESULT_SCHEMA.pick({ daemon: true, daemonID: true });
 
@@ -64,7 +64,7 @@ export async function tryOpenDaemon<T>(
         });
       } catch (error) {
         // a refused hello still identifies the daemon, so it ends the probe.
-        if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
+        if (error instanceof AtcError && error.code === 'protocol_mismatch') {
           return { kind: 'refused', socketPath, message: error.message };
         }
 

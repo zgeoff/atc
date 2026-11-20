@@ -1,345 +1,153 @@
+import { connect } from 'node:net';
+import type { Socket } from 'node:net';
 import { isRecord } from '@atc/core';
-import { CONTRACT_MAJOR } from '@atcx/contract/light';
-import { createORPCClient } from '@orpc/client';
-import { StandardRPCLink } from '@orpc/client/standard';
-import { ClientPeer } from '@orpc/standard-server-peer';
-import type { SocketHandler } from 'bun';
-import { createActor } from 'xstate';
-import type { Actor } from 'xstate';
-import { createLineDecoder } from '../wire/create-line-decoder';
-import type { LineDecoder } from '../wire/create-line-decoder';
-import { createOutboundQueue } from '../wire/create-outbound-queue';
-import type { OutboundQueue } from '../wire/create-outbound-queue';
-import { DaemonError } from '../wire/daemon-error';
-import { PROTOCOL_V } from '../wire/decode-message';
-import { PRINCIPAL_HEADERS } from '../wire/principal-headers';
-import { CLIENT_MACHINE } from './client-machine';
-import type { CallContext, DaemonClient, DaemonProcedures } from './daemon-client';
-import { findMissingFeature } from './find-missing-feature';
-import { toDaemonError } from './to-daemon-error';
+import { openDaemonConnection } from '@atcx/client/connection';
+import type { DaemonConnection, DaemonTarget } from '@atcx/client/connection';
+import { AtcError } from '@atcx/contract/light';
+import type { DaemonClient } from './daemon-client';
 
-const QUEUE_BYTES = 8 * 1024 * 1024;
-
+// A daemon client whose hello comes after it opens, so a caller can send its own hello, or none:
+// the hello opens the connection through openDaemonConnection, which checks the daemon's version
+// and features. Events arrive once the hello is accepted.
 export async function openDaemonClient(
   address: string | { readonly hostname: string; readonly port: number },
 ): Promise<DaemonClient> {
-  const conn = createClientConnection();
-  const client = buildDaemonClient(conn);
-  const handlers = buildSocketHandlers(conn, client);
+  const target: DaemonTarget = typeof address === 'string' ? { path: address } : address;
 
-  try {
-    const socket =
-      typeof address === 'string'
-        ? await Bun.connect({ unix: address, socket: handlers })
-        : await Bun.connect({ hostname: address.hostname, port: address.port, socket: handlers });
+  const socket = await openSocket(target);
 
-    conn.socket = socket;
-    conn.queue = createOutboundQueue(socket, QUEUE_BYTES);
-  } catch (error) {
-    conn.actor.stop();
-    throw error;
-  }
+  const abort = new AbortController();
 
-  return client;
-}
+  let connection: DaemonConnection | null = null;
+  let closed = false;
 
-interface ClientConnection {
-  readonly actor: Actor<typeof CLIENT_MACHINE>;
-  readonly lines: LineDecoder;
-  readonly peer: ClientPeer;
-  readonly link: StandardRPCLink<CallContext>;
-  readonly procedures: DaemonProcedures;
-  queue: OutboundQueue | null;
-  socket: { readonly end: () => void } | null;
-  events: AbortController | null;
+  socket.once('close', () => {
+    if (connection === null) {
+      closed = true;
 
-  inbound: Promise<void>;
-
-  // The features the hello answer listed; null until a hello is answered.
-  features: readonly string[] | null;
-
-  findDefaultPrincipal: () => string | null;
-}
-
-function createClientConnection(): ClientConnection {
-  const peer = new ClientPeer((message) => {
-    if (typeof message !== 'string' || conn.queue?.send(`${message}\n`) === false) {
-      throw new DaemonError('internal', 'outbound queue full');
+      client.onClose();
     }
   });
 
-  const link = new StandardRPCLink<CallContext>(
-    {
-      call: async (request) => {
-        requireOpenConnection(conn);
+  const requireConnection = (): DaemonConnection => {
+    if (connection === null) {
+      throw new AtcError('internal', 'the client has sent no hello yet');
+    }
 
-        const response = await peer.request(request);
-
-        return { ...response, body: () => Promise.resolve(response.body) };
-      },
-    },
-    {
-      url: 'http://orpc',
-      headers: (options) =>
-        buildPrincipalHeaders({
-          ...options.context,
-          as: options.context.as ?? conn.findDefaultPrincipal() ?? undefined,
-        }),
-      interceptors: [
-        async (options) => {
-          const missing =
-            conn.features === null
-              ? null
-              : findMissingFeature(options.path.join('.'), options.input, conn.features);
-
-          if (missing !== null) {
-            throw new DaemonError(
-              'feature_missing',
-              `${options.path.join('.')} input ${missing.field} needs the daemon feature ${missing.feature}; restart the daemon on a newer atc`,
-            );
-          }
-
-          try {
-            return await options.next();
-          } catch (error) {
-            throw toDaemonError(error);
-          }
-        },
-      ],
-    },
-  );
-
-  const conn: ClientConnection = {
-    actor: createActor(CLIENT_MACHINE).start(),
-    lines: createLineDecoder(),
-    peer,
-    link,
-    procedures: createORPCClient<DaemonProcedures>(link),
-    queue: null,
-    socket: null,
-    events: null,
-    inbound: Promise.resolve(),
-    features: null,
-    findDefaultPrincipal: () => null,
+    return connection;
   };
 
-  return conn;
-}
-
-function requireOpenConnection(conn: ClientConnection): void {
-  const closedReason = conn.actor.getSnapshot().context.closedReason;
-
-  if (closedReason !== null) {
-    throw new DaemonError('internal', closedReason);
-  }
-}
-
-function buildPrincipalHeaders(context: CallContext): Record<string, string> {
-  return {
-    ...(context.as === undefined ? {} : { [PRINCIPAL_HEADERS.as]: context.as }),
-    ...(context.as === undefined || context.asName === undefined
-      ? {}
-      : { [PRINCIPAL_HEADERS.asName]: context.asName }),
-  };
-}
-
-function buildDaemonClient(conn: ClientConnection): DaemonClient {
   const client: DaemonClient = {
     onEvent: () => {},
     onClose: () => {},
     onAnswer: () => {},
     principal: undefined,
-    procedures: conn.procedures,
-    isClosed: () => isClientClosed(conn),
+    get procedures() {
+      return requireConnection().procedures;
+    },
+    isClosed: () => closed,
 
-    sendHello: (build, options = {}) =>
-      sendClientRequest(conn, client, {
-        method: 'daemon.hello',
-        params: {
+    sendHello: async (build, options = {}) => {
+      const opened = await openDaemonConnection(
+        target,
+        {
           client: build,
-          auth:
-            options.token === undefined
-              ? { scheme: 'none' }
-              : { scheme: 'bearer', token: options.token },
-          ...(options.session === undefined ? {} : { session: options.session }),
-          ...(options.principal === undefined ? {} : { principal: options.principal }),
-          ...(options.viewer === undefined ? {} : { viewer: options.viewer }),
+          token: options.token,
+          session: options.session,
+          principal: options.principal,
+          viewer: options.viewer,
         },
-      }),
-    sendRequest: (method, params, as, asName) =>
-      sendClientRequest(conn, client, { method, params, as, asName }),
+        {
+          socket,
+          signal: abort.signal,
+          onAnswer: (method, answer) => {
+            client.onAnswer(method, answer);
+          },
+        },
+      );
+
+      connection = opened;
+      void forwardEvents(opened, client);
+
+      void watchClose(opened, () => {
+        closed = true;
+
+        client.onClose();
+      });
+
+      return { ...opened.hello };
+    },
+
+    sendRequest: async (method, params, as, asName) => {
+      if (method === 'daemon.hello') {
+        return client.sendHello(String(params?.['client']), readHelloOptions(params));
+      }
+
+      const principal = as ?? client.principal;
+
+      const answer = await requireConnection().request(method, params, {
+        as: principal,
+        asName: principal === undefined ? undefined : asName,
+      });
+
+      return isRecord(answer) ? answer : {};
+    },
+
     stop: () => {
-      conn.socket?.end();
-      drainPending(conn, 'client closed');
+      closed = true;
+
+      abort.abort(new AtcError('internal', 'client closed'));
+      socket.destroy();
+      void connection?.close();
     },
   };
-
-  conn.findDefaultPrincipal = () => client.principal ?? null;
 
   return client;
 }
 
-function isClientClosed(conn: ClientConnection): boolean {
-  return conn.actor.getSnapshot().matches('closed');
+// Rejects when nothing listens at the address, as a connection that fails to open does.
+async function openSocket(target: DaemonTarget): Promise<Socket> {
+  const location =
+    'path' in target ? { path: target.path } : { host: target.hostname, port: target.port };
+
+  const socket = connect(location);
+
+  await new Promise<void>((resolve, reject) => {
+    socket.once('connect', resolve);
+    socket.once('error', reject);
+  });
+
+  socket.on('error', () => {});
+
+  return socket;
 }
 
-interface SendClientRequestOptions {
-  readonly method: string;
-  readonly params?: Readonly<Record<string, unknown>> | undefined;
-  readonly as?: string | undefined;
-  readonly asName?: string | undefined;
-}
-
-async function sendClientRequest(
-  conn: ClientConnection,
-  client: DaemonClient,
-  request: SendClientRequestOptions,
-): Promise<Readonly<Record<string, unknown>>> {
-  const method = request.method;
-  const hello = method === 'daemon.hello';
-  const principal = request.as ?? client.principal;
-
-  const context = {
-    as: principal,
-    asName: principal === undefined ? undefined : request.asName,
-  };
-
-  const params = hello
-    ? { protocol: PROTOCOL_V, major: CONTRACT_MAJOR, ...request.params }
-    : (request.params ?? {});
-
-  const answer: unknown = await conn.link.call(method.split('.'), params, { context });
-
-  const ok = isRecord(answer) ? answer : {};
-
-  if (hello) {
-    const features = ok['features'];
-
-    conn.features = Array.isArray(features)
-      ? features.filter((feature) => typeof feature === 'string')
-      : [];
-  }
-
-  try {
-    client.onAnswer(method, ok);
-  } catch (error) {
-    throw new DaemonError('internal', String(error));
-  }
-
-  if (hello) {
-    startClientEvents(conn, client, principal ?? findHelloPrincipal(params));
-  }
-
-  return ok;
-}
-
-function startClientEvents(
-  conn: ClientConnection,
-  client: DaemonClient,
-  principal: string | undefined,
-): void {
-  if (!conn.actor.getSnapshot().can({ type: 'SUBSCRIBE' })) {
-    return;
-  }
-
-  conn.actor.send({ type: 'SUBSCRIBE' });
-
-  const controller = new AbortController();
-
-  conn.events = controller;
-  void readClientEvents(conn, client, controller.signal, principal);
-}
-
-async function readClientEvents(
-  conn: ClientConnection,
-  client: DaemonClient,
-  signal: AbortSignal,
-  principal: string | undefined,
+async function forwardEvents(
+  connection: DaemonConnection,
+  client: Pick<DaemonClient, 'onEvent'>,
 ): Promise<void> {
-  let failure = 'the daemon ended the event subscription';
-
-  try {
-    const stream = await conn.procedures.events.subscribe(
-      {},
-      { signal, context: { as: principal } },
-    );
-
-    for await (const event of stream) {
-      client.onEvent(event);
-    }
-  } catch (error) {
-    failure = `the event subscription failed: ${error instanceof Error ? error.message : String(error)}`;
-  }
-
-  if (signal.aborted || isClientClosed(conn)) {
-    return;
-  }
-
-  drainPending(conn, failure);
-  conn.socket?.end();
-}
-
-function drainPending(conn: ClientConnection, reason: string): void {
-  sendClose(conn, reason);
-  conn.events?.abort();
-  conn.peer.close({ reason: new DaemonError('internal', reason) });
-}
-
-function sendClose(conn: ClientConnection, reason: string): void {
-  if (!isClientClosed(conn)) {
-    conn.actor.send({ type: 'CLOSE', reason });
+  for await (const event of connection.events()) {
+    client.onEvent(event);
   }
 }
 
-function findHelloPrincipal(params: Readonly<Record<string, unknown>>): string | undefined {
-  const principal = params['principal'];
+async function watchClose(connection: DaemonConnection, onClose: () => void): Promise<void> {
+  await connection.closed;
 
-  return typeof principal === 'string' ? principal : undefined;
+  onClose();
 }
 
-function buildSocketHandlers(conn: ClientConnection, client: DaemonClient): SocketHandler {
+function readHelloOptions(params: Readonly<Record<string, unknown>> | undefined) {
+  const auth = params?.['auth'];
+  const token = isRecord(auth) ? auth['token'] : undefined;
+  const session = params?.['session'];
+  const principal = params?.['principal'];
+  const viewer = params?.['viewer'];
+
   return {
-    data(_s, buf) {
-      applyChunk(conn, buf);
-    },
-    drain() {
-      conn.queue?.drain();
-    },
-    close() {
-      sendClose(conn, 'connection closed');
-
-      void (async () => {
-        await conn.inbound;
-
-        drainPending(conn, 'connection closed');
-
-        try {
-          client.onClose();
-        } catch (error) {
-          console.error(`atc: the daemon client's close handler failed: ${String(error)}`);
-        }
-      })();
-    },
-    error() {},
+    ...(typeof token === 'string' ? { token } : {}),
+    ...(typeof session === 'string' ? { session } : {}),
+    ...(typeof principal === 'string' ? { principal } : {}),
+    ...(typeof viewer === 'string' ? { viewer } : {}),
   };
-}
-
-function applyChunk(conn: ClientConnection, buf: Uint8Array): void {
-  for (const line of conn.lines.splitChunk(buf)) {
-    conn.inbound = applyLineAfter(conn, conn.inbound, line);
-  }
-}
-
-async function applyLineAfter(
-  conn: ClientConnection,
-  previous: Promise<void>,
-  line: string,
-): Promise<void> {
-  await previous;
-
-  try {
-    await conn.peer.message(line);
-  } catch {
-    conn.socket?.end();
-  }
 }

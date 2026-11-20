@@ -1,5 +1,5 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { createNamedDaemonConnection } from './create-named-daemon-connection';
 import type { NamedDaemonChannel } from './create-named-daemon-connection';
 
@@ -181,7 +181,7 @@ test('it names the connector principal and the daemon when the daemon refuses a 
         sendHello: () => Promise.resolve({}),
         sendRequest: () =>
           Promise.reject(
-            new DaemonError('unauthorized', "principal 'phone-app' is not listed in principals"),
+            new AtcError('unauthorized', "principal 'phone-app' is not listed in principals"),
           ),
         stop: () => {},
         procedures: { session: { get: mock(), watch: mock() } },
@@ -222,7 +222,7 @@ test.each([
         onEvent: () => {},
         principal: undefined,
         sendHello: () => Promise.resolve({}),
-        sendRequest: () => Promise.reject(new DaemonError(row.code, 'the daemon said no')),
+        sendRequest: () => Promise.reject(new AtcError(row.code, 'the daemon said no')),
         stop: () => {},
         procedures: { session: { get: mock(), watch: mock() } },
       }),

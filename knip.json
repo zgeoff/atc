@@ -9,6 +9,7 @@
         "scripts/**/*.test.ts",
         "scripts/create-state-template.ts",
         "scripts/pack-contract.ts",
+        "scripts/serve-stub-daemon.ts",
         "scripts/write-contract-schemas.ts",
         "scripts/probe-pty-env.ts",
         "rig.config.ts",

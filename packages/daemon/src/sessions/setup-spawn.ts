@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { AuthSetup } from '../auth/create-auth-setup';
 import type { HarnessAuthSetup, HarnessSetup } from '../auth/types';
 import { applyWorkspaceTrust } from './apply-workspace-trust';
@@ -118,10 +118,7 @@ export async function setupSpawn(
   const setup = await setupHost();
 
   if (spawn.trustClonedWorkspace && built.root === null) {
-    throw new DaemonError(
-      'bad_args',
-      'trustClonedWorkspace requires a successfully cloned workspace',
-    );
+    throw new AtcError('bad_args', 'trustClonedWorkspace requires a successfully cloned workspace');
   }
 
   const root = built.root;

@@ -209,6 +209,7 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "bun-pty": "catalog:",
       },
       "devDependencies": {
@@ -360,6 +361,7 @@
       "name": "@atc/protocol",
       "dependencies": {
         "@atc/core": "workspace:*",
+        "@atcx/client": "workspace:*",
         "@atcx/contract": "workspace:*",
         "@orpc/client": "catalog:",
         "@orpc/contract": "catalog:",
@@ -409,7 +411,7 @@
       "name": "@atc/source-github",
       "dependencies": {
         "@atc/plugin-api": "workspace:*",
-        "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {

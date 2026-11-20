@@ -1,6 +1,6 @@
 import type { Clock } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
 import { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { ProtocolError } from '@modelcontextprotocol/server';
 import type { Kysely } from 'kysely';
 import type { z } from 'zod';
@@ -171,7 +171,7 @@ async function readStartPosition(deps: EventMethodDeps, cursor: string | null): 
   try {
     await deps.caller.sendRequest('events.read', { cursor, limit: 1 });
   } catch (error) {
-    if (error instanceof DaemonError && error.code === 'bad_args') {
+    if (error instanceof AtcError && error.code === 'bad_args') {
       throw new ProtocolError(EVENT_ERROR_CODES.invalidParams, 'atc does not take that cursor');
     }
 

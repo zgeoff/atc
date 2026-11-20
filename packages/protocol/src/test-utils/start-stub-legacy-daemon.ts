@@ -36,7 +36,7 @@ export function startStubLegacyDaemon(
   address: string | StubLegacyDaemonTCPAddress,
   options: StubLegacyDaemonOptions = {},
 ) {
-  const answers: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+  const answers: Record<string, Readonly<Record<string, unknown>>> = {
     'daemon.hello': {
       daemon: 'atc/legacy-build',
       daemonID: 'd-legacy',
@@ -45,6 +45,17 @@ export function startStubLegacyDaemon(
     },
     'daemon.ping': {},
     ...options.replies,
+  };
+
+  // the fields every hello answer holds, so a reply names only what its test is about
+  answers['daemon.hello'] = {
+    daemon: 'atc/legacy-build',
+    daemonID: 'd-legacy',
+    limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
+    idempotency: { completedRetentionMs: 60_000 },
+    lastUsedAgent: 'claude',
+    peerSession: null,
+    ...answers['daemon.hello'],
   };
 
   const protocol = options.protocol ?? PROTOCOL_V;

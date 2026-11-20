@@ -4,8 +4,7 @@ import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
-import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { AtcError, CONTRACT_MAJOR } from '@atcx/contract/light';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
 import { RemoteTokenError } from './remote-token-error';
 
@@ -238,12 +237,12 @@ function hasViewerFeature(hello: Readonly<Record<string, unknown>>): boolean {
 }
 
 function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown): unknown {
-  if (!(error instanceof DaemonError)) {
+  if (!(error instanceof AtcError)) {
     return error;
   }
 
   if (error.code === 'protocol_mismatch') {
-    return new DaemonError(
+    return new AtcError(
       'protocol_mismatch',
       [
         `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} speaks another major version than this client, ${build} on major version ${CONTRACT_MAJOR}.`,
@@ -254,16 +253,16 @@ function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown):
   }
 
   if (error.code === 'unauthorized') {
-    return new DaemonError(
+    return new AtcError(
       'unauthorized',
       `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} refused the handshake as principal '${daemon.principal}': ${error.message}. ${NO_FALLBACK}`,
     );
   }
 
-  // During the handshake an internal error means the connection closed before the answer: the
+  // During the handshake a lost connection means the connection closed before the answer: the
   // daemon went away or something in front of it dropped the connection. Report it as unreachable,
   // not as a refusal.
-  if (error.code === 'internal') {
+  if (error.code === 'connection_lost' || error.code === 'internal') {
     return new RemoteDaemonUnreachableError(
       formatUnreachable(
         daemon,
@@ -272,7 +271,7 @@ function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown):
     );
   }
 
-  return new DaemonError(
+  return new AtcError(
     error.code,
     `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} refused the handshake: ${error.message}. ${NO_FALLBACK}`,
   );

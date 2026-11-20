@@ -1,9 +1,9 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { SpritesApiError } from '../port/sprites-api-error';
 import { buildHostRefusal } from './build-host-refusal';
 
-export function toSpritesRefusal(error: unknown): DaemonError {
-  if (error instanceof DaemonError) {
+export function toSpritesRefusal(error: unknown): AtcError {
+  if (error instanceof AtcError) {
     return error;
   }
 

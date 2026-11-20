@@ -22,6 +22,8 @@ async function setupTest() {
     client.stop();
   });
 
+  await client.sendHello('atc/test-build');
+
   return { daemon, client };
 }
 

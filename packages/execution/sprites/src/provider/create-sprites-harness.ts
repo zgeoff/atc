@@ -6,7 +6,7 @@ import type {
   HarnessStart,
   OpenedRelay,
 } from '@atc/plugin-api';
-import type { DaemonError } from '@atc/protocol/wire';
+import type { AtcError } from '@atcx/contract/light';
 import type { ExecConnection, ExecRequest, SpritesPort } from '../port/types';
 import { waitOut } from '../port/wait-out';
 import type { GuestRecords } from './create-guest-records';
@@ -65,7 +65,7 @@ export function createSpritesHarness(options: SpritesHarnessOptions): SpritesHar
     options.onDone();
   };
 
-  const emitExit = (exit: HarnessExit, refusal?: DaemonError): void => {
+  const emitExit = (exit: HarnessExit, refusal?: AtcError): void => {
     if (isFinished) {
       return;
     }

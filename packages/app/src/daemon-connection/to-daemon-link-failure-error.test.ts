@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { RemoteTokenError } from '../remote-daemon/remote-token-error';
 import { toDaemonLinkFailureError } from './to-daemon-link-failure-error';
 
@@ -11,12 +11,12 @@ test.each([
   },
   {
     name: 'a token the daemon refuses',
-    error: new DaemonError('unauthorized', 'a valid bearer token is needed'),
+    error: new AtcError('unauthorized', 'a valid bearer token is needed'),
     kind: 'unauthorized',
   },
   {
     name: 'a daemon on another protocol',
-    error: new DaemonError('protocol_mismatch', 'speaks v14'),
+    error: new AtcError('protocol_mismatch', 'speaks v14'),
     kind: 'mismatched',
   },
   { name: 'a daemon that cannot be reached', error: new Error('ECONNREFUSED'), kind: 'down' },

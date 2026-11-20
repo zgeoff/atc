@@ -1,8 +1,8 @@
 import { isRecord } from '@atc/core';
 import type { DaemonAnswer } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { IdempotencyRecord, StateStore } from '@atc/store';
 import { SPAWN_ANSWER_SCHEMA } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { buildGrantFromFleetEntry } from '../auth/build-grant-from-fleet-entry';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { buildTargetForbiddenError } from '../auth/build-target-forbidden-error';
@@ -43,7 +43,7 @@ export function createSpawnReplay(deps: SpawnReplayDeps): SpawnReplay {
       return stored.data;
     }
 
-    throw new DaemonError(
+    throw new AtcError(
       'no_such_session',
       `the spawn under idempotency key '${record.key}' created session '${record.effectRef}', which is not listed; restore the fleet to list it`,
       { effectRef: record.effectRef },

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { pickSendFailure } from './pick-send-failure';
 
 test.each([
@@ -90,7 +90,7 @@ test.each([
     as: 'unauthorized',
   },
 ] as const)('it ends exit $exit as $as for $title', (row) => {
-  const picked = pickSendFailure(new DaemonError(row.code, 'refused'), {
+  const picked = pickSendFailure(new AtcError(row.code, 'refused'), {
     stage: row.stage,
     closed: 'closed' in row,
     remote: 'remote' in row,
@@ -106,7 +106,7 @@ test.each([
 test.each([{ code: 'outcome_unknown' }, { code: 'internal' }] as const)(
   'it asks to read the message of the effectRef of a $code send',
   (row) => {
-    const picked = pickSendFailure(new DaemonError(row.code, 'refused', { effectRef: 'm-9' }), {
+    const picked = pickSendFailure(new AtcError(row.code, 'refused', { effectRef: 'm-9' }), {
       stage: 'send',
       closed: false,
       remote: false,

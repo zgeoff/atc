@@ -10,7 +10,7 @@ export interface DeclarationTools {
   readonly writeText: (path: string, text: string) => void;
 }
 
-export const CONTRACT_DIR = 'packages/contract';
+const CONTRACT_DIR = 'packages/contract';
 
 // Compiles one published package's declarations into the out folder. The package defaults to the
 // contract.

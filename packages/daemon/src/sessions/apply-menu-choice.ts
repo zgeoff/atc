@@ -1,7 +1,7 @@
 import type { Clock } from '@atc/core';
 import type { ScreenMenu } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { MenuView } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { buildMenuView } from './build-menu-view';
 import { expandScreenMenu } from './expand-screen-menu';
 import { MENU_KEYS, MENU_TIMING } from './menu-terminal';
@@ -57,7 +57,7 @@ export async function applyMenuChoice(
   const committed = last.menu;
 
   if (getHighlighted(committed) !== choice.option) {
-    throw new DaemonError(
+    throw new AtcError(
       'menu_busy',
       `the cursor left option ${choice.option} before Enter, so nothing was picked; choose again`,
       { menu: committed },
@@ -82,11 +82,11 @@ async function readWholeMenuView(
 
 function requireMatchingMenu(menu: MenuView | null, choice: MenuChoice): MenuView {
   if (menu === null) {
-    throw new DaemonError('menu_changed', 'the session shows no menu now', { menu: null });
+    throw new AtcError('menu_changed', 'the session shows no menu now', { menu: null });
   }
 
   if (menu.menuToken !== choice.menuToken) {
-    throw new DaemonError(
+    throw new AtcError(
       'menu_changed',
       `the session shows another menu now, with menuToken '${menu.menuToken}'`,
       { menu },
@@ -105,7 +105,7 @@ function requireMatchingMenu(menu: MenuView | null, choice: MenuChoice): MenuVie
         ? `the menu has no option ${choice.option}`
         : `option ${choice.option} of the menu is '${target.label}', not '${choice.label}'`;
 
-    throw new DaemonError('menu_label_mismatch', reason, { menu });
+    throw new AtcError('menu_label_mismatch', reason, { menu });
   }
 
   return menu;
@@ -201,7 +201,7 @@ async function readSettledWholeMenu(
 
     return { menu: whole };
   } catch (error) {
-    if (error instanceof DaemonError) {
+    if (error instanceof AtcError) {
       // The failed read may have moved the cursor with its arrow keys, so the screen is read again.
       return { menu: await readMenuView(terminal), partial: true };
     }
@@ -220,7 +220,7 @@ async function runCursorWalk(
 
   for (let steps = 0; at !== option; steps++) {
     if (steps > menu.options.length * 2) {
-      throw new DaemonError('menu_busy', `the cursor did not reach option ${option}`, { menu });
+      throw new AtcError('menu_busy', `the cursor did not reach option ${option}`, { menu });
     }
 
     const key = at < option ? MENU_KEYS.down : MENU_KEYS.up;
@@ -230,7 +230,7 @@ async function runCursorWalk(
     const moved = await waitForMove(terminal, menu, at, waits);
 
     if (moved === null) {
-      throw new DaemonError(
+      throw new AtcError(
         'menu_busy',
         'the menu ignored the arrow key, so nothing was picked; wait a few seconds and choose again',
         { menu },
@@ -255,7 +255,7 @@ async function waitForMove(
     const now = await readMenuView(terminal);
 
     if (now === null || now.menuToken !== menu.menuToken) {
-      throw new DaemonError('menu_changed', 'the menu changed while the cursor moved', {
+      throw new AtcError('menu_changed', 'the menu changed while the cursor moved', {
         menu: now,
       });
     }

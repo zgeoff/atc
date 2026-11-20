@@ -1,7 +1,7 @@
 import { posix } from 'node:path';
 import type { ExecutionProvider } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { SessionRegistry } from './create-session-registry';
 import { isPathWithin } from './is-path-within';
 import { resolveFromHome } from './resolve-from-home';
@@ -197,7 +197,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
   // yet, so every claim on the host waits for the removal
   const requireNoHostRemoval = (hostKey: SessionID, target: string, directory: string): void => {
     if ((removals.get(buildHostSlot(hostKey, target)) ?? 0) > 0) {
-      throw new DaemonError(
+      throw new AtcError(
         'workspace_overlap',
         `atc is removing a directory on the host of session ${hostKey}; spawn again once it is done`,
         { phase: 'resolving', directory, session: hostKey },
@@ -214,7 +214,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
     ).find(([, path]) => options.forms.some((form) => isPathOverlapping(form, path)));
 
     if (other !== undefined) {
-      throw new DaemonError(
+      throw new AtcError(
         'workspace_overlap',
         `${options.directory} overlaps ${other[1]}, the directory of session ${other[0]} on the same host; a workspace there lands beside it`,
         { phase: 'resolving', directory: options.directory, session: other[0] },
@@ -431,7 +431,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
             isPathOverlapping(directory, held),
           )
         ) {
-          throw new DaemonError(
+          throw new AtcError(
             'workspace_overlap',
             `${directory} overlaps ${reservation.directory}, where session ${other} is still building its workspace on the same host`,
             { phase: 'resolving', directory, session: other },
@@ -451,7 +451,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
         : undefined;
 
       if (holder !== undefined) {
-        throw new DaemonError(
+        throw new AtcError(
           'workspace_overlap',
           `${directory} is held by session ${holder[0]}, which is still starting on the daemon host`,
           { phase: 'resolving', directory, session: holder[0] },
@@ -470,7 +470,7 @@ export function createHostDirClaims(deps: HostDirClaimsDeps): HostDirClaims {
         );
 
         if (removal !== undefined) {
-          throw new DaemonError(
+          throw new AtcError(
             'workspace_overlap',
             `${directory} overlaps ${removal.directory}, which atc is removing for session ${removal.id} on the daemon host; spawn again once it is done`,
             { phase: 'resolving', directory, session: removal.id },

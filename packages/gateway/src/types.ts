@@ -1,5 +1,5 @@
 import type { Principal } from '@atc/protocol';
-import type { DaemonError } from '@atc/protocol/wire';
+import type { AtcError } from '@atcx/contract/light';
 
 export interface RegistryDaemon {
   readonly name: string;
@@ -57,6 +57,6 @@ export type RoutedOutcome =
       readonly daemon: RegistryDaemon;
       readonly value: Readonly<Record<string, unknown>>;
     }
-  | { readonly kind: 'refused'; readonly daemon: RegistryDaemon; readonly error: DaemonError };
+  | { readonly kind: 'refused'; readonly daemon: RegistryDaemon; readonly error: AtcError };
 
 export type RouteNext = (call: RoutedCall) => Promise<RoutedOutcome>;

@@ -1,10 +1,9 @@
 import { isRecord } from '@atc/core';
-import { ERROR_CODES } from '@atcx/contract/light';
+import { AtcError, ERROR_CODES } from '@atcx/contract/light';
 import { ORPCError } from '@orpc/client';
-import { DaemonError } from '../wire/daemon-error';
 
-export function toDaemonError(error: unknown): DaemonError {
-  if (error instanceof DaemonError) {
+export function toRawAtcError(error: unknown): AtcError {
+  if (error instanceof AtcError) {
     return error;
   }
 
@@ -14,10 +13,10 @@ export function toDaemonError(error: unknown): DaemonError {
     const data: unknown = error.data;
     const detail = isRecord(data) ? data : undefined;
 
-    return new DaemonError(code, error.message, detail);
+    return new AtcError(code, error.message, detail);
   }
 
   const message = error instanceof Error ? error.message : String(error);
 
-  return new DaemonError('internal', message);
+  return new AtcError('internal', message);
 }

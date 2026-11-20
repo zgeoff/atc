@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { startStubTCPDaemon } from '@atc/protocol/test-utils/start-stub-tcp-daemon';
 import { startCutProxy } from './start-cut-proxy';
 

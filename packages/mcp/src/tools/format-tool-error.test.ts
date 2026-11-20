@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { formatToolError } from './format-tool-error';
 
 test('it prefixes a daemon error with its code', () => {
-  expect(formatToolError(new DaemonError('no_such_session', "no session 's1'"))).toBe(
+  expect(formatToolError(new AtcError('no_such_session', "no session 's1'"))).toBe(
     "no_such_session: no session 's1'",
   );
 });

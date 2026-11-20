@@ -10,7 +10,7 @@ import {
   statSync,
 } from 'node:fs';
 import { basename, dirname, join as joinPath } from 'node:path';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { StateStoreSchema } from '../sqlite/state-store-schema';
@@ -29,7 +29,7 @@ export async function writeBackup(
 
   if ([live, `${live}-wal`, `${live}-shm`, `${live}-journal`].includes(resolveRealFilePath(path))) {
     // Replacing a file SQLite holds open loses every later write.
-    throw new DaemonError(
+    throw new AtcError(
       'bad_args',
       `${path} is the daemon's own database or one of its log files; back up to another path`,
     );

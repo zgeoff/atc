@@ -1,7 +1,7 @@
 import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
+import { AtcError } from '@atcx/contract/light';
 import { createActor } from 'xstate';
-import { DaemonError } from '../daemon-error';
 import { TRANSPORT_MACHINE } from './transport-machine';
 import type { TransportReconnect } from './transport-machine';
 
@@ -171,7 +171,7 @@ export function createDaemonTransport<C>(opts: DaemonTransportOptions<C>): Daemo
       }
 
       if (state === 'closed') {
-        return Promise.reject(new DaemonError('internal', 'the daemon transport is stopped'));
+        return Promise.reject(new AtcError('internal', 'the daemon transport is stopped'));
       }
 
       const waiter = Promise.withResolvers<C>();
@@ -209,7 +209,7 @@ export function createDaemonTransport<C>(opts: DaemonTransportOptions<C>): Daemo
         opts.getChannel(stopped).stop();
       }
 
-      drainWaiters(new DaemonError('internal', 'the daemon transport is stopped'));
+      drainWaiters(new AtcError('internal', 'the daemon transport is stopped'));
     },
   };
 }

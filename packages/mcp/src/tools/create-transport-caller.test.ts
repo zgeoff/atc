@@ -215,7 +215,7 @@ test('it fails a request that is neither keyed nor read-only when its connection
 
   const kill = caller.sendRequest('session.kill', { session: 's-1' });
 
-  expect(kill).rejects.toMatchObject({ code: 'internal', message: 'connection closed' });
+  expect(kill).rejects.toMatchObject({ code: 'connection_lost', message: 'the connection closed' });
   expect(dropping.keys).toStrictEqual([undefined]);
 });
 

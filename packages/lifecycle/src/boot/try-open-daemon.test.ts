@@ -30,7 +30,7 @@ test('it returns the hello and what the read returns from the daemon that answer
   const probe = await tryOpenDaemon(
     [join(ctx.directory, 'atc-daemon.sock')],
     { build: 'atc/test-build', deadline: systemClock.now() + 3000, clock: systemClock },
-    (client) => client.sendRequest('session.list'),
+    (client) => client.procedures.session.list({}),
   );
 
   expect(probe).toStrictEqual({
@@ -41,11 +41,11 @@ test('it returns the hello and what the read returns from the daemon that answer
   });
 });
 
-test('it refuses a daemon whose hello holds no build or id, and reads nothing from it', async () => {
+test('it refuses a daemon whose hello is outside the contract, and reads nothing from it', async () => {
   const ctx = setupTest();
 
   startStubLegacyDaemon(join(ctx.directory, 'atc-daemon.sock'), {
-    replies: { 'daemon.hello': {} },
+    replies: { 'daemon.hello': { daemon: 7 } },
   });
 
   const read = mock(() => Promise.resolve(null));
@@ -59,7 +59,7 @@ test('it refuses a daemon whose hello holds no build or id, and reads nothing fr
   expect(probe).toStrictEqual({
     kind: 'refused',
     socketPath: join(ctx.directory, 'atc-daemon.sock'),
-    message: 'the daemon answered the handshake without its build and id',
+    message: 'the daemon answered the hello outside the atc contract',
   });
 
   expect(read).not.toHaveBeenCalled();

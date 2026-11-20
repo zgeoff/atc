@@ -3,10 +3,9 @@ import type { InvalidGitTransports } from '@atc/config';
 import type { AgentID, Clock } from '@atc/core';
 import { normalizePluginDir } from '@atc/plugin-api';
 import type { DaemonAnswer } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
 import type { SessionDescriptor, SessionID, SpawnWorkspaceSource } from '@atcx/contract';
-import { resolveHomeDir } from '@atcx/contract/light';
+import { AtcError, resolveHomeDir } from '@atcx/contract/light';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { IdempotencyLedger, KeyedRequest } from '../transport/create-idempotency-ledger';
@@ -236,7 +235,7 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
             params.parent !== null &&
             !isTreeInReach(manager.sessions, params.parent, access)
           ) {
-            throw new DaemonError('no_such_session', `no session '${params.parent}'`);
+            throw new AtcError('no_such_session', `no session '${params.parent}'`);
           }
         });
 

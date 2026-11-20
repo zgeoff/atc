@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { createActor } from 'xstate';
 import { IMP_HARNESS_MACHINE } from './imp-harness-machine';
 
@@ -54,7 +54,7 @@ test('it waits for the next connection after a started one ends', () => {
 test('it confirms the exit and refuses the start when the harness ends with an exit before it started', () => {
   const ctx = setupTest();
 
-  const refusal = new DaemonError('host_unavailable', 'imp ended the harness before it started');
+  const refusal = new AtcError('host_unavailable', 'imp ended the harness before it started');
 
   ctx.actor.send({ type: 'END', confirmed: true, refusal });
 
@@ -72,7 +72,7 @@ test('it leaves the exit unconfirmed when the harness ends with nothing to confi
   ctx.actor.send({
     type: 'END',
     confirmed: false,
-    refusal: new DaemonError('host_unavailable', 'the daemon let go of the harness'),
+    refusal: new AtcError('host_unavailable', 'the daemon let go of the harness'),
   });
 
   expect(ctx.actor.getSnapshot().matches({ run: { ended: 'unconfirmed' } })).toBe(true);
@@ -86,7 +86,7 @@ test('it keeps a start that started when the harness ends', () => {
   ctx.actor.send({
     type: 'END',
     confirmed: true,
-    refusal: new DaemonError('host_unavailable', 'imp ended the harness before it started'),
+    refusal: new AtcError('host_unavailable', 'imp ended the harness before it started'),
   });
 
   expect(ctx.actor.getSnapshot().matches({ start: 'started' })).toBe(true);
@@ -96,14 +96,14 @@ test('it keeps a start that started when the harness ends', () => {
 test('it ignores a second end and every event after the first', () => {
   const ctx = setupTest();
 
-  const refusal = new DaemonError('host_unavailable', 'imp ended the harness before it started');
+  const refusal = new AtcError('host_unavailable', 'imp ended the harness before it started');
 
   ctx.actor.send({ type: 'END', confirmed: true, refusal });
 
   ctx.actor.send({
     type: 'END',
     confirmed: false,
-    refusal: new DaemonError('host_unavailable', 'the daemon let go of the harness'),
+    refusal: new AtcError('host_unavailable', 'the daemon let go of the harness'),
   });
 
   ctx.actor.send({ type: 'KILL_REQUESTED' });

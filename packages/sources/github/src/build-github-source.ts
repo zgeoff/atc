@@ -1,5 +1,5 @@
 import type { HostServices, SourceProvider } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { findGitHubAlternateURL } from './find-github-alternate-url';
 import { readGitProtocol } from './read-git-protocol';
 import { readGitHubRepos } from './read-github-repos';
@@ -34,7 +34,7 @@ export function buildGitHubSource(options: GitHubSourceOptions): SourceProvider 
       const owner = query.scope ?? options.owner;
 
       if (owner !== null && !GITHUB_OWNER_PATTERN.test(owner)) {
-        throw new DaemonError('bad_args', 'scope must be a GitHub account or organization');
+        throw new AtcError('bad_args', 'scope must be a GitHub account or organization');
       }
 
       const listed = await readGitHubRepos({
@@ -45,7 +45,7 @@ export function buildGitHubSource(options: GitHubSourceOptions): SourceProvider 
       });
 
       if (!listed.ok) {
-        throw new DaemonError(listed.code, listed.message, { problem: listed.problem });
+        throw new AtcError(listed.code, listed.message, { problem: listed.problem });
       }
 
       return {

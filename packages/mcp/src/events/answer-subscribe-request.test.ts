@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { buildStubWebhookReceiver } from '../test-utils/build-stub-webhook-receiver';
 import { openTestEventDatabase } from '../test-utils/open-test-event-database';
@@ -403,7 +403,7 @@ test('it refuses a cursor the daemon refuses as invalid params', async () => {
       db: ctx.db,
       caller: buildStubFleetCaller({
         answer: () => {
-          throw new DaemonError('bad_args', 'cursor: not a cursor');
+          throw new AtcError('bad_args', 'cursor: not a cursor');
         },
       }),
       clientID: 'client-one',

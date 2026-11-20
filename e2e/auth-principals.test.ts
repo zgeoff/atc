@@ -18,9 +18,9 @@ import { encodeCursor } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import { startStubStalledClient } from '@atc/protocol/test-utils/start-stub-stalled-client';
 import { trySendRequest } from '@atc/protocol/test-utils/try-send-request';
-import { DaemonError } from '@atc/protocol/wire';
 import { seedTargetlessCompletedIdempotencyKeys } from '@atc/store/test-utils/seed-targetless-completed-idempotency-keys';
 import type { DaemonEvent } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 
@@ -3995,7 +3995,7 @@ test("it refuses the replay of a held spawn key once its session's tree leaves t
   );
 
   expect(replayed).rejects.toThrowWithMessage(
-    DaemonError,
+    AtcError,
     "this client may not use execution target 'local'. Grant it to the client under principals in config.json and restart the daemon",
   );
 
@@ -4073,7 +4073,7 @@ test("it refuses the replay of a held spawn key after a restart once its stored 
   expect(listed).toStrictEqual({ sessions: [] });
 
   expect(replayed).rejects.toThrowWithMessage(
-    DaemonError,
+    AtcError,
     "this client may not use execution target 'local'. Grant it to the client under principals in config.json and restart the daemon",
   );
 
@@ -4630,7 +4630,7 @@ test("it refuses the replay of a forgotten session's spawn key once its target h
   );
 
   expect(replayed).rejects.toThrowWithMessage(
-    DaemonError,
+    AtcError,
     "this client may not use execution target 'box'. Grant it to the client under principals in config.json and restart the daemon",
   );
 
@@ -4758,7 +4758,7 @@ test('it refuses a principal the replay of a held spawn key that records no targ
   );
 
   expect(replayed).rejects.toThrowWithMessage(
-    DaemonError,
+    AtcError,
     "this client may not use execution target 'box'. Grant it to the client under principals in config.json and restart the daemon",
   );
 

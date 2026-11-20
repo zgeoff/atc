@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { buildGatewayError } from './build-gateway-error';
 
 test('it rewrites the effectRef of an uncertain spawn and the id its message quotes', () => {
   const error = buildGatewayError(
-    new DaemonError(
+    new AtcError(
       'outcome_unknown',
       "the session.spawn under idempotency key 'k' was interrupted; check 2b7f0c1e before retrying",
       { effectRef: '2b7f0c1e' },
@@ -23,7 +23,7 @@ test('it rewrites the effectRef of an uncertain spawn and the id its message quo
 
 test('it replaces the daemon id a refusal quotes from the request with the id the caller sent', () => {
   const error = buildGatewayError(
-    new DaemonError('no_such_session', "no session 's1'"),
+    new AtcError('no_such_session', "no session 's1'"),
     { name: 'cloud', incarnation: '0f6c2a8e' },
     new Map([['s1', 'cloud.0f6c2a8e.s1']]),
   );
@@ -31,13 +31,13 @@ test('it replaces the daemon id a refusal quotes from the request with the id th
   expect({ code: error.code, message: error.message, data: error.data }).toStrictEqual({
     code: 'no_such_session',
     message: "no session 'cloud.0f6c2a8e.s1'",
-    data: undefined,
+    data: {},
   });
 });
 
 test('it rewrites the session, message, and parent of error data and keeps other fields', () => {
   const error = buildGatewayError(
-    new DaemonError('target_forbidden', 'nope', {
+    new AtcError('target_forbidden', 'nope', {
       session: 's1',
       message: 'm-1',
       parent: 's0',
@@ -57,7 +57,7 @@ test('it rewrites the session, message, and parent of error data and keeps other
 
 test('it rewrites the host session of a refusal that names a sleeping host', () => {
   const error = buildGatewayError(
-    new DaemonError('unsupported_operation', 'host asleep', {
+    new AtcError('unsupported_operation', 'host asleep', {
       provider: 'imp',
       problem: 'host_asleep',
       host: 's0',

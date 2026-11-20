@@ -54,7 +54,7 @@ export async function openDaemonConnection(
   const location =
     'path' in target ? { path: target.path } : { host: target.hostname, port: target.port };
 
-  const socket = connectSocket(location);
+  const socket = options.socket ?? connectSocket(location);
 
   // A socket error is followed by the close event, which settles every call, so the handler
   // only keeps the error from going unhandled.

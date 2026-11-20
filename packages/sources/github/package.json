@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@atc/plugin-api": "workspace:*",
-    "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '../wire/index';
+import { AtcError } from '@atcx/contract/light';
 import { trySendRequest } from './try-send-request';
 
 test('it returns an answer with the id replaced', async () => {
@@ -13,7 +13,7 @@ test('it returns an answer with the id replaced', async () => {
 
 test('it returns a refusal as its code, message, and data with the id replaced', async () => {
   const answer = await trySendRequest(
-    () => Promise.reject(new DaemonError('no_such_session', 'no session s-1', { session: 's-1' })),
+    () => Promise.reject(new AtcError('no_such_session', 'no session s-1', { session: 's-1' })),
     's-1',
   );
 
@@ -24,7 +24,7 @@ test('it returns a refusal as its code, message, and data with the id replaced',
 
 test('it returns a refusal without data as holding null data', async () => {
   const answer = await trySendRequest(
-    () => Promise.reject(new DaemonError('unauthorized', 'not yours')),
+    () => Promise.reject(new AtcError('unauthorized', 'not yours')),
     's-1',
   );
 

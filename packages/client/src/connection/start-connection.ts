@@ -38,6 +38,10 @@ export interface ContractParts {
 const QUEUE_BYTES = 8 * 1024 * 1024;
 
 export async function waitForConnect(socket: Socket, target: DaemonTarget): Promise<void> {
+  if (socket.readyState === 'open') {
+    return;
+  }
+
   try {
     await once(socket, 'connect');
   } catch (error) {

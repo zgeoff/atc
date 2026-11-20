@@ -1,5 +1,5 @@
 import { isBrokerVariable } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 
 export function requireGuestEnv(
   agent: string,
@@ -16,7 +16,7 @@ export function requireGuestEnv(
   const broker = behindBroker ? Object.keys(env).find((key) => isBrokerVariable(key)) : undefined;
 
   if (broker !== undefined) {
-    throw new DaemonError(
+    throw new AtcError(
       'auth_target_unsupported',
       `agent '${agent}' plans ${broker} on target '${target}', which would route around the target's broker`,
       { agent, target, problem: 'guest_env_conflict', variable: broker },

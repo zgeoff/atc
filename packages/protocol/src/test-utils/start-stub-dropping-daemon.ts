@@ -1,4 +1,5 @@
 import { MAX_CHUNK, MAX_LINE } from '../wire/index';
+import { buildStubHelloAnswer } from './build-stub-hello-answer';
 import { startStubPeerDaemon } from './start-stub-peer-daemon';
 
 export function startStubDroppingDaemon(socketPath: string) {
@@ -11,9 +12,9 @@ export function startStubDroppingDaemon(socketPath: string) {
       if (request.method === 'daemon.hello') {
         return {
           ok: {
+            ...buildStubHelloAnswer(),
             daemon: 'atc/dropping-build',
             limits: { maxLine: MAX_LINE, maxChunk: MAX_CHUNK },
-            lastUsedAgent: 'claude',
           },
         };
       }

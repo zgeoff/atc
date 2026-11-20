@@ -985,10 +985,10 @@ test('it refuses a principal forget without a token of a session on a target it 
   const refused = daemon.client.sendRequest('session.forget', { session: id }, 'outsider');
 
   expect(refused).rejects.toMatchObject({
-    name: 'DaemonError',
+    name: 'AtcError',
     code: 'no_such_session',
     message: `no session '${id}'`,
-    data: undefined,
+    data: {},
   });
 
   expect(provider.destroyed).toBeEmpty();
@@ -1022,10 +1022,10 @@ test('it refuses a principal forget without a token of a session that does not e
   );
 
   expect(refused).rejects.toMatchObject({
-    name: 'DaemonError',
+    name: 'AtcError',
     code: 'no_such_session',
     message: "no session 'no-such-session'",
-    data: undefined,
+    data: {},
   });
 });
 
@@ -1065,10 +1065,10 @@ test('it refuses a principal forget with the owner token of a session on a targe
   );
 
   expect(refused).rejects.toMatchObject({
-    name: 'DaemonError',
+    name: 'AtcError',
     code: 'no_such_session',
     message: `no session '${id}'`,
-    data: undefined,
+    data: {},
   });
 
   expect(provider.destroyed).toBeEmpty();
@@ -1114,10 +1114,10 @@ test('it refuses a principal forget with the owner token of a session that does 
   );
 
   expect(refused).rejects.toMatchObject({
-    name: 'DaemonError',
+    name: 'AtcError',
     code: 'no_such_session',
     message: "no session 'no-such-session'",
-    data: undefined,
+    data: {},
   });
 });
 

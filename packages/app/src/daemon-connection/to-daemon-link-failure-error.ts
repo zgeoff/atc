@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import { DaemonLinkFailureError } from '@atc/tui';
+import { AtcError } from '@atcx/contract/light';
 import { RemoteTokenError } from '../remote-daemon/remote-token-error';
 
 export function toDaemonLinkFailureError(error: unknown): DaemonLinkFailureError {
@@ -9,11 +9,11 @@ export function toDaemonLinkFailureError(error: unknown): DaemonLinkFailureError
     return new DaemonLinkFailureError('unauthorized', message, { cause: error });
   }
 
-  if (error instanceof DaemonError && error.code === 'unauthorized') {
+  if (error instanceof AtcError && error.code === 'unauthorized') {
     return new DaemonLinkFailureError('unauthorized', message, { cause: error });
   }
 
-  if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
+  if (error instanceof AtcError && error.code === 'protocol_mismatch') {
     return new DaemonLinkFailureError('mismatched', message, { cause: error });
   }
 

@@ -1,5 +1,5 @@
 import type { ExecutionProvider, GuestLayout } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 
 export function readGuestLayout(
   provider: Pick<ExecutionProvider, 'kind' | 'readGuest'>,
@@ -7,7 +7,7 @@ export function readGuestLayout(
 ): Promise<GuestLayout> {
   if (provider.readGuest === undefined) {
     return Promise.reject(
-      new DaemonError(
+      new AtcError(
         'unsupported_operation',
         `the ${provider.kind} provider declares no folder for atc's files on its host`,
         { provider: provider.kind, problem: 'no_guest_layout' },

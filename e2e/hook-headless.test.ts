@@ -13,8 +13,8 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildStubHeadlessRunner } from '@atc/daemon/test-utils/build-stub-headless-runner';
 import { createGrokAdapter } from '@atc/harness-grok';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { DaemonError } from '@atc/protocol/wire';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 async function setupTest() {
@@ -621,7 +621,7 @@ test('it stops the headless run of a session whose adopt is refused while its te
         headlessRunner: headless.runner,
         planSpawn: () => {
           if (refuseSpawn) {
-            throw new DaemonError('unsupported_operation', 'the agent refuses this start');
+            throw new AtcError('unsupported_operation', 'the agent refuses this start');
           }
 
           return { bin: 'sleep', args: ['30'] };

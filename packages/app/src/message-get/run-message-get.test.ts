@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { ErrorCode } from '@atcx/contract/light';
 import type { ConnectResult, MessageGetRequest } from '../send/types';
 import { runMessageGet } from './run-message-get';
@@ -25,7 +25,7 @@ function setupTest() {
       waits.push(params['waitMs']);
 
       if (script.error !== undefined) {
-        return Promise.reject(new DaemonError(script.error, 'read refused'));
+        return Promise.reject(new AtcError(script.error, 'read refused'));
       }
 
       clock.advance(script.advanceMs ?? 0);

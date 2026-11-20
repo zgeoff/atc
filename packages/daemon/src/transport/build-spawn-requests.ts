@@ -3,9 +3,9 @@ import type { AgentID } from '@atc/core';
 import type { SourceInputRequest, SourceProvider } from '@atc/plugin-api';
 import { CONTROL_CHARACTER, parseDeclaredScope } from '@atc/protocol';
 import type { DaemonAnswer, DeclaredScope, RequestParams } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { buildTargetForbiddenError } from '../auth/build-target-forbidden-error';
 import { parseSpawnOverrides } from '../sessions/parse-spawn-overrides';
 import type { DaemonContext, SpawnParams } from '../types';
@@ -60,7 +60,7 @@ export function buildSpawnRequests(deps: RequestDeps): SpawnRequests {
     const source = ctx.findSource(params.source);
 
     if (source === null) {
-      throw new DaemonError('unsupported', `this daemon offers no source '${params.source}'`);
+      throw new AtcError('unsupported', `this daemon offers no source '${params.source}'`);
     }
 
     const target = ctx.resolveSpawnTarget(params.target);
@@ -125,7 +125,7 @@ export function buildSpawnRequests(deps: RequestDeps): SpawnRequests {
         const alternates = ctx.collectAlternateGitURLs(data.url);
         const detail = alternates.length === 0 ? undefined : { alternates };
 
-        throw new DaemonError(access.code, access.message, detail);
+        throw new AtcError(access.code, access.message, detail);
       }
 
       return { url: access.url, head: access.head, refs: access.refs, resolved: access.resolved };
@@ -141,7 +141,7 @@ async function applySpawn(
   const cwd = data.cwd;
 
   if (cwd === undefined && data.workspace?.kind !== 'git') {
-    throw new DaemonError('bad_args', 'session.spawn requires a cwd');
+    throw new AtcError('bad_args', 'session.spawn requires a cwd');
   }
 
   // Every refusal must be thrown while the key is being claimed. A retry of a held key answers
@@ -155,7 +155,7 @@ async function applySpawn(
     const entry = ctx.collectAgents().agents.find((candidate) => candidate.id === agent);
 
     if (adapter === null || entry === undefined) {
-      throw new DaemonError('unsupported', `no adapter for agent '${agent}'`);
+      throw new AtcError('unsupported', `no adapter for agent '${agent}'`);
     }
 
     const remote = ctx
@@ -163,7 +163,7 @@ async function applySpawn(
       .targets.some((candidate) => candidate.id === target && candidate.remote);
 
     if (adapter.profile !== undefined && !entry.installed && !remote) {
-      throw new DaemonError(
+      throw new AtcError(
         'unsupported',
         `agent '${agent}' is registered but not installed on this host`,
       );
@@ -184,7 +184,7 @@ async function applySpawn(
     });
 
     if (!overrides.ok) {
-      throw new DaemonError(overrides.code, overrides.message);
+      throw new AtcError(overrides.code, overrides.message);
     }
 
     const pluginDirs = ctx.requirePluginDirs(
@@ -203,21 +203,21 @@ async function applySpawn(
         : cwd;
 
     if (directory === undefined) {
-      throw new DaemonError('bad_args', 'session.spawn requires a cwd');
+      throw new AtcError('bad_args', 'session.spawn requires a cwd');
     }
 
     // A workspace is materialized at cwd on the target, which only an
     // absolute path names; a directory the daemon picks on a remote
     // target is relative to the home there, which the host resolves.
     if (data.workspace !== undefined && cwd !== undefined && !isAbsolute(cwd)) {
-      throw new DaemonError('bad_args', 'a spawn with a workspace requires an absolute cwd');
+      throw new AtcError('bad_args', 'a spawn with a workspace requires an absolute cwd');
     }
 
     // A workspace is created, filled, and removed at the one directory
     // the host resolves cwd to, which a dot segment or a control
     // character would make differ from the path as written.
     if (data.workspace !== undefined && !isPlainWorkspaceDir(directory)) {
-      throw new DaemonError(
+      throw new AtcError(
         'bad_args',
         'a spawn with a workspace requires a cwd without . or .. segments or control characters',
       );
@@ -229,7 +229,7 @@ async function applySpawn(
       const resolved = ctx.resolveSpawnParent(data.parent);
 
       if (resolved === 'missing') {
-        throw new DaemonError('no_such_session', `no session '${data.parent}'`);
+        throw new AtcError('no_such_session', `no session '${data.parent}'`);
       }
 
       parent = resolved;
@@ -270,7 +270,7 @@ async function applySpawn(
   };
 
   if (data.replayOnly === true && data.idempotencyKey === undefined) {
-    throw new DaemonError('bad_args', 'replayOnly needs an idempotencyKey');
+    throw new AtcError('bad_args', 'replayOnly needs an idempotencyKey');
   }
 
   const keyed = buildKeyedRequest(data);
@@ -304,7 +304,7 @@ function requireDeclaredScope(raw: unknown): DeclaredScope | null {
   const parsed = parseDeclaredScope(raw);
 
   if (!parsed.ok) {
-    throw new DaemonError('scope_invalid', parsed.message, { entry: parsed.entry });
+    throw new AtcError('scope_invalid', parsed.message, { entry: parsed.entry });
   }
 
   return parsed.scope;

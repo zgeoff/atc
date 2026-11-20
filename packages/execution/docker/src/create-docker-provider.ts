@@ -13,7 +13,7 @@ import type {
 } from '@atc/plugin-api';
 import { EffectRemainsError, openStreamRelay } from '@atc/plugin-api';
 import { buildSessionEnv } from '@atc/protocol/session';
-import type { DaemonError } from '@atc/protocol/wire';
+import type { AtcError } from '@atcx/contract/light';
 import { SESSION_ENV_NAMES } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import type { DockerTarget } from './config/parse-docker-target';
@@ -97,7 +97,7 @@ export function createDockerProvider(
 
   let latestHome: string | null = null;
   const buildRecordsDir = (host: string): string => join(options.stateDir, 'records', host);
-  const toRefusal = (error: unknown): DaemonError => toDockerRefusal(error, target.socket);
+  const toRefusal = (error: unknown): AtcError => toDockerRefusal(error, target.socket);
   const requireEngine = (): Promise<string> => requireDockerEngine(engine, target, readBootID());
 
   const readHome = async (): Promise<string> => {

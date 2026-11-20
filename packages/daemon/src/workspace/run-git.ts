@@ -1,5 +1,5 @@
 import { DEFAULT_GIT_TRANSPORTS } from '@atc/config';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { REPOSITORY_ENV_VARS } from './repository-env-vars';
 
 interface OpenOutputWatch {
@@ -199,7 +199,7 @@ async function waitForOutputClose(options: WaitForOutputCloseOptions): Promise<v
       // The group already exited.
     }
 
-    bound.reject(new DaemonError('git_output_open', message, { subcommand, exitCode }));
+    bound.reject(new AtcError('git_output_open', message, { subcommand, exitCode }));
   }, OPEN_OUTPUT_BOUND_MS);
 
   try {

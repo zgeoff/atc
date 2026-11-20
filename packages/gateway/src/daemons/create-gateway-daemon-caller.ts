@@ -2,10 +2,10 @@ import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { Principal } from '@atc/protocol';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import { HELLO_RESULT_SCHEMA, checkDaemon } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { DaemonHello, GatewayChannel, ParamsPreparer, RegistryDaemon } from '../types';
 import { GatewayError } from './gateway-error';
 import { pickDaemonAdmission } from './pick-daemon-admission';
@@ -57,8 +57,8 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
   const scheduleTimeout = (onTimeout: () => void, delayMs: number): (() => void) =>
     (opts.clock ?? systemClock).schedule(onTimeout, delayMs);
 
-  const buildOutcomeUnknown = (method: string): DaemonError =>
-    new DaemonError(
+  const buildOutcomeUnknown = (method: string): AtcError =>
+    new AtcError(
       'outcome_unknown',
       `daemon '${opts.daemon.name}' never answered ${method}; check what it did before sending it again`,
       { daemon: opts.daemon.name },
@@ -86,7 +86,7 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
     } catch (error) {
       channel.stop();
 
-      if (error instanceof DaemonError && error.code === 'unauthorized') {
+      if (error instanceof AtcError && error.code === 'unauthorized') {
         throw new GatewayError(
           'daemon_unauthorized',
           `daemon '${daemon.name}' refused the gateway's token`,
@@ -94,7 +94,7 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
         );
       }
 
-      if (error instanceof DaemonError && error.code === 'protocol_mismatch') {
+      if (error instanceof AtcError && error.code === 'protocol_mismatch') {
         throw new GatewayError(
           'daemon_unavailable',
           `daemon '${daemon.name}' speaks another protocol version than this gateway; upgrade the older of the two`,
@@ -261,7 +261,7 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
       return { kind: 'lost' };
     }
 
-    if (raced.error instanceof DaemonError && raced.error.code === 'idempotency_key_unknown') {
+    if (raced.error instanceof AtcError && raced.error.code === 'idempotency_key_unknown') {
       throw buildOutcomeUnknown(request.method);
     }
 

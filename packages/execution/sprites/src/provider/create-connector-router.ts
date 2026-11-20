@@ -1,5 +1,5 @@
 import type { AuthProfile, CredentialRouter } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { ConnectorView, SpritesPort } from '../port/types';
 import { toSpritesRefusal } from './to-sprites-refusal';
 
@@ -52,8 +52,8 @@ function requireRoute(
   connector: ConnectorView | undefined,
   spritePrefix: string,
 ): ConnectorView {
-  const refuse = (reason: string): DaemonError =>
-    new DaemonError(
+  const refuse = (reason: string): AtcError =>
+    new AtcError(
       'auth_target_unsupported',
       `auth profile '${profile.name}' has no route on sprites with the prefix '${spritePrefix}': ${reason}`,
       { problem: 'route_missing', profile: profile.name, connector: profile.secret },

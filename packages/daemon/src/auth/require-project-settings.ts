@@ -1,7 +1,7 @@
 import { posix } from 'node:path';
 import type { AgentAdapter, ExecutionProvider } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { HostDirClaims } from '../sessions/create-host-dir-claims';
 import { REPOSITORY_ENV_UNSET_ARGV } from '../workspace/repository-env-unset-argv';
 import { READ_PROJECT_SETTINGS_SCRIPT } from './read-project-settings-script';
@@ -71,13 +71,13 @@ export async function requireProjectSettings(
     const refusal = check.findRefusal(path, new TextDecoder().decode(content));
 
     if (refusal !== null) {
-      throw new DaemonError(refusal.code, refusal.message, { ...refusal.data, target });
+      throw new AtcError(refusal.code, refusal.message, { ...refusal.data, target });
     }
   }
 }
 
-function buildUnreadableSettingsRefusal(agent: string, target: string, path: string): DaemonError {
-  return new DaemonError(
+function buildUnreadableSettingsRefusal(agent: string, target: string, path: string): AtcError {
+  return new AtcError(
     'auth_target_unsupported',
     `agent '${agent}' signs in through the broker of target '${target}', but atc cannot read ${path} there as a settings file to check it for settings that would override that sign-in`,
     { agent, target, problem: 'project_settings_unreadable', file: path },

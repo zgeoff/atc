@@ -56,6 +56,7 @@ async function main(): Promise<void> {
 const ENTRY = 'packages/app/src/gateway.ts';
 
 const ALLOWED_PACKAGES: ReadonlySet<string> = new Set([
+  'client',
   'contract',
   'core',
   'protocol',
@@ -131,6 +132,7 @@ type ReporterAllowance = readonly string[] | { readonly except: readonly string[
 
 const REPORTER_FOLDERS: ReadonlyMap<string, ReporterAllowance> = new Map<string, ReporterAllowance>(
   [
+    ['client', ['connection']],
     ['contract', ['light']],
     ['core', { except: ['schema'] }],
     ['reporters', { except: [] }],

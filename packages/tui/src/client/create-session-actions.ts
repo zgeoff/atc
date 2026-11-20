@@ -1,5 +1,5 @@
 import { formatError } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { match } from 'ts-pattern';
 import { sendToDaemon } from '../daemon-link/send-to-daemon';
 import type { RequestLinks } from '../daemon-link/send-to-daemon';
@@ -104,7 +104,7 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
       try {
         await send(key, 'session.kill', {});
       } catch (error) {
-        if (error instanceof DaemonError && error.code === 'confirmation_required') {
+        if (error instanceof AtcError && error.code === 'confirmation_required') {
           deps.service.send({ type: 'CONFIRM_DESTROY', key });
 
           renderOverlay();

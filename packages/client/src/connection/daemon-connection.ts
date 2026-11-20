@@ -1,4 +1,5 @@
-import type { DaemonEvent, DaemonProcedures, HelloResult, SessionID } from '@atcx/contract';
+import type { Socket } from 'node:net';
+import type { DaemonEvent, DaemonProcedures, HelloResult } from '@atcx/contract';
 
 export interface CallContext {
   // the principal one call acts as
@@ -17,12 +18,17 @@ export interface DaemonHello {
   readonly token?: string | undefined;
   readonly principal?: string | undefined;
   readonly viewer?: string | undefined;
-  readonly session?: SessionID | undefined;
+
+  // the atc session the caller runs in; a SessionID is one
+  readonly session?: string | undefined;
 }
 
 export interface DaemonConnectionOptions {
   readonly timeoutMs?: number | undefined;
   readonly signal?: AbortSignal | undefined;
+
+  // a socket the caller opened toward the target, connected or still connecting
+  readonly socket?: Socket | undefined;
 
   // sees each answer before its call resolves
   readonly onAnswer?:
@@ -30,7 +36,7 @@ export interface DaemonConnectionOptions {
     | undefined;
 }
 
-export interface EventsOptions {
+interface EventsOptions {
   readonly signal?: AbortSignal | undefined;
 }
 

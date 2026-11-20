@@ -6,9 +6,9 @@ import { formatProtocolMismatch, isClientBehind } from '@atc/protocol';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
-import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import { MISMATCH_REFUSAL_DATA_SCHEMA } from '@atcx/contract';
-import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { AtcError, CONTRACT_MAJOR } from '@atcx/contract/light';
 import { buildHostDaemonPaths } from '../daemon-files/build-host-daemon-paths';
 import { readDaemonPID } from '../daemon-files/read-daemon-pid';
 import { readDaemonRecord } from '../daemon-files/read-daemon-record';
@@ -85,7 +85,7 @@ export async function bootDaemonClient(
       };
     } catch (error) {
       const closed = client.isClosed();
-      const isMismatch = error instanceof DaemonError && error.code === 'protocol_mismatch';
+      const isMismatch = error instanceof AtcError && error.code === 'protocol_mismatch';
 
       client.stop();
 
@@ -130,7 +130,7 @@ export async function bootDaemonClient(
         options.onProtocolMismatch === undefined ||
         !(await options.onProtocolMismatch(mismatch))
       ) {
-        throw new DaemonError('protocol_mismatch', formatProtocolMismatch(mismatch));
+        throw new AtcError('protocol_mismatch', formatProtocolMismatch(mismatch));
       }
 
       const unit = await readRestartUnit(mismatch.daemonPID, host);

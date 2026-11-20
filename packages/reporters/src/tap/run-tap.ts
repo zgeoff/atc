@@ -2,8 +2,7 @@ import { daemonSocketPath } from '@atc/config/host';
 import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
-import { DaemonError } from '@atc/protocol/wire';
-import { MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
+import { AtcError, MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
 import { z } from 'zod';
 import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';
@@ -190,7 +189,7 @@ async function ackInboxNotice(
 }
 
 function formatError(error: unknown): string {
-  return error instanceof DaemonError ? `${error.code}: ${error.message}` : String(error);
+  return error instanceof AtcError ? `${error.code}: ${error.message}` : String(error);
 }
 
 interface AckInboxMessageOptions {

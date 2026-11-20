@@ -1,6 +1,6 @@
 import type { LaunchTicket } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 
 export interface LaunchAdmissions {
   readonly createTicket: (hostKey: SessionID) => LaunchTicket;
@@ -11,11 +11,11 @@ export interface LaunchAdmissions {
 }
 
 export function createLaunchAdmissions(): LaunchAdmissions {
-  const pending = new Map<SessionID, Set<{ refusal: DaemonError | null }>>();
+  const pending = new Map<SessionID, Set<{ refusal: AtcError | null }>>();
 
   return {
     createTicket: (hostKey) => {
-      const ticket: { refusal: DaemonError | null } = { refusal: null };
+      const ticket: { refusal: AtcError | null } = { refusal: null };
       const tickets = pending.get(hostKey) ?? new Set();
 
       tickets.add(ticket);
@@ -47,7 +47,7 @@ export function createLaunchAdmissions(): LaunchAdmissions {
       pending.delete(hostKey);
 
       for (const ticket of tickets ?? []) {
-        ticket.refusal = new DaemonError(
+        ticket.refusal = new AtcError(
           'auth_blocked',
           `the runtime auth of host ${hostKey} is ${state}; nothing launches on it until a rebind`,
           { host: hostKey, state },

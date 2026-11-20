@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import { DAEMON_RECORD_SOCKET_SCHEMA } from '@atcx/contract';
 
 interface DaemonSocketLocation {
   readonly daemonSocketPath: string;
@@ -13,9 +12,11 @@ export async function readDaemonSocketPaths(paths: DaemonSocketLocation): Promis
   let recorded: string | null = null;
 
   try {
+    // loaded on demand: a process that only needs a path never pays for the contract's schemas
+    const contract = await import('@atcx/contract');
     const text = await readFile(paths.daemonRecordFile, 'utf8');
 
-    const parsed = DAEMON_RECORD_SOCKET_SCHEMA.safeParse(JSON.parse(text));
+    const parsed = contract.DAEMON_RECORD_SOCKET_SCHEMA.safeParse(JSON.parse(text));
 
     recorded = parsed.success ? parsed.data.socketPath : null;
   } catch {

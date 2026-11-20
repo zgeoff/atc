@@ -29,8 +29,8 @@ import {
   makeAgentEnvFileSyncer,
   probeTranscriptResumable,
 } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { startCodexAppServerBridge } from './app-server/start-codex-app-server-bridge';
 import { buildCodexGuestLaunch } from './guest-launch/build-codex-guest-launch';
 import { buildCodexHookFile } from './hooks/build-codex-hook-file';
@@ -106,7 +106,7 @@ export function createCodexAdapter(
 
   const startAppServerBridge = (request: MessageBridgeRequest): Promise<MessageBridge> => {
     if (request.options.resume === true) {
-      const refusal = new DaemonError(
+      const refusal = new AtcError(
         'unsupported',
         `agent '${entry.id}' runs on a Codex App Server, which resumes a session by its id and has no session picker`,
         { agent: entry.id },
@@ -192,7 +192,7 @@ export function createCodexAdapter(
     const renew = `sign Codex in again and give the broker the new refresh token for ${name}`;
 
     if (state?.status !== 'ready') {
-      throw new DaemonError(
+      throw new AtcError(
         'auth_signin_needed',
         `agent '${entry.id}' signs in through ${name}, whose sign-in in the broker is ${state?.status ?? 'not listed'}; ${renew}`,
         { agent: entry.id, secret, status: state?.status ?? null },
@@ -202,7 +202,7 @@ export function createCodexAdapter(
     const signIn = findCodexSignIn(state);
 
     if (signIn === null) {
-      throw new DaemonError(
+      throw new AtcError(
         'auth_signin_needed',
         `agent '${entry.id}' signs in through ${name}, whose ID token in the broker holds no ChatGPT account id; ${renew}`,
         { agent: entry.id, secret, status: state.status },

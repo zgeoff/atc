@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { Landing, MaterializeDeps } from './materialize-deps';
 import type { MaterializeRequest } from './materialize-request';
 import { REPOSITORY_ENV_UNSET_ARGV } from './repository-env-unset-argv';
@@ -24,7 +24,7 @@ export async function verifyTargetHead(
   const actual = split === -1 ? null : verified.stdout.slice(0, split).trim();
 
   if (actual !== sha) {
-    throw new DaemonError(
+    throw new AtcError(
       'workspace_mismatch',
       `the checkout on target '${request.target}' is at ${actual ?? 'no commit'}, not ${sha}`,
       { phase: 'verifying', expected: sha, actual },
@@ -37,7 +37,7 @@ export async function verifyTargetHead(
     .filter((line) => line !== '');
 
   if (verified.exitCode !== 0 || changed.length > 0) {
-    throw new DaemonError(
+    throw new AtcError(
       'workspace_mismatch',
       `the checkout on target '${request.target}' does not match ${sha} in its tracked files: ${changed.slice(0, 5).join('; ') || verified.stderr.trim()}`,
       { phase: 'verifying', expected: sha, actual },

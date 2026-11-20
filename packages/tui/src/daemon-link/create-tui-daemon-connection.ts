@@ -1,10 +1,10 @@
 import type { AgentID, Clock } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonEvent } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { ClientActor, ClientMode } from '../client/build-client-machine';
 import type { TUIDaemon } from '../client/tui-host';
 import type { FleetMirror } from '../fleet/create-fleet-mirror';
@@ -126,7 +126,7 @@ export function createTUIDaemonConnection(deps: TUIDaemonConnectionDeps): TUIDae
     // a remote daemon's boot already waits out an unreachable one.
     isFatal: (error) =>
       transport.findLatest() === null ||
-      (error instanceof DaemonError && error.code === 'protocol_mismatch') ||
+      (error instanceof AtcError && error.code === 'protocol_mismatch') ||
       deps.primary !== null,
     onReady: (link) => {
       deps.setLastUsedAgent(link.boot.lastUsedAgent);

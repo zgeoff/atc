@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { pickRefusalStep } from '../overlay/pick-refusal-step';
 import { cols } from '../terminal/cols';
 import { buildSourceParams } from './build-target-param';
@@ -77,7 +77,7 @@ export function applySpawnOutcome(
 function applySpawnRefusal(flow: PickerFlow, error: unknown, prompt: string) {
   const ctx = flow.ctx;
   const reason = formatPickerError(error);
-  const code = error instanceof DaemonError ? error.code : 'internal';
+  const code = error instanceof AtcError ? error.code : 'internal';
   const step = isGitFlow(ctx) ? pickRefusalStep(code) : null;
 
   if (step === 'ref') {
@@ -105,7 +105,7 @@ function applySpawnRefusal(flow: PickerFlow, error: unknown, prompt: string) {
     return;
   } else if (step === 'confirm') {
     const phase =
-      error instanceof DaemonError && typeof error.data?.['phase'] === 'string'
+      error instanceof AtcError && typeof error.data?.['phase'] === 'string'
         ? ` while ${error.data['phase']}`
         : '';
 

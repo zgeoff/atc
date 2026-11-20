@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { SpawnWorkspaceSource } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { checkURLCredentials } from './check-url-credentials';
 import { expandGitShorthand } from './expand-git-shorthand';
 import { normalizeGitURL } from './normalize-git-url';
@@ -36,7 +36,7 @@ export async function resolveSource(
     });
 
     if (!resolved.ok) {
-      throw new DaemonError(resolved.code, resolved.message, { phase: 'resolving' });
+      throw new AtcError(resolved.code, resolved.message, { phase: 'resolving' });
     }
 
     await requireNoURLCredentials(resolved.url, staging);
@@ -52,7 +52,7 @@ export async function resolveSource(
   }
 
   if (source.credentialRef !== undefined && readCredentialSecret(source) === null) {
-    throw new DaemonError(
+    throw new AtcError(
       'credential_missing',
       'the credential environment variable is unset or empty',
       { phase: 'resolving' },
@@ -62,7 +62,7 @@ export async function resolveSource(
   const resolved = await resolveGitURL(expandGitShorthand(source.url), staging, transports);
 
   if (!resolved.ok) {
-    throw new DaemonError(resolved.code, resolved.message, { phase: 'resolving' });
+    throw new AtcError(resolved.code, resolved.message, { phase: 'resolving' });
   }
 
   return {
@@ -92,6 +92,6 @@ async function requireNoURLCredentials(url: string, cwd: string): Promise<void> 
   const finding = await checkURLCredentials(url, cwd);
 
   if (!finding.ok) {
-    throw new DaemonError(finding.code, finding.message, { phase: 'resolving' });
+    throw new AtcError(finding.code, finding.message, { phase: 'resolving' });
   }
 }

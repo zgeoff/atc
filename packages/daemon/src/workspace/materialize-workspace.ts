@@ -2,9 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createStepTimer, systemClock } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { MaterializationPhase } from '@atc/store';
 import type { SessionWorkspace, SpawnWorkspaceSource } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { ErrorCode } from '@atcx/contract/light';
 import { claimLanding } from './claim-landing';
 import { createCheckout } from './create-checkout';
@@ -44,7 +44,7 @@ export async function materializeWorkspace(
 
   if (source.kind === 'path' && outside) {
     if (resolve(source.path) !== resolve(request.directory)) {
-      throw new DaemonError(
+      throw new AtcError(
         'bad_args',
         `${source.path} is outside any git work tree, so the session runs in it as it stands; spawn with it as cwd`,
         { phase: 'resolving' },
@@ -102,7 +102,7 @@ export async function materializeWorkspace(
 
     throw left === null
       ? refusal
-      : new DaemonError(refusal.code, refusal.message, { ...refusal.data, leftDir: left });
+      : new AtcError(refusal.code, refusal.message, { ...refusal.data, leftDir: left });
   }
 }
 
@@ -122,7 +122,7 @@ async function probeOutsideWorkTree(path: string): Promise<boolean> {
     return true;
   }
 
-  throw new DaemonError(
+  throw new AtcError(
     'unreadable_tree',
     `git cannot inspect ${path}: ${inside.stderr.trim().split('\n')[0] ?? ''}`,
     { phase: 'resolving' },
@@ -233,7 +233,7 @@ async function writeGitIdentity(
     if (written.exitCode !== 0) {
       const reason = written.stderr.trim().split('\n')[0] ?? '';
 
-      throw new DaemonError(
+      throw new AtcError(
         'transfer_failed',
         `cannot set ${key} in the checkout on its target: ${reason}`,
         { phase: 'cloning' },
@@ -246,7 +246,7 @@ function toScrubbedRefusal(
   error: unknown,
   phase: MaterializationPhase,
   secret: string | null,
-): DaemonError {
+): AtcError {
   const refusal = toDaemonError(error, 'internal', phase);
 
   if (secret === null) {
@@ -263,7 +263,7 @@ function toScrubbedRefusal(
           ]),
         );
 
-  return new DaemonError(refusal.code, toRedacted(refusal.message, secret), data);
+  return new AtcError(refusal.code, toRedacted(refusal.message, secret), data);
 }
 
 async function tryRemoveClaimedDir(

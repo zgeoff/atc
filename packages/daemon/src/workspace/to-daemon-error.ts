@@ -1,19 +1,19 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { MaterializationPhase } from '@atc/store';
+import { AtcError } from '@atcx/contract/light';
 import type { ErrorCode } from '@atcx/contract/light';
 
 export function toDaemonError(
   error: unknown,
   code: ErrorCode,
   phase: MaterializationPhase,
-): DaemonError {
-  if (error instanceof DaemonError) {
+): AtcError {
+  if (error instanceof AtcError) {
     return error.data?.['phase'] === undefined
-      ? new DaemonError(error.code, error.message, { ...error.data, phase })
+      ? new AtcError(error.code, error.message, { ...error.data, phase })
       : error;
   }
 
   const reason = error instanceof Error ? error.message : String(error);
 
-  return new DaemonError(code, reason, { phase });
+  return new AtcError(code, reason, { phase });
 }
