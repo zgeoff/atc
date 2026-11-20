@@ -17,7 +17,7 @@ import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authentic
 import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
 import { openWatchChannel } from '../packages/app/src/events/open-watch-channel';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
@@ -47,7 +47,7 @@ function setupTest() {
     });
 
     const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
-      openDaemonClient(path),
+      createDaemonClient(path),
     );
 
     registerTestCleanup(() => caller.stop());
@@ -413,7 +413,7 @@ test('it refuses an owner token file on a bind other machines can reach', () => 
   const dbPath = join(setupTempDir('atc-live-terminal-bind-').path, 'mcp-auth.db');
 
   const caller = createTransportCaller(join(dbPath, 'no.sock'), 'atc/test-build', (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   expect(

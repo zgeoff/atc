@@ -13,7 +13,7 @@ import { startDaemon } from '@atc/daemon';
 import { buildStubTargets } from '@atc/daemon/test-utils/build-stub-targets';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import invariant from 'tiny-invariant';
 
@@ -80,7 +80,7 @@ test('it lets exactly one of two daemons started at once serve a state directory
 
   invariant(record !== null, 'the serving daemon wrote no record');
 
-  const client = await openDaemonClient(record.socketPath);
+  const client = createDaemonClient(record.socketPath);
 
   registerTestCleanup(() => {
     client.stop();

@@ -2,10 +2,9 @@ import type { RemoteDaemon } from '@atc/config';
 import { systemClock, toAgentID } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
-import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { AtcError, CONTRACT_MAJOR } from '@atcx/contract/light';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
 import { RemoteTokenError } from './remote-token-error';
 
@@ -155,7 +154,7 @@ async function openRemoteDaemon(
   // after the timeout won the race is never an unhandled rejection.
   const attempt = (async (): Promise<RemoteAttempt> => {
     try {
-      const client = await openRemoteConnection(daemon);
+      const client = createDaemonClient({ hostname: daemon.host, port: daemon.port });
 
       opened.client = client;
 
@@ -163,11 +162,7 @@ async function openRemoteDaemon(
         client.stop();
       }
 
-      const hello = await client.sendHello(options.build, {
-        token: options.token,
-        principal: daemon.principal,
-        ...(options.viewer === undefined ? {} : { viewer: options.viewer }),
-      });
+      const hello = await sendRemoteHello(daemon, client, options);
 
       // A daemon that predates the viewer drops it from the handshake and
       // would send the events and output of the entry's whole reach.
@@ -211,24 +206,26 @@ async function openRemoteDaemon(
   }
 }
 
-async function openRemoteConnection(daemon: RemoteDaemon): Promise<DaemonClient> {
+async function sendRemoteHello(
+  daemon: RemoteDaemon,
+  client: DaemonClient,
+  options: OpenRemoteDaemonOptions,
+): Promise<Readonly<Record<string, unknown>>> {
   try {
-    return await openDaemonClient({ hostname: daemon.host, port: daemon.port });
-  } catch (error) {
-    throw new RemoteDaemonUnreachableError(formatUnreachable(daemon, formatConnectError(error)), {
-      cause: error,
+    return await client.sendHello(options.build, {
+      token: options.token,
+      principal: daemon.principal,
+      ...(options.viewer === undefined ? {} : { viewer: options.viewer }),
     });
+  } catch (error) {
+    if (error instanceof AtcError && error.code === 'no_daemon') {
+      throw new RemoteDaemonUnreachableError(formatUnreachable(daemon, error.message), {
+        cause: error,
+      });
+    }
+
+    throw error;
   }
-}
-
-function formatConnectError(error: unknown): string {
-  const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : undefined;
-
-  if (typeof code === 'string') {
-    return code;
-  }
-
-  return error instanceof Error ? error.message : String(error);
 }
 
 function hasViewerFeature(hello: Readonly<Record<string, unknown>>): boolean {
@@ -238,12 +235,12 @@ function hasViewerFeature(hello: Readonly<Record<string, unknown>>): boolean {
 }
 
 function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown): unknown {
-  if (!(error instanceof DaemonError)) {
+  if (!(error instanceof AtcError)) {
     return error;
   }
 
   if (error.code === 'protocol_mismatch') {
-    return new DaemonError(
+    return new AtcError(
       'protocol_mismatch',
       [
         `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} speaks another major version than this client, ${build} on major version ${CONTRACT_MAJOR}.`,
@@ -254,16 +251,16 @@ function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown):
   }
 
   if (error.code === 'unauthorized') {
-    return new DaemonError(
+    return new AtcError(
       'unauthorized',
       `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} refused the handshake as principal '${daemon.principal}': ${error.message}. ${NO_FALLBACK}`,
     );
   }
 
-  // During the handshake an internal error means the connection closed before the answer: the
+  // During the handshake a lost connection means the connection closed before the answer: the
   // daemon went away or something in front of it dropped the connection. Report it as unreachable,
   // not as a refusal.
-  if (error.code === 'internal') {
+  if (error.code === 'connection_lost' || error.code === 'internal') {
     return new RemoteDaemonUnreachableError(
       formatUnreachable(
         daemon,
@@ -272,7 +269,7 @@ function toRemoteBootError(daemon: RemoteDaemon, build: string, error: unknown):
     );
   }
 
-  return new DaemonError(
+  return new AtcError(
     error.code,
     `daemon '${daemon.name}' at ${formatRemoteAddress(daemon)} refused the handshake: ${error.message}. ${NO_FALLBACK}`,
   );

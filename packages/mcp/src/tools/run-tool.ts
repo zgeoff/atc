@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { isRecord } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { match } from 'ts-pattern';
 import { parseIdempotencyKey } from './parse-idempotency-key';
 import { readEventTexts } from './read-event-texts';
@@ -91,7 +91,7 @@ export function runTool(
         args['menuToken'] === undefined &&
         (args['option'] !== undefined || args['label'] !== undefined || args['key'] !== undefined)
       ) {
-        throw new DaemonError(
+        throw new AtcError(
           'bad_args',
           'a choice takes the menuToken of the menu it answers; call with session alone to read it',
         );
@@ -273,7 +273,7 @@ async function sendNestedSpawn(
     // an answer that holds an effect id is a keyed spawn that already ran, which a
     // top-level spawn would only duplicate.
     if (
-      error instanceof DaemonError &&
+      error instanceof AtcError &&
       error.code === 'no_such_session' &&
       error.data?.['effectRef'] === undefined
     ) {

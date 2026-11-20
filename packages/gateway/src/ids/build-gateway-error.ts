@@ -1,15 +1,15 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { RegistryDaemon } from '../types';
 import { buildRuledValue } from './build-ruled-value';
 import { ERROR_DATA_RULES } from './id-rules';
 
 export function buildGatewayError(
-  error: Readonly<DaemonError>,
+  error: Readonly<AtcError>,
   daemon: Pick<RegistryDaemon, 'name' | 'incarnation'>,
   requestIDs: ReadonlyMap<string, string>,
-): DaemonError {
-  if (error.data === undefined) {
-    return new DaemonError(error.code, buildQuotedMessage(error.message, requestIDs));
+): AtcError {
+  if (Object.keys(error.data).length === 0) {
+    return new AtcError(error.code, buildQuotedMessage(error.message, requestIDs));
   }
 
   const rewritten = buildRuledValue(error.data, ERROR_DATA_RULES, daemon);
@@ -26,7 +26,7 @@ export function buildGatewayError(
     }
   }
 
-  return new DaemonError(error.code, buildQuotedMessage(error.message, quoted), data);
+  return new AtcError(error.code, buildQuotedMessage(error.message, quoted), data);
 }
 
 function buildQuotedMessage(message: string, ids: ReadonlyMap<string, string>): string {

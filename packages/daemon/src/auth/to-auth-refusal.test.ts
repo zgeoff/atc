@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { buildStubCredentialBroker } from '../test-utils/build-stub-credential-broker';
 import { toAuthRefusal } from './to-auth-refusal';
 
@@ -13,7 +13,7 @@ test("it answers a broker's refusal as an unavailable host that names the broker
 
   const answered = toAuthRefusal(refusal, broker);
 
-  expect(answered).toBeInstanceOf(DaemonError);
+  expect(answered).toBeInstanceOf(AtcError);
 
   expect(answered).toMatchObject({
     code: 'host_unavailable',
@@ -77,7 +77,7 @@ test('it gives the upgrade step to no other refusal of a broker', async () => {
 });
 
 test('it passes a daemon error through unchanged', () => {
-  const error = new DaemonError('auth_blocked', 'the runtime auth of host s-1 is failed');
+  const error = new AtcError('auth_blocked', 'the runtime auth of host s-1 is failed');
 
   expect(toAuthRefusal(error, buildStubCredentialBroker())).toBe(error);
 });

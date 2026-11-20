@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 
 async function setupTest() {
   const temporaryDirectory = setupTempDir('atc-run-listener-');
@@ -70,7 +70,8 @@ test('it prints the loopback port its TCP listener bound', async () => {
 
 test('it answers a hello on the daemon socket in its test directory', async () => {
   const ctx = await setupTest();
-  const client = await openDaemonClient(join(ctx.directory, 'daemon.sock'));
+
+  const client = createDaemonClient(join(ctx.directory, 'daemon.sock'));
 
   registerTestCleanup(() => {
     client.stop();

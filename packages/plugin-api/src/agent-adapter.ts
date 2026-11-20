@@ -1,8 +1,8 @@
 import type { AgentID } from '@atc/core';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
-import type { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID, SessionID, SpawnOptionSpec, TranscriptRow } from '@atcx/contract';
+import type { AtcError } from '@atcx/contract/light';
 import type { AuthProfile } from './credentials/auth-profile';
 import type { GatewayAuth } from './credentials/gateway-auth';
 import type { MessageBridge, MessageBridgeRequest } from './plugin/message-bridge';
@@ -94,7 +94,7 @@ export interface ProjectSettingsCheck {
   // of its git worktree, because the agent reads these files at a repository's root.
   readonly rootFiles: readonly string[];
 
-  readonly findRefusal: (path: string, content: string) => DaemonError | null;
+  readonly findRefusal: (path: string, content: string) => AtcError | null;
 }
 
 export interface NameUpdate {
@@ -264,7 +264,7 @@ export interface AgentAdapter {
 
   readonly signInFile?: string;
 
-  readonly findSpawnRefusal?: () => DaemonError | null;
+  readonly findSpawnRefusal?: () => AtcError | null;
 
   readonly planAuthCheck?: () => readonly string[];
 

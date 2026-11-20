@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { ORPCError, ValidationError } from '@orpc/server';
 import { buildPeerError } from './build-peer-error';
 
 test('it keeps the code, message and data of a daemon refusal', () => {
   const error = buildPeerError(
-    new DaemonError('scope_invalid', 'a scope entry names no path', { entry: 2 }),
+    new AtcError('scope_invalid', 'a scope entry names no path', { entry: 2 }),
   );
 
   expect({ code: error.code, message: error.message, data: error.data }).toStrictEqual({

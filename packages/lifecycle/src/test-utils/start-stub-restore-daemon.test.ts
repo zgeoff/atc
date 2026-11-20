@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { startStubRestoreDaemon } from './start-stub-restore-daemon';
 
 function setupTest() {

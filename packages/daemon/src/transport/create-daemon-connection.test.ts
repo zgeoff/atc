@@ -3,9 +3,9 @@ import { join } from 'node:path';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
 import { buildPeerRequestLine } from '@atc/protocol/test-utils/build-peer-request-line';
 import { buildStubPeerSocket } from '@atc/protocol/test-utils/build-stub-peer-socket';
+import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { parsePeerFrame } from '@atc/protocol/test-utils/parse-peer-frame';
 import type { PeerFrame } from '@atc/protocol/test-utils/parse-peer-frame';
 import { MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
@@ -863,7 +863,7 @@ test('it refuses a TCP peer handshake with a bad token and another major version
   const refused = client.sendHello('atc/test', { token: 'tok-wrong' });
 
   expect(refused).rejects.toMatchObject({ code: 'unauthorized' });
-  expect(refused).rejects.toHaveProperty('data', undefined);
+  expect(refused).rejects.toHaveProperty('data', {});
 });
 
 test.each([

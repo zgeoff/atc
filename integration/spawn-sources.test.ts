@@ -939,7 +939,7 @@ test('it refuses a probe of an upstream git cannot read as clone_failed', async 
 
   const probed = daemon.client.sendRequest('git.probe', { url: `${git.upstream}-missing` });
 
-  expect(probed).rejects.toMatchObject({ code: 'clone_failed', data: undefined });
+  expect(probed).rejects.toMatchObject({ code: 'clone_failed', data: {} });
 });
 
 test("it refuses a GitHub probe git cannot read with the repository's other URL form", async () => {
@@ -1009,7 +1009,7 @@ test('it refuses a probe of the owner/repo shorthand, which only a spawn expands
 
   const probed = daemon.client.sendRequest('git.probe', { url: 'acme/app' });
 
-  expect(probed).rejects.toMatchObject({ code: 'invalid_git_url', data: undefined });
+  expect(probed).rejects.toMatchObject({ code: 'invalid_git_url', data: {} });
 });
 
 test('it refuses a GitHub probe with no alternates when the daemon offers no GitHub source', async () => {
@@ -1032,5 +1032,5 @@ test('it refuses a GitHub probe with no alternates when the daemon offers no Git
 
   const probed = daemon.client.sendRequest('git.probe', { url: 'https://github.com/acme/app.git' });
 
-  expect(probed).rejects.toMatchObject({ code: 'clone_failed', data: undefined });
+  expect(probed).rejects.toMatchObject({ code: 'clone_failed', data: {} });
 });

@@ -7,9 +7,9 @@ import type {
   SpawnOptions,
 } from '@atc/plugin-api';
 import { findHostBroker, getHostCredentials } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { FleetStore, RuntimeAuthBinding } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildGuestSessionDirectory } from '../sessions/build-guest-session-directory';
 import type { HostDirClaims } from '../sessions/create-host-dir-claims';
@@ -111,7 +111,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
     const binder = callbacks.findAuthBinder();
 
     if (binder === null) {
-      throw new DaemonError('unsupported_operation', 'this daemon binds no runtime auth', {
+      throw new AtcError('unsupported_operation', 'this daemon binds no runtime auth', {
         problem: 'no_auth_binder',
       });
     }
@@ -167,7 +167,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
     const planned = buildAuthBinding(selection.gateway, selection.profiles);
 
     if ('problem' in planned) {
-      throw new DaemonError('auth_binding_invalid', planned.problem.message, {
+      throw new AtcError('auth_binding_invalid', planned.problem.message, {
         agent: adapter.id,
         problem: planned.problem.code,
       });
@@ -196,7 +196,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
     const held = binder === null ? null : await binder.readBinding(hostKey);
 
     if (held !== null) {
-      throw new DaemonError(
+      throw new AtcError(
         'auth_rebind_required',
         `agent '${agent}' takes no credential from the target's broker, but its host holds a runtime auth binding; give the agent its auth block back, or forget the session`,
         { agent, state: held.state, problem: 'auth_dropped' },
@@ -275,7 +275,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
 
       if (held !== null && binding !== null && held.bindingHash === binding.hash) {
         if (held.state !== 'ready') {
-          throw new DaemonError(
+          throw new AtcError(
             'auth_blocked',
             `the runtime auth of host ${hostKey} is ${held.state}; rebind it to launch again`,
             { host: hostKey, state: held.state },
@@ -285,7 +285,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
         return;
       }
 
-      throw new DaemonError(
+      throw new AtcError(
         'auth_binding_mismatch',
         `a sub-session joins the host of session ${hostKey} only under the runtime auth binding that host holds`,
         { host: hostKey, hostBound: held !== null, bound: binding !== null },
@@ -334,7 +334,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
             try {
               await trust(scratch);
             } catch (error) {
-              throw new DaemonError(
+              throw new AtcError(
                 'internal',
                 `could not trust the session's scratch folder ${scratch}: ${error instanceof Error ? error.message : String(error)}`,
                 { agent: adapter.id },
@@ -388,7 +388,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       if (plan === null) {
         throw auth === null
           ? buildGuestRefusal(provider.kind, adapter.id, target, guest.atc === null)
-          : new DaemonError(
+          : new AtcError(
               'auth_target_unsupported',
               `agent '${adapter.id}' plans no guest settings to take its credential from the credentials of target '${target}'`,
               { agent: adapter.id, target, problem: 'no_guest_plan' },
@@ -499,7 +499,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       const adapter = registry.findAdapter(session.agent);
 
       if (adapter === null) {
-        throw new DaemonError('unsupported_operation', `no adapter for agent '${session.agent}'`, {
+        throw new AtcError('unsupported_operation', `no adapter for agent '${session.agent}'`, {
           agent: session.agent,
         });
       }
@@ -511,7 +511,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
       const auth = resolveHarnessAuth(adapter, provider, session.target);
 
       if (auth?.kind !== 'broker') {
-        throw new DaemonError(
+        throw new AtcError(
           'unsupported_operation',
           `agent '${session.agent}' takes no credential from the target's broker`,
           { agent: session.agent, problem: 'no_auth_selection' },

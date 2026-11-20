@@ -25,10 +25,10 @@ import { createStubDirProvider } from '@atc/execution-local/test-utils/create-st
 import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 
@@ -250,7 +250,7 @@ test('it fails the spawn when the target checkout has no commit at HEAD, and rem
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toStrictEqual(
-    new DaemonError(
+    new AtcError(
       'workspace_mismatch',
       `the checkout on target 'box' is at no commit, not ${ctx.sha}`,
       { phase: 'verifying', expected: ctx.sha, actual: null },
@@ -304,7 +304,7 @@ test('it fails the spawn when the target checkout lacks a tracked file, and remo
   const listed = await daemon.client.sendRequest('session.list');
 
   expect(spawn).rejects.toStrictEqual(
-    new DaemonError(
+    new AtcError(
       'workspace_mismatch',
       `the checkout on target 'box' does not match ${ctx.sha} in its tracked files:  D README.md`,
       { phase: 'verifying', expected: ctx.sha, actual: ctx.sha },
@@ -949,7 +949,7 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
   const stored = state.map((name) => readFileSync(join(daemon.directory, name)).toString('latin1'));
 
   expect(spawn).rejects.toStrictEqual(
-    new DaemonError('ref_not_found', "origin has no branch or tag '[credential]'", {
+    new AtcError('ref_not_found', "origin has no branch or tag '[credential]'", {
       phase: 'cloning',
     }),
   );
@@ -1548,7 +1548,7 @@ test('it removes the checkout it created and keeps the files beside it when its 
   const box = createStubExecutionProvider({
     kind: 'fixture-dir',
     onSpawn: () => {
-      throw new DaemonError('host_unavailable', 'the harness could not start');
+      throw new AtcError('host_unavailable', 'the harness could not start');
     },
   });
 
@@ -1597,7 +1597,7 @@ test('it spawns a retry into the directory a harness that failed to start left',
   const box = createStubExecutionProvider({
     kind: 'fixture-dir',
     onSpawn: mock(() => {}).mockImplementationOnce(() => {
-      throw new DaemonError('host_unavailable', 'the harness could not start');
+      throw new AtcError('host_unavailable', 'the harness could not start');
     }),
   });
 
@@ -2872,7 +2872,7 @@ test.skipIf(process.getuid?.() === 0)(
 
     await spawn.catch(() => null);
 
-    expect(spawn).rejects.toBeInstanceOf(DaemonError);
+    expect(spawn).rejects.toBeInstanceOf(AtcError);
 
     expect(spawn).rejects.toMatchObject({
       code: 'transfer_failed',
@@ -3156,7 +3156,7 @@ test('it refuses a git source on a local transport before it runs git, transferr
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toStrictEqual(
-    new DaemonError(
+    new AtcError(
       'invalid_git_url',
       "git transport 'file' is not allowed; the daemon fetches over https and ssh",
       { phase: 'resolving' },
@@ -3202,7 +3202,7 @@ test('it refuses a path source whose origin is a local repository, in git, trans
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toStrictEqual(
-    new DaemonError('clone_failed', "fatal: transport 'file' not allowed", { phase: 'cloning' }),
+    new AtcError('clone_failed', "fatal: transport 'file' not allowed", { phase: 'cloning' }),
   );
 
   expect(box.calls).not.toPartiallyContain({ op: 'transfer' });
@@ -3367,7 +3367,7 @@ test('it holds git to the configured transports whatever the daemon environment 
   await spawn.catch(() => null);
 
   expect(spawn).rejects.toStrictEqual(
-    new DaemonError('clone_failed', "fatal: transport 'file' not allowed", { phase: 'cloning' }),
+    new AtcError('clone_failed', "fatal: transport 'file' not allowed", { phase: 'cloning' }),
   );
 
   expect(box.calls).not.toPartiallyContain({ op: 'transfer' });

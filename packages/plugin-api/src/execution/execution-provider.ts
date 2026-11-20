@@ -1,5 +1,5 @@
 import type { StepTimer } from '@atc/core';
-import type { DaemonError } from '@atc/protocol/wire';
+import type { AtcError } from '@atcx/contract/light';
 import type { HostCredentials } from '../credentials/host-credentials';
 
 export interface ExecutionProvider {
@@ -136,7 +136,7 @@ export interface HarnessSpec {
 }
 
 export interface LaunchTicket {
-  readonly check: () => DaemonError | null;
+  readonly check: () => AtcError | null;
 
   readonly release: () => void;
 }

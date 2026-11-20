@@ -5,9 +5,9 @@ import { getRecord } from '@atc/core/test-utils/get-record';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
+import { createDaemonClient } from '@atc/protocol/client';
 import type { GrantScope } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import invariant from 'tiny-invariant';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
@@ -57,7 +57,7 @@ test('it answers a tool list with an error when no daemon listens on the socket'
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -73,7 +73,7 @@ test('it answers a tool list with an error when no daemon listens on the socket'
   expect(ctx.answers).toPartiallyContain({
     jsonrpc: '2.0',
     id: 1,
-    error: { code: -32_603, message: expect.toBeString() },
+    error: { code: -32_603, message: expect.toBeString(), data: expect.toBeObject() },
   });
 });
 
@@ -248,7 +248,7 @@ test('it reads no agents for a caller without the read scope', async () => {
 test('it returns the code and the problem of a refused call as structured content', async () => {
   const caller = buildStubFleetCaller({
     answer: () => {
-      throw new DaemonError('unsupported_operation', 'the host has no room', {
+      throw new AtcError('unsupported_operation', 'the host has no room', {
         problem: 'ram_budget_exceeded',
         session: 'harbor/s-9',
       });
@@ -281,7 +281,7 @@ test('it returns the code and the problem of a refused call as structured conten
 test('it returns the code alone for a refusal that carries no problem', async () => {
   const caller = buildStubFleetCaller({
     answer: () => {
-      throw new DaemonError('no_such_session', 'no session', { session: 'harbor/s-9' });
+      throw new AtcError('no_such_session', 'no session', { session: 'harbor/s-9' });
     },
   });
 

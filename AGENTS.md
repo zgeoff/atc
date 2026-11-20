@@ -50,7 +50,9 @@ packages/
                  its authorization server; the tools reach no module of the authorization server
   gateway/       the gateway's federation: the daemon registry, one connection per daemon, and the
                  routing steps that rewrite ids, pick a daemon, and bind idempotency keys
-  contract/      @atcx/contract, the one package npm publishes: the request contract, the public
+  client/        @atcx/client, the daemon client npm publishes: connect(), the connection layer
+                 that atc's own clients use, and AtcError
+  contract/      @atcx/contract, the other package npm publishes: the request contract, the public
                  schemas, the error codes, the session env names and the state paths
   plugin-api/    the contracts a plugin implements, among them the AgentAdapter interface
   harnesses/     one package per agent CLI: claude, codex, grok
@@ -71,12 +73,15 @@ docs/
 
 ## Packages
 
-- Every workspace package is private and named `@atc/<name>`. One exception: `@atcx/contract` is
-  published to npm at atc's version, so it depends on no other workspace package, and
-  [the published contract](docs/architecture/protocol/contract.md) covers what it holds. The
-  `zgeoff/import-zones` rule in `.oxlintrc.zones.json` gives each package a zone, the internal
-  packages it may depend on, the folder rules inside the daemon, and the files that may import each
-  confined external package.
+- Every workspace package is private and named `@atc/<name>`. Two exceptions: `@atcx/contract` and
+  `@atcx/client` are published to npm at atc's version. The contract depends on no other workspace
+  package, and the client depends only on the contract.
+  [The published contract](docs/architecture/protocol/contract.md) and
+  [the published client](docs/architecture/protocol/client.md) cover what each holds. A daemon
+  connection of atc's own opens through the client, and `bun run check:daemon-sockets` fails on
+  another opener. The `zgeoff/import-zones` rule in `.oxlintrc.zones.json` gives each package a
+  zone, the internal packages it may depend on, the folder rules inside the daemon, and the files
+  that may import each confined external package.
 - Give a package a second entry point only for a reason, never one per file. The usual reason is
   start-up time: a hook or statusline reporter starts once per event, so it imports a light entry
   that skips the Zod schemas, the protocol contract, and the store.
@@ -109,13 +114,15 @@ prints its own reason, and the rules live where each bullet points.
   `scripts/check-imports.ts`.
 - `bun run lint`: `.oxlintrc.json`, which takes the package boundaries from `.oxlintrc.zones.json`.
 - `bun run lint:mods`: the rules for `mods/`, in `.oxlintrc.mods.json`.
+- `bun run check:daemon-sockets`: a file outside a short list that opens a socket, in
+  `scripts/check-daemon-sockets.ts`.
 - `bun run check:manifests`: each package's manifest, `exports` map, and import specifiers, in
   `scripts/check-manifests.ts`. It also checks each declared workspace dependency against the edges
   in `.oxlintrc.zones.json`, since the lint rule sees only the imports a file holds.
 - `bun run check:reach`: what the gateway entry, the reporters, `cli.ts`, and the contract's entries
   may reach, in `scripts/check-reach.ts`.
-- `bun run check:contract`: the contract's declarations against the committed snapshot, in
-  `scripts/check-contract.ts`. Pass `--update` after a change to the published types.
+- `bun run check:contract`: the declarations of the contract and the client against their committed
+  snapshots, in `scripts/check-contract.ts`. Pass `--update` after a change to the published types.
 - `bun run check:contract-compat`: each procedure's input and answer schemas and the event schema
   against the latest `@zgeoff/atc@*` tag, in `scripts/check-contract-compat.ts`. It fails a change
   that is not additive, and a new input field with no entry in `FEATURE_INPUT_FIELDS` or in

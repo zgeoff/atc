@@ -1,26 +1,25 @@
 import { isRecord } from '@atc/core';
-import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import type { CallContext } from '@atcx/client/connection';
+import { AtcError, CONTRACT_MAJOR, PROTOCOL_V } from '@atcx/contract/light';
 import { createORPCClient } from '@orpc/client';
 import { StandardRPCLink } from '@orpc/client/standard';
 import { ClientPeer } from '@orpc/standard-server-peer';
 import type { SocketHandler } from 'bun';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
+import type { DaemonClient, DaemonProcedures } from '../client/daemon-client';
 import { createLineDecoder } from '../wire/create-line-decoder';
 import type { LineDecoder } from '../wire/create-line-decoder';
 import { createOutboundQueue } from '../wire/create-outbound-queue';
 import type { OutboundQueue } from '../wire/create-outbound-queue';
-import { DaemonError } from '../wire/daemon-error';
-import { PROTOCOL_V } from '../wire/decode-message';
 import { PRINCIPAL_HEADERS } from '../wire/principal-headers';
-import { CLIENT_MACHINE } from './client-machine';
-import type { CallContext, DaemonClient, DaemonProcedures } from './daemon-client';
-import { findMissingFeature } from './find-missing-feature';
-import { toDaemonError } from './to-daemon-error';
+import { CLIENT_MACHINE } from './raw-client/client-machine';
+import { findMissingFeature } from './raw-client/find-missing-feature';
+import { toRawAtcError } from './raw-client/to-raw-atc-error';
 
 const QUEUE_BYTES = 8 * 1024 * 1024;
 
-export async function openDaemonClient(
+export async function openRawDaemonClient(
   address: string | { readonly hostname: string; readonly port: number },
 ): Promise<DaemonClient> {
   const conn = createClientConnection();
@@ -64,7 +63,7 @@ interface ClientConnection {
 function createClientConnection(): ClientConnection {
   const peer = new ClientPeer((message) => {
     if (typeof message !== 'string' || conn.queue?.send(`${message}\n`) === false) {
-      throw new DaemonError('internal', 'outbound queue full');
+      throw new AtcError('internal', 'outbound queue full');
     }
   });
 
@@ -93,7 +92,7 @@ function createClientConnection(): ClientConnection {
               : findMissingFeature(options.path.join('.'), options.input, conn.features);
 
           if (missing !== null) {
-            throw new DaemonError(
+            throw new AtcError(
               'feature_missing',
               `${options.path.join('.')} input ${missing.field} needs the daemon feature ${missing.feature}; restart the daemon on a newer atc`,
             );
@@ -102,7 +101,7 @@ function createClientConnection(): ClientConnection {
           try {
             return await options.next();
           } catch (error) {
-            throw toDaemonError(error);
+            throw toRawAtcError(error);
           }
         },
       ],
@@ -130,7 +129,7 @@ function requireOpenConnection(conn: ClientConnection): void {
   const closedReason = conn.actor.getSnapshot().context.closedReason;
 
   if (closedReason !== null) {
-    throw new DaemonError('internal', closedReason);
+    throw new AtcError('internal', closedReason);
   }
 }
 
@@ -149,6 +148,11 @@ function buildDaemonClient(conn: ClientConnection): DaemonClient {
     onClose: () => {},
     onAnswer: () => {},
     principal: undefined,
+
+    // This client speaks the wire by hand, so it holds no connection layer to hand out.
+    get connection(): never {
+      throw new AtcError('internal', 'the raw test client has no connection layer');
+    },
     procedures: conn.procedures,
     isClosed: () => isClientClosed(conn),
 
@@ -223,7 +227,7 @@ async function sendClientRequest(
   try {
     client.onAnswer(method, ok);
   } catch (error) {
-    throw new DaemonError('internal', String(error));
+    throw new AtcError('internal', String(error));
   }
 
   if (hello) {
@@ -282,7 +286,7 @@ async function readClientEvents(
 function drainPending(conn: ClientConnection, reason: string): void {
   sendClose(conn, reason);
   conn.events?.abort();
-  conn.peer.close({ reason: new DaemonError('internal', reason) });
+  conn.peer.close({ reason: new AtcError('internal', reason) });
 }
 
 function sendClose(conn: ClientConnection, reason: string): void {

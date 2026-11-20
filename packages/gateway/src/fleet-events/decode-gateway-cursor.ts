@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import { MAX_EVENTS_CURSOR_BYTES } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { z } from 'zod';
 import type { GatewayRegistry } from '../types';
 
@@ -17,7 +17,7 @@ export function decodeGatewayCursor(
   registry: GatewayRegistry,
 ): ReadonlyMap<string, string | null> {
   if (Buffer.byteLength(raw) > MAX_EVENTS_CURSOR_BYTES) {
-    throw new DaemonError('bad_args', `cursor exceeds ${MAX_EVENTS_CURSOR_BYTES} bytes`);
+    throw new AtcError('bad_args', `cursor exceeds ${MAX_EVENTS_CURSOR_BYTES} bytes`);
   }
 
   let wire: unknown;
@@ -25,21 +25,21 @@ export function decodeGatewayCursor(
   try {
     wire = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
   } catch {
-    throw new DaemonError('bad_args', `'${raw}' is not an events cursor`);
+    throw new AtcError('bad_args', `'${raw}' is not an events cursor`);
   }
 
   const cursor = CURSOR_SCHEMA.safeParse(wire);
 
   if (!cursor.success) {
-    throw new DaemonError('bad_args', `'${raw}' is not an events cursor`);
+    throw new AtcError('bad_args', `'${raw}' is not an events cursor`);
   }
 
   if (cursor.data.version !== 1) {
-    throw new DaemonError('bad_args', 'the events cursor has a version this gateway does not read');
+    throw new AtcError('bad_args', 'the events cursor has a version this gateway does not read');
   }
 
   if (cursor.data.filter !== filter) {
-    throw new DaemonError('bad_args', 'the events cursor was read under other filters');
+    throw new AtcError('bad_args', 'the events cursor was read under other filters');
   }
 
   const parts = new Map<string, string | null>();
@@ -48,7 +48,7 @@ export function decodeGatewayCursor(
     const dot = key.indexOf('.');
 
     if (dot === -1) {
-      throw new DaemonError('bad_args', `'${raw}' is not an events cursor`);
+      throw new AtcError('bad_args', `'${raw}' is not an events cursor`);
     }
 
     const daemon = registry.daemons.get(key.slice(0, dot));
@@ -60,7 +60,7 @@ export function decodeGatewayCursor(
     const position = POSITION_SCHEMA.safeParse(rawPosition);
 
     if (key.slice(dot + 1) !== daemon.incarnation || !position.success) {
-      throw new DaemonError(
+      throw new AtcError(
         'bad_args',
         `the events cursor holds a stale position for daemon '${daemon.name}'`,
       );

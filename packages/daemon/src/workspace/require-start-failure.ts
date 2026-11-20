@@ -1,8 +1,8 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { toDaemonError } from './to-daemon-error';
 
 export function requireStartFailure(error: unknown): null {
-  if (error instanceof DaemonError) {
+  if (error instanceof AtcError) {
     throw toDaemonError(error, 'internal', 'resolving');
   }
 

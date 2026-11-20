@@ -6,7 +6,7 @@ import type {
   HarnessStart,
   OpenedRelay,
 } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { ContainerAttachment, ContainerSpec, DockerEngine } from '../engine/types';
 import { pickHarnessStart } from './pick-harness-start';
 import { requireOwnContainer } from './require-own-container';
@@ -65,7 +65,7 @@ export function createDockerHarness(options: DockerHarnessOptions): DockerHarnes
     options.onDone();
   };
 
-  const emitExit = (exit: HarnessExit, refusal?: DaemonError): void => {
+  const emitExit = (exit: HarnessExit, refusal?: AtcError): void => {
     if (isFinished) {
       return;
     }
@@ -76,7 +76,7 @@ export function createDockerHarness(options: DockerHarnessOptions): DockerHarnes
 
     started.reject(
       refusal ??
-        new DaemonError(
+        new AtcError(
           'host_unavailable',
           `docker container ${name} ended before the harness started (${exit.detail ?? 'process exited'})`,
           { provider: 'docker', problem: 'not_started' },
@@ -236,9 +236,9 @@ export function createDockerHarness(options: DockerHarnessOptions): DockerHarnes
       const detail = error instanceof Error ? error.message : String(error);
 
       const refusal =
-        error instanceof DaemonError
+        error instanceof AtcError
           ? error
-          : new DaemonError(
+          : new AtcError(
               'host_unavailable',
               `docker container ${name} could not start the harness: ${detail}`,
               { provider: 'docker', problem: 'not_started' },

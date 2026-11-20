@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { GatewayError } from './gateway-error';
 import { pickDaemonState } from './pick-daemon-state';
 import type { DaemonState } from './pick-daemon-state';
@@ -41,7 +41,7 @@ test.each<[string, DaemonState, CallOutcome<unknown>]>([
   [
     'an error the daemon answered',
     'refused',
-    { kind: 'failed', error: new DaemonError('bad_args', 'no such method') },
+    { kind: 'failed', error: new AtcError('bad_args', 'no such method') },
   ],
   [
     'an unreachable daemon',

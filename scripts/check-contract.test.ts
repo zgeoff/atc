@@ -51,6 +51,8 @@ test('it writes each declaration file to the snapshot with the specifiers Node r
     process.execPath,
     join(import.meta.dir, 'check-contract.ts'),
     ctx.directory,
+    '--package',
+    'contract',
     '--update',
   ]);
 
@@ -113,6 +115,8 @@ test('it passes declarations that match the snapshot', async () => {
     process.execPath,
     join(import.meta.dir, 'check-contract.ts'),
     ctx.directory,
+    '--package',
+    'contract',
   ]);
 
   expect({
@@ -157,6 +161,8 @@ test('it fails on declarations that differ from the snapshot, naming the first l
     process.execPath,
     join(import.meta.dir, 'check-contract.ts'),
     ctx.directory,
+    '--package',
+    'contract',
   ]);
 
   expect({
@@ -195,9 +201,18 @@ test('it removes the declarations it emitted when the check fails', async () => 
 
   mkdirSync(join(ctx.directory, 'tmp'));
 
-  await runCommand([process.execPath, join(import.meta.dir, 'check-contract.ts'), ctx.directory], {
-    env: { ...process.env, TMPDIR: join(ctx.directory, 'tmp') },
-  });
+  await runCommand(
+    [
+      process.execPath,
+      join(import.meta.dir, 'check-contract.ts'),
+      ctx.directory,
+      '--package',
+      'contract',
+    ],
+    {
+      env: { ...process.env, TMPDIR: join(ctx.directory, 'tmp') },
+    },
+  );
 
   expect(readdirSync(join(ctx.directory, 'tmp'))).toStrictEqual([]);
 });

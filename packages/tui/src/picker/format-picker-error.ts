@@ -1,11 +1,11 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 
 export function formatPickerError(error: unknown): string {
-  return error instanceof DaemonError ? `${error.code}: ${error.message}` : String(error);
+  return error instanceof AtcError ? `${error.code}: ${error.message}` : String(error);
 }
 
 export function formatListFailure(error: unknown): string {
-  if (!(error instanceof DaemonError)) {
+  if (!(error instanceof AtcError)) {
     return String(error);
   }
 
@@ -17,7 +17,7 @@ export function formatListFailure(error: unknown): string {
 }
 
 export function findAlternateURL(error: unknown): string | null {
-  const alternates = error instanceof DaemonError ? error.data?.['alternates'] : undefined;
+  const alternates = error instanceof AtcError ? error.data?.['alternates'] : undefined;
   const first: unknown = Array.isArray(alternates) ? alternates[0] : undefined;
 
   return typeof first === 'string' ? first : null;

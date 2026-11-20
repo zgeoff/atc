@@ -3,7 +3,7 @@ import { NODE_TOKEN_FILE_ACCESS } from '@atc/config/token-file';
 import { loadGatewayRegistry, openGatewayCaller } from '@atc/gateway';
 import { startMCPHTTPServer } from '@atc/mcp';
 import type { MCPHTTPServer } from '@atc/mcp';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { openSQLite } from '@atc/store/sqlite';
 import { GATEWAY_PATHS } from '@atcx/contract';
 import { PROCESS_IO } from '../cli/process-io';
@@ -69,7 +69,7 @@ export async function runGateway(
   const gateway = openGatewayCaller({
     registry: loaded.registry,
     build,
-    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+    openChannel: (address) => createDaemonClient({ hostname: address.host, port: address.port }),
     bindings: openSQLite(statePaths.bindingsDBFile, { strict: true }),
     onWarning: (message) => {
       io.printError(`atc-gateway: ${message}`);

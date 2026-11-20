@@ -27,6 +27,7 @@
         "@atc/source-github": "workspace:*",
         "@atc/store": "workspace:*",
         "@atc/tui": "workspace:*",
+        "@atcx/client": "workspace:*",
         "@atcx/contract": "workspace:*",
         "@commitlint/cli": "catalog:",
         "@faker-js/faker": "catalog:",
@@ -85,6 +86,7 @@
         "@atc/source-github": "workspace:*",
         "@atc/store": "workspace:*",
         "@atc/tui": "workspace:*",
+        "@atcx/client": "workspace:*",
         "@atcx/contract": "workspace:*",
         "@zgeoff/std": "catalog:",
         "gunshi": "catalog:",
@@ -95,6 +97,18 @@
       "devDependencies": {
         "@faker-js/faker": "catalog:",
         "bun-pty": "catalog:",
+      },
+    },
+    "packages/client": {
+      "name": "@atcx/client",
+      "version": "7.20.0",
+      "dependencies": {
+        "@atcx/contract": "workspace:*",
+        "@orpc/client": "catalog:",
+        "@orpc/standard-server-peer": "catalog:",
+      },
+      "devDependencies": {
+        "@orpc/standard-server": "catalog:",
       },
     },
     "packages/config": {
@@ -196,6 +210,7 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "bun-pty": "catalog:",
       },
       "devDependencies": {
@@ -347,6 +362,7 @@
       "name": "@atc/protocol",
       "dependencies": {
         "@atc/core": "workspace:*",
+        "@atcx/client": "workspace:*",
         "@atcx/contract": "workspace:*",
         "@orpc/client": "catalog:",
         "@orpc/contract": "catalog:",
@@ -396,7 +412,7 @@
       "name": "@atc/source-github",
       "dependencies": {
         "@atc/plugin-api": "workspace:*",
-        "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -566,6 +582,8 @@
     "@atc/store": ["@atc/store@workspace:packages/store"],
 
     "@atc/tui": ["@atc/tui@workspace:packages/tui"],
+
+    "@atcx/client": ["@atcx/client@workspace:packages/client"],
 
     "@atcx/contract": ["@atcx/contract@workspace:packages/contract"],
 

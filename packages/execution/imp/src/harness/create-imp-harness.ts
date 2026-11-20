@@ -1,5 +1,5 @@
 import type { HarnessExit, HarnessHandle, LaunchTicket } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { P, match } from 'ts-pattern';
 import type {
   ImpPort,
@@ -60,7 +60,7 @@ export function createImpHarness(
   // Whether the first start impd answered made the process, or attached to
   // one it still ran; null until a start is answered.
   let created: boolean | null = null;
-  let startRefusal: DaemonError | null = null;
+  let startRefusal: AtcError | null = null;
   let requestedSize: { cols: number; rows: number } = { cols: 0, rows: 0 };
 
   const emitStartOutcome = (): void => {
@@ -73,7 +73,7 @@ export function createImpHarness(
     events.emitStartOutcome(outcome, created ?? true);
   };
 
-  const stopFollowing = (confirmed: boolean, refusal: Readonly<DaemonError>): void => {
+  const stopFollowing = (confirmed: boolean, refusal: Readonly<AtcError>): void => {
     if (reconnectTimer !== null) {
       clearTimeout(reconnectTimer);
 
@@ -97,7 +97,7 @@ export function createImpHarness(
     stopFollowing(
       exit.reason === undefined || exit.reason === 'exited',
       startRefusal ??
-        new DaemonError(
+        new AtcError(
           'host_unavailable',
           `imp ${name} ended the harness before it started (${exit.detail ?? 'process exited'})`,
           { provider: 'imp', problem: 'not_started' },
@@ -119,9 +119,9 @@ export function createImpHarness(
     const detail = error instanceof Error ? error.message : String(error);
 
     startRefusal =
-      error instanceof DaemonError
+      error instanceof AtcError
         ? error
-        : new DaemonError('internal', `imp ${name} could not admit the harness: ${detail}`);
+        : new AtcError('internal', `imp ${name} could not admit the harness: ${detail}`);
 
     emitExit({ exitCode: 1, reason: 'ended', detail: `launch refused (${detail})` });
   };
@@ -525,7 +525,7 @@ export function createImpHarness(
 
       stopFollowing(
         false,
-        new DaemonError(
+        new AtcError(
           'host_unavailable',
           `the daemon let go of imp ${name}'s harness before it started`,
           { provider: 'imp', problem: 'not_started' },

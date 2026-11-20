@@ -15,7 +15,7 @@ import { getOnlyImpName } from '@atc/execution-imp/test-utils/get-only-imp-name'
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubEchoClaude } from '@atc/harness-claude/test-utils/create-stub-echo-claude';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
@@ -155,7 +155,8 @@ test("it runs a sub-session in its parent's imp", async () => {
 
 test('it releases its own lease before it puts the imp of a killed session to sleep', async () => {
   const ctx = await setupTest();
-  const probe = await openDaemonClient(ctx.socketPath);
+
+  const probe = createDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();
@@ -198,7 +199,8 @@ test('it releases its own lease before it puts the imp of a killed session to sl
 
 test('it keeps a session running and takes its lease back when another owner leases the imp', async () => {
   const ctx = await setupTest();
-  const probe = await openDaemonClient(ctx.socketPath);
+
+  const probe = createDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();
@@ -466,7 +468,8 @@ test('it revives a slept session inside the same process by waking its imp', asy
 
 test('it leaves a session whose harness exited by itself restorable and gives its lease back', async () => {
   const ctx = await setupTest();
-  const probe = await openDaemonClient(ctx.socketPath);
+
+  const probe = createDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();
@@ -944,7 +947,8 @@ test('it revives a session whose imp another owner put to sleep in the same proc
 
 test('it gives its lease back when a session it revived from sleep exits', async () => {
   const ctx = await setupTest();
-  const probe = await openDaemonClient(ctx.socketPath);
+
+  const probe = createDaemonClient(ctx.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();

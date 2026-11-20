@@ -1,6 +1,6 @@
 import type { TargetConfigError } from '@atc/config';
 import type { ExecutionCapability } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { ExecutionTarget } from './build-execution-targets';
 import { isUnconfirmedBinding } from './is-unconfirmed-binding';
 
@@ -14,11 +14,11 @@ export function findExecutionRefusal(
   errors: readonly TargetConfigError[],
   binding: TargetBinding,
   capability: ExecutionCapability,
-): DaemonError | null {
+): AtcError | null {
   const fileError = errors.find((error) => error.scope === 'config');
 
   if (fileError !== undefined) {
-    return new DaemonError(
+    return new AtcError(
       'target_config_invalid',
       `config file ${fileError.path} cannot be used (${fileError.problem}: ${fileError.detail}), so no session runs on any target, local included. Fix the file and restart the daemon`,
       { problem: fileError.problem, path: fileError.path, detail: fileError.detail },
@@ -32,7 +32,7 @@ export function findExecutionRefusal(
       errors.find((error) => error.scope !== 'target')?.problem ??
       'the targets map holds no local target and no defaultTarget is set';
 
-    return new DaemonError(
+    return new AtcError(
       'target_config_invalid',
       `no default execution target: ${problem}. Name a target on the spawn, or fix targets in config.json and restart the daemon`,
       { problem },
@@ -44,7 +44,7 @@ export function findExecutionRefusal(
   );
 
   if (configError !== undefined) {
-    return new DaemonError(
+    return new AtcError(
       'target_config_invalid',
       `execution target '${id}' cannot be used: ${configError.problem}. Fix targets in config.json and restart the daemon`,
       { target: id, problem: configError.problem },
@@ -54,7 +54,7 @@ export function findExecutionRefusal(
   const target = targets.get(id);
 
   if (target === undefined) {
-    return new DaemonError('unknown_target', `no execution target '${id}'`, { target: id });
+    return new AtcError('unknown_target', `no execution target '${id}'`, { target: id });
   }
 
   if (binding.targetIdentity !== null && binding.targetIdentity !== target.identity) {
@@ -62,7 +62,7 @@ export function findExecutionRefusal(
       ? `execution target '${id}' has not confirmed this session's unversioned binding. Check that its existing host is reachable with the current credentials and retry fleet restore`
       : `execution target '${id}' changed since this session started on it (was ${binding.targetIdentity}, now ${target.identity}). Restore the target's earlier config to use the session, or kill it`;
 
-    return new DaemonError('target_changed', message, {
+    return new AtcError('target_changed', message, {
       target: id,
       boundIdentity: binding.targetIdentity,
       currentIdentity: target.identity,
@@ -70,7 +70,7 @@ export function findExecutionRefusal(
   }
 
   if (target.provider === null) {
-    return new DaemonError(
+    return new AtcError(
       'target_unavailable',
       `execution target '${id}' needs a '${target.kind}' provider, which this daemon does not have`,
       { target: id, provider: target.kind },
@@ -78,7 +78,7 @@ export function findExecutionRefusal(
   }
 
   if (!target.provider.capabilities[capability]) {
-    return new DaemonError(
+    return new AtcError(
       'unsupported_operation',
       `the ${target.provider.kind} execution provider does not support ${capability}`,
       { provider: target.provider.kind, capability },
@@ -86,7 +86,7 @@ export function findExecutionRefusal(
   }
 
   if (capability === 'spawn' && target.provider.remote && !target.provider.capabilities.relay) {
-    return new DaemonError(
+    return new AtcError(
       'unsupported_operation',
       `the ${target.provider.kind} execution provider cannot carry a session's hooks from its host to the daemon`,
       { provider: target.provider.kind, problem: 'no_session_bridge' },

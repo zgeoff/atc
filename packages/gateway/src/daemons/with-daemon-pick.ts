@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import type { GatewayRegistry, RouteNext, RoutedCall, RoutedOutcome } from '../types';
 
@@ -8,7 +8,7 @@ export function withDaemonPick(
   next: RouteNext,
 ): Promise<RoutedOutcome> {
   if (call.owner !== null && call.named !== null && call.owner !== call.named) {
-    throw new DaemonError(
+    throw new AtcError(
       'bad_args',
       `the call's ids belong to daemon '${call.owner.name}', not '${call.named.name}'`,
     );

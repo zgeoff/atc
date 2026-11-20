@@ -25,8 +25,8 @@ import type {
 } from '@atc/plugin-api';
 import { buildAuthRevisionFolder, findFlagValue, probeTranscriptResumable } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
-import { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID, SessionID, TranscriptRow } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { buildGuestBridgeFiles } from '../bridge/build-guest-bridge-files';
 import type { ClaudeAdapterOptions } from '../claude-adapter-options';
 import type { GatewayConfig } from '../config/collect-gateways';
@@ -65,7 +65,7 @@ export interface GatewayAdapter extends AgentAdapter {
   readonly findMenu: (screen: string, rows?: number) => ScreenMenu | null;
   readonly profile: AgentProfile;
 
-  readonly findSpawnRefusal: () => DaemonError | null;
+  readonly findSpawnRefusal: () => AtcError | null;
   readonly findAuthSelection: () => AuthSelection | null;
 
   readonly planGuestSpawn: (opts: SpawnOptions, guest: GuestPaths) => GuestSpawnPlan | null;
@@ -167,8 +167,8 @@ export function createGatewayAdapter(
     ];
   };
 
-  const buildBrokerRefusal = (reason: string): DaemonError =>
-    new DaemonError(
+  const buildBrokerRefusal = (reason: string): AtcError =>
+    new AtcError(
       'auth_target_unsupported',
       `gateway '${gateway.id}' takes its credential from a credential broker, ${reason}`,
       { agent: gateway.id },
@@ -177,7 +177,7 @@ export function createGatewayAdapter(
   const findPlaceholderRefusal = (
     env: Readonly<Record<string, string>>,
     profiles: readonly string[],
-  ): DaemonError | null => {
+  ): AtcError | null => {
     const keys = Object.keys(env);
     const pairings = CREDENTIAL_PAIRINGS.filter((candidate) => keys.includes(candidate.variable));
     const [pairing] = pairings;
@@ -228,7 +228,7 @@ export function createGatewayAdapter(
 
   // The settings env block reaches the CLI's own process, so a proxy or CA variable there
   // would route the CLI around the broker.
-  const findSettingsEnvConflict = (): DaemonError | null => {
+  const findSettingsEnvConflict = (): AtcError | null => {
     const settingsEnv = gateway.settings?.['env'];
 
     const keys = [
@@ -242,15 +242,15 @@ export function createGatewayAdapter(
       return null;
     }
 
-    return new DaemonError(
+    return new AtcError(
       'auth_target_unsupported',
       `gateway '${gateway.id}' sets ${variable} in its settings env, which would route around the target's broker`,
       { agent: gateway.id, problem: 'guest_env_conflict', variable },
     );
   };
 
-  const buildPlaceholderRefusal = (problem: string): DaemonError =>
-    new DaemonError('auth_placeholder_unsupported', `gateway '${gateway.id}' ${problem}`, {
+  const buildPlaceholderRefusal = (problem: string): AtcError =>
+    new AtcError('auth_placeholder_unsupported', `gateway '${gateway.id}' ${problem}`, {
       agent: gateway.id,
     });
 

@@ -5,7 +5,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 
@@ -103,7 +103,7 @@ test('it waits for a daemon started after it, starting none of its own, and serv
   await mcp.exited;
   await drained;
 
-  const client = await openDaemonClient(ctx.paths.daemonSocketPath);
+  const client = createDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     client.stop();

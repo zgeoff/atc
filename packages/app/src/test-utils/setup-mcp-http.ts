@@ -10,7 +10,7 @@ import { createTransportCaller, openATCAuthAdmin, startMCPHTTPServer } from '@at
 import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { buildLocalTarget } from './build-local-target';
 
@@ -55,7 +55,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
   stack.defer(() => daemon.stop());
 
   const caller = createTransportCaller(socketPath, 'atc/test-build', (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   stack.defer(() => caller.stop());

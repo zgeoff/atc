@@ -109,6 +109,21 @@ test('it points a bare parent import at the parent folder index', async () => {
   );
 });
 
+test('it compiles another package with its own build config', async () => {
+  const runCompiler = mock<DeclarationTools['runCompiler']>(() =>
+    Promise.resolve({ exitCode: 0, output: '' }),
+  );
+
+  await writeContractDeclarations(
+    '/repo',
+    '/out',
+    { runCompiler, listDeclarations: () => [], readText: () => '', writeText: () => {} },
+    'packages/client',
+  );
+
+  expect(runCompiler.mock.calls[0]?.[0]).toContain('/repo/packages/client/tsconfig.build.json');
+});
+
 test('it throws with the compiler output when the compiler fails', () => {
   expect(
     writeContractDeclarations('/repo', '/out', {
@@ -122,6 +137,6 @@ test('it throws with the compiler output when the compiler fails', () => {
       writeText: () => {},
     }),
   ).rejects.toThrow(
-    "tsrs could not emit the contract's declarations:\nsrc/index.ts(1,15): error TS2307: Cannot find module './gone'.\n",
+    "tsrs could not emit the declarations of packages/contract:\nsrc/index.ts(1,15): error TS2307: Cannot find module './gone'.\n",
   );
 });

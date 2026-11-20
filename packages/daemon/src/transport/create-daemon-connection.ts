@@ -1,7 +1,6 @@
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
 import {
   DEFAULT_QUEUE_BYTES,
-  DaemonError,
   MAX_LINE,
   PROTOCOL_V,
   createLineDecoder,
@@ -9,7 +8,7 @@ import {
 } from '@atc/protocol/wire';
 import type { EventMsg, SocketWriter } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
-import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { AtcError, CONTRACT_MAJOR } from '@atcx/contract/light';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { ServerPeer } from '@orpc/standard-server-peer';
 import type { EncodedMessage } from '@orpc/standard-server-peer';
@@ -198,7 +197,7 @@ export function createDaemonConnection(
 
     if (tcpHello === null) {
       if (input.protocol !== PROTOCOL_V) {
-        throw new DaemonError(
+        throw new AtcError(
           'protocol_mismatch',
           `${input.client} speaks protocol v${input.protocol ?? 'unknown'}, daemon ${ctx.build} speaks v${PROTOCOL_V}; restart the daemon so both run the same build`,
           { daemonProtocol: PROTOCOL_V, daemonMajor: CONTRACT_MAJOR },
@@ -206,11 +205,11 @@ export function createDaemonConnection(
       }
 
       if (grant !== null && input.principal !== undefined) {
-        throw new DaemonError('unauthorized', "a session's atc access acts as no principal");
+        throw new AtcError('unauthorized', "a session's atc access acts as no principal");
       }
 
       if (input.viewer !== undefined && input.principal === undefined) {
-        throw new DaemonError('bad_args', 'daemon.hello viewer needs a principal');
+        throw new AtcError('bad_args', 'daemon.hello viewer needs a principal');
       }
 
       identity.callerSession = resolveCallerSession(identity.peerSession, input.session ?? null);
@@ -247,16 +246,14 @@ export function createDaemonConnection(
     subscribeEvents: (signal) => feed.subscribe(signal),
   });
 
-  const checkPeerHello = async (
-    request: StandardRequest,
-  ): Promise<ProcedureContext | DaemonError> => {
+  const checkPeerHello = async (request: StandardRequest): Promise<ProcedureContext | AtcError> => {
     const raw = decodePeerInput(request);
 
     if (tcp === null) {
       const refusal = checkHelloMajor(raw, ctx.build);
 
       if (refusal !== null) {
-        return new DaemonError(refusal.code, refusal.message, refusal.data);
+        return new AtcError(refusal.code, refusal.message, refusal.data);
       }
     } else {
       const protocol = raw['protocol'];
@@ -276,7 +273,7 @@ export function createDaemonConnection(
       );
 
       if (!hello.ok) {
-        return new DaemonError(hello.code, hello.message, hello.data);
+        return new AtcError(hello.code, hello.message, hello.data);
       }
 
       acceptedTCPHello = hello;
@@ -288,21 +285,21 @@ export function createDaemonConnection(
   const checkPeerRequest = async (
     method: string,
     request: StandardRequest,
-  ): Promise<ProcedureContext | DaemonError> => {
+  ): Promise<ProcedureContext | AtcError> => {
     if (isIn('awaiting')) {
       sendLifecycleEvent({ type: 'REFUSE' });
 
-      return new DaemonError('unauthorized', 'daemon.hello must be the first request');
+      return new AtcError('unauthorized', 'daemon.hello must be the first request');
     }
 
     await waitFor(lifecycle, (snapshot) => !snapshot.matches('checking'));
 
     if (isIn('refusing')) {
-      return new DaemonError('unauthorized', 'the handshake was refused');
+      return new AtcError('unauthorized', 'the handshake was refused');
     }
 
     if (!isIn('open')) {
-      return new DaemonError('unauthorized', 'the connection is closing');
+      return new AtcError('unauthorized', 'the connection is closing');
     }
 
     try {
@@ -336,7 +333,7 @@ export function createDaemonConnection(
       const scope = findRequestScope(ctx, identity.principal, connectionAccess, as?.principal);
 
       if (scope !== null && isOwnerOnlyMethod(method)) {
-        return new DaemonError('unauthorized', `${method} is open to the daemon's owner only`);
+        return new AtcError('unauthorized', `${method} is open to the daemon's owner only`);
       }
 
       const requestCtx =
@@ -344,7 +341,7 @@ export function createDaemonConnection(
 
       return buildProcedureContext(requestCtx, as);
     } catch (error) {
-      if (error instanceof DaemonError) {
+      if (error instanceof AtcError) {
         return error;
       }
 
@@ -356,7 +353,7 @@ export function createDaemonConnection(
     if (!isIn('awaiting')) {
       return answerPeerRequest(
         request,
-        new DaemonError('unauthorized', 'a connection takes one handshake'),
+        new AtcError('unauthorized', 'a connection takes one handshake'),
       );
     }
 
@@ -382,7 +379,7 @@ export function createDaemonConnection(
 
       return answerPeerRequest(
         request,
-        new DaemonError('unknown_method', `unknown method '${request.url.pathname}'`),
+        new AtcError('unknown_method', `unknown method '${request.url.pathname}'`),
       );
     }
 

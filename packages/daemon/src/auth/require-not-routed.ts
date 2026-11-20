@@ -1,10 +1,10 @@
 import type { ExecutionProvider } from '@atc/plugin-api';
 import { getHostCredentials } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 
 export function requireNotRouted(provider: Pick<ExecutionProvider, 'credentials'> | null): void {
   if (provider !== null && getHostCredentials(provider).kind === 'routed') {
-    throw new DaemonError(
+    throw new AtcError(
       'unsupported_operation',
       "this host's credentials come from routes, which atc neither revokes nor rebinds",
       { problem: 'routed_auth' },

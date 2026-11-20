@@ -1,10 +1,10 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { EngineError } from '../engine/engine-error';
 import { EngineUnreachableError } from '../engine/engine-unreachable-error';
 import { buildHostRefusal } from './build-host-refusal';
 
-export function toDockerRefusal(error: unknown, socket: string): DaemonError {
-  if (error instanceof DaemonError) {
+export function toDockerRefusal(error: unknown, socket: string): AtcError {
+  if (error instanceof AtcError) {
     return error;
   }
 

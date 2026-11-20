@@ -1,5 +1,5 @@
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { MessageCaller } from '../sessions/message-caller';
 import type { DaemonContext } from '../types';
 import { buildKeyedRequest } from './build-keyed-request';
@@ -69,7 +69,7 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
       const sessionID = data.session;
 
       if (data.replayOnly === true && data.idempotencyKey === undefined) {
-        throw new DaemonError('bad_args', 'replayOnly needs an idempotencyKey');
+        throw new AtcError('bad_args', 'replayOnly needs an idempotencyKey');
       }
 
       const { from: localName, ...hashed } = data;
@@ -86,22 +86,22 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
       });
 
       if (result === 'missing' || !ctx.isSessionVisible(sessionID)) {
-        throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+        throw new AtcError('no_such_session', `no session '${sessionID}'`);
       }
 
       if (result === 'dead') {
-        throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
+        throw new AtcError('session_dead', `session '${sessionID}' has no live process`);
       }
 
       if (result === 'unsupported') {
-        throw new DaemonError(
+        throw new AtcError(
           'unsupported',
           `session '${sessionID}' cannot take messages: its agent has no message tap`,
         );
       }
 
       if (result === 'no_tap') {
-        throw new DaemonError('unsupported', `session '${sessionID}' never attached a message tap`);
+        throw new AtcError('unsupported', `session '${sessionID}' never attached a message tap`);
       }
 
       return result;
@@ -112,11 +112,11 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
       const result = ctx.attachTap(client, sessionID, null, data.notices);
 
       if (result === 'missing') {
-        throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+        throw new AtcError('no_such_session', `no session '${sessionID}'`);
       }
 
       if (result === 'unsupported') {
-        throw new DaemonError('unsupported', `session '${sessionID}' cannot take messages`);
+        throw new AtcError('unsupported', `session '${sessionID}' cannot take messages`);
       }
 
       return {};
@@ -128,7 +128,7 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
       const view = await ctx.readMessage(messageID, data.waitMs);
 
       if (view === null || !ctx.isSessionVisible(view.session)) {
-        throw new DaemonError('bad_args', `no message '${messageID}'`);
+        throw new AtcError('bad_args', `no message '${messageID}'`);
       }
 
       const record = view.record;
@@ -164,11 +164,11 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
       const result = await ctx.ackMessage(client, sessionID, messageID, null);
 
       if (result === 'not_tapping') {
-        throw new DaemonError('bad_args', `this connection is not tapping session '${sessionID}'`);
+        throw new AtcError('bad_args', `this connection is not tapping session '${sessionID}'`);
       }
 
       if (result === 'unknown' || !ctx.isSessionVisible(sessionID)) {
-        throw new DaemonError('bad_args', `no message '${messageID}' for session '${sessionID}'`);
+        throw new AtcError('bad_args', `no message '${messageID}' for session '${sessionID}'`);
       }
 
       return { message: result.id, status: result.status };
@@ -181,11 +181,11 @@ export function buildMessageRequests(deps: RequestDeps): MessageRequests {
       const result = await ctx.ackNotice(client, sessionID, messageID);
 
       if (result === 'not_tapping') {
-        throw new DaemonError('bad_args', `this connection is not tapping session '${sessionID}'`);
+        throw new AtcError('bad_args', `this connection is not tapping session '${sessionID}'`);
       }
 
       if (result === 'unknown' || !ctx.isSessionVisible(sessionID)) {
-        throw new DaemonError(
+        throw new AtcError(
           'bad_args',
           `no answer notice of message '${messageID}' for session '${sessionID}'`,
         );

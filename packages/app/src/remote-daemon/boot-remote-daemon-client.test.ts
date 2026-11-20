@@ -182,7 +182,7 @@ test('it rejects an unreachable daemon with its name and address and never waits
     ),
   ).rejects.toThrowWithMessage(
     Error,
-    `cannot reach daemon 'box' at 127.0.0.1:${port}: ECONNREFUSED. atc did not fall back to the local daemon.`,
+    `cannot reach daemon 'box' at 127.0.0.1:${port}: no atc daemon listens at 127.0.0.1:${port}. atc did not fall back to the local daemon.`,
   );
 });
 

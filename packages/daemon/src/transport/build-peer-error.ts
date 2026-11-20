@@ -1,8 +1,8 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { ORPCError, ValidationError } from '@orpc/server';
 
 export function buildPeerError(error: unknown): ORPCError<string, unknown> {
-  if (error instanceof DaemonError) {
+  if (error instanceof AtcError) {
     return new ORPCError(error.code, { message: error.message, data: error.data, cause: error });
   }
 

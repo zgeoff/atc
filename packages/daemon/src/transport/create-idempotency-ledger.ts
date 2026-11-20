@@ -1,8 +1,8 @@
 import { makeKeyedLock, systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { EffectTarget, IdempotencyRecord, StateStore } from '@atc/store';
+import { AtcError } from '@atcx/contract/light';
 
 export interface KeyedRequest {
   readonly key: string;
@@ -77,7 +77,7 @@ export function createIdempotencyLedger(
       const found = await store.readIdempotencyKey(id);
 
       if (found === null) {
-        throw new DaemonError(
+        throw new AtcError(
           'idempotency_key_unknown',
           `this daemon holds no ${call.operation} under idempotency key '${call.keyed.key}', so a replay-only request runs nothing`,
         );
@@ -155,7 +155,7 @@ export function createIdempotencyLedger(
 
 function answerHeldKey<T>(call: IdempotentCall<T>, held: IdempotencyRecord): T | Promise<T> {
   if (held.payloadHash !== call.keyed.payloadHash) {
-    throw new DaemonError(
+    throw new AtcError(
       'idempotency_conflict',
       `idempotency key '${held.key}' was first used with a different ${held.operation} payload`,
     );
@@ -165,7 +165,7 @@ function answerHeldKey<T>(call: IdempotentCall<T>, held: IdempotencyRecord): T |
     return call.replay(held);
   }
 
-  throw new DaemonError(
+  throw new AtcError(
     'outcome_unknown',
     `the ${held.operation} under idempotency key '${held.key}' was interrupted and may or may not have taken effect; check ${held.effectRef} before retrying under a new key`,
     { effectRef: held.effectRef },
@@ -175,8 +175,8 @@ function answerHeldKey<T>(call: IdempotentCall<T>, held: IdempotencyRecord): T |
 function buildOutcomeUnknownError(
   call: Pick<IdempotentCall<unknown>, 'operation' | 'keyed' | 'effectRef'>,
   what: string,
-): DaemonError {
-  return new DaemonError(
+): AtcError {
+  return new AtcError(
     'outcome_unknown',
     `the ${call.operation} under idempotency key '${call.keyed.key}' ${what} and its effect may still stand; check ${call.effectRef} before retrying under a new key`,
     { effectRef: call.effectRef },

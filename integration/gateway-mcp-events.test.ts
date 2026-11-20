@@ -22,7 +22,7 @@ import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment
 import { sendModernMCPRequest } from '@atc/mcp/test-utils/send-modern-mcp-request';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
@@ -63,13 +63,13 @@ async function setupTest() {
       }),
     ]);
 
-    const cloudProber = await openDaemonClient(cloud.socketPath);
+    const cloudProber = createDaemonClient(cloud.socketPath);
 
     registerTestCleanup(() => {
       cloudProber.stop();
     });
 
-    const pcProber = await openDaemonClient(pc.socketPath);
+    const pcProber = createDaemonClient(pc.socketPath);
 
     registerTestCleanup(() => {
       pcProber.stop();
@@ -106,7 +106,7 @@ async function setupTest() {
         defaultDaemon: 'cloud',
       },
       build: 'atc-gateway/test',
-      openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+      openChannel: (address) => createDaemonClient({ hostname: address.host, port: address.port }),
       bindings: openTestBindingDatabase(join(temporaryDirectory.path, 'gateway.db')),
       fanOutTimeoutMs: 1000,
       clock,

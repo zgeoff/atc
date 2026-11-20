@@ -5,7 +5,7 @@ import { startTUIDaemon } from '@atc/app/test-utils/start-tui-daemon';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { KEYS } from '@atc/core/test-utils/keys';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
 // The client attaches to a daemon in the test's process, so a boot loads
@@ -43,7 +43,7 @@ test('it sizes a session to the client that shows it once another client moves t
 
   await spawnClaudeSession(ctx, 'second');
 
-  const viewer = await openDaemonClient(ctx.paths.daemonSocketPath);
+  const viewer = createDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     viewer.stop();
@@ -78,7 +78,7 @@ test('it sizes a session to the smaller of two clients that both show it', async
 
   await ctx.waitFor('FAKE_CLAUDE_UP');
 
-  const viewer = await openDaemonClient(ctx.paths.daemonSocketPath);
+  const viewer = createDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     viewer.stop();

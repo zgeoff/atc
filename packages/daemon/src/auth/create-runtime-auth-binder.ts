@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { formatError, getSettledValue, makeKeyedLock, systemClock } from '@atc/core';
 import type { CredentialBroker, LaunchTicket } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { RuntimeAuthBinding } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { z } from 'zod';
 import { assertRecordedHostName } from './assert-recorded-host-name';
 import { BrokerAuthorityError } from './broker-authority-error';
@@ -103,11 +103,10 @@ export function createRuntimeAuthBinder(
     const row = await store.readAuthBinding(hostKey);
 
     if (row === null) {
-      throw new DaemonError(
-        'unsupported_operation',
-        `host ${hostKey} has no runtime auth binding`,
-        { host: hostKey, problem: 'no_auth_binding' },
-      );
+      throw new AtcError('unsupported_operation', `host ${hostKey} has no runtime auth binding`, {
+        host: hostKey,
+        problem: 'no_auth_binding',
+      });
     }
 
     return row;
@@ -126,7 +125,7 @@ export function createRuntimeAuthBinder(
       found.id !== row.hostID ||
       row.hostName !== host.getHostName(row.hostKey)
     ) {
-      throw new DaemonError(
+      throw new AtcError(
         'auth_runtime_mismatch',
         `host ${row.hostName} is no longer the one host ${row.hostKey} was bound to`,
         {
@@ -156,7 +155,7 @@ export function createRuntimeAuthBinder(
     const extra = held.filter((secret) => !recorded.includes(secret));
 
     if (missing.length > 0) {
-      throw new DaemonError(
+      throw new AtcError(
         'auth_grant_missing',
         `host ${row.hostName} no longer holds ${missing.join(', ')}; atc never grants it again on its own, so rebind the host`,
         { host: row.hostKey, missing },
@@ -164,7 +163,7 @@ export function createRuntimeAuthBinder(
     }
 
     if (extra.length > 0) {
-      throw new DaemonError(
+      throw new AtcError(
         'auth_grants_mismatch',
         `host ${row.hostName} holds ${extra.join(', ')}, which its binding does not grant`,
         { host: row.hostKey, extra },
@@ -302,7 +301,7 @@ export function createRuntimeAuthBinder(
         const row = await store.readAuthBinding(hostKey);
 
         if (row === null) {
-          throw new DaemonError(
+          throw new AtcError(
             'auth_blocked',
             `host ${hostKey} has no runtime auth binding, so nothing may launch on it with auth`,
             { host: hostKey, state: null },
@@ -316,7 +315,7 @@ export function createRuntimeAuthBinder(
         const plan = planBindingVerify(row, isChanged, rebind !== null);
 
         if (plan === 'blocked') {
-          throw new DaemonError(
+          throw new AtcError(
             'auth_blocked',
             `the runtime auth of host ${hostKey} is ${row.state}; rebind it to launch again`,
             { host: hostKey, state: row.state },
@@ -328,7 +327,7 @@ export function createRuntimeAuthBinder(
         }
 
         if (isChanged) {
-          throw new DaemonError(
+          throw new AtcError(
             'auth_rebind_required',
             `the auth profiles host ${hostKey} uses changed since it was bound; rebind it to adopt them`,
             { host: hostKey, revision: row.revision, problem: 'auth_selection_changed' },
@@ -354,7 +353,7 @@ export function createRuntimeAuthBinder(
           found.id !== row.hostID ||
           row.hostName !== host.getHostName(hostKey)
         ) {
-          throw new DaemonError(
+          throw new AtcError(
             'auth_runtime_mismatch',
             `host ${row.hostName} is no longer the one host ${hostKey} was bound to`,
             {
@@ -372,7 +371,7 @@ export function createRuntimeAuthBinder(
         const extra = held.filter((secret) => !bound.includes(secret));
 
         if (missing.length > 0) {
-          throw new DaemonError(
+          throw new AtcError(
             'auth_grant_missing',
             `host ${row.hostName} no longer holds ${missing.join(', ')}; atc never grants it again on its own, so rebind the host`,
             { host: hostKey, missing },
@@ -380,7 +379,7 @@ export function createRuntimeAuthBinder(
         }
 
         if (extra.length > 0) {
-          throw new DaemonError(
+          throw new AtcError(
             'auth_grants_mismatch',
             `host ${row.hostName} holds ${extra.join(', ')}, which its binding does not grant`,
             { host: hostKey, extra },
@@ -405,7 +404,7 @@ export function createRuntimeAuthBinder(
         const row = await store.readAuthBinding(hostKey);
 
         if (row === null || planLaunchAdmission(row, admission.attemptID) === 'blocked') {
-          throw new DaemonError(
+          throw new AtcError(
             'auth_blocked',
             `the runtime auth of host ${hostKey} is ${row?.state ?? 'gone'}; nothing launches on it until a rebind`,
             { host: hostKey, state: row?.state ?? null },
@@ -416,7 +415,7 @@ export function createRuntimeAuthBinder(
           kind === 'start' &&
           (row.revision !== admission.revision || row.bindingHash !== admission.hash)
         ) {
-          throw new DaemonError(
+          throw new AtcError(
             'auth_rebind_required',
             `the runtime auth of host ${hostKey} moved to revision ${String(row.revision)} after this launch was planned`,
             { host: hostKey, revision: row.revision, problem: 'revision_moved' },

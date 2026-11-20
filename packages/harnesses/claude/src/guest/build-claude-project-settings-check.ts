@@ -1,6 +1,6 @@
 import { isSubscriptionOverrideVariable } from '@atc/core';
 import type { ProjectSettingsCheck } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { z } from 'zod';
 
 const LOCAL_SETTINGS_FILE = '.claude/settings.local.json';
@@ -22,7 +22,7 @@ export function buildClaudeProjectSettingsCheck(agent: string): ProjectSettingsC
           ? `agent '${agent}' signs in through the target's broker, but ${file} is not a JSON object, so atc cannot check it for settings that would override that sign-in`
           : `agent '${agent}' signs in through the target's broker, but ${file} sets ${setting}, which would override or route around that sign-in`;
 
-      return new DaemonError('auth_target_unsupported', message, {
+      return new AtcError('auth_target_unsupported', message, {
         agent,
         problem: 'project_settings_conflict',
         file,

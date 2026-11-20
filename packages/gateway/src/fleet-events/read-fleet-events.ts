@@ -2,7 +2,7 @@ import { isRecord } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { Principal } from '@atc/protocol';
 import { decodeCursor, encodeCursor } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { GatewayDaemonCaller } from '../daemons/create-gateway-daemon-caller';
 import { waitForOutcome } from '../daemons/wait-for-outcome';
 import { buildGatewayError } from '../ids/build-gateway-error';
@@ -46,7 +46,7 @@ export async function readFleetEvents(
   const owner = session === null ? null : parseGatewayID(session, deps.registry);
 
   if (session !== null && owner === null) {
-    throw new DaemonError('no_such_session', `no session '${session}'`);
+    throw new AtcError('no_such_session', `no session '${session}'`);
   }
 
   const filter = buildEventsFilterHash(session, null);
@@ -104,7 +104,7 @@ async function readDaemonSource(
 
   const error = outcome.kind === 'failed' ? outcome.error : null;
 
-  if (read.sessionID !== null && error instanceof DaemonError) {
+  if (read.sessionID !== null && error instanceof AtcError) {
     throw buildGatewayError(error, daemon, read.requestIDs);
   }
 

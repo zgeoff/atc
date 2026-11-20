@@ -1,5 +1,5 @@
 import type { CredentialBroker, GuestOAuthState } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
 import { toAuthRefusal } from './to-auth-refusal';
@@ -22,7 +22,7 @@ export async function loadOAuthStates(
     const mismatches = collectSecretRuleMismatches(expected, held);
 
     if (mismatches.length > 0) {
-      throw new DaemonError(
+      throw new AtcError(
         'auth_secret_mismatch',
         `the broker holds ${mismatches.map((mismatch) => `${mismatch.secret} (${mismatch.reason})`).join(', ')} unlike the binding`,
         { mismatches },

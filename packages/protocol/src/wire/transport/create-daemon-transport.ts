@@ -1,22 +1,16 @@
 import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
+import type { DaemonConnection } from '@atcx/client/connection';
+import { AtcError } from '@atcx/contract/light';
 import { createActor } from 'xstate';
-import { DaemonError } from '../daemon-error';
 import { TRANSPORT_MACHINE } from './transport-machine';
 import type { TransportReconnect } from './transport-machine';
-
-export interface TransportChannel {
-  onClose: () => void;
-  readonly stop: () => void;
-
-  readonly isClosed?: () => boolean;
-}
 
 export type TransportState = 'idle' | 'connecting' | 'ready' | 'backoff' | 'closed';
 
 interface DaemonTransportOptions<C> {
   readonly open: (opened: number) => Promise<C>;
-  readonly getChannel: (connection: C) => TransportChannel;
+  readonly getConnection: (connection: C) => DaemonConnection;
   readonly reconnect: TransportReconnect;
 
   readonly backoffMs?: readonly number[];
@@ -45,7 +39,7 @@ export interface DaemonTransport<C> {
 export function createDaemonTransport<C>(opts: DaemonTransportOptions<C>): DaemonTransport<C> {
   const actor = createActor(TRANSPORT_MACHINE, { input: { reconnect: opts.reconnect } }).start();
 
-  const lost = new WeakSet<TransportChannel>();
+  const lost = new WeakSet<DaemonConnection>();
 
   let current: C | null = null;
   let latest: C | null = null;
@@ -82,7 +76,7 @@ export function createDaemonTransport<C>(opts: DaemonTransportOptions<C>): Daemo
   };
 
   const recordLoss = (connection: C) => {
-    lost.add(opts.getChannel(connection));
+    lost.add(opts.getConnection(connection));
 
     if (current !== connection) {
       return;
@@ -129,7 +123,7 @@ export function createDaemonTransport<C>(opts: DaemonTransportOptions<C>): Daemo
     }
 
     if (readState() !== 'connecting') {
-      opts.getChannel(connection).stop();
+      void opts.getConnection(connection).close();
 
       return;
     }
@@ -138,9 +132,10 @@ export function createDaemonTransport<C>(opts: DaemonTransportOptions<C>): Daemo
     current = connection;
     latest = connection;
 
-    opts.getChannel(connection).onClose = () => {
+    // closed settles when the socket ends, so a connection that ended already records its loss too.
+    void watchClosed(opts.getConnection(connection), () => {
       recordLoss(connection);
-    };
+    });
 
     actor.send({ type: 'OPENED' });
     opts.onReady?.(connection);
@@ -150,10 +145,6 @@ export function createDaemonTransport<C>(opts: DaemonTransportOptions<C>): Daemo
 
     for (const waiter of resolved) {
       waiter.resolve(connection);
-    }
-
-    if (opts.getChannel(connection).isClosed?.() === true) {
-      recordLoss(connection);
     }
   };
 
@@ -171,7 +162,7 @@ export function createDaemonTransport<C>(opts: DaemonTransportOptions<C>): Daemo
       }
 
       if (state === 'closed') {
-        return Promise.reject(new DaemonError('internal', 'the daemon transport is stopped'));
+        return Promise.reject(new AtcError('internal', 'the daemon transport is stopped'));
       }
 
       const waiter = Promise.withResolvers<C>();
@@ -187,12 +178,11 @@ export function createDaemonTransport<C>(opts: DaemonTransportOptions<C>): Daemo
 
     readState,
     findLatest: () => latest,
-    isLost: (connection) => lost.has(opts.getChannel(connection)),
+    isLost: (connection) => lost.has(opts.getConnection(connection)),
 
     stopConnection: (connection) => {
       recordLoss(connection);
-
-      opts.getChannel(connection).stop();
+      void opts.getConnection(connection).close();
     },
 
     stop: () => {
@@ -205,11 +195,17 @@ export function createDaemonTransport<C>(opts: DaemonTransportOptions<C>): Daemo
       actor.send({ type: 'STOP' });
 
       if (stopped !== null) {
-        lost.add(opts.getChannel(stopped));
-        opts.getChannel(stopped).stop();
+        lost.add(opts.getConnection(stopped));
+        void opts.getConnection(stopped).close();
       }
 
-      drainWaiters(new DaemonError('internal', 'the daemon transport is stopped'));
+      drainWaiters(new AtcError('internal', 'the daemon transport is stopped'));
     },
   };
+}
+
+async function watchClosed(connection: DaemonConnection, onClosed: () => void): Promise<void> {
+  await connection.closed;
+
+  onClosed();
 }

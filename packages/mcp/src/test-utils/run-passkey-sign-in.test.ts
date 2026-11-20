@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { buildStubAuthenticator } from './build-stub-authenticator';
@@ -20,7 +20,7 @@ async function setupTest() {
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

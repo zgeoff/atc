@@ -1,5 +1,5 @@
 import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { PROCESS_IO } from './process-io';
 import type { ProcessIO } from './process-io';
 
@@ -50,7 +50,7 @@ export async function runSessionAction(
 
     return 0;
   } catch (error) {
-    const code = error instanceof DaemonError ? `${error.code}: ` : '';
+    const code = error instanceof AtcError ? `${error.code}: ` : '';
 
     io.printError(
       `atc session ${options.action}: ${code}${error instanceof Error ? error.message : String(error)}`,

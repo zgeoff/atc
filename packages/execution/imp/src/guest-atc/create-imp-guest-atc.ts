@@ -1,5 +1,5 @@
 import type { GuestLayout } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { ImpPort } from '../port/imp-port';
 import CHECK_GUEST_ATC_SCRIPT from './check-guest-atc.sh' with { type: 'text' };
 import INSTALL_GUEST_ATC_SCRIPT from './install-guest-atc.sh' with { type: 'text' };
@@ -144,7 +144,7 @@ export function createImpGuestATC(options: ImpGuestATCOptions): ImpGuestATC {
     }
 
     if (atcBinary === null) {
-      throw new DaemonError(
+      throw new AtcError(
         'unsupported_operation',
         `imp ${name} cannot run hooks through atc ${version}: ${found}, and a daemon run from source has no binary to copy in; install atc ${version} there, or run a compiled atc daemon on Linux`,
         { provider: 'imp', problem: 'no_guest_atc' },
@@ -181,7 +181,7 @@ export function createImpGuestATC(options: ImpGuestATCOptions): ImpGuestATC {
       }
 
       if (atcBinary === null) {
-        throw new DaemonError(
+        throw new AtcError(
           'unsupported_operation',
           `imp ${name} has no executable atc at ${guest.atc ?? '(none)'}`,
           { provider: 'imp', problem: 'no_guest_atc' },

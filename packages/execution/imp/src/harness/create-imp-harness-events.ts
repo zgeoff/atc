@@ -1,5 +1,5 @@
 import type { HarnessAttachment, HarnessExit, HarnessStart } from '@atc/plugin-api';
-import type { DaemonError } from '@atc/protocol/wire';
+import type { AtcError } from '@atcx/contract/light';
 
 export interface ImpHarnessEvents {
   readonly onData: (listener: (data: string) => void) => { readonly dispose: () => void };
@@ -20,7 +20,7 @@ export interface ImpHarnessEvents {
 
   readonly emitAttachment: (attachment: HarnessAttachment) => void;
 
-  readonly emitStartOutcome: (outcome: 'started' | Readonly<DaemonError>, created: boolean) => void;
+  readonly emitStartOutcome: (outcome: 'started' | Readonly<AtcError>, created: boolean) => void;
 
   readonly dispose: (exited: boolean) => void;
 }

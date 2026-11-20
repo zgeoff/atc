@@ -1,4 +1,4 @@
-import type { DaemonError } from '@atc/protocol/wire';
+import type { AtcError } from '@atcx/contract/light';
 import { machineTypes } from '@zgeoff/std';
 import { assign, setup } from 'xstate';
 
@@ -9,10 +9,10 @@ type ImpHarnessEvent =
   | { readonly type: 'START_SENT' }
   | { readonly type: 'FRESH_REQUESTED' }
   | { readonly type: 'KILL_REQUESTED' }
-  | { readonly type: 'END'; readonly confirmed: boolean; readonly refusal: DaemonError };
+  | { readonly type: 'END'; readonly confirmed: boolean; readonly refusal: AtcError };
 
 interface ImpHarnessContext {
-  readonly refusal: DaemonError | null;
+  readonly refusal: AtcError | null;
 }
 
 // Holds state only: the harness performs every effect and reads its state

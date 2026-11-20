@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { z } from 'zod';
 
 export const IDEMPOTENCY_KEY_FIELD = z
@@ -14,7 +14,7 @@ export function parseIdempotencyKey(value: unknown): string | undefined {
   const parsed = IDEMPOTENCY_KEY_FIELD.safeParse(value);
 
   if (!parsed.success) {
-    throw new DaemonError('bad_args', 'idempotencyKey must be a string of 1 to 180 characters');
+    throw new AtcError('bad_args', 'idempotencyKey must be a string of 1 to 180 characters');
   }
 
   return parsed.data;

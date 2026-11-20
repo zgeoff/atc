@@ -2,8 +2,8 @@ import { runCommand } from '@atc/lifecycle/run-command';
 import { runGH } from '@atc/plugin-api';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import type { DeclaredScope } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { RecordedBranch, RecordedPullRequest, RecordedWorktree } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { z } from 'zod';
 import { readHostBranch } from '../sessions/read-host-branch';
 import { runHostGit } from '../workspace/run-host-git';
@@ -70,8 +70,8 @@ export async function checkSessionScope(
   return { worktrees, branches, pullRequests };
 }
 
-function buildScopeRefusal(entry: string, reason: string): DaemonError {
-  return new DaemonError('scope_invalid', `${entry} ${reason}`, { entry });
+function buildScopeRefusal(entry: string, reason: string): AtcError {
+  return new AtcError('scope_invalid', `${entry} ${reason}`, { entry });
 }
 
 async function checkWorktree(

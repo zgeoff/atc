@@ -1,11 +1,10 @@
 import { resolvePaths } from '@atc/config/host';
 import { isRecord } from '@atc/core';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
 const [mode, cwd, name = '', prompt = ''] = process.argv.slice(2);
-
-const client = await openDaemonClient(resolvePaths(process.env).daemonSocketPath);
+const client = createDaemonClient(resolvePaths(process.env).daemonSocketPath);
 
 await client.sendHello(createHostServices().build);
 

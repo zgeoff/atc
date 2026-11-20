@@ -1,9 +1,8 @@
 import { daemonSocketPath } from '@atc/config/host';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
-import { DaemonError } from '@atc/protocol/wire';
-import { MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
+import { AtcError, MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
 import { z } from 'zod';
 import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';
@@ -67,17 +66,7 @@ export async function runTap(
     return;
   }
 
-  let client: DaemonClient;
-
-  try {
-    client = await openDaemonClient(socketPath);
-  } catch {
-    io.printError(`atc tap: no daemon at ${socketPath} — start atc first`);
-    io.exit(1);
-
-    return;
-  }
-
+  const client = createDaemonClient(socketPath);
   const closed = Promise.withResolvers<void>();
   let written: Promise<void> = Promise.resolve();
 
@@ -148,7 +137,12 @@ export async function runTap(
 
     await client.sendRequest('session.tap', tapParams);
   } catch (error) {
-    io.printError(`atc tap: ${formatError(error)}`);
+    const failure =
+      error instanceof AtcError && error.code === 'no_daemon'
+        ? `no daemon at ${socketPath} — start atc first`
+        : formatError(error);
+
+    io.printError(`atc tap: ${failure}`);
     client.stop();
     io.exit(1);
 
@@ -190,7 +184,7 @@ async function ackInboxNotice(
 }
 
 function formatError(error: unknown): string {
-  return error instanceof DaemonError ? `${error.code}: ${error.message}` : String(error);
+  return error instanceof AtcError ? `${error.code}: ${error.message}` : String(error);
 }
 
 interface AckInboxMessageOptions {

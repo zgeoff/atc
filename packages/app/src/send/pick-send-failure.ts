@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { CommandError } from './types';
 
 export type FailureStage = 'list' | 'send' | 'recover' | 'wait';
@@ -16,18 +16,20 @@ export type PickedFailure =
   | { readonly kind: 'recover'; readonly effectRef: string };
 
 export function pickSendFailure(error: unknown, context: Readonly<FailureContext>): PickedFailure {
-  const failure = error instanceof DaemonError ? error : new DaemonError('internal', String(error));
+  const failure = error instanceof AtcError ? error : new AtcError('internal', String(error));
   const effectRef = failure.data?.['effectRef'];
 
   if (
     context.stage === 'send' &&
-    (failure.code === 'outcome_unknown' || failure.code === 'internal') &&
+    (failure.code === 'outcome_unknown' ||
+      failure.code === 'internal' ||
+      failure.code === 'connection_lost') &&
     typeof effectRef === 'string'
   ) {
     return { kind: 'recover', effectRef };
   }
 
-  if (failure.code === 'internal' && context.closed) {
+  if ((failure.code === 'internal' || failure.code === 'connection_lost') && context.closed) {
     return ended(4, 'unreachable', failure.message);
   }
 

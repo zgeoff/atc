@@ -1,7 +1,7 @@
 import { createStepTimer } from '@atc/core';
 import type { HarnessHandle, HarnessStart } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { AuthSetup } from '../auth/create-auth-setup';
 import type { HarnessAuthSetup, HarnessPlan } from '../auth/types';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
@@ -158,14 +158,14 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     }
 
     if (!exited) {
-      throw new DaemonError(
+      throw new AtcError(
         'session_dead',
         `session ${session.id} still runs a harness from an older auth revision that did not exit after its kill; adopt it again once that process is gone`,
         { session: session.id },
       );
     }
 
-    throw new DaemonError('no_such_session', `session ${session.id} changed during its restart`, {
+    throw new AtcError('no_such_session', `session ${session.id} changed during its restart`, {
       session: session.id,
     });
   };

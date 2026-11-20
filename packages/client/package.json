@@ -1,0 +1,30 @@
+{
+  "name": "@atcx/client",
+  "version": "7.20.0",
+  "description": "The client of an atc daemon: connect() finds the local daemon, opens its socket, and returns every daemon procedure, typed by the request contract",
+  "homepage": "https://github.com/zgeoff/atc/tree/main/packages/client#readme",
+  "bugs": "https://github.com/zgeoff/atc/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zgeoff/atc.git",
+    "directory": "packages/client"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./connection": "./src/connection/index.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@atcx/contract": "workspace:*",
+    "@orpc/client": "catalog:",
+    "@orpc/standard-server-peer": "catalog:"
+  },
+  "devDependencies": {
+    "@orpc/standard-server": "catalog:"
+  }
+}

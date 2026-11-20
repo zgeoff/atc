@@ -8,7 +8,7 @@ import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { KEYS } from '@atc/core/test-utils/keys';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { buildStubSignedInGH } from '@atc/source-github/test-utils/build-stub-signed-in-gh';
 import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-signed-out-gh';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
@@ -100,7 +100,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
 
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
 
-  const daemon = await openDaemonClient(ctx.paths.daemonSocketPath);
+  const daemon = createDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();

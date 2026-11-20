@@ -12,9 +12,9 @@ import type {
 } from '@atc/plugin-api';
 import type { DeclaredScope, SessionState } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
-import type { DaemonError } from '@atc/protocol/wire';
 import type { FleetEntry, FleetStore } from '@atc/store';
 import type { PublishedRecord, SessionDescriptor, SessionID } from '@atcx/contract';
+import type { AtcError } from '@atcx/contract/light';
 import { createAuthSetup } from '../auth/create-auth-setup';
 import type { RuntimeAuthBinder } from '../auth/create-runtime-auth-binder';
 import type { BridgeBinding } from '../auth/is-binding-current';
@@ -111,7 +111,7 @@ export interface SessionManager {
   readonly findExecutionRefusal: (
     binding: Readonly<{ target: string | null; targetIdentity: string | null }>,
     capability: ExecutionCapability,
-  ) => DaemonError | null;
+  ) => AtcError | null;
 
   readonly findProvider: (session: Session) => ExecutionProvider | null;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;

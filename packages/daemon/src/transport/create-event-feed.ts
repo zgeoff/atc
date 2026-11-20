@@ -1,7 +1,8 @@
-import { DaemonError, PROTOCOL_V } from '@atc/protocol/wire';
+import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { DaemonEvent, SessionID } from '@atcx/contract';
 import { DAEMON_EVENT_SCHEMA } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
 import { EVENT_FEED_MACHINE } from './event-feed-machine';
@@ -101,7 +102,7 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
 
   const subscribe = (signal: AbortSignal): AsyncGenerator<DaemonEvent> => {
     if (isFeedIn(state, 'subscribed')) {
-      throw new DaemonError('bad_args', 'this connection already subscribes to its events');
+      throw new AtcError('bad_args', 'this connection already subscribes to its events');
     }
 
     state.actor.send({ type: 'SUBSCRIBE' });

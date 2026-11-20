@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 
 interface ConfirmTokensDeps {
   readonly now: () => number;
@@ -60,7 +60,7 @@ export function createConfirmTokens(deps: ConfirmTokensDeps): ConfirmTokens {
       }
 
       if (reason !== null) {
-        throw new DaemonError(
+        throw new AtcError(
           'confirm_token_invalid',
           `confirm token for session ${session} is ${reason}; call session.forget without a token for a new one`,
           { reason },

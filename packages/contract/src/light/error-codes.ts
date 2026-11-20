@@ -71,6 +71,10 @@ export const ERROR_CODES = [
   'idempotency_conflict',
   'outcome_unknown',
   'idempotency_key_unknown',
+  'no_daemon',
+  'connection_lost',
+  'timeout',
+  'events_overflow',
   'internal',
 ] as const;
 

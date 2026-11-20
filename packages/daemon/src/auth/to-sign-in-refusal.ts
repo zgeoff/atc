@@ -1,6 +1,6 @@
 import type { ResolvedAuthSecret } from '@atc/config';
 import type { CredentialBroker } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 
 export function toSignInRefusal(
   error: unknown,
@@ -10,7 +10,7 @@ export function toSignInRefusal(
   const renewSecret = broker.describe.renewSecret;
 
   if (
-    !(error instanceof DaemonError) ||
+    !(error instanceof AtcError) ||
     error.code !== 'auth_signin_needed' ||
     renewSecret === undefined
   ) {
@@ -24,7 +24,7 @@ export function toSignInRefusal(
     return error;
   }
 
-  return new DaemonError(
+  return new AtcError(
     error.code,
     `${error.message}; ${renewSecret(bound.secret, bound.kind)}`,
     error.data,

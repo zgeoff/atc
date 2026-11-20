@@ -1,6 +1,6 @@
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { P, match } from 'ts-pattern';
 import type { DaemonContext } from '../types';
 import type { RequestDeps } from './request-deps';
@@ -56,11 +56,11 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
       const result = ctx.attachSession(client, sessionID, { cols: data.cols, rows: data.rows });
 
       if (result === 'missing') {
-        throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+        throw new AtcError('no_such_session', `no session '${sessionID}'`);
       }
 
       if (result === 'dead') {
-        throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
+        throw new AtcError('session_dead', `session '${sessionID}' has no live process`);
       }
 
       const dims = ctx.getEffectiveDims(sessionID);
@@ -75,10 +75,10 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
 
       return match(result)
         .with('missing', () => {
-          throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+          throw new AtcError('no_such_session', `no session '${sessionID}'`);
         })
         .with('dead', () => {
-          throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
+          throw new AtcError('session_dead', `session '${sessionID}' has no live process`);
         })
         .with({ replay: P.string }, (watch) => ({ ...watch }))
         .exhaustive();
@@ -102,21 +102,21 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
       const id = data.session;
 
       if (!ctx.isSessionVisible(id)) {
-        throw new DaemonError('no_such_session', `no session '${id}'`);
+        throw new AtcError('no_such_session', `no session '${id}'`);
       }
 
       const menu = await ctx.readSessionMenu(id);
 
       if (menu === 'missing' || !ctx.isSessionVisible(id)) {
-        throw new DaemonError('no_such_session', `no session '${id}'`);
+        throw new AtcError('no_such_session', `no session '${id}'`);
       }
 
       if (menu === 'no_screen') {
-        throw new DaemonError('session_dead', `session '${id}' has no captured screen`);
+        throw new AtcError('session_dead', `session '${id}' has no captured screen`);
       }
 
       if (menu === 'unsupported') {
-        throw new DaemonError('unsupported', `atc cannot read the menus in session '${id}'`);
+        throw new AtcError('unsupported', `atc cannot read the menus in session '${id}'`);
       }
 
       return { menu };
@@ -127,7 +127,7 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
       const menuToken = data.menuToken;
 
       if (!ctx.isSessionVisible(id)) {
-        throw new DaemonError('no_such_session', `no session '${id}'`);
+        throw new AtcError('no_such_session', `no session '${id}'`);
       }
 
       const choice =
@@ -138,15 +138,15 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
       const result = await ctx.applySessionMenuChoice(id, choice);
 
       if (result === 'missing') {
-        throw new DaemonError('no_such_session', `no session '${id}'`);
+        throw new AtcError('no_such_session', `no session '${id}'`);
       }
 
       if (result === 'dead') {
-        throw new DaemonError('session_dead', `session '${id}' has no live process`);
+        throw new AtcError('session_dead', `session '${id}' has no live process`);
       }
 
       if (result === 'unsupported') {
-        throw new DaemonError('unsupported', `atc cannot read the menus in session '${id}'`);
+        throw new AtcError('unsupported', `atc cannot read the menus in session '${id}'`);
       }
 
       return { ...result };
@@ -156,7 +156,7 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
       const sessionID = data.session;
 
       if (!ctx.resizeSession(client, sessionID, { cols: data.cols, rows: data.rows })) {
-        throw new DaemonError('bad_args', `not attached to session '${sessionID}'`);
+        throw new AtcError('bad_args', `not attached to session '${sessionID}'`);
       }
 
       return {};
@@ -169,13 +169,13 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
       match(result)
         .with('ok', () => {})
         .with('already_answered', () => {
-          throw new DaemonError('already_answered', `request '${request}' was already answered`);
+          throw new AtcError('already_answered', `request '${request}' was already answered`);
         })
         .with('unsupported', () => {
-          throw new DaemonError('unsupported', `request '${request}' is answered with keystrokes`);
+          throw new AtcError('unsupported', `request '${request}' is answered with keystrokes`);
         })
         .with('unknown', () => {
-          throw new DaemonError('bad_args', `unknown permission request '${request}'`);
+          throw new AtcError('bad_args', `unknown permission request '${request}'`);
         })
         .exhaustive();
 
@@ -191,22 +191,19 @@ function requireInputResult(
   match(result)
     .with('ok', () => {})
     .with('permission_pending', () => {
-      throw new DaemonError(
+      throw new AtcError(
         'permission_pending',
         `session '${sessionID}' is waiting on a permission prompt, where typed text picks the highlighted option; answer the prompt's menu with session.choose or in the atc TUI`,
       );
     })
     .with('missing', () => {
-      throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+      throw new AtcError('no_such_session', `no session '${sessionID}'`);
     })
     .with('dead', () => {
-      throw new DaemonError('session_dead', `session '${sessionID}' has no live process`);
+      throw new AtcError('session_dead', `session '${sessionID}' has no live process`);
     })
     .with('busy', () => {
-      throw new DaemonError(
-        'too_slow',
-        `session '${sessionID}' is mid-run; wait for the turn to end`,
-      );
+      throw new AtcError('too_slow', `session '${sessionID}' is mid-run; wait for the turn to end`);
     })
     .exhaustive();
 }

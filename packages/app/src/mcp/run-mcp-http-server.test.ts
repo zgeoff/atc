@@ -16,7 +16,7 @@ import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { sendMCPRequest } from '@atc/mcp/test-utils/send-mcp-request';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
 import { connectNamedDaemon } from '../daemon-connection/connect-named-daemon';
 import { createLocalDaemonConnection } from '../daemon-connection/create-local-daemon-connection';
@@ -1098,7 +1098,7 @@ test('it streams a snapshot to a viewer that presents the token from its owner-o
 
   chmodSync(tokenFile, 0o600);
 
-  const client = await openDaemonClient(ctx.daemonPaths.socketPath);
+  const client = createDaemonClient(ctx.daemonPaths.socketPath);
 
   registerTestCleanup(() => {
     client.stop();

@@ -9,7 +9,7 @@ import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { KEYS } from '@atc/core/test-utils/keys';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
@@ -168,7 +168,7 @@ test('it lists a sub-session indented under its parent', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  const daemon = await openDaemonClient(ctx.paths.daemonSocketPath);
+  const daemon = createDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();
@@ -205,7 +205,7 @@ test('it lists a detached sub-session as top-level', async () => {
 
   await ctx.waitFor('atc — control tower');
 
-  const daemon = await openDaemonClient(ctx.paths.daemonSocketPath);
+  const daemon = createDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();

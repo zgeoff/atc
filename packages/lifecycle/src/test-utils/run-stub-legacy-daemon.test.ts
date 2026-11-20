@@ -6,7 +6,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 
 function setupTest() {

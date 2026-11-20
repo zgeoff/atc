@@ -12,16 +12,19 @@ export interface DeclarationTools {
 
 const CONTRACT_DIR = 'packages/contract';
 
+// Compiles one published package's declarations into the out folder. The package defaults to the
+// contract.
 export async function writeContractDeclarations(
   root: string,
   out: string,
   tools: DeclarationTools,
+  packageDir: string = CONTRACT_DIR,
 ): Promise<string[]> {
   const compiled = await tools.runCompiler(
     [
       join(root, 'node_modules/.bin/tsrs'),
       '-p',
-      join(root, CONTRACT_DIR, 'tsconfig.build.json'),
+      join(root, packageDir, 'tsconfig.build.json'),
       '--outDir',
       out,
     ],
@@ -29,7 +32,7 @@ export async function writeContractDeclarations(
   );
 
   if (compiled.exitCode !== 0) {
-    throw new Error(`tsrs could not emit the contract's declarations:\n${compiled.output}`);
+    throw new Error(`tsrs could not emit the declarations of ${packageDir}:\n${compiled.output}`);
   }
 
   const files = tools.listDeclarations(out).toSorted();

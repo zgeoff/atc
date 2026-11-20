@@ -1,3 +1,4 @@
+import { buildStubHelloAnswer } from '@atc/protocol/test-utils/build-stub-hello-answer';
 import { startStubPeerDaemon } from '@atc/protocol/test-utils/start-stub-peer-daemon';
 
 export function startStubRestoreDaemon(socketPath: string) {
@@ -10,6 +11,10 @@ export function startStubRestoreDaemon(socketPath: string) {
     answer: (request) => {
       if (request.method === 'events.subscribe') {
         return 'silent';
+      }
+
+      if (request.method === 'daemon.hello') {
+        return { ok: buildStubHelloAnswer() };
       }
 
       methods.push(request.method);

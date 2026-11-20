@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '../client/index';
+import { openRawDaemonClient as openDaemonClient } from './open-raw-daemon-client';
 import { startStubDroppingDaemon } from './start-stub-dropping-daemon';
 
 function setupTest() {
@@ -28,6 +28,10 @@ test('it answers the handshake with its build', async () => {
 
   expect(client.sendHello('atc/test-build')).resolves.toStrictEqual({
     daemon: 'atc/dropping-build',
+    daemonID: 'd-stub',
+    features: [],
+    idempotency: { completedRetentionMs: 60_000 },
+    peerSession: null,
     limits: { maxLine: 1_048_576, maxChunk: 65_536 },
     lastUsedAgent: 'claude',
   });

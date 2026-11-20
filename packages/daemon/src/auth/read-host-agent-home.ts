@@ -1,7 +1,7 @@
 import { posix } from 'node:path';
 import type { AgentHomeLocation, ExecutionProvider } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 
 export const RESOLVE_AGENT_HOME_SCRIPT = `home=$(printenv "$1") && [ -n "$home" ] && { printf '%s\\n' "$home"; exit 0; }
 cd && printf '%s/%s\\n' "$(pwd -P)" "$2"`;
@@ -29,7 +29,7 @@ export async function readHostAgentHome(
   const home = result.stdout.replace(/\n$/u, '');
 
   if (result.exitCode !== 0 || !posix.isAbsolute(home)) {
-    throw new DaemonError(
+    throw new AtcError(
       'host_unavailable',
       `the host of session ${hostKey} cannot resolve the home of its agent: ${result.stderr.trim()}`,
       { phase: 'resolving' },

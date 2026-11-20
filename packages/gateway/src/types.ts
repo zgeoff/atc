@@ -1,5 +1,6 @@
 import type { Principal } from '@atc/protocol';
-import type { DaemonError } from '@atc/protocol/wire';
+import type { DaemonChannel } from '@atc/protocol/wire';
+import type { AtcError } from '@atcx/contract/light';
 
 export interface RegistryDaemon {
   readonly name: string;
@@ -19,6 +20,7 @@ export type GatewayFeature = 'fleet.daemons';
 
 export interface GatewayChannel {
   onClose: () => void;
+  readonly connection: DaemonChannel['connection'];
   readonly sendRequest: (
     method: string,
     params?: Readonly<Record<string, unknown>>,
@@ -57,6 +59,6 @@ export type RoutedOutcome =
       readonly daemon: RegistryDaemon;
       readonly value: Readonly<Record<string, unknown>>;
     }
-  | { readonly kind: 'refused'; readonly daemon: RegistryDaemon; readonly error: DaemonError };
+  | { readonly kind: 'refused'; readonly daemon: RegistryDaemon; readonly error: AtcError };
 
 export type RouteNext = (call: RoutedCall) => Promise<RoutedOutcome>;

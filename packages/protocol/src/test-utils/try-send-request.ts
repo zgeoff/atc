@@ -1,4 +1,4 @@
-import { DaemonError } from '../wire/index';
+import { AtcError } from '@atcx/contract/light';
 
 export async function trySendRequest(
   send: () => Promise<Readonly<Record<string, unknown>>>,
@@ -13,9 +13,13 @@ export async function trySendRequest(
 }
 
 function toRefusal(error: unknown): unknown {
-  if (!(error instanceof DaemonError)) {
+  if (!(error instanceof AtcError)) {
     throw error;
   }
 
-  return { code: error.code, message: error.message, data: error.data ?? null };
+  return {
+    code: error.code,
+    message: error.message,
+    data: Object.keys(error.data).length === 0 ? null : error.data,
+  };
 }

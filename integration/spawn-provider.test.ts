@@ -5,7 +5,7 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 
 test('it streams the output of a session harness on the local pty provider', async () => {
   const provider = createLocalPTYProvider();
@@ -368,7 +368,7 @@ test('it keeps a session running when its host refuses to sleep', async () => {
   });
 
   provider.setSuspendFailure(
-    new DaemonError('host_leased', 'another owner keeps the host awake', {
+    new AtcError('host_leased', 'another owner keeps the host awake', {
       leases: [],
       otherCount: 1,
     }),

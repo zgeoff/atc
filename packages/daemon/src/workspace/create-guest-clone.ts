@@ -1,5 +1,5 @@
 import type { ExecutionProvider } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { collectCredentialConfigKeys } from './collect-credential-config-keys';
 import { REPOSITORY_ENV_UNSET_ARGV } from './repository-env-unset-argv';
 
@@ -68,13 +68,13 @@ export async function createGuestClone(
   const error = run.stderr.trim();
 
   if (run.exitCode === UNREADABLE_TREE_EXIT) {
-    throw new DaemonError('unreadable_tree', `cannot read the tree of ${request.sha}: ${error}`, {
+    throw new AtcError('unreadable_tree', `cannot read the tree of ${request.sha}: ${error}`, {
       phase: 'cloning',
     });
   }
 
   if (run.exitCode === SUBMODULES_EXIT) {
-    throw new DaemonError('has_submodules', `${request.sha} uses submodules`, {
+    throw new AtcError('has_submodules', `${request.sha} uses submodules`, {
       phase: 'cloning',
     });
   }
@@ -82,7 +82,7 @@ export async function createGuestClone(
   if (run.exitCode === LFS_EXIT) {
     const paths = run.stdout.split('\0').filter((path) => path !== '');
 
-    throw new DaemonError(
+    throw new AtcError(
       'lfs_unsupported',
       `${request.sha} tracks ${paths.length} path(s) through Git LFS`,
       { phase: 'cloning', count: paths.length, paths: paths.slice(0, LFS_PATHS_SHOWN) },
@@ -90,7 +90,7 @@ export async function createGuestClone(
   }
 
   if (run.exitCode === SANITIZE_EXIT) {
-    throw new DaemonError('sanitize_failed', error, { phase: 'cloning' });
+    throw new AtcError('sanitize_failed', error, { phase: 'cloning' });
   }
 
   if (run.exitCode !== 0) {
@@ -100,7 +100,7 @@ export async function createGuestClone(
   const remaining = collectCredentialConfigKeys(run.stdout);
 
   if (remaining.length > 0) {
-    throw new DaemonError(
+    throw new AtcError(
       'sanitize_failed',
       `config still holds ${remaining.length} credential entries`,
       { phase: 'cloning' },

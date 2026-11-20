@@ -1,7 +1,7 @@
 import type { DaemonAnswer } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { IdempotencyRecord, StateStore } from '@atc/store';
 import { MESSAGE_ANSWER_SCHEMA, toMessageID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 
 export async function loadMessageReplay(
   store: Pick<StateStore, 'readMessageByID'>,
@@ -20,7 +20,7 @@ export async function loadMessageReplay(
     return stored.data;
   }
 
-  throw new DaemonError(
+  throw new AtcError(
     'internal',
     `the message under idempotency key '${record.key}' has no stored row`,
     { effectRef: record.effectRef },

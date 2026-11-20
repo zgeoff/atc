@@ -1,6 +1,6 @@
 import type { DaemonClient } from '@atc/protocol/client';
-import { DaemonError } from '@atc/protocol/wire';
 import { WORKSPACE_PRUNE_SCHEMA } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { PROCESS_IO } from '../cli/process-io';
 import type { ProcessIO } from '../cli/process-io';
 import { formatPruneReport } from './format-prune-report';
@@ -27,7 +27,7 @@ export async function runWorkspacesPrune(
 
     return 0;
   } catch (error) {
-    const code = error instanceof DaemonError ? `${error.code}: ` : '';
+    const code = error instanceof AtcError ? `${error.code}: ` : '';
 
     io.printError(
       `atc workspaces prune: ${code}${error instanceof Error ? error.message : String(error)}`,

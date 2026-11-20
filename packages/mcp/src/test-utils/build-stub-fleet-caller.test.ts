@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { buildStubFleetCaller } from './build-stub-fleet-caller';
 
 test('it answers every request with an empty record by default', () => {
@@ -66,7 +66,7 @@ test('it replies with what the answer gives for the request', () => {
 test('it rejects a request whose answer throws', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
-      throw new DaemonError('no_such_session', 'gone');
+      throw new AtcError('no_such_session', 'gone');
     },
   });
 
@@ -78,7 +78,7 @@ test('it rejects a request whose answer throws', () => {
 test('it records a request whose answer throws', async () => {
   const caller = buildStubFleetCaller({
     answer: () => {
-      throw new DaemonError('no_such_session', 'gone');
+      throw new AtcError('no_such_session', 'gone');
     },
   });
 
