@@ -1,32 +1,30 @@
-import { expect, onTestFinished, test } from 'bun:test';
+import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { TEST_TOKEN, startTestImpd } from '@impz/testing';
+import { TEST_TOKEN } from '@impz/testing';
 import type { TestImpdOptions } from '@impz/testing';
 import invariant from 'tiny-invariant';
 import { readImpToken } from '../auth/read-imp-token';
+import { acquireSharedImpd } from '../test-utils/acquire-shared-impd';
 import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
 import { startStubImpdSockets } from '../test-utils/start-stub-impd-sockets';
 import { startStubStallingProxy } from '../test-utils/start-stub-stalling-proxy';
 import { createImpClientPort } from './create-imp-client-port';
 
-// The impd answers through its fault proxy, which records each call. The
-// sockets stand-in answers impd's exec and tunnel sockets, which the test impd
-// cannot, and sends every other request to the impd.
+// acquireSharedImpd starts one impd per file and set of options, and clears
+// what an earlier test left. The sockets stand-in answers impd's exec and
+// tunnel sockets, which the test impd cannot, and sends the rest to the impd.
 async function setupTest(options: TestImpdOptions = {}) {
-  const impd = await startTestImpd(options);
+  const impd = await acquireSharedImpd(options);
 
-  onTestFinished(impd.stop);
-
-  await impd.seedImage('ubuntu');
-
+  const baseline = impd.calls.length;
   const sockets = startStubImpdSockets({ upstreamUrl: impd.url });
 
-  return { impd, sockets };
+  return { impd, sockets, calls: () => impd.calls.slice(baseline) };
 }
 
 test('it calls impd with the token its token file holds', async () => {
@@ -148,7 +146,7 @@ test('it answers a version check and a scratch folder read within 30 seconds wit
 
   await port.readGuestScratchDir();
 
-  expect(ctx.impd.calls.map((call) => call.procedure)).toStrictEqual(['system/info']);
+  expect(ctx.calls().map((call) => call.procedure)).toStrictEqual(['system/info']);
 });
 
 test('it answers the version checks within 30 seconds of a read with its one call to impd', async () => {
@@ -168,7 +166,7 @@ test('it answers the version checks within 30 seconds of a read with its one cal
 
   await port.verifyVersion();
 
-  expect(ctx.impd.calls.map((call) => call.procedure)).toStrictEqual(['system/info']);
+  expect(ctx.calls().map((call) => call.procedure)).toStrictEqual(['system/info']);
 });
 
 test('it refuses an outdated impd again within 30 seconds from its one call to impd', async () => {
@@ -196,7 +194,7 @@ test('it refuses an outdated impd again within 30 seconds from its one call to i
 
   expect(first).toMatchObject({ code: 'IMPD_OUTDATED' });
   expect(second).toMatchObject({ code: 'IMPD_OUTDATED' });
-  expect(ctx.impd.calls.map((call) => call.procedure)).toStrictEqual(['system/info']);
+  expect(ctx.calls().map((call) => call.procedure)).toStrictEqual(['system/info']);
 });
 
 test('it calls impd for the version again 30 seconds after its last call', async () => {
@@ -216,10 +214,7 @@ test('it calls impd for the version again 30 seconds after its last call', async
 
   await port.verifyVersion();
 
-  expect(ctx.impd.calls.map((call) => call.procedure)).toStrictEqual([
-    'system/info',
-    'system/info',
-  ]);
+  expect(ctx.calls().map((call) => call.procedure)).toStrictEqual(['system/info', 'system/info']);
 });
 
 test('it calls impd for the version again after impd refused the read before', async () => {
@@ -247,7 +242,7 @@ test('it calls impd for the version again after impd refused the read before', a
   await port.verifyVersion();
 
   expect(refused).toMatchObject({ code: 'UNAVAILABLE' });
-  expect(ctx.impd.calls).toHaveLength(2);
+  expect(ctx.calls()).toHaveLength(2);
 });
 
 test('it refuses a call as unauthorized without reaching impd when the token file is empty', async () => {
@@ -262,7 +257,7 @@ test('it refuses a call as unauthorized without reaching impd when the token fil
 
   await expect(port.verifyVersion()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
 
-  expect(ctx.impd.calls).toStrictEqual([]);
+  expect(ctx.calls()).toStrictEqual([]);
 });
 
 test('it ends a session connection as unauthorized without reaching impd when the token file is empty', async () => {
@@ -453,7 +448,7 @@ test('it ends a reverse forward as closed once its path to impd stays silent for
   expect(forward.ended).resolves.toStrictEqual({
     kind: 'closed',
     code: 1006,
-    reason: '',
+    reason: 'Connection ended',
   });
 });
 
@@ -536,7 +531,7 @@ test('it runs a command over an exec socket that carries the token, with no exec
 
   await port.runCommand('imp-a', { argv: ['true'], cwd: '/srv' });
 
-  expect(ctx.impd.calls).toStrictEqual([]);
+  expect(ctx.calls()).toStrictEqual([]);
   expect(ctx.sockets.authorizations).toStrictEqual(['Bearer socket-token']);
 
   expect(ctx.sockets.execOpens).toStrictEqual([
@@ -900,7 +895,7 @@ test("it sends impd the new imp's memory and memory max", async () => {
 
   await port.createImp({ name: 'atc-s3', memoryMib: 1024, maxMemoryMib: 2048 });
 
-  expect(ctx.impd.calls).toContainEqual({
+  expect(ctx.calls()).toContainEqual({
     procedure: 'imps/create',
     input: { name: 'atc-s3', memoryMib: 1024, maxMemoryMib: 2048 },
     authorization: `Bearer ${TEST_TOKEN}`,
@@ -1128,7 +1123,7 @@ test('it ends a session connection as closed once its path to impd stays silent 
 
   expect(connection.outcome).resolves.toStrictEqual({
     kind: 'closed',
-    reason: 'code 1006',
+    reason: 'Connection ended',
     closeCode: 1006,
   });
 });
@@ -1268,7 +1263,7 @@ test('it runs the gate of a start that drops CAP_SYS_ADMIN once its capability c
     },
     { onStarted: () => {}, onOutput: () => {} },
     () => {
-      gates.push(ctx.impd.calls.length);
+      gates.push(ctx.calls().length);
 
       return true;
     },
@@ -1277,7 +1272,7 @@ test('it runs the gate of a start that drops CAP_SYS_ADMIN once its capability c
   await connection.outcome;
 
   expect(gates).toStrictEqual([1]);
-  expect(ctx.impd.calls.map((call) => call.procedure)).toStrictEqual(['system/features']);
+  expect(ctx.calls().map((call) => call.procedure)).toStrictEqual(['system/features']);
   expect(ctx.sockets.execOpens).toHaveLength(1);
 });
 
