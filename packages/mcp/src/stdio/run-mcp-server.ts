@@ -1,5 +1,5 @@
 import type { DaemonBoot } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import type { Transport } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
@@ -70,7 +70,7 @@ function createLocalCaller(build: string, bootDaemon: () => Promise<DaemonBoot>)
   const caller = createTransportCaller(
     bridgeSocket ?? (() => resolveSocketPath(bootDaemon)),
     build,
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
     callerSessionID,
   );
 

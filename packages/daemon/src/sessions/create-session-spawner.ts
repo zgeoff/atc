@@ -3,8 +3,8 @@ import { createStepTimer } from '@atc/core';
 import type { SpawnOverrides } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { DeclaredScope } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID, GrantScope, SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { AuthSetup } from '../auth/create-auth-setup';
 import type { SessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildHarnessEnv } from './build-harness-env';
@@ -403,14 +403,14 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
 
       if (trustClonedWorkspace) {
         if (materialize === null) {
-          throw new DaemonError('bad_args', 'trustClonedWorkspace requires a workspace source');
+          throw new AtcError('bad_args', 'trustClonedWorkspace requires a workspace source');
         }
 
         const isLocalTrust =
           !provider.remote && auth === null && adapter.updateLocalWorkspaceTrust !== undefined;
 
         if (!isLocalTrust && !isGuestTrust) {
-          throw new DaemonError(
+          throw new AtcError(
             'unsupported',
             'trustClonedWorkspace requires stock Claude on the local target, or stock Claude, a Claude gateway, or Codex signed in through the broker on a remote target that can trust a clone',
           );
@@ -434,7 +434,7 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       });
 
       if (grant.kind === 'refused') {
-        throw new DaemonError(grant.code, grant.message);
+        throw new AtcError(grant.code, grant.message);
       }
 
       const atcAccess = grant.atcAccess;

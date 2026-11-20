@@ -8,6 +8,7 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { startStubRefusingListener } from '@atc/protocol/test-utils/start-stub-refusing-listener';
 import { MAX_CHUNK, MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { buildMockRemoteDaemon } from '../test-utils/build-mock-remote-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
@@ -150,6 +151,7 @@ test('it connects with no viewer to a daemon whose handshake lists no viewer fea
       method: 'daemon.hello',
       params: {
         protocol: PROTOCOL_V,
+        major: CONTRACT_MAJOR,
         client: 'atc/test-client',
         auth: { scheme: 'bearer', token: 'a'.repeat(32) },
         principal: 'laptop',
@@ -180,7 +182,7 @@ test('it rejects an unreachable daemon with its name and address and never waits
     ),
   ).rejects.toThrowWithMessage(
     Error,
-    `cannot reach daemon 'box' at 127.0.0.1:${port}: ECONNREFUSED. atc did not fall back to the local daemon.`,
+    `cannot reach daemon 'box' at 127.0.0.1:${port}: no atc daemon listens at 127.0.0.1:${port}. atc did not fall back to the local daemon.`,
   );
 });
 
@@ -214,9 +216,9 @@ test('it rejects a daemon on another protocol with both builds and versions and 
   ).rejects.toMatchObject({
     code: 'protocol_mismatch',
     message: [
-      `daemon 'box' at 127.0.0.1:${legacy.port} speaks another protocol than this client, atc/test-client on protocol v${PROTOCOL_V}.`,
+      `daemon 'box' at 127.0.0.1:${legacy.port} speaks another major version than this client, atc/test-client on major version ${CONTRACT_MAJOR}.`,
       `The daemon answered: atc/test-client speaks protocol v${PROTOCOL_V}, daemon atc/legacy-build speaks v${PROTOCOL_V + 1}; restart the daemon so both run the same build`,
-      "atc did not fall back to the local daemon. Run an atc build on the daemon's protocol here, or update the daemon on its host.",
+      "atc did not fall back to the local daemon. Run an atc build on the daemon's major version here, or update the daemon on its host.",
     ].join('\n'),
   });
 

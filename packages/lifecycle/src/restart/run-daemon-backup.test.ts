@@ -107,5 +107,8 @@ test('it prints the error when the daemon closes the connection before it answer
   const code = await runDaemonBackup(ctx.host, '/srv/backups/atc.db', io);
 
   expect(code).toBe(1);
-  expect(io.printError).toHaveBeenCalledExactlyOnceWith('atc backup: internal: connection closed');
+
+  expect(io.printError).toHaveBeenCalledExactlyOnceWith(
+    'atc backup: connection_lost: the connection closed',
+  );
 });

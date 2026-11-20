@@ -1,6 +1,6 @@
 {
   "name": "@atc/app",
-  "version": "7.20.0",
+  "version": "7.21.0",
   "private": true,
   "description": "The atc and atc-gateway entrypoints and the modules they wire together",
   "type": "module",
@@ -29,6 +29,7 @@
     "@atc/source-github": "workspace:*",
     "@atc/store": "workspace:*",
     "@atc/tui": "workspace:*",
+    "@atcx/client": "workspace:*",
     "@atcx/contract": "workspace:*",
     "@zgeoff/std": "catalog:",
     "gunshi": "catalog:",

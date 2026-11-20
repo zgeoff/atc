@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -15,12 +15,13 @@ import { createStubExecutionProvider } from '@atc/execution-local/test-utils/cre
 import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { encodeCursor } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
+import { openRawDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { startStubStalledClient } from '@atc/protocol/test-utils/start-stub-stalled-client';
 import { trySendRequest } from '@atc/protocol/test-utils/try-send-request';
-import { DaemonError } from '@atc/protocol/wire';
 import { seedTargetlessCompletedIdempotencyKeys } from '@atc/store/test-utils/seed-targetless-completed-idempotency-keys';
 import type { DaemonEvent } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 
@@ -2960,7 +2961,7 @@ test('it reads the whole text of only the notes of sessions a principal may see 
   });
 
   const caller = createTransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -3034,7 +3035,7 @@ test('it reads the first of many large notes a principal may see while another c
   });
 
   const caller = createTransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -3374,7 +3375,19 @@ test('it refuses a handshake whose principal it cannot read', async () => {
     },
   });
 
-  expect(daemon.openClient({ principal: 5 })).rejects.toMatchObject({ code: 'bad_args' });
+  const client = await openRawDaemonClient(daemon.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  expect(
+    client.sendRequest('daemon.hello', {
+      client: 'atc/test-build',
+      auth: { scheme: 'none' },
+      principal: 5,
+    }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it answers message.get for a message of a session outside the principal as for an unknown message', async () => {
@@ -3995,7 +4008,7 @@ test("it refuses the replay of a held spawn key once its session's tree leaves t
   );
 
   expect(replayed).rejects.toThrowWithMessage(
-    DaemonError,
+    AtcError,
     "this client may not use execution target 'local'. Grant it to the client under principals in config.json and restart the daemon",
   );
 
@@ -4073,7 +4086,7 @@ test("it refuses the replay of a held spawn key after a restart once its stored 
   expect(listed).toStrictEqual({ sessions: [] });
 
   expect(replayed).rejects.toThrowWithMessage(
-    DaemonError,
+    AtcError,
     "this client may not use execution target 'local'. Grant it to the client under principals in config.json and restart the daemon",
   );
 
@@ -4630,7 +4643,7 @@ test("it refuses the replay of a forgotten session's spawn key once its target h
   );
 
   expect(replayed).rejects.toThrowWithMessage(
-    DaemonError,
+    AtcError,
     "this client may not use execution target 'box'. Grant it to the client under principals in config.json and restart the daemon",
   );
 
@@ -4758,7 +4771,7 @@ test('it refuses a principal the replay of a held spawn key that records no targ
   );
 
   expect(replayed).rejects.toThrowWithMessage(
-    DaemonError,
+    AtcError,
     "this client may not use execution target 'box'. Grant it to the client under principals in config.json and restart the daemon",
   );
 

@@ -118,3 +118,28 @@ test('it runs an install through the npm it is given, after it records the call'
     'install --prefix consumer contract.tgz\n',
   );
 });
+
+test('it runs a pack through the npm it is given, after it records the call', async () => {
+  const ctx = setupTest();
+
+  const packer = createStubBin(
+    join(ctx.directory, 'real'),
+    'npm',
+    '#!/bin/sh\necho "packed $*"\nexit 4\n',
+  );
+
+  const npm = createStubBin(
+    ctx.directory,
+    'npm',
+    buildStubNpm(join(ctx.directory, 'npm.log'), null, { installWith: packer }),
+  );
+
+  const packed = await runCommand([npm, 'pack', '--silent']);
+
+  expect({ exitCode: packed.exitCode, stdout: packed.stdout }).toStrictEqual({
+    exitCode: 4,
+    stdout: 'packed pack --silent\n',
+  });
+
+  expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8')).toBe('pack --silent\n');
+});

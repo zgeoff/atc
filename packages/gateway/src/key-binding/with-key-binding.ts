@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Clock } from '@atc/core';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { match } from 'ts-pattern';
 import type { DaemonPool } from '../daemons/create-daemon-pool';
@@ -115,8 +115,8 @@ async function claimBinding(
   return { daemon, claimID };
 }
 
-function buildConflict(key: string, daemon: string): DaemonError {
-  return new DaemonError(
+function buildConflict(key: string, daemon: string): AtcError {
+  return new AtcError(
     'idempotency_conflict',
     `idempotency key '${key}' was first used on daemon '${daemon}'`,
   );
@@ -159,7 +159,7 @@ function recordOutcome(
         return refused;
       }
 
-      const error = new DaemonError(refused.error.code, refused.error.message, {
+      const error = new AtcError(refused.error.code, refused.error.message, {
         ...refused.error.data,
         effectRef: held.effectRef,
       });

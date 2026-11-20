@@ -1,6 +1,6 @@
 import { dirname } from 'node:path';
 import type { StepTimer } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { ProgressTracker } from './materialization-progress';
 import type { Landing, MaterializeDeps } from './materialize-deps';
 import type { MaterializeRequest } from './materialize-request';
@@ -28,7 +28,7 @@ export async function claimLanding(
       return landing;
     } catch (error) {
       const held =
-        error instanceof DaemonError &&
+        error instanceof AtcError &&
         (error.code === 'workspace_exists' || error.code === 'workspace_overlap');
 
       if (!held || attempt >= attempts) {
@@ -66,7 +66,7 @@ async function claimTargetDir(
   );
 
   if (claim.exitCode === PARENT_FAILED_EXIT) {
-    throw new DaemonError(
+    throw new AtcError(
       'transfer_failed',
       `cannot create ${dirname(shown)} on target '${request.target}': ${claim.stderr.trim()}`,
       { phase: 'resolving', directory: shown },
@@ -74,7 +74,7 @@ async function claimTargetDir(
   }
 
   if (claim.exitCode === DIR_PRESENT_EXIT) {
-    throw new DaemonError(
+    throw new AtcError(
       'workspace_exists',
       `${shown} already exists on target '${request.target}'; a workspace is materialized only into a directory that does not exist`,
       { phase: 'resolving', directory: shown },
@@ -82,7 +82,7 @@ async function claimTargetDir(
   }
 
   if (claim.exitCode !== 0) {
-    throw new DaemonError(
+    throw new AtcError(
       'transfer_failed',
       `cannot create ${shown} on target '${request.target}': ${claim.stderr.trim()}`,
       { phase: 'resolving', directory: shown },

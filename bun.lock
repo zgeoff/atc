@@ -27,6 +27,7 @@
         "@atc/source-github": "workspace:*",
         "@atc/store": "workspace:*",
         "@atc/tui": "workspace:*",
+        "@atcx/client": "workspace:*",
         "@atcx/contract": "workspace:*",
         "@commitlint/cli": "catalog:",
         "@faker-js/faker": "catalog:",
@@ -62,7 +63,7 @@
     },
     "packages/app": {
       "name": "@atc/app",
-      "version": "7.20.0",
+      "version": "7.21.0",
       "dependencies": {
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
@@ -85,6 +86,7 @@
         "@atc/source-github": "workspace:*",
         "@atc/store": "workspace:*",
         "@atc/tui": "workspace:*",
+        "@atcx/client": "workspace:*",
         "@atcx/contract": "workspace:*",
         "@zgeoff/std": "catalog:",
         "gunshi": "catalog:",
@@ -95,6 +97,18 @@
       "devDependencies": {
         "@faker-js/faker": "catalog:",
         "bun-pty": "catalog:",
+      },
+    },
+    "packages/client": {
+      "name": "@atcx/client",
+      "version": "7.21.0",
+      "dependencies": {
+        "@atcx/contract": "workspace:*",
+        "@orpc/client": "catalog:",
+        "@orpc/standard-server-peer": "catalog:",
+      },
+      "devDependencies": {
+        "@orpc/standard-server": "catalog:",
       },
     },
     "packages/config": {
@@ -113,7 +127,7 @@
     },
     "packages/contract": {
       "name": "@atcx/contract",
-      "version": "7.20.0",
+      "version": "7.21.0",
       "dependencies": {
         "@orpc/contract": "catalog:",
         "zod": "catalog:",
@@ -196,6 +210,7 @@
         "@atc/core": "workspace:*",
         "@atc/plugin-api": "workspace:*",
         "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "bun-pty": "catalog:",
       },
       "devDependencies": {
@@ -216,7 +231,7 @@
     },
     "packages/gateway": {
       "name": "@atc/gateway",
-      "version": "7.10.0",
+      "version": "7.11.0",
       "dependencies": {
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
@@ -347,6 +362,7 @@
       "name": "@atc/protocol",
       "dependencies": {
         "@atc/core": "workspace:*",
+        "@atcx/client": "workspace:*",
         "@atcx/contract": "workspace:*",
         "@orpc/client": "catalog:",
         "@orpc/contract": "catalog:",
@@ -396,7 +412,7 @@
       "name": "@atc/source-github",
       "dependencies": {
         "@atc/plugin-api": "workspace:*",
-        "@atc/protocol": "workspace:*",
+        "@atcx/contract": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -446,7 +462,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.3.316",
     "@commitlint/cli": "21.2.4",
     "@faker-js/faker": "10.6.0",
-    "@fly/sprites": "0.2.4",
+    "@fly/sprites": "0.2.5",
     "@impz/client": "7.0.1",
     "@logtape/logtape": "2.4.2",
     "@modelcontextprotocol/sdk": "1.32.2",
@@ -567,6 +583,8 @@
 
     "@atc/tui": ["@atc/tui@workspace:packages/tui"],
 
+    "@atcx/client": ["@atcx/client@workspace:packages/client"],
+
     "@atcx/contract": ["@atcx/contract@workspace:packages/contract"],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
@@ -661,7 +679,7 @@
 
     "@faker-js/faker": ["@faker-js/faker@10.6.0", "", {}, "sha512-3RQHgEtvL1Frl/d1cSreo7qhJ3Gk1OdNUai/CtZ8G+wYeRQnJih3s9xJ9/kgYekPQRdwgh0HXRPqMlzWGwivIQ=="],
 
-    "@fly/sprites": ["@fly/sprites@0.2.4", "", { "dependencies": { "@fly/client-signals": "file:vendor/client-signals" } }, "sha512-L72IKlZSIHMr6GnSu1ED7sBJjzcdLsO5oEX6aiDxH71fKj4q4m0BQ2PefBlGaybSvvKnLciz2hDy0qHnno0ezQ=="],
+    "@fly/sprites": ["@fly/sprites@0.2.5", "", { "dependencies": { "@fly/client-signals": "file:vendor/client-signals" } }, "sha512-id76YKeJyPe+OrO6yDA/wlIgiKFrs7eBLp43/Da7NQpizBP306+238H8qGxVTLtIe+npeTjsKi33NV/ioXVfEw=="],
 
     "@hexagon/base64": ["@hexagon/base64@1.1.28", "", {}, "sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw=="],
 

@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { createTransportCaller } from './create-transport-caller';
 import { readEventTexts } from './read-event-texts';
@@ -11,7 +11,7 @@ async function setupTest() {
   const daemon = await startTestDaemon({ prefix: 'atc-read-event-texts-' });
 
   const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

@@ -80,7 +80,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: zgeoff/tools/.github/workflows/release-please.yml@f51f6da0dc73dcfdf6676753827a4d5bcbd49072 # main
+    uses: zgeoff/tools/.github/workflows/release-please.yml@52e3c1927368fbf8036f6da1363c5dd828f40e9c # main
     # atc and the gateway release from one release PR, whose branch is the
     # workflow's default, release-please--branches--main
     with:
@@ -130,8 +130,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
-      # npm's trusted publishing of @atcx/contract takes the job's OIDC token,
-      # so no npm token exists anywhere in this repository
+      # npm's trusted publishing of @atcx/contract and @atcx/client takes the
+      # job's OIDC token, so no npm token exists anywhere in this repository
       id-token: write
     steps:
       - name: Check out the release
@@ -180,7 +180,7 @@ jobs:
 
       # a version npm holds already is skipped, so a re-run after a failed
       # step publishes nothing twice
-      - name: Publish @atcx/contract
+      - name: Publish @atcx/contract and @atcx/client
         run: bash scripts/publish-contract.sh
 
   # The run at the tag checks and ships it. A dispatch is the one GITHUB_TOKEN

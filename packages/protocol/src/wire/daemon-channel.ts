@@ -1,3 +1,5 @@
+import type { DaemonConnection } from '@atcx/client/connection';
+
 export interface HelloOptions {
   readonly token?: string;
 
@@ -10,6 +12,9 @@ export interface HelloOptions {
 
 export interface DaemonChannel {
   onClose: () => void;
+
+  // the connection the hello opened; it throws until the hello is accepted
+  readonly connection: DaemonConnection;
   readonly sendHello: (
     build: string,
     options?: HelloOptions,

@@ -1,4 +1,4 @@
-type ChannelOpener<Address, Channel> = (address: Address) => Promise<Channel>;
+type ChannelOpener<Address, Channel> = (address: Address) => Channel | Promise<Channel>;
 
 interface StubChannelOpenerOptions {
   readonly holdDial?: number;

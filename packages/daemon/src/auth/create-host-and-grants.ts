@@ -1,8 +1,8 @@
 import { getSettledValue } from '@atc/core';
 import type { BrokerHost, CredentialBroker } from '@atc/plugin-api';
 import { CredentialBrokerError } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { AuthBinding } from './build-auth-binding';
 import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 
@@ -29,7 +29,7 @@ export async function createHostAndGrants(
   if (existing !== null) {
     await ledger.store.removeAuthBinding(hostKey);
 
-    throw new DaemonError(
+    throw new AtcError(
       'auth_runtime_exists',
       `host ${hostName} already exists, and atc never grants a credential to a host it did not make`,
       { hostName },
@@ -59,7 +59,7 @@ export async function createHostAndGrants(
   const held = await host.readGrants(hostName);
 
   if (held.length > 0) {
-    throw new DaemonError(
+    throw new AtcError(
       'auth_grants_mismatch',
       `the new host ${hostName} already holds ${held.join(', ')}`,
       { host: hostKey, extra: held },

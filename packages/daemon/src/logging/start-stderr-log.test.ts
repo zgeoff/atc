@@ -12,7 +12,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { getLogger, reset } from '@logtape/logtape';
 import { sendLinesBeforeHandshake } from '../test-utils/send-lines-before-handshake';
 import { writeUntilPipeFull } from '../test-utils/write-until-pipe-full';
@@ -80,7 +80,7 @@ test('it answers another client while a flood of refusals fills a stderr nobody 
 
   await sendLinesBeforeHandshake(daemon.port, 100);
 
-  const client = await openDaemonClient(join(ctx.directory, 'daemon.sock'));
+  const client = createDaemonClient(join(ctx.directory, 'daemon.sock'));
 
   onTestFinished(() => {
     client.stop();

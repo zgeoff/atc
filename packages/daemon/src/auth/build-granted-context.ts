@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { match } from 'ts-pattern';
 import type { DaemonContext, HeldAtcAccess } from '../types';
 import { buildScopedContext } from './build-scoped-context';
@@ -51,7 +51,7 @@ export function buildGrantedContext(
       );
 
       if (refusal !== null) {
-        throw new DaemonError('unauthorized', refusal);
+        throw new AtcError('unauthorized', refusal);
       }
     },
     resolveSpawnTarget: (requested) => {

@@ -13,6 +13,8 @@ minimumReleaseAge = 604800
 # one atc installs, directly or through another first-party package, needs an
 # entry here, or bun install refuses the bump.
 minimumReleaseAgeExcludes = [
+  # @fly/sprites 0.2.5 (published 2026-11-19) ages past the gate ~2026-11-26 — remove then
+  "@fly/sprites",
   "@impz/client",
   "@wringer/core",
   "@wringer/db",

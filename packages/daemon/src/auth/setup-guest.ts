@@ -1,9 +1,9 @@
 import type { StepTimer } from '@atc/core';
 import { buildTarArchive } from '@atc/core';
 import type { AgentAdapter, ExecutionProvider, GuestSpawnPlan } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { FleetStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { SessionHarnesses } from '../sessions/create-session-harnesses';
 import type { SessionCallbacks } from '../sessions/session-callbacks';
 
@@ -49,7 +49,7 @@ export async function setupGuest(deps: GuestSetupDeps, guest: GuestSetup): Promi
     );
 
     if (result.exitCode !== 0) {
-      throw new DaemonError(
+      throw new AtcError(
         'auth_not_configured',
         `agent '${adapter.id}' is not signed in on target '${target}'; sign it in inside the host's image`,
         { agent: adapter.id, target },

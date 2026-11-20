@@ -32,8 +32,8 @@ import {
   probeTranscriptResumable,
 } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
-import { DaemonError } from '@atc/protocol/wire';
 import type { AgentSessionID, SessionID, TranscriptRow } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { buildGuestBridgeFiles } from './bridge/build-guest-bridge-files';
 import type { ClaudeAdapterOptions } from './claude-adapter-options';
 import { createClaudeLaunchFiles } from './create-claude-launch-files';
@@ -193,7 +193,7 @@ export function createClaudeAdapter(
     const route = profile === undefined ? undefined : auth.routes[profile];
 
     if (route === undefined) {
-      throw new DaemonError(
+      throw new AtcError(
         'auth_target_unsupported',
         `agent '${entry.id}' has no route for its auth profile on this target`,
         { agent: entry.id, problem: 'no_route' },

@@ -1,8 +1,8 @@
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 
 export async function openDaemonConnection(socket: string): Promise<DaemonClient & Disposable> {
-  const client = await openDaemonClient(socket);
+  const client = createDaemonClient(socket);
 
   const connection = Object.assign(client, {
     [Symbol.dispose]: () => {

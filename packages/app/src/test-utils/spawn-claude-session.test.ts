@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { spawnClaudeSession } from './spawn-claude-session';
 import { startTUIDaemon } from './start-tui-daemon';
 import { startTUIHarness } from './start-tui-harness';
@@ -14,7 +14,7 @@ async function setupTest() {
 
   await tui.waitFor('atc — control tower');
 
-  const daemon = await openDaemonClient(tui.paths.daemonSocketPath);
+  const daemon = createDaemonClient(tui.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();

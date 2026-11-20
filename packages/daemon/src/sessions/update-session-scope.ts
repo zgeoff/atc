@@ -1,6 +1,6 @@
 import type { DeclaredScope } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { PublishedRecord, SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { buildRecordSubject } from './build-record-subject';
 import type { PublishedRecords } from './create-published-records';
 import type { SessionRegistry } from './create-session-registry';
@@ -22,13 +22,13 @@ export async function updateSessionScope(
   }
 
   if (deps.records === null) {
-    throw new DaemonError('unsupported', 'this daemon publishes no session records');
+    throw new AtcError('unsupported', 'this daemon publishes no session records');
   }
 
   const provider = deps.registry.requireExecution(session, 'spawn').provider;
 
   if (provider.remote && session.vm !== 'awake') {
-    throw new DaemonError(
+    throw new AtcError(
       'host_unavailable',
       `the host of session ${id} is not awake; revive the session before adding to its scope`,
       { provider: provider.kind, problem: 'host_asleep', host: session.hostKey },

@@ -2,7 +2,7 @@ import { isRecord } from '@atc/core';
 import { ERROR_CODES } from '@atcx/contract/light';
 import type { ErrorCode } from '@atcx/contract/light';
 
-export const PROTOCOL_V = 14;
+export { PROTOCOL_V } from '@atcx/contract/light';
 export const MAX_LINE = 1_048_576;
 export const MAX_CHUNK = 65_536;
 

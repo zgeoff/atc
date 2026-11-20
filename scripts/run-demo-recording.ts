@@ -3,13 +3,13 @@
 // docs/assets/demo.tape gives the design. `kill-all <socket>` ends a daemon's sessions.
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { DAEMON_EVENT_SCHEMA, SESSION_DESCRIPTOR_SCHEMA } from '@atcx/contract';
 import type { SessionDescriptor } from '@atcx/contract';
 import { z } from 'zod';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
-type DaemonClient = Awaited<ReturnType<typeof openDaemonClient>>;
+type DaemonClient = ReturnType<typeof createDaemonClient>;
 
 type DaemonEvent = z.output<typeof DAEMON_EVENT_SCHEMA>;
 
@@ -77,7 +77,7 @@ async function runRecording(options: RecordingOptions): Promise<number> {
 }
 
 async function openWatchedClient(socket: string, watch: Watch): Promise<DaemonClient> {
-  const client = await openDaemonClient(socket);
+  const client = createDaemonClient(socket);
 
   client.onEvent = (event) => {
     const parsed = DAEMON_EVENT_SCHEMA.safeParse(event);
@@ -313,7 +313,7 @@ async function readSessions(client: DaemonClient): Promise<SessionDescriptor[]> 
 }
 
 async function removeSessions(socket: string): Promise<void> {
-  const client = await openDaemonClient(socket);
+  const client = createDaemonClient(socket);
 
   await client.sendHello(createHostServices().build);
 

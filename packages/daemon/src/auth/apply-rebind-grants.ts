@@ -1,6 +1,6 @@
 import type { CredentialBroker } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { RuntimeAuthBinding } from '@atc/store';
+import { AtcError } from '@atcx/contract/light';
 import type { AuthBinding } from './build-auth-binding';
 import type { RuntimeAuthLedger } from './runtime-auth-ledger';
 import { tryRevokeGrant } from './try-revoke-grant';
@@ -63,7 +63,7 @@ export async function applyRebindGrants(
     if (!(await tryRevokeGrant(host, row.hostName, secret))) {
       await ledger.store.upsertAuthGrant({ ...grant, phase: 'revocation_pending' }, ledger.now());
 
-      throw new DaemonError(
+      throw new AtcError(
         'auth_revocation_pending',
         `host ${row.hostName} may still hold ${secret}, which the new binding drops`,
         { host: row.hostKey, pending: [secret] },

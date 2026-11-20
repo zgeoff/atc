@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { GatewayRegistry, RegistryDaemon } from '../types';
 import { parseGatewayID } from './parse-gateway-id';
 
@@ -34,8 +34,8 @@ export function resolveDaemonRequest(
 
     if (parsed === null || (daemon !== null && parsed.daemon !== daemon)) {
       throw kind === 'session'
-        ? new DaemonError('no_such_session', `no session '${value}'`)
-        : new DaemonError('bad_args', `no ${kind} '${value}'`);
+        ? new AtcError('no_such_session', `no session '${value}'`)
+        : new AtcError('bad_args', `no ${kind} '${value}'`);
     }
 
     daemon = parsed.daemon;

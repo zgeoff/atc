@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { ErrorCode } from '@atcx/contract/light';
 import type { SessionManager } from '../sessions/create-session-manager';
 import type { AdoptResult } from './types';
@@ -54,7 +54,7 @@ export async function tryAdoptTerminal(
 
     return { kind: 'adopted', session };
   } catch (error) {
-    if (error instanceof DaemonError && REFUSED_ADOPT_CODES.has(error.code)) {
+    if (error instanceof AtcError && REFUSED_ADOPT_CODES.has(error.code)) {
       return { kind: 'refused', refusal: error };
     }
 

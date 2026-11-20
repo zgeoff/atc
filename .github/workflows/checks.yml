@@ -36,9 +36,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        # the npm installs below run package scripts, which need no git token
+        # the npm installs below run package scripts, which need no git token; the contract
+        # compatibility check reads the release tags and the commits since the latest one
         with:
           persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -57,6 +60,9 @@ jobs:
       - name: Import Direction
         run: bun run check:imports
 
+      - name: Daemon Sockets
+        run: bun run check:daemon-sockets
+
       - name: Package Manifests
         run: bun run check:manifests
 
@@ -72,10 +78,26 @@ jobs:
       - name: Contract Declarations
         run: bun run check:contract
 
-      # packs @atcx/contract as the release publishes it, installs the tarball
-      # into a Node project that imports it and type-checks against it, and
-      # runs npm's publish as a dry run unless npm holds its version already
-      - name: Contract Package
+      # a change to the request contract that is not additive, against the latest release; the
+      # title reaches the script through the environment, never through the shell
+      - name: Contract Compatibility
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: bun run check:contract-compat
+
+      # @atcx/client runs on Node 22 and later, so the dry run below runs it
+      # on the oldest Node it supports
+      - name: Set up node for the package dry run
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      # packs @atcx/contract and @atcx/client as the release publishes them,
+      # installs the tarballs into a Node project that imports them and
+      # type-checks against them, connects the client to a stub daemon from
+      # Node and from Bun, and runs npm's publish as a dry run unless npm
+      # holds the version already
+      - name: Published Packages
         run: bash scripts/publish-contract.sh --dry-run
 
       - name: Import Rule Disables

@@ -3,8 +3,8 @@
 Every atc client talks to the daemon in one dialect: oRPC peer messages, one JSON message per line,
 in UTF-8, over the daemon's unix socket or its TCP listener. A connection opens with a handshake,
 then carries requests, one response per request, and the event stream the client subscribes to.
-Client and daemon ship from one repo and must speak the same protocol version, and a peer never
-breaks on a field it does not know.
+Client and daemon talk when their major versions match, and a peer never breaks on a field or an
+event kind it does not know.
 
 [Principals](./principals.md) covers who a request acts as, [idempotency](./idempotency.md) covers
 retrying a spawn or a message, [messages](./messages.md) covers the inbox, and [events](./events.md)
@@ -62,12 +62,23 @@ built for an older daemon writes such a line first, so it meets a closed connect
 ## The handshake
 
 The first request on a connection must be `daemon.hello`. The hello carries the client's build, its
-protocol version and its credential, which is `none` on the unix socket and a bearer token on the
-TCP listener ([principals](./principals.md#the-tcp-listener)). A client started inside a session
-also sends that session's id, which the daemon uses to stop a session from widening its own record.
-On the unix socket the daemon reads the caller's session from the kernel instead, where the platform
-allows it, and refuses a hello whose session differs
+major version, its protocol number and its credential, which is `none` on the unix socket and a
+bearer token on the TCP listener ([principals](./principals.md#the-tcp-listener)). A client started
+inside a session also sends that session's id, which the daemon uses to stop a session from widening
+its own record. On the unix socket the daemon reads the caller's session from the kernel instead,
+where the platform allows it, and refuses a hello whose session differs
 ([session record](../execution/session-record.md#who-may-change-the-record)).
+
+The hello is a strict object, so the daemon refuses a field it does not know with `bad_args`. A
+client learns the daemon's features only from the hello answer, so it cannot check a hello field
+first, and a daemon that dropped the field in silence would leave the client acting on a connection
+that differs from the one it asked for.
+
+The daemon checks `major` before anything else it checks in the hello, with one rule for both
+listeners. On the unix socket it reads `major` from the raw params before it parses them against the
+schema, so an older client that sends a field the schema lacks still gets `protocol_mismatch`, never
+`bad_args`. Over TCP it checks the bearer token first and `major` second, so a peer with no valid
+token learns nothing, the major version included.
 
 The answer holds the daemon's build, its line limits, how long it keeps a completed idempotency key,
 the last agent the owner spawned, and the daemon id. The daemon mints that id into its store the
@@ -127,23 +138,29 @@ still waiting for a response, and decides for itself whether to resend it.
 
 ## Versions
 
-The protocol version is one integer compared for equality, and the current version is 14. The daemon
-records it in `daemon.json` beside its socket paths, and a client sends its own in the hello. A
-daemon on another version refuses the handshake with `protocol_mismatch`, so a client and a daemon
-on different versions never talk, and the two install together. The error holds both versions and
-both builds, so the failure says what to do. Its data holds the daemon's version as
-`daemonProtocol`, and that field keeps its shape across versions, because a client on any version
-reads it. [The daemon](../daemon/daemon.md#builds-and-protocol-versions) covers how each client
+A client and a daemon talk when their major versions match, whatever their minor versions. The major
+version is the first number of atc's version, which `CONTRACT_VERSION` in `@atcx/contract` holds.
+Each client sends its major version in the hello as `major`, and the daemon accepts the hello when
+`major` equals the major version of its own `CONTRACT_VERSION`. A hello with another major version,
+or with none, gets `protocol_mismatch`. The error holds both builds, and its data holds the daemon's
+major version as `daemonMajor` and its protocol number as `daemonProtocol`. A client reads
+`daemonMajor` to decide which side is older, and treats a refusal without it as one from a daemon of
+an older release. [The daemon](../daemon/daemon.md#builds-and-major-versions) covers how each client
 handles it.
 
-Any change to a procedure, an input field, or an answer field raises the version. A client and a
-daemon that pass the handshake therefore serve the same procedures and fields, so a client offers
-every tool and input without asking the daemon what it serves. A peer ignores a field it does not
-know, in a request or in an answer.
+Inside one major version every change to a procedure, an input field, an answer field or an event is
+additive, and `bun run check:contract-compat` fails a pull request that is not. A peer ignores an
+answer field it does not know, a client skips an event kind it does not know, and the daemon drops a
+field it does not know from the top level of a call. A new input field that changes what a call does
+needs a feature in the hello answer, so a client checks the daemon's features before it sends the
+field ([the published contract](./contract.md#checking-a-daemon)). A client offers every tool and
+input whatever the daemon serves, and a call that needs a missing feature fails with
+`feature_missing`.
 
-Version 14 differs from version 13 in one answer field. A session descriptor holds `host` when the
-session runs on a VM host, the host's name, id and identity issuer on its provider
-([sessions](../daemon/sessions.md#the-host-a-session-runs-on)).
+The hello also carries a protocol number, `PROTOCOL_V`. It stays 15 until the next major release
+drops it, and the daemon refuses a hello that holds another number. Each event holds it as
+`version`. A daemon from before the major check speaks protocol 14 and refuses every hello that
+holds 15, so a current client never reaches one.
 
 ## Events
 

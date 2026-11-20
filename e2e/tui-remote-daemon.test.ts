@@ -307,7 +307,7 @@ test('it exits with the daemon and its address when the remote daemon is unreach
   expect(exitCode).toBe(1);
 
   expect(ctx.tui.read()).toInclude(
-    `atc: cannot reach daemon 'box' at 127.0.0.1:${port}: ECONNREFUSED. atc did not fall back to the local daemon.`,
+    `atc: cannot reach daemon 'box' at 127.0.0.1:${port}: no atc daemon listens at 127.0.0.1:${port}. atc did not fall back to the local daemon.`,
   );
 
   expect(existsSync(ctx.tui.paths.daemonPidFile)).toBe(false);
@@ -340,7 +340,7 @@ test('it exits with both builds and versions when the remote daemon speaks anoth
   expect(exitCode).toBe(1);
 
   expect(ctx.tui.read()).toInclude(
-    `atc: daemon 'box' at 127.0.0.1:${legacy.port} speaks another protocol than this client,`,
+    `atc: daemon 'box' at 127.0.0.1:${legacy.port} speaks another major version than this client,`,
   );
 
   expect(ctx.tui.read()).toInclude(

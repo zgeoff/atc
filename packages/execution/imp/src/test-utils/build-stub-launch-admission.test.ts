@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import type { LaunchTicket } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { buildStubLaunchAdmission } from './build-stub-launch-admission';
 
 test('it hands send one ticket before the admission settles', () => {
@@ -13,7 +13,7 @@ test('it hands send one ticket before the admission settles', () => {
 });
 
 test('it gives the ticket the check it was built with', async () => {
-  const refusal = new DaemonError('auth_blocked', 'the runtime auth is revoked');
+  const refusal = new AtcError('auth_blocked', 'the runtime auth is revoked');
 
   const stub = buildStubLaunchAdmission(() => refusal);
   const tickets: LaunchTicket[] = [];

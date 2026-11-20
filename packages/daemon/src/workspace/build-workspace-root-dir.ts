@@ -1,6 +1,6 @@
 import { posix } from 'node:path';
 import { isHomeRelative } from '@atc/core';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 
 interface WorkspaceRootTarget {
   readonly root: string | null;
@@ -20,7 +20,7 @@ export function buildWorkspaceRootDir(target: WorkspaceRootTarget): string {
   }
 
   if (!isHomeRelative(configured)) {
-    throw new DaemonError(
+    throw new AtcError(
       'bad_args',
       `workspaces root '${configured}' must be an absolute path or start with ~/`,
     );
@@ -30,7 +30,7 @@ export function buildWorkspaceRootDir(target: WorkspaceRootTarget): string {
   const underHome = normalized === './' || normalized === '.' ? '' : normalized;
 
   if (underHome === '..' || underHome.startsWith('../')) {
-    throw new DaemonError(
+    throw new AtcError(
       'bad_args',
       `workspaces root '${configured}' must stay under the home directory`,
     );

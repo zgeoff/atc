@@ -12,8 +12,8 @@ schema is the one the daemon serves.
 
 atc's own packages import the schemas from the contract package and never keep a copy, so the
 published package and the daemon cannot drift apart. The package leaves out what only atc's own
-processes use: the client and its transport, the event cursor encoding, the store, the terminal
-client's helpers, and the folder that holds the daemon's restart results.
+processes use: the transport under [the published client](./client.md), the event cursor encoding,
+the store, the terminal client's helpers, and the folder that holds the daemon's restart results.
 
 The gateway's half of the package serves a program that deploys atc-gateway. The route table groups
 the HTTP server's paths by who requests them: a person's browser, a machine client, or an
@@ -49,14 +49,32 @@ A release that adds a capability within a major version adds a feature name, so 
 what an older daemon lacks without comparing minor versions. A daemon that lists `session.host`
 reports the `host` of a session that runs on a VM host in its session descriptors.
 
-The check runs only after a handshake the daemon accepts. Every client sends a protocol version in
-its hello, a client outside atc included, and a daemon on another version refuses the hello with
-`protocol_mismatch` before the client sees any features ([versions](./protocol.md#versions)). A
-client outside atc therefore sends the daemon's protocol version, and the helper's check does not
-replace that match, because the protocol version changes with every answer field.
+A new input field that changes what a call does gets a feature name and an entry in
+`FEATURE_INPUT_FIELDS`, which maps a method to each such field, as a dotted path for a nested one,
+and the feature a daemon must list. The connection layer checks the map before it sends a call: when
+a listed field is present and not `undefined`, and the daemon's hello lacks the feature, the call
+fails with `feature_missing` and sends nothing. `atc mcp` advertises every tool and input whatever
+the daemon serves, and returns the same error with a message that says to restart the daemon on a
+newer atc.
+
+The check runs only after a handshake the daemon accepts. Every client sends its major version in
+its hello, a client outside atc included, and a daemon on another major version refuses the hello
+with `protocol_mismatch` before the client sees any features ([versions](./protocol.md#versions)).
+The refusal's data holds `daemonMajor`, so a client reads which side is older from it and never
+retries with another value.
 
 ## Versions
 
 The package's version is atc's version. Each atc release carries it in the package's manifest, and
 the release job publishes the package to npm once the release is tagged
 ([releasing](../../runbooks/releasing.md)).
+
+The first number of that version, the major version, decides which daemons a client talks to: each
+client sends it in its hello, and a daemon accepts the major version of its own build
+([versions](./protocol.md#versions)). Inside one major version every change to the contract is
+additive. `bun run check:contract-compat` compares each procedure's input and answer schemas and the
+event schema with those at the latest release tag. It fails on a removed or renamed procedure, field
+or event kind, on a narrowed type or a new required field, and on a new optional input field that
+has neither an entry in `FEATURE_INPUT_FIELDS` nor an entry, with its reason, in the check's list of
+harmless fields. A pull request whose title, or a commit since the tag, marks a breaking change
+passes the first kind of failure, because release-please then raises the major version.

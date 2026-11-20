@@ -1,8 +1,8 @@
 import { parseDeclaredScope } from '@atc/protocol';
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import { DAEMON_CONTRACT } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { implement } from '@orpc/server';
 import type { DaemonContext } from '../types';
 import type { ProcedureContext } from './procedure-context';
@@ -80,7 +80,7 @@ function createDaemonRouter() {
       kill: os.session.kill.handler((call) => applyKill(call.input, call.context.ctx)),
       ack: os.session.ack.handler((call) => {
         if (!call.context.ctx.ackSession(call.input.session)) {
-          throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
+          throw new AtcError('no_such_session', `no session '${call.input.session}'`);
         }
 
         return {};
@@ -96,7 +96,7 @@ function createDaemonRouter() {
         );
 
         if (forgotten === 'missing') {
-          throw new DaemonError('no_such_session', `no session '${input.session}'`);
+          throw new AtcError('no_such_session', `no session '${input.session}'`);
         }
 
         return { ...forgotten };
@@ -109,15 +109,15 @@ function createDaemonRouter() {
         }
 
         if (resume.refusal === 'missing') {
-          throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
+          throw new AtcError('no_such_session', `no session '${call.input.session}'`);
         }
 
-        throw new DaemonError('unsupported', resume.reason);
+        throw new AtcError('unsupported', resume.reason);
       }),
       auth: {
         revoke: os.session.auth.revoke.handler(async (call) => {
           if (!(await call.context.ctx.revokeSessionAuth(call.input.session))) {
-            throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
+            throw new AtcError('no_such_session', `no session '${call.input.session}'`);
           }
 
           return { revoked: true as const };
@@ -126,7 +126,7 @@ function createDaemonRouter() {
           const rebound = await call.context.ctx.updateSessionAuth(call.input.session);
 
           if (rebound === null) {
-            throw new DaemonError('no_such_session', `no session '${call.input.session}'`);
+            throw new AtcError('no_such_session', `no session '${call.input.session}'`);
           }
 
           return { ...rebound };
@@ -165,11 +165,11 @@ function createDaemonRouter() {
         const screen = await ctx.readSessionScreen(id);
 
         if (screen === 'missing' || !ctx.isSessionVisible(id)) {
-          throw new DaemonError('no_such_session', `no session '${id}'`);
+          throw new AtcError('no_such_session', `no session '${id}'`);
         }
 
         if (screen === 'no_screen') {
-          throw new DaemonError('session_dead', `session '${id}' has no captured screen`);
+          throw new AtcError('session_dead', `session '${id}' has no captured screen`);
         }
 
         return { ...screen };
@@ -248,7 +248,7 @@ async function applyKill(
   const outcome = await ctx.killSession(input.session, stopOnly);
 
   if (outcome === 'missing') {
-    throw new DaemonError('no_such_session', `no session '${input.session}'`);
+    throw new AtcError('no_such_session', `no session '${input.session}'`);
   }
 
   return stopOnly ? { stopped: outcome === 'stopped' } : {};
@@ -267,7 +267,7 @@ function applyUpdate(
   });
 
   if (updated === 'shared_host') {
-    throw new DaemonError(
+    throw new AtcError(
       'bad_args',
       `session '${sessionID}' runs in its parent's host and cannot be detached from it or pinned apart from it`,
     );
@@ -278,7 +278,7 @@ function applyUpdate(
   }
 
   if (!updated) {
-    throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+    throw new AtcError('no_such_session', `no session '${sessionID}'`);
   }
 
   return {};
@@ -293,11 +293,11 @@ async function applyScopeAdd(
   const declared = parseDeclaredScope(input.scope);
 
   if (!declared.ok) {
-    throw new DaemonError('scope_invalid', declared.message, { entry: declared.entry });
+    throw new AtcError('scope_invalid', declared.message, { entry: declared.entry });
   }
 
   if (callerSession !== null && ctx.isCallerTree(sessionID, callerSession)) {
-    throw new DaemonError(
+    throw new AtcError(
       'unauthorized',
       `session '${callerSession}' cannot add to the scope of session '${sessionID}': a session never widens its own scope or that of a session above it`,
     );
@@ -306,7 +306,7 @@ async function applyScopeAdd(
   const record = await ctx.updateSessionScope(sessionID, declared.scope);
 
   if (record === 'missing') {
-    throw new DaemonError('no_such_session', `no session '${sessionID}'`);
+    throw new AtcError('no_such_session', `no session '${sessionID}'`);
   }
 
   return { record };
@@ -323,21 +323,21 @@ function applyEject(
   }
 
   if (result === 'unsupported') {
-    throw new DaemonError('unsupported', "this session's agent has no headless handoff");
+    throw new AtcError('unsupported', "this session's agent has no headless handoff");
   }
 
   if (result === 'no_transcript') {
     throw buildNoTranscriptError();
   }
 
-  throw new DaemonError(
+  throw new AtcError(
     'no_such_session',
     `session '${input.session}' has no live terminal with a captured agent session id`,
   );
 }
 
-function buildNoTranscriptError(): DaemonError {
-  return new DaemonError(
+function buildNoTranscriptError(): AtcError {
+  return new AtcError(
     'session_dead',
     'nothing to resume yet — the session has no saved transcript',
   );
@@ -357,7 +357,7 @@ async function applyAdopt(
     throw buildNoTranscriptError();
   }
 
-  throw new DaemonError(
+  throw new AtcError(
     'no_such_session',
     `session '${input.session}' is not a dead or headless session with a captured agent session id`,
   );

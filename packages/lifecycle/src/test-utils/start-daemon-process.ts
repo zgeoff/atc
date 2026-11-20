@@ -1,10 +1,12 @@
+import { once } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { connect } from 'node:net';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
 import { killProcessGroup } from '@atc/core/test-utils/kill-process-group';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import type { Subprocess } from 'bun';
@@ -112,7 +114,16 @@ export function startDaemonProcess(config: Readonly<DaemonProcessConfig>) {
   };
 
   const openTrackedClient = async (isAbandoned: () => boolean) => {
-    const client = await openDaemonClient(paths.daemonSocketPath);
+    // the client connects at its hello, so a probe finds out that the daemon accepts first
+    const probe = connect(paths.daemonSocketPath);
+
+    try {
+      await once(probe, 'connect');
+    } finally {
+      probe.destroy();
+    }
+
+    const client = createDaemonClient(paths.daemonSocketPath);
 
     if (stopped || isAbandoned()) {
       client.stop();

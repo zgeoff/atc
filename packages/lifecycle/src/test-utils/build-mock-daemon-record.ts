@@ -1,5 +1,6 @@
 import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { faker } from '@faker-js/faker';
 import { mergeDeep } from '@zgeoff/std';
 import type { DaemonRecord } from '../daemon-files/read-daemon-record';
@@ -17,6 +18,7 @@ export function buildMockDaemonRecord(
       eventsSocketPath: null,
       listenPort: null,
       protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
     },
     overrides,
   );

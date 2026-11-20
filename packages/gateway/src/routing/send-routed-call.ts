@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import type { DaemonPool } from '../daemons/create-daemon-pool';
 import type { RoutedCall, RoutedOutcome } from '../types';
@@ -15,7 +15,7 @@ export async function sendRoutedCall(pool: DaemonPool, call: RoutedCall): Promis
 
     return { kind: 'answered', daemon, value };
   } catch (error) {
-    if (error instanceof DaemonError) {
+    if (error instanceof AtcError) {
       return { kind: 'refused', daemon, error };
     }
 

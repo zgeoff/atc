@@ -16,7 +16,7 @@ import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp
 import { createClaudeAdapter } from '@atc/harness-claude';
 import { startInProcessMCP } from '@atc/mcp/test-utils/start-in-process-mcp';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
@@ -156,8 +156,7 @@ test('it gives a session spawned without atc access no atc MCP server and closes
 
   const session = String(getRecord(spawned, 'session')['id']);
   const directory = join(ctx.guestDir, 'sessions', session);
-
-  const client = await openDaemonClient(ctx.buildBridgeSocket(session));
+  const client = createDaemonClient(ctx.buildBridgeSocket(session));
 
   registerTestCleanup(() => {
     client.stop();
@@ -512,8 +511,7 @@ test('it refuses a spawn from a session with atc access that resumes an agent se
   });
 
   const holder = String(getRecord(spawned, 'session')['id']);
-
-  const client = await openDaemonClient(ctx.buildBridgeSocket(holder));
+  const client = createDaemonClient(ctx.buildBridgeSocket(holder));
 
   registerTestCleanup(() => {
     client.stop();
@@ -542,8 +540,7 @@ test('it refuses a spawn from a session with atc access that resumes the latest 
   });
 
   const holder = String(getRecord(spawned, 'session')['id']);
-
-  const client = await openDaemonClient(ctx.buildBridgeSocket(holder));
+  const client = createDaemonClient(ctx.buildBridgeSocket(holder));
 
   registerTestCleanup(() => {
     client.stop();
@@ -584,7 +581,7 @@ test('it lets a session with atc access spawn a session that resumes an agent se
     expect(read).toMatchObject({ session: { agentSessionID: 'conversation-own' } });
   });
 
-  const client = await openDaemonClient(ctx.buildBridgeSocket(holder));
+  const client = createDaemonClient(ctx.buildBridgeSocket(holder));
 
   registerTestCleanup(() => {
     client.stop();

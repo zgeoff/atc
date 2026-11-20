@@ -1,7 +1,7 @@
 import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { Principal } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { match } from 'ts-pattern';
 import type { DaemonPool } from '../daemons/create-daemon-pool';
 import type { GatewayDaemonCaller } from '../daemons/create-gateway-daemon-caller';
@@ -58,7 +58,7 @@ export function createRoutingCaller(opts: RoutingCallerOptions): RoutingCaller {
     if (daemon === undefined) {
       const shown = typeof named === 'string' ? named : JSON.stringify(named);
 
-      throw new DaemonError('bad_args', `no daemon '${shown}' in this gateway`);
+      throw new AtcError('bad_args', `no daemon '${shown}' in this gateway`);
     }
 
     return daemon;

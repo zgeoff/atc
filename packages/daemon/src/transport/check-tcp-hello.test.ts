@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { checkTCPHello } from './check-tcp-hello';
 import type { TCPPeer } from './tcp-peer';
 
@@ -18,6 +19,7 @@ test('it accepts a handshake with a held token and a listed principal', async ()
       method: 'daemon.hello',
       params: {
         client: 'remote-tui',
+        major: CONTRACT_MAJOR,
         principal: 'ci',
         session: 's-1',
         auth: { scheme: 'bearer', token: 't-good' },
@@ -53,6 +55,7 @@ test('it accepts a handshake that binds a listed viewer beside a listed principa
       method: 'daemon.hello',
       params: {
         client: 'remote-tui',
+        major: CONTRACT_MAJOR,
         principal: 'ci',
         viewer: 'panel',
         auth: { scheme: 'bearer', token: 't-good' },
@@ -88,6 +91,7 @@ test('it refuses a viewer the config does not list and records the refusal', asy
       method: 'daemon.hello',
       params: {
         client: 'remote-tui',
+        major: CONTRACT_MAJOR,
         principal: 'ci',
         viewer: 'guest',
         auth: { scheme: 'bearer', token: 't-good' },
@@ -122,6 +126,7 @@ test('it refuses a viewer without a principal', async () => {
       method: 'daemon.hello',
       params: {
         client: 'remote-tui',
+        major: CONTRACT_MAJOR,
         viewer: 'panel',
         auth: { scheme: 'bearer', token: 't-good' },
       },
@@ -143,7 +148,7 @@ test('it refuses a viewer without a principal', async () => {
   });
 });
 
-test('it accepts a handshake that carries a field it does not know', async () => {
+test('it refuses a handshake that carries a field it does not know', async () => {
   const ctx = setupTest();
 
   const hello = await checkTCPHello(
@@ -153,6 +158,7 @@ test('it accepts a handshake that carries a field it does not know', async () =>
       method: 'daemon.hello',
       params: {
         client: 'remote-tui',
+        major: CONTRACT_MAJOR,
         principal: 'ci',
         lens: 'wide',
         auth: { scheme: 'bearer', token: 't-good' },
@@ -168,7 +174,7 @@ test('it accepts a handshake that carries a field it does not know', async () =>
     },
   );
 
-  expect(hello).toMatchObject({ ok: true, principal: 'ci', viewer: null });
+  expect(hello).toMatchObject({ ok: false, code: 'bad_args' });
 });
 
 test('it refuses a handshake whose token the listener does not hold', async () => {
@@ -229,6 +235,7 @@ test('it refuses a principal the config does not list and records the refusal', 
       method: 'daemon.hello',
       params: {
         client: 'remote-tui',
+        major: CONTRACT_MAJOR,
         principal: 'guest',
         auth: { scheme: 'bearer', token: 't-good' },
       },
@@ -260,7 +267,12 @@ test('it refuses a handshake whose fields do not parse', async () => {
       version: PROTOCOL_V,
       id: 1,
       method: 'daemon.hello',
-      params: { client: 'remote-tui', principal: '', auth: { scheme: 'bearer', token: 't-good' } },
+      params: {
+        client: 'remote-tui',
+        major: CONTRACT_MAJOR,
+        principal: '',
+        auth: { scheme: 'bearer', token: 't-good' },
+      },
     },
     {
       tcp: {
@@ -283,7 +295,11 @@ test('it refuses a handshake on another protocol version', async () => {
       version: PROTOCOL_V + 1,
       id: 1,
       method: 'daemon.hello',
-      params: { client: 'remote-tui', auth: { scheme: 'bearer', token: 't-good' } },
+      params: {
+        client: 'remote-tui',
+        major: CONTRACT_MAJOR,
+        auth: { scheme: 'bearer', token: 't-good' },
+      },
     },
     {
       tcp: {
@@ -308,6 +324,7 @@ test('it accepts a handshake for a listed principal whose ID holds a colon', asy
       method: 'daemon.hello',
       params: {
         client: 'remote-tui',
+        major: CONTRACT_MAJOR,
         principal: 'service:ci-bot',
         auth: { scheme: 'bearer', token: 't-good' },
       },
@@ -329,5 +346,63 @@ test('it accepts a handshake for a listed principal whose ID holds a colon', asy
     viewer: null,
     session: null,
     client: 'remote-tui',
+  });
+});
+
+test.each<[string, Record<string, unknown>]>([
+  ['no major', { client: 'remote-tui' }],
+  ['another major', { client: 'remote-tui', major: CONTRACT_MAJOR + 1 }],
+])('it refuses a handshake with %s and names the daemon major', async (_label, params) => {
+  const ctx = setupTest();
+
+  const hello = await checkTCPHello(
+    {
+      version: PROTOCOL_V,
+      id: 1,
+      method: 'daemon.hello',
+      params: { ...params, auth: { scheme: 'bearer', token: 't-good' } },
+    },
+    {
+      tcp: {
+        verifyHandshake: () => Promise.resolve('fp-1'),
+        recordRefusedPrincipal: ctx.recordRefusedPrincipal,
+      },
+      hasListedPrincipal: () => true,
+      build: '1.2.3',
+    },
+  );
+
+  expect(hello).toStrictEqual({
+    ok: false,
+    code: 'protocol_mismatch',
+    message: expect.stringContaining('daemon 1.2.3 speaks v15'),
+    data: { daemonProtocol: PROTOCOL_V, daemonMajor: CONTRACT_MAJOR },
+  });
+});
+
+test('it gives a handshake with a bad token and no major the token refusal with no data', async () => {
+  const ctx = setupTest();
+
+  const hello = await checkTCPHello(
+    {
+      version: PROTOCOL_V,
+      id: 1,
+      method: 'daemon.hello',
+      params: { client: 'remote-tui', auth: { scheme: 'bearer', token: 't-wrong' } },
+    },
+    {
+      tcp: {
+        verifyHandshake: () => Promise.resolve(null),
+        recordRefusedPrincipal: ctx.recordRefusedPrincipal,
+      },
+      hasListedPrincipal: () => true,
+      build: '1.2.3',
+    },
+  );
+
+  expect(hello).toStrictEqual({
+    ok: false,
+    code: 'unauthorized',
+    message: 'daemon.hello over TCP needs a valid bearer token',
   });
 });

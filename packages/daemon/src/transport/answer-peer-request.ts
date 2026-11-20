@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { StandardRPCHandler } from '@orpc/server/standard';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { buildPeerError } from './build-peer-error';
@@ -21,9 +21,9 @@ const PEER_HANDLER = new StandardRPCHandler(DAEMON_ROUTER, {
 
 export async function answerPeerRequest(
   request: StandardRequest,
-  admitted: ProcedureContext | DaemonError,
+  admitted: ProcedureContext | AtcError,
 ): Promise<StandardResponse> {
-  if (admitted instanceof DaemonError) {
+  if (admitted instanceof AtcError) {
     return PEER_CODEC.encodeError(buildPeerError(admitted));
   }
 
@@ -39,6 +39,6 @@ export async function answerPeerRequest(
   const method = toPeerMethod(request.url.pathname) ?? request.url.pathname;
 
   return PEER_CODEC.encodeError(
-    buildPeerError(new DaemonError('unknown_method', `unknown method '${method}'`)),
+    buildPeerError(new AtcError('unknown_method', `unknown method '${method}'`)),
   );
 }

@@ -1,12 +1,12 @@
 import type { HarnessExit } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 import type { ImpSessionOutcome } from '../port/imp-port';
 import { formatOutcome } from './format-outcome';
 
 interface PreconditionRefusal {
-  readonly refusal: DaemonError | null;
+  readonly refusal: AtcError | null;
   readonly exit: HarnessExit;
 }
 
@@ -22,7 +22,7 @@ export function buildPreconditionRefusal(
       const detail = data.detail ?? 'no detail';
 
       return {
-        refusal: new DaemonError(
+        refusal: new AtcError(
           'broker_not_ready',
           `imp ${name} refused to start the harness: its credential broker is not ready (${detail})`,
           { imp: name, detail },

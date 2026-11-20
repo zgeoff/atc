@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { buildMockDaemonRecord } from './build-mock-daemon-record';
 
 test('it builds a default daemon record', () => {
@@ -8,7 +9,8 @@ test('it builds a default daemon record', () => {
     reporterSocketPath: expect.toEndWith('/atc.sock'),
     eventsSocketPath: null,
     listenPort: null,
-    protocol: 14,
+    protocol: 15,
+    major: CONTRACT_MAJOR,
   });
 });
 
@@ -25,6 +27,7 @@ test('it applies overrides on top of the defaults', () => {
     reporterSocketPath: expect.toEndWith('/atc.sock'),
     eventsSocketPath: null,
     listenPort: 7400,
-    protocol: 14,
+    protocol: 15,
+    major: CONTRACT_MAJOR,
   });
 });

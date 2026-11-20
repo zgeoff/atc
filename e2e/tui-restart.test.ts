@@ -186,6 +186,8 @@ test('it stops a daemon of an older build when the user asks for the update and 
 
   await ctx.waitFor('update ready');
 
+  expect(ctx.read()).not.toInclude('Restart it now?');
+
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('u update daemon');

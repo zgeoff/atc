@@ -12,7 +12,7 @@ export function createChannelCaller(openHandshaken: () => Promise<DaemonChannel>
   const transport = createDaemonTransport({
     reconnect: 'on-demand',
     open: openHandshaken,
-    getChannel: (client) => client,
+    getConnection: (client) => client.connection,
   });
 
   return {

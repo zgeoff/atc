@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { buildDaemonStatePaths } from '@atc/config';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { startStubLegacyDaemonProcess } from './start-stub-legacy-daemon-process';
 

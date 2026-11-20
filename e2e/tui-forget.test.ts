@@ -6,7 +6,7 @@ import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { KEYS } from '@atc/core/test-utils/keys';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 
 // The client boots its own daemon, so the test's client can only connect once the tower draws.
@@ -17,7 +17,7 @@ async function setupTest() {
 
   await tui.waitFor('atc — control tower');
 
-  const daemon = await openDaemonClient(tui.paths.daemonSocketPath);
+  const daemon = createDaemonClient(tui.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();

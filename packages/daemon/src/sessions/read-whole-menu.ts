@@ -1,5 +1,5 @@
 import type { ScreenMenu, ScreenMenuOption } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { expandScreenMenu } from './expand-screen-menu';
 import { MENU_KEYS } from './menu-terminal';
 import type { MenuTerminal, MenuWaits } from './menu-terminal';
@@ -47,7 +47,7 @@ async function readScrolledMenu(
     steps++;
 
     if (steps > MAX_STEPS) {
-      throw new DaemonError('menu_busy', 'atc could not find the end of the menu list', {
+      throw new AtcError('menu_busy', 'atc could not find the end of the menu list', {
         menu: null,
       });
     }
@@ -60,7 +60,7 @@ async function readScrolledMenu(
   // A window of one row puts the cursor on its only row at every step, so
   // the screen shows neither where the list starts nor where it wraps.
   if (startList < 2) {
-    throw new DaemonError(
+    throw new AtcError(
       'menu_busy',
       'the terminal is too short for atc to read the whole list; give the session more rows and read it again',
       { menu: null },
@@ -129,7 +129,7 @@ async function readScrolledMenu(
   });
 
   if (whole === null) {
-    throw new DaemonError('menu_changed', 'the menu changed while atc read its whole list', {
+    throw new AtcError('menu_changed', 'the menu changed while atc read its whole list', {
       menu: null,
     });
   }
@@ -153,7 +153,7 @@ async function sendArrow(
     const now = await terminal.readScreenMenu();
 
     if (now === null || now.text !== before.text) {
-      throw new DaemonError('menu_changed', 'the menu changed while atc read its whole list', {
+      throw new AtcError('menu_changed', 'the menu changed while atc read its whole list', {
         menu: null,
       });
     }
@@ -163,7 +163,7 @@ async function sendArrow(
     }
   }
 
-  throw new DaemonError(
+  throw new AtcError(
     'menu_busy',
     'the menu ignored the arrow key while atc read its whole list; wait a few seconds and read it again',
     { menu: null },

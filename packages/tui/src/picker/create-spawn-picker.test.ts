@@ -5,9 +5,8 @@ import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { KEYS } from '@atc/core/test-utils/keys';
 import { buildMockListedAgent } from '@atc/protocol/test-utils/build-mock-listed-agent';
 import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
-import { DaemonError } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
-import { resolveHomeDir } from '@atcx/contract/light';
+import { AtcError, resolveHomeDir } from '@atcx/contract/light';
 import type { DaemonName } from '../fleet/session-key';
 import { toMirrorSession } from '../fleet/to-mirror-session';
 import { buildStubDaemonRequests } from '../test-utils/build-stub-daemon-requests';
@@ -1834,7 +1833,7 @@ test("it shows why the daemon's agent list failed in place of the menu", async (
 
   const mark = ctx.terminal.countChunks();
 
-  await ctx.daemon.refuse('agents.list', new DaemonError('internal', 'the config is unreadable'));
+  await ctx.daemon.refuse('agents.list', new AtcError('internal', 'the config is unreadable'));
 
   expect(ctx.terminal.getTextSince(mark)).toInclude(
     'cannot read the agents: internal: the config is unreadable · esc cancel',
@@ -3148,7 +3147,7 @@ test('it keeps the cached listing with the failure in its hint when listing agai
 
   await ctx.daemon.refuse(
     'sources.list',
-    new DaemonError('github_unavailable', 'gh is not signed in on the daemon host'),
+    new AtcError('github_unavailable', 'gh is not signed in on the daemon host'),
   );
 
   const shown = ctx.terminal.getTextSince(mark);
@@ -3940,7 +3939,7 @@ test("it shows a remote daemon's refused completion in place of the hint", async
 
   await ctx.daemon.refuse(
     'sources.complete',
-    new DaemonError('target_forbidden', 'target local is not yours'),
+    new AtcError('target_forbidden', 'target local is not yours'),
   );
 
   expect(ctx.terminal.getTextSince(mark)).toInclude(
@@ -4044,7 +4043,7 @@ test("it shows a remote daemon's refusal to read a typed ~ path", async () => {
 
   await ctx.daemon.refuse(
     'sources.interpret',
-    new DaemonError('target_forbidden', 'target local is not yours'),
+    new AtcError('target_forbidden', 'target local is not yours'),
   );
 
   expect(ctx.terminal.getTextSince(mark)).toInclude(
@@ -4130,7 +4129,7 @@ test("it shows why a remote daemon's directory listing failed", async () => {
 
   await ctx.daemon.refuse(
     'sources.list',
-    new DaemonError('target_forbidden', 'target local is not yours'),
+    new AtcError('target_forbidden', 'target local is not yours'),
   );
 
   expect(ctx.terminal.getTextSince(mark)).toInclude(

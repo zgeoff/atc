@@ -8,7 +8,7 @@ import type { ChannelCaller } from './create-channel-caller';
 export function createTransportCaller(
   socketPath: string | (() => Promise<string>),
   build: string,
-  openChannel: (socketPath: string) => Promise<DaemonChannel>,
+  openChannel: (socketPath: string) => DaemonChannel | Promise<DaemonChannel>,
   session: string | null = readSessionEnv(process.env).sessionID ?? null,
 ): ChannelCaller {
   return createChannelCaller(() => openHandshaken(socketPath, build, openChannel, session));
@@ -17,7 +17,7 @@ export function createTransportCaller(
 async function openHandshaken(
   socketPath: string | (() => Promise<string>),
   build: string,
-  openChannel: (socketPath: string) => Promise<DaemonChannel>,
+  openChannel: (socketPath: string) => DaemonChannel | Promise<DaemonChannel>,
   session: string | null,
 ): Promise<DaemonChannel> {
   const resolved = typeof socketPath === 'string' ? socketPath : await socketPath();

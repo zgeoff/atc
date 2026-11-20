@@ -1,5 +1,5 @@
 import type { LaunchTicket } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { ImpSessionRequest } from '../port/imp-port';
 import type { ImpHarnessState } from './create-imp-harness-state';
 
@@ -39,14 +39,14 @@ function checkTicket(
   kind: ImpSessionRequest['kind'],
   context: GateContext,
 ): boolean {
-  let refusal: DaemonError | null;
+  let refusal: AtcError | null;
 
   try {
     refusal = ticket.check();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
 
-    refusal = new DaemonError(
+    refusal = new AtcError(
       'internal',
       `imp ${context.name}'s harness could not check its admission: ${detail}`,
     );

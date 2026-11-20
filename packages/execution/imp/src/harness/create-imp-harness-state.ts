@@ -1,4 +1,4 @@
-import type { DaemonError } from '@atc/protocol/wire';
+import type { AtcError } from '@atcx/contract/light';
 import { createActor } from 'xstate';
 import type { EventFrom } from 'xstate';
 import { IMP_HARNESS_MACHINE } from './imp-harness-machine';
@@ -18,7 +18,7 @@ export interface ImpHarnessState {
 
   readonly findExitConfirmation: () => boolean | null;
 
-  readonly findStartOutcome: () => 'started' | Readonly<DaemonError> | null;
+  readonly findStartOutcome: () => 'started' | Readonly<AtcError> | null;
 }
 
 export function createImpHarnessState(): ImpHarnessState {

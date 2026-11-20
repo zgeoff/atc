@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
 function setupTest() {
@@ -29,7 +30,12 @@ test('it adds an empty scope to the session after a handshake without a session'
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/peer-probe', protocol: 14, auth: { scheme: 'none' } },
+      params: {
+        client: 'atc/peer-probe',
+        protocol: 15,
+        major: CONTRACT_MAJOR,
+        auth: { scheme: 'none' },
+      },
     },
     { method: 'session.scope.add', params: { session: 's-7', scope: {} } },
   ]);
@@ -116,7 +122,12 @@ test('it writes the peer session the handshake answer holds, after a handshake w
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/peer-probe', protocol: 14, auth: { scheme: 'none' } },
+      params: {
+        client: 'atc/peer-probe',
+        protocol: 15,
+        major: CONTRACT_MAJOR,
+        auth: { scheme: 'none' },
+      },
     },
   ]);
 });
@@ -132,7 +143,13 @@ test('it gives the session in its handshake', async () => {
   expect(daemon.requests).toStrictEqual([
     {
       method: 'daemon.hello',
-      params: { client: 'atc/peer-probe', protocol: 14, auth: { scheme: 'none' }, session: 's-7' },
+      params: {
+        client: 'atc/peer-probe',
+        protocol: 15,
+        major: CONTRACT_MAJOR,
+        auth: { scheme: 'none' },
+        session: 's-7',
+      },
     },
   ]);
 });

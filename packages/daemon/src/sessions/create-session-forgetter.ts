@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID, WorkspaceCleanup } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { ForgetRefusals, ForgetResult, KillOutcome } from '../types';
 import type { ConfirmTokens } from './create-confirm-tokens';
 import type { ForgetCleanup } from './create-forget-cleanup';
@@ -191,7 +191,7 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
         !owned && manager.sessions.some((x) => x.id === session.parent && x.pinned);
 
       if (refuse.pinned && (session.pinned || inheritsPin)) {
-        throw new DaemonError(
+        throw new AtcError(
           'session_pinned',
           `session ${id} is pinned, or is a sub-session of a pinned session and the caller is not its parent; unpin it before forgetting it`,
           { session: id },
@@ -202,13 +202,9 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
         refuse.live &&
         (session.pty !== null || (session.kind === 'headless' && session.state !== 'exited'))
       ) {
-        throw new DaemonError(
-          'session_live',
-          `session ${id} is live; stop it before forgetting it`,
-          {
-            session: id,
-          },
-        );
+        throw new AtcError('session_live', `session ${id} is live; stop it before forgetting it`, {
+          session: id,
+        });
       }
 
       if (manager.findProvider(session)?.capabilities.destroy === true) {

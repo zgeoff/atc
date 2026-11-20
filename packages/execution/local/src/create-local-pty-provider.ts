@@ -10,7 +10,7 @@ import type {
   HarnessHandle,
   HarnessSpec,
 } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { bunPTYSpawn } from './pty-library/bun-pty-spawn';
 import type { SessionScopes } from './session-scopes/create-session-scopes';
 
@@ -46,7 +46,7 @@ export function createLocalPTYProvider(
     // ends the harness as a kill does.
     spawnHarness: (spec: HarnessSpec): HarnessHandle => {
       if (spec.requireBroker === true) {
-        throw new DaemonError(
+        throw new AtcError(
           'auth_target_unsupported',
           "the daemon's own machine has no credential broker to start the harness behind",
           { provider: 'local-pty' },

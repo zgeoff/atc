@@ -4,7 +4,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import invariant from 'tiny-invariant';
-import { openDaemonClient } from '../client/index';
+import { openRawDaemonClient as openDaemonClient } from './open-raw-daemon-client';
 import { startStubPeerDaemon } from './start-stub-peer-daemon';
 import type { StubPeerAnswer, StubPeerRequest } from './start-stub-peer-daemon';
 

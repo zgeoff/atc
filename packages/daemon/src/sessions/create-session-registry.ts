@@ -4,9 +4,9 @@ import type { AgentID } from '@atc/core';
 import type { AgentAdapter, ExecutionCapability, ExecutionProvider } from '@atc/plugin-api';
 import type { SessionState } from '@atc/protocol';
 import { countSessionStates, sortSessionViews } from '@atc/protocol';
-import type { DaemonError } from '@atc/protocol/wire';
 import { buildTargetIdentity } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import type { AtcError } from '@atcx/contract/light';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { findExecutionRefusal } from '../fleet/find-execution-refusal';
 import type { Session } from './session';
@@ -51,7 +51,7 @@ export interface SessionRegistry {
   readonly findExecutionRefusal: (
     binding: Readonly<{ target: string | null; targetIdentity: string | null }>,
     capability: ExecutionCapability,
-  ) => DaemonError | null;
+  ) => AtcError | null;
 
   readonly findProvider: (session: Session) => ExecutionProvider | null;
 
@@ -169,7 +169,17 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       callbacks.onEvent('removed', session);
     },
 
-    countStates: () => countSessionStates(registry.sessions),
+    // A daemon knows every state it holds, so the status file keeps the four counts it always had.
+    countStates: () => {
+      const counts = countSessionStates(registry.sessions);
+
+      return {
+        needs_you: counts.needs_you,
+        running: counts.running,
+        done: counts.done,
+        exited: counts.exited,
+      };
+    },
 
     sortSessions: () => sortSessionViews(registry.sessions),
   };

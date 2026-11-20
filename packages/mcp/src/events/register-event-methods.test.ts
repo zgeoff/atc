@@ -4,7 +4,7 @@ import { systemClock } from '@atc/core';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
 import { buildStubAuthenticator } from '../test-utils/build-stub-authenticator';
@@ -26,7 +26,7 @@ async function setupTest() {
   const receiver = buildStubWebhookReceiver();
 
   const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

@@ -50,6 +50,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
   events socket and user hooks
 - [The published contract](architecture/protocol/contract.md) — what `@atcx/contract` holds, its
   light entry, checking a daemon, and its version
+- [The published client](architecture/protocol/client.md) — what `@atcx/client` holds, how a
+  connection behaves, its errors, and how atc uses and publishes it
 
 ### Agents
 

@@ -10,6 +10,9 @@ export interface DaemonRecord {
   readonly listenPort: number | null;
 
   readonly protocol: number | null;
+
+  // null in a record from a release before the major version check
+  readonly major: number | null;
 }
 
 const RECORD_SCHEMA = z.object({
@@ -19,6 +22,7 @@ const RECORD_SCHEMA = z.object({
   eventsSocketPath: z.string().min(1).nullable(),
   listenPort: z.number().int().min(1).max(65_535).nullable().default(null),
   protocol: z.number().int().positive().nullable().default(null),
+  major: z.number().int().nonnegative().nullable().default(null),
 });
 
 export function readDaemonRecord(recordPath: string): DaemonRecord | null {

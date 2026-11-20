@@ -1,7 +1,7 @@
 import { decodeCursor, encodeCursor } from '@atc/protocol';
 import type { DaemonAnswer, RequestParams } from '@atc/protocol';
-import { DaemonError } from '@atc/protocol/wire';
 import { toSessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { TranscriptPosition } from '../sessions/load-transcript-page';
 import type { DaemonContext } from '../types';
 
@@ -40,7 +40,7 @@ export function buildReadRequests(): ReadRequests {
       const record = await ctx.readSessionRecord(id, null);
 
       if (record === 'missing' || !ctx.isSessionVisible(id)) {
-        throw new DaemonError('no_such_session', `no session '${id}'`);
+        throw new AtcError('no_such_session', `no session '${id}'`);
       }
 
       return { ...record };
@@ -54,7 +54,7 @@ export function buildReadRequests(): ReadRequests {
         const decoded = decodeCursor(data.cursor);
 
         if (decoded === null || decoded.kind !== 'transcript') {
-          throw new DaemonError('bad_args', `'${data.cursor}' is not a session.read cursor`);
+          throw new AtcError('bad_args', `'${data.cursor}' is not a session.read cursor`);
         }
 
         from = { path: decoded.path, offset: decoded.offset };
@@ -63,11 +63,11 @@ export function buildReadRequests(): ReadRequests {
       const read = await ctx.loadSessionTranscript(id, from, data.limit);
 
       if (read === 'missing' || !ctx.isSessionVisible(id)) {
-        throw new DaemonError('no_such_session', `no session '${id}'`);
+        throw new AtcError('no_such_session', `no session '${id}'`);
       }
 
       if (read === 'unsupported') {
-        throw new DaemonError(
+        throw new AtcError(
           'unsupported',
           `session '${id}' runs an agent whose transcript atc cannot read`,
         );
@@ -87,7 +87,7 @@ export function buildReadRequests(): ReadRequests {
         const decoded = decodeCursor(data.cursor);
 
         if (decoded === null || decoded.kind !== 'events') {
-          throw new DaemonError('bad_args', `'${data.cursor}' is not an events.read cursor`);
+          throw new AtcError('bad_args', `'${data.cursor}' is not an events.read cursor`);
         }
 
         afterID = decoded.id;
@@ -127,7 +127,7 @@ export function buildReadRequests(): ReadRequests {
         decoded === null || decoded.kind !== 'events' ? null : await ctx.readNote(decoded.id, null);
 
       if (read === null || !ctx.isSessionVisible(read.owner)) {
-        throw new DaemonError('bad_args', `no note '${data.note}'`);
+        throw new AtcError('bad_args', `no note '${data.note}'`);
       }
 
       return { ...read.view };
@@ -142,7 +142,7 @@ export function buildReadRequests(): ReadRequests {
           : await ctx.readAnswer(decoded.id, null);
 
       if (read === null || !ctx.isSessionVisible(read.owner)) {
-        throw new DaemonError('bad_args', `no answer '${data.answer}'`);
+        throw new AtcError('bad_args', `no answer '${data.answer}'`);
       }
 
       return { ...read.view };

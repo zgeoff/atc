@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { CredentialBroker } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { RuntimeAuthBinding } from '@atc/store';
+import { AtcError } from '@atcx/contract/light';
 import { applyRebindGrants } from './apply-rebind-grants';
 import { BrokerAuthorityError } from './broker-authority-error';
 import type { AuthBinding } from './build-auth-binding';
@@ -21,7 +21,7 @@ export async function updateBindingLocked(
   const hostKey = row.hostKey;
 
   if (planRebindStart(row) === 'blocked') {
-    throw new DaemonError(
+    throw new AtcError(
       'auth_blocked',
       `the runtime auth of host ${hostKey} is ${row.state}, which a rebind cannot move on from`,
       { host: hostKey, state: row.state },
@@ -29,7 +29,7 @@ export async function updateBindingLocked(
   }
 
   if (row.hostID === null) {
-    throw new DaemonError(
+    throw new AtcError(
       'auth_runtime_mismatch',
       `host ${hostKey} never recorded its host ID, so atc cannot rebind it`,
       { host: hostKey, hostName: row.hostName, recordedID: null, actualID: null },

@@ -1,6 +1,6 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { pick } from '@zgeoff/std';
 import type { KeyedRequest } from '../transport/create-idempotency-ledger';
 import type { DaemonContext } from '../types';
@@ -142,7 +142,7 @@ export function buildScopedContext(
       try {
         return await ctx.spawnSession(plan, buildPrincipalKey(keyed), access);
       } catch (error) {
-        if (error instanceof DaemonError && typeof error.data?.['effectRef'] === 'string') {
+        if (error instanceof AtcError && typeof error.data?.['effectRef'] === 'string') {
           await requireSessionInReach(toSessionID(error.data['effectRef']));
         }
 

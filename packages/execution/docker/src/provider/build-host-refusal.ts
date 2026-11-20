@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 
 export type HostProblem =
   | 'image_missing'
@@ -15,6 +15,6 @@ export function buildHostRefusal(
   problem: HostProblem,
   message: string,
   data: Readonly<Record<string, unknown>> = {},
-): DaemonError {
-  return new DaemonError('host_unavailable', message, { provider: 'docker', problem, ...data });
+): AtcError {
+  return new AtcError('host_unavailable', message, { provider: 'docker', problem, ...data });
 }

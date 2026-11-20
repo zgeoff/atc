@@ -14,6 +14,7 @@ import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { getLogger } from '@logtape/logtape';
 import { isBindingCurrent } from './auth/is-binding-current';
 import type { BridgeBinding } from './auth/is-binding-current';
@@ -518,6 +519,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     eventsSocketPath: opts.eventsSocketPath ?? null,
     listenPort: tcpListener?.port ?? null,
     protocol: PROTOCOL_V,
+    major: CONTRACT_MAJOR,
   });
 
   await updateEndedFleetMessages({ manager, store, messages });

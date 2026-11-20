@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
-import { openDaemonClient } from '../client/index';
+import { AtcError } from '@atcx/contract/light';
 import type { DaemonClient } from '../client/index';
-import { DaemonError } from '../wire/index';
+import { openRawDaemonClient as openDaemonClient } from './open-raw-daemon-client';
 
 async function main() {
   const [probe, socketPath, session, outPath] = process.argv.slice(2);
@@ -30,7 +30,7 @@ async function tryProbe(
   try {
     return await runProbe(client, probe, session);
   } catch (error) {
-    if (error instanceof DaemonError) {
+    if (error instanceof AtcError) {
       return { code: error.code };
     }
 

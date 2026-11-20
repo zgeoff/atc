@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { createChannelCaller } from '@atc/mcp';
 import type { WatchChannel } from '@atc/mcp';
 import type { DaemonChannel } from '@atc/protocol/wire';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { MCPDaemonConnection } from '../mcp/run-mcp-http-server';
 
 export interface NamedDaemonChannel extends DaemonChannel, WatchChannel {
@@ -66,11 +66,11 @@ function toConnectorKeyedParams(
 // The daemon's refusal of a connector principal its own config does not list
 // names no daemon, and the connector cannot tell which host refused it.
 function toConnectorRefusal(daemonName: string, principal: string | null, error: unknown) {
-  if (principal === null || !(error instanceof DaemonError) || error.code !== 'unauthorized') {
+  if (principal === null || !(error instanceof AtcError) || error.code !== 'unauthorized') {
     return error;
   }
 
-  return new DaemonError(
+  return new AtcError(
     'unauthorized',
     `daemon '${daemonName}' refused a request as the connector principal '${principal}': ${error.message}`,
   );

@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { StubMemoryProvider } from './build-stub-memory-provider';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 
@@ -62,7 +62,7 @@ export function buildStubRestoreImpProvider(
         // The real provider destroys an imp that its failed prepare created, so a refused prepare
         // leaves no imp behind.
 
-        throw new DaemonError(
+        throw new AtcError(
           'host_unavailable',
           `imp ${getImpName(request.host)} cannot be used: impd refused the lease (${code})`,
           { provider: 'imp', problem: code.toLowerCase() },

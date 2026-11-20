@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { ErrorCode } from '@atcx/contract/light';
 import { runSend } from './run-send';
 import type { ConnectResult, SendRequest } from './types';
@@ -49,7 +49,7 @@ function setupTest() {
 
         const data = send.effectRef === undefined ? undefined : { effectRef: send.effectRef };
 
-        return Promise.reject(new DaemonError(send.error, 'daemon said no', data));
+        return Promise.reject(new AtcError(send.error, 'daemon said no', data));
       }
 
       const step = script.gets?.[getIndex++];
@@ -59,7 +59,7 @@ function setupTest() {
       }
 
       if ('error' in step) {
-        return Promise.reject(new DaemonError(step.error, 'read refused'));
+        return Promise.reject(new AtcError(step.error, 'read refused'));
       }
 
       clock.advance(step.advanceMs ?? 0);

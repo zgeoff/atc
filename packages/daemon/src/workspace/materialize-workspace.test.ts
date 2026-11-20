@@ -7,10 +7,10 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { CommandSpec } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
-import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { $ } from 'bun';
 import { buildStubLocalProvider } from '../test-utils/build-stub-local-provider';
 import { materializeWorkspace } from './materialize-workspace';
@@ -177,7 +177,7 @@ test('it holds the phase a refusal failed in when the refusal carries none', asy
       log: () => {},
       readyHost: () =>
         Promise.reject(
-          new DaemonError(
+          new AtcError(
             'git_output_open',
             'git ls-remote exited 0, but its output was still open 30000 ms later',
           ),

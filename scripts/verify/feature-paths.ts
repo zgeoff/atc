@@ -1,6 +1,6 @@
 // Globs are root-relative, as `git ls-files` prints them, and match with Bun.Glob.
 const everyJourney = [
-  'packages/{app,config,contract,core,daemon,lifecycle,plugin-api,protocol,reporters,store}/**',
+  'packages/{app,client,config,contract,core,daemon,lifecycle,plugin-api,protocol,reporters,store}/**',
   'packages/harnesses/**',
   'packages/execution/local/**',
   'packages/sources/**',
@@ -38,6 +38,8 @@ export const sharedPaths = [
 export const ignoredPaths = [
   // Never `**/*.md`: a package may read markdown at run time.
   'docs/**',
+  'scripts/serve-stub-daemon.ts',
+  'scripts/smoke-client.mjs',
   '**/README.md',
   'CHANGELOG.md',
   'AGENTS.md',
@@ -78,6 +80,8 @@ export const ignoredPaths = [
   'scripts/{build,check,collect,declaration,find,install,load,pack,pick,probe,publish,read,record,restore,run,stage,test,write}-*',
   'scripts/{deadcode.ts,with-e2e-paths.sh,disable-baseline.json}',
   'scripts/verify-gate/**',
+  'scripts/{harmless-input-fields,is-breaking-marked}.ts',
+  'scripts/test-utils/build-contract-schemas.ts',
 
   // A dependency bump merges on green CI, and the verify workflow skips a release pull request.
   '**/package.json',

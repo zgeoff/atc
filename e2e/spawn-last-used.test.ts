@@ -4,7 +4,7 @@ import { getRecord } from '@atc/core/test-utils/get-record';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import type { SessionID } from '@atcx/contract';
@@ -52,7 +52,7 @@ test('it keeps the last-used agent when a restored session reports its start', a
     expect(unchanged).toStrictEqual([sessionID]);
   });
 
-  const probe = await openDaemonClient(daemon.socketPath);
+  const probe = createDaemonClient(daemon.socketPath);
 
   registerTestCleanup(() => {
     probe.stop();
@@ -99,7 +99,7 @@ test('it writes the last-used agent when a spawned session reports its start', a
   await daemon.sendHookLines({ atcId: id, event: 'SessionStart', payload: {} });
 
   await waitFor(async () => {
-    const probe = await openDaemonClient(daemon.socketPath);
+    const probe = createDaemonClient(daemon.socketPath);
 
     registerTestCleanup(() => {
       probe.stop();

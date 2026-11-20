@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { WringerError, createWringer, local } from '@wringer/core';
+import { WringerError, createHostUploader, createWringer, local } from '@wringer/core';
 import type { DriverConfigContext, LaunchPlan, Wringer } from '@wringer/core';
 import { db } from '@wringer/db';
 import { http } from '@wringer/http';
@@ -90,6 +90,7 @@ export function createVerifyRegistry(): Wringer {
       .target('local', {
         mode: 'launch',
         access: 'read-write',
+        evidence: 'upload',
         host: local(),
         launch: createLaunchPlan,
         drivers: {
@@ -108,6 +109,7 @@ export function createVerifyRegistry(): Wringer {
       .target('docker', {
         mode: 'launch',
         access: 'read-write',
+        evidence: 'upload',
         host: local(),
         launch: createDockerLaunchPlan,
         drivers: {
@@ -138,6 +140,12 @@ export function createVerifyRegistry(): Wringer {
           }),
         },
       })
+
+      // `bun verify publish` reads the host's URL and token from these variables when it uploads
+      .hook(
+        'upload',
+        createHostUploader({ urlEnv: 'VERIFY_UPLOAD_URL', tokenEnv: 'VERIFY_UPLOAD_TOKEN' }),
+      )
       .action({
         name: 'spawn-session',
         summary: 'Spawn a stand-in claude session with the name, in the run home, over the socket',

@@ -3,8 +3,9 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { subscribeToSocketLines } from '@atc/protocol/test-utils/subscribe-to-socket-lines';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 
 function setupTest() {
   return startTestDaemon({
@@ -41,7 +42,7 @@ test('it answers daemon.hello with the build and limits', async () => {
   });
 });
 
-test('it rejects a protocol version mismatch naming both builds and closes the connection', async () => {
+test('it rejects a major version mismatch naming both builds and closes the connection', async () => {
   const ctx = await setupTest();
   const client = await openDaemonClient(ctx.socketPath);
 
@@ -49,12 +50,15 @@ test('it rejects a protocol version mismatch naming both builds and closes the c
     client.stop();
   });
 
-  const refused = client.sendRequest('daemon.hello', { client: 'atc/newer-build', protocol: 15 });
+  const refused = client.sendRequest('daemon.hello', {
+    client: 'atc/newer-build',
+    major: CONTRACT_MAJOR + 1,
+  });
 
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
-    message:
-      'atc/newer-build speaks protocol v15, daemon atc/test-build speaks v14; restart the daemon so both run the same build',
+    message: `atc/newer-build is on major version ${CONTRACT_MAJOR + 1} and protocol v15, daemon atc/test-build speaks v15 on major version ${CONTRACT_MAJOR}; restart the daemon so both run the same major version`,
+    data: { daemonProtocol: 15, daemonMajor: CONTRACT_MAJOR },
   });
 
   await Promise.allSettled([refused]);

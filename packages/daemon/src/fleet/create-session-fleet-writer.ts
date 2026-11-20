@@ -1,7 +1,7 @@
 import { renameSync, rmSync, writeFileSync } from 'node:fs';
-import { DaemonError } from '@atc/protocol/wire';
 import type { FleetEntry, FleetEntryUpdate, FleetStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import type { SessionRegistry } from '../sessions/create-session-registry';
 import type { SessionCallbacks } from '../sessions/session-callbacks';
 import { toDaemonError } from '../sessions/to-daemon-error';
@@ -108,11 +108,11 @@ export function createSessionFleetWriter(deps: SessionFleetWriterDeps): SessionF
   };
 
   const logStoreFailure = (sessionID: SessionID, error: unknown): void => {
-    if (error instanceof DaemonError && error.code === 'stale_epoch') {
+    if (error instanceof AtcError && error.code === 'stale_epoch') {
       return;
     }
 
-    const code = error instanceof DaemonError ? error.code : 'internal';
+    const code = error instanceof AtcError ? error.code : 'internal';
     const message = error instanceof Error ? error.message : String(error);
 
     callbacks.log(`atc fleet write for session ${sessionID} failed (${code}): ${message}`);

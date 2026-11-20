@@ -128,7 +128,7 @@ export function createDaemonLinks(deps: DaemonLinksDeps): DaemonLinks {
       reconnect: 'always',
       backoffMs: [0, 200, 1000, 2000],
       clock: deps.clock,
-      getChannel: (link) => link.boot.client,
+      getConnection: (link) => link.boot.client.connection,
       open,
       onReady: (link) => {
         const client = link.boot.client;

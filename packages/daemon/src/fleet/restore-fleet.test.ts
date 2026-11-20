@@ -7,12 +7,12 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
-import { DaemonError } from '@atc/protocol/wire';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import type { SessionID } from '@atcx/contract';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { createSessionManager } from '../sessions/create-session-manager';
 import { createSessionRuntime } from '../sessions/create-session-runtime';
@@ -2444,7 +2444,7 @@ test('it retries a refused local session while a remote session queued before it
     prepareHost: makeQueuedAnswers([
       {
         kind: 'refuse',
-        error: new DaemonError('host_unavailable', 'the local host cannot start a terminal yet'),
+        error: new AtcError('host_unavailable', 'the local host cannot start a terminal yet'),
       },
       { kind: 'succeed' },
     ]),

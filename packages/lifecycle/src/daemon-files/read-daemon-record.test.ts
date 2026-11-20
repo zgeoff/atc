@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { readDaemonRecord } from './read-daemon-record';
 
 function setupTest() {
@@ -22,6 +23,7 @@ test('it reads the protocol version the daemon wrote', () => {
       eventsSocketPath: null,
       listenPort: null,
       protocol: 5,
+      major: CONTRACT_MAJOR,
     }),
   );
 
@@ -32,6 +34,7 @@ test('it reads the protocol version the daemon wrote', () => {
     eventsSocketPath: null,
     listenPort: null,
     protocol: 5,
+    major: CONTRACT_MAJOR,
   });
 });
 
@@ -50,6 +53,24 @@ test('it reads a record without a protocol version as a daemon on the line proto
   );
 
   expect(readDaemonRecord(ctx.recordPath)?.protocol).toBeNull();
+});
+
+test('it reads a record without a major version as one from an older release', () => {
+  const ctx = setupTest();
+
+  writeFileSync(
+    ctx.recordPath,
+    JSON.stringify({
+      pid: 4122,
+      socketPath: '/run/user/1000/atc-daemon.sock',
+      reporterSocketPath: '/run/user/1000/atc.sock',
+      eventsSocketPath: null,
+      listenPort: null,
+      protocol: 14,
+    }),
+  );
+
+  expect(readDaemonRecord(ctx.recordPath)?.major).toBeNull();
 });
 
 test('it finds no record where none was written', () => {

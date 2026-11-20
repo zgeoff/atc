@@ -6,7 +6,7 @@ import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
-import { openDaemonClient } from '@atc/protocol/client';
+import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { z } from 'zod';
 
 function setupTest() {

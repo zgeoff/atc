@@ -13,7 +13,7 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildStubAttentionAdapter } from '@atc/daemon/test-utils/build-stub-attention-adapter';
 import type { StartedTestDaemon, TestDaemonConfig } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentProfile } from '@atc/plugin-api/test-utils/build-mock-agent-profile';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
@@ -81,7 +81,7 @@ async function setupTest() {
   };
 
   const openLocalClient = async () => {
-    const client = await openDaemonClient(join(tui.home, 'atc-daemon.sock'));
+    const client = createDaemonClient(join(tui.home, 'atc-daemon.sock'));
 
     await client.sendHello('atc/test');
 

@@ -3,7 +3,9 @@ import { parseRequestParams } from '@atc/protocol';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { RequestMsg } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import type { ErrorCode } from '@atcx/contract/light';
+import { checkHelloMajor } from './check-hello-major';
 import type { TCPPeer } from './tcp-peer';
 
 interface TCPHelloChecks {
@@ -26,6 +28,7 @@ interface RefusedTCPHello {
   readonly ok: false;
   readonly code: ErrorCode;
   readonly message: string;
+  readonly data?: Readonly<Record<string, unknown>>;
 }
 
 export async function checkTCPHello(
@@ -42,6 +45,12 @@ export async function checkTCPHello(
       code: 'unauthorized',
       message: 'daemon.hello over TCP needs a valid bearer token',
     };
+  }
+
+  const majorRefusal = checkHelloMajor(req.params ?? {}, checks.build);
+
+  if (majorRefusal !== null) {
+    return { ok: false, ...majorRefusal };
   }
 
   const parsedHello = parseRequestParams('daemon.hello', req.params);
@@ -74,6 +83,7 @@ export async function checkTCPHello(
       ok: false,
       code: 'protocol_mismatch',
       message: `${parsedHello.data.client} speaks protocol v${req.version}, daemon ${checks.build} speaks v${PROTOCOL_V}; restart the daemon so both run the same build`,
+      data: { daemonProtocol: PROTOCOL_V, daemonMajor: CONTRACT_MAJOR },
     };
   }
 

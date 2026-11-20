@@ -2,6 +2,7 @@ export const ERROR_CODES = [
   'protocol_mismatch',
   'unauthorized',
   'unknown_method',
+  'feature_missing',
   'bad_args',
   'no_such_session',
   'session_dead',
@@ -70,6 +71,10 @@ export const ERROR_CODES = [
   'idempotency_conflict',
   'outcome_unknown',
   'idempotency_key_unknown',
+  'no_daemon',
+  'connection_lost',
+  'timeout',
+  'events_overflow',
   'internal',
 ] as const;
 

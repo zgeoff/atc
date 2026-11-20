@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { GatewayError } from './gateway-error';
 import type { CallOutcome } from './wait-for-outcome';
 
@@ -27,7 +27,7 @@ export function pickDaemonState(outcome: CallOutcome<unknown>): DaemonState {
     return 'mismatched';
   }
 
-  if (error instanceof DaemonError) {
+  if (error instanceof AtcError) {
     return 'refused';
   }
 

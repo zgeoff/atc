@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { z } from 'zod';
-import { buildPublishedManifest } from './build-published-manifest';
+import { buildPublishedExports, buildPublishedManifest } from './build-published-manifest';
 import { buildPublishedReadme } from './build-published-readme';
 import { DECLARATION_TOOLS } from './declaration-tools';
 import { writeContractDeclarations } from './write-contract-declarations';
@@ -10,20 +10,21 @@ import { writeContractDeclarations } from './write-contract-declarations';
 async function main(): Promise<void> {
   const args = parseArgs({
     args: process.argv.slice(2),
-    options: { out: { type: 'string' } },
+    options: { out: { type: 'string' }, package: { type: 'string', default: 'contract' } },
     allowPositionals: true,
   });
 
   if (args.values.out === undefined || args.positionals.length > 1) {
-    throw new Error('usage: bun scripts/pack-contract.ts --out <dir> [root]');
+    throw new Error('usage: bun scripts/pack-contract.ts --out <dir> [root] [--package <name>]');
   }
 
   const out = resolve(args.values.out);
   const root = resolve(args.positionals[0] ?? join(import.meta.dir, '..'));
   const staged = join(out, 'package');
+  const packageDir = `packages/${args.values.package}`;
 
   const manifest = WORKSPACE_MANIFEST_SCHEMA.parse(
-    readJSON(join(root, CONTRACT_DIR, 'package.json')),
+    readJSON(join(root, packageDir, 'package.json')),
   );
 
   const rootManifest = ROOT_MANIFEST_SCHEMA.parse(readJSON(join(root, 'package.json')));
@@ -35,8 +36,10 @@ async function main(): Promise<void> {
   mkdirSync(staged, { recursive: true });
 
   await Bun.build({
-    entrypoints: Object.values(manifest.exports).map((entry) => join(root, CONTRACT_DIR, entry)),
-    root: join(root, CONTRACT_DIR, 'src'),
+    entrypoints: Object.values(buildPublishedExports(manifest.exports)).map((entry) =>
+      join(root, packageDir, entry),
+    ),
+    root: join(root, packageDir, 'src'),
     outdir: join(staged, 'dist'),
     target: 'node',
     format: 'esm',
@@ -44,16 +47,16 @@ async function main(): Promise<void> {
     throw: true,
   });
 
-  await writeContractDeclarations(root, join(staged, 'dist'), DECLARATION_TOOLS);
+  await writeContractDeclarations(root, join(staged, 'dist'), DECLARATION_TOOLS, packageDir);
 
   writeFileSync(
     join(staged, 'package.json'),
     `${JSON.stringify(buildPublishedManifest(manifest, catalog), null, 2)}\n`,
   );
 
-  const readme = readFileSync(join(root, CONTRACT_DIR, 'README.md'), 'utf8');
+  const readme = readFileSync(join(root, packageDir, 'README.md'), 'utf8');
 
-  writeFileSync(join(staged, 'README.md'), buildPublishedReadme(readme, treeURL, CONTRACT_DIR));
+  writeFileSync(join(staged, 'README.md'), buildPublishedReadme(readme, treeURL, packageDir));
   copyFileSync(join(root, 'LICENSE'), join(staged, 'LICENSE'));
 
   // npm packs a plain folder as it publishes it, and the staged manifest names
@@ -73,10 +76,10 @@ async function main(): Promise<void> {
   console.log(join(out, tarball.trim()));
 }
 
-const CONTRACT_DIR = 'packages/contract';
 const NAMES_SCHEMA = z.record(z.string(), z.string());
 
 const WORKSPACE_MANIFEST_SCHEMA = z.looseObject({
+  version: z.string(),
   exports: NAMES_SCHEMA,
   dependencies: NAMES_SCHEMA,
 });

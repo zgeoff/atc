@@ -1,24 +1,25 @@
 import { isRecord } from '@atc/core';
+import type { CallContext } from '@atcx/client/connection';
+import { AtcError, CONTRACT_MAJOR, PROTOCOL_V } from '@atcx/contract/light';
 import { createORPCClient } from '@orpc/client';
 import { StandardRPCLink } from '@orpc/client/standard';
 import { ClientPeer } from '@orpc/standard-server-peer';
 import type { SocketHandler } from 'bun';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
+import type { DaemonClient, DaemonProcedures } from '../client/daemon-client';
 import { createLineDecoder } from '../wire/create-line-decoder';
 import type { LineDecoder } from '../wire/create-line-decoder';
 import { createOutboundQueue } from '../wire/create-outbound-queue';
 import type { OutboundQueue } from '../wire/create-outbound-queue';
-import { DaemonError } from '../wire/daemon-error';
-import { PROTOCOL_V } from '../wire/decode-message';
 import { PRINCIPAL_HEADERS } from '../wire/principal-headers';
-import { CLIENT_MACHINE } from './client-machine';
-import type { CallContext, DaemonClient, DaemonProcedures } from './daemon-client';
-import { toDaemonError } from './to-daemon-error';
+import { CLIENT_MACHINE } from './raw-client/client-machine';
+import { findMissingFeature } from './raw-client/find-missing-feature';
+import { toRawAtcError } from './raw-client/to-raw-atc-error';
 
 const QUEUE_BYTES = 8 * 1024 * 1024;
 
-export async function openDaemonClient(
+export async function openRawDaemonClient(
   address: string | { readonly hostname: string; readonly port: number },
 ): Promise<DaemonClient> {
   const conn = createClientConnection();
@@ -53,13 +54,16 @@ interface ClientConnection {
 
   inbound: Promise<void>;
 
+  // The features the hello answer listed; null until a hello is answered.
+  features: readonly string[] | null;
+
   findDefaultPrincipal: () => string | null;
 }
 
 function createClientConnection(): ClientConnection {
   const peer = new ClientPeer((message) => {
     if (typeof message !== 'string' || conn.queue?.send(`${message}\n`) === false) {
-      throw new DaemonError('internal', 'outbound queue full');
+      throw new AtcError('internal', 'outbound queue full');
     }
   });
 
@@ -82,10 +86,22 @@ function createClientConnection(): ClientConnection {
         }),
       interceptors: [
         async (options) => {
+          const missing =
+            conn.features === null
+              ? null
+              : findMissingFeature(options.path.join('.'), options.input, conn.features);
+
+          if (missing !== null) {
+            throw new AtcError(
+              'feature_missing',
+              `${options.path.join('.')} input ${missing.field} needs the daemon feature ${missing.feature}; restart the daemon on a newer atc`,
+            );
+          }
+
           try {
             return await options.next();
           } catch (error) {
-            throw toDaemonError(error);
+            throw toRawAtcError(error);
           }
         },
       ],
@@ -102,6 +118,7 @@ function createClientConnection(): ClientConnection {
     socket: null,
     events: null,
     inbound: Promise.resolve(),
+    features: null,
     findDefaultPrincipal: () => null,
   };
 
@@ -112,7 +129,7 @@ function requireOpenConnection(conn: ClientConnection): void {
   const closedReason = conn.actor.getSnapshot().context.closedReason;
 
   if (closedReason !== null) {
-    throw new DaemonError('internal', closedReason);
+    throw new AtcError('internal', closedReason);
   }
 }
 
@@ -131,6 +148,11 @@ function buildDaemonClient(conn: ClientConnection): DaemonClient {
     onClose: () => {},
     onAnswer: () => {},
     principal: undefined,
+
+    // This client speaks the wire by hand, so it holds no connection layer to hand out.
+    get connection(): never {
+      throw new AtcError('internal', 'the raw test client has no connection layer');
+    },
     procedures: conn.procedures,
     isClosed: () => isClientClosed(conn),
 
@@ -186,16 +208,26 @@ async function sendClientRequest(
     asName: principal === undefined ? undefined : request.asName,
   };
 
-  const params = hello ? { protocol: PROTOCOL_V, ...request.params } : (request.params ?? {});
+  const params = hello
+    ? { protocol: PROTOCOL_V, major: CONTRACT_MAJOR, ...request.params }
+    : (request.params ?? {});
 
   const answer: unknown = await conn.link.call(method.split('.'), params, { context });
 
   const ok = isRecord(answer) ? answer : {};
 
+  if (hello) {
+    const features = ok['features'];
+
+    conn.features = Array.isArray(features)
+      ? features.filter((feature) => typeof feature === 'string')
+      : [];
+  }
+
   try {
     client.onAnswer(method, ok);
   } catch (error) {
-    throw new DaemonError('internal', String(error));
+    throw new AtcError('internal', String(error));
   }
 
   if (hello) {
@@ -254,7 +286,7 @@ async function readClientEvents(
 function drainPending(conn: ClientConnection, reason: string): void {
   sendClose(conn, reason);
   conn.events?.abort();
-  conn.peer.close({ reason: new DaemonError('internal', reason) });
+  conn.peer.close({ reason: new AtcError('internal', reason) });
 }
 
 function sendClose(conn: ClientConnection, reason: string): void {

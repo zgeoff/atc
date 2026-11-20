@@ -17,7 +17,7 @@ import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment
 import { sendModernMCPRequest } from '@atc/mcp/test-utils/send-modern-mcp-request';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
@@ -31,7 +31,7 @@ async function setupTest() {
   });
 
   const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

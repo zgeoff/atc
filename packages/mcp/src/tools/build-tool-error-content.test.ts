@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { buildToolErrorContent } from './build-tool-error-content';
 
 test('it gives the code and the problem of a daemon error that names one', () => {
-  const error = new DaemonError('unsupported_operation', 'no room', {
+  const error = new AtcError('unsupported_operation', 'no room', {
     problem: 'ram_budget_exceeded',
   });
 
@@ -14,7 +14,7 @@ test('it gives the code and the problem of a daemon error that names one', () =>
 });
 
 test('it passes no data field other than the problem', () => {
-  const error = new DaemonError('unsupported_operation', 'no room', {
+  const error = new AtcError('unsupported_operation', 'no room', {
     problem: 'host_asleep',
     session: 'harbor/s-9',
     target: 'lantern-west',
@@ -28,7 +28,7 @@ test('it passes no data field other than the problem', () => {
 });
 
 test('it gives the code alone for an error whose data holds no problem', () => {
-  const error = new DaemonError('no_such_session', 'no session', {
+  const error = new AtcError('no_such_session', 'no session', {
     session: 'harbor/s-9',
   });
 
@@ -38,20 +38,20 @@ test('it gives the code alone for an error whose data holds no problem', () => {
 });
 
 test('it gives the code alone for an error with no data', () => {
-  expect(buildToolErrorContent(new DaemonError('bad_args', 'bad'))).toStrictEqual({
+  expect(buildToolErrorContent(new AtcError('bad_args', 'bad'))).toStrictEqual({
     code: 'bad_args',
   });
 });
 
 test('it gives the code alone when the problem is not a string', () => {
-  const error = new DaemonError('bad_args', 'bad', { problem: 7 });
+  const error = new AtcError('bad_args', 'bad', { problem: 7 });
 
   expect(buildToolErrorContent(error)).toStrictEqual({ code: 'bad_args' });
 });
 
 test('it reads the code of the error a refusal wraps', () => {
   const error = new Error('session_live: stop it', {
-    cause: new DaemonError('session_live', 'live'),
+    cause: new AtcError('session_live', 'live'),
   });
 
   expect(buildToolErrorContent(error)).toStrictEqual({ code: 'session_live' });

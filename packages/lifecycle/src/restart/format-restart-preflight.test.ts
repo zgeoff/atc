@@ -5,7 +5,7 @@ test('it lists the mid-turn sessions and marks the one that asked for the restar
   const lines = formatRestartPreflight({
     pid: 77,
     socketPath: '/run/atc-daemon.sock',
-    answer: { kind: 'ok', build: 'atc/3.1.1+abc', protocol: 7 },
+    answer: { kind: 'ok', build: 'atc/3.1.1+abc', protocol: 7, major: 3 },
     sessions: [
       { id: 's-1', name: 'api', state: 'running' },
       { id: 's-2', name: 'docs', state: 'done' },
@@ -16,7 +16,7 @@ test('it lists the mid-turn sessions and marks the one that asked for the restar
   });
 
   expect(lines).toStrictEqual([
-    'daemon: pid 77, build atc/3.1.1+abc, protocol v7',
+    'daemon: pid 77, build atc/3.1.1+abc, protocol v7, major 3',
     '2 sessions are mid-turn:',
     '  api (s-1)',
     '  web (s-3) (this session)',
@@ -68,7 +68,7 @@ test('it names the unit and its ExecStart path and says that the unit decides th
   const lines = formatRestartPreflight({
     pid: 77,
     socketPath: '/run/atc-daemon.sock',
-    answer: { kind: 'ok', build: 'atc/3.1.1+abc', protocol: 7 },
+    answer: { kind: 'ok', build: 'atc/3.1.1+abc', protocol: 7, major: 3 },
     sessions: [],
     callerSession: null,
     replacement: {
@@ -80,7 +80,7 @@ test('it names the unit and its ExecStart path and says that the unit decides th
   });
 
   expect(lines).toStrictEqual([
-    'daemon: pid 77, build atc/3.1.1+abc, protocol v7',
+    'daemon: pid 77, build atc/3.1.1+abc, protocol v7, major 3',
     'no session is mid-turn',
     'replacement: systemd unit atc-daemon.service, ExecStart /home/u/.local/bin/atc',
     'The unit decides the build the replacement runs.',

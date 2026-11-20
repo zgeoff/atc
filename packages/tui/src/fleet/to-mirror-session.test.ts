@@ -612,3 +612,21 @@ test('it returns null for a descriptor missing a required field, rather than thr
     ),
   ).toBeNull();
 });
+
+test('it shows a state it does not know as unknown', () => {
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'hibernating',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+    },
+    null,
+  );
+
+  expect(mirror?.state).toBe('unknown');
+});

@@ -19,6 +19,7 @@ import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { DaemonEvent } from '@atcx/contract';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 
 function setupTest() {
@@ -123,7 +124,8 @@ test('it starts a daemon on the state directory of one killed with SIGKILL', asy
     reporterSocketPath: daemon.reporterSocketPath,
     eventsSocketPath: daemon.paths.eventsSocketPath,
     listenPort: null,
-    protocol: 14,
+    protocol: 15,
+    major: CONTRACT_MAJOR,
   });
 });
 

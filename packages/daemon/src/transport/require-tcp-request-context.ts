@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { buildScopedContext } from '../auth/build-scoped-context';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isOwnerOnlyMethod } from '../auth/is-owner-only-method';
@@ -20,26 +20,22 @@ export function requireTCPRequestContext(
   as: RequestPrincipal | null,
 ): DaemonContext {
   if (isOwnerOnlyMethod(method)) {
-    throw new DaemonError('unauthorized', `${method} is open to the daemon's owner only`);
+    throw new AtcError('unauthorized', `${method} is open to the daemon's owner only`);
   }
 
   if (as === null) {
-    throw new DaemonError('unauthorized', 'a request over TCP must act as a principal with as');
+    throw new AtcError('unauthorized', 'a request over TCP must act as a principal with as');
   }
 
   if (!source.ctx.hasListedPrincipal(as.principal)) {
     source.tcp.recordRefusedPrincipal();
-
-    throw new DaemonError(
-      'unauthorized',
-      `principal '${as.principal}' is not listed in principals`,
-    );
+    throw new AtcError('unauthorized', `principal '${as.principal}' is not listed in principals`);
   }
 
   const scope = findRequestScope(source.ctx, source.principal, source.access, as.principal);
 
   if (scope === null) {
-    throw new DaemonError('internal', 'a request over TCP resolved to the owner scope');
+    throw new AtcError('internal', 'a request over TCP resolved to the owner scope');
   }
 
   return buildScopedContext(source.ctx, scope.access, scope.keyNamespace);

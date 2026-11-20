@@ -6,10 +6,10 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { AuthProfile, LaunchTicket } from '@atc/plugin-api';
 import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
-import { DaemonError } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { buildStubBinderBroker } from '../test-utils/build-stub-binder-broker';
@@ -3699,7 +3699,7 @@ test('it refuses a host bound under an older form whose grants changed since, wi
   const verified = ctx.binder.verifyBinding(ctx.host, toSessionID('s1'), changed.binding);
 
   expect(verified).rejects.toThrowWithMessage(
-    DaemonError,
+    AtcError,
     'the auth profiles host s1 uses changed since it was bound; rebind it to adopt them',
   );
 

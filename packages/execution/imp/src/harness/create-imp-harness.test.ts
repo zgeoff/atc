@@ -4,7 +4,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { HarnessAttachment, HarnessExit, LaunchTicket } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
 import { buildStubFailingAttachmentListener } from '../test-utils/build-stub-failing-attachment-listener';
 import { buildStubLaunchAdmission } from '../test-utils/build-stub-launch-admission';
@@ -1763,7 +1763,7 @@ test('it refuses the attach that reconnects a brokered harness once its admissio
 
   const kinds: string[] = [];
 
-  const blocked = new DaemonError(
+  const blocked = new AtcError(
     'auth_blocked',
     'the runtime auth of host s2 is revoked; nothing launches on it until a rebind',
     { host: 's2', state: 'revoked' },
@@ -1861,9 +1861,9 @@ test('it closes the attach that reconnects a brokered harness unsent when a revo
   await ctx.port.createImp({ name: 'imp-b' });
   await ctx.port.createGrant('imp-b', 'glm');
 
-  const checks: (DaemonError | null)[] = [
+  const checks: (AtcError | null)[] = [
     null,
-    new DaemonError(
+    new AtcError(
       'auth_blocked',
       'the runtime auth of host s2 is revoked; nothing launches on it until a rebind',
       { host: 's2', state: 'revoked' },

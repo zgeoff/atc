@@ -1,6 +1,6 @@
 import { getSettledValue } from '@atc/core';
 import type { CredentialBroker } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import type { AuthBinding } from './build-auth-binding';
 import { collectSecretRuleMismatches } from './collect-secret-rule-mismatches';
 import { verifyBrokerAuthority } from './verify-broker-authority';
@@ -23,7 +23,7 @@ export async function verifyGate(
   const mismatches = collectSecretRuleMismatches(binding.secrets, held);
 
   if (mismatches.length > 0) {
-    throw new DaemonError(
+    throw new AtcError(
       'auth_secret_mismatch',
       `the broker holds ${mismatches.map((mismatch) => `${mismatch.secret} (${mismatch.reason})`).join(', ')} unlike the binding`,
       { mismatches },

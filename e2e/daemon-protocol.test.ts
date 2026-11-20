@@ -12,8 +12,8 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createGrokAdapter } from '@atc/harness-grok';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { encodeCursor } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
 import { buildMockRestartResult } from '@atc/protocol/test-utils/build-mock-restart-result';
+import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { createStateStore } from '@atc/store';
 import { seedLaterEpochSessionOwner } from '@atc/store/test-utils/seed-later-epoch-session-owner';
@@ -702,7 +702,7 @@ test('it runs a configured hook with the same event JSON a watching client recei
   // The hook reads the wire form, which carries the protocol version the
   // client drops.
   expect({ payload: parsed, eventName, rest }).toStrictEqual({
-    payload: { version: 14, ...event },
+    payload: { version: 15, ...event },
     eventName: 'SessionAttached',
     rest: '',
   });

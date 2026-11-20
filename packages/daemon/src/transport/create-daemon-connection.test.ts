@@ -3,14 +3,15 @@ import { join } from 'node:path';
 import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
 import { buildPeerRequestLine } from '@atc/protocol/test-utils/build-peer-request-line';
 import { buildStubPeerSocket } from '@atc/protocol/test-utils/build-stub-peer-socket';
+import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { parsePeerFrame } from '@atc/protocol/test-utils/parse-peer-frame';
 import type { PeerFrame } from '@atc/protocol/test-utils/parse-peer-frame';
 import { MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
 import type { DaemonEvent, SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
+import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
@@ -294,7 +295,7 @@ test('it refuses a peer request before the handshake and ends the connection', a
   });
 });
 
-test('it refuses a peer handshake that speaks another protocol and ends the connection', async () => {
+test('it refuses a peer handshake with no major version and ends the connection', async () => {
   const ctx = setupTest();
 
   startConnectionListener(ctx.socketPath, buildStubDaemonContext());
@@ -305,13 +306,16 @@ test('it refuses a peer handshake that speaks another protocol and ends the conn
     client.stop();
   });
 
-  const refused = client.sendRequest('daemon.hello', { client: 'atc/old', protocol: 1 });
+  const refused = client.sendRequest('daemon.hello', {
+    client: 'atc/old',
+    protocol: 14,
+    major: undefined,
+  });
 
   expect(refused).rejects.toMatchObject({
     code: 'protocol_mismatch',
-    message:
-      'atc/old speaks protocol v1, daemon atc/test speaks v14; update or reopen the client so both run the same build',
-    data: { daemonProtocol: 14 },
+    message: expect.stringContaining('update or reopen the client'),
+    data: { daemonProtocol: PROTOCOL_V, daemonMajor: CONTRACT_MAJOR },
   });
 
   await refused.catch(() => {});
@@ -321,7 +325,7 @@ test('it refuses a peer handshake that speaks another protocol and ends the conn
   });
 });
 
-test('it tells a peer client on a later protocol to restart the daemon', async () => {
+test('it tells a peer client on a later major version to restart the daemon', async () => {
   const ctx = setupTest();
 
   startConnectionListener(ctx.socketPath, buildStubDaemonContext());
@@ -333,13 +337,68 @@ test('it tells a peer client on a later protocol to restart the daemon', async (
   });
 
   expect(
-    client.sendRequest('daemon.hello', { client: 'atc/new', protocol: 15 }),
+    client.sendRequest('daemon.hello', { client: 'atc/new', major: CONTRACT_MAJOR + 1 }),
   ).rejects.toMatchObject({
     code: 'protocol_mismatch',
-    message:
-      'atc/new speaks protocol v15, daemon atc/test speaks v14; restart the daemon so both run the same build',
-    data: { daemonProtocol: 14 },
+    message: expect.stringContaining('restart the daemon'),
+    data: { daemonProtocol: PROTOCOL_V, daemonMajor: CONTRACT_MAJOR },
   });
+});
+
+test('it refuses a peer handshake of another major version with protocol_mismatch though it holds a field the schema lacks', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  expect(
+    client.sendRequest('daemon.hello', {
+      client: 'atc/new',
+      major: CONTRACT_MAJOR + 1,
+      lens: 'wide',
+    }),
+  ).rejects.toMatchObject({ code: 'protocol_mismatch' });
+});
+
+test('it accepts a peer handshake from a client build of another minor version', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  expect(
+    client.sendRequest('daemon.hello', {
+      client: `atc/${CONTRACT_MAJOR}.0.1`,
+      protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
+    }),
+  ).resolves.toMatchObject({ daemon: 'atc/test' });
+});
+
+test('it refuses a peer handshake that holds a field the schema lacks with bad_args', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext());
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  expect(
+    client.sendRequest('daemon.hello', { client: 'atc/test', lens: 'wide' }),
+  ).rejects.toMatchObject({ code: 'bad_args' });
 });
 
 test('it refuses an owner-only procedure to a peer client that acts as a principal', async () => {
@@ -651,7 +710,12 @@ test.each([
       raw.end();
     });
 
-    const hello = { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' };
+    const hello = {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
+      principal: 'narrow',
+    };
 
     raw.write(
       buildPeerRequestLine('1', '/daemon/hello', hello) + buildPeerRequestLine('2', path, {}),
@@ -781,6 +845,60 @@ test.each([
   });
 });
 
+test('it refuses a TCP peer handshake with a bad token and another major version with the token refusal and no daemon major', async () => {
+  const ctx = setupTest();
+
+  startConnectionListener(ctx.socketPath, buildStubDaemonContext(), {
+    verifyHandshake: () => Promise.resolve(null),
+    recordFailure: () => {},
+    recordRefusedPrincipal: () => {},
+  });
+
+  const client = await openDaemonClient(ctx.socketPath);
+
+  onTestFinished(() => {
+    client.stop();
+  });
+
+  const refused = client.sendHello('atc/test', { token: 'tok-wrong' });
+
+  expect(refused).rejects.toMatchObject({ code: 'unauthorized' });
+  expect(refused).rejects.toHaveProperty('data', {});
+});
+
+test.each([
+  ['another major version', { major: CONTRACT_MAJOR + 1 }],
+  ['no major version', { major: undefined }],
+])(
+  'it refuses a TCP peer handshake with a good token and %s with protocol_mismatch and the daemon major',
+  async (_label, hello) => {
+    const ctx = setupTest();
+
+    startConnectionListener(ctx.socketPath, buildStubDaemonContext(), {
+      verifyHandshake: () => Promise.resolve('fp-1'),
+      recordFailure: () => {},
+      recordRefusedPrincipal: () => {},
+    });
+
+    const client = await openDaemonClient(ctx.socketPath);
+
+    onTestFinished(() => {
+      client.stop();
+    });
+
+    expect(
+      client.sendRequest('daemon.hello', {
+        client: 'atc/test',
+        auth: { scheme: 'bearer', token: 'tok-good' },
+        ...hello,
+      }),
+    ).rejects.toMatchObject({
+      code: 'protocol_mismatch',
+      data: { daemonProtocol: PROTOCOL_V, daemonMajor: CONTRACT_MAJOR },
+    });
+  },
+);
+
 test.each([
   {
     label: 'no principal',
@@ -876,7 +994,7 @@ test('it holds a peer subscription back while the socket takes nothing, then rep
     }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -934,7 +1052,7 @@ test('it delivers output again after the dropped output is reported', async () =
     }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1001,7 +1119,7 @@ test('it reports no dropped output while the socket still takes nothing', async 
     }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1061,7 +1179,12 @@ test('it sends a principal no output of a session whose tree left its view, a re
     }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' };
+  const hello = {
+    client: 'atc/test',
+    protocol: PROTOCOL_V,
+    major: CONTRACT_MAJOR,
+    principal: 'narrow',
+  };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1161,7 +1284,12 @@ test('it drops the held output of a session that leaves the view and sends its r
     buildStubDaemonContext({ canSeeSession: () => visible }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V, principal: 'narrow' };
+  const hello = {
+    client: 'atc/test',
+    protocol: PROTOCOL_V,
+    major: CONTRACT_MAJOR,
+    principal: 'narrow',
+  };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1369,7 +1497,7 @@ test('it answers internal when a procedure returns an answer outside its contrac
     buildStubDaemonContext({ writeStateBackup: () => Promise.resolve(Number.NaN) }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1394,7 +1522,7 @@ test.each([
 ])('it ends the connection when %s overflows the outbound queue', async (_label, path) => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext({ queueBytes: 16 }));
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1467,7 +1595,7 @@ test.each([
   {
     label: 'a handshake',
     path: '/daemon/hello',
-    body: { client: 'atc/test', protocol: PROTOCOL_V },
+    body: { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR },
     answer: { daemon: 'atc/test' },
     ends: false,
   },
@@ -1510,7 +1638,7 @@ test('it drops an event sent to a peer connection that awaits its handshake', as
 
   conn.sendEvent({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-early' });
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1536,7 +1664,7 @@ test('it ends a peer connection disposed while it awaits its handshake, and answ
 
   conn.dispose();
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1554,7 +1682,7 @@ test('it refuses a second handshake at once while the first is pending, and keep
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1595,7 +1723,7 @@ test('it holds a peer request back until a pending handshake passes', async () =
     buildStubDaemonContext({ loadLastUsedAgent: load, ackSession: ack }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1636,7 +1764,7 @@ test('it answers a path that names no procedure while the handshake is pending, 
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1673,7 +1801,7 @@ test('it drops an event sent to a peer connection while its handshake is pending
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -1710,7 +1838,7 @@ test('it ends a peer connection disposed while its handshake is pending', async 
     buildStubDaemonContext({ loadLastUsedAgent: load }),
   );
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1727,7 +1855,7 @@ test.each([
   [
     'a handshake',
     '/daemon/hello',
-    { client: 'atc/test', protocol: PROTOCOL_V },
+    { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR },
     { code: 'unauthorized', message: 'a connection takes one handshake' },
   ],
   ['a request', '/daemon/ping', {}, {}],
@@ -1735,7 +1863,7 @@ test.each([
 ])('it answers %s on an open peer connection and keeps it', async (_label, path, body, answer) => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1759,7 +1887,7 @@ test.each([
 test('it ends an open peer connection once disposed, and answers nothing after', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1777,7 +1905,7 @@ test('it ends an open peer connection once disposed, and answers nothing after',
 test('it writes a refused handshake whole before it ends the connection', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/old', protocol: 1 };
+  const hello = { client: 'atc/old', protocol: 14 };
 
   peer.setAccepting(false);
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
@@ -1808,7 +1936,7 @@ test.each([
   [
     'a handshake',
     '/daemon/hello',
-    { client: 'atc/test', protocol: PROTOCOL_V },
+    { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR },
     { code: 'unauthorized', message: 'a connection takes one handshake' },
   ],
   ['a request', '/daemon/ping', {}, { code: 'unauthorized', message: 'the handshake was refused' }],
@@ -1818,7 +1946,7 @@ test.each([
   async (_label, path, body, answer) => {
     const peer = buildStubPeerSocket();
     const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-    const hello = { client: 'atc/old', protocol: 1 };
+    const hello = { client: 'atc/old', protocol: 14 };
 
     peer.setAccepting(false);
 
@@ -1858,8 +1986,11 @@ test('it ends a peer connection whose peer wrote its last line once every answer
   peer.setAccepting(false);
 
   conn.applyChunk(
-    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }) +
-      buildPeerRequestLine('2', '/daemon/ping', {}),
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
+    }) + buildPeerRequestLine('2', '/daemon/ping', {}),
   );
 
   conn.endInput();
@@ -1886,8 +2017,11 @@ test('it keeps a peer connection open while its peer has not written its last li
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
 
   conn.applyChunk(
-    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }) +
-      buildPeerRequestLine('2', '/daemon/ping', {}),
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
+    }) + buildPeerRequestLine('2', '/daemon/ping', {}),
   );
 
   await waitFor(() => {
@@ -1900,7 +2034,7 @@ test('it keeps a peer connection open while its peer has not written its last li
 test('it writes no event to a peer connection whose refusal is still queued', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/old', protocol: 1 };
+  const hello = { client: 'atc/old', protocol: 14 };
 
   peer.setAccepting(false);
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
@@ -1923,7 +2057,7 @@ test('it writes no event to a peer connection whose refusal is still queued', as
 test('it ends a peer connection disposed while its refusal is still queued', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/old', protocol: 1 };
+  const hello = { client: 'atc/old', protocol: 14 };
 
   peer.setAccepting(false);
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
@@ -1941,7 +2075,7 @@ test.each([
   [
     'a handshake',
     '/daemon/hello',
-    { client: 'atc/test', protocol: PROTOCOL_V },
+    { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR },
     { code: 'unauthorized', message: 'a connection takes one handshake' },
   ],
   ['a request', '/daemon/ping', {}, { code: 'unauthorized', message: 'the connection is closing' }],
@@ -1949,7 +2083,7 @@ test.each([
 ])('it answers %s on a peer connection that is closing', async (_label, path, body, answer) => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/old', protocol: 1 };
+  const hello = { client: 'atc/old', protocol: 14 };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1971,7 +2105,7 @@ test.each([
 test('it writes no event to a peer connection that is closing', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/old', protocol: 1 };
+  const hello = { client: 'atc/old', protocol: 14 };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -1987,7 +2121,7 @@ test('it writes no event to a peer connection that is closing', async () => {
 test('it answers nothing on a closing peer connection once disposed', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/old', protocol: 1 };
+  const hello = { client: 'atc/old', protocol: 14 };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -2002,13 +2136,17 @@ test('it answers nothing on a closing peer connection once disposed', async () =
 });
 
 test.each([
-  ['a handshake', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }],
+  [
+    'a handshake',
+    '/daemon/hello',
+    { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR },
+  ],
   ['a request', '/daemon/ping', {}],
   ['a path that names no procedure', '/daemon/ping/', {}],
 ])('it answers nothing to %s on a closed peer connection', async (_label, path, body) => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -2025,7 +2163,7 @@ test.each([
 test('it writes no event to a closed peer connection', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
 
   conn.applyChunk(
     buildPeerRequestLine('1', '/daemon/hello', hello) +
@@ -2079,7 +2217,7 @@ test('it refuses a peer handshake that gives another session than the one the ke
     id: toSessionID('s-1'),
   });
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V, session: 's-2' };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR, session: 's-2' };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 
@@ -2106,7 +2244,7 @@ test('it acts as the session the kernel names for a peer handshake that gives no
     id: toSessionID('s-1'),
   });
 
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR };
   const add = { session: 's-6', scope: { worktrees: [{ path: '/srv/site' }] } };
 
   conn.applyChunk(
@@ -2129,7 +2267,11 @@ test('it answers a peer handshake with the session the kernel names as its peer 
   });
 
   conn.applyChunk(
-    buildPeerRequestLine('1', '/daemon/hello', { client: 'atc/test', protocol: PROTOCOL_V }),
+    buildPeerRequestLine('1', '/daemon/hello', {
+      client: 'atc/test',
+      protocol: PROTOCOL_V,
+      major: CONTRACT_MAJOR,
+    }),
   );
 
   await waitFor(() => {
@@ -2160,7 +2302,7 @@ test('it answers a peer handshake with the session the kernel names as its peer 
 test('it answers a peer handshake that gives a session, from outside every session, with no peer session', async () => {
   const peer = buildStubPeerSocket();
   const conn = createDaemonConnection(peer.socket, buildStubDaemonContext());
-  const hello = { client: 'atc/test', protocol: PROTOCOL_V, session: 's-9' };
+  const hello = { client: 'atc/test', protocol: PROTOCOL_V, major: CONTRACT_MAJOR, session: 's-9' };
 
   conn.applyChunk(buildPeerRequestLine('1', '/daemon/hello', hello));
 

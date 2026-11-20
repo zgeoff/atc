@@ -1,6 +1,6 @@
 import type { AgentID } from '@atc/core';
 import { PINNED_GROUP_KEY } from '@atc/protocol';
-import type { SessionState } from '@atc/protocol';
+import type { SessionViewState } from '@atc/protocol';
 import type { AgentMetadata } from '../fleet/resolve-agent-metadata';
 import type { DaemonName } from '../fleet/session-key';
 import type { HarnessLifecycle } from '../fleet/to-mirror-session';
@@ -17,18 +17,19 @@ import { writeOut } from './write-out';
 interface SessionView {
   readonly name: string;
   readonly cwd: string;
-  readonly state: SessionState;
+  readonly state: SessionViewState;
   readonly unread: boolean;
   readonly lastMsg: string;
 }
 
 const ESC = '\u001B';
 
-const GLYPH: Record<SessionState, string> = {
+const GLYPH: Record<SessionViewState, string> = {
   needs_you: `${ESC}[31m●${ESC}[0m`,
   running: `${ESC}[36m◐${ESC}[0m`,
   done: `${ESC}[32m✓${ESC}[0m`,
   exited: `${ESC}[90m✗${ESC}[0m`,
+  unknown: `${ESC}[90m?${ESC}[0m`,
 };
 
 export function getPickerWidth(): number {

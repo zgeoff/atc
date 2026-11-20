@@ -1,7 +1,7 @@
 import { posix } from 'node:path';
 import type { ExecutionProvider } from '@atc/plugin-api';
-import { DaemonError } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 
 // A trailing newline in a directory name would be lost when the output is captured, so the
 // resolved directory is followed by a NUL and the unresolved rest of the path comes after it.
@@ -28,7 +28,7 @@ export async function resolveHostDir(
   const split = result.stdout.lastIndexOf('\0');
 
   if (result.exitCode !== 0 || split < 1 || result.stdout[split - 1] !== '\n') {
-    throw new DaemonError(
+    throw new AtcError(
       'host_unavailable',
       `${hostKey === null ? 'the daemon host' : `the host of session ${hostKey}`} cannot resolve ${directory}: ${result.stderr.trim()}`,
       { phase: 'resolving', directory },

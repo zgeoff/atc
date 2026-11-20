@@ -1,4 +1,4 @@
-import { DaemonError } from '@atc/protocol/wire';
+import { AtcError } from '@atcx/contract/light';
 import { match } from 'ts-pattern';
 import type { HarnessAuthRefusal } from './decide-harness-auth';
 
@@ -7,7 +7,7 @@ export function buildHarnessAuthRefusal(
   target: string,
   problem: HarnessAuthRefusal,
   variable: string | null,
-): DaemonError {
+): AtcError {
   const message = match(problem)
     .with(
       'broker_required',
@@ -35,7 +35,7 @@ export function buildHarnessAuthRefusal(
     )
     .exhaustive();
 
-  return new DaemonError('auth_target_unsupported', message, {
+  return new AtcError('auth_target_unsupported', message, {
     agent,
     target,
     problem,

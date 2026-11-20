@@ -84,15 +84,30 @@ const CLIENT_CWD = z
 
 export type SpawnWorkspaceSource = z.infer<typeof WORKSPACE_SOURCE>;
 
+const HELLO_AUTH = z.union([
+  z.object({ scheme: z.literal('none') }),
+  z.object({ scheme: z.literal('bearer'), token: z.string() }),
+]);
+
 const TERMINAL_SIZE_ERROR = 'cols and rows must be whole numbers from 1 to 4096';
 
 export const REQUEST_PARAM_SCHEMAS = {
-  'daemon.hello': z.object({
+  // A strict object: a client learns the daemon's features only from the hello answer, so it cannot
+  // check a hello field first, and a daemon that dropped an unknown field in silence would leave
+  // the client acting on a connection that differs from the one it asked for.
+  'daemon.hello': z.strictObject({
     client: buildDefaultedString('unknown client'),
 
-    // The protocol version the client speaks, which the daemon refuses
-    // unless it speaks the same one.
+    // The protocol number the client speaks. It stays 15 until the next major release drops it.
     protocol: z.number({ error: 'daemon.hello protocol must be a number' }).optional(),
+
+    // The major version of the client's contract, which the daemon accepts when it equals the
+    // major version of its own.
+    major: z.number({ error: 'daemon.hello major must be a whole number' }).int().optional(),
+
+    // The bearer token that the TCP check reads. A client sends it with no schema entry of its
+    // own, so the strict object lists it.
+    auth: HELLO_AUTH.optional(),
     principal: z
       .string({ error: 'daemon.hello principal must be a non-empty string' })
       .min(1, 'daemon.hello principal must be a non-empty string')

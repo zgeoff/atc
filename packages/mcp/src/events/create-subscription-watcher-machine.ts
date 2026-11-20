@@ -1,5 +1,5 @@
-import { DaemonError } from '@atc/protocol/wire';
 import type { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
+import { AtcError } from '@atcx/contract/light';
 import { machineTypes } from '@zgeoff/std';
 import invariant from 'tiny-invariant';
 import { assign, fromPromise, setup } from 'xstate';
@@ -258,7 +258,7 @@ function getRow(context: WatcherContext): SubscriptionRow {
 }
 
 function isCursorRefusal(error: unknown): boolean {
-  return error instanceof DaemonError && error.code === 'bad_args';
+  return error instanceof AtcError && error.code === 'bad_args';
 }
 
 function getPage(context: WatcherContext): TrailPage {
