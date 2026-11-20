@@ -1,6 +1,6 @@
 // Globs are root-relative, as `git ls-files` prints them, and match with Bun.Glob.
 const everyJourney = [
-  'packages/{app,config,contract,core,daemon,lifecycle,plugin-api,protocol,reporters,store}/**',
+  'packages/{app,client,config,contract,core,daemon,lifecycle,plugin-api,protocol,reporters,store}/**',
   'packages/harnesses/**',
   'packages/execution/local/**',
   'packages/sources/**',
@@ -38,6 +38,8 @@ export const sharedPaths = [
 export const ignoredPaths = [
   // Never `**/*.md`: a package may read markdown at run time.
   'docs/**',
+  'scripts/serve-stub-daemon.ts',
+  'scripts/smoke-client.mjs',
   '**/README.md',
   'CHANGELOG.md',
   'AGENTS.md',
