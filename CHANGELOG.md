@@ -2,11 +2,14 @@
 
 ## [7.21.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.20.0...@zgeoff/atc@7.21.0) (2026-11-20)
 
-
 ### Features
 
-* connect clients and daemons on a matching major version ([#1328](https://github.com/zgeoff/atc/issues/1328)) ([95c9efa](https://github.com/zgeoff/atc/commit/95c9efaabc834b55229c789d66407e13f0f68e2e))
-* publish @atcx/client, the daemon client atc itself uses ([#1330](https://github.com/zgeoff/atc/issues/1330)) ([3525908](https://github.com/zgeoff/atc/commit/3525908b694730c10617c2bcfdf365e7ddff9b7b))
+- connect clients and daemons on a matching major version
+  ([#1328](https://github.com/zgeoff/atc/issues/1328))
+  ([95c9efa](https://github.com/zgeoff/atc/commit/95c9efaabc834b55229c789d66407e13f0f68e2e))
+- publish @atcx/client, the daemon client atc itself uses
+  ([#1330](https://github.com/zgeoff/atc/issues/1330))
+  ([3525908](https://github.com/zgeoff/atc/commit/3525908b694730c10617c2bcfdf365e7ddff9b7b))
 
 ## [7.20.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.19.0...@zgeoff/atc@7.20.0) (2026-11-19)
 
