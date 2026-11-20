@@ -16,13 +16,16 @@ export function startStubImpdSockets(options: { readonly upstreamUrl?: string } 
 
   const counted = new WeakMap<ServerWebSocket, number>();
 
-  const answerRequest = async (request: Request, bunServer: Server<undefined>) => {
+  const answerRequest = async (
+    request: Request,
+    bunServer: Server<undefined>,
+  ): Promise<Response | undefined> => {
     const path = new URL(request.url).pathname;
 
     if ((path === '/tunnel' || path === '/exec') && bunServer.upgrade(request)) {
       authorizations.push(request.headers.get('authorization'));
 
-      return;
+      return undefined;
     }
 
     if (options.upstreamUrl === undefined) {
