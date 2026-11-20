@@ -1,4 +1,4 @@
-import { expect, mock, test } from 'bun:test';
+import { expect, mock, onTestFinished, test } from 'bun:test';
 import {
   chmodSync,
   existsSync,
@@ -22,6 +22,7 @@ import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { SESSION_DESCRIPTOR_SCHEMA } from '@atcx/contract';
 import { checkSessionImp } from '@impz/client/identity';
+import { startTestImpd } from '@impz/testing';
 import invariant from 'tiny-invariant';
 import { createImpClientPort } from './client/create-imp-client-port';
 import { createImpProvider } from './create-imp-provider';
@@ -29,7 +30,6 @@ import READ_GUEST_ATC_SCRIPT from './guest-atc/read-guest-atc.sh' with { type: '
 import READY_GUEST_DIR_SCRIPT from './guest-atc/ready-guest-dir.sh' with { type: 'text' };
 import { buildMockImpIdentity } from './test-utils/build-mock-imp-identity';
 import { createStubImpPort } from './test-utils/create-stub-imp-port';
-import { startStubImpd } from './test-utils/start-stub-impd';
 
 function setupTest() {
   const temporaryDirectory = setupTempDir('atc-imp-provider-');
@@ -39,13 +39,22 @@ function setupTest() {
 }
 
 test('it keeps an existing-host check refused when impd errors after the credential check', async () => {
-  const impd = startStubImpd();
+  const impd = await startTestImpd();
 
-  impd.answers.set('/rpc/tokens/whoami', { status: 200, json: buildMockImpIdentity() });
-  impd.answers.set('/rpc/imps/get', { status: 500, json: { message: 'impd unavailable' } });
+  onTestFinished(impd.stop);
+
+  const token = await impd.client.tokens.create({
+    name: 'current',
+    scope: 'manage',
+    imps: ['atc-*'],
+  });
+
+  impd.fail('imps/get', { status: 500, body: { message: 'impd unavailable' } });
+
+  const arranged = impd.calls.length;
 
   const provider = createImpProvider(
-    createImpClientPort({ url: impd.url, readToken: () => 'current-token' }),
+    createImpClientPort({ url: impd.url, readToken: () => token.secret }),
     {},
     { version: '1.0.0' },
   );
@@ -58,16 +67,20 @@ test('it keeps an existing-host check refused when impd errors after the credent
 
   expect(reachable).toBe(false);
 
-  expect(impd.calls.map((call) => call.path)).toStrictEqual([
-    '/rpc/tokens/whoami',
-    '/rpc/imps/get',
-  ]);
+  const calls = impd.calls.slice(arranged);
 
-  expect(impd.authorizations).toStrictEqual(['Bearer current-token', 'Bearer current-token']);
+  expect(calls.map((call) => call.procedure)).toStrictEqual(['tokens/whoami', 'imps/get']);
+
+  expect(calls.map((call) => call.authorization)).toStrictEqual([
+    `Bearer ${token.secret}`,
+    `Bearer ${token.secret}`,
+  ]);
 });
 
 test('it keeps an existing-host check refused when impd is unreachable', async () => {
-  const impd = startStubImpd();
+  const impd = await startTestImpd();
+
+  onTestFinished(impd.stop);
 
   const provider = createImpProvider(
     createImpClientPort({ url: impd.url, readToken: () => 'current-token' }),

@@ -1,24 +1,29 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { startStubImpd } from '../test-utils/start-stub-impd';
+import { TEST_TOKEN, startTestImpd } from '@impz/testing';
 import { startStubStallingProxy } from '../test-utils/start-stub-stalling-proxy';
 import { watchSocketLiveness } from './watch-socket-liveness';
 
-function setupTest() {
-  const impd = startStubImpd();
-  const proxy = startStubStallingProxy(Number(new URL(impd.url).port));
+async function setupTest() {
+  const impd = await startTestImpd();
+
+  onTestFinished(impd.stop);
+
+  const proxy = startStubStallingProxy(Number(new URL(impd.impdUrl).port));
   const clock = buildStubClock(0);
 
   return { proxy, clock };
 }
 
 test('it ends a socket that hears nothing from the far end for 30 seconds', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   const socket = watchSocketLiveness(
-    new WebSocket(`ws://127.0.0.1:${String(ctx.proxy.port)}/exec`),
+    new WebSocket(`ws://127.0.0.1:${String(ctx.proxy.port)}/exec`, {
+      headers: { authorization: `Bearer ${TEST_TOKEN}` },
+    }),
     ctx.clock,
   );
 
@@ -45,10 +50,12 @@ test('it ends a socket that hears nothing from the far end for 30 seconds', asyn
 });
 
 test('it keeps a quiet socket open while the far end answers its pings', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   const socket = watchSocketLiveness(
-    new WebSocket(`ws://127.0.0.1:${String(ctx.proxy.port)}/exec`),
+    new WebSocket(`ws://127.0.0.1:${String(ctx.proxy.port)}/exec`, {
+      headers: { authorization: `Bearer ${TEST_TOKEN}` },
+    }),
     ctx.clock,
   );
 
@@ -94,10 +101,12 @@ test('it keeps a quiet socket open while the far end answers its pings', async (
 });
 
 test('it stops pinging once the socket closes', async () => {
-  const ctx = setupTest();
+  const ctx = await setupTest();
 
   const socket = watchSocketLiveness(
-    new WebSocket(`ws://127.0.0.1:${String(ctx.proxy.port)}/exec`),
+    new WebSocket(`ws://127.0.0.1:${String(ctx.proxy.port)}/exec`, {
+      headers: { authorization: `Bearer ${TEST_TOKEN}` },
+    }),
     ctx.clock,
   );
 
