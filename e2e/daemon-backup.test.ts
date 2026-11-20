@@ -8,7 +8,7 @@ import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 
 async function setupTest() {
@@ -70,7 +70,7 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
     session: { name: 'killed before the backup', lastMsg: 'killed' },
   });
 
-  const sourceProbe = await openDaemonClient(ctx.source.daemon.socketPath);
+  const sourceProbe = createDaemonClient(ctx.source.daemon.socketPath);
 
   onTestFinished(() => {
     sourceProbe.stop();
@@ -96,7 +96,7 @@ test('it backs up a running daemon to a file that a fresh daemon restores with e
 
   await ctx.fresh.daemon.restart();
 
-  const freshClient = await openDaemonClient(ctx.fresh.daemon.socketPath);
+  const freshClient = createDaemonClient(ctx.fresh.daemon.socketPath);
 
   onTestFinished(() => {
     freshClient.stop();

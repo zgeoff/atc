@@ -5,7 +5,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { createDaemonPool } from './create-daemon-pool';
 
@@ -34,13 +34,13 @@ async function setupTest() {
     }),
   });
 
-  const cloudProber = await openDaemonClient(cloud.socketPath);
+  const cloudProber = createDaemonClient(cloud.socketPath);
 
   registerTestCleanup(() => {
     cloudProber.stop();
   });
 
-  const pcProber = await openDaemonClient(pc.socketPath);
+  const pcProber = createDaemonClient(pc.socketPath);
 
   registerTestCleanup(() => {
     pcProber.stop();
@@ -84,7 +84,7 @@ test('it gives each registry daemon its own caller that reaches only that daemon
     },
     build: 'atc-gateway/test',
     onWarning: () => {},
-    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+    openChannel: (address) => createDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   registerTestCleanup(() => pool.stop());
@@ -110,7 +110,7 @@ test('it refuses a caller for a name the registry does not hold', () => {
     registry: { daemons: new Map(), defaultDaemon: 'cloud' },
     build: 'atc-gateway/test',
     onWarning: () => {},
-    openChannel: (address) => openDaemonClient({ hostname: address.host, port: address.port }),
+    openChannel: (address) => createDaemonClient({ hostname: address.host, port: address.port }),
   });
 
   expect(() => pool.getCaller('pc')).toThrowWithMessage(Error, "no daemon 'pc' in the registry");

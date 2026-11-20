@@ -1,4 +1,3 @@
-import type { Socket } from 'node:net';
 import type { DaemonEvent, DaemonProcedures, HelloResult } from '@atcx/contract';
 
 export interface CallContext {
@@ -26,9 +25,6 @@ export interface DaemonHello {
 export interface DaemonConnectionOptions {
   readonly timeoutMs?: number | undefined;
   readonly signal?: AbortSignal | undefined;
-
-  // a socket the caller opened toward the target, connected or still connecting
-  readonly socket?: Socket | undefined;
 
   // sees each answer before its call resolves
   readonly onAnswer?:

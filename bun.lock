@@ -86,6 +86,7 @@
         "@atc/source-github": "workspace:*",
         "@atc/store": "workspace:*",
         "@atc/tui": "workspace:*",
+        "@atcx/client": "workspace:*",
         "@atcx/contract": "workspace:*",
         "@zgeoff/std": "catalog:",
         "gunshi": "catalog:",

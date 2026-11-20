@@ -15,7 +15,7 @@ import { createStubExecutionProvider } from '@atc/execution-local/test-utils/cre
 import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { encodeCursor } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { startStubStalledClient } from '@atc/protocol/test-utils/start-stub-stalled-client';
 import { trySendRequest } from '@atc/protocol/test-utils/try-send-request';
 import { seedTargetlessCompletedIdempotencyKeys } from '@atc/store/test-utils/seed-targetless-completed-idempotency-keys';
@@ -2960,7 +2960,7 @@ test('it reads the whole text of only the notes of sessions a principal may see 
   });
 
   const caller = createTransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -3034,7 +3034,7 @@ test('it reads the first of many large notes a principal may see while another c
   });
 
   const caller = createTransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

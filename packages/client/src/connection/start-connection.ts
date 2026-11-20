@@ -37,6 +37,15 @@ export interface ContractParts {
 // The most bytes the outbound queue holds. A write that would pass it ends the connection.
 const QUEUE_BYTES = 8 * 1024 * 1024;
 
+// Codes that say nothing listens at the address, a path that cannot hold a socket among them.
+const NO_DAEMON_CODES: ReadonlySet<unknown> = new Set([
+  'ENOENT',
+  'ENOTDIR',
+  'ECONNREFUSED',
+  'EINVAL',
+  'ENAMETOOLONG',
+]);
+
 export async function waitForConnect(socket: Socket, target: DaemonTarget): Promise<void> {
   if (socket.readyState === 'open') {
     return;
@@ -48,7 +57,7 @@ export async function waitForConnect(socket: Socket, target: DaemonTarget): Prom
     const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : undefined;
     const tried = 'path' in target ? target.path : `${target.hostname}:${target.port}`;
 
-    if (code === 'ENOENT' || code === 'ECONNREFUSED') {
+    if (NO_DAEMON_CODES.has(code)) {
       throw new AtcError('no_daemon', `no atc daemon listens at ${tried}`, { tried: [tried] });
     }
 

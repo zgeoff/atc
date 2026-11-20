@@ -5,7 +5,7 @@ import { getRecord } from '@atc/core/test-utils/get-record';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import type { GrantScope } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
@@ -57,7 +57,7 @@ test('it answers a tool list with an error when no daemon listens on the socket'
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -73,7 +73,7 @@ test('it answers a tool list with an error when no daemon listens on the socket'
   expect(ctx.answers).toPartiallyContain({
     jsonrpc: '2.0',
     id: 1,
-    error: { code: -32_603, message: expect.toBeString() },
+    error: { code: -32_603, message: expect.toBeString(), data: expect.toBeObject() },
   });
 });
 

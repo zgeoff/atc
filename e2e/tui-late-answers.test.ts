@@ -10,7 +10,7 @@ import { KEYS } from '@atc/core/test-utils/keys';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startGitHTTPServer } from '@atc/daemon/test-utils/start-git-http-server';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { buildStubHeldZoxide } from '@atc/source-dirs/test-utils/build-stub-held-zoxide';
 import { buildStubHeldGH } from '@atc/source-github/test-utils/build-stub-held-gh';
 import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-signed-out-gh';
@@ -228,7 +228,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
   expect(ctx.read()).not.toInclude('spawn: initial prompt');
 
-  const daemon = await openDaemonClient(ctx.paths.daemonSocketPath);
+  const daemon = createDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();
@@ -353,7 +353,7 @@ test('it keeps a probe of a typed URL while the directory listing answers, spawn
 
   await ctx.waitFor('FAKE_CLAUDE_UP', 10_000);
 
-  const daemon = await openDaemonClient(ctx.paths.daemonSocketPath);
+  const daemon = createDaemonClient(ctx.paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     daemon.stop();

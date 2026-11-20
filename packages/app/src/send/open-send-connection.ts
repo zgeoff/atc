@@ -1,15 +1,23 @@
 import type { RemoteDaemon } from '@atc/config';
 import { systemClock } from '@atc/core';
 import type { Clock } from '@atc/core';
-import { openDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
+import { connect } from '@atcx/client';
+import type { AtcClient } from '@atcx/client';
+import { toMessageID, toSessionID } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
 import {
   RemoteDaemonUnreachableError,
   bootRemoteDaemonClient,
 } from '../remote-daemon/boot-remote-daemon-client';
 import { RemoteTokenError } from '../remote-daemon/remote-token-error';
-import type { CommandError, ConnectResult, ConnectTarget, SendConnection } from './types';
+import type {
+  CommandError,
+  ConnectResult,
+  ConnectTarget,
+  SendCalls,
+  SendConnection,
+} from './types';
 
 const HELLO_LIMIT_MS = 8000;
 
@@ -42,36 +50,27 @@ export async function openSendConnection(
     return openRemoteSendConnection(target.name, source, clock);
   }
 
-  let client: DaemonClient;
-
-  try {
-    client = await openDaemonClient(source.socketPath);
-  } catch (error) {
-    return failed('unreachable', `no daemon at ${source.socketPath}: ${describe(error)}`);
-  }
-
-  const expired = Promise.withResolvers<never>();
-
-  const cancel = clock.schedule(() => {
-    client.stop();
-
-    expired.reject(
-      new AtcError('internal', `no handshake answer within ${HELLO_LIMIT_MS / 1000}s`),
-    );
-  }, HELLO_LIMIT_MS);
-
   const clientName = target.owner ? source.build : SEND_CLIENT;
-  const session = source.session === undefined ? {} : { session: source.session };
 
   try {
-    await Promise.race([client.sendHello(clientName, session), expired.promise]);
+    const client = await connect({
+      socketPath: source.socketPath,
+      client: clientName,
+      timeoutMs: HELLO_LIMIT_MS,
+      ...(source.session === undefined ? {} : { session: toSessionID(source.session) }),
+    });
+
+    return { ok: true, connection: makeLocalSendConnection(client, clock) };
   } catch (error) {
-    client.stop();
+    if (error instanceof AtcError && error.code === 'no_daemon') {
+      return failed('unreachable', `no daemon at ${source.socketPath}: ${error.message}`);
+    }
 
     if (
       error instanceof AtcError &&
       error.code !== 'internal' &&
-      error.code !== 'connection_lost'
+      error.code !== 'connection_lost' &&
+      error.code !== 'timeout'
     ) {
       return failed(error.code, error.message);
     }
@@ -80,11 +79,7 @@ export async function openSendConnection(
       'unreachable',
       `the daemon at ${source.socketPath} gave no handshake answer: ${describe(error)}`,
     );
-  } finally {
-    cancel();
   }
-
-  return { ok: true, connection: makeSendConnection(client, clock) };
 }
 
 async function openRemoteSendConnection(
@@ -101,7 +96,7 @@ async function openRemoteSendConnection(
   try {
     const booted = await bootRemoteDaemonClient(found.daemon, source.build, { clock });
 
-    return { ok: true, connection: makeSendConnection(booted.client, clock) };
+    return { ok: true, connection: makeRemoteSendConnection(booted.client, clock) };
   } catch (error) {
     if (error instanceof RemoteTokenError) {
       return failed('remote_token', error.message);
@@ -125,13 +120,33 @@ function failed(code: string, message: string): ConnectResult {
   return { ok: false, error };
 }
 
-function makeSendConnection(client: DaemonClient, clock: Clock): SendConnection {
+function makeRemoteSendConnection(client: DaemonClient, clock: Clock): SendConnection {
+  return makeSendConnection(
+    (method, params) => client.sendRequest(method, params),
+    { isClosed: () => client.isClosed(), stop: () => client.stop() },
+    clock,
+  );
+}
+
+interface SendHandle {
+  readonly isClosed: () => boolean;
+  readonly stop: () => void;
+}
+
+function makeSendConnection(
+  call: <Method extends keyof SendCalls>(
+    method: Method,
+    params: SendCalls[Method],
+  ) => Promise<Readonly<Record<string, unknown>>>,
+  handle: SendHandle,
+  clock: Clock,
+): SendConnection {
   return {
     request: async (method, params, limitMs) => {
       const expired = Promise.withResolvers<never>();
 
       const cancel = clock.schedule(() => {
-        client.stop();
+        handle.stop();
 
         expired.reject(
           new AtcError('internal', `no answer to ${method} within ${limitMs / 1000}s`),
@@ -139,18 +154,52 @@ function makeSendConnection(client: DaemonClient, clock: Clock): SendConnection 
       }, limitMs);
 
       try {
-        return await Promise.race([client.sendRequest(method, params), expired.promise]);
+        return await Promise.race([call(method, params), expired.promise]);
       } finally {
         cancel();
       }
     },
-    isClosed: () => client.isClosed(),
-    stop: () => {
-      client.stop();
-    },
+    isClosed: handle.isClosed,
+    stop: handle.stop,
   };
 }
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+const LOCAL_CALLS: {
+  readonly [Method in keyof SendCalls]: (
+    client: AtcClient,
+    params: SendCalls[Method],
+  ) => Promise<Readonly<Record<string, unknown>>>;
+} = {
+  'session.list': (client) => client.session.list({}),
+  'session.message': (client, params) =>
+    client.session.message({ ...params, session: toSessionID(params.session) }),
+  'message.get': (client, params) =>
+    client.message.get({ ...params, message: toMessageID(params.message) }),
+};
+
+function makeLocalSendConnection(client: AtcClient, clock: Clock): SendConnection {
+  let closed = false;
+
+  const watchClose = async (): Promise<void> => {
+    await client.closed;
+
+    closed = true;
+  };
+
+  void watchClose();
+
+  return makeSendConnection(
+    (method, params) => LOCAL_CALLS[method](client, params),
+    {
+      isClosed: () => closed,
+      stop: () => {
+        void client.close();
+      },
+    },
+    clock,
+  );
 }

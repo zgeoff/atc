@@ -43,7 +43,6 @@ export interface LineDecoder {
 export declare function createLineDecoder(): LineDecoder;
 
 // connection/daemon-connection.d.ts
-import type { Socket } from 'node:net';
 import type { DaemonEvent, DaemonProcedures, HelloResult } from '@atcx/contract';
 export interface CallContext {
     readonly as?: string | undefined;
@@ -65,7 +64,6 @@ export interface DaemonHello {
 export interface DaemonConnectionOptions {
     readonly timeoutMs?: number | undefined;
     readonly signal?: AbortSignal | undefined;
-    readonly socket?: Socket | undefined;
     readonly onAnswer?: ((method: string, answer: Readonly<Record<string, unknown>>) => void) | undefined;
 }
 interface EventsOptions {

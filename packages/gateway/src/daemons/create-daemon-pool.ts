@@ -6,7 +6,9 @@ import type { GatewayDaemonCaller } from './create-gateway-daemon-caller';
 interface DaemonPoolOptions {
   readonly registry: GatewayRegistry;
   readonly build: string;
-  readonly openChannel: (address: RegistryDaemon['address']) => Promise<GatewayChannel>;
+  readonly openChannel: (
+    address: RegistryDaemon['address'],
+  ) => GatewayChannel | Promise<GatewayChannel>;
   readonly connectTimeoutMs?: number;
   readonly responseTimeoutMs?: number;
   readonly clock?: Clock;

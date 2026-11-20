@@ -1,5 +1,5 @@
 import type { Clock } from '@atc/core';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { HELLO_RESULT_SCHEMA } from '@atcx/contract';
@@ -36,14 +36,7 @@ export async function tryOpenDaemon<T>(
   read: (client: Readonly<DaemonClient>) => Promise<T>,
 ): Promise<DaemonProbe<T> | null> {
   for (const [index, socketPath] of socketPaths.entries()) {
-    let client: DaemonClient;
-
-    try {
-      client = await openDaemonClient(socketPath);
-    } catch {
-      continue;
-    }
-
+    const client = createDaemonClient(socketPath);
     const remainingMs = Math.max(0, options.deadline - options.clock.now());
 
     const cancelExpiry = options.clock.schedule(

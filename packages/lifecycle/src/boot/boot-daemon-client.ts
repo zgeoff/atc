@@ -1,9 +1,10 @@
 import type { ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { makeSingleFlight, toAgentID } from '@atc/core';
 import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths, ProtocolMismatch } from '@atc/protocol';
 import { formatProtocolMismatch, isClientBehind } from '@atc/protocol';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { PROTOCOL_V } from '@atc/protocol/wire';
@@ -60,19 +61,19 @@ export async function bootDaemonClient(
 
     const opened =
       wait === null
-        ? await openOrBootDaemon(paths, options.paths === undefined, clock, host.invocation.argv)
-        : await waitForDaemon(wait);
+        ? await openOrBootDaemon({
+            paths,
+            canStart: options.paths === undefined,
+            clock,
+            atcArgv: host.invocation.argv,
+            build,
+          })
+        : await waitForDaemon(wait, build);
 
     const client = opened.client;
 
     try {
-      const hello =
-        wait === null
-          ? await client.sendHello(build, { session: readSessionEnv(process.env).sessionID })
-          : await waitForHello(
-              () => client.sendHello(build, { session: readSessionEnv(process.env).sessionID }),
-              wait,
-            );
+      const hello = readHelloAnswer(opened.hello);
 
       return {
         client,
@@ -147,54 +148,114 @@ export async function bootDaemonClient(
   throw new Error('the atc daemon could not be restarted');
 }
 
+type HelloOutcome =
+  | { readonly ok: true; readonly answer: Readonly<Record<string, unknown>> }
+  | { readonly ok: false; readonly error: unknown };
+
 interface OpenedDaemon {
   readonly client: DaemonClient;
   readonly socketPath: string;
+
+  // The answer to the hello that found the daemon, or its refusal.
+  readonly hello: HelloOutcome;
 }
 
-async function openOrBootDaemon(
-  paths: DaemonPaths,
-  canStart: boolean,
-  clock: Clock,
-  atcArgv: readonly string[],
-): Promise<OpenedDaemon> {
-  const opened = await tryOpenKnownDaemon(paths);
+interface OpenOrBootOptions {
+  readonly paths: DaemonPaths;
+  readonly canStart: boolean;
+  readonly clock: Clock;
+  readonly atcArgv: readonly string[];
+  readonly build: string;
+}
+
+async function openOrBootDaemon(options: OpenOrBootOptions): Promise<OpenedDaemon> {
+  const opened = await tryOpenKnownDaemon(options.paths, options.build, null);
 
   if (opened !== null) {
     return opened;
   }
 
-  if (!canStart) {
-    throw new Error(readGivenPathsFailure(paths));
+  if (!options.canStart) {
+    throw new Error(readGivenPathsFailure(options.paths));
   }
 
-  await bootDaemonOnce(paths, clock, atcArgv);
+  await bootDaemonOnce(options.paths, options.clock, options.atcArgv, options.build);
 
-  const booted = await tryOpenKnownDaemon(paths);
+  const booted = await tryOpenKnownDaemon(options.paths, options.build, null);
 
   if (booted === null) {
-    throw new Error(readBootFailure(paths));
+    throw new Error(readBootFailure(options.paths));
   }
 
   return booted;
 }
 
-async function tryOpenKnownDaemon(paths: DaemonPaths): Promise<OpenedDaemon | null> {
+interface DaemonWait {
+  readonly deadline: number;
+  readonly timeoutMs: number;
+  readonly clock: Clock;
+  readonly paths: DaemonPaths;
+
+  readonly onWait: () => void;
+}
+
+async function tryOpenKnownDaemon(
+  paths: DaemonPaths,
+  build: string,
+  wait: DaemonWait | null,
+): Promise<OpenedDaemon | null> {
   for (const socketPath of readDaemonSocketPaths(paths)) {
-    try {
-      return { client: await openDaemonClient(socketPath), socketPath };
-    } catch {
-      // A socket that refuses the connection passes the boot to the next.
+    // no socket file, no daemon: the hello is left for a socket that exists
+    if (!existsSync(socketPath)) {
+      continue;
     }
+
+    const client = createDaemonClient(socketPath);
+    const session = readSessionEnv(process.env).sessionID;
+    const sendHello = () => client.sendHello(build, { session });
+    const sending = wait === null ? sendHello() : waitForHello(sendHello, wait);
+
+    const hello = await settleHello(sending);
+
+    if (!hello.ok && hello.error instanceof AtcError && hello.error.code === 'no_daemon') {
+      // A socket that refuses the connection passes the boot to the next.
+      continue;
+    }
+
+    return { client, socketPath, hello };
   }
 
   return null;
 }
 
-function readGivenPathsFailure(paths: DaemonPaths): string {
+async function waitForHello(
+  sendHello: () => Promise<Readonly<Record<string, unknown>>>,
+  wait: DaemonWait,
+): Promise<Readonly<Record<string, unknown>>> {
+  if (wait.deadline === Number.POSITIVE_INFINITY) {
+    return sendHello();
+  }
+
+  const expired = Promise.withResolvers<never>();
+
+  const cancel = wait.clock.schedule(
+    () => {
+      expired.reject(new Error(readWaitFailure(wait)));
+    },
+    Math.max(0, wait.deadline - wait.clock.now()),
+  );
+
+  try {
+    return await Promise.race([sendHello(), expired.promise]);
+  } finally {
+    cancel();
+  }
+}
+
+function readWaitFailure(wait: DaemonWait): string {
   return (
-    readUnreachableDaemon(paths) ??
-    `no atc daemon answered at ${paths.socketPath}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`
+    readUnreachableDaemon(wait.paths) ??
+    `no atc daemon answered at ${wait.paths.socketPath} within ${wait.timeoutMs / 1000}s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`
   );
 }
 
@@ -208,12 +269,30 @@ function readUnreachableDaemon(paths: DaemonPaths): string | null {
   return null;
 }
 
+async function settleHello(
+  sending: Promise<Readonly<Record<string, unknown>>>,
+): Promise<HelloOutcome> {
+  try {
+    return { ok: true, answer: await sending };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function readGivenPathsFailure(paths: DaemonPaths): string {
+  return (
+    readUnreachableDaemon(paths) ??
+    `no atc daemon answered at ${paths.socketPath}, and a boot given its own daemon paths does not start one; start \`atc daemon\` where it listens there first`
+  );
+}
+
 const bootFlights = new WeakMap<Clock, Map<string, () => Promise<void>>>();
 
 function bootDaemonOnce(
   paths: DaemonPaths,
   clock: Clock,
   atcArgv: readonly string[],
+  build: string,
 ): Promise<void> {
   let flights = bootFlights.get(clock);
 
@@ -226,7 +305,7 @@ function bootDaemonOnce(
   let flight = flights.get(paths.socketPath);
 
   if (flight === undefined) {
-    flight = makeSingleFlight(() => bootDaemon(paths, clock, atcArgv));
+    flight = makeSingleFlight(() => bootDaemon(paths, clock, atcArgv, build));
 
     flights.set(paths.socketPath, flight);
   }
@@ -240,6 +319,7 @@ async function bootDaemon(
   paths: DaemonPaths,
   clock: Clock,
   atcArgv: readonly string[],
+  build: string,
 ): Promise<void> {
   const deadline = clock.now() + BOOT_DEADLINE_MS;
   let woken = Promise.withResolvers<void>();
@@ -252,7 +332,7 @@ async function bootDaemon(
 
   try {
     for (;;) {
-      const probe = await tryOpenKnownDaemon(paths);
+      const probe = await tryOpenKnownDaemon(paths, build, null);
 
       if (probe !== null) {
         probe.client.stop();
@@ -311,18 +391,9 @@ function readBootFailure(paths: DaemonPaths): string {
   );
 }
 
-interface DaemonWait {
-  readonly deadline: number;
-  readonly timeoutMs: number;
-  readonly clock: Clock;
-  readonly paths: DaemonPaths;
-
-  readonly onWait: () => void;
-}
-
-async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
+async function waitForDaemon(wait: DaemonWait, build: string): Promise<OpenedDaemon> {
   for (;;) {
-    const opened = await tryOpenKnownDaemon(wait.paths);
+    const opened = await tryOpenKnownDaemon(wait.paths, build, wait);
 
     if (opened !== null) {
       return opened;
@@ -342,33 +413,10 @@ async function waitForDaemon(wait: DaemonWait): Promise<OpenedDaemon> {
   }
 }
 
-function readWaitFailure(wait: DaemonWait): string {
-  return (
-    readUnreachableDaemon(wait.paths) ??
-    `no atc daemon answered at ${wait.paths.socketPath} within ${wait.timeoutMs / 1000}s, and this process does not start one; start \`atc daemon\` (or the service that runs it) first`
-  );
-}
-
-async function waitForHello(
-  sendHello: () => Promise<Readonly<Record<string, unknown>>>,
-  wait: DaemonWait,
-): Promise<Readonly<Record<string, unknown>>> {
-  if (wait.deadline === Number.POSITIVE_INFINITY) {
-    return sendHello();
+function readHelloAnswer(outcome: HelloOutcome): Readonly<Record<string, unknown>> {
+  if (!outcome.ok) {
+    throw outcome.error;
   }
 
-  const expired = Promise.withResolvers<never>();
-
-  const cancel = wait.clock.schedule(
-    () => {
-      expired.reject(new Error(readWaitFailure(wait)));
-    },
-    Math.max(0, wait.deadline - wait.clock.now()),
-  );
-
-  try {
-    return await Promise.race([sendHello(), expired.promise]);
-  } finally {
-    cancel();
-  }
+  return outcome.answer;
 }

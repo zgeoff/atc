@@ -6,7 +6,7 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { startStubDroppingDaemon } from '@atc/protocol/test-utils/start-stub-dropping-daemon';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
@@ -16,7 +16,7 @@ async function setupTest() {
   const daemon = await startTestDaemon({ prefix: 'atc-reconnecting-caller-' });
 
   const caller = createTransportCaller(daemon.socketPath, 'atc/test-build', (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -36,7 +36,7 @@ test('it refuses a wait for the daemon when no daemon listens on the socket', ()
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -69,7 +69,7 @@ test('it closes a connection whose handshake the daemon rejects', async () => {
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -93,7 +93,7 @@ test('it opens a fresh connection for the request after one whose handshake the 
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -127,7 +127,7 @@ test('it retries a spawn on a fresh connection under the key it minted when the 
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -145,7 +145,7 @@ test('it retries a read on a fresh connection as the principal it acts as', asyn
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -162,7 +162,7 @@ test('it retries a message on a fresh connection under the key its caller passed
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -183,7 +183,7 @@ test('it resends a keyed spawn unchanged, never as replay-only, so a daemon that
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -208,7 +208,7 @@ test('it fails a request that is neither keyed nor read-only when its connection
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());
@@ -224,9 +224,8 @@ test('it claims the session it was given in the handshake, and none when given n
 
   const claimed: unknown[] = [];
 
-  const openRecording = async (path: string) => {
-    const client = await openDaemonClient(path);
-
+  const openRecording = (path: string) => {
+    const client = createDaemonClient(path);
     const sendHello = client.sendHello;
 
     return Object.assign(client, {
@@ -260,7 +259,7 @@ test("it sends a principal's name beside it, which labels the message the reques
   const caller = createTransportCaller(
     daemon.socketPath,
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
     null,
   );
 
@@ -294,7 +293,7 @@ test('it fails an events read from the start with feature_missing and sends noth
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
     'atc/test-build',
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

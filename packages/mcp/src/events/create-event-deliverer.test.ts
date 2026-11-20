@@ -7,7 +7,7 @@ import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup'
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { buildSeeder } from '../test-utils/build-seeder';
@@ -34,7 +34,7 @@ async function setupTest(
   });
 
   const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
-    openDaemonClient(path),
+    createDaemonClient(path),
   );
 
   registerTestCleanup(() => caller.stop());

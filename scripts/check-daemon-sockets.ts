@@ -14,6 +14,13 @@ const SOCKET_OPENERS: ReadonlyMap<string, string> = new Map([
 
 const OPENS_SOCKET = /\bBun\.connect\(|\bconnectSocket\(|createConnection\(/u;
 
+// A file that imports connect from node:net opens a socket under that name.
+const IMPORTS_NET_CONNECT = /import\s*\{[^}]*\bconnect\b[^}]*\}\s*from\s*'(?:node:)?net'/u;
+
+export function isSocketOpener(source: string): boolean {
+  return OPENS_SOCKET.test(source) || IMPORTS_NET_CONNECT.test(source);
+}
+
 // The daemon's own folder holds the listening side, and a test helper may open a raw socket.
 const IGNORED = /\.test\.ts$|\/test-utils\/|\/daemon\/src\//u;
 
@@ -38,7 +45,7 @@ function main(): void {
 
   const openers = readSourceFiles(root, 'packages')
     .filter((file) => file.includes('/src/') && !IGNORED.test(file))
-    .filter((file) => OPENS_SOCKET.test(readFileSync(join(root, file), 'utf8')));
+    .filter((file) => isSocketOpener(readFileSync(join(root, file), 'utf8')));
 
   const findings = checkDaemonSockets(openers);
 

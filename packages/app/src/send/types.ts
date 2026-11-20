@@ -55,10 +55,24 @@ export interface CommandOutcome {
   readonly error: CommandError | null;
 }
 
+// The params of each call a send makes.
+export interface SendCalls {
+  readonly 'session.list': Record<never, never>;
+
+  readonly 'session.message': {
+    readonly session: string;
+    readonly text: string;
+    readonly idempotencyKey: string;
+    readonly from?: string;
+  };
+
+  readonly 'message.get': { readonly message: string; readonly waitMs: number };
+}
+
 export interface SendConnection {
-  readonly request: (
-    method: 'session.list' | 'session.message' | 'message.get',
-    params: Readonly<Record<string, unknown>>,
+  readonly request: <Method extends keyof SendCalls>(
+    method: Method,
+    params: SendCalls[Method],
     limitMs: number,
   ) => Promise<Readonly<Record<string, unknown>>>;
   readonly isClosed: () => boolean;

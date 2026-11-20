@@ -10,7 +10,9 @@ interface GatewayCallerOptions {
   readonly registry: GatewayRegistry;
   readonly build: string;
 
-  readonly openChannel: (address: RegistryDaemon['address']) => Promise<GatewayChannel>;
+  readonly openChannel: (
+    address: RegistryDaemon['address'],
+  ) => GatewayChannel | Promise<GatewayChannel>;
 
   readonly bindings: BindingDatabase;
 

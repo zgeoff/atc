@@ -14,7 +14,9 @@ interface GatewayDaemonCallerOptions {
   readonly daemon: RegistryDaemon;
   readonly build: string;
 
-  readonly openChannel: (address: RegistryDaemon['address']) => Promise<GatewayChannel>;
+  readonly openChannel: (
+    address: RegistryDaemon['address'],
+  ) => GatewayChannel | Promise<GatewayChannel>;
 
   readonly connectTimeoutMs?: number;
   readonly responseTimeoutMs?: number;
@@ -92,6 +94,12 @@ export function createGatewayDaemonCaller(opts: GatewayDaemonCallerOptions): Gat
           `daemon '${daemon.name}' refused the gateway's token`,
           { daemon: daemon.name },
         );
+      }
+
+      if (error instanceof AtcError && error.code === 'no_daemon') {
+        throw new GatewayError('daemon_unavailable', `daemon '${daemon.name}' is unreachable`, {
+          daemon: daemon.name,
+        });
       }
 
       if (error instanceof AtcError && error.code === 'protocol_mismatch') {

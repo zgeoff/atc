@@ -8,7 +8,7 @@ import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import type { DaemonEvent } from '@atcx/contract';
 
@@ -36,8 +36,7 @@ async function setupTest() {
   registerTestCleanup(() => daemon.stop());
 
   const events: DaemonEvent[] = [];
-
-  const actor = await openDaemonClient(paths.daemonSocketPath);
+  const actor = createDaemonClient(paths.daemonSocketPath);
 
   registerTestCleanup(() => {
     actor.stop();

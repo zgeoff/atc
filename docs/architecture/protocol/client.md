@@ -50,13 +50,15 @@ codes come from `@atcx/contract/light`, and the client adds four: `no_daemon`, `
 ## How atc uses it
 
 atc's packages open a daemon connection only through `@atcx/client`. `@atc/protocol/client` wraps
-`openDaemonConnection()` in the shape the older callers use: it opens the socket first, so an open
-rejects when nothing listens, and it sends the hello on `sendHello`. A test of the daemon's own
-handling of an early request, a bad hello or a foreign protocol version opens a raw client from
+`openDaemonConnection()` in the shape the older callers use: `createDaemonClient()` opens nothing,
+and `sendHello` opens the connection, so a daemon that is not there fails the hello with
+`no_daemon`. `atc send` calls `connect()`. A test of the daemon's own handling of an early request,
+a bad hello or a foreign protocol version opens a raw client from
 `@atc/protocol/test-utils/open-raw-daemon-client`, which skips the client's checks.
 
-`bun run check:daemon-sockets` lists the files that open a socket, and fails on a new one, so a
-daemon connection cannot appear beside the client.
+`bun run check:daemon-sockets` lists the files that open a socket, a `connect` import from
+`node:net` among them, and fails on a new one, so a daemon connection cannot appear beside the
+client.
 
 ## Packing and publishing
 

@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { waitFor } from '@atc/core/test-utils/wait-for';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { startTUIDaemon } from './start-tui-daemon';
 import { startTUIHarness } from './start-tui-harness';
@@ -27,7 +27,7 @@ test('it stops its daemon once the test finishes', async () => {
 
   await startTUIDaemon(ctx.tui);
 
-  const client = await openDaemonClient(ctx.tui.paths.daemonSocketPath);
+  const client = createDaemonClient(ctx.tui.paths.daemonSocketPath);
 
   await client.sendHello('atc/test');
 

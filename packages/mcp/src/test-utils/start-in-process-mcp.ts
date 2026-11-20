@@ -1,5 +1,5 @@
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { openDaemonClient } from '@atc/protocol/client';
+import { createDaemonClient } from '@atc/protocol/client';
 import {
   InMemoryTransport,
   isJSONRPCResponse,
@@ -29,7 +29,7 @@ export async function startInProcessMCP(config: InProcessMCPConfig) {
   const caller = createTransportCaller(
     config.socketPath,
     config.build,
-    (path) => openDaemonClient(path),
+    (path) => createDaemonClient(path),
     callerSessionID,
   );
 
