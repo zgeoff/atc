@@ -37,6 +37,20 @@ Then ask it:
 
 Each builder is a session in your TUI, so you can jump into any of them.
 
+Message a session from anywhere a shell runs:
+
+```sh
+atc send reviewer "Is the migration safe to run?" --wait
+```
+
+Ping your phone when an agent needs you:
+
+```sh
+atc events |
+  jq --unbuffered -r 'select(.ev == "SessionState" and .session.state == "needs_you") | .session.name' |
+  while read -r name; do ntfy publish me "$name is waiting on you"; done
+```
+
 Hand a stuck cloud agent to your orchestrator, after `bun add @atcx/client`:
 
 ```ts
