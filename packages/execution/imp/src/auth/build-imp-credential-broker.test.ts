@@ -146,10 +146,8 @@ test('it rejects the version check of an outdated impd as too old after one syst
     destroyImp: (hostKey) => port.destroyImp(`atc-${hostKey}`),
   });
 
-  await expect(broker.verifyVersion()).rejects.toMatchObject({
-    code: 'too_old',
-    brokerCode: 'IMPD_OUTDATED',
-  });
+  const failure = await broker.verifyVersion().catch((error: unknown) => error);
 
+  expect(failure).toMatchObject({ code: 'too_old', brokerCode: 'IMPD_OUTDATED' });
   expect(impd.calls.map((call) => call.procedure)).toStrictEqual(['system/info']);
 });
