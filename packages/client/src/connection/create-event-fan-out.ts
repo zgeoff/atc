@@ -27,6 +27,7 @@ export function createEventFanOut<T>(): EventFanOut<T> {
   const finish = (subscriber: Subscriber<T>, failure: AtcError | null) => {
     subscriber.finished = true;
     subscriber.failure = failure;
+    subscriber.unread.length = 0;
 
     subscribers.delete(subscriber);
     subscriber.waiter?.resolve();
@@ -87,8 +88,6 @@ export function createEventFanOut<T>(): EventFanOut<T> {
           },
           return: (): Promise<IteratorResult<T>> => {
             signal?.removeEventListener('abort', onAbort);
-            subscriber.unread.length = 0;
-
             finish(subscriber, null);
 
             return Promise.resolve({ done: true, value: undefined });
@@ -100,8 +99,6 @@ export function createEventFanOut<T>(): EventFanOut<T> {
     push: (event) => {
       for (const subscriber of subscribers) {
         if (subscriber.unread.length >= MAX_UNREAD_EVENTS) {
-          subscriber.unread.length = 0;
-
           finish(
             subscriber,
             new AtcError(

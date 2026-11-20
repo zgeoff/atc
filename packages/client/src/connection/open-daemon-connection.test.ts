@@ -356,6 +356,32 @@ test('it ends one iterator by its signal and leaves the others running', async (
   ]);
 });
 
+test('it drops the unread events of an iterator when its signal aborts', async () => {
+  const ctx = await setupTest();
+  const connection = await ctx.open();
+
+  const controller = new AbortController();
+
+  const stopped = connection.events({ signal: controller.signal })[Symbol.asyncIterator]();
+  const reading = connection.events()[Symbol.asyncIterator]();
+
+  await waitUntil(() => {
+    expect(ctx.daemon.subscriptions).toBe(1);
+  });
+
+  ctx.daemon.emit({ ev: 'SessionRemoved', sessionID: 's_1' });
+  ctx.daemon.emit({ ev: 'SessionRemoved', sessionID: 's_2' });
+
+  await reading.next();
+  await reading.next();
+
+  controller.abort();
+
+  const next = await stopped.next();
+
+  expect(next).toStrictEqual({ done: true, value: undefined });
+});
+
 test('it skips an event of a kind the contract does not hold', async () => {
   const ctx = await setupTest();
   const connection = await ctx.open();
