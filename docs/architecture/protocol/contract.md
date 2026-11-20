@@ -12,8 +12,8 @@ schema is the one the daemon serves.
 
 atc's own packages import the schemas from the contract package and never keep a copy, so the
 published package and the daemon cannot drift apart. The package leaves out what only atc's own
-processes use: the client and its transport, the event cursor encoding, the store, the terminal
-client's helpers, and the folder that holds the daemon's restart results.
+processes use: the transport under [the published client](./client.md), the event cursor encoding,
+the store, the terminal client's helpers, and the folder that holds the daemon's restart results.
 
 The gateway's half of the package serves a program that deploys atc-gateway. The route table groups
 the HTTP server's paths by who requests them: a person's browser, a machine client, or an

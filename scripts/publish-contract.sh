@@ -137,7 +137,7 @@ export async function open(path: string, context: CallContext): Promise<unknown>
 export const failure = (error: unknown): string => (error instanceof AtcError ? error.code : '');
 export const paths = readDaemonSocketPaths;
 EOF
-  echo '{ "compilerOptions": { "module": "nodenext", "target": "esnext", "strict": true, "noEmit": true, "skipLibCheck": false },
+  echo '{ "compilerOptions": { "module": "nodenext", "target": "esnext", "strict": true, "noEmit": true, "skipLibCheck": false, "types": ["node"] },
     "files": ["main.ts"] }' > "$consumer/tsconfig.json"
   (cd "$consumer" && ./node_modules/.bin/tsc -p tsconfig.json)
   echo "TypeScript's nodenext resolution typechecks a program that imports $contract and $client"

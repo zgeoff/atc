@@ -88,6 +88,7 @@
     "check:contract": "bun scripts/check-contract.ts",
     "check:contract-compat": "bun scripts/check-contract-compat.ts",
     "check:imports": "bun scripts/check-imports.ts",
+    "check:daemon-sockets": "bun scripts/check-daemon-sockets.ts",
     "check:disable-baseline": "bun scripts/check-disable-baseline.ts",
     "check:guest-scripts": "bun scripts/check-guest-scripts.ts",
     "check:manifests": "bun scripts/check-manifests.ts",

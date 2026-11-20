@@ -60,6 +60,9 @@ jobs:
       - name: Import Direction
         run: bun run check:imports
 
+      - name: Daemon Sockets
+        run: bun run check:daemon-sockets
+
       - name: Package Manifests
         run: bun run check:manifests
 
