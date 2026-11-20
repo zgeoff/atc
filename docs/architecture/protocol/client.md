@@ -32,14 +32,14 @@ that routes calls by method name, such as the gateway, uses `openDaemonConnectio
 - **One event stream.** A connection holds one `events.subscribe` stream, opened on the first
   `events()` call. Each `events()` iterator reads from it and holds at most 10,000 unread events,
   then ends with `events_overflow`.
-- **Output cap.** A connection stops sending once its socket holds 8 MiB unwritten, and the call
-  fails with `internal`.
+- **Output cap.** A connection stops sending once its socket holds more unwritten output than the
+  client allows, and the call fails with `internal`.
 - **No reconnect and no resend.** A dropped socket rejects each pending call with `connection_lost`.
   Its `data` names the procedure, and says whether the call was read-only and whether it carried an
   idempotency key, which is what a caller needs to decide on a resend. See
   [idempotent requests](./idempotency.md).
-- **Deadline.** The connect and the hello share `timeoutMs`, 8 seconds by default. A late hello
-  fails with `timeout`, and an abort signal cancels the open.
+- **Deadline.** The connect and the hello share `timeoutMs`, which has a default. A late hello fails
+  with `timeout`, and an abort signal cancels the open.
 
 ## Errors
 
