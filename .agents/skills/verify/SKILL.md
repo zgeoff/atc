@@ -21,9 +21,8 @@ changes a feature with no verdict there.
 The mistakes that cost the most time:
 
 - **Using the app before `doctor` passes.** `bun verify doctor` checks that the app answers and that
-  each driver works. A driver is a package, such as `@wringer/http`, that adds a group of commands,
-  such as `bun verify http request`. Until `doctor` passes after `bun verify up` or
-  `bun verify attach`, any command that touches the app fails with exit code 3.
+  each driver works. Until `doctor` passes after `bun verify up` or `bun verify attach`, any command
+  that touches the app fails with exit code 3.
 - **Editing the app's code while `up` runs it.** The next command that touches the app fails with
   `doctor-required`. Run `bun verify up --restart` and `bun verify doctor`, then the journey again.
 - **Running `done` before you check the end state.** `done` checks only that one command of the
