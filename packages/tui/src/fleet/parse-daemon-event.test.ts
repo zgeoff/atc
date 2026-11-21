@@ -38,12 +38,15 @@ test('it parses a SessionAdded event into a mirror session', () => {
       alive: true,
       resumable: false,
       canEject: false,
+      canDestroyHost: null,
       agent: 'claude',
       parent: null,
       target: 'local',
       place: { key: 'daemon:local:local', label: 'local' },
       model: null,
       harness: 'running',
+      hostAsleep: false,
+      stateSince: null,
     },
   });
 });
@@ -84,12 +87,15 @@ test('it parses a SessionState event into a mirror session', () => {
       alive: true,
       resumable: false,
       canEject: false,
+      canDestroyHost: null,
       agent: 'claude',
       parent: null,
       target: 'local',
       place: { key: 'daemon:local:local', label: 'local' },
       model: null,
       harness: 'running',
+      hostAsleep: false,
+      stateSince: null,
     },
   });
 });

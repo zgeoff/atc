@@ -16,6 +16,7 @@ type ClientMachineEvent =
   | { readonly type: 'SPAWN'; readonly resume: boolean }
   | { readonly type: 'EJECT'; readonly key: SessionKey }
   | { readonly type: 'CONFIRM_KILL'; readonly key: SessionKey }
+  | { readonly type: 'CONFIRM_END'; readonly key: SessionKey }
   | { readonly type: 'CONFIRM_DESTROY'; readonly key: SessionKey }
   | { readonly type: 'CONFIRM_DONE' }
   | { readonly type: 'CONSENT_ASKED'; readonly consent: RestartConsent }
@@ -37,7 +38,6 @@ interface ClientMachineContext {
 export interface ClientMachineDeps {
   readonly openHome: () => void;
   readonly openAttached: (key: SessionKey) => void;
-  readonly closeAttached: () => void;
   readonly openOverlay: () => void;
   readonly openHelp: () => void;
   readonly openPicker: (resume: boolean) => void;
@@ -56,9 +56,6 @@ export function buildClientMachine(deps: ClientMachineDeps) {
           deps.openAttached(args.event.key);
         }
       },
-      closeAttached: () => {
-        deps.closeAttached();
-      },
       openOverlay: () => {
         deps.openOverlay();
       },
@@ -67,7 +64,9 @@ export function buildClientMachine(deps: ClientMachineDeps) {
       },
       setConfirmKey: assign({
         confirmKey: (args) =>
-          args.event.type === 'CONFIRM_DESTROY' || args.event.type === 'CONFIRM_KILL'
+          args.event.type === 'CONFIRM_DESTROY' ||
+          args.event.type === 'CONFIRM_END' ||
+          args.event.type === 'CONFIRM_KILL'
             ? args.event.key
             : null,
       }),
@@ -109,10 +108,6 @@ export function buildClientMachine(deps: ClientMachineDeps) {
           },
           attached: {
             entry: 'openAttached',
-
-            // The daemon sizes a session to the smallest client attached to
-            // it, so a client that no longer shows the session lets it go.
-            exit: 'closeAttached',
             on: {
               OVERLAY: 'overlay',
             },
@@ -164,6 +159,7 @@ export function buildClientMachine(deps: ClientMachineDeps) {
         initial: 'none',
         on: {
           CONFIRM_KILL: { target: '.kill', actions: 'setConfirmKey' },
+          CONFIRM_END: { target: '.end', actions: 'setConfirmKey' },
           CONFIRM_DESTROY: { target: '.destroy', actions: 'setConfirmKey' },
           CONFIRM_DONE: { target: '.none', actions: 'resetConfirmKey' },
           OVERLAY: { target: '.none', actions: 'resetConfirmKey' },
@@ -171,6 +167,7 @@ export function buildClientMachine(deps: ClientMachineDeps) {
         states: {
           none: {},
           kill: {},
+          end: {},
           destroy: {},
         },
       },

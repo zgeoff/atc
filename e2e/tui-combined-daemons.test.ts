@@ -179,10 +179,10 @@ test('it lists the sessions of the local daemon and a remote daemon, each remote
   await ctx.tui.waitFor('on-the-box');
 
   await waitFor(() => {
-    const frame = ctx.tui.read().split('┌ sessions ').at(-1);
+    const frame = ctx.tui.read().split('╭─ ').at(-1);
 
-    expect(frame).toMatch(/box\s+on-the-box/u);
-    expect(frame).not.toMatch(/box\s+on-the-laptop/u);
+    expect(frame).toMatch(/on-the-box\s+box/u);
+    expect(frame).not.toMatch(/on-the-laptop\s+box/u);
   });
 });
 
@@ -345,7 +345,7 @@ test('it hides the rows of a remote daemon that stops and shows its refreshed ro
 
   await ctx.tui.waitFor('box: down');
 
-  const frame = ctx.tui.read().split('┌ sessions ').at(-1);
+  const frame = ctx.tui.read().split('╭─ ').at(-1);
 
   expect(frame).not.toInclude('far-session');
 
@@ -364,7 +364,7 @@ test('it reattaches the attached remote session when its link drops and comes ba
   const ctx = await setupTest();
   const remote = await startRemoteTestDaemon();
 
-  await spawnNamedSession(
+  const remoteID = await spawnNamedSession(
     (method, params) => remote.client.sendRequest(method, params),
     'far-session',
     remote.directory,
@@ -397,8 +397,21 @@ test('it reattaches the attached remote session when its link drops and comes ba
   writeFileSync(ctx.tokenFile, `${'b'.repeat(32)}\n`);
   writeFileSync(join(remote.directory, 'gateway-token'), `${'b'.repeat(32)}\n`);
 
+  const droppedAtMs = Date.now();
+
   remote.daemon.refreshTokens();
   ctx.tui.resetScreen();
+
+  // The session keeps its last screen while the link is down, so the screen alone does not show
+  // that the client is back. The daemon hears the attach again once it is.
+  await waitFor(async () => {
+    const listed = await remote.client.sendRequest('session.list');
+
+    expect(listed['sessions']).toPartiallyContain({
+      id: remoteID,
+      lastAttachedAt: expect.toBeWithin(droppedAtMs, Number.MAX_SAFE_INTEGER),
+    });
+  });
 
   await ctx.tui.waitFor('REMOTE_UP');
 
@@ -419,7 +432,23 @@ test('it reattaches the attached remote session under the same id when the remot
 
   ctx.tui.resetScreen();
 
+  const stoppedAtMs = Date.now();
+
   await restartRemoteTestDaemon(remote, { restoreFleet: true });
+
+  // The session keeps its last screen while the link is down, so the screen alone does not show
+  // that the client is back. The daemon hears the attach again once it is.
+  await waitFor(async () => {
+    const listed = await remote.client.sendRequest('session.list');
+    const screen = await remote.client.sendRequest('session.screen', { session: remoteID });
+
+    expect(listed['sessions']).toPartiallyContain({
+      id: remoteID,
+      lastAttachedAt: expect.toBeWithin(stoppedAtMs, Number.MAX_SAFE_INTEGER),
+    });
+
+    expect(String(screen['text'])).toInclude('REMOTE_UP');
+  });
 
   await ctx.tui.waitFor('REMOTE_UP');
 
@@ -449,10 +478,10 @@ test('it returns to the list when the remote daemon restarts without the attache
 
   await ctx.tui.waitFor('no sessions — n to spawn');
 
-  const frame = ctx.tui.read().split('┌ sessions ').at(-1);
-
-  expect(frame).not.toInclude('far-session');
-  expect(frame).not.toInclude('waiting for daemon');
+  await waitFor(() => {
+    expect(ctx.tui.readScreen()).not.toInclude('far-session');
+    expect(ctx.tui.readScreen()).not.toInclude('waiting for daemon');
+  });
 });
 
 test('it tells the user why a line typed into an attached remote session went nowhere', async () => {

@@ -50,7 +50,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
   // A session's state change can repaint the overlay before the typed text
   // reaches it, so only the latest frame counts.
   await waitFor(() => {
-    const frame = ctx.read().split('┌ sessions ').at(-1);
+    const frame = ctx.read().split('╭─ ').at(-1);
 
     expect(frame).toInclude('/ brav');
     expect(frame).toInclude('bravo');
@@ -76,10 +76,10 @@ test('it opens the overlay with a configured leader key', async () => {
 
   await ctx.waitFor('leadertest');
 
-  expect(ctx.read().split('┌ sessions ').at(-1)).toInclude('leadertest');
+  expect(ctx.read().split('╭─ ').at(-1)).toInclude('leadertest');
 });
 
-test('it pins a session from the overlay and marks its row', async () => {
+test('it pins a session from the list and groups it under pinned', async () => {
   const ctx = await setupTest();
 
   ctx.boot();
@@ -92,14 +92,17 @@ test('it pins a session from the overlay and marks its row', async () => {
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('◆ 1 need you');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
-  ctx.reset();
+  ctx.write('g');
+
+  await ctx.waitFor('by repo');
+
   ctx.write('p');
 
-  await ctx.waitFor('⋆');
-
-  expect(ctx.read()).toInclude('●!⋆ pinme');
+  await waitFor(() => {
+    expect(ctx.readScreen()).toMatch(/^\s*pinned {2}1/mu);
+  });
 });
 
 test('it clusters overlay rows under repository headers when grouping is toggled on', async () => {
@@ -119,7 +122,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('◆ 1 need you');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   await openAgentStep(ctx);
 
@@ -151,13 +154,13 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   await ctx.waitFor('second');
 
-  expect(ctx.read()).not.toInclude('▸');
+  expect(ctx.readScreen()).not.toMatch(/^\s*otherproj {2}1/mu);
 
-  ctx.reset();
   ctx.write('g');
 
-  await ctx.waitFor('▸');
-  await ctx.waitFor('otherproj');
+  await ctx.waitFor('by repo');
+
+  expect(ctx.readScreen()).toMatch(/^\s*otherproj {2}1/mu);
 });
 
 test('it lists a sub-session indented under its parent', async () => {
@@ -235,7 +238,7 @@ test('it lists a detached sub-session as top-level', async () => {
   // Another session's state can repaint the overlay before the detach
   // does, so only the latest frame counts.
   await waitFor(() => {
-    const frame = ctx.read().split('┌ sessions ').at(-1);
+    const frame = ctx.read().split('╭─ ').at(-1);
 
     expect(frame).toInclude('worker');
     expect(frame).not.toInclude('↳');
@@ -255,7 +258,7 @@ test('it preselects the focused session when the overlay opens', async () => {
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('◆ 1 need you');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   await spawnClaudeSession(ctx, 'second');
 
@@ -264,7 +267,7 @@ test('it preselects the focused session when the overlay opens', async () => {
 
   await ctx.waitFor('second');
 
-  expect(ctx.read()).toInclude('\u001B[7msecond');
+  expect(ctx.readScreen()).toMatch(/▌.*second/u);
 });
 
 test('it opens the key reference from the overlay and returns on esc', async () => {
@@ -279,18 +282,17 @@ test('it opens the key reference from the overlay and returns on esc', async () 
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: helptest');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('needs you: ');
+  await ctx.waitFor('╭─ ');
 
   ctx.write('?');
 
   await ctx.waitFor('┌ keys ');
 
-  ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor('helptest');
+  await ctx.waitForGone('┌ keys ');
+  await ctx.waitFor('╭─ ');
 
-  expect(ctx.read()).toInclude('┌ sessions ');
-  expect(ctx.read()).not.toInclude('┌ keys ');
+  expect(ctx.readScreen()).toInclude('helptest');
 });

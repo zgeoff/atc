@@ -1,4 +1,5 @@
-import { toPaletteRGB } from './to-palette-rgb';
+import { blendRGB } from './blend-rgb';
+import { resolveColour } from './resolve-colour';
 import type { Cell, Colour, RGB, TerminalFacts } from './types';
 
 // Blends the cell toward the terminal's background by a share from 0 to 1. A default background
@@ -29,22 +30,6 @@ export function dimCell(cell: Cell, terminal: TerminalFacts, share: number): Cel
   };
 }
 
-function resolveColour(colour: Colour, fallback: RGB): RGB {
-  if (colour.kind === 'default') {
-    return fallback;
-  }
-
-  return colour.kind === 'palette' ? toPaletteRGB(colour.index) : colour;
-}
-
 function toRGBColour(rgb: RGB): Colour {
   return { kind: 'rgb', red: rgb.red, green: rgb.green, blue: rgb.blue };
-}
-
-function blendRGB(from: RGB, toward: RGB, share: number): RGB {
-  return {
-    red: Math.round(from.red + (toward.red - from.red) * share),
-    green: Math.round(from.green + (toward.green - from.green) * share),
-    blue: Math.round(from.blue + (toward.blue - from.blue) * share),
-  };
 }

@@ -63,8 +63,13 @@ export function createLinkReactions(deps: LinkReactionsDeps): LinkReactions {
 
   const resumeAttachedSession = (daemon: DaemonName) => {
     const focusedKey = deps.findFocusedKey();
+    const mode = deps.getMode();
 
-    if (deps.getMode() !== 'attached' || focusedKey === null || focusedKey.daemon !== daemon) {
+    if (
+      (mode !== 'attached' && mode !== 'overlay') ||
+      focusedKey === null ||
+      focusedKey.daemon !== daemon
+    ) {
       return;
     }
 
@@ -75,7 +80,9 @@ export function createLinkReactions(deps: LinkReactionsDeps): LinkReactions {
     const focused = deps.findFocused();
 
     if (focused === null || !focused.alive) {
-      deps.service.send({ type: 'OVERLAY' });
+      if (mode === 'attached') {
+        deps.service.send({ type: 'OVERLAY' });
+      }
 
       return;
     }

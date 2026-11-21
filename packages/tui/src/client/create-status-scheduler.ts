@@ -14,6 +14,9 @@ export interface StatusSchedulerDeps {
 
   // true while a session shows, or the session list is open over one
   readonly isOverSession: () => boolean;
+
+  // true while the session list is open, which has no status bar of its own to show
+  readonly isListOpen: () => boolean;
   readonly isDaemonRestarting: () => boolean;
   readonly isDaemonWaiting: () => boolean;
 
@@ -40,8 +43,8 @@ export function createStatusScheduler(deps: StatusSchedulerDeps): () => void {
       const notice = deps.findNotice();
       const isOverAttached = deps.isOverSession() && !deps.isAttachedLinkDown();
 
-      // Over a session the last row stays blank, except for a notice.
-      if (isOverAttached && notice === null) {
+      // Over a session, and under the session list, the last row stays blank, except for a notice.
+      if ((isOverAttached || deps.isListOpen()) && notice === null) {
         if (isBarDrawn) {
           eraseStatusBar();
         }

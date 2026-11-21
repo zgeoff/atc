@@ -53,7 +53,7 @@ test('it opens the spawn picker in resume mode from the home screen', () => {
   expect(ctx.calls).toStrictEqual(['openHome', 'openPicker:true']);
 });
 
-test('it lets the attached session go before it opens the overlay', () => {
+test('it keeps the attached session when it opens the overlay', () => {
   const ctx = setupTest();
 
   ctx.actor.start();
@@ -65,10 +65,10 @@ test('it lets the attached session go before it opens the overlay', () => {
   ctx.actor.send({ type: 'OVERLAY' });
 
   expect(ctx.actor.getSnapshot().value.mode).toBe('overlay');
-  expect(ctx.calls).toStrictEqual(['openHome', 'openAttached:s1', 'closeAttached', 'openOverlay']);
+  expect(ctx.calls).toStrictEqual(['openHome', 'openAttached:s1', 'openOverlay']);
 });
 
-test('it lets the attached session go before it attaches another from the overlay', () => {
+test('it attaches another session from the overlay', () => {
   const ctx = setupTest();
 
   ctx.actor.start();
@@ -87,7 +87,6 @@ test('it lets the attached session go before it attaches another from the overla
   expect(ctx.calls).toStrictEqual([
     'openHome',
     'openAttached:s1',
-    'closeAttached',
     'openOverlay',
     'openAttached:s2',
   ]);
@@ -530,4 +529,17 @@ test('it starts a restart while it waits for a lost daemon', () => {
   ctx.actor.send({ type: 'RESTART_STARTED' });
 
   expect(ctx.actor.getSnapshot().value.daemon).toBe('restarting');
+});
+
+test('it holds the session whose end waits on a confirmation', () => {
+  const ctx = setupTest();
+
+  ctx.actor.start();
+  ctx.actor.send({ type: 'OVERLAY' });
+  ctx.actor.send({ type: 'CONFIRM_END', key: { daemon: null, id: 's-harbor' } });
+
+  const pending = ctx.actor.getSnapshot();
+
+  expect(pending.value.confirm).toBe('end');
+  expect(pending.context.confirmKey).toStrictEqual({ daemon: null, id: 's-harbor' });
 });

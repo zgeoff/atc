@@ -23,7 +23,6 @@ export function drawModeScreen(deps: DrawModeScreenDeps): void {
       drawHome(deps.sessionCount, deps.leaderLabel);
     })
     .with('overlay', () => {
-      deps.write(ansi.clear);
       deps.overlay.render();
     })
     .with('help', () => {

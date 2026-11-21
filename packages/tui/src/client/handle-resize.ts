@@ -1,11 +1,10 @@
 import { ansi } from '@atc/core';
 import type { SessionKey } from '../fleet/session-key';
 import { cols } from '../terminal/cols';
-import type { ClientMode } from './build-client-machine';
 
 export interface HandleResizeDeps {
-  readonly mode: ClientMode;
-  readonly focusedKey: SessionKey | null;
+  // the session the TUI holds an attachment to, which a resize reaches in any screen
+  readonly attachedKey: SessionKey | null;
 
   readonly restartPrompt: string | null;
   readonly ptyRows: number;
@@ -25,9 +24,9 @@ export function handleResize(deps: HandleResizeDeps): void {
     return;
   }
 
-  if (deps.mode === 'attached' && deps.focusedKey !== null) {
-    void deps.sendQuiet(deps.focusedKey.daemon, 'session.resize', {
-      session: deps.focusedKey.id,
+  if (deps.attachedKey !== null) {
+    void deps.sendQuiet(deps.attachedKey.daemon, 'session.resize', {
+      session: deps.attachedKey.id,
       cols: cols(),
       rows: deps.ptyRows,
     });

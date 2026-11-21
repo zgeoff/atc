@@ -1,222 +1,139 @@
 import { expect, test } from 'bun:test';
 import { parseConfig } from '@atc/config';
 import { buildStubHarnessPlugins } from '@atc/config/test-utils/build-stub-harness-plugins';
-import { KEYS } from '@atc/core/test-utils/keys';
 import { createFleetMirror } from '../fleet/create-fleet-mirror';
 import type { SessionKey } from '../fleet/session-key';
 import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session';
-import { buildStubTerminal } from '../test-utils/build-stub-terminal';
-import { collectOverlayHeaders } from '../test-utils/collect-overlay-headers';
 import { createOverlayScreen } from './create-overlay-screen';
 import type { OverlayConfirm } from './create-overlay-screen';
 
-function setupTest() {
-  const terminal = buildStubTerminal();
+function setupTest(file: Record<string, unknown> = {}) {
   const mirror = createFleetMirror(null);
   const confirm: { value: OverlayConfirm; key: SessionKey | null } = { value: 'none', key: null };
+  const state = { isStale: false, isWaiting: false, frames: 0 };
 
   const overlay = createOverlayScreen({
     mirror,
     bootMetadata: { labels: { claude: 'Claude' }, models: {} },
-    readConfig: () => parseConfig(buildStubHarnessPlugins(), {}),
+    readConfig: () => parseConfig(buildStubHarnessPlugins(), file),
     links: {
       clientFor: () => null,
-      stateOf: () => ({ kind: 'up' }),
-      listDaemons: () => [null, 'box'],
+      stateOf: (daemon) =>
+        daemon === 'lab' ? { kind: 'down', detail: 'refused' } : { kind: 'up' },
+      listDaemons: () => [null, 'box', 'lab'],
     },
     findFocusedKey: () => null,
     getMode: () => 'overlay',
     getConfirm: () => confirm.value,
     findConfirmKey: () => confirm.key,
-    isBootStale: () => false,
+    isBootStale: () => state.isStale,
     isDaemonRestarting: () => false,
+    isDaemonWaiting: () => state.isWaiting,
     scheduleStatus: () => {},
-    write: terminal.write,
+    requestFrame: () => {
+      state.frames += 1;
+    },
   });
 
-  const readHighlighted = () => {
-    const frame = terminal.getText().split(`${KEYS.esc}[2J`).at(-1) ?? '';
-
-    return frame.split(`${KEYS.esc}[7m`).at(1)?.split(`${KEYS.esc}[0m`).at(0) ?? '';
-  };
-
-  return { terminal, mirror, confirm, overlay, readHighlighted };
+  return { mirror, confirm, state, overlay };
 }
 
-test('it highlights the session a kill confirmation opened on after the rows reorder', () => {
+test('it selects the session a kill confirmation opened on after the rows reorder', () => {
   const ctx = setupTest();
 
   ctx.mirror.upsert(buildMockMirrorSession({ id: 'a', name: 'alpha', state: 'running' }));
   ctx.mirror.upsert(buildMockMirrorSession({ id: 'b', name: 'beta', state: 'exited' }));
+  ctx.overlay.select(ctx.overlay.pickSessions().findIndex((session) => session.id === 'a'));
 
-  ctx.overlay.selected = ctx.overlay.pickSessions().findIndex((session) => session.id === 'a');
   ctx.confirm.value = 'kill';
   ctx.confirm.key = { daemon: null, id: 'a' };
 
   ctx.mirror.upsert(buildMockMirrorSession({ id: 'b', name: 'beta', state: 'needs_you' }));
-  ctx.overlay.render();
 
-  expect(ctx.readHighlighted()).toInclude('alpha');
-  expect(ctx.readHighlighted()).not.toInclude('beta');
+  const input = ctx.overlay.readInput(0, 0);
+  const sessions = input.rows.flatMap((row) => (row.kind === 'session' ? [row.session.id] : []));
+
+  expect(sessions[input.selected]).toBe('a');
 });
 
-test('it groups the pinned sessions of every daemon under one pinned header at the top', () => {
+test('it keeps the selection on its session when another session moves above it', () => {
   const ctx = setupTest();
 
-  ctx.mirror.upsert(
-    buildMockMirrorSession({
-      id: 'north',
-      pinned: true,
-      repoRoot: '/work/atlas',
-      lastAttachedAt: 4,
-    }),
-  );
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'a', name: 'alpha', state: 'running' }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'b', name: 'beta', state: 'running' }));
+  ctx.overlay.select(ctx.overlay.pickSessions().findIndex((session) => session.id === 'b'));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'a', name: 'alpha', state: 'needs_you' }));
 
-  ctx.mirror.upsert(
-    buildMockMirrorSession({
-      id: 'south',
-      pinned: false,
-      repoRoot: '/work/atlas',
-      lastAttachedAt: 3,
-    }),
-  );
+  const input = ctx.overlay.readInput(0, 0);
+  const sessions = input.rows.flatMap((row) => (row.kind === 'session' ? [row.session.id] : []));
 
-  ctx.mirror.upsert(
-    buildMockMirrorSession({
-      daemon: 'box',
-      id: 'east',
-      pinned: true,
-      repoRoot: '/work/harbor',
-      lastAttachedAt: 2,
-    }),
-  );
-
-  ctx.mirror.upsert(
-    buildMockMirrorSession({
-      daemon: 'box',
-      id: 'west',
-      pinned: false,
-      repoRoot: '/work/harbor',
-      lastAttachedAt: 1,
-    }),
-  );
-
-  ctx.overlay.grouped = true;
-
-  const mark = ctx.terminal.countChunks();
-
-  ctx.overlay.render();
-
-  expect(collectOverlayHeaders(ctx.terminal.getTextSince(mark))).toStrictEqual([
-    'pinned',
-    '/work/atlas',
-    '/work/harbor',
-  ]);
-
-  expect(ctx.overlay.pickSessions().map((session) => session.id)).toStrictEqual([
-    'north',
-    'east',
-    'south',
-    'west',
-  ]);
+  expect(sessions[input.selected]).toBe('b');
 });
 
-test('it moves an unpinned remote session out of the one pinned group', () => {
-  const ctx = setupTest();
+test('it starts grouped as the config sets', () => {
+  const ctx = setupTest({ list: { grouping: 'place' } });
 
-  ctx.mirror.upsert(
-    buildMockMirrorSession({
-      id: 'north',
-      pinned: true,
-      repoRoot: '/work/atlas',
-      lastAttachedAt: 4,
-    }),
-  );
-
-  ctx.mirror.upsert(
-    buildMockMirrorSession({
-      id: 'south',
-      pinned: false,
-      repoRoot: '/work/atlas',
-      lastAttachedAt: 3,
-    }),
-  );
-
-  ctx.mirror.upsert(
-    buildMockMirrorSession({
-      daemon: 'box',
-      id: 'east',
-      pinned: true,
-      repoRoot: '/work/harbor',
-      lastAttachedAt: 2,
-    }),
-  );
-
-  ctx.mirror.upsert(
-    buildMockMirrorSession({
-      daemon: 'box',
-      id: 'west',
-      pinned: true,
-      repoRoot: '/work/harbor',
-      lastAttachedAt: 1,
-    }),
-  );
-
-  ctx.overlay.grouped = true;
-
-  ctx.overlay.render();
-
-  ctx.mirror.upsert(
-    buildMockMirrorSession({
-      daemon: 'box',
-      id: 'east',
-      pinned: false,
-      repoRoot: '/work/harbor',
-      lastAttachedAt: 2,
-    }),
-  );
-
-  const mark = ctx.terminal.countChunks();
-
-  ctx.overlay.render();
-
-  expect(collectOverlayHeaders(ctx.terminal.getTextSince(mark))).toStrictEqual([
-    'pinned',
-    '/work/atlas',
-    '/work/harbor',
-  ]);
-
-  expect(ctx.overlay.pickSessions().map((session) => session.id)).toStrictEqual([
-    'north',
-    'west',
-    'south',
-    'east',
-  ]);
+  expect(ctx.overlay.grouping).toBe('place');
 });
 
-test('it draws no pinned header once the only pinned session, on a remote daemon, is unpinned', () => {
+test('it puts the pinned sessions of every daemon under one pinned header at the top', () => {
   const ctx = setupTest();
 
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'north', pinned: true, repoRoot: '/work/atlas' }));
   ctx.mirror.upsert(buildMockMirrorSession({ id: 'south', repoRoot: '/work/atlas' }));
 
   ctx.mirror.upsert(
     buildMockMirrorSession({ daemon: 'box', id: 'east', pinned: true, repoRoot: '/work/harbor' }),
   );
 
-  ctx.overlay.grouped = true;
+  ctx.overlay.grouping = 'repo';
 
-  ctx.overlay.render();
+  const labels = ctx.overlay
+    .readInput(0, 0)
+    .rows.flatMap((row) => (row.kind === 'header' ? [row.label] : []));
 
-  ctx.mirror.upsert(
-    buildMockMirrorSession({ daemon: 'box', id: 'east', pinned: false, repoRoot: '/work/harbor' }),
-  );
+  expect(labels).toStrictEqual(['pinned', 'atlas']);
+});
 
-  const mark = ctx.terminal.countChunks();
+test('it narrows the rows to the names that hold the typed jump letters', () => {
+  const ctx = setupTest();
 
-  ctx.overlay.render();
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'a', name: 'api' }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'b', name: 'web' }));
 
-  expect(collectOverlayHeaders(ctx.terminal.getTextSince(mark))).toStrictEqual([
-    '/work/atlas',
-    '/work/harbor',
+  ctx.overlay.jump = { typed: 'w', prefix: '' };
+
+  expect(ctx.overlay.pickSessions().map((session) => session.name)).toStrictEqual(['web']);
+});
+
+test('it labels each row while jump mode runs', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'a', name: 'api', lastAttachedAt: 2 }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'b', name: 'web', lastAttachedAt: 1 }));
+
+  ctx.overlay.jump = { typed: '', prefix: '' };
+
+  expect(ctx.overlay.readInput(0, 0).jump?.labels).toStrictEqual(['s', 'd']);
+});
+
+test('it words a line for a daemon that is down and the advice to update', () => {
+  const ctx = setupTest();
+
+  ctx.state.isStale = true;
+
+  const input = ctx.overlay.readInput(0, 0);
+
+  expect([input.daemonLine, input.updateAdvice]).toStrictEqual([
+    expect.toInclude('lab'),
+    'daemon runs an older build · u update daemon',
   ]);
+});
+
+test('it asks the screen for a frame when it renders', () => {
+  const ctx = setupTest();
+
+  ctx.overlay.render();
+
+  expect(ctx.state.frames).toBe(1);
 });

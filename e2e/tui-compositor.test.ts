@@ -24,10 +24,13 @@ async function setupTest() {
   const attach = async () => {
     tui.write(KEYS.ctrlSpace);
 
-    await tui.waitFor('┌ sessions ');
+    await tui.waitFor('╭─ ');
 
     tui.resetScreen();
     tui.write(KEYS.enter);
+
+    await tui.waitFor('FAKE_CLAUDE_UP args:');
+    await tui.waitForGone('╭─ ');
   };
 
   return { tui, client, sessionID, attach };
@@ -58,12 +61,13 @@ test('it shows the main screen again after a reattach when the session left the 
 
   ctx.tui.write(KEYS.ctrlSpace);
 
-  await ctx.tui.waitFor('┌ sessions ');
+  await ctx.tui.waitFor('╭─ ');
 
   ctx.tui.resetScreen();
   ctx.tui.write(KEYS.enter);
 
   await ctx.tui.waitFor('ALT_ONLY');
+  await ctx.tui.waitForGone('╭─ ');
 
   ctx.tui.resetScreen();
   ctx.tui.write(`${KEYS.esc}[?1049l${KEYS.enter}`);
@@ -105,7 +109,7 @@ test('it resets the mirrored input modes and exits from the list', async () => {
 
   ctx.tui.write(KEYS.ctrlSpace);
 
-  await ctx.tui.waitFor('┌ sessions ');
+  await ctx.tui.waitFor('╭─ ');
 
   ctx.tui.reset();
   ctx.tui.write('q');
@@ -123,7 +127,7 @@ test('it sends no kitty sequence on exit to a terminal that never answered the k
 
   ctx.tui.write(KEYS.ctrlSpace);
 
-  await ctx.tui.waitFor('┌ sessions ');
+  await ctx.tui.waitFor('╭─ ');
 
   ctx.tui.reset();
   ctx.tui.write('q');
@@ -184,7 +188,7 @@ test('it opens the list on the leader key in the kitty encoding while the sessio
 
   ctx.tui.write(`${KEYS.esc}[32;5u`);
 
-  await ctx.tui.waitFor('┌ sessions ');
+  await ctx.tui.waitFor('╭─ ');
 });
 
 test('it keeps an answer of the terminal that arrives late out of the session', async () => {

@@ -10,9 +10,6 @@ export function buildStubClientScreens() {
     openAttached: (key) => {
       calls.push(`openAttached:${key.id}`);
     },
-    closeAttached: () => {
-      calls.push('closeAttached');
-    },
     openOverlay: () => {
       calls.push('openOverlay');
     },

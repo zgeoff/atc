@@ -47,11 +47,11 @@ test('it shows why a forget kept the workspace until the next keypress', async (
   ctx.tui.write(KEYS.ctrlSpace);
 
   await ctx.tui.waitFor('orchard');
-  await ctx.tui.waitFor('┌ sessions ');
+  await ctx.tui.waitFor('╭─ ');
 
   ctx.tui.write('K');
 
-  await ctx.tui.waitFor('kill selected session?');
+  await ctx.tui.waitFor('kill orchard? · y / n');
 
   ctx.tui.reset();
   ctx.tui.write('y');
@@ -59,9 +59,9 @@ test('it shows why a forget kept the workspace until the next keypress', async (
   await ctx.tui.waitFor('killed');
 
   ctx.tui.reset();
-  ctx.tui.write('K');
+  ctx.tui.write('X');
 
-  await ctx.tui.waitFor('kill selected session?');
+  await ctx.tui.waitFor('end orchard? stops the agent and removes it from the list · y / n');
 
   ctx.tui.reset();
   ctx.tui.write('y');
@@ -71,7 +71,7 @@ test('it shows why a forget kept the workspace until the next keypress', async (
   ctx.tui.reset();
   ctx.tui.write('j');
 
-  await ctx.tui.waitFor('g groups · n new · ? keys');
+  await ctx.tui.waitFor('n new');
 
   expect(ctx.tui.read()).not.toInclude('kept orchard-main');
 });

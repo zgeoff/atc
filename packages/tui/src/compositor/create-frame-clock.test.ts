@@ -75,7 +75,19 @@ test('#request draws a frame asked for while an animation tick is overdue', () =
   expect(ctx.frames).toStrictEqual([1000, 1150]);
 });
 
-test('#request drops an animation tick that runs late with no request joined to it', () => {
+test('#request drops an animation tick that runs late while the animation goes on', () => {
+  const ctx = setupTest();
+
+  ctx.layers.push({ draw: () => {}, nextFrameAt: (nowMs) => (nowMs < 1300 ? nowMs + 100 : null) });
+  ctx.frameClock.request();
+  ctx.clock.advance(0);
+  ctx.clock.stall(150);
+  ctx.clock.advance(0);
+
+  expect(ctx.frames).toStrictEqual([1000]);
+});
+
+test('#request draws the final frame when a late tick is dropped as the animation ends', () => {
   const ctx = setupTest();
 
   ctx.layers.push({ draw: () => {}, nextFrameAt: (nowMs) => (nowMs < 1100 ? nowMs + 100 : null) });
@@ -84,7 +96,7 @@ test('#request drops an animation tick that runs late with no request joined to 
   ctx.clock.stall(150);
   ctx.clock.advance(0);
 
-  expect(ctx.frames).toStrictEqual([1000]);
+  expect(ctx.frames).toStrictEqual([1000, 1150]);
 });
 
 test('#stop draws no frame after it', () => {

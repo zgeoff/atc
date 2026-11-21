@@ -51,35 +51,43 @@ sources read typed text.
 
 ## The session list
 
-`Ctrl-Space` opens the session list over whatever you are attached to. Each row carries a state
-mark, and the sessions that need you sort to the top:
+`Ctrl-Space` opens the session list as a panel over whatever you are attached to. The session stays
+attached and keeps drawing, dimmed, behind the panel. Each row carries a state mark, and the
+sessions that need you sort to the top:
 
-| Mark | State                                 |
-| ---- | ------------------------------------- |
-| `●`  | needs you: a prompt or question waits |
-| `◐`  | running                               |
-| `✓`  | turn done                             |
-| `✗`  | exited                                |
+| Mark | State                                  |
+| ---- | -------------------------------------- |
+| `◆`  | needs you: a prompt or question waits  |
+| `⠋`  | running: the mark is a turning spinner |
+| `✓`  | turn done                              |
+| `○`  | exited                                 |
 
-| Key          | Action                                       |
-| ------------ | -------------------------------------------- |
-| `Ctrl-Space` | open or close the list                       |
-| `Tab`        | attach the session that needs you most       |
-| `Enter`      | attach the selected session                  |
-| `/`          | filter by name or directory                  |
-| `a`          | acknowledge a notification without attaching |
-| `K`          | kill the selected session                    |
-| `q`          | quit the client; sessions keep running       |
-| `?`          | every other key                              |
+| Key          | Action                                                        |
+| ------------ | ------------------------------------------------------------- |
+| `Ctrl-Space` | open or close the list                                        |
+| `Esc`        | close the list                                                |
+| `Tab`        | attach the session that needs you most                        |
+| `Enter`      | attach the selected session                                   |
+| `/`          | filter by name or directory                                   |
+| `g`          | group by repository, then by place, then back to a flat list  |
+| `f`          | jump: type the letter on a row to attach it                   |
+| `i`          | go home                                                       |
+| `K`          | kill the selected live session; it stays listed as exited     |
+| `X`          | end the selected session: stop it and remove it from the list |
+| `q`          | quit the client; sessions keep running                        |
+| `?`          | every other key                                               |
+
+The `list.grouping` setting in [the config](./configuration.md) picks the grouping the list opens
+with: `flat`, `repo` or `place`.
 
 `K` on a live session ends it, and the session stays listed as exited. On an imp, `K` puts the imp
-to sleep instead, with the agent inside, and a revive wakes it where it left off. `K` again forgets
-it. On a target where forgetting destroys the session's host, such as an imp, atc asks once more
-before it forgets.
+to sleep instead, with the agent inside, and a revive wakes it where it left off. `X` asks
+`end <name>?`, and `y` stops the session and removes it. Where ending destroys the session's host,
+such as an imp, the question names the machine. A pinned session refuses `X` until you unpin it, and
+a session whose machine sleeps tells you to attach to wake it first.
 
-When you forget a session, atc takes it off the list and removes the workspace folder that atc
-cloned for it. atc keeps a workspace folder that holds work found nowhere else, such as an unpushed
-commit.
+When you end a session, atc takes it off the list and removes the workspace folder that atc cloned
+for it. atc keeps a workspace folder that holds work found nowhere else, such as an unpushed commit.
 [Cleanup when you forget a session](./configuration/workspaces.md#cleanup-when-you-forget-a-session)
 lists every reason atc keeps one, and where the list shows it.
 

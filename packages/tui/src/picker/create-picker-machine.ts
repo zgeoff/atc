@@ -2,7 +2,7 @@ import { ansi } from '@atc/core';
 import { machineTypes } from '@zgeoff/std';
 import { P, match } from 'ts-pattern';
 import { assertEvent, enqueueActions, raise, setup } from 'xstate';
-import { drawPicker } from '../terminal/draw-overlay';
+import { drawPicker } from '../terminal/draw-picker';
 import { applyLinksChanged, openFirstStep } from './apply-daemon-submit';
 import { applyCompletion, applyListing } from './apply-list-submit';
 import { applyPickerKey } from './apply-picker-key';

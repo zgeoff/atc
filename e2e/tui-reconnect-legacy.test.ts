@@ -43,7 +43,7 @@ test('it restarts a daemon on another protocol that a reconnect meets after the 
 
   await ctx.legacy.exited;
 
-  await ctx.harness.waitFor('idle');
+  await ctx.harness.waitFor('n new');
 
   expect(ctx.legacy.signalCode).toBe('SIGTERM');
 });

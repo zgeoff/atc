@@ -114,3 +114,23 @@ test('it records the done time of the session on the daemon whose state flipped'
     ctx.mirror.doneAt.get({ daemon: 'box', id: 's-1' }),
   ]).toStrictEqual([undefined, 5000]);
 });
+
+test('it stamps the state time of a session that a SessionAdded event adds', () => {
+  const ctx = setupTest();
+
+  ctx.apply('box', {
+    ev: 'SessionAdded',
+    session: {
+      id: 's-2',
+      name: 'fresh',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+    },
+  });
+
+  expect(ctx.mirror.find({ daemon: 'box', id: 's-2' })?.stateSince).toBe(5000);
+});

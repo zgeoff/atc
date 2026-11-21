@@ -20,12 +20,15 @@ test('it builds a default mirror session', () => {
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -37,6 +40,8 @@ test('it applies overrides on top of the defaults', () => {
       agent: 'grok',
       model: 'opus',
       harness: 'suspended',
+      hostAsleep: false,
+      stateSince: null,
     }),
   ).toStrictEqual({
     daemon: null,
@@ -54,11 +59,14 @@ test('it applies overrides on top of the defaults', () => {
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'grok',
     parent: 'wrangler',
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: 'opus',
     harness: 'suspended',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
