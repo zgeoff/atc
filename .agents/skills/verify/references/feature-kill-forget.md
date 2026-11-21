@@ -14,13 +14,13 @@ failed. The cleanup lines leave the daemon with no session for the next journey.
 - In the session list, which `ctrl+space` opens, `K` then `y` at `kill wv-kill? · y / n` acts on the
   selected row. The journey sends `K` with `terminal type`, because `terminal press` refuses a
   capital letter.
-- On a live session, it kills the agent. The row stays, marked `✗`, and its row in the `fleet` table
+- On a live session, it kills the agent. The row stays, marked `○`, and its row in the `fleet` table
   of the daemon's database, which `db query` reads, gets `exited` 1.
 - On an exited session, `K` asks nothing. `X` then `y` at `end wv-kill? · y / n` ends the session:
   the row leaves the list and the `fleet` table.
 
 Spawn only the one session. The list moves exited rows to the bottom, so with a second session the
-second `K` would act on the other row. The kill's regex accepts a `!` after the `✗`, the mark of a
+second `K` would act on the other row. The kill's regex accepts a `!` after the `○`, the mark of a
 change the TUI user has not looked at.
 
 ## Journey
@@ -35,7 +35,7 @@ bun verify terminal wait --text wv-kill
 bun verify terminal type --text K
 bun verify terminal wait --text 'kill wv-kill?'
 bun verify terminal press y
-bun verify terminal wait --regex '✗!? +wv-kill'
+bun verify terminal wait --regex '○!? +wv-kill'
 bun verify db query "select name, exited from fleet where name = 'wv-kill'"
 bun verify terminal type --text X
 bun verify terminal wait --text 'end wv-kill?'
@@ -49,7 +49,7 @@ bun verify action forget-session --name wv-kill
 ## End state
 
 - Every command exits 0.
-- After the kill, the `wv-kill` row starts `✗`, and the first `db query` returns its row in
+- After the kill, the `wv-kill` row starts `○`, and the first `db query` returns its row in
   `data.rows` with `exited` 1.
 - After the end, the list shows `no sessions`, and the second `db query` returns a `count` of 0.
 - The last `forget-session` returns an empty `data.forgotten`. A session id there means the TUI's
