@@ -102,6 +102,9 @@ Designs for work that is not built yet, each with the spikes behind it.
 - [Codex read-signal spike](design/codex-app-server-bridge/spikes/read-signal/README.md) — whether
   the Codex App Server bridge can tell that the model read a delivered message, with the runs and a
   recommendation
+- [TUI redesign](design/tui-redesign/README.md) — the compositor that draws attached sessions, the
+  quiet home screen, the glass session list with grouping by place and jump mode, the fleet bar, and
+  the place key on each session
 
 ## Guides
 
