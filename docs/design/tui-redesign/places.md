@@ -74,8 +74,9 @@ type PlaceParts =
 ### The key
 
 - atc hashes `parts` as `buildTargetIdentity` hashes a target's options: the keys sorted at every
-  depth, then JSON, then sha256. A shared place key is `<provider>:<version>:<hash>`, where `<hash>`
-  is the first 16 hex characters.
+  depth, then JSON, then sha256. The sort compares code units, so two daemons with different locales
+  still sort alike. A shared place key is `<provider>:<version>:<hash>`, where `<hash>` is the first
+  16 hex characters.
 - Before hashing, a provider writes each URL in `parts` with a lowercase scheme and host and no
   trailing slash, so `https://imp.example.dev/` and `https://IMP.example.dev` give one key.
 - Daemon scope means the place belongs to one daemon and one target, and never merges with a place

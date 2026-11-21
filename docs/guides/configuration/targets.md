@@ -16,8 +16,12 @@ your own:
 
 - `provider` selects the provider kind: `local-pty`, `imp`, `docker` or `sprites`. The
   [docker targets guide](./docker-targets.md) covers `docker`, and the
-  [sprites targets guide](./sprites-targets.md) covers `sprites`. Every other key in the entry is an
-  option for that provider.
+  [sprites targets guide](./sprites-targets.md) covers `sprites`.
+- `label` is optional text that clients show for the target's place, such as `"label": "imp"`.
+  Without it, clients show the target id. A label changes neither the target's identity nor its
+  place, so you can add or change one at any time. Two targets that reach the same remote service
+  share a place whatever their labels say.
+- Every other key in the entry is an option for that provider.
 - A target whose provider kind this atc does not have still lists, as unavailable, and a spawn to it
   fails with `target_unavailable`.
 - A `targets` map without `local` turns local sessions off: a spawn to `local` fails with

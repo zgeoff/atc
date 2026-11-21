@@ -103,6 +103,24 @@ reports the parent's `host`, because the machine is the trust boundary.
 [The imp provider](../execution/imp-provider.md#the-host-identity) covers where the imp values come
 from.
 
+## The place a session runs in
+
+Every descriptor carries `place` and `canDestroyHost`, in the answers to `session.list`,
+`session.get` and `session.spawn` and in each event that carries a descriptor. The gateway passes
+both through unchanged. A daemon that predates places sends neither field.
+
+| Field            | Holds                                                                                                                        |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `place.key`      | the id a client groups sessions by; two daemons that reach one remote service send one key                                   |
+| `place.label`    | the `label` of the session's target in the config, else the target id                                                        |
+| `canDestroyHost` | whether forgetting the session deletes its machine: its provider can destroy hosts and this session's spawn made the machine |
+
+The provider's `place` rule decides the key. A provider with no rule, and a provider whose rule
+answers daemon scope, gets `daemon:<daemon id>:<target id>`. A shared rule gives
+`<provider>:<version>:<hash>`, where the hash covers only the options that name the remote service.
+[Places](../../design/tui-redesign/places.md) holds the rules for each provider, the key and the
+target label.
+
 ## Sub-sessions
 
 A sub-session is a session spawned with a parent. `atc mcp` started inside a local session reads
