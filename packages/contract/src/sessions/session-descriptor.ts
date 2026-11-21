@@ -17,6 +17,12 @@ const SESSION_HOST_SCHEMA = z.object({
   issuer: z.string().optional(),
 });
 
+const SESSION_PLACE_SCHEMA = z.object({
+  // groups sessions: equal keys mean one place, across every daemon that sends them
+  key: z.string(),
+  label: z.string(),
+});
+
 export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   id: z.string().transform((id) => toSessionID(id)),
   name: z.string(),
@@ -74,6 +80,14 @@ export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   // the VM host the session runs on, as its provider names it; absent for a
   // session with no VM host, such as a local one
   host: SESSION_HOST_SCHEMA.optional(),
+
+  // where the agent runs; absent from a daemon that predates places
+  place: SESSION_PLACE_SCHEMA.optional(),
+
+  // whether forgetting this session deletes the machine it runs on: its provider can
+  // delete machines and this session's spawn created that machine; absent from a daemon
+  // that predates places
+  canDestroyHost: z.boolean().optional(),
 });
 
 export type SessionDescriptor = Readonly<z.output<typeof SESSION_DESCRIPTOR_SCHEMA>>;

@@ -22,6 +22,10 @@ function setupTest() {
   };
 }
 
+test('it names no shared place, so a sprites target has daemon scope', () => {
+  expect(SPRITES_PLUGIN.place).toBeUndefined();
+});
+
 test('it lists the target as unavailable when the daemon runs from source', () => {
   const ctx = setupTest();
 

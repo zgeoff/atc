@@ -2,6 +2,7 @@ import {
   EXECUTION_TARGET_CONFIG_SCHEMA,
   TargetUnavailableError,
   definePlugin,
+  formatPlaceURL,
 } from '@atc/plugin-api';
 import { collectAuthProfileProblems } from './auth/collect-auth-profile-problems';
 import { createConfiguredImpProvider } from './create-configured-imp-provider';
@@ -44,6 +45,15 @@ export const IMP_PLUGIN = definePlugin({
       'rebindChangedAuth',
       'sessionEnv',
     ],
+  },
+
+  // the impd URL names the service; the token, image and prefix do not
+  place: (options) => {
+    const url = options['url'];
+
+    return typeof url === 'string'
+      ? { scope: 'shared', version: 'place-v1', parts: { url: formatPlaceURL(url) } }
+      : { scope: 'daemon' };
   },
   create: (config, host) => {
     const built = createConfiguredImpProvider(config.id, config.options, host.version, config.env);

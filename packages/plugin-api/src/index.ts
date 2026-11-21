@@ -37,6 +37,7 @@ export * from './harness/parse-matching-lines';
 export * from './harness/make-agent-env-file-syncer';
 export * from './harness/plan-typed-line-input';
 export type * from './plugin/host-services';
+export * from './execution/format-place-url';
 export * from './execution/is-host-name-allowed';
 export type * from './plugin/message-bridge';
 export * from './plugin/normalize-plugin-dir';
