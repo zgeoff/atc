@@ -199,7 +199,7 @@ test('it stops a daemon of an older build when the user asks for the update and 
 
   await older.exited;
 
-  await ctx.waitFor('idle');
+  await ctx.waitFor('n new');
 
   // The status bar is drawn on a timer, so one the menu scheduled can still
   // draw the stale mark after the reset; only what follows the restart's

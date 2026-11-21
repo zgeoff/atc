@@ -145,8 +145,11 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('┌ sessions ');
-  await ctx.waitFor('running');
+  await ctx.waitFor('╭─ ');
+
+  await waitFor(() => {
+    expect(ctx.readScreen()).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] groksub/u);
+  });
 
   expect(ctx.read()).not.toInclude('need you');
   expect(ctx.read()).not.toInclude('done');
@@ -167,7 +170,7 @@ test('it yanks a grok resume command once the id is captured', async () => {
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('◆ 1 need you');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   ctx.reset();
   ctx.write('y');
@@ -194,7 +197,7 @@ test('it yanks a grok command without --resume before SessionStart', async () =>
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('grokearly');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   ctx.reset();
   ctx.write('y');
@@ -219,7 +222,7 @@ test('it ignores H on a grok row instead of opening the eject picker', async () 
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('grokheadless');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   ctx.reset();
 
@@ -279,5 +282,5 @@ test('it keeps needs-you when grok emits idle_prompt after permission_prompt', a
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('◆ 1 need you');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 }, 15_000);

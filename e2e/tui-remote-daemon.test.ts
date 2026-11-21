@@ -63,7 +63,7 @@ test('it shows the fleet of the remote daemon the flag selects and starts no loc
 
   ctx.tui.write(KEYS.ctrlSpace);
 
-  await ctx.tui.waitFor('┌ sessions ');
+  await ctx.tui.waitFor('╭─ ');
   await ctx.tui.waitFor('on-the-box');
 
   // The client draws the status bar on a 50 ms timer after it draws the

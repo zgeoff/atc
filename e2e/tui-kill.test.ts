@@ -23,11 +23,11 @@ test('it kills a needs-you session from the overlay on confirm', async () => {
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('◆ 1 need you');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   ctx.write('K');
 
-  await ctx.waitFor('kill selected session?');
+  await ctx.waitFor('kill testsess? · y / n');
 
   ctx.reset();
   ctx.write('y');
@@ -54,11 +54,11 @@ test('it revives a killed session in place with a fresh terminal', async () => {
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('◆ 1 need you');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   ctx.write('K');
 
-  await ctx.waitFor('kill selected session?');
+  await ctx.waitFor('kill revivable? · y / n');
 
   ctx.reset();
   ctx.write('y');
@@ -90,11 +90,11 @@ test('it explains a revive that has no saved transcript instead of failing silen
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('◆ 1 need you');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   ctx.write('K');
 
-  await ctx.waitFor('kill selected session?');
+  await ctx.waitFor('kill transcriptless? · y / n');
 
   ctx.reset();
   ctx.write('y');

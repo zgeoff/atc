@@ -175,6 +175,12 @@ export function startTUIHarness(options: TUIHarnessOptions) {
       return `${out}\n${readScreenText(screen)}`;
     },
 
+    // The text of the screen alone, with no output before it. A check that a panel has left the
+    // screen reads this, since the output still holds the panel's last frames.
+    readScreen(): string {
+      return readScreenText(screen);
+    },
+
     reset() {
       out = '';
     },
@@ -228,6 +234,21 @@ export function startTUIHarness(options: TUIHarnessOptions) {
       );
 
       await screenWrites;
+    },
+
+    // Waits until the screen no longer shows the text, such as the border of a panel that fades out.
+    // A screen that a reset just blanked shows nothing, so wait for what replaces the text first.
+    async waitForGone(needle: string, timeoutMs = 4000): Promise<void> {
+      await waitFor(
+        async () => {
+          await screenWrites;
+
+          if (readScreenText(screen).includes(needle)) {
+            throw new Error(`timed out waiting for ${JSON.stringify(needle)} to leave the screen`);
+          }
+        },
+        { timeoutMs, intervalMs: 50, now, wait },
+      );
     },
 
     waitForExit(): Promise<number> {

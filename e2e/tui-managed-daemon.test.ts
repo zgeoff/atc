@@ -87,7 +87,7 @@ test('it reconnects a client after a managed daemon restarts without starting a 
     expect(second.countClients()).toBe(1);
   });
 
-  await ctx.waitFor('idle');
+  await ctx.waitFor('n new');
 
   ctx.reset();
   ctx.write('?');

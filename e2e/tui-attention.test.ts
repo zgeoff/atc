@@ -24,7 +24,7 @@ test('it clears the need state when attaching a needy session', async () => {
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('◆ 1 need you');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   ctx.write(KEYS.enter);
 
@@ -50,18 +50,16 @@ test('it attaches and acks the session that needs you on tab', async () => {
   ctx.write(KEYS.ctrlSpace);
 
   await ctx.waitFor('◆ 1 need you');
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
-  // The attach jiggle repaints the fake.
-  ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('FAKE_CLAUDE_UP');
+  await ctx.waitForGone('╭─ ');
 
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   await spawnClaudeSession(ctx, 'urgent');
 
@@ -74,7 +72,7 @@ test('it attaches and acks the session that needs you on tab', async () => {
 
   // The daemon writes status.json before the client hears of the change, and a Tab the client
   // reads first finds nothing to jump to.
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
   await ctx.waitFor('◆ 1 need you');
 
   ctx.reset();
@@ -112,7 +110,7 @@ test('it tab-jumps to a finished session when none need you', async () => {
 
   // The daemon writes status.json before the client hears of the change, and a Tab the client
   // reads first finds nothing to jump to.
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
   await ctx.waitFor('local ✓');
 
   ctx.reset();

@@ -72,6 +72,7 @@ test('it draws the home screen again when the user confirms a restart that a rec
   ctx.harness.reset();
   ctx.harness.write(KEYS.esc);
 
+  await ctx.harness.waitForGone('╭─ ');
   await ctx.harness.waitFor('control tower for coding-agent sessions');
 
   const legacy = await startStubLegacyDaemonProcess(ctx.socketPath, ctx.stateDir);
@@ -94,6 +95,7 @@ test('it draws the spawn picker again when the user confirms a restart that a re
   ctx.harness.reset();
   ctx.harness.write(KEYS.esc);
 
+  await ctx.harness.waitForGone('╭─ ');
   await ctx.harness.waitFor('control tower for coding-agent sessions');
 
   ctx.harness.write('n');
