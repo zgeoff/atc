@@ -13,7 +13,7 @@ import { runCommand } from '@atc/core/test-utils/run-command';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createDaemonClient } from '@atc/protocol/client';
-import { getLogger, reset } from '@logtape/logtape';
+import { configure, getLogger, reset } from '@logtape/logtape';
 import { sendLinesBeforeHandshake } from '../test-utils/send-lines-before-handshake';
 import { writeUntilPipeFull } from '../test-utils/write-until-pipe-full';
 import { startStderrLog } from './start-stderr-log';
@@ -272,4 +272,28 @@ test('it resolves a second stop that overlaps the first only once every line it 
         `atc tcp event=handshake_refused peer=127.0.0.1 reason=unexpected_line count=${String(index + 1)}\n`,
     ).join(''),
   );
+});
+
+test('it writes its lines when an earlier owner of the process left LogTape configured', async () => {
+  const temporaryDirectory = setupTempDir('atc-stderr-log-');
+  const outputPath = join(temporaryDirectory.path, 'stderr');
+  const fd = openSync(outputPath, 'w');
+
+  onTestFinished(() => {
+    closeSync(fd);
+  });
+
+  await configure({ sinks: { left: () => {} }, loggers: [{ category: ['atc'], sinks: ['left'] }] });
+
+  onTestFinished(() => reset());
+
+  const log = await startStderrLog(fd);
+
+  getLogger(['atc', 'tcp']).info('{line}', {
+    line: 'atc tcp event=listening host=127.0.0.1 port=0',
+  });
+
+  await log.stop();
+
+  expect(readFileSync(outputPath, 'utf8')).toBe('atc tcp event=listening host=127.0.0.1 port=0\n');
 });
