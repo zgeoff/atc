@@ -92,25 +92,26 @@ for await (const event of cloud.events()) {
 
 ## Features
 
-- **Gateway:** [atc-gateway](./docs/guides/gateway.md) federates several daemons behind one OAuth MCP
-  endpoint, so a hosted assistant can drvie them all. The TUI shows
+- **Gateway:** [atc-gateway](./docs/guides/gateway.md) federates several daemons behind one OAuth
+  MCP endpoint, so a hosted assistant can drive them all. The TUI shows
   [every daemon in your config](./docs/guides/using-atc.md#opening-every-daemon-at-once) in one
   list.
 - **Targets:** Run sessions
-  [locally, in Docker, on imp microVMs or on Sprites](./docs/guides/configuration/targets.md). Imps and sprites sleep when you stop their sessions, and reviving them wakes them where they left off.
+  [locally, in Docker, on imp microVMs or on Sprites](./docs/guides/configuration/targets.md). Imps
+  and sprites sleep when you stop their sessions, and reviving them wakes them where they left off.
 - **MCP server:** Agents can spawn, read, message and unstick each other, over
   [stdio](./docs/guides/using-atc.md#agents-that-drive-agents) locally or over
   [HTTP with OAuth](./docs/guides/remote-mcp.md) for a hosted assistant.
 - **Events:** Every state change, message and note is [streamed](./docs/guides/events.md) to
-  `atc events`, a socket, your hooks, or a hosted assistant's webhook, with a history you can resume
+  `atc events`, a socket, your hooks or a hosted assistant's webhook, with a history you can resume
   from.
 - **Workspaces:** Spawn a session on a [fresh clone](./docs/guides/configuration/workspaces.md) of
   any branch. Forget the session and atc cleans up after itself.
 - **Scoped access:** Each client sees only the
   [targets you grant it](./docs/guides/configuration/principals.md), with granular scopes.
-- **Brokered credentials.** On Imps and Sprites,
-  [credentials](./docs/guides/configuration/brokered-credentials.md) are added to each request outside
-  the VM, so your agent never holds them.
+- **Brokered credentials:** On imps and sprites,
+  [credentials](./docs/guides/configuration/brokered-credentials.md) are added to each request
+  outside the VM, so your agent never holds them.
 
 ## Documentation
 
