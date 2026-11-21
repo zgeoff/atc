@@ -20,7 +20,9 @@ The attachment ends in three cases:
 - The user attaches a different session. The client detaches the old session first, so the daemon
   sizes the old session's PTY for the clients that stay attached to it.
 
-When the attached session leaves the fleet while the list is open, the client goes home.
+When the attached session leaves the fleet while the list is open, the client goes home. When the
+attached session dies while the list is open, for example on `K`, the panel stays open over home,
+which the client draws under every opening of the list.
 
 Enter on the row of the attached session closes the list and sends the daemon a new attach. The
 daemon marks a session read, and clears its `needs_you` state, each time it receives an attach. The
@@ -35,8 +37,9 @@ config's `list.grouping` sets the grouping the list opens with. In both grouped 
 sessions of every daemon form one group at the top.
 
 The selection belongs to a session, so it stays on that session when a state change moves the
-session to another row. The list keys each row by its daemon and its session id, because two daemons
-can each hold a session with the same id.
+session to another row. A key acts on that session even when a fleet change moved its row before the
+next frame. The list keys each row by its daemon and its session id, because two daemons can each
+hold a session with the same id.
 
 The list shows the daemon column only when the fleet spans more than one daemon, and never in place
 mode. In place mode the group header names the place, and a row in a group that mixes daemons shows
@@ -61,7 +64,7 @@ label on an exited session selects its row and attaches nothing.
 `session.forget` with `refusePinned` set and without `refuseLive`, so the daemon stops a live
 session before it removes it.
 
-When the session's target would delete the machine the session runs on, the daemon answers the first
+When the forget would delete the machine the session owns, the daemon answers the first
 `session.forget` with a confirm token in place of ending the session. What the TUI does next depends
 on the prompt the user answered:
 
@@ -70,10 +73,22 @@ on the prompt the user answered:
 - Otherwise the TUI shows a second prompt that names the machine, and sends the token only after the
   user answers `y`.
 
+A sub-session on its parent's machine deletes no machine, so the daemon ends it on the first call.
+
+When the forget keeps the session's workspace folder, the list shows a notice that names the folder
+and the reasons. When the ended session was the attached one, the client goes home and shows the
+notice on the status bar there. The next opening of the list drops that notice.
+
 `K` kills a live session: the agent stops, and the session stays in the list as exited.
 
 A prompt for `X` or `K` takes the panel's last line until the user answers. `y` confirms, and any
-other key cancels. The leader key cancels the prompt and closes the list.
+other key cancels. The leader key cancels the prompt and closes the list. When the session leaves
+the fleet, the client drops its prompt, and the next key acts on the list.
+
+The terminal can deliver several keys in one input chunk, such as letters typed fast. The client
+applies them one at a time, so a key that changes the mode hands the keys after it to the new mode.
+A leader that shares a chunk with the attached session's input opens the list, and the list takes
+the keys after it. A leader byte inside a bracketed paste stays text for the session.
 
 ## The last line
 
