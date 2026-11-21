@@ -34,10 +34,16 @@ atc needs `claude`, `codex` or `grok` on your PATH, and Codex and Grok need
 [atc's hooks](./docs/guides/using-atc.md#grok-and-codex-hooks). The
 [install guide](./docs/guides/install.md) covers the other ways to install.
 
-Run `atc` to start the daemon and open the TUI. Press `n` to spawn a session, `Ctrl-Space` for the
-list, and `?` for the keys. Quit the TUI and your sessions keep running.
-
 ## Usage
+
+Start the daemon and open the TUI:
+
+```sh
+atc
+```
+
+Press `n` to spawn a session, `Ctrl-Space` for the list, and `?` for the keys. Quit the TUI and your
+sessions keep running.
 
 Give an agent the whole fleet, or another machine's:
 
