@@ -28,6 +28,13 @@ export type DaemonEvent =
       readonly seq: number;
       readonly data: string;
     }
+  | {
+      readonly ev: 'SessionReplay';
+      readonly sessionID: string;
+      readonly seq: number;
+      readonly data: string;
+      readonly done: boolean;
+    }
   | { readonly ev: 'SessionDesync'; readonly sessionID: string; readonly dropped: number }
   | {
       readonly ev: 'PermissionRequested';
@@ -61,6 +68,13 @@ const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
     sessionID: z.string(),
     seq: z.number(),
     data: z.string(),
+  }),
+  z.looseObject({
+    ev: z.literal('SessionReplay'),
+    sessionID: z.string(),
+    seq: z.number(),
+    data: z.string(),
+    done: z.boolean(),
   }),
   z.looseObject({ ev: z.literal('SessionDesync'), sessionID: z.string(), dropped: z.number() }),
   z.looseObject({
@@ -113,6 +127,13 @@ export function parseDaemonEvent(raw: RawDaemonEvent, daemon: DaemonName): Daemo
       sessionID: payload.sessionID,
       seq: payload.seq,
       data: payload.data,
+    }))
+    .with({ ev: 'SessionReplay' }, (payload) => ({
+      ev: payload.ev,
+      sessionID: payload.sessionID,
+      seq: payload.seq,
+      data: payload.data,
+      done: payload.done,
     }))
     .with({ ev: 'SessionDesync' }, (payload) => ({
       ev: payload.ev,

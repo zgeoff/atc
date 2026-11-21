@@ -1,6 +1,7 @@
 import { ansi } from '@atc/core';
 import type { ProtocolMismatch } from '@atc/protocol';
 import type { ClientActor } from '../client/build-client-machine';
+import { writeOut } from '../terminal/write-out';
 
 export interface RestartConsentDeps {
   readonly service: ClientActor;
@@ -25,13 +26,14 @@ export async function waitForRestartConsent(
   if (phase === 'tui') {
     const prompt = lines.join('\r\n');
 
-    process.stdout.write(ansi.clear + prompt);
+    writeOut(ansi.clear + prompt);
 
     const key = await new Promise<string>((resolve) => {
       deps.service.send({ type: 'CONSENT_ASKED', consent: { prompt, answer: resolve } });
     });
 
-    process.stdout.write(ansi.clear);
+    writeOut(ansi.clear);
+
     deps.drawMode();
 
     return key === 'y' || key === 'Y';

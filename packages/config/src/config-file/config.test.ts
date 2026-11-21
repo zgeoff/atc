@@ -60,6 +60,7 @@ test('#parseConfig leaves every target unusable, local included, and grants no p
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -124,6 +125,7 @@ test('#parseConfig falls back field by field when a field is wrong-typed instead
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: ["config.json uses dirs; run 'atc config migrate' to move it into sources"],
   });
@@ -201,6 +203,7 @@ test('#parseConfig leaves every target unusable and names the migrate command fo
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -423,6 +426,7 @@ test('#parseConfig reads the targets and default target a config sets', () => {
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -474,6 +478,7 @@ test('#parseConfig reads the principals a config sets', () => {
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -562,6 +567,7 @@ test('#parseConfig holds no targets and an error instead of throwing for a malfo
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -609,6 +615,7 @@ test('#parseConfig reads the config a first run writes back as the defaults, wit
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -658,6 +665,7 @@ test('#parseConfig gives a file with no agent keys at all the three built-in age
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -708,6 +716,7 @@ test('#parseConfig loads exactly the agents an agents map holds and records no o
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -751,6 +760,7 @@ test('#parseConfig keeps reporting claude as the default agent for an empty regi
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -788,6 +798,7 @@ test('#parseConfig leaves the registry empty with one error when agents is not a
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -843,6 +854,7 @@ test('#parseConfig refuses a config that sets agents beside an old agent key', (
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -910,6 +922,7 @@ test('#parseConfig restores the fleet on restart by default', () => {
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -1029,6 +1042,7 @@ test('#parseConfig loads a config that still sets resumeInterruptedTurns and rep
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: ['resumeInterruptedTurns'],
     deprecations: [],
   });
@@ -1041,6 +1055,7 @@ test('#renderDefaultConfig writes an agents map with the claude entry, a sources
     hooks: {},
     leader: { code: 0, label: '^Space' },
     restoreFleetOnRestart: true,
+    animations: true,
     workspaces: {
       gitTransports: ['https', 'ssh'],
       root: null,
@@ -1067,6 +1082,7 @@ test('#loadConfig writes the default config when the file is missing', () => {
     hooks: {},
     leader: { code: 0, label: '^Space' },
     restoreFleetOnRestart: true,
+    animations: true,
     workspaces: {
       gitTransports: ['https', 'ssh'],
       root: null,
@@ -1138,6 +1154,7 @@ test('#loadConfig returns the defaults when the file is missing', () => {
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -1197,6 +1214,7 @@ test('#loadConfig reads an existing file against the home it is given', () => {
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -1284,6 +1302,7 @@ test('#loadConfig leaves every target unusable when the file cannot be read', ()
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
@@ -1348,7 +1367,17 @@ test('#loadConfig leaves every target unusable when the file is not valid JSON',
     daemons: new Map(),
     daemonErrors: [],
     restoreFleetOnRestart: true,
+    animations: true,
     removedKeys: [],
     deprecations: [],
   });
+});
+
+test.each<{ name: string; file: Record<string, unknown>; expected: boolean }>([
+  { name: 'true when the file leaves it out', file: {}, expected: true },
+  { name: 'false when the file sets false', file: { animations: false }, expected: false },
+  { name: 'true when the file sets true', file: { animations: true }, expected: true },
+  { name: 'true when the file sets a wrong type', file: { animations: 'off' }, expected: true },
+])('#parseConfig reads animations as $name', (row) => {
+  expect(parseConfig(buildStubHarnessPlugins(), row.file).animations).toBe(row.expected);
 });

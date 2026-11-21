@@ -21,6 +21,10 @@ export interface StatusView {
   readonly notice?: string | null;
 }
 
+export function eraseStatusBar() {
+  writeOut(`${ansi.saveCursor}${ansi.moveTo(rows(), 1)}${ESC}[0m${ESC}[2K${ansi.restoreCursor}`);
+}
+
 export function drawStatusBar(view: StatusView) {
   const counts = view.counts;
   const width = cols();

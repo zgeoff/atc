@@ -2,6 +2,7 @@ import type { AgentID, Clock } from '@atc/core';
 import { match } from 'ts-pattern';
 import type { ClientActor, ClientMode } from '../client/build-client-machine';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
+import type { SessionStream } from '../screen/create-session-stream';
 import type { FleetMirror } from './create-fleet-mirror';
 import { parseDaemonEvent } from './parse-daemon-event';
 import type { RawDaemonEvent } from './parse-daemon-event';
@@ -20,6 +21,7 @@ export interface DaemonEventDeps {
   readonly setLastUsedAgent: (agent: AgentID) => void;
   readonly findFocused: () => MirrorSession | null;
   readonly scheduleStatus: () => void;
+  readonly stream: Pick<SessionStream, 'applyEvent'>;
 }
 
 export function applyDaemonEvent(daemon: DaemonName, raw: RawDaemonEvent, deps: DaemonEventDeps) {
@@ -32,17 +34,15 @@ export function applyDaemonEvent(daemon: DaemonName, raw: RawDaemonEvent, deps: 
   const mirror = deps.mirror;
 
   match(event)
-    .with({ ev: 'SessionOutput' }, (output) => {
-      const focused = deps.findFocusedKey();
-
-      if (
-        deps.getMode() === 'attached' &&
-        focused !== null &&
-        isSameSessionKey(focused, { daemon, id: output.sessionID })
-      ) {
-        process.stdout.write(output.data);
-      }
-    })
+    .with(
+      { ev: 'SessionOutput' },
+      { ev: 'SessionReplay' },
+      { ev: 'SessionDesync' },
+      { ev: 'SessionResized' },
+      (stream) => {
+        deps.stream.applyEvent(daemon, stream);
+      },
+    )
     .with({ ev: 'SessionAdded' }, (added) => {
       mirror.upsert(added.session);
 
@@ -90,15 +90,8 @@ export function applyDaemonEvent(daemon: DaemonName, raw: RawDaemonEvent, deps: 
       refreshScreens(deps);
     })
 
-    // Desync recovery arrives as ordinary repaint output; permission and
-    // resize events matter to structured clients, not this passthrough TUI.
-    .with(
-      { ev: 'SessionResized' },
-      { ev: 'SessionDesync' },
-      { ev: 'PermissionRequested' },
-      { ev: 'PermissionResolved' },
-      () => {},
-    )
+    // Permission events matter to structured clients, not to this TUI.
+    .with({ ev: 'PermissionRequested' }, { ev: 'PermissionResolved' }, () => {})
     .exhaustive();
 }
 

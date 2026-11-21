@@ -19,15 +19,17 @@ import { toSessionKey } from '../fleet/session-key';
 import type { DaemonName, SessionKey } from '../fleet/session-key';
 import { toMirrorSession } from '../fleet/to-mirror-session';
 import type { MirrorSession } from '../fleet/to-mirror-session';
-import { buildLeaderChords } from '../overlay/build-leader-chords';
 import { createEjectScreen } from '../overlay/create-eject-screen';
 import { createOverlayScreen } from '../overlay/create-overlay-screen';
+import { matchLeaderKey } from '../overlay/match-leader-key';
 import { createSpawnPicker } from '../picker/create-spawn-picker';
+import { createTUIScreen } from '../screen/create-tui-screen';
 import { cols } from '../terminal/cols';
 import { drawHelp } from '../terminal/draw-help';
 import { drawHome } from '../terminal/draw-home';
 import { restoreTerminal } from '../terminal/restore-terminal';
 import { rows } from '../terminal/rows';
+import { installScreenSink, writeOut } from '../terminal/write-out';
 import { applyInputKey } from './apply-input-key';
 import type { InputKeyDeps } from './apply-input-key';
 import { buildClientMachine } from './build-client-machine';
@@ -67,7 +69,22 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const bootMetadata = resolveAgentMetadata(host.readConfig(), {});
   const stdout = process.stdout;
   const leader = host.readConfig().leader;
-  const leaderChords = buildLeaderChords(leader.code);
+
+  const screen = createTUIScreen({
+    clock,
+    write: (chunk) => {
+      stdout.write(chunk);
+    },
+    readSize: () => ({ cols: cols(), rows: rows() }),
+    env: { colorterm: process.env['COLORTERM'], term: process.env['TERM'] },
+    animations: host.readConfig().animations,
+    isSessionFocused: () => getMode() === 'attached' && findRestartConsent() === null,
+    sendSessionReply: (key, bytes) => {
+      void sendInput(key, bytes);
+    },
+  });
+
+  installScreenSink(screen.writeScreen);
 
   const findFocused = (): MirrorSession | null =>
     focusedKey === null ? null : (mirror.find(toSessionKey(focusedKey)) ?? null);
@@ -80,7 +97,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const openAttached = (key: SessionKey) => {
     focusedKey = key;
 
-    stdout.write(ansi.clear + ansi.showCursor);
+    screen.writeScreen(ansi.clear);
 
     scheduleStatus();
   };
@@ -144,6 +161,35 @@ export async function runTUI(host: TUIHost): Promise<void> {
     }
   };
 
+  // A daemon that lists full-replay sends the session's whole emulator state as replay events;
+  // any other sends the visible screen as output.
+  const pickReplay = (daemon: DaemonName): 'screen' | 'full' => {
+    try {
+      const features = links.clientFor(daemon)?.connection.hello.features ?? [];
+
+      return features.includes('full-replay') ? 'full' : 'screen';
+    } catch {
+      return 'screen';
+    }
+  };
+
+  const requestAttach = async (key: SessionKey) => {
+    const replay = pickReplay(key.daemon);
+    const size = { cols: cols(), rows: ptyRows() };
+
+    screen.stream.begin(key, replay, size);
+
+    const answer = await sendToDaemon(links, key.daemon, 'session.attach', {
+      session: key.id,
+      ...size,
+      ...(replay === 'full' ? { replay } : {}),
+    });
+
+    if (typeof answer['cols'] === 'number' && typeof answer['rows'] === 'number') {
+      screen.stream.resize(answer['cols'], answer['rows']);
+    }
+  };
+
   const attach = async (key: SessionKey) => {
     if (links.clientFor(key.daemon) === null) {
       showStatusNotice(formatLinkState(key.daemon, links.stateOf(key.daemon)));
@@ -154,11 +200,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     service.send({ type: 'ATTACH', key });
 
     try {
-      await sendToDaemon(links, key.daemon, 'session.attach', {
-        session: key.id,
-        cols: cols(),
-        rows: ptyRows(),
-      });
+      await requestAttach(key);
     } catch (error) {
       reportFailure(key.daemon, error);
 
@@ -166,10 +208,22 @@ export async function runTUI(host: TUIHost): Promise<void> {
     }
   };
 
+  const reattachQuietly = async (key: SessionKey) => {
+    try {
+      await requestAttach(key);
+    } catch {}
+  };
+
+  const reattach = (key: SessionKey) => {
+    void reattachQuietly(key);
+  };
+
   const detachFocused = () => {
     if (focusedKey !== null) {
       void sendQuiet(focusedKey.daemon, 'session.detach', { session: focusedKey.id });
     }
+
+    screen.stream.end();
   };
 
   const showBase = () => {
@@ -178,18 +232,14 @@ export async function runTUI(host: TUIHost): Promise<void> {
     if (focused !== null && focused.alive) {
       service.send({ type: 'ATTACH', key: { daemon: focused.daemon, id: focused.id } });
 
-      void sendQuiet(focused.daemon, 'session.attach', {
-        session: focused.id,
-        cols: cols(),
-        rows: ptyRows(),
-      });
+      reattach({ daemon: focused.daemon, id: focused.id });
     } else {
       service.send({ type: 'HOME' });
     }
   };
 
   const openHelp = () => {
-    stdout.write(ansi.clear);
+    screen.writeScreen(ansi.clear);
 
     drawHelp();
   };
@@ -236,6 +286,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
 
     links.stop();
     connection.transport.stop();
+    screen.stop();
 
     restoreTerminal();
 
@@ -248,7 +299,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
 
   // A fullscreen session can leave the terminal in an enhanced keyboard
   // encoding, so the leader arrives as a CSI chord instead of its bare byte.
-  const isLeaderKey = (buf: Buffer): boolean => leaderChords.includes(buf.toString());
+  const isLeaderKey = (buf: Buffer): boolean =>
+    matchLeaderKey(leader.code, buf.toString()) === 'press';
+
   const getMode = () => service.getSnapshot().value.mode;
   const getConfirm = () => service.getSnapshot().value.confirm;
   const findRestartConsent = (): RestartConsent | null => service.getSnapshot().context.consent;
@@ -265,9 +318,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
       picker,
       eject,
       openHelp,
-      write: (chunk) => {
-        stdout.write(chunk);
-      },
+      write: screen.writeScreen,
     });
 
     scheduleStatus();
@@ -301,7 +352,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
 
     write: (chunk) => {
       if (findRestartConsent() === null) {
-        process.stdout.write(chunk);
+        writeOut(chunk);
       }
     },
     cwd: process.cwd(),
@@ -344,9 +395,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     isBootStale: () => getBoot().stale,
     isDaemonRestarting,
     scheduleStatus,
-    write: (chunk) => {
-      stdout.write(chunk);
-    },
+    write: screen.writeScreen,
   });
 
   const actions = createSessionActions({
@@ -382,6 +431,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     setLastUsedAgent,
     findFocused,
     scheduleStatus,
+    stream: screen.stream,
   };
 
   const connection = createTUIDaemonConnection({
@@ -419,11 +469,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
     getConfirm,
     findFocusedKey,
     findFocused,
-    write: (chunk) => {
-      stdout.write(chunk);
-    },
+    write: screen.writeScreen,
+    reattach,
     sendQuiet,
-    ptyRows,
     showStatusNotice,
     scheduleStatus,
   });
@@ -500,25 +548,33 @@ export async function runTUI(host: TUIHost): Promise<void> {
     quit,
   };
 
-  process.stdin.on('data', (buf: Buffer) => {
-    applyInputKey(buf, inputDeps);
+  process.stdin.on('data', (chunk: Buffer) => {
+    const keys = screen.filterInput(chunk);
+
+    if (keys === null || matchLeaderKey(leader.code, keys.toString()) === 'release') {
+      return;
+    }
+
+    applyInputKey(keys, inputDeps);
   });
 
   stdout.on('resize', () => {
+    screen.handleResize();
+
     handleResize({
       mode: getMode(),
       focusedKey,
       restartPrompt: findRestartConsent()?.prompt ?? null,
       ptyRows: ptyRows(),
-      write: (chunk) => {
-        stdout.write(chunk);
-      },
+      write: screen.writeScreen,
       sendQuiet,
       drawMode,
     });
   });
 
   process.on('uncaughtException', (err) => {
+    screen.stop();
+
     restoreTerminal();
 
     console.error(err);
@@ -528,10 +584,11 @@ export async function runTUI(host: TUIHost): Promise<void> {
   process.on('SIGTERM', () => quit());
   process.on('SIGHUP', () => quit());
   stdout.write(ansi.altScreenOn);
+  screen.start();
   service.start();
 }
 
-// Full height: the atc status bar only exists on home/overlay screens.
+// The terminal's last row stays free of the session.
 function ptyRows(): number {
-  return Math.max(4, rows());
+  return Math.max(4, rows() - 1);
 }

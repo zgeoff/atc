@@ -445,6 +445,7 @@
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
         "@atcx/contract": "workspace:*",
+        "@xterm/headless": "catalog:",
         "@zgeoff/std": "catalog:",
         "tiny-invariant": "catalog:",
         "ts-pattern": "catalog:",

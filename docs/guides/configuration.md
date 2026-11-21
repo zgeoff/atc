@@ -13,7 +13,8 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
   },
   "hooks": {},
   "leader": "ctrl-space",
-  "restoreFleetOnRestart": true
+  "restoreFleetOnRestart": true,
+  "animations": true
 }
 ```
 
@@ -28,6 +29,7 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 | `defaultTarget`         | unset            | The target a spawn without a target runs on.                                                                                                           |
 | `workspaces`            | see above        | Where workspaces come from and land. The [workspaces guide](./configuration/workspaces.md#git-transports) covers it.                                   |
 | `restoreFleetOnRestart` | `true`           | Whether the daemon restores the fleet by itself after a restart. The [fleet restore](#fleet-restore) section covers it.                                |
+| `animations`            | `true`           | Whether the TUI animates its transitions. `false` makes each one instant. A spinner shows state, so it keeps turning.                                  |
 | `daemons`               | unset            | Daemons on other hosts that `atc`, `atc --daemon <name>` and `atc mcp --daemon <name>` reach. The [remote daemons](#remote-daemons) section covers it. |
 
 ## Guides by task

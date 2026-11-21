@@ -7,6 +7,7 @@ import type { FleetMirror } from '../fleet/create-fleet-mirror';
 import { toSessionKey } from '../fleet/session-key';
 import type { SessionKey } from '../fleet/session-key';
 import { KEY, isDown, isUp } from '../terminal/key';
+import { writeOut } from '../terminal/write-out';
 import type { OverlayConfirm, OverlayScreen } from './create-overlay-screen';
 import { pickPinTarget } from './pick-pin-target';
 import { pickTabTarget } from './pick-tab-target';
@@ -81,7 +82,8 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
     deps.overlay.filter = '';
     deps.overlay.selected = 0;
 
-    process.stdout.write(ansi.clear);
+    writeOut(ansi.clear);
+
     deps.overlay.render();
 
     return;
@@ -143,7 +145,8 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   if (ch === 'g') {
     deps.overlay.grouped = !deps.overlay.grouped;
 
-    process.stdout.write(ansi.clear);
+    writeOut(ansi.clear);
+
     deps.overlay.render();
 
     return;
@@ -221,7 +224,8 @@ function applyOverlayFilterKey(buf: Buffer, deps: OverlayKeyDeps): boolean {
   if (buf[0] === KEY.esc && buf.length === 1) {
     deps.overlay.filter = null;
 
-    process.stdout.write(ansi.clear);
+    writeOut(ansi.clear);
+
     deps.overlay.render();
 
     return true;
@@ -230,7 +234,8 @@ function applyOverlayFilterKey(buf: Buffer, deps: OverlayKeyDeps): boolean {
   if (buf[0] === KEY.backspace) {
     deps.overlay.filter = deps.overlay.filter.slice(0, -1);
 
-    process.stdout.write(ansi.clear);
+    writeOut(ansi.clear);
+
     deps.overlay.render();
 
     return true;
@@ -239,7 +244,8 @@ function applyOverlayFilterKey(buf: Buffer, deps: OverlayKeyDeps): boolean {
   if (buf[0] === KEY.ctrlU) {
     deps.overlay.filter = '';
 
-    process.stdout.write(ansi.clear);
+    writeOut(ansi.clear);
+
     deps.overlay.render();
 
     return true;
@@ -262,7 +268,8 @@ function applyOverlayFilterKey(buf: Buffer, deps: OverlayKeyDeps): boolean {
   if (printable) {
     deps.overlay.filter += text;
 
-    process.stdout.write(ansi.clear);
+    writeOut(ansi.clear);
+
     deps.overlay.render();
 
     return true;

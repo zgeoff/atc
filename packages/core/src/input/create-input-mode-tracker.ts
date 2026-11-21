@@ -11,6 +11,19 @@ export interface InputModes {
   readonly colourSchemeUpdates: boolean;
 }
 
+export const NO_INPUT_MODES: InputModes = {
+  mouse: 'off',
+  mouseEncoding: 'default',
+  alternateScroll: false,
+  bracketedPaste: false,
+  focusEvents: false,
+  applicationCursorKeys: false,
+  applicationKeypad: false,
+  kittyStack: [],
+  modifyOtherKeys: 0,
+  colourSchemeUpdates: false,
+};
+
 export interface InputModeTracker {
   readonly write: (data: string) => void;
   readonly read: () => InputModes;
