@@ -17,7 +17,7 @@
 </div>
 
 **atc** runs your coding agents in a daemon, on as many machines as you like. Watch and steer them
-from one TUI, script them from a shell or the client, and let them work together over MCP.
+from a TUI, script them from a shell or the client, and let them work together over MCP.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/hero-dark.svg">
@@ -35,7 +35,7 @@ atc needs `claude`, `codex` or `grok` on your PATH, and Codex and Grok need
 [install guide](./docs/guides/install.md) covers the other ways to install.
 
 Run `atc` to start the daemon and open the TUI. Press `n` to spawn a session, `Ctrl-Space` for the
-list, and `?` for the keys. Quit the TUI and the sessions keep running.
+list, and `?` for the keys. Quit the TUI and your sessions keep running.
 
 ## Usage
 
@@ -51,9 +51,9 @@ Then ask it:
 > start a builder on the cloud box for each issue in this milestone, merge each PR once CI is green
 > and its review is clean, and tell me only when one needs a decision
 
-Each builder is a session in your TUI, so you can jump into any of them.
+Each builder becomes a session in your TUI, so you can jump into any of them.
 
-Message a session from anywhere a shell runs:
+Message a session from anywhere:
 
 ```sh
 atc send reviewer "Is the migration safe to run?" --wait
@@ -67,7 +67,7 @@ atc events |
   while read -r name; do ntfy publish me "$name is waiting on you"; done
 ```
 
-Hand a stuck cloud agent to your orchestrator, after `bun add @atcx/client`:
+Hand a stuck cloud agent to your orchestrator:
 
 ```ts
 import { connect } from '@atcx/client';
@@ -92,30 +92,25 @@ for await (const event of cloud.events()) {
 
 ## Features
 
-- **Gateway.** [atc-gateway](./docs/guides/gateway.md) puts several daemons behind one OAuth MCP
-  endpoint, so a hosted assistant drives them all. The TUI shows
+- **Gateway:** [atc-gateway](./docs/guides/gateway.md) federates several daemons behind one OAuth MCP
+  endpoint, so a hosted assistant can drvie them all. The TUI shows
   [every daemon in your config](./docs/guides/using-atc.md#opening-every-daemon-at-once) in one
   list.
-- **Targets.** Run sessions
-  [locally, in Docker, on imp microVMs or on Sprites](./docs/guides/configuration/targets.md). An
-  imp or a sprite sleeps when you stop its session, and a revive wakes it where it left off.
-- **MCP server.** Agents spawn, read, message and unstick each other, over
+- **Targets:** Run sessions
+  [locally, in Docker, on imp microVMs or on Sprites](./docs/guides/configuration/targets.md). Imps and sprites sleep when you stop their sessions, and reviving them wakes them where they left off.
+- **MCP server:** Agents can spawn, read, message and unstick each other, over
   [stdio](./docs/guides/using-atc.md#agents-that-drive-agents) locally or over
   [HTTP with OAuth](./docs/guides/remote-mcp.md) for a hosted assistant.
-- **Messaging.** [A message](./docs/architecture/protocol/messages.md) waits through a daemon
-  restart until its session takes it. When the sender is a session on the same daemon, the answer
-  lands in its conversation. Agents send progress notes.
-- **Events.** Every state change, message and note, [streamed](./docs/guides/events.md) to
-  `atc events`, a socket, your hooks or a hosted assistant's webhook, with a history you can resume
+- **Events:** Every state change, message and note is [streamed](./docs/guides/events.md) to
+  `atc events`, a socket, your hooks, or a hosted assistant's webhook, with a history you can resume
   from.
-- **Workspaces.** Spawn a session on a [fresh clone](./docs/guides/configuration/workspaces.md) of
-  any branch. Forget the session and atc removes the clone, unless it holds unpushed work.
-- **Scoped access.** Each client sees only the
-  [targets you grant it](./docs/guides/configuration/principals.md), with separate scopes to read,
-  message, spawn and kill.
-- **Brokered credentials.** On imp and Sprites, the
-  [credential](./docs/guides/configuration/brokered-credentials.md) is added to each request outside
-  the VM, so the agent never holds it.
+- **Workspaces:** Spawn a session on a [fresh clone](./docs/guides/configuration/workspaces.md) of
+  any branch. Forget the session and atc cleans up after itself.
+- **Scoped access:** Each client sees only the
+  [targets you grant it](./docs/guides/configuration/principals.md), with granular scopes.
+- **Brokered credentials.** On Imps and Sprites,
+  [credentials](./docs/guides/configuration/brokered-credentials.md) are added to each request outside
+  the VM, so your agent never holds them.
 
 ## Documentation
 
