@@ -22,25 +22,9 @@ test('it lists the target as unavailable when its config gives no image', () => 
   ).toThrow(expect.objectContaining({ problem: expect.stringContaining('image') }));
 });
 
-test.each([
-  ['tcp://Docker.Example.dev:2375/', 'tcp://docker.example.dev:2375'],
-  ['ssh://deploy@rack.example.dev', 'ssh://deploy@rack.example.dev'],
-])('it places the remote socket %s in a shared place', (socket, normalized) => {
-  expect(DOCKER_PLUGIN.place?.({ image: 'example/agents:1', socket })).toStrictEqual({
-    scope: 'shared',
-    version: 'place-v1',
-    parts: { socket: normalized },
-  });
+test('it names no shared place, so a docker target has daemon scope', () => {
+  expect(DOCKER_PLUGIN.place).toBeUndefined();
 });
-
-test.each([[{ socket: '/var/run/docker.sock' }], [{}]])(
-  'it places a docker target with options %p in a daemon place',
-  (options) => {
-    expect(DOCKER_PLUGIN.place?.({ image: 'example/agents:1', ...options })).toStrictEqual({
-      scope: 'daemon',
-    });
-  },
-);
 
 test('it declares the identity version and the one option that never selects a host', () => {
   expect(DOCKER_PLUGIN.identity).toStrictEqual({

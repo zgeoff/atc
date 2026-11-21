@@ -3,7 +3,6 @@ import {
   EXECUTION_TARGET_CONFIG_SCHEMA,
   TargetUnavailableError,
   definePlugin,
-  formatPlaceURL,
 } from '@atc/plugin-api';
 import { parseDockerTarget } from './config/parse-docker-target';
 import { createDockerProvider } from './create-docker-provider';
@@ -25,15 +24,6 @@ export const DOCKER_PLUGIN = definePlugin({
 
   // a new image reaches each container the provider creates after it, so it never selects a host
   identity: { version: 'docker-v1', ignoredOptions: ['image'] },
-
-  // only a remote socket names a host that another daemon can reach
-  place: (options) => {
-    const socket = options['socket'];
-
-    return typeof socket === 'string' && /^(?:tcp|ssh):\/\//iu.test(socket)
-      ? { scope: 'shared', version: 'place-v1', parts: { socket: formatPlaceURL(socket) } }
-      : { scope: 'daemon' };
-  },
 
   create: (config, host) => {
     const parsed = parseDockerTarget(config.id, config.options);

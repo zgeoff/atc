@@ -61,13 +61,12 @@ type PlaceParts =
 }
 ```
 
-| Provider    | `place(options)`                                                                          |
-| ----------- | ----------------------------------------------------------------------------------------- |
-| `imp`       | shared, version `place-v1`, parts `{ url }`                                               |
-| `docker`    | shared, version `place-v1`, parts `{ socket }`, when `socket` starts `tcp://` or `ssh://` |
-| `docker`    | daemon, for a local socket                                                                |
-| `sprites`   | daemon                                                                                    |
-| `local-pty` | daemon                                                                                    |
+| Provider    | `place(options)`                            |
+| ----------- | ------------------------------------------- |
+| `imp`       | shared, version `place-v1`, parts `{ url }` |
+| `docker`    | daemon                                      |
+| `sprites`   | daemon                                      |
+| `local-pty` | daemon                                      |
 
 ## Constraints
 
@@ -118,8 +117,9 @@ type PlaceParts =
 ## Decisions
 
 - **Each provider names its place, as a function of its options.** Only the provider knows which
-  options pick a remote service. Imp's `image` changes the machine, not the service, and a docker
-  socket names a shared host only when it is remote.
+  options pick a remote service. Imp's `image` changes the machine, not the service.
+- **docker targets have daemon scope.** A docker target takes only a socket path on the daemon's own
+  machine, so no other daemon reaches its containers.
 - **The place key is separate from the target identity.** The daemon uses a target identity to find
   a target's machines again, so it hashes every option that matters to that, including ones that
   differ between two daemons that reach one service, such as imp's `tokenFile`. A place key has to
