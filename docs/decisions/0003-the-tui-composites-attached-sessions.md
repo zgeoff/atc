@@ -9,12 +9,12 @@ The TUI keeps a terminal emulator, `@xterm/headless`, for the session the user i
 TUI feeds the session's output into that emulator and draws the emulator's screen as the bottom
 layer of each frame it writes to the user's terminal. The session's output never goes straight to
 the user's terminal. The TUI passes on only the few escape sequences that
-[the compositor design](../design/tui-redesign/compositor.md#sequences-from-the-session) lists, such
-as the ones that set the clipboard or the window title.
+[the session emulator](../architecture/tui/compositor.md#the-session-emulator) lists, such as the
+ones that set the clipboard or the window title.
 
 ## Why
 
-[The TUI redesign](../design/tui-redesign/README.md) draws these layers over a live session:
+The TUI draws these layers over a live session:
 
 - The session list opens over the session and dims it. To dim a cell, the TUI has to know the cell's
   character and colours, and the TUI knows them only if it keeps its own emulator of the session's

@@ -64,9 +64,9 @@ type Wordmark = { kind: 'outline'; size: 's10' | 'xs8' } | { kind: 'bitmap' } | 
   `#eef1f8`.
 - The outline and bitmap wordmarks' colour runs from `#eef1f8` on their top row of pixels to
   `#c4cde4` on their bottom row. The TUI blends a part-covered pixel toward the terminal's
-  background colour, which it reads as [the compositor's Colour section](./compositor.md#colour)
-  says. On a terminal that shows 16 colours, the TUI leaves a pixel off when its colour maps to the
-  palette's black.
+  background colour, which it reads as
+  [the compositor's Colour section](../../architecture/tui/compositor.md#colour) says. On a terminal
+  that shows 16 colours, the TUI leaves a pixel off when its colour maps to the palette's black.
 
 ### The layout
 
@@ -77,8 +77,8 @@ type Wordmark = { kind: 'outline'; size: 's10' | 'xs8' } | { kind: 'bitmap' } | 
   as one block.
 - The fleet line reads `<n> sessions` (`1 session` for one, `no sessions` for none), then
   `  ·  ◆ <k> need you` when `k > 0`. `<n>` counts the sessions that the
-  [session list](./session-list.md) shows, and `k` counts those in the `needs_you` state. The two
-  numbers are bold, `◆ <k>` is amber (`#f0b45a`), and the words are dim.
+  [session list](../../architecture/tui/session-list.md) shows, and `k` counts those in the
+  `needs_you` state. The two numbers are bold, `◆ <k>` is amber (`#f0b45a`), and the words are dim.
 - When the fleet line is wider than the window, it drops the `◆ <k> need you` part first, then cuts
   `<n> sessions` with `…`.
 - The keys form two columns: each key right-aligned in bold blue (`#7aa2f7`), then two spaces, then

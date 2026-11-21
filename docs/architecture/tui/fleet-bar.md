@@ -12,9 +12,9 @@ laptop ◆⠋✓○ +1    docker ⠴    ink ◆⠸✓✓ +2                     
 └─ place label, in its colour      └─ ◆ needs you · spinner running · ✓ done · ○ exited
 ```
 
-[Places](../../design/tui-redesign/places.md) defines a place and how the daemon builds its key. The
-bar is one layer of the [compositor](./compositor.md), which owns the frame clock and the cell
-buffer.
+[The place a session runs in](../daemon/sessions.md#the-place-a-session-runs-in) defines a place and
+how the daemon builds its key. The bar is one layer of the [compositor](./compositor.md), which owns
+the frame clock and the cell buffer.
 
 ## From sessions to the row
 
@@ -41,7 +41,9 @@ The TUI reads each session's place, a `key` and a `label`, from the session's de
 daemon's listing. A descriptor with no `place` gets the key `daemon:<daemon name>:<target id>` and
 the label `<target id>`, where the target id names the execution target in the daemon's config that
 runs the session. The daemon on the TUI's own computer has no name in the config, and the TUI writes
-its name as `local`.
+its name as `local`. The fallback key differs from the
+[place key](../daemon/sessions.md#the-place-a-session-runs-in) a daemon sends, so a daemon's places
+can change colour once it sends `place`.
 
 `pickPlaceLabels` gives one label to each place key:
 
