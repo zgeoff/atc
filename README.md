@@ -16,14 +16,13 @@
   </p>
 </div>
 
-**atc** lets you run several coding agents at once in a single terminal pane and keep track of which
-are waiting on you.
+**atc** runs your coding agents in a daemon, on as many machines as you like. Watch and steer them
+from a TUI, script them from a shell or the client, and let them work together over MCP.
 
-`claude`, `grok`, and `codex` sessions all run in a background daemon, with a session list in front
-of them. There are no panes. One session fills the terminal, `Ctrl-Space` opens the list, a session
-that needs an answer turns red, and `Tab` takes you to it. Quit atc and the sessions keep running.
-
-<img src="./docs/assets/demo.gif" alt="atc: spawn a session, open the session list, jump back in" width="1100">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/hero-dark.svg">
+  <img src="./docs/assets/hero-light.svg" alt="An animated diagram of atc. You ask an orchestrator on your laptop for an orders page, and it spawns builder-ui on a sprite. builder-ui asks builder-api, on an imp microVM, what the API returns. When builder-ui needs approval to deploy, the request rises through the atc gateway into your inbox. You clear it, and builder-ui deploys a preview." width="1000">
+</picture>
 
 ## Install
 
@@ -31,46 +30,91 @@ that needs an answer turns red, and `Tab` takes you to it. Quit atc and the sess
 brew install zgeoff/tap/atc
 ```
 
-atc needs at least one of the `claude`, `grok`, or `codex` CLIs on your PATH. The
-[install guide](./docs/guides/install.md) covers the install script and the prebuilt binaries for
-macOS and Linux. atc ships only as binaries; the npm package is deprecated.
+atc needs `claude`, `codex` or `grok` on your PATH, and Codex and Grok need
+[atc's hooks](./docs/guides/using-atc.md#grok-and-codex-hooks). The
+[install guide](./docs/guides/install.md) covers the other ways to install.
 
-Then run `atc`. The first run starts the daemon. Press `n` to spawn a session, `Ctrl-Space` to see
-the rest, and `?` for every other key.
+Run `atc` to start the daemon and open the TUI. Press `n` to spawn a session, `Ctrl-Space` for the
+list, and `?` for the keys. Quit the TUI and your sessions keep running.
 
-## Supported agents
+## Usage
 
-- **Claude Code** reports its state on its own, through a settings file atc passes at spawn, and
-  takes messages from other tools.
-- **Grok Build** and **Codex CLI** take a one-time hook install that atc prints for you
-  ([Grok and Codex hooks](./docs/guides/using-atc.md#grok-and-codex-hooks)).
-- **A Claude-compatible backend** runs as its own agent in the same fleet
-  ([gateways](./docs/guides/configuration/agents.md#gateways)).
+Give an agent the whole fleet, or another machine's:
+
+```sh
+claude mcp add --scope user atc -- atc mcp
+claude mcp add --scope user atc-box -- atc mcp --daemon box
+```
+
+Then ask it:
+
+> start a builder on the cloud box for each issue in this milestone, merge each PR once CI is green
+> and its review is clean, and tell me only when one needs a decision
+
+Each builder becomes a session in your TUI, so you can jump into any of them.
+
+Message a session from anywhere:
+
+```sh
+atc send reviewer "Is the migration safe to run?" --wait
+```
+
+Ping your phone when an agent needs you:
+
+```sh
+atc events |
+  jq --unbuffered -r 'select(.ev == "SessionState" and .session.state == "needs_you") | .session.name' |
+  while read -r name; do ntfy publish me "$name is waiting on you"; done
+```
+
+Hand a stuck cloud agent to your orchestrator:
+
+```ts
+import { connect } from '@atcx/client';
+
+await using local = await connect();
+await using cloud = await connect({ ... });
+
+const listed = await local.session.list({});
+
+const orchestrator = listed.sessions.find((session) => session.name === 'orchestrator');
+
+for await (const event of cloud.events()) {
+  if (event.ev !== 'SessionState' || event.session.state !== 'needs_you') {
+    continue;
+  }
+
+  const text = `cloud ${event.session.name} is stuck. Unblock it or tell me.`;
+
+  await local.session.message({ session: orchestrator.id, text });
+}
+```
 
 ## Features
 
-- **Attention routing.** Sessions that need you sort to the top, and a Claude session's statusline
-  shows who's waiting ([using atc](./docs/guides/using-atc.md)).
-- **Sessions outlive the daemon.** A restart, or an upgrade with `u`, brings every session back from
-  its transcript ([restarting](./docs/guides/using-atc.md#restarting-the-daemon)).
-- **Agents that drive agents.** `atc mcp` hands any agent the fleet as MCP tools, so it can spawn,
-  read, and message other sessions
-  ([agents that drive agents](./docs/guides/using-atc.md#agents-that-drive-agents)).
-- **Hosted assistants.** `atc mcp --http` serves the same tools to ChatGPT or Claude.ai behind
-  OAuth, with the scopes you approve ([remote MCP](./docs/guides/remote-mcp.md)).
-- **Several machines.** atc-gateway serves the fleets of several daemons through one connector
-  ([gateway](./docs/guides/gateway.md)).
-- **Session sandboxing.** A session can run in its own VM, sleeping when you kill it and waking
-  where it left off ([targets](./docs/guides/configuration/targets.md)).
-- **Event stream.** `atc events` prints every fleet event, and `config.json` hooks run your own
-  commands on them ([events](./docs/guides/events.md)).
-
-## Configuration
-
-atc creates `~/.config/atc/config.json` on first run. The
-[configuration guide](./docs/guides/configuration.md) covers every field: the agents and their
-arguments, the leader key, targets, gateways, principals, and hooks.
+- **Gateway:** [atc-gateway](./docs/guides/gateway.md) federates several daemons behind one OAuth
+  MCP endpoint, so a hosted assistant can drive them all. The TUI shows
+  [every daemon in your config](./docs/guides/using-atc.md#opening-every-daemon-at-once) in one
+  list.
+- **Targets:** Run sessions
+  [locally, in Docker, on imp microVMs or on Sprites](./docs/guides/configuration/targets.md). Imps
+  and sprites sleep when you stop their sessions, and reviving them wakes them where they left off.
+- **MCP server:** Agents can spawn, read, message and unstick each other, over
+  [stdio](./docs/guides/using-atc.md#agents-that-drive-agents) locally or over
+  [HTTP with OAuth](./docs/guides/remote-mcp.md) for a hosted assistant.
+- **Events:** Every state change, message and note is [streamed](./docs/guides/events.md) to
+  `atc events`, a socket, your hooks or a hosted assistant's webhook, with a history you can resume
+  from.
+- **Workspaces:** Spawn a session on a [fresh clone](./docs/guides/configuration/workspaces.md) of
+  any branch. Forget the session and atc cleans up after itself.
+- **Scoped access:** Each client sees only the
+  [targets you grant it](./docs/guides/configuration/principals.md), with granular scopes.
+- **Brokered credentials:** On imps and sprites,
+  [credentials](./docs/guides/configuration/brokered-credentials.md) are added to each request
+  outside the VM, so your agent never holds them.
 
 ## Documentation
 
-[docs/](./docs/README.md) covers how atc works, the guides, and the runbooks.
+atc creates `~/.config/atc/config.json` on first run, and the
+[configuration guide](./docs/guides/configuration.md) covers each key. [docs/](./docs/README.md)
+covers how atc works, the guides and the runbooks.

@@ -86,8 +86,9 @@ files the branch changes, and leaves `e2e/` and the codex lane to CI.
 
 `bun run build:binaries` compiles the release binaries into `dist/`, and `bun run build:atc-bridge`
 regenerates the mod's embedded copy after a change to `mods/atc-bridge/`. `bun run demo:record`
-records `docs/assets/demo.gif` against an isolated daemon, and needs vhs, ttyd, ffmpeg, zoxide and a
-signed-in `claude`.
+records `docs/assets/demo.gif` against two throwaway daemons whose agents are stand-ins, so it
+spends no model usage, and needs vhs, ttyd, ffmpeg and jq. The comment at the top of
+`docs/assets/demo.tape` gives how each beat of the recording waits for the last one.
 
 ## Checking a change to the agent integration
 
