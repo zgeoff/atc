@@ -38,7 +38,9 @@ function setupTest() {
   return {
     mirror,
     refresher,
-    open: () => gate.resolve(),
+    open: () => {
+      gate.resolve();
+    },
     readCounts: () => ({ reads, redraws }),
   };
 }
