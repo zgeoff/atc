@@ -50,7 +50,8 @@ its name as `local`.
 - When two places share a label, the TUI adds the name of the daemon whose label it uses, as
   `<label> · <daemon name>`. While two labels still match, it adds the target id next, then the
   place key, one at a time, until they differ. It skips a name that equals the label, and takes the
-  next one.
+  next one. When a label with names added matches another place's own label, both add their next
+  name.
 
 `pickPlaceColour` picks a place's colour from its key alone, so a place has the same colour on every
 daemon that sends its key, and in every run.

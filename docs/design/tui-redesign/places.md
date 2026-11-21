@@ -135,6 +135,7 @@ type PlaceParts =
   with the name of the daemon whose label it shows, in group headers and in the fleet bar. When one
   daemon serves both places, the two labels still match, so the TUI adds the target id next, then
   the place key, one at a time, until the labels differ. It never adds a name that equals the label.
+  When a label with names added matches another place's own label, both add their next name.
 - The TUI picks a place's colour from its key, so a place has the same colour on every daemon that
   sends its key, and in every run.
 

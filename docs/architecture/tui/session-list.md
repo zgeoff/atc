@@ -32,7 +32,9 @@ sends an attach only if it lost the attachment, for example across a daemon reco
 The client keeps a copy of every daemon's fleet, and the list builds its rows from that copy. `g`
 cycles three groupings: flat, by repository, and by place, the machine a session runs on. The
 config's `list.grouping` sets the grouping the list opens with. In both grouped modes, the pinned
-sessions of every daemon form one group at the top.
+sessions of every daemon form one group at the top. A sub-session lists under its parent, at any
+depth, and in its family root's group. A session whose parent chain loops back to it lists at the
+top level, so every session lists once.
 
 The selection belongs to a session, so it stays on that session when a state change moves the
 session to another row. The list keys each row by its daemon and its session id, because two daemons
@@ -52,8 +54,10 @@ name to narrow the rows, so a label never uses a letter that would extend the us
 - With nothing typed, a label uses no letter that appears in a visible name.
 - After the user types text, a label uses no letter that follows the typed text in a visible name.
 
-When single letters run out, the labels take two letters. A label on a live session attaches it. A
-label on an exited session selects its row and attaches nothing.
+When single letters run out, the labels take two letters, each starting with a free letter. When
+those run out too, the first letter of a label can be a letter that would extend the search, and
+typing that letter then starts the label. A label on a live session attaches it. A label on an
+exited session selects its row and attaches nothing.
 
 ## Ending a session
 
@@ -87,18 +91,27 @@ first in this list wins:
 5. the advice to update a daemon that runs an older build.
 
 A prompt wraps over as many lines as it needs, so the user always sees the action, what it deletes
-and the keys that confirm it. The list cuts every other text to one line.
+and the keys that confirm it. The list cuts every other text to one line. In a window too short for
+the whole panel, the last lines keep their rows before the list rows and the borders, and a prompt
+taller than the window keeps its end, which holds the keys.
 
 ## Motion
 
 The panel fades in, and the rows fade in one after another, each starting a fixed step after the row
 above it. The close is a shorter fade when the list closes back to a session or to home. When a
-screen such as the spawn picker replaces the list, the list closes at once. With the config's
-`animations` off, the panel opens and closes in one frame. The durations are constants in
-`packages/tui/src/session-list/constants.ts`.
+screen such as the spawn picker replaces the list, the list closes at once. A close that starts
+during the open fade, or an open that starts during the close fade, starts from the levels the other
+fade had reached, so the panel never jumps. With the config's `animations` off, the panel opens and
+closes in one frame. The durations are constants in `packages/tui/src/session-list/constants.ts`.
+
+The panel lays itself out again on each frame of the open. While it fades out, it keeps the input it
+last drew, since the list's state can be gone, and lays that input out again when the terminal's
+size changes.
 
 While a fade runs, the panel asks the [frame clock](./compositor.md) for a frame at the clock's
 frame interval. While a row shows a running session, the panel asks for a frame each time the row's
-spinner turns, at the fleet bar's spinner rate. With no fade and no running session, the panel asks
-for no frame. After the close fade ends, the panel asks for one more frame, which draws the screen
-without it, so a late tick never leaves a faint panel on the screen.
+spinner turns, at the fleet bar's spinner rate. While a shown row has an age, the panel asks for a
+frame at the moment the first shown age next changes, which steps as the age does: each second, then
+each minute, hour or day. With no fade, no running session and no age, the panel asks for no frame.
+After the close fade ends, the panel asks for one more frame, which draws the screen without it, so
+a late tick never leaves a faint panel on the screen.

@@ -103,14 +103,17 @@ interface OverlaySessionView {
 
 - The panel is `min(112, cols - 8)` columns wide and centred. Its height fits its rows, up to
   `rows - 6`.
+- In a window too short for the whole panel, the last line, or every line of a prompt, shows first.
+  The list rows go next, then the divider, the bottom border and the top border. A prompt longer
+  than the window keeps its end, which holds `y / n`.
 - The compositor dims every cell that the panel covers or that lies outside the panel, toward the
   terminal's background colour: by 62% over a session and by 50% over home. The
   [fleet bar](./fleet-bar.md) row stays undimmed. The compositor gets the background colour as
   [Colour](./compositor.md#colour) says.
 - The panel's background is `#0f1424`, blended 86% over the cell it covers.
-- The border is rounded, in `#2a3350`. The top border holds the title: the session count in bold,
-  then ` · by repo` or ` · by place` when grouped, then `◆ <k> need you` in amber (`#f0b45a`) when
-  `k > 0`.
+- The border is rounded, in `#2a3350`, with `│` at both ends of every row. The top border holds the
+  title: the session count in bold, then ` · by repo` or ` · by place` when grouped, then
+  `◆ <k> need you` in amber (`#f0b45a`) when `k > 0`. A title too long for the border ends in `…`.
 - Each session row starts with a bar in its place's colour, the colour that
   [Places](./places.md#in-the-tui) picks from `place.key`. The selected row has a thicker bar (`▌`
   in place of `▎`), a background tinted 11% toward blue (`#7aa2f7`), and a bold name.
@@ -134,11 +137,16 @@ interface OverlaySessionView {
 - `stateSince` lives in the TUI's copy of the fleet, so it outlasts a reconnect to the daemon. It
   starts at null when the TUI starts.
 - When the panel is narrower than 90 columns, it shows only state glyph, name, message and age.
+- When the name, cut to 8 columns, and the age still do not fit, the age goes and the name shrinks
+  to the room left. No two columns share a cell.
+- The age keeps counting while the list is open: the list draws again when the first shown age next
+  changes.
 
 ### The panel's last line
 
 - When the rows do not fit, the panel keeps the selected row in view and writes `↓ <n> more` or
-  `↑ <n> more` into the divider above the last line.
+  `↑ <n> more` into the divider above the last line. A narrow divider shows `↑ <n>  ↓ <n>`, and one
+  too narrow for that shows neither.
 - The last line shows the key bar: each key bold in blue, then its label dim. The key bar drops keys
   from the right until it fits.
 - These take the last line in place of the key bar while they show. When two want it, the one higher
@@ -160,9 +168,13 @@ interface OverlaySessionView {
   `needs_you`, `done`, `running`, `exited`, then the most recently attached first. A group sorts by
   its first session, then by label.
 - A group header shows its label in bold, its count, `◆ <k>` in amber when `k > 0`, and a thin rule
-  to the panel's edge. One blank row separates two groups.
-- A repo group holds one daemon's sessions in one repo root. Its label is the repo's folder name,
-  and `<folder> · <daemon name>` when two repo groups have the same folder name.
+  to the panel's edge. A label too long for the row ends in `…`, so the count and `◆ <k>` still
+  show. One blank row separates two groups.
+- A repo group holds one daemon's sessions in one repo root. Its label is the repo's folder name.
+  While two repo labels match, each adds the daemon name, then the folders above the root, nearest
+  first, as `shop · local · first`, until they differ.
+- Every group label differs from the others. When a label with names added matches another group's
+  own label, both add their next name.
 - A place group holds every session with one `place.key`, from every daemon.
 
 ### Keys
@@ -196,6 +208,9 @@ interface OverlaySessionView {
   are `i` and `p`, so the labels become `a` and `s`, and typing `s` attaches `app`.
 - When there are more rows than free letters, every label is two letters: a free letter, then any
   letter.
+- When the free letters give too few two-letter labels, the first letters go on with the letters
+  that would extend the search, in the same order. Typing one of those letters then starts a label,
+  so it no longer extends the search.
 - A search that matches no row shows `no match` on the last line. Backspace removes the last typed
   letter.
 - Typing a label acts as `⏎` on that row: a live session attaches. On a dead session, jump mode ends
@@ -233,6 +248,8 @@ including when it keeps a session's workspace folder.
 - Opening fades in the dim and draws the panel's frame over 180 ms. Row `i`, counted from 0, starts
   at `80 + 18·i` ms and fades in over 180 ms. With 15 rows, the open ends at 512 ms.
 - Closing fades the panel out over 120 ms.
+- A close during the open fade starts from what the open had reached, and so does a reopen during
+  the close fade.
 - The panel takes keys from the first frame of the open. A key during the cascade acts at once, and
   the cascade finishes behind it.
 - When the config's `animations` is false, the panel opens and closes in one frame.
