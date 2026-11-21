@@ -137,6 +137,73 @@ test.each([
     ],
     expected: ['near', 'far', 'far-child'],
   },
+  {
+    title: 'repo mode with a grandchild in the group of its family root',
+    options: { grouping: 'repo', filter: null, daemons: [null] } satisfies ListRowOptions,
+    sessions: [
+      { id: 'one', name: 'root', repoRoot: '/work/shop' },
+      { id: 'two', name: 'child', parent: 'one', repoRoot: '/work/kite' },
+      { id: 'three', name: 'grandchild', parent: 'two', repoRoot: '/work/kite' },
+    ],
+    expected: ['# shop 3 0', 'root', 'child', 'grandchild'],
+  },
+  {
+    title: 'flat mode with two sessions whose parents point at each other',
+    options: { grouping: 'flat', filter: null, daemons: [null] } satisfies ListRowOptions,
+    sessions: [
+      { id: 'one', name: 'first', parent: 'two', lastAttachedAt: 3 },
+      { id: 'two', name: 'second', parent: 'one', lastAttachedAt: 2 },
+      { id: 'three', name: 'third', lastAttachedAt: 1 },
+    ],
+    expected: ['first', 'second', 'third'],
+  },
+  {
+    title: 'repo mode with the parent folder on two roots of one folder name on one daemon',
+    options: { grouping: 'repo', filter: null, daemons: [null] } satisfies ListRowOptions,
+    sessions: [
+      { id: 'a', name: 'one', repoRoot: '/work/first/shop', lastAttachedAt: 2 },
+      { id: 'b', name: 'two', repoRoot: '/work/second/shop', lastAttachedAt: 1 },
+    ],
+    expected: ['# shop · local · first 1 0', 'one', '# shop · local · second 1 0', 'two'],
+  },
+  {
+    title: 'place mode with a qualified label that another place holds as its own',
+    options: { grouping: 'place', filter: null, daemons: ['lab', 'box'] } satisfies ListRowOptions,
+    sessions: [
+      {
+        id: 'one',
+        name: 'first',
+        daemon: 'lab',
+        target: 'vm',
+        place: { key: 'one', label: 'cloud' },
+        lastAttachedAt: 3,
+      },
+      {
+        id: 'two',
+        name: 'second',
+        daemon: 'box',
+        target: 'vm',
+        place: { key: 'two', label: 'cloud' },
+        lastAttachedAt: 2,
+      },
+      {
+        id: 'three',
+        name: 'third',
+        daemon: 'lab',
+        target: 'vm',
+        place: { key: 'three', label: 'cloud · lab' },
+        lastAttachedAt: 1,
+      },
+    ],
+    expected: [
+      '# cloud · lab · vm 1 0',
+      'first',
+      '# cloud · box 1 0',
+      'second',
+      '# cloud · lab · lab 1 0',
+      'third',
+    ],
+  },
 ])('#collectListRows gives $title', (row) => {
   const sessions = row.sessions.map((overrides) =>
     buildMockMirrorSession({

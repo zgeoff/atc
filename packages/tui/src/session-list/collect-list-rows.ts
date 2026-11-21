@@ -2,6 +2,7 @@ import { basename } from 'node:path';
 import { sortSessionViews } from '@atc/protocol';
 import type { DaemonName, SessionKey } from '../fleet/session-key';
 import type { MirrorSession } from '../fleet/to-mirror-session';
+import { pickDistinctLabels } from '../places/pick-distinct-labels';
 import { pickPlaceLabels } from '../places/pick-place-labels';
 import { toDaemonLabel } from '../places/to-session-place';
 import { findFuzzyScore, formatDir } from '../terminal/pick-matches';
@@ -85,20 +86,21 @@ interface Group {
 const PINNED_LABEL = 'pinned';
 
 function collectGroups(sorted: readonly MirrorSession[], options: ListRowOptions): Group[] {
-  const byNamespace = new Map(sorted.map((session) => [toNamespacedID(session), session]));
-
   const placeLabels = pickPlaceLabels(sorted, options.daemons);
   const repoLabels = pickRepoLabels(sorted);
 
   const groups = new Map<string, Group>();
 
-  for (const session of sorted) {
-    const parent =
-      session.parent === null
-        ? undefined
-        : byNamespace.get(toNamespacedID({ ...session, id: session.parent }));
+  // the session at the top of each family; the sort puts a parent before its sub-sessions
+  const owners = new Map<string, MirrorSession>();
 
-    const owner = parent ?? session;
+  for (const session of sorted) {
+    const owner =
+      (session.parent === null
+        ? undefined
+        : owners.get(toNamespacedID({ ...session, id: session.parent }))) ?? session;
+
+    owners.set(toNamespacedID(session), owner);
 
     const group = owner.pinned
       ? { key: PINNED_LABEL, label: PINNED_LABEL, isPinned: true }
@@ -117,7 +119,8 @@ function collectGroups(sorted: readonly MirrorSession[], options: ListRowOptions
 }
 
 // A repo group is one daemon's sessions in one repo root, labelled by the root's folder name. Two
-// groups with one folder name add the daemon's name.
+// groups with one folder name add the daemon's name, then the folders above the root, nearest
+// first, then the whole root, until they differ.
 function pickRepoLabels(sessions: readonly MirrorSession[]): ReadonlyMap<string, string> {
   const roots = new Map<string, MirrorSession>();
 
@@ -125,22 +128,24 @@ function pickRepoLabels(sessions: readonly MirrorSession[]): ReadonlyMap<string,
     roots.set(toRepoKey(session), session);
   }
 
-  const folderCounts = new Map<string, number>();
+  const keys = [...roots.keys()];
 
-  for (const session of roots.values()) {
-    const folder = basename(session.repoRoot);
+  const labels = pickDistinctLabels(
+    [...roots.values()].map((session) => {
+      const folders = session.repoRoot.split('/').filter((folder) => folder !== '');
 
-    folderCounts.set(folder, (folderCounts.get(folder) ?? 0) + 1);
-  }
-
-  return new Map(
-    [...roots].map(([key, session]) => {
-      const folder = basename(session.repoRoot);
-      const isClash = (folderCounts.get(folder) ?? 0) > 1;
-
-      return [key, isClash ? `${folder} · ${toDaemonLabel(session.daemon)}` : folder];
+      return {
+        label: basename(session.repoRoot),
+        qualifiers: [
+          toDaemonLabel(session.daemon),
+          ...folders.slice(0, -1).toReversed(),
+          session.repoRoot,
+        ],
+      };
     }),
   );
+
+  return new Map(keys.map((key, index) => [key, labels[index] ?? key]));
 }
 
 function toRepoKey(session: MirrorSession): string {

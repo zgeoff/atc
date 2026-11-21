@@ -74,6 +74,20 @@ test.each([
       ['k2', 'vm · lab · k2'],
     ],
   },
+  {
+    title: 'distinct labels when a qualified label matches another place of its own',
+    sessions: [
+      { daemon: 'lab', target: 'vm', place: { key: 'k1', label: 'cloud' } },
+      { daemon: 'box', target: 'vm', place: { key: 'k2', label: 'cloud' } },
+      { daemon: 'lab', target: 'vm', place: { key: 'k3', label: 'cloud · lab' } },
+    ],
+    order: ['lab', 'box'],
+    expected: [
+      ['k1', 'cloud · lab · vm'],
+      ['k2', 'cloud · box'],
+      ['k3', 'cloud · lab · lab'],
+    ],
+  },
 ])('#pickPlaceLabels gives $title', (row) => {
   expect([...pickPlaceLabels(row.sessions, row.order)]).toStrictEqual(
     row.expected.map(([key, label]) => [key, label]),
