@@ -17,6 +17,9 @@ export interface StatusSchedulerDeps {
   readonly isDaemonWaiting: () => boolean;
 
   readonly findNotice: () => string | null;
+
+  // the fleet bar depends on what the status draws, so a frame follows each pass
+  readonly requestFrame: () => void;
 }
 
 export function createStatusScheduler(deps: StatusSchedulerDeps): () => void {
@@ -30,6 +33,8 @@ export function createStatusScheduler(deps: StatusSchedulerDeps): () => void {
 
     timer = setTimeout(() => {
       timer = null;
+
+      deps.requestFrame();
 
       const notice = deps.findNotice();
       const isOverAttached = deps.getMode() === 'attached' && !deps.isAttachedLinkDown();

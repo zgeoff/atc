@@ -10,7 +10,9 @@ import { createDaemonLinks } from '../daemon-link/create-daemon-links';
 import { createDaemonRestarter } from '../daemon-link/create-daemon-restarter';
 import { createTUIDaemonConnection } from '../daemon-link/create-tui-daemon-connection';
 import { formatLinkState } from '../daemon-link/daemon-link-state';
+import { pickReplay } from '../daemon-link/pick-replay';
 import { formatDaemonFailure, sendToDaemon } from '../daemon-link/send-to-daemon';
+import { createFleetBarDeps } from '../fleet-bar/create-fleet-bar-deps';
 import { applyDaemonEvent } from '../fleet/apply-daemon-event';
 import type { DaemonEventDeps } from '../fleet/apply-daemon-event';
 import { createFleetMirror } from '../fleet/create-fleet-mirror';
@@ -27,6 +29,7 @@ import { createTUIScreen } from '../screen/create-tui-screen';
 import { cols } from '../terminal/cols';
 import { drawHelp } from '../terminal/draw-help';
 import { drawHome } from '../terminal/draw-home';
+import { ptyRows } from '../terminal/pty-rows';
 import { restoreTerminal } from '../terminal/restore-terminal';
 import { rows } from '../terminal/rows';
 import { installScreenSink, writeOut } from '../terminal/write-out';
@@ -69,6 +72,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const bootMetadata = resolveAgentMetadata(host.readConfig(), {});
   const stdout = process.stdout;
   const leader = host.readConfig().leader;
+  const isSessionFocused = (): boolean => getMode() === 'attached' && findRestartConsent() === null;
 
   const screen = createTUIScreen({
     clock,
@@ -78,7 +82,14 @@ export async function runTUI(host: TUIHost): Promise<void> {
     readSize: () => ({ cols: cols(), rows: rows() }),
     env: { colorterm: process.env['COLORTERM'], term: process.env['TERM'] },
     animations: host.readConfig().animations,
-    isSessionFocused: () => getMode() === 'attached' && findRestartConsent() === null,
+    isSessionFocused,
+    fleetBar: createFleetBarDeps({
+      mirror,
+      links: () => links,
+      leaderLabel: leader.label,
+      findFocused: () => findFocused(),
+      isShown: () => isSessionFocused() && statusNotice === null && !isAttachedLinkDown(),
+    }),
     sendSessionReply: (key, bytes) => {
       void sendInput(key, bytes);
     },
@@ -113,6 +124,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     isDaemonRestarting: () => isDaemonRestarting(),
     isDaemonWaiting: () => isDaemonWaiting(),
     findNotice: () => statusNotice,
+    requestFrame: screen.requestFrame,
   });
 
   const isAttachedLinkDown = (): boolean =>
@@ -161,20 +173,8 @@ export async function runTUI(host: TUIHost): Promise<void> {
     }
   };
 
-  // A daemon that lists full-replay sends the session's whole emulator state as replay events;
-  // any other sends the visible screen as output.
-  const pickReplay = (daemon: DaemonName): 'screen' | 'full' => {
-    try {
-      const features = links.clientFor(daemon)?.connection.hello.features ?? [];
-
-      return features.includes('full-replay') ? 'full' : 'screen';
-    } catch {
-      return 'screen';
-    }
-  };
-
   const requestAttach = async (key: SessionKey) => {
-    const replay = pickReplay(key.daemon);
+    const replay = pickReplay(links, key.daemon);
     const size = { cols: cols(), rows: ptyRows() };
 
     screen.stream.begin(key, replay, size);
@@ -586,8 +586,4 @@ export async function runTUI(host: TUIHost): Promise<void> {
   stdout.write(ansi.altScreenOn);
   screen.start();
   service.start();
-}
-
-function ptyRows(): number {
-  return Math.max(4, rows() - 1);
 }

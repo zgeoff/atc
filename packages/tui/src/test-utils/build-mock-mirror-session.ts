@@ -28,6 +28,7 @@ export function buildMockMirrorSession(
       agent: 'claude',
       parent: null,
       target: 'local',
+      place: { key: 'daemon:local:local', label: 'local' },
       model: null,
       harness: 'running',
     },

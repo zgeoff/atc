@@ -7,6 +7,7 @@ import type { HarnessLifecycle } from '../fleet/to-mirror-session';
 import { pickPinTarget } from '../overlay/pick-pin-target';
 import { planOverlayColumns } from '../overlay/plan-overlay-columns';
 import type { OverlayColumnPlan } from '../overlay/plan-overlay-columns';
+import type { SessionPlace } from '../places/types';
 import { cols } from './cols';
 import { boxBottom, boxDivider, boxRow, boxTop, dimRow, drawBox } from './draw-box';
 import { formatDir } from './pick-matches';
@@ -48,6 +49,7 @@ export interface OverlaySessionView extends SessionView {
   readonly pinned: boolean;
   readonly repoRoot: string;
   readonly target: string;
+  readonly place: SessionPlace;
   readonly model: string | null;
 
   readonly harness: HarnessLifecycle;

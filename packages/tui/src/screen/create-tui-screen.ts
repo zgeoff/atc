@@ -5,6 +5,8 @@ import { createFrameClock } from '../compositor/create-frame-clock';
 import type { CursorPlacement, Layer } from '../compositor/types';
 import { createSessionEmulator } from '../emulator/create-session-emulator';
 import type { SessionEmulator } from '../emulator/create-session-emulator';
+import { createFleetBarLayer } from '../fleet-bar/create-fleet-bar-layer';
+import type { FleetBarLayerDeps } from '../fleet-bar/create-fleet-bar-layer';
 import type { SessionKey } from '../fleet/session-key';
 import { filterMouseReports } from '../input-modes/filter-mouse-reports';
 import { createTerminalAnswerFilter } from '../terminal-facts/create-terminal-answer-filter';
@@ -23,6 +25,7 @@ export interface TUIScreenDeps {
   readonly env: { readonly colorterm: string | undefined; readonly term: string | undefined };
   readonly animations: boolean;
   readonly isSessionFocused: () => boolean;
+  readonly fleetBar: FleetBarLayerDeps;
   readonly sendSessionReply: (key: SessionKey, bytes: string) => void;
 }
 
@@ -89,8 +92,11 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
     isRowDrawn: (row, frame) => row === frame.rows - 1,
   });
 
+  const barLayer = createFleetBarLayer(deps.fleetBar);
+
+  // the bar draws after the notice layer, which blanks the last row, and only when no notice shows
   const collectLayers = (): readonly Layer[] =>
-    deps.isSessionFocused() ? [sessionLayer, noticeLayer] : [screenLayer];
+    deps.isSessionFocused() ? [sessionLayer, noticeLayer, barLayer] : [screenLayer];
 
   const readCursor = (): CursorPlacement | null => {
     const emulator = deps.isSessionFocused() ? stream.readEmulator() : screenEmulator;

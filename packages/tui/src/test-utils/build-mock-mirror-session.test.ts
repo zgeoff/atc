@@ -23,6 +23,7 @@ test('it builds a default mirror session', () => {
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -56,6 +57,7 @@ test('it applies overrides on top of the defaults', () => {
     agent: 'grok',
     parent: 'wrangler',
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: 'opus',
     harness: 'suspended',
   });

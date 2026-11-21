@@ -6,7 +6,7 @@ import { createTUIScreen } from './create-tui-screen';
 function setupTest() {
   const clock = buildStubClock(1000);
   const written: string[] = [];
-  const state = { isFocused: false };
+  const state = { isFocused: false, isBarShown: false };
 
   const screen = createTUIScreen({
     clock,
@@ -17,6 +17,17 @@ function setupTest() {
     env: { colorterm: 'truecolor', term: 'xterm' },
     animations: true,
     isSessionFocused: () => state.isFocused,
+    fleetBar: {
+      isShown: () => state.isBarShown,
+      isSpinning: () => false,
+      readBar: () => ({
+        level: 'glyphs',
+        places: [],
+        dropped: 0,
+        needYou: 0,
+        leaderLabel: 'ctrl+space',
+      }),
+    },
     sendSessionReply: () => {},
   });
 
@@ -109,4 +120,19 @@ test('#stop takes the mirrored modes off the terminal', async () => {
   ctx.screen.stop();
 
   expect(ctx.written.at(-1)).toBe('\u001B[?2004l');
+});
+
+test('#requestFrame draws the fleet bar on the last row while a session has focus', async () => {
+  const ctx = setupTest();
+
+  ctx.state.isFocused = true;
+  ctx.state.isBarShown = true;
+
+  ctx.screen.requestFrame();
+
+  await waitFor(() => {
+    ctx.clock.advance(20);
+
+    expect(ctx.written.join('')).toInclude('ctrl+space');
+  });
 });

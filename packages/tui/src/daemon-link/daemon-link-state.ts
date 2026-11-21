@@ -22,3 +22,8 @@ export function formatLinkState(daemon: DaemonName, state: DaemonLinkState): str
     ? `${name}: ${state.kind}`
     : `${name}: ${state.kind} — ${state.detail}`;
 }
+
+// A link that is neither up nor still opening: unreachable, refused or mismatched.
+export function isLinkDown(state: DaemonLinkState): boolean {
+  return state.kind !== 'up' && state.kind !== 'connecting';
+}

@@ -1,0 +1,115 @@
+import { expect, test } from 'bun:test';
+import { buildFleetBar } from './build-fleet-bar';
+import { formatFleetBar } from './format-fleet-bar';
+import type { FleetBarSession } from './types';
+
+function setupTest() {
+  const sessions: FleetBarSession[] = [
+    { daemon: null, state: 'needs_you', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'running', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'running', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'done', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'exited', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'done', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'running', place: { key: 'b', label: 'docker' } },
+    { daemon: null, state: 'needs_you', place: { key: 'c', label: 'ink' } },
+    { daemon: null, state: 'done', place: { key: 'c', label: 'ink' } },
+  ];
+
+  return { sessions };
+}
+
+test.each([
+  {
+    title: 'glyphs',
+    cols: 100,
+    expected: `docker ⠋    ink ◆✓    laptop ◆⠋⠋✓ +2${' '.repeat(39)}◆ 2 need you   ctrl+space`,
+  },
+  {
+    title: 'counts',
+    cols: 54,
+    expected: `docker 1    ink 2 ◆    laptop 6 ◆${' '.repeat(5)}◆ 2   ctrl+space`,
+  },
+  {
+    title: 'short',
+    cols: 40,
+    expected: `doc    ink    lap${' '.repeat(7)}◆ 2   ctrl+space`,
+  },
+  {
+    title: 'short with … for the places that dropped',
+    cols: 30,
+    expected: `doc    ink…${' '.repeat(3)}◆ 2   ctrl+space`,
+  },
+])('#formatFleetBar draws the $title level on one row', (row) => {
+  const ctx = setupTest();
+
+  const bar = buildFleetBar(ctx.sessions, {
+    cols: row.cols,
+    leaderLabel: 'ctrl+space',
+    attachedPlaceKey: null,
+  });
+
+  const text = Array.from({ length: row.cols }, () => ' ');
+
+  for (const run of formatFleetBar(bar, row.cols)) {
+    [...run.text].forEach((ch, index) => {
+      text[run.col + index] = ch;
+    });
+  }
+
+  expect(text.join('')).toBe(row.expected);
+});
+
+test('#formatFleetBar writes the need-you count in amber and the leader in bold blue', () => {
+  const ctx = setupTest();
+
+  const bar = buildFleetBar(ctx.sessions, {
+    cols: 100,
+    leaderLabel: 'ctrl+space',
+    attachedPlaceKey: null,
+  });
+
+  expect(formatFleetBar(bar, 100).slice(-2)).toStrictEqual([
+    {
+      col: 75,
+      text: '◆ 2 need you',
+      fg: { kind: 'rgb', red: 0xf0, green: 0xb4, blue: 0x5a },
+      bold: false,
+    },
+    {
+      col: 90,
+      text: 'ctrl+space',
+      fg: { kind: 'rgb', red: 0x7a, green: 0xa2, blue: 0xf7 },
+      bold: true,
+    },
+  ]);
+});
+
+test('#formatFleetBar leaves out the words under 90 columns', () => {
+  const ctx = setupTest();
+
+  const bar = buildFleetBar(ctx.sessions, {
+    cols: 89,
+    leaderLabel: 'ctrl+space',
+    attachedPlaceKey: null,
+  });
+
+  expect(formatFleetBar(bar, 89).at(-2)?.text).toBe('◆ 2');
+});
+
+test('#formatFleetBar draws every glyph of an unreachable place in #3a414b', () => {
+  const ctx = setupTest();
+
+  const bar = buildFleetBar(ctx.sessions, {
+    cols: 100,
+    leaderLabel: 'ctrl+space',
+    attachedPlaceKey: null,
+    downDaemons: new Set([null]),
+  });
+
+  expect(
+    formatFleetBar(bar, 100)
+      .filter((run) => run.text === '◆' || run.text === '⠋')
+      .map((run) => run.fg),
+  ).toSatisfyAll((colour) => colour.kind === 'rgb' && colour.red === 0x3a);
+});
