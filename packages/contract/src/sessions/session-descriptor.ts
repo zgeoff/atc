@@ -84,9 +84,9 @@ export const SESSION_DESCRIPTOR_SCHEMA = z.object({
   // where the agent runs; absent from a daemon that predates places
   place: SESSION_PLACE_SCHEMA.optional(),
 
-  // whether forgetting this session deletes the machine it runs on: its provider can
-  // delete machines and this session's spawn created that machine; absent from a daemon
-  // that predates places
+  // whether forgetting this session would delete the machine it runs on: this session's
+  // spawn created that machine and the daemon lets its target delete it, which a target
+  // changed since the session started refuses; absent from a daemon that predates places
   canDestroyHost: z.boolean().optional(),
 });
 
