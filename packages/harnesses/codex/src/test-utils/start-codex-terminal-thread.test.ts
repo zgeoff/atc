@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import type { Server } from 'bun';
 import { startCodexTerminalThread } from './start-codex-terminal-thread';
 import { startStubCodexAppServer } from './start-stub-codex-app-server';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-terminal-thread-');
+  const temporaryDirectory = createTempDir('atc-terminal-thread-');
   const socket = join(temporaryDirectory.path, 'codex.sock');
 
   return { socket };

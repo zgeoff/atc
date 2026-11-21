@@ -3,10 +3,9 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemon';
 import { isRecord } from '@atc/core';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startInProcessMCP } from '@atc/mcp/test-utils/start-in-process-mcp';
 import { runNote } from '@atc/reporters';
+import { updateEnv, waitFor } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 
 async function setupTest() {

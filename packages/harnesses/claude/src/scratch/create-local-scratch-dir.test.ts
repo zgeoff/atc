@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { toSessionID } from '@atcx/contract';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createLocalScratchDir } from './create-local-scratch-dir';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-scratch-');
+  const temporaryDirectory = createTempDir('atc-scratch-');
 
   return { directory: temporaryDirectory.path };
 }

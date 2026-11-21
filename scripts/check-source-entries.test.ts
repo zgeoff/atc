@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('check-source-entries-');
+  const temporaryDirectory = createTempDir('check-source-entries-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -32,7 +32,7 @@ test('it passes helpers that read the source entry from the wrapper variable', a
     "export const ENTRY = '/src/cli.ts';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-source-entries.ts'),
     ctx.directory,
@@ -77,7 +77,7 @@ test('it fails on a helper that hard-codes a source entry path or joins its segm
     "const entry = join(import.meta.dir, '..', 'packages', 'app', 'src', 'cli.ts');\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-source-entries.ts'),
     ctx.directory,
@@ -112,7 +112,7 @@ test('it checks against the entry path the wrapper exports after a package move'
     "export const OLD = 'packages/app/src/cli.ts';\nexport const NEW = 'packages/console/src/main.ts';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-source-entries.ts'),
     ctx.directory,
@@ -135,7 +135,7 @@ test('it fails when the wrapper exports no source entry', async () => {
 
   await Bun.write(join(ctx.directory, 'scripts/with-test-home.sh'), 'repo=$(pwd)\n');
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-source-entries.ts'),
     ctx.directory,

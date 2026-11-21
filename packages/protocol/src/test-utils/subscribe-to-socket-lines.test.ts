@@ -4,15 +4,14 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildStubWaitClock } from '@atc/core/test-utils/build-stub-wait-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startStubRecordingListener } from './start-stub-recording-listener';
 import { startStubStalledListener } from './start-stub-stalled-listener';
 import { subscribeToSocketLines } from './subscribe-to-socket-lines';
 
 async function setupTest(config: Parameters<typeof subscribeToSocketLines>[1] = {}) {
-  const temporaryDirectory = setupTempDir('atc-sock-lines-');
+  const temporaryDirectory = createTempDir('atc-sock-lines-');
   const path = join(temporaryDirectory.path, 'lines.sock');
   const listener = startStubRecordingListener(path);
 
@@ -79,7 +78,7 @@ test('it sends a payload larger than one socket write whole', async () => {
 });
 
 test('it throws on a write while the unsent bytes fill the queue', async () => {
-  const temporaryDirectory = setupTempDir('atc-sock-lines-');
+  const temporaryDirectory = createTempDir('atc-sock-lines-');
   const stalledPath = join(temporaryDirectory.path, 'stalled.sock');
 
   await startStubStalledListener(stalledPath);
@@ -117,7 +116,7 @@ test('it throws listing the collected lines when the count never arrives', async
 
   expect(ctx.subscriber.waitForLine(2, 100)).rejects.toThrowWithMessage(
     Error,
-    String.raw`timed out waiting for 2 lines; got ["{\"a\":1}"]`,
+    String.raw`timed out after 100 ms: timed out waiting for 2 lines; got ["{\"a\":1}"]`,
   );
 });
 

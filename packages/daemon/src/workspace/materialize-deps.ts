@@ -1,7 +1,8 @@
 import type { InvalidGitTransports } from '@atc/config';
-import type { Clock, StepTimer } from '@atc/core';
+import type { StepTimer } from '@atc/core';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import type { StateStore } from '@atc/store';
+import type { Clock } from '@zgeoff/std';
 import type { GitIdentity } from './read-host-git-identity';
 
 export interface Landing {
@@ -28,5 +29,5 @@ export interface MaterializeDeps {
 
   readonly gitIdentity?: GitIdentity | null;
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 }

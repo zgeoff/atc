@@ -4,8 +4,6 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
@@ -13,6 +11,7 @@ import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legac
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { seedSweptIdempotencyKeys } from '@atc/store/test-utils/seed-swept-idempotency-keys';
 import { CONTRACT_VERSION } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 import { buildMockRegistryDaemon } from '../test-utils/build-mock-registry-daemon';
 import { buildStubChannelOpener } from '../test-utils/build-stub-channel-opener';

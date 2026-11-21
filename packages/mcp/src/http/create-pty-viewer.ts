@@ -1,6 +1,6 @@
-import type { Clock } from '@atc/core';
 import type { DaemonClient, DaemonProcedures } from '@atc/protocol/client';
 import type { DaemonEvent, SessionDescriptor } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import { P, match } from 'ts-pattern';
 import { createActor } from 'xstate';
 import { PTY_VIEWER_MACHINE } from './pty-viewer-machine';
@@ -33,7 +33,7 @@ export interface PTYViewer {
 
 interface ViewerAccess {
   readonly probe: () => Promise<boolean>;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly recheckMs: number;
 }
 

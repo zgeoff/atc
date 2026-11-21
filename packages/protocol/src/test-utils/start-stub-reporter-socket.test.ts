@@ -3,13 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startStubReporterSocket } from './start-stub-reporter-socket';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-reporter-');
+  const temporaryDirectory = createTempDir('atc-stub-reporter-');
 
   return { path: join(temporaryDirectory.path, 'reporter.sock') };
 }
@@ -131,7 +130,7 @@ test('it rejects the wait naming the socket when no line arrives in time', () =>
 
   expect(reporter.waitForLine(50)).rejects.toThrowWithMessage(
     Error,
-    `no line has arrived at ${ctx.path}`,
+    `timed out after 50 ms: no line has arrived at ${ctx.path}`,
   );
 });
 

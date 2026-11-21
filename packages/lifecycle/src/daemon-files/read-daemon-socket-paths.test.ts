@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readDaemonSocketPaths } from './read-daemon-socket-paths';
 
 function setupTest() {
-  const directory = setupTempDir('collect-daemon-socket-paths-').path;
+  const directory = createTempDir('collect-daemon-socket-paths-').path;
 
   return { directory };
 }

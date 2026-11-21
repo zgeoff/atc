@@ -1,5 +1,4 @@
 import { join } from 'node:path';
-import type { Clock } from '@atc/core';
 import type {
   MessageBridge,
   MessageBridgeHost,
@@ -10,6 +9,7 @@ import type { HookEvent } from '@atc/protocol/session';
 import type { StateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
 import { toMessageID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { TapClient } from '../types';
 import { buildBridgeTapClient } from './build-bridge-tap-client';
 import { buildMessageOwner } from './build-message-owner';
@@ -22,7 +22,7 @@ import type { MessageBridgeLaunch } from './session-callbacks';
 interface MessageBridgesDeps {
   readonly manager: Pick<SessionManager, 'sessions' | 'log'>;
   readonly store: Pick<StateStore, 'updateNoticeDelivered' | 'readUnsettledMessages'>;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly messages: Pick<
     MessageService,
     'attachTap' | 'markMessageDelivered' | 'recordNoticeStatus' | 'drainSessionInbox'

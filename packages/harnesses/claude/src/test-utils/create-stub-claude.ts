@@ -1,4 +1,4 @@
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 
 interface StubClaudeConfig {
   readonly atc: readonly string[];
@@ -9,7 +9,7 @@ interface StubClaudeConfig {
 export function createStubClaude(directory: string, config: StubClaudeConfig): string {
   const atc = config.atc.map((part) => `"${part}"`).join(' ');
 
-  return createStubBin(
+  return writeStubProgram(
     directory,
     'fake-claude',
     `#!/usr/bin/env bash

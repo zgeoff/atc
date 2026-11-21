@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 
 interface StubSystemd {
   // The directory that holds the stand-in `systemctl` and `systemd-run`, to put

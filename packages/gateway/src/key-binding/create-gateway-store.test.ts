@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildMockKeyBindingClaim } from '../test-utils/build-mock-key-binding-claim';
 import { openTestBindingDatabase } from '../test-utils/open-test-binding-database';
 import { buildBindingPayloadHash } from './build-binding-payload-hash';
 import { createGatewayStore } from './create-gateway-store';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-gateway-store-');
+  const temporaryDirectory = createTempDir('atc-gateway-store-');
   const path = join(temporaryDirectory.path, 'gateway.db');
   const store = createGatewayStore(openTestBindingDatabase(path));
 

@@ -1,7 +1,7 @@
-import type { Clock } from '@atc/core';
 import type { ScreenMenu } from '@atc/plugin-api';
 import { planTypedLineInput } from '@atc/plugin-api';
 import type { MenuView, SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import { applyMenuChoice } from './apply-menu-choice';
 import type { MenuChoice, MenuChoiceResult } from './apply-menu-choice';
 import { buildMenuView } from './build-menu-view';
@@ -19,7 +19,7 @@ interface SessionInputDeps {
     SessionManager,
     'sessions' | 'findAdapter' | 'findProvider' | 'requireExecution' | 'findExecutionRefusal'
   >;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
   readonly menuTiming: MenuTiming;

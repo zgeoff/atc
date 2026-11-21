@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildStubGuestFilesProvider } from '../test-utils/build-stub-guest-files-provider';
@@ -21,7 +21,7 @@ interface SetupTestConfig {
 }
 
 async function setupTest(config: SetupTestConfig) {
-  const temporaryDirectory = setupTempDir('atc-session-reads-');
+  const temporaryDirectory = createTempDir('atc-session-reads-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
   const guestFiles = join(temporaryDirectory.path, 'guest');
 

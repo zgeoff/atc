@@ -1,10 +1,11 @@
-import type { AgentID, Clock } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import { formatError } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonEvent } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { TUIDaemon } from '../client/tui-host';
 import type { FleetMirror } from '../fleet/create-fleet-mirror';
 import type { DaemonName } from '../fleet/session-key';
@@ -16,7 +17,7 @@ const REFUSAL_RETRY_MS = 30_000;
 
 export interface DaemonLinksDeps {
   readonly daemons: readonly TUIDaemon[];
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly mirror: Pick<FleetMirror, 'refresh'>;
   readonly onEvent: (daemon: DaemonName, event: DaemonEvent) => void;
 

@@ -4,13 +4,12 @@ import { rm, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { buildSeeder } from '../test-utils/build-seeder';
@@ -25,7 +24,7 @@ import { readSubdirNames } from './read-subdir-names';
 import { WORKSPACE_CHECK_SCRIPT } from './run-workspace-check';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-workspace-pruner-');
+  const temporaryDirectory = createTempDir('atc-workspace-pruner-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

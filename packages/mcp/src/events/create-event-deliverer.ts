@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { toTimerClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
 import { normalizeClientName } from '@zgeoff/mcp-auth';
+import type { Clock } from '@zgeoff/std';
 import type { Kysely } from 'kysely';
 import invariant from 'tiny-invariant';
 import { createActor } from 'xstate';
@@ -27,7 +27,7 @@ interface EventDelivererDeps {
   readonly subscriptions: SubscriptionStore;
   readonly caller: FleetCaller;
   readonly send: WebhookSender;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   readonly probeAccess: (clientID: string) => Promise<boolean>;
 
@@ -291,7 +291,11 @@ function formatEventSource(event: TrailPage['events'][number]): string {
     : `${event.origin.daemon}.${event.origin.incarnation}.${event.origin.cursor}`;
 }
 
-function waitOnClock(clock: Clock, delayMs: number, signal: AbortSignal): Promise<void> {
+function waitOnClock(
+  clock: Pick<Clock, 'now' | 'schedule'>,
+  delayMs: number,
+  signal: AbortSignal,
+): Promise<void> {
   const resolvers = Promise.withResolvers<void>();
 
   const finish = () => {

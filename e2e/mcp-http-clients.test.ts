@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { resolvePaths } from '@atc/config';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import invariant from 'tiny-invariant';
 import { runClients } from '../packages/app/src/auth/run-clients';
 
 function setupTest() {
-  const home = setupTempDir('atc-e2e-clients-');
+  const home = createTempDir('atc-e2e-clients-');
 
   return {
     atc: resolveATCCommand(),
@@ -19,7 +19,7 @@ function setupTest() {
 test('it adds a client through atc clients and prints its client ID', async () => {
   const ctx = setupTest();
 
-  const added = await runCommand(
+  const added = await run(
     [
       ...ctx.atc,
       'clients',
@@ -64,7 +64,7 @@ test('it lists a client with every redirect URI it was given through atc clients
 
   invariant(clientID !== undefined, `no client ID in: ${printed.join('\n')}`);
 
-  const listed = await runCommand([...ctx.atc, 'clients'], { env: ctx.env });
+  const listed = await run([...ctx.atc, 'clients'], { env: ctx.env });
 
   expect(listed.stdout).toBe(
     `${clientID}  Claude  https://claude.ai/api/mcp/auth_callback https://claude.com/api/mcp/auth_callback\n`,
@@ -92,7 +92,7 @@ test('it removes a client through atc clients', async () => {
 
   invariant(clientID !== undefined, `no client ID in: ${printed.join('\n')}`);
 
-  const removed = await runCommand([...ctx.atc, 'clients', 'remove', clientID], { env: ctx.env });
+  const removed = await run([...ctx.atc, 'clients', 'remove', clientID], { env: ctx.env });
 
   expect(removed.stdout).toBe(`Removed client ${clientID} and revoked every grant it held\n`);
 });

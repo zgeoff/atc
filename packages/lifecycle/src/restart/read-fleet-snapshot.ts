@@ -1,6 +1,6 @@
-import type { Clock } from '@atc/core';
 import { readStoredRows } from '@atc/store';
 import type { StoredRow } from '@atc/store';
+import type { Clock } from '@zgeoff/std';
 import { tryOpenDaemon } from '../boot/try-open-daemon';
 
 const SNAPSHOT_DEADLINE_MS = 3000;
@@ -8,7 +8,7 @@ const SNAPSHOT_DEADLINE_MS = 3000;
 export async function readFleetSnapshot(
   socketPath: string,
   build: string,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
 ): Promise<StoredRow[] | null> {
   const probe = await tryOpenDaemon(
     [socketPath],

@@ -1,16 +1,15 @@
 import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildStubHeldGH } from './build-stub-held-gh';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-held-gh-');
-  const gh = createStubBin(temporaryDirectory.path, 'gh', buildStubHeldGH());
+  const temporaryDirectory = createTempDir('atc-stub-held-gh-');
+  const gh = createStubBin(temporaryDirectory.path, 'gh', { script: buildStubHeldGH() }).path;
 
   return {
     directory: temporaryDirectory.path,
@@ -21,7 +20,7 @@ function setupTest() {
 test('it prints https for the git protocol', async () => {
   const ctx = setupTest();
 
-  const result = await runCommand([ctx.gh, 'config', 'get', 'git_protocol'], {
+  const result = await run([ctx.gh, 'config', 'get', 'git_protocol'], {
     env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 
@@ -31,7 +30,7 @@ test('it prints https for the git protocol', async () => {
 test("it answers the API's repository list with one repository at once when no hold file exists", async () => {
   const ctx = setupTest();
 
-  const result = await runCommand([ctx.gh, 'api', 'user/repos?per_page=100&page=1'], {
+  const result = await run([ctx.gh, 'api', 'user/repos?per_page=100&page=1'], {
     env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 

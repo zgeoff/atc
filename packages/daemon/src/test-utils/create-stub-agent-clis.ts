@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord, toAgentID } from '@atc/core';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 import { normalizeHookEventName } from '@atc/protocol/session';
 import type { HookEvent } from '@atc/protocol/session';
 import { toSessionID } from '@atcx/contract';
@@ -47,9 +47,9 @@ const NEVER_RUNS = '#!/bin/sh\necho "the stand-in agent runs in the test process
 
 export function createStubAgentCLIs(directory: string): StubAgentCLIs {
   const bins: Record<StubAgentKind, string> = {
-    claude: createStubBin(directory, 'claude', NEVER_RUNS),
-    grok: createStubBin(directory, 'grok', NEVER_RUNS),
-    codex: createStubBin(directory, 'codex', NEVER_RUNS),
+    claude: writeStubProgram(directory, 'claude', NEVER_RUNS),
+    grok: writeStubProgram(directory, 'grok', NEVER_RUNS),
+    codex: writeStubProgram(directory, 'codex', NEVER_RUNS),
   };
 
   const sessions: StubAgentSession[] = [];

@@ -7,14 +7,13 @@ import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { buildStubTimeoutScheduler } from '@atc/core/test-utils/build-stub-timeout-scheduler';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildStubHeadlessRunner } from '@atc/daemon/test-utils/build-stub-headless-runner';
 import { createGrokAdapter } from '@atc/harness-grok';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import { updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 async function setupTest() {
@@ -91,7 +90,7 @@ test('it ejects a terminal session into a headless run with its agent id', async
 test("it ejects a session into a headless run with the spawn's plugin folders, ~ expanded", async () => {
   const headless = buildStubHeadlessRunner();
   const scheduler = buildStubTimeoutScheduler();
-  const home = setupTempDir('atc-headless-home-');
+  const home = createTempDir('atc-headless-home-');
 
   mkdirSync(join(home.path, 'plugins', 'band'), { recursive: true });
 
@@ -667,7 +666,7 @@ test('it stops the headless run of a session whose adopt is refused while its te
 test('it keeps the headless run of a session whose adopt is refused for a plugin folder that is gone', async () => {
   const headless = buildStubHeadlessRunner();
   const scheduler = buildStubTimeoutScheduler();
-  const home = setupTempDir('atc-headless-home-');
+  const home = createTempDir('atc-headless-home-');
 
   mkdirSync(join(home.path, 'plugins', 'band'), { recursive: true });
 
@@ -757,7 +756,7 @@ test('it keeps the headless run of a session whose adopt is refused for a plugin
 test("it keeps the headless run of a session whose adopt is refused for a plugin folder the agent's config sets that is gone", async () => {
   const headless = buildStubHeadlessRunner();
   const scheduler = buildStubTimeoutScheduler();
-  const home = setupTempDir('atc-headless-home-');
+  const home = createTempDir('atc-headless-home-');
 
   mkdirSync(join(home.path, 'plugins', 'shared'), { recursive: true });
 
@@ -847,7 +846,7 @@ test("it keeps the headless run of a session whose adopt is refused for a plugin
 test('it keeps the terminal of a session whose eject is refused for a plugin folder that is gone', async () => {
   const headless = buildStubHeadlessRunner();
   const scheduler = buildStubTimeoutScheduler();
-  const home = setupTempDir('atc-headless-home-');
+  const home = createTempDir('atc-headless-home-');
 
   mkdirSync(join(home.path, 'plugins', 'band'), { recursive: true });
 
@@ -926,7 +925,7 @@ test('it keeps the terminal of a session whose eject is refused for a plugin fol
 test('it refuses the next headless turn from session input once its plugin folder is gone', async () => {
   const headless = buildStubHeadlessRunner();
   const scheduler = buildStubTimeoutScheduler();
-  const home = setupTempDir('atc-headless-home-');
+  const home = createTempDir('atc-headless-home-');
 
   mkdirSync(join(home.path, 'plugins', 'band'), { recursive: true });
 

@@ -2,19 +2,19 @@ import { expect, mock, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubSkipClock } from '@atc/core/test-utils/build-stub-skip-clock';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startStubUnansweringListener } from '@atc/gateway/test-utils/start-stub-unanswering-listener';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { startStubRefusingListener } from '@atc/protocol/test-utils/start-stub-refusing-listener';
 import { MAX_CHUNK, MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildMockRemoteDaemon } from '../test-utils/build-mock-remote-daemon';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { bootRemoteDaemonClient } from './boot-remote-daemon-client';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-remote-boot-');
+  const temporaryDirectory = createTempDir('atc-remote-boot-');
 
   return {
     directory: temporaryDirectory.path,

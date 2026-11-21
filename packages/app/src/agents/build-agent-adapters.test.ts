@@ -2,15 +2,15 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildHookSettingsPath } from '@atc/harness-claude';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { buildAgentAdapters } from './build-agent-adapters';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('agent-adapters-');
+  const temporaryDirectory = createTempDir('agent-adapters-');
 
   return { directory: temporaryDirectory.path };
 }

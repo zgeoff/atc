@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { waitFor } from '@zgeoff/testing';
 import { startOutputCapture } from './start-output-capture';
-import { waitFor } from './wait-for';
 
 test('it keeps every chunk the stream delivers, in order', async () => {
   const stream = new ReadableStream<Uint8Array>({

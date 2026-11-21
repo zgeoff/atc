@@ -6,10 +6,7 @@ import { runATC } from '@atc/app/test-utils/run-atc';
 import { toAgentID } from '@atc/core';
 import { getRecords } from '@atc/core/test-utils/get-records';
 import { getString } from '@atc/core/test-utils/get-string';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStubSystemd } from '@atc/execution-local/test-utils/create-stub-systemd';
 import { createStubClaude } from '@atc/harness-claude/test-utils/create-stub-claude';
 import { readDaemonRecord, readRestartResult } from '@atc/lifecycle';
@@ -18,10 +15,12 @@ import { PROTOCOL_V } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-restart-');
+  const temporaryDirectory = createTempDir('atc-e2e-restart-');
   const atc = resolveATCCommand();
   const fake = createStubSystemd(atc);
   const configDir = join(temporaryDirectory.path, '.config', 'atc');

@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { createStubCurl } from './create-stub-curl';
-import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-curl-');
+  const temporaryDirectory = createTempDir('atc-stub-curl-');
   const downloads = join(temporaryDirectory.path, 'downloads');
 
   mkdirSync(downloads);

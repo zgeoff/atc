@@ -21,7 +21,7 @@
       {
         "object": "Date",
         "property": "now",
-        "message": "Read the time through an injected Clock (@atc/core/system-clock)."
+        "message": "Read the time through an injected Clock (systemClock from @zgeoff/std)."
       }
     ],
     "no-restricted-imports": [
@@ -60,7 +60,6 @@
       // wall clock directly; an override replaces the rule's options, so it
       // repeats the spawn entry
       "files": [
-        "packages/core/src/time/system-clock.ts",
         "**/*.test.ts",
         "packages/**/src/test-utils/**",
         "e2e/**",
@@ -77,6 +76,11 @@
           }
         ]
       }
+    },
+    {
+      // an integration flow crosses packages, so no one module sits beside it
+      "files": ["integration/**"],
+      "rules": { "zgeoff/test-beside-module": "off" }
     },
     {
       // the generic packages name no execution provider in their text

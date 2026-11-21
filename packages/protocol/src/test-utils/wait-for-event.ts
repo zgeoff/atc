@@ -1,5 +1,5 @@
 import { expect } from 'bun:test';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
 
 export function waitForEvent<TEvent extends { readonly ev: string }>(
   events: readonly TEvent[],

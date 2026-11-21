@@ -3,12 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startStubClosingListener } from './start-stub-closing-listener';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-closing-');
+  const temporaryDirectory = createTempDir('atc-stub-closing-');
 
   return { path: join(temporaryDirectory.path, 'closing.sock') };
 }

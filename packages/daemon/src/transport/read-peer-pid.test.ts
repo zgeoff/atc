@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readPeerPID } from './read-peer-pid';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-peer-pid-');
+  const temporaryDirectory = createTempDir('atc-peer-pid-');
   const socketPath = join(temporaryDirectory.path, 'peer.sock');
   const peer = Promise.withResolvers<number | null>();
 

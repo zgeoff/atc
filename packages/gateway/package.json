@@ -23,6 +23,7 @@
     "@atc/plugin-api": "workspace:*",
     "@atc/store": "workspace:*",
     "@faker-js/faker": "catalog:",
-    "@orpc/standard-server-peer": "catalog:"
+    "@orpc/standard-server-peer": "catalog:",
+    "@zgeoff/testing": "catalog:"
   }
 }

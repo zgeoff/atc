@@ -1,7 +1,7 @@
-import type { Clock } from '@atc/core';
 import { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
 import { ProtocolError } from '@modelcontextprotocol/server';
+import type { Clock } from '@zgeoff/std';
 import type { Kysely } from 'kysely';
 import type { z } from 'zod';
 import type { FleetCaller } from '../tools/types';
@@ -23,7 +23,7 @@ export interface EventMethodDeps {
   readonly caller: FleetCaller;
   readonly clientID: string;
   readonly send: WebhookSender;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly deliverer: EventDeliverer;
 }
 

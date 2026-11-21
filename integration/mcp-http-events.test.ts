@@ -5,8 +5,6 @@ import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getRecords } from '@atc/core/test-utils/get-records';
 import { getString } from '@atc/core/test-utils/get-string';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { createTransportCaller, startMCPHTTPServer } from '@atc/mcp';
 import type { WebhookSender } from '@atc/mcp';
@@ -18,6 +16,7 @@ import { sendModernMCPRequest } from '@atc/mcp/test-utils/send-modern-mcp-reques
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';

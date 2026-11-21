@@ -3,13 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { seedSweptIdempotencyKeys } from '@atc/store/test-utils/seed-swept-idempotency-keys';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createDaemonPool } from '../daemons/create-daemon-pool';
 import { buildBindingPayloadHash } from '../key-binding/build-binding-payload-hash';
 import { createGatewayStore } from '../key-binding/create-gateway-store';
@@ -22,7 +22,7 @@ import type { RegistryDaemon } from '../types';
 import { createRoutingCaller } from './create-routing-caller';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-routing-caller-');
+  const temporaryDirectory = createTempDir('atc-routing-caller-');
 
   writeFileSync(join(temporaryDirectory.path, 'token'), `${'a'.repeat(32)}\n`);
 

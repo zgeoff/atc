@@ -1,40 +1,46 @@
-import type { Clock } from '../index';
+import type { Clock } from '@zgeoff/std';
+import { createFakeClock } from '@zgeoff/testing/clock';
 
-interface StubTimer {
+interface PendingTimer {
   readonly dueAt: number;
-  readonly callback: () => void;
+  state: 'pending' | 'ran' | 'cancelled';
 }
 
+// The kit's fake clock, with a report of each timer still waiting and of every delay asked for,
+// which atc's tests assert on, and a stall that moves the time on without running a callback.
 export function buildStubClock(startMs: number) {
-  let time = startMs;
-  let nextID = 0;
-
-  const timers = new Map<number, StubTimer>();
-
+  const fake = createFakeClock({ startMs });
+  const timers: PendingTimer[] = [];
   const delays: number[] = [];
 
-  const findDue = (until: number): [number, StubTimer] | null => {
-    let due: [number, StubTimer] | null = null;
+  // the time a stall moved the clock to; the kit's clock catches up on the next advance
+  let stalledTo = startMs;
+  const now = (): number => Math.max(fake.now(), stalledTo);
 
-    for (const entry of timers) {
-      if (entry[1].dueAt <= until && (due === null || entry[1].dueAt < due[1].dueAt)) {
-        due = entry;
-      }
-    }
-
-    return due;
-  };
-
-  const clock: Clock = {
-    now: () => time,
-    schedule: (callback, delayMs) => {
-      const id = nextID++;
+  const clock: Pick<Clock, 'now' | 'schedule'> = {
+    now,
+    schedule: (fire, delayMs) => {
+      const timer: PendingTimer = {
+        dueAt: now() + Math.max(0, delayMs),
+        state: 'pending',
+      };
 
       delays.push(delayMs);
-      timers.set(id, { dueAt: time + Math.max(0, delayMs), callback });
+      timers.push(timer);
+
+      const cancel = fake.schedule(
+        () => {
+          timer.state = 'ran';
+
+          fire();
+        },
+        Math.max(0, delayMs) + (now() - fake.now()),
+      );
 
       return () => {
-        timers.delete(id);
+        timer.state = timer.state === 'pending' ? 'cancelled' : timer.state;
+
+        cancel();
       };
     },
   };
@@ -42,27 +48,18 @@ export function buildStubClock(startMs: number) {
   return {
     ...clock,
     advance(durationMs: number): void {
-      const until = time + durationMs;
-
-      for (let due = findDue(until); due !== null; due = findDue(until)) {
-        timers.delete(due[0]);
-
-        time = Math.max(time, due[1].dueAt);
-
-        due[1].callback();
-      }
-
-      time = until;
+      fake.advance(now() - fake.now() + durationMs);
     },
 
     // moves the time on and runs no callback, as a busy event loop does; the next advance runs
     // the callbacks that fell due, late
     stall(durationMs: number): void {
-      time += durationMs;
+      stalledTo = now() + durationMs;
     },
     collectPending: (): number[] =>
-      [...timers.values()]
-        .map((timer) => timer.dueAt - time)
+      timers
+        .filter((timer) => timer.state === 'pending')
+        .map((timer) => timer.dueAt - now())
         .toSorted((left, right) => left - right),
     collectDelays: (): number[] => [...delays],
   };

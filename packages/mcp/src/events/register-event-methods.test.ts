@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { systemClock } from '@atc/core';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { systemClock } from '@zgeoff/std';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
 import { buildStubAuthenticator } from '../test-utils/build-stub-authenticator';

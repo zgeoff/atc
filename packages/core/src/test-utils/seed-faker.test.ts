@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from './run-command';
+import { run } from '@zgeoff/testing/process';
 
 test('it makes faker values repeat from one run to the next', async () => {
-  const run = [
+  const command = [
     process.execPath,
     '--preload',
     join(import.meta.dir, 'seed-faker.ts'),
@@ -11,8 +11,8 @@ test('it makes faker values repeat from one run to the next', async () => {
     "import { faker } from '@faker-js/faker'; console.log(faker.string.uuid(), faker.date.recent().toISOString());",
   ];
 
-  const first = await runCommand(run, { cwd: import.meta.dir });
-  const second = await runCommand(run, { cwd: import.meta.dir });
+  const first = await run(command, { cwd: import.meta.dir });
+  const second = await run(command, { cwd: import.meta.dir });
 
   expect(second.stdout).toBe(first.stdout);
   expect(first.stdout).toMatch(/^[0-9a-f-]{36} 2025-12-3\d.*Z\n$/u);

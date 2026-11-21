@@ -1,9 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { AdapterEvent } from '@atc/protocol';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
@@ -11,6 +8,8 @@ import { buildMockMessageRecord } from '@atc/store/test-utils/build-mock-message
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
@@ -31,7 +30,7 @@ interface SetupTestConfig {
 }
 
 async function setupTest(config: SetupTestConfig) {
-  const temporaryDirectory = setupTempDir('atc-hook-intake-');
+  const temporaryDirectory = createTempDir('atc-hook-intake-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

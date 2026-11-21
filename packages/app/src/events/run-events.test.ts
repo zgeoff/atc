@@ -1,11 +1,11 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { runEvents } from './run-events';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-events-cli-');
+  const temporaryDirectory = createTempDir('atc-events-cli-');
   const out: string[] = [];
 
   return {

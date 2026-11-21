@@ -3,12 +3,12 @@ import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
 import { buildAgentEnvFilePath, buildHostFiles } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { updateEnv } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { CODEX_PLUGIN } from './codex-plugin';
 import { createCodexAdapter } from './create-codex-adapter';
@@ -16,7 +16,7 @@ import { buildStubMessageBridgeHost } from './test-utils/build-stub-message-brid
 import { createStubAppServerCodex } from './test-utils/create-stub-app-server-codex';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-codex-');
+  const temporaryDirectory = createTempDir('atc-codex-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -333,7 +333,7 @@ test("it builds a codex resume command that runs codex with the entry's env", as
   const ctx = setupTest();
   const binDir = join(ctx.directory, 'bin');
 
-  createStubBin(binDir, 'codex', '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n');
+  createStubBin(binDir, 'codex', { script: '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n' });
 
   const config = parseConfig([CODEX_PLUGIN], {
     agents: { codex: { env: { NOTES_VAULT: "desk/it's-key" } } },

@@ -1,14 +1,13 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildStubLog } from '../test-utils/build-stub-log';
@@ -18,7 +17,7 @@ import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-sessions-');
+  const temporaryDirectory = createTempDir('atc-sessions-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

@@ -1,23 +1,25 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
+import { run } from '@zgeoff/testing/process';
 
 test('it passes a gate that leaves the synthetic home alone', async () => {
-  const run = await runCommand([
+  const result = await run([
     process.execPath,
     join(import.meta.dir, 'check-test-isolation.ts'),
     'true',
   ]);
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
-    exitCode: 0,
-    stdout: 'test isolation: 14 canaries unchanged and unread after: true\n',
-    stderr: '',
-  });
+  expect({ exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }).toStrictEqual(
+    {
+      exitCode: 0,
+      stdout: 'test isolation: 14 canaries unchanged and unread after: true\n',
+      stderr: '',
+    },
+  );
 });
 
 test("it points a gate's mise at the host's own XDG homes", async () => {
-  const run = await runCommand(
+  const result = await run(
     [
       process.execPath,
       join(import.meta.dir, 'check-test-isolation.ts'),
@@ -28,7 +30,9 @@ test("it points a gate's mise at the host's own XDG homes", async () => {
     {
       env: {
         ...Object.fromEntries(
-          Object.entries(process.env).filter(([name]) => !name.startsWith('MISE_')),
+          Object.keys(process.env)
+            .filter((name) => name.startsWith('MISE_'))
+            .map((name) => [name, undefined]),
         ),
         XDG_CONFIG_HOME: '/srv/orchard/config',
         XDG_DATA_HOME: '/srv/orchard/data',
@@ -38,7 +42,7 @@ test("it points a gate's mise at the host's own XDG homes", async () => {
     },
   );
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
+  expect({ exitCode: result.exitCode, stdout: result.stdout }).toStrictEqual({
     exitCode: 0,
     stdout:
       '/srv/orchard/config/mise /srv/orchard/data/mise /srv/orchard/state/mise /srv/orchard/cache/mise\n' +
@@ -47,7 +51,7 @@ test("it points a gate's mise at the host's own XDG homes", async () => {
 });
 
 test('it fails a gate that reads a canary', async () => {
-  const run = await runCommand([
+  const result = await run([
     process.execPath,
     join(import.meta.dir, 'check-test-isolation.ts'),
     'sh',
@@ -55,15 +59,15 @@ test('it fails a gate that reads a canary', async () => {
     'cat "$HOME/.claude.json" > /dev/null',
   ]);
 
-  expect(run.exitCode).toBe(1);
+  expect(result.exitCode).toBe(1);
 
-  expect(run.stderr).toMatch(
+  expect(result.stderr).toMatch(
     /^test isolation: the gate reached the synthetic live home:\n< \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n> \S+\/home\/\.claude\.json [0-9a-f]{64} \d+ \d+\n$/u,
   );
 });
 
 test('it fails a gate that creates a file in the atc state directory', async () => {
-  const run = await runCommand([
+  const result = await run([
     process.execPath,
     join(import.meta.dir, 'check-test-isolation.ts'),
     'sh',
@@ -71,15 +75,15 @@ test('it fails a gate that creates a file in the atc state directory', async () 
     'touch "$XDG_STATE_HOME/atc/stray"',
   ]);
 
-  expect(run.exitCode).toBe(1);
+  expect(result.exitCode).toBe(1);
 
-  expect(run.stderr).toMatch(
+  expect(result.stderr).toMatch(
     /^test isolation: the gate reached the synthetic live home:\n> \S+\/home\/\.local\/state\/atc\/stray\n$/u,
   );
 });
 
 test('it fails a gate that spawns claude from PATH and names the rule', async () => {
-  const run = await runCommand([
+  const result = await run([
     process.execPath,
     join(import.meta.dir, 'check-test-isolation.ts'),
     'sh',
@@ -87,18 +91,20 @@ test('it fails a gate that spawns claude from PATH and names the rule', async ()
     'claude --print "summarize the fixture"',
   ]);
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
-    exitCode: 1,
-    stdout: '',
-    stderr:
-      'canary claude: never spawn the real claude in a test\n' +
-      'test isolation: a test spawned the real claude binary; never spawn the real claude in a test, drive a stand-in:\n' +
-      'claude --print summarize the fixture\n',
-  });
+  expect({ exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }).toStrictEqual(
+    {
+      exitCode: 1,
+      stdout: '',
+      stderr:
+        'canary claude: never spawn the real claude in a test\n' +
+        'test isolation: a test spawned the real claude binary; never spawn the real claude in a test, drive a stand-in:\n' +
+        'claude --print summarize the fixture\n',
+    },
+  );
 });
 
 test('it fails a gate that spawns claude and then exits 0', async () => {
-  const run = await runCommand([
+  const result = await run([
     process.execPath,
     join(import.meta.dir, 'check-test-isolation.ts'),
     'sh',
@@ -106,17 +112,19 @@ test('it fails a gate that spawns claude and then exits 0', async () => {
     'claude --print "list the stub tasks" 2> /dev/null; exit 0',
   ]);
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
-    exitCode: 1,
-    stdout: '',
-    stderr:
-      'test isolation: a test spawned the real claude binary; never spawn the real claude in a test, drive a stand-in:\n' +
-      'claude --print list the stub tasks\n',
-  });
+  expect({ exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }).toStrictEqual(
+    {
+      exitCode: 1,
+      stdout: '',
+      stderr:
+        'test isolation: a test spawned the real claude binary; never spawn the real claude in a test, drive a stand-in:\n' +
+        'claude --print list the stub tasks\n',
+    },
+  );
 });
 
 test('it exits with the code of a gate that fails', async () => {
-  const run = await runCommand([
+  const result = await run([
     process.execPath,
     join(import.meta.dir, 'check-test-isolation.ts'),
     'sh',
@@ -124,9 +132,11 @@ test('it exits with the code of a gate that fails', async () => {
     'exit 3',
   ]);
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
-    exitCode: 3,
-    stdout: '',
-    stderr: '',
-  });
+  expect({ exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }).toStrictEqual(
+    {
+      exitCode: 3,
+      stdout: '',
+      stderr: '',
+    },
+  );
 });

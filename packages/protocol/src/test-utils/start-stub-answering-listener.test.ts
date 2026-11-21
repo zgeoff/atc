@@ -4,13 +4,12 @@ import { existsSync, rmSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startStubAnsweringListener } from './start-stub-answering-listener';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-answering-');
+  const temporaryDirectory = createTempDir('atc-stub-answering-');
 
   return { path: join(temporaryDirectory.path, 'answering.sock') };
 }

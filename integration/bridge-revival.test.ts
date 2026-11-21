@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { waitFor } from '@zgeoff/testing';
 
 test('it writes the bridge mod again and notes it in the feed for a remote session whose tap stays gone', async () => {
   const clock = buildStubClock(0);

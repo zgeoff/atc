@@ -1,8 +1,8 @@
 import { isRecord } from '@atc/core';
-import type { Clock } from '@atc/core';
 import type { Principal } from '@atc/protocol';
 import { decodeCursor, encodeCursor } from '@atc/protocol';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
 import type { GatewayDaemonCaller } from '../daemons/create-gateway-daemon-caller';
 import { waitForOutcome } from '../daemons/wait-for-outcome';
 import { buildGatewayError } from '../ids/build-gateway-error';
@@ -20,7 +20,7 @@ interface FleetEventsDeps {
 
   readonly timeoutMs: number;
 
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 }
 
 const DEFAULT_LIMIT = 50;

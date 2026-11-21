@@ -2,11 +2,11 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStubCurl } from '@atc/core/test-utils/create-stub-curl';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-install-shell-tools-');
+  const temporaryDirectory = createTempDir('atc-install-shell-tools-');
   const downloads = join(temporaryDirectory.path, 'downloads');
   const runnerTemp = join(temporaryDirectory.path, 'runner-temp');
   const bin = join(temporaryDirectory.path, 'bin');

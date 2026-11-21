@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test';
 import { resolvePaths } from '@atc/config/host';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { DaemonEvent } from '@atcx/contract';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildMockLifecycleHost } from '../test-utils/build-mock-lifecycle-host';
 import { startDaemonProcess } from '../test-utils/start-daemon-process';
 import { writeRestartEvent } from './write-restart-event';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('write-restart-event-');
+  const temporaryDirectory = createTempDir('write-restart-event-');
 
   const host = buildMockLifecycleHost({
     paths: resolvePaths({

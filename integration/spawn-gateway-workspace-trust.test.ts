@@ -13,11 +13,7 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createLocalPTYProvider } from '@atc/execution-local';
@@ -25,17 +21,23 @@ import { createClaudeAdapter, createGatewayAdapter } from '@atc/harness-claude';
 import { createStubRecordingClaude } from '@atc/harness-claude/test-utils/create-stub-recording-claude';
 import { getGatewayConfig } from '@atc/harness-claude/test-utils/get-gateway-config';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-workspace-trust-');
+  const temporaryDirectory = createTempDir('atc-workspace-trust-');
   const port = createStubImpPort();
 
   const git = await createGitFixture({ prefix: 'atc-workspace-trust-git-' });
 
   const fakeClaude = createStubRecordingClaude(temporaryDirectory.path);
-  const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const guestATC = createStubBin(temporaryDirectory.path, 'atc', {
+    script: '#!/bin/sh\necho 1.0.0\n',
+  }).path;
 
   const box = createImpProvider(
     port,

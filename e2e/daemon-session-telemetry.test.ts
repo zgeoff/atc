@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
+import { waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-telemetry-');
+  const temporaryDirectory = createTempDir('atc-e2e-telemetry-');
   const configDir = join(temporaryDirectory.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
@@ -31,14 +31,12 @@ test("it starts an agent with its session ID after the daemon's resource attribu
     JSON.stringify({ agents: { claude: { bin: join(ctx.home, 'probe-agent') } } }),
   );
 
-  createStubBin(
-    ctx.home,
-    'probe-agent',
-    `#!/usr/bin/env bash
+  createStubBin(ctx.home, 'probe-agent', {
+    script: `#!/usr/bin/env bash
 printf '%s' "$OTEL_RESOURCE_ATTRIBUTES" > '${ctx.outPath}'
 exec cat
 `,
-  );
+  });
 
   const daemon = startDaemonProcess({
     command: ctx.atc,

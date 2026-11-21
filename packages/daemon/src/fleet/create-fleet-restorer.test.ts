@@ -1,14 +1,13 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createSessionManager } from '../sessions/create-session-manager';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
@@ -19,7 +18,7 @@ import { createFleetRestorer } from './create-fleet-restorer';
 import type { RestoreSettled } from './restore-fleet';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-fleet-restorer-');
+  const temporaryDirectory = createTempDir('atc-fleet-restorer-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

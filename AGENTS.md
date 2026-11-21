@@ -88,7 +88,7 @@ docs/
   that skips the Zod schemas, the protocol contract, and the store.
 - Keep each test helper in `src/test-utils/` of the package that owns what it fakes or builds. Share
   it through the package's `"./test-utils/*"` export. Another package imports it by package name,
-  such as `@atc/core/test-utils/wait-for`, with the package as a `workspace:*` dev dependency; a
+  such as `@atc/core/test-utils/get-record`, with the package as a `workspace:*` dev dependency; a
   file in the owning package imports it by a relative path, which the self-import lint rule
   enforces. The helpers that fake nothing a package owns sit in `@atc/core`, the lowest package.
   Production code never imports a test helper.

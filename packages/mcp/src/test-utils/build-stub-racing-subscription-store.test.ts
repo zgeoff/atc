@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { createSubscriptionStore } from '../events/create-subscription-store';
 import { buildStubRacingSubscriptionStore } from './build-stub-racing-subscription-store';
 import { openTestEventDatabase } from './open-test-event-database';

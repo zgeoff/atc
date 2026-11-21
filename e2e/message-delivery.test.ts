@@ -8,8 +8,6 @@ import { isRecord } from '@atc/core';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { RestoreSettled } from '@atc/daemon';
 import { createClaudeAdapter } from '@atc/harness-claude';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
@@ -22,6 +20,7 @@ import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
 import type { DaemonEvent } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 
 test('it accepts a message for a session that has not reported SessionStart', async () => {

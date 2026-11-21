@@ -51,8 +51,7 @@ None.
   preload refuses the run.
 - Get a home path from [`resolveHomeDir`](../../../packages/contract/src/light/resolve-home-dir.ts),
   never from `os.homedir()`. Bun reads `HOME` for `os.homedir()` once, at startup.
-- Change an environment variable through
-  [`updateEnv`](../../../packages/core/src/test-utils/update-env.ts). The isolate-home preload puts
+- Change an environment variable through `updateEnv` from `@zgeoff/testing`. The kit's preload puts
   the old value back after the test.
 - After you add code or a test that writes to a home, run `bun run test:isolation`. It runs the
   suite in a home of canary files, and fails when a test reads, changes or adds to one. It catches a

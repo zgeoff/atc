@@ -7,20 +7,20 @@ import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildGuestSessionDirectory } from '@atc/daemon';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { buildGuestSettingsPath, createClaudeAdapter } from '@atc/harness-claude';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-imp-guest-');
+  const temporaryDirectory = createTempDir('atc-imp-guest-');
   const clis = createStubGuestCLIs(join(temporaryDirectory.path, 'bin'));
   const port = createStubImpPort();
 

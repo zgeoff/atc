@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openSQLite } from './open-sqlite';
 import { registerRefusedSQLiteName } from './register-refused-sqlite-name';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-open-sqlite-');
+  const temporaryDirectory = createTempDir('atc-open-sqlite-');
 
   return { dbPath: join(temporaryDirectory.path, 'test.db') };
 }

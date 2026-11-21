@@ -1,5 +1,5 @@
 import { ansi } from '@atc/core';
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import { createCompositor } from '../compositor/create-compositor';
 import { createFrameClock } from '../compositor/create-frame-clock';
 import type { CursorPlacement, Layer } from '../compositor/types';
@@ -20,7 +20,7 @@ import type { SessionStream } from './create-session-stream';
 import { shouldDrawFrame } from './should-draw-frame';
 
 export interface TUIScreenDeps {
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   // the user's terminal; only the compositor and the passthrough write to it
   readonly write: (chunk: string) => void;

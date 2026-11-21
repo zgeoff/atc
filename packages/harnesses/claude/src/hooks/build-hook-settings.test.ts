@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { buildHookSettings } from './build-hook-settings';
@@ -141,7 +141,7 @@ test('it hands a dash-led agent ID to each reporter as the value of its --agent 
   invariant(typeof statusLine === 'object' && statusLine !== null && 'command' in statusLine);
   invariant(typeof statusLine.command === 'string');
 
-  const ran = await runCommand(['sh', '-c', statusLine.command]);
+  const ran = await run(['sh', '-c', statusLine.command]);
 
   expect(ran.stdout).toBe('statusline\n--agent=-custom\n');
 });
@@ -313,11 +313,17 @@ test('it gives every command it registers the agent id of its session', () => {
 
 test('it gives a process the tool shell starts the session attribute', async () => {
   const ctx = setupTest();
-  const env = { PATH: process.env['PATH'], ATC_SESSION_ID: 's-1', CLAUDE_ENV_FILE: ctx.envFile };
 
-  await runCommand(['sh', '-c', ctx.telemetryHook], { env });
+  const env = {
+    PATH: process.env['PATH'],
+    ATC_SESSION_ID: 's-1',
+    CLAUDE_ENV_FILE: ctx.envFile,
+    OTEL_RESOURCE_ATTRIBUTES: undefined,
+  };
 
-  const ran = await runCommand(
+  await run(['sh', '-c', ctx.telemetryHook], { env });
+
+  const ran = await run(
     ['sh', '-c', `. "$CLAUDE_ENV_FILE"; sh -c 'printf %s "$OTEL_RESOURCE_ATTRIBUTES"'`],
     { env },
   );
@@ -327,11 +333,17 @@ test('it gives a process the tool shell starts the session attribute', async () 
 
 test('it appends the session attribute to a value the tool shell already holds', async () => {
   const ctx = setupTest();
-  const env = { PATH: process.env['PATH'], ATC_SESSION_ID: 's-1', CLAUDE_ENV_FILE: ctx.envFile };
 
-  await runCommand(['sh', '-c', ctx.telemetryHook], { env });
+  const env = {
+    PATH: process.env['PATH'],
+    ATC_SESSION_ID: 's-1',
+    CLAUDE_ENV_FILE: ctx.envFile,
+    OTEL_RESOURCE_ATTRIBUTES: undefined,
+  };
 
-  const ran = await runCommand(
+  await run(['sh', '-c', ctx.telemetryHook], { env });
+
+  const ran = await run(
     ['sh', '-c', `. "$CLAUDE_ENV_FILE"; sh -c 'printf %s "$OTEL_RESOURCE_ATTRIBUTES"'`],
     { env: { ...env, OTEL_RESOURCE_ATTRIBUTES: 'service.namespace=lab' } },
   );
@@ -341,12 +353,18 @@ test('it appends the session attribute to a value the tool shell already holds',
 
 test('it writes the export line once when the session starts again', async () => {
   const ctx = setupTest();
-  const env = { PATH: process.env['PATH'], ATC_SESSION_ID: 's-1', CLAUDE_ENV_FILE: ctx.envFile };
 
-  await runCommand(['sh', '-c', ctx.telemetryHook], { env });
-  await runCommand(['sh', '-c', ctx.telemetryHook], { env });
+  const env = {
+    PATH: process.env['PATH'],
+    ATC_SESSION_ID: 's-1',
+    CLAUDE_ENV_FILE: ctx.envFile,
+    OTEL_RESOURCE_ATTRIBUTES: undefined,
+  };
 
-  const ran = await runCommand(
+  await run(['sh', '-c', ctx.telemetryHook], { env });
+  await run(['sh', '-c', ctx.telemetryHook], { env });
+
+  const ran = await run(
     ['sh', '-c', `. "$CLAUDE_ENV_FILE"; sh -c 'printf %s "$OTEL_RESOURCE_ATTRIBUTES"'`],
     { env },
   );
@@ -357,8 +375,8 @@ test('it writes the export line once when the session starts again', async () =>
 test('it exits 0 when Claude Code gives the start hook no env file', async () => {
   const ctx = setupTest();
 
-  const ran = await runCommand(['sh', '-c', ctx.telemetryHook], {
-    env: { PATH: process.env['PATH'], ATC_SESSION_ID: 's-1' },
+  const ran = await run(['sh', '-c', ctx.telemetryHook], {
+    env: { PATH: process.env['PATH'], ATC_SESSION_ID: 's-1', CLAUDE_ENV_FILE: undefined },
   });
 
   expect({ exitCode: ran.exitCode, stderr: ran.stderr }).toStrictEqual({ exitCode: 0, stderr: '' });
@@ -369,8 +387,8 @@ test('it leaves the env file as it was when the session has no atc session id', 
 
   writeFileSync(ctx.envFile, 'export LANG=C.UTF-8\n');
 
-  const ran = await runCommand(['sh', '-c', ctx.telemetryHook], {
-    env: { PATH: process.env['PATH'], CLAUDE_ENV_FILE: ctx.envFile },
+  const ran = await run(['sh', '-c', ctx.telemetryHook], {
+    env: { PATH: process.env['PATH'], ATC_SESSION_ID: undefined, CLAUDE_ENV_FILE: ctx.envFile },
   });
 
   expect({ exitCode: ran.exitCode, envFile: readFileSync(ctx.envFile, 'utf8') }).toStrictEqual({
@@ -382,7 +400,7 @@ test('it leaves the env file as it was when the session has no atc session id', 
 test('it writes the first export line with no error output', async () => {
   const ctx = setupTest();
 
-  const ran = await runCommand(['sh', '-c', ctx.telemetryHook], {
+  const ran = await run(['sh', '-c', ctx.telemetryHook], {
     env: { PATH: process.env['PATH'], ATC_SESSION_ID: 's-1', CLAUDE_ENV_FILE: ctx.envFile },
   });
 
@@ -392,7 +410,7 @@ test('it writes the first export line with no error output', async () => {
 test('it exits 0 when it cannot write the env file', async () => {
   const ctx = setupTest();
 
-  const ran = await runCommand(['sh', '-c', ctx.telemetryHook], {
+  const ran = await run(['sh', '-c', ctx.telemetryHook], {
     env: {
       PATH: process.env['PATH'],
       ATC_SESSION_ID: 's-1',
@@ -414,6 +432,6 @@ function setupTest() {
 
   return {
     telemetryHook,
-    envFile: join(setupTempDir('atc-tool-shell-env-').path, 'sessionstart-hook-1.sh'),
+    envFile: join(createTempDir('atc-tool-shell-env-').path, 'sessionstart-hook-1.sh'),
   };
 }

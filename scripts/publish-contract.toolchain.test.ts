@@ -2,15 +2,15 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubNpm } from '@atc/core/test-utils/build-stub-npm';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import invariant from 'tiny-invariant';
 
 // The real repository packs and checks the real packages. The stand-in npm records every call and
 // passes the installs and the packs on to the real npm, so the registry never sees a publish.
 function setupTest() {
-  const temporaryDirectory = setupTempDir('publish-contract-toolchain-');
+  const temporaryDirectory = createTempDir('publish-contract-toolchain-');
   const npm = Bun.which('npm');
   const directory = temporaryDirectory.path;
   const root = join(import.meta.dir, '..');
@@ -42,11 +42,9 @@ function setupTest() {
   const version = String(manifest.version);
 
   const writeNpm = (heldVersion: string | null) =>
-    createStubBin(
-      join(directory, 'bin'),
-      'npm',
-      buildStubNpm(join(directory, 'npm.log'), heldVersion, { installWith: npm }),
-    );
+    createStubBin(join(directory, 'bin'), 'npm', {
+      script: buildStubNpm(join(directory, 'npm.log'), heldVersion, { installWith: npm }),
+    });
 
   return {
     directory,
@@ -78,7 +76,7 @@ test('it packs both packages, installs the tarballs, connects from Node and from
 
   await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript('neither'));
 
-  const published = await runCommand(
+  const published = await run(
     ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), '--dry-run'],
     { env: ctx.env },
   );
@@ -109,7 +107,7 @@ test('it checks both packages, then skips npm publish for the versions npm holds
 
   await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript('neither'));
 
-  const published = await runCommand(
+  const published = await run(
     ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), '--dry-run'],
     { env: ctx.env },
   );
@@ -147,13 +145,13 @@ export function resolveAtcPaths() { return { socketPath: '/run/atc.sock' }; }
 `,
   );
 
-  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
+  await run(['tar', '-czf', 'contract.tgz', 'package'], {
     cwd: join(ctx.directory, 'tarball/contract'),
   });
 
   await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript('contract'));
 
-  const published = await runCommand(
+  const published = await run(
     ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), '--dry-run'],
     { env: ctx.env },
   );
@@ -213,13 +211,13 @@ export declare function readDaemonSocketPaths(paths: object): Promise<string[]>;
     'export declare function openDaemonConnection(): Promise<object>;\n',
   );
 
-  await runCommand(['tar', '-czf', 'client.tgz', 'package'], {
+  await run(['tar', '-czf', 'client.tgz', 'package'], {
     cwd: join(ctx.directory, 'tarball/client'),
   });
 
   await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript('client'));
 
-  const published = await runCommand(
+  const published = await run(
     ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), '--dry-run'],
     { env: ctx.env },
   );

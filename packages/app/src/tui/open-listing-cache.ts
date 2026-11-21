@@ -10,14 +10,15 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { isRecord, systemClock, waitUntil } from '@atc/core';
-import type { Clock } from '@atc/core';
+import { isRecord, waitUntil } from '@atc/core';
 import { probeProcessAlive } from '@atc/lifecycle';
 import { LISTING_CACHE_LIFETIME_MS } from '@atc/tui';
 import type { CachedListing, ListingCache } from '@atc/tui';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 
 interface ListingCacheOptions {
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 }
 
 const LOCK_WAIT_MS = 2000;

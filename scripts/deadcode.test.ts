@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-deadcode-');
+  const temporaryDirectory = createTempDir('atc-deadcode-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -25,13 +25,15 @@ test('it checks a project nested under a checkout whose tsconfig extends a packa
   writeFileSync(join(project, 'knip.json'), JSON.stringify({ entry: ['index.js'] }));
   writeFileSync(join(project, 'index.js'), 'export {};\n');
 
-  const run = await runCommand([process.execPath, join(import.meta.dir, 'deadcode.ts')], {
+  const result = await run([process.execPath, join(import.meta.dir, 'deadcode.ts')], {
     cwd: project,
   });
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
-    exitCode: 0,
-    stdout: '',
-    stderr: '',
-  });
+  expect({ exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }).toStrictEqual(
+    {
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+    },
+  );
 });

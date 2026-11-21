@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@faker-js/faker": "catalog:",
-    "@zgeoff/std": "catalog:"
+    "@zgeoff/std": "catalog:",
+    "@zgeoff/testing": "catalog:"
   }
 }

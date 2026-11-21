@@ -36,6 +36,7 @@ minimumReleaseAgeExcludes = [
   "@zgeoff/oxlint-config",
   "@zgeoff/rig",
   "@zgeoff/std",
+  "@zgeoff/testing",
 ]
 
 [test]
@@ -46,10 +47,12 @@ minimumReleaseAgeExcludes = [
 # ignore list in rig.config.ts names both folders again.
 pathIgnorePatterns = ["mods/**", "e2e/**"]
 
-# isolates every test run from the real home and runtime directories, seeds
-# faker once, then registers jest-extended matchers for `bun test`
+# isolates every test run from the real home and runtime directories, restores
+# the env a test changed, seeds faker once, then registers jest-extended
+# matchers for `bun test`
 preload = [
   "./packages/core/src/test-utils/isolate-home.ts",
+  "@zgeoff/testing/preload",
   "./packages/core/src/test-utils/seed-faker.ts",
   "@zgeoff/bun-test-extended",
 ]

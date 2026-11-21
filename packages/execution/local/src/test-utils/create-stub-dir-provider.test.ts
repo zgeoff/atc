@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { createStubDirProvider } from './create-stub-dir-provider';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-dir-provider-');
+  const temporaryDirectory = createTempDir('atc-stub-dir-provider-');
 
   return { directory: temporaryDirectory.path };
 }

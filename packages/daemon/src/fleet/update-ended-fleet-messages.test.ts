@@ -1,17 +1,17 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createStateStore } from '@atc/store';
 import type { MessageOwner } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { updateEndedFleetMessages } from './update-ended-fleet-messages';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-ended-fleet-messages-');
+  const temporaryDirectory = createTempDir('atc-ended-fleet-messages-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

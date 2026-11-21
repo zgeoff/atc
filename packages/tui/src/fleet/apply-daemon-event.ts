@@ -1,4 +1,5 @@
-import type { AgentID, Clock } from '@atc/core';
+import type { AgentID } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import { match } from 'ts-pattern';
 import type { ClientActor, ClientMode } from '../client/build-client-machine';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
@@ -14,7 +15,7 @@ export interface DaemonEventDeps {
   readonly service: ClientActor;
   readonly mirror: FleetMirror;
   readonly overlay: Pick<OverlayScreen, 'render'>;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly getMode: () => ClientMode;
   readonly findFocusedKey: () => SessionKey | null;
   readonly setFocusedKey: (key: SessionKey | null) => void;

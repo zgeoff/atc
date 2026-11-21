@@ -1,15 +1,14 @@
 import { expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildStubForkingGH } from './build-stub-forking-gh';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-forking-gh-');
+  const temporaryDirectory = createTempDir('atc-stub-forking-gh-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -17,7 +16,7 @@ function setupTest() {
 test('it records its own ID and the ID of a child that is still running', async () => {
   const ctx = setupTest();
   const pidsFile = join(ctx.directory, 'pids');
-  const gh = createStubBin(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
+  const gh = writeStubProgram(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
   const subprocess = Bun.spawn([gh, 'repo', 'list'], { detached: true });
 
   registerTestCleanup(() => {
@@ -37,7 +36,7 @@ test('it records its own ID and the ID of a child that is still running', async 
 test('it keeps running after it records the IDs', async () => {
   const ctx = setupTest();
   const pidsFile = join(ctx.directory, 'pids');
-  const gh = createStubBin(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
+  const gh = writeStubProgram(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
   const subprocess = Bun.spawn([gh, 'repo', 'list'], { detached: true });
 
   // kill(1) exits nonzero, without throwing, when the group is already empty.
@@ -57,7 +56,7 @@ test('it keeps running after it records the IDs', async () => {
 test('it stops its child too when its process group is killed', async () => {
   const ctx = setupTest();
   const pidsFile = join(ctx.directory, 'pids');
-  const gh = createStubBin(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
+  const gh = writeStubProgram(ctx.directory, 'gh', buildStubForkingGH(pidsFile));
   const subprocess = Bun.spawn([gh, 'repo', 'list'], { detached: true });
 
   // kill(1) exits nonzero, without throwing, when the group is already empty.

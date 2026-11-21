@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { createConfiguredImpProvider } from './create-configured-imp-provider';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-build-imp-provider-');
+  const temporaryDirectory = createTempDir('atc-build-imp-provider-');
 
   return { directory: temporaryDirectory.path };
 }

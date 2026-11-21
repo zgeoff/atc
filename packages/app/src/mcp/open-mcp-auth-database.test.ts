@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-mcp-auth-database-');
+  const temporaryDirectory = createTempDir('atc-mcp-auth-database-');
   const path = join(temporaryDirectory.path, 'state', 'mcp-auth.db');
   const sqlite = openMCPAuthDatabase(path);
 

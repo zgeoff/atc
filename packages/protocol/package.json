@@ -26,6 +26,7 @@
   "devDependencies": {
     "@faker-js/faker": "catalog:",
     "@orpc/standard-server": "catalog:",
+    "@zgeoff/testing": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

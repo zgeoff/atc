@@ -24,7 +24,6 @@ export * from './json/parse-json-strings';
 export * from './host/parse-systemd-unit';
 export * from './text/reset-input-modes';
 export * from './json/sort-json-keys';
-export * from './time/system-clock';
 export type * from './agents/target-identity-rule';
 export * from './agents/to-agent-id';
 export * from './text/to-shell-arg';

@@ -9,11 +9,11 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { updateClaudeProjectTrust } from './update-claude-project-trust';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-claude-trust-');
+  const temporaryDirectory = createTempDir('atc-claude-trust-');
 
   return { directory: temporaryDirectory.path };
 }

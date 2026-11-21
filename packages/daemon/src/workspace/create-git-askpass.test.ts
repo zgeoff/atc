@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { updateEnv } from '@atc/core/test-utils/update-env';
+import { registerTestCleanup, updateEnv } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 import { createGitAskpass } from './create-git-askpass';
 

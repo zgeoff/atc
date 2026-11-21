@@ -1,13 +1,12 @@
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 import { Terminal } from '@xterm/headless';
 import { mergeDeep } from '@zgeoff/std';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { spawn } from 'bun-pty';
 import type { IDisposable, IPty } from 'bun-pty';
 import { buildStubTUIClaude } from './build-stub-tui-claude';
@@ -35,7 +34,7 @@ export function startTUIHarness(options: TUIHarnessOptions) {
   const now = options.now ?? Date.now;
   const wait = options.wait ?? Bun.sleep;
   const cliPath = readSourceEntry('atc');
-  const temporaryDirectory = setupTempDir('atc-tui-');
+  const temporaryDirectory = createTempDir('atc-tui-');
 
   // The stack releases in reverse order, so the client and its daemon, deferred after the
   // home, stop before their home is removed.
@@ -43,15 +42,15 @@ export function startTUIHarness(options: TUIHarnessOptions) {
 
   const stop = registerTestCleanup(() => owned.disposeAsync());
 
-  owned.defer(temporaryDirectory.teardown);
+  owned.defer(temporaryDirectory.remove);
 
   // The client boots with this home as its cwd and lists it first in the
   // picker, so the path is resolved the way the client reports it.
   const home = realpathSync(temporaryDirectory.path);
   const configPath = join(home, '.config', 'atc', 'config.json');
   const clientLogPath = join(home, 'client.log');
-  const fakeClaude = createStubBin(home, 'fake-claude', buildStubTUIClaude(cliPath));
-  const fakeGrok = createStubBin(home, 'fake-grok', buildStubTUIGrok(cliPath));
+  const fakeClaude = writeStubProgram(home, 'fake-claude', buildStubTUIClaude(cliPath));
+  const fakeGrok = writeStubProgram(home, 'fake-grok', buildStubTUIGrok(cliPath));
 
   const bootConfig: Readonly<Record<string, unknown>> = {
     agents: {
@@ -214,7 +213,7 @@ export function startTUIHarness(options: TUIHarnessOptions) {
 
           return firstOutputAt;
         },
-        { timeoutMs: bootMs, intervalMs: 50, now, wait },
+        { timeoutMs: bootMs, intervalMs: 50, now, sleep: wait },
       );
 
       await waitFor(
@@ -229,7 +228,7 @@ export function startTUIHarness(options: TUIHarnessOptions) {
           timeoutMs: Math.max(0, Math.max(start, firstAt) + timeoutMs - now()),
           intervalMs: 50,
           now,
-          wait,
+          sleep: wait,
         },
       );
 
@@ -274,7 +273,7 @@ export function startTUIHarness(options: TUIHarnessOptions) {
             );
           }
         },
-        { timeoutMs, now, wait },
+        { timeoutMs, now, sleep: wait },
       );
     },
 
@@ -288,18 +287,21 @@ export function startTUIHarness(options: TUIHarnessOptions) {
 async function stopClientAndDaemon(pidFile: string, pty: IPty | null, beforeFirstFrame: boolean) {
   pty?.kill();
 
-  const pid = await waitFor(
-    () => {
-      const read = Number(readFileSync(pidFile, 'utf8'));
+  const readPid = (): number => {
+    const read = Number(readFileSync(pidFile, 'utf8'));
 
-      if (!Number.isInteger(read) || read <= 1) {
-        throw new Error(`the daemon pid file holds no pid: ${read}`);
-      }
+    if (!Number.isInteger(read) || read <= 1) {
+      throw new Error(`the daemon pid file holds no pid: ${read}`);
+    }
 
-      return read;
-    },
-    { timeoutMs: pty !== null && beforeFirstFrame ? 5000 : 0, intervalMs: 50 },
-  ).catch(() => null);
+    return read;
+  };
+
+  // A client that never booted wrote no pid file, so only a boot still in flight is worth a wait.
+  const pid =
+    pty !== null && beforeFirstFrame
+      ? await waitFor(readPid, { timeoutMs: 5000, intervalMs: 50 }).catch(() => null)
+      : readPidOrNull(readPid);
 
   if (pid === null) {
     return;
@@ -319,6 +321,14 @@ async function stopClientAndDaemon(pidFile: string, pty: IPty | null, beforeFirs
     },
     { timeoutMs: 3000 },
   ).catch(() => {});
+}
+
+function readPidOrNull(readPid: () => number): number | null {
+  try {
+    return readPid();
+  } catch {
+    return null;
+  }
 }
 
 function isRunning(pid: number): boolean {

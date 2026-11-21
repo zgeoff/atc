@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { createStubGHReleases } from './create-stub-gh-releases';
-import { runCommand } from './run-command';
-import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-gh-releases-');
+  const temporaryDirectory = createTempDir('atc-stub-gh-releases-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -20,7 +20,7 @@ test('it lists the releases as gh release list --json tagName,isLatest prints th
     ],
   });
 
-  const listed = await runCommand([
+  const listed = await run([
     join(gh.directory, 'gh'),
     'release',
     'list',
@@ -44,7 +44,7 @@ test('it moves the latest mark to the edited release and records each call', asy
     ],
   });
 
-  await runCommand([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.0', '--latest']);
+  await run([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.0', '--latest']);
 
   expect(gh.readReleases()).toStrictEqual([
     { tagName: '@zgeoff/atc@7.3.1', isLatest: false },
@@ -65,9 +65,9 @@ test('it publishes one rival before each edit lands, in order, and none once the
     rivals: ['@zgeoff/atc@7.4.1', '@zgeoff/atc@7.4.2'],
   });
 
-  await runCommand([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.0', '--latest']);
-  await runCommand([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.1', '--latest']);
-  await runCommand([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.2', '--latest']);
+  await run([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.0', '--latest']);
+  await run([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.1', '--latest']);
+  await run([join(gh.directory, 'gh'), 'release', 'edit', '@zgeoff/atc@7.4.2', '--latest']);
 
   expect(gh.readReleases()).toStrictEqual([
     { tagName: '@zgeoff/atc@7.3.1', isLatest: false },
@@ -81,7 +81,7 @@ test('it fails a gh command it does not stand in for', async () => {
   const ctx = setupTest();
   const gh = createStubGHReleases(ctx.directory, { releases: [] });
 
-  const viewed = await runCommand([join(gh.directory, 'gh'), 'repo', 'view']);
+  const viewed = await run([join(gh.directory, 'gh'), 'repo', 'view']);
 
   expect({ exitCode: viewed.exitCode, stderr: viewed.stderr }).toStrictEqual({
     exitCode: 1,

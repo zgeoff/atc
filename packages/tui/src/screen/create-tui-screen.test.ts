@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
 import { createTUIScreen } from './create-tui-screen';
 
 function setupTest() {

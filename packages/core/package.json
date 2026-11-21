@@ -7,9 +7,13 @@
     ".": "./src/index.ts",
     "./test-utils/*": "./src/test-utils/*.ts"
   },
+  "dependencies": {
+    "@zgeoff/std": "catalog:"
+  },
   "devDependencies": {
     "@atcx/contract": "workspace:*",
     "@faker-js/faker": "catalog:",
+    "@zgeoff/testing": "catalog:",
     "tiny-invariant": "catalog:",
     "type-fest": "catalog:",
     "zod": "catalog:"

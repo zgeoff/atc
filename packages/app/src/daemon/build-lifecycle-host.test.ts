@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import { systemClock } from '@atc/core';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { systemClock } from '@zgeoff/std';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildLifecycleHost } from './build-lifecycle-host';
 
 test('it builds the paths, the /proc root, and the restore boot time from the environment', () => {
@@ -28,7 +28,7 @@ test('it builds the paths, the /proc root, and the restore boot time from the en
 });
 
 test('it finds the user unit in the unit directories the environment gives', () => {
-  const temporaryDirectory = setupTempDir('atc-lifecycle-host-');
+  const temporaryDirectory = createTempDir('atc-lifecycle-host-');
   const path = join(temporaryDirectory.path, 'atc-daemon.service');
 
   writeFileSync(path, '[Service]\nExecStart=atc daemon\n');

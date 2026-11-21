@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('check-guest-scripts-');
+  const temporaryDirectory = createTempDir('check-guest-scripts-');
   const bin = join(temporaryDirectory.path, 'bin');
   const root = join(temporaryDirectory.path, 'root');
 
@@ -19,12 +19,11 @@ function setupTest() {
 test('it passes when shellcheck reports no finding', async () => {
   const ctx = setupTest();
 
-  createStubBin(ctx.bin, 'shellcheck', '#!/bin/sh\nexit 0\n');
+  createStubBin(ctx.bin, 'shellcheck', { script: '#!/bin/sh\nexit 0\n' });
 
-  const checked = await runCommand(
-    [process.execPath, join(import.meta.dir, 'check-guest-scripts.ts')],
-    { env: { ...process.env, PATH: ctx.bin } },
-  );
+  const checked = await run([process.execPath, join(import.meta.dir, 'check-guest-scripts.ts')], {
+    env: { ...process.env, PATH: ctx.bin },
+  });
 
   expect({
     exitCode: checked.exitCode,
@@ -40,16 +39,13 @@ test('it passes when shellcheck reports no finding', async () => {
 test('it fails on a shellcheck finding and names the script it is in', async () => {
   const ctx = setupTest();
 
-  createStubBin(
-    ctx.bin,
-    'shellcheck',
-    `#!/bin/sh\necho 'GUEST_CLONE_SCRIPT.sh:1:4: note: Double quote to prevent globbing and word splitting. [SC2086]'\nexit 1\n`,
-  );
+  createStubBin(ctx.bin, 'shellcheck', {
+    script: `#!/bin/sh\necho 'GUEST_CLONE_SCRIPT.sh:1:4: note: Double quote to prevent globbing and word splitting. [SC2086]'\nexit 1\n`,
+  });
 
-  const checked = await runCommand(
-    [process.execPath, join(import.meta.dir, 'check-guest-scripts.ts')],
-    { env: { ...process.env, PATH: ctx.bin } },
-  );
+  const checked = await run([process.execPath, join(import.meta.dir, 'check-guest-scripts.ts')], {
+    env: { ...process.env, PATH: ctx.bin },
+  });
 
   expect({
     exitCode: checked.exitCode,
@@ -66,14 +62,14 @@ test('it fails on a shellcheck finding and names the script it is in', async () 
 test('it fails on an exported script constant that it does not check', async () => {
   const ctx = setupTest();
 
-  createStubBin(ctx.bin, 'shellcheck', '#!/bin/sh\nexit 0\n');
+  createStubBin(ctx.bin, 'shellcheck', { script: '#!/bin/sh\nexit 0\n' });
 
   await Bun.write(
     join(ctx.root, 'packages/box/src/run-box.ts'),
     'export const START_BOX_SCRIPT = \'exec "$@"\';\n',
   );
 
-  const checked = await runCommand(
+  const checked = await run(
     [process.execPath, join(import.meta.dir, 'check-guest-scripts.ts'), ctx.root],
     { env: { ...process.env, PATH: ctx.bin } },
   );
@@ -93,10 +89,9 @@ test('it fails on an exported script constant that it does not check', async () 
 test('it fails when shellcheck is not on the PATH', async () => {
   const ctx = setupTest();
 
-  const checked = await runCommand(
-    [process.execPath, join(import.meta.dir, 'check-guest-scripts.ts')],
-    { env: { ...process.env, PATH: ctx.bin } },
-  );
+  const checked = await run([process.execPath, join(import.meta.dir, 'check-guest-scripts.ts')], {
+    env: { ...process.env, PATH: ctx.bin },
+  });
 
   expect({
     exitCode: checked.exitCode,

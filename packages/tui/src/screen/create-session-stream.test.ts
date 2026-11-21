@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
 import { createSessionEmulator } from '../emulator/create-session-emulator';
 import { createSessionStream } from './create-session-stream';
 

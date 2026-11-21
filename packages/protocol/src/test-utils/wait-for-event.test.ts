@@ -19,7 +19,7 @@ test('it resolves with an event collected while it waits', async () => {
     events,
     { ev: 'SessionRemoved' },
     {
-      wait: () => {
+      sleep: () => {
         events.push({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-2' });
 
         return Promise.resolve();
@@ -111,10 +111,10 @@ test('it rejects listing the shape and the events it saw once the deadline passe
     waitForEvent(
       events,
       { ev: 'SessionRemoved' },
-      { timeoutMs: 80, intervalMs: 10, now: clock.now, wait: clock.wait },
+      { timeoutMs: 80, intervalMs: 10, now: clock.now, sleep: clock.wait },
     ),
   ).rejects.toThrowWithMessage(
     Error,
-    'no event matches {"ev":"SessionRemoved"}; got ["SessionAdded"]',
+    'timed out after 80 ms: no event matches {"ev":"SessionRemoved"}; got ["SessionAdded"]',
   );
 });

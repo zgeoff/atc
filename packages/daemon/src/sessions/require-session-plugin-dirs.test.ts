@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { AgentAdapter, ExecutionProvider } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { toSessionID } from '@atcx/contract';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { requireSessionPluginDirs } from './require-session-plugin-dirs';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-session-plugin-dirs-');
+  const temporaryDirectory = createTempDir('atc-session-plugin-dirs-');
 
   return { directory: temporaryDirectory.path };
 }

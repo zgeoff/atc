@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '../test-utils/register-test-cleanup';
-import { setupTempDir } from '../test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildTarArchive } from './build-tar-archive';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-tar-');
+  const temporaryDirectory = createTempDir('atc-tar-');
 
   return { directory: temporaryDirectory.path };
 }

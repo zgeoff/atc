@@ -1,14 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStubBrokeredClaude } from './create-stub-brokered-claude';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-brokered-claude-');
+  const temporaryDirectory = createTempDir('atc-stub-brokered-claude-');
   const received: string[] = [];
 
   const answerRequest = (request: Request) => {

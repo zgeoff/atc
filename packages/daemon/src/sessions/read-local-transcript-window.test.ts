@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readLocalTranscriptWindow } from './read-local-transcript-window';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-local-transcript-');
+  const temporaryDirectory = createTempDir('atc-local-transcript-');
 
   return { directory: temporaryDirectory.path };
 }

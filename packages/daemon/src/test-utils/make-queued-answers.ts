@@ -1,10 +1,14 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import { match } from 'ts-pattern';
 
 export type QueuedAnswer =
   | { readonly kind: 'refuse'; readonly error: Error }
   | { readonly kind: 'succeed' }
-  | { readonly kind: 'succeed-after'; readonly clock: Clock; readonly delayMs: number };
+  | {
+      readonly kind: 'succeed-after';
+      readonly clock: Pick<Clock, 'now' | 'schedule'>;
+      readonly delayMs: number;
+    };
 
 export function makeQueuedAnswers(answers: readonly QueuedAnswer[]): () => Promise<void> {
   const queue = [...answers];

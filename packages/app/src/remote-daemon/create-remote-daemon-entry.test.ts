@@ -1,18 +1,18 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { takeFreePort } from '@atc/core/test-utils/take-free-port';
 import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { DaemonLinkFailureError } from '@atc/tui';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { claimFreePorts } from '@zgeoff/testing/process';
 import invariant from 'tiny-invariant';
 import { buildMockRemoteDaemon } from '../test-utils/build-mock-remote-daemon';
 import { createRemoteDaemonEntry } from './create-remote-daemon-entry';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-remote-entry-');
+  const temporaryDirectory = createTempDir('atc-remote-entry-');
   const tokenFile = join(temporaryDirectory.path, 'box.token');
 
   writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);
@@ -28,7 +28,7 @@ test('it rejects with the kind down when the daemon is unreachable', () => {
     buildMockRemoteDaemon({
       name: 'box',
       host: '127.0.0.1',
-      port: takeFreePort(),
+      port: claimFreePorts(1).take(),
       token: { kind: 'file', path: ctx.tokenFile },
     }),
   );
@@ -44,7 +44,7 @@ test('it rejects with the kind unauthorized when the token file cannot be read',
     buildMockRemoteDaemon({
       name: 'box',
       host: '127.0.0.1',
-      port: takeFreePort(),
+      port: claimFreePorts(1).take(),
       token: { kind: 'file', path: join(ctx.tokenFile, 'missing') },
     }),
   );

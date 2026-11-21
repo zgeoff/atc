@@ -1,11 +1,11 @@
 import type { RemoteDaemon } from '@atc/config';
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
 import { connect } from '@atcx/client';
 import type { AtcClient } from '@atcx/client';
 import { toMessageID, toSessionID } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import {
   RemoteDaemonUnreachableError,
   bootRemoteDaemonClient,
@@ -31,7 +31,7 @@ interface SendConnectionSource {
   readonly build: string;
 
   readonly session: string | undefined;
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 
   readonly resolveDaemon: (
     name: string,
@@ -85,7 +85,7 @@ export async function openSendConnection(
 async function openRemoteSendConnection(
   name: string,
   source: Readonly<SendConnectionSource>,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
 ): Promise<ConnectResult> {
   const found = source.resolveDaemon(name);
 
@@ -120,7 +120,10 @@ function failed(code: string, message: string): ConnectResult {
   return { ok: false, error };
 }
 
-function makeRemoteSendConnection(client: DaemonClient, clock: Clock): SendConnection {
+function makeRemoteSendConnection(
+  client: DaemonClient,
+  clock: Pick<Clock, 'now' | 'schedule'>,
+): SendConnection {
   return makeSendConnection(
     (method, params) => client.sendRequest(method, params),
     {
@@ -144,7 +147,7 @@ function makeSendConnection(
     params: SendCalls[Method],
   ) => Promise<Readonly<Record<string, unknown>>>,
   handle: SendHandle,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
 ): SendConnection {
   return {
     request: async (method, params, limitMs) => {
@@ -186,7 +189,10 @@ const LOCAL_CALLS: {
     client.message.get({ ...params, message: toMessageID(params.message) }),
 };
 
-function makeLocalSendConnection(client: AtcClient, clock: Clock): SendConnection {
+function makeLocalSendConnection(
+  client: AtcClient,
+  clock: Pick<Clock, 'now' | 'schedule'>,
+): SendConnection {
   let closed = false;
 
   const watchClose = async (): Promise<void> => {

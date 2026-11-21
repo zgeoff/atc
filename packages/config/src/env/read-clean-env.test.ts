@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { updateEnv } from '@atc/core/test-utils/update-env';
+import { updateEnv } from '@zgeoff/testing';
 import { readCleanEnv } from './read-clean-env';
 
 test('it strips parent-session grok keys and keeps home and api keys', () => {

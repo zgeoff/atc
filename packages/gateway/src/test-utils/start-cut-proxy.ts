@@ -1,11 +1,11 @@
 import { isRecord } from '@atc/core';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import {
   MessageType,
   deserializeRequestMessage,
   deserializeResponseMessage,
 } from '@orpc/standard-server-peer';
 import type { BaseMessageFormat } from '@orpc/standard-server-peer';
+import { registerTestCleanup } from '@zgeoff/testing';
 import type { Socket } from 'bun';
 
 interface CutProxyOptions {

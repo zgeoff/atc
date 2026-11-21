@@ -4,17 +4,17 @@ import { join } from 'node:path';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStandInImage } from '@atc/execution-docker/test-utils/create-stand-in-image';
 import { readDockerLines } from '@atc/execution-docker/test-utils/read-docker-lines';
 import { runDocker } from '@atc/execution-docker/test-utils/run-docker';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 import type { DaemonEvent } from '@atcx/contract';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-docker-');
+  const temporaryDirectory = createTempDir('atc-e2e-docker-');
   const atc = resolveATCCommand();
   const prefix = `atce2e${Math.random().toString(36).slice(2, 8)}-`;
   const image = `${prefix}image`;

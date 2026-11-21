@@ -1,5 +1,5 @@
-import { systemClock } from '@atc/core';
 import { EXECUTION_TARGET_CONFIG_SCHEMA, definePlugin } from '@atc/plugin-api';
+import { systemClock } from '@zgeoff/std';
 import { createLocalPTYProvider } from './create-local-pty-provider';
 import { startSessionScopes } from './session-scopes/start-session-scopes';
 

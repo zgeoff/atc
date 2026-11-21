@@ -1,16 +1,18 @@
 import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildStubHeldZoxide } from './build-stub-held-zoxide';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-held-zoxide-');
-  const zoxide = createStubBin(temporaryDirectory.path, 'zoxide', buildStubHeldZoxide());
+  const temporaryDirectory = createTempDir('atc-stub-held-zoxide-');
+
+  const zoxide = createStubBin(temporaryDirectory.path, 'zoxide', {
+    script: buildStubHeldZoxide(),
+  }).path;
 
   return {
     directory: temporaryDirectory.path,
@@ -21,7 +23,7 @@ function setupTest() {
 test('it lists no directories at once when no hold file exists', async () => {
   const ctx = setupTest();
 
-  const result = await runCommand([ctx.zoxide, 'query', '-l'], {
+  const result = await run([ctx.zoxide, 'query', '-l'], {
     env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 

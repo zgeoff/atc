@@ -6,11 +6,11 @@ import {
   loadMCPHTTPConfig,
   mcpAuthDBFile,
 } from '@atc/config';
-import { systemClock } from '@atc/core';
 import type { ChannelCaller, WatchChannel } from '@atc/mcp';
 import { findMCPResource, openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
 import { GATEWAY_PATHS } from '@atcx/contract';
+import { systemClock } from '@zgeoff/std';
 import { PROCESS_IO } from '../cli/process-io';
 import type { ProcessIO } from '../cli/process-io';
 import { loadServiceTokenFile } from '../service-token/load-service-token-file';

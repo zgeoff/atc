@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
 import { buildStubRestoreImpProvider } from './build-stub-restore-imp-provider';
 
 test('it reports itself as a remote imp with the imp capabilities and guest layout', async () => {

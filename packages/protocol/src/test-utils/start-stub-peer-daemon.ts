@@ -1,9 +1,9 @@
 import { isRecord } from '@atc/core';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { ORPCError } from '@orpc/client';
 import { StandardRPCJsonSerializer, StandardRPCSerializer } from '@orpc/client/standard';
 import type { StandardRequest, StandardResponse } from '@orpc/standard-server';
 import { ServerPeer } from '@orpc/standard-server-peer';
+import { registerTestCleanup } from '@zgeoff/testing';
 import type { SocketHandler } from 'bun';
 import { PRINCIPAL_HEADERS, createLineDecoder } from '../wire/index';
 import type { LineDecoder } from '../wire/index';

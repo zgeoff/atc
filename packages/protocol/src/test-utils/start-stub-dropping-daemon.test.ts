@@ -3,14 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openRawDaemonClient as openDaemonClient } from './open-raw-daemon-client';
 import { startStubDroppingDaemon } from './start-stub-dropping-daemon';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-dropping-daemon-');
+  const temporaryDirectory = createTempDir('atc-dropping-daemon-');
 
   return { socketPath: join(temporaryDirectory.path, 'daemon.sock') };
 }

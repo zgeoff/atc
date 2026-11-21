@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { cpSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { z } from 'zod';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('agent-hook-entries-');
+  const temporaryDirectory = createTempDir('agent-hook-entries-');
   const repoDir = join(import.meta.dir, '..');
   const project = join(temporaryDirectory.path, 'project');
   const transcriptPath = join(temporaryDirectory.path, 'session.jsonl');
@@ -22,7 +22,7 @@ async function setupTest() {
   symlinkSync(join(repoDir, 'node_modules'), join(project, 'node_modules'));
   writeFileSync(transcriptPath, '');
 
-  await runCommand(['git', 'init', '--quiet'], { cwd: project });
+  await run(['git', 'init', '--quiet'], { cwd: project });
 
   const settingsText = readFileSync(join(project, '.claude/settings.json'), 'utf8');
   const commandSchema = z.object({ type: z.literal('command'), command: z.string() });
@@ -71,16 +71,16 @@ test('it blocks with the code-style skills after a Bash command that changes a g
   const afterPayload = JSON.stringify({ ...bashCall, hook_event_name: 'PostToolUse' });
   const changedPath = join(ctx.project, 'src/sample.ts');
 
-  await runCommand(['sh', '-c', ctx.bashCommands.get('PreToolUse') ?? 'true'], {
+  await run(['sh', '-c', ctx.bashCommands.get('PreToolUse') ?? 'true'], {
     env: ctx.env,
-    stdin: beforePayload,
+    input: beforePayload,
   });
 
   writeFileSync(changedPath, 'export const sample = 1;\n');
 
-  const result = await runCommand(['sh', '-c', ctx.bashCommands.get('PostToolUse') ?? 'true'], {
+  const result = await run(['sh', '-c', ctx.bashCommands.get('PostToolUse') ?? 'true'], {
     env: ctx.env,
-    stdin: afterPayload,
+    input: afterPayload,
   });
 
   expect({ exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }).toStrictEqual(
@@ -113,20 +113,17 @@ test('it asks for the code-style skills after a failed Bash command that changes
 
   const changedPath = join(ctx.project, 'src/sample.ts');
 
-  await runCommand(['sh', '-c', ctx.bashCommands.get('PreToolUse') ?? 'true'], {
+  await run(['sh', '-c', ctx.bashCommands.get('PreToolUse') ?? 'true'], {
     env: ctx.env,
-    stdin: beforePayload,
+    input: beforePayload,
   });
 
   writeFileSync(changedPath, 'export const sample = 1;\n');
 
-  const result = await runCommand(
-    ['sh', '-c', ctx.bashCommands.get('PostToolUseFailure') ?? 'true'],
-    {
-      env: ctx.env,
-      stdin: afterPayload,
-    },
-  );
+  const result = await run(['sh', '-c', ctx.bashCommands.get('PostToolUseFailure') ?? 'true'], {
+    env: ctx.env,
+    input: afterPayload,
+  });
 
   const output: unknown = JSON.parse(result.stdout);
 

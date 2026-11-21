@@ -1,9 +1,9 @@
 import { isRecord } from '@atc/core';
-import type { Clock } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
 import type { StoredRow } from '@atc/store';
 import { readStoredRows } from '@atc/store';
 import type { RestartFailedRow } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 
 interface FleetVerdict {
   readonly total: number;
@@ -15,7 +15,7 @@ const UNSIZED_READ_MS = 30_000;
 interface VerifyRestoredFleetOptions {
   readonly timeoutSeconds: number | null;
   readonly snapshot: readonly StoredRow[] | null;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly restoreBootTimeoutMs: number;
 }
 
@@ -63,7 +63,11 @@ export async function verifyRestoredFleet(
   return { total: stored.length, failed: found.failed };
 }
 
-async function sendBounded<T>(send: () => Promise<T>, deadline: number, clock: Clock): Promise<T> {
+async function sendBounded<T>(
+  send: () => Promise<T>,
+  deadline: number,
+  clock: Pick<Clock, 'now' | 'schedule'>,
+): Promise<T> {
   let stopTimer: (() => void) | undefined;
 
   const expired = new Promise<never>((_resolve, reject) => {
@@ -97,7 +101,7 @@ function pickDeadlineMs(
 async function tryRestore(
   client: Pick<DaemonClient, 'sendRequest'>,
   deadline: number,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
 ): Promise<boolean> {
   try {
     await sendBounded(
@@ -117,7 +121,7 @@ const AGENTS_READ_MS = 5000;
 async function tryReadAgentIDs(
   client: Pick<DaemonClient, 'sendRequest'>,
   deadline: number,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
 ): Promise<ReadonlySet<string> | null> {
   try {
     const listed = await sendBounded(
@@ -197,7 +201,7 @@ async function tryCollectFailedRows(
   client: Pick<DaemonClient, 'sendRequest'>,
   outcome: RestoreOutcome,
   deadline: number,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
 ): Promise<FailedRows | null> {
   let stopTimer: (() => void) | undefined;
 

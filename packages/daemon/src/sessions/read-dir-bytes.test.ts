@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readDirBytes } from './read-dir-bytes';
 
 test('it counts the files in nested folders and not what a symlink leads to', async () => {
-  const temporaryDirectory = setupTempDir('atc-dir-bytes-');
+  const temporaryDirectory = createTempDir('atc-dir-bytes-');
   const folder = join(temporaryDirectory.path, 'session');
   const outside = join(temporaryDirectory.path, 'outside');
 
@@ -21,7 +21,7 @@ test('it counts the files in nested folders and not what a symlink leads to', as
 });
 
 test('it reads null for a folder that is not there', async () => {
-  const temporaryDirectory = setupTempDir('atc-dir-bytes-');
+  const temporaryDirectory = createTempDir('atc-dir-bytes-');
 
   const bytes = await readDirBytes(join(temporaryDirectory.path, 'gone'));
 

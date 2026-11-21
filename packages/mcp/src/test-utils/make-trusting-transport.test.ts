@@ -1,5 +1,5 @@
 import { expect, mock, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { createTestCertificate } from './create-test-certificate';
 import { makeTrustingTransport } from './make-trusting-transport';
 

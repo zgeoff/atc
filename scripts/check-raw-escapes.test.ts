@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('check-raw-escapes-');
+  const temporaryDirectory = createTempDir('check-raw-escapes-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -17,7 +17,7 @@ test('it passes a source that writes ESC as an escape', async () => {
     "export const CLEAR = '\\u001B[2J';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-raw-escapes.ts'),
     ctx.directory,
@@ -45,7 +45,7 @@ test('it fails on a raw ESC byte in a source module and names the escape to writ
   await Bun.write(join(ctx.directory, 'mods/bridge/b.mjs'), 'export const RESET = `\u001B[0m`;\n');
   await Bun.write(join(ctx.directory, 'packages/tui/fixture.txt'), '\u001B[0m\n');
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-raw-escapes.ts'),
     ctx.directory,

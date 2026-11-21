@@ -1,7 +1,7 @@
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import type { DaemonConnection } from '@atcx/client/connection';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { createActor } from 'xstate';
 import { TRANSPORT_MACHINE } from './transport-machine';
 import type { TransportReconnect } from './transport-machine';
@@ -23,7 +23,7 @@ interface DaemonTransportOptions<C> {
 
   readonly onOpenFailed?: (error: unknown, fatal: boolean) => void;
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 }
 
 export interface DaemonTransport<C> {

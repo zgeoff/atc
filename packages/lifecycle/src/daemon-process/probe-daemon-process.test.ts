@@ -2,12 +2,12 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config/host';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { probeDaemonProcess } from './probe-daemon-process';
 
 function setupTest() {
-  const directory = setupTempDir('is-daemon-process-').path;
+  const directory = createTempDir('is-daemon-process-').path;
   const cli = join(directory, 'checkout', 'src', 'cli.ts');
 
   mkdirSync(join(directory, 'checkout', 'src'), { recursive: true });

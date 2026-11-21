@@ -2,18 +2,17 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildLocalTarget } from '@atc/app/test-utils/build-local-target';
 import { resolvePaths } from '@atc/config';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import type { DaemonEvent } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-tap-');
+  const temporaryDirectory = createTempDir('atc-e2e-tap-');
 
   const env = {
     ...process.env,

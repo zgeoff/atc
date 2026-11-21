@@ -2,8 +2,8 @@ import { expect, mock, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { readBuild } from '@atc/config/host';
-import { systemClock } from '@atc/core';
 import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
+import { systemClock } from '@zgeoff/std';
 import { z } from 'zod';
 import { createHostServices } from './create-host-services';
 

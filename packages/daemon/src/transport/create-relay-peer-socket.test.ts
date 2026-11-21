@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { HarnessRelay } from '@atc/plugin-api';
+import { waitFor } from '@zgeoff/testing';
 import { buildStubHarnessRelay } from '../test-utils/build-stub-harness-relay';
 import { createRelayPeerSocket } from './create-relay-peer-socket';
 

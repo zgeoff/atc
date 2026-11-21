@@ -5,8 +5,6 @@ import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { isRecord } from '@atc/core';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildPayloadHash } from '@atc/daemon';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
@@ -17,6 +15,7 @@ import { createStubEchoClaude } from '@atc/harness-claude/test-utils/create-stub
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
 import { REQUEST_PARAM_SCHEMAS } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 
 async function setupTest() {

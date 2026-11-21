@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
 import { startStubSessionBridge } from '@atc/protocol/test-utils/start-stub-session-bridge';
+import { updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { runNote } from './run-note';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-note-');
+  const temporaryDirectory = createTempDir('atc-note-');
   const sock = join(temporaryDirectory.path, 'reporter.sock');
   const reporter = startStubReporterSocket(sock);
 
@@ -234,7 +234,7 @@ test('it sends nothing for an unanswered envelope without a reason', async () =>
 });
 
 test('it exits 0 and prints undelivered when nothing listens at the socket', async () => {
-  const temporaryDirectory = setupTempDir('atc-note-');
+  const temporaryDirectory = createTempDir('atc-note-');
 
   updateEnv('ATC_SOCKET', join(temporaryDirectory.path, 'none.sock'));
   updateEnv('ATC_SESSION_ID', 's1');
@@ -396,7 +396,7 @@ test('it exits 0 for a note without text', async () => {
 });
 
 test('it clears a bridge note from the outbox once the bridge refuses it as forbidden', async () => {
-  const temporaryDirectory = setupTempDir('atc-note-');
+  const temporaryDirectory = createTempDir('atc-note-');
   const sock = join(temporaryDirectory.path, 'bridge.sock');
   const outbox = join(temporaryDirectory.path, 'outbox');
 
@@ -444,7 +444,7 @@ test('it clears a bridge note from the outbox once the bridge refuses it as forb
 });
 
 test('it keeps a bridge note in the outbox when the bridge closes without answering', async () => {
-  const temporaryDirectory = setupTempDir('atc-note-');
+  const temporaryDirectory = createTempDir('atc-note-');
   const sock = join(temporaryDirectory.path, 'bridge.sock');
   const outbox = join(temporaryDirectory.path, 'outbox');
 
@@ -502,7 +502,7 @@ test('it keeps a bridge note in the outbox when the bridge closes without answer
 });
 
 test('it prints delivered once the bridge takes a note', async () => {
-  const temporaryDirectory = setupTempDir('atc-note-');
+  const temporaryDirectory = createTempDir('atc-note-');
   const sock = join(temporaryDirectory.path, 'bridge.sock');
   const outbox = join(temporaryDirectory.path, 'outbox');
 
@@ -532,7 +532,7 @@ test('it prints delivered once the bridge takes a note', async () => {
 });
 
 test('it prints undelivered and keeps a bridge answer in the outbox when the bridge refuses a stale binding', async () => {
-  const temporaryDirectory = setupTempDir('atc-note-');
+  const temporaryDirectory = createTempDir('atc-note-');
   const sock = join(temporaryDirectory.path, 'bridge.sock');
   const outbox = join(temporaryDirectory.path, 'outbox');
 

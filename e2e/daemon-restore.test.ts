@@ -6,10 +6,7 @@ import { getRecord } from '@atc/core/test-utils/get-record';
 import { getRecords } from '@atc/core/test-utils/get-records';
 import { getString } from '@atc/core/test-utils/get-string';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStubClaude } from '@atc/harness-claude/test-utils/create-stub-claude';
 import { createStubGrok } from '@atc/harness-grok/test-utils/create-stub-grok';
 import { readDaemonRecord } from '@atc/lifecycle';
@@ -20,10 +17,12 @@ import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entr
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import type { DaemonEvent } from '@atcx/contract';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-restore-');
+  const temporaryDirectory = createTempDir('atc-e2e-restore-');
   const atc = resolveATCCommand();
   const composer = createStubComposer(temporaryDirectory.path);
   const configDir = join(temporaryDirectory.path, '.config', 'atc');

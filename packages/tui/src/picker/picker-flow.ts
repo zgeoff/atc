@@ -1,6 +1,7 @@
 import type { Config, WorkspacesConfig } from '@atc/config';
-import type { AgentID, Clock } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import type { AgentEntry, GitRef, SourceEntry, SourcePick } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { ListingCache } from '../client/listing-cache';
 import type { DaemonName } from '../fleet/session-key';
 import type { TargetPick } from '../overlay/collect-target-picks';
@@ -59,7 +60,7 @@ export interface SpawnPickerDeps<TMirror> {
 
   readonly getDaemonSocketPath?: (daemon: DaemonName) => string;
 
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 }
 
 export type PickerDeps = Omit<SpawnPickerDeps<unknown>, 'toMirrorSession' | 'upsertMirror'>;

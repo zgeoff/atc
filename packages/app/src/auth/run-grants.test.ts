@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { runMCPAuthorization } from '@atc/mcp/test-utils/run-mcp-authorization';
 import { seedOwnerClient } from '@atc/mcp/test-utils/seed-owner-client';
 import { seedOwnerGrant } from '@atc/mcp/test-utils/seed-owner-grant';
 import { seedOwnerSchema } from '@atc/mcp/test-utils/seed-owner-schema';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { setupMCPHTTP } from '../test-utils/setup-mcp-http';
 import { runGrants } from './run-grants';
@@ -18,7 +18,7 @@ function setupTest() {
     // A migrated grant keeps the authorization code it came from as its ID,
     // and that code can start with a dash.
     writeMigratedGrant: (grantID: string) => {
-      const temporaryDirectory = setupTempDir('atc-grants-');
+      const temporaryDirectory = createTempDir('atc-grants-');
       const dbPath = join(temporaryDirectory.path, 'state', 'mcp-auth.db');
       const sqlite = openMCPAuthDatabase(dbPath);
 

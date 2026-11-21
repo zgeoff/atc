@@ -2,12 +2,12 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { killProcessGroup } from '@atc/core/test-utils/kill-process-group';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-with-test-home-');
+  const temporaryDirectory = createTempDir('atc-with-test-home-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -39,7 +39,7 @@ test.skipIf(process.platform !== 'linux')(
 
     await killed.exited;
 
-    const next = await runCommand(['bash', script, 'true'], { cwd: ctx.directory, env });
+    const next = await run(['bash', script, 'true'], { cwd: ctx.directory, env });
 
     expect(next.exitCode).toBe(0);
     expect(existsSync(root)).toBeFalse();
@@ -56,7 +56,7 @@ test.skipIf(process.platform !== 'linux')(
   async () => {
     const ctx = setupTest();
 
-    const run = await runCommand(
+    const result = await run(
       [
         'bash',
         join(import.meta.dir, 'with-test-home.sh'),
@@ -67,14 +67,14 @@ test.skipIf(process.platform !== 'linux')(
       { cwd: ctx.directory, env: { ...process.env, TMPDIR: ctx.directory } },
     );
 
-    const [root = '', group, left] = run.stdout.trim().split(' ');
+    const [root = '', group, left] = result.stdout.trim().split(' ');
     const leftPID = Number(left);
 
     onTestFinished(() => {
       killProcessGroup(Number(group));
     });
 
-    expect(run.exitCode).toBe(0);
+    expect(result.exitCode).toBe(0);
     expect(existsSync(root)).toBeFalse();
 
     await waitFor(() => {
@@ -90,7 +90,7 @@ test('it keeps a host XDG git config away from a command it runs', async () => {
   mkdirSync(join(host, 'git'), { recursive: true });
   writeFileSync(join(host, 'git', 'config'), '[atc]\n\tcanary = host\n');
 
-  const read = await runCommand(
+  const read = await run(
     ['bash', join(import.meta.dir, 'with-test-home.sh'), 'git', 'config', '--get', 'atc.canary'],
     {
       cwd: ctx.directory,
@@ -107,7 +107,7 @@ test('it keeps a host XDG git config away from a command it runs', async () => {
 test("it points mise at the host's own XDG homes for a command it runs", async () => {
   const ctx = setupTest();
 
-  const read = await runCommand(
+  const read = await run(
     [
       'bash',
       join(import.meta.dir, 'with-test-home.sh'),
@@ -119,7 +119,9 @@ test("it points mise at the host's own XDG homes for a command it runs", async (
       cwd: ctx.directory,
       env: {
         ...Object.fromEntries(
-          Object.entries(process.env).filter(([name]) => !name.startsWith('MISE_')),
+          Object.keys(process.env)
+            .filter((name) => name.startsWith('MISE_'))
+            .map((name) => [name, undefined]),
         ),
         XDG_CONFIG_HOME: join(ctx.directory, 'host-config'),
         XDG_DATA_HOME: join(ctx.directory, 'host-data'),

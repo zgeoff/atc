@@ -1,8 +1,7 @@
 import { expect, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { TEST_TOKEN } from '@impz/testing';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { acquireSharedImpd } from '../test-utils/acquire-shared-impd';
 import { startStubStallingProxy } from '../test-utils/start-stub-stalling-proxy';
 import { watchSocketLiveness } from './watch-socket-liveness';

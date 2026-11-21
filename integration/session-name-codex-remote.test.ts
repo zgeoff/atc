@@ -5,15 +5,14 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildStubGuestFilesProvider } from '@atc/daemon/test-utils/build-stub-guest-files-provider';
 import { createCodexAdapter } from '@atc/harness-codex';
+import { updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 test("it names an unbrokered remote Codex session from the session index in its host user's Codex home", async () => {
-  const temporaryDirectory = setupTempDir('atc-codex-remote-name-');
+  const temporaryDirectory = createTempDir('atc-codex-remote-name-');
   const guestFiles = join(temporaryDirectory.path, 'guest');
 
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {

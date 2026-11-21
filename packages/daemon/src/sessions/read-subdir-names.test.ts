@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readSubdirNames } from './read-subdir-names';
 
 test('it reads the names of the folders under a folder, and of no file or symlink', async () => {
-  const temporaryDirectory = setupTempDir('atc-subdir-names-');
+  const temporaryDirectory = createTempDir('atc-subdir-names-');
 
   mkdirSync(join(temporaryDirectory.path, 'session-a'));
   writeFileSync(join(temporaryDirectory.path, 'status.json'), '{}');
@@ -17,7 +17,7 @@ test('it reads the names of the folders under a folder, and of no file or symlin
 });
 
 test('it reads no names under a folder that is not there', async () => {
-  const temporaryDirectory = setupTempDir('atc-subdir-names-');
+  const temporaryDirectory = createTempDir('atc-subdir-names-');
 
   const names = await readSubdirNames(join(temporaryDirectory.path, 'gone'));
 
@@ -25,7 +25,7 @@ test('it reads no names under a folder that is not there', async () => {
 });
 
 test('it rejects a path that is a file', () => {
-  const temporaryDirectory = setupTempDir('atc-subdir-names-');
+  const temporaryDirectory = createTempDir('atc-subdir-names-');
   const file = join(temporaryDirectory.path, 'status.json');
 
   writeFileSync(file, '{}');

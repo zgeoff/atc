@@ -7,7 +7,6 @@ import {
   buildDaemonStatePaths,
   loadListenerTokens,
 } from '@atc/config';
-import { systemClock } from '@atc/core';
 import { claimDaemonLock, readDaemonRecord, writeDaemonRecord } from '@atc/lifecycle';
 import type { HarnessRelay } from '@atc/plugin-api';
 import { PROTOCOL_V } from '@atc/protocol/wire';
@@ -16,6 +15,7 @@ import { createStateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
 import { getLogger } from '@logtape/logtape';
+import { systemClock } from '@zgeoff/std';
 import { isBindingCurrent } from './auth/is-binding-current';
 import type { BridgeBinding } from './auth/is-binding-current';
 import { buildDaemonContext } from './build-daemon-context';

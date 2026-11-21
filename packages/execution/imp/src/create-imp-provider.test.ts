@@ -15,14 +15,13 @@ import {
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { buildTarArchive } from '@atc/core';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { SESSION_DESCRIPTOR_SCHEMA } from '@atcx/contract';
 import { checkSessionImp } from '@impz/client/identity';
 import { startTestImpd } from '@impz/testing';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { createImpClientPort } from './client/create-imp-client-port';
 import { createImpProvider } from './create-imp-provider';
@@ -32,7 +31,7 @@ import { buildMockImpIdentity } from './test-utils/build-mock-imp-identity';
 import { createStubImpPort } from './test-utils/create-stub-imp-port';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-imp-provider-');
+  const temporaryDirectory = createTempDir('atc-imp-provider-');
   const port = createStubImpPort();
 
   return { directory: temporaryDirectory.path, port };
@@ -175,7 +174,7 @@ test('it refuses a prepare that installs atc when the guest atc is missing and t
 
 test("it refuses a prepare that installs atc when the image's atc runs another version and the daemon has no binary to copy", () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
 
   const provider = createImpProvider(
     ctx.port,
@@ -198,8 +197,8 @@ test("it refuses a prepare that installs atc when the image's atc runs another v
 
 test("it links the guest's atc to the image's atc and copies nothing when the image's atc runs the daemon's version", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
-  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = writeStubProgram(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
   const log = mock(() => {});
 
   const provider = createImpProvider(
@@ -224,8 +223,8 @@ test("it links the guest's atc to the image's atc and copies nothing when the im
 
 test("it copies the daemon's atc in when the image's atc runs another version", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
-  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = writeStubProgram(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
   const log = mock(() => {});
 
   const provider = createImpProvider(
@@ -258,17 +257,17 @@ test.each([
   "it keeps the guest's old atc runnable while the copy that replaces it is paused %s",
   async (_label, bytes) => {
     const ctx = setupTest();
-    const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+    const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
 
     // tar writes 10 KiB records, so a pause after two leaves the new atc half
     // written; the comment pads the binary past the bytes the pause lets through.
-    const atcBinary = createStubBin(
+    const atcBinary = writeStubProgram(
       ctx.directory,
       'daemon-atc',
       `#!/bin/sh\n# ${'x'.repeat(30_000)}\necho 1.0.0\n`,
     );
 
-    createStubBin(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.9.0\n');
+    writeStubProgram(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.9.0\n');
 
     const provider = createImpProvider(
       ctx.port,
@@ -290,7 +289,7 @@ test.each([
     const paused = join(ctx.directory, 'paused');
     const resume = join(ctx.directory, 'resume');
 
-    createStubBin(
+    writeStubProgram(
       bin,
       'gzip',
       `#!/bin/sh\n'${realGzip}' "$@" | { dd bs=1 count=${bytes} 2> /dev/null; touch '${paused}'; until [ -e '${resume}' ]; do sleep 0.01; done; cat; }\n`,
@@ -331,8 +330,8 @@ test.each([
 
 test("it leaves no staging folder in the guest folder after it copies the daemon's atc in", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
-  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = writeStubProgram(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = createImpProvider(
     ctx.port,
@@ -351,7 +350,7 @@ test("it leaves no staging folder in the guest folder after it copies the daemon
 
 test("it copies the daemon's atc in when the image has no atc at the target's path", async () => {
   const ctx = setupTest();
-  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = writeStubProgram(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
   const log = mock(() => {});
 
   const provider = createImpProvider(
@@ -377,7 +376,7 @@ test("it copies the daemon's atc in when the image has no atc at the target's pa
 
 test("it sends the daemon's atc to an imp gzipped", async () => {
   const ctx = setupTest();
-  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = writeStubProgram(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = createImpProvider(
     ctx.port,
@@ -398,7 +397,7 @@ test("it sends the daemon's atc to an imp gzipped", async () => {
   const wire = join(ctx.directory, 'wire.bin');
   const bin = join(ctx.directory, 'bin');
 
-  createStubBin(bin, 'gzip', `#!/bin/sh\ntee '${wire}' | '${realGzip}' "$@"\n`);
+  writeStubProgram(bin, 'gzip', `#!/bin/sh\ntee '${wire}' | '${realGzip}' "$@"\n`);
 
   ctx.port.setGuestPath(`${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`);
 
@@ -417,7 +416,7 @@ test("it sends the daemon's atc to an imp gzipped", async () => {
 
 test("it copies the daemon's atc it compressed for an earlier readying into a later one", async () => {
   const ctx = setupTest();
-  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = writeStubProgram(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const first = createImpProvider(
     ctx.port,
@@ -450,7 +449,7 @@ test("it copies the daemon's atc it compressed for an earlier readying into a la
 
 test("it refuses to copy the daemon's atc into an imp without gzip and leaves bin/atc unwritten", () => {
   const ctx = setupTest();
-  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const atcBinary = writeStubProgram(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = createImpProvider(
     ctx.port,
@@ -489,8 +488,8 @@ test("it refuses to copy the daemon's atc into an imp without gzip and leaves bi
 
 test("it replaces a link to the image's atc with the daemon's atc when the image's atc runs another version", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
-  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = writeStubProgram(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   mkdirSync(join(ctx.directory, 'g', 'bin'), { recursive: true });
   symlinkSync(guestATC, join(ctx.directory, 'g', 'bin', 'atc'));
@@ -513,11 +512,11 @@ test("it replaces a link to the image's atc with the daemon's atc when the image
 
 test("it keeps a copy of the daemon's atc an imp already holds and copies nothing", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
-  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = writeStubProgram(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
   const log = mock(() => {});
 
-  createStubBin(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 1.0.0\n');
+  writeStubProgram(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = createImpProvider(
     ctx.port,
@@ -540,7 +539,7 @@ test("it keeps a copy of the daemon's atc an imp already holds and copies nothin
 
 test("it links the guest's atc again on a later readying without reading the image's version again", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = createImpProvider(
     ctx.port,
@@ -564,8 +563,8 @@ test("it links the guest's atc again on a later readying without reading the ima
 
 test("it copies the daemon's atc again on a later readying of an imp that lost it, without reading the image's version again", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
-  const atcBinary = createStubBin(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const atcBinary = writeStubProgram(ctx.directory, 'daemon-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = createImpProvider(
     ctx.port,
@@ -594,7 +593,7 @@ test("it links a new imp to the image's atc without running it when the image's 
   const ctx = setupTest();
   const runs = join(ctx.directory, 'runs');
 
-  const guestATC = createStubBin(
+  const guestATC = writeStubProgram(
     ctx.directory,
     'image-atc',
     `#!/bin/sh\necho run >> ${runs}\necho 1.0.0\n`,
@@ -626,7 +625,7 @@ test("it runs the image's atc again for a new imp when the image's atc was rewri
   const ctx = setupTest();
   const runs = join(ctx.directory, 'runs');
 
-  const guestATC = createStubBin(
+  const guestATC = writeStubProgram(
     ctx.directory,
     'image-atc',
     `#!/bin/sh\necho run >> ${runs}\necho 1.0.0\n`,
@@ -658,7 +657,7 @@ test("it runs the image's atc again for a new imp when the image's atc was rewri
 
 test("it refuses a new imp whose image's atc lost its execute bit since it ran, when the daemon has no binary to copy", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
 
   const provider = createImpProvider(
     ctx.port,
@@ -685,7 +684,7 @@ test("it runs the image's atc again for a new imp when the image's atc changed s
   const ctx = setupTest();
   const runs = join(ctx.directory, 'runs');
 
-  const guestATC = createStubBin(
+  const guestATC = writeStubProgram(
     ctx.directory,
     'image-atc',
     `#!/bin/sh\necho run >> ${runs}\necho 1.0.0\n`,
@@ -705,7 +704,7 @@ test("it runs the image's atc again for a new imp when the image's atc changed s
   await provider.destroyHost('s1');
 
   rmSync(join(ctx.directory, 'g'), { recursive: true });
-  createStubBin(ctx.directory, 'image-atc', `#!/bin/sh\necho changed >> ${runs}\necho 1.0.0\n`);
+  writeStubProgram(ctx.directory, 'image-atc', `#!/bin/sh\necho changed >> ${runs}\necho 1.0.0\n`);
 
   await provider.prepareHost({ host: 's2', daemonID: 'd1', installATC: true });
 
@@ -714,9 +713,9 @@ test("it runs the image's atc again for a new imp when the image's atc changed s
 
 test('it refuses a retried prepare on an imp whose atc runs another version when the daemon has no binary to copy', async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 0.9.0\n');
 
-  createStubBin(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.8.0\n');
+  writeStubProgram(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 0.8.0\n');
 
   const provider = createImpProvider(
     ctx.port,
@@ -744,7 +743,13 @@ test('it refuses a retried prepare on an imp whose atc runs another version when
 
 test("it uses an image's atc at the guest's own atc path when it runs the daemon's version", async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(join(ctx.directory, 'g', 'bin'), 'atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const guestATC = writeStubProgram(
+    join(ctx.directory, 'g', 'bin'),
+    'atc',
+    '#!/bin/sh\necho 1.0.0\n',
+  );
+
   const log = mock(() => {});
 
   const provider = createImpProvider(
@@ -1514,7 +1519,7 @@ test('it sends an archive to an imp gzipped and unpacks it there', async () => {
   const wire = join(ctx.directory, 'wire.bin');
   const bin = join(ctx.directory, 'bin');
 
-  createStubBin(bin, 'gzip', `#!/bin/sh\ntee '${wire}' | '${realGzip}' "$@"\n`);
+  writeStubProgram(bin, 'gzip', `#!/bin/sh\ntee '${wire}' | '${realGzip}' "$@"\n`);
 
   ctx.port.setGuestPath(`${bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`);
 
@@ -2195,7 +2200,7 @@ test('it drops the imp id when the broker reads a destroyed imp', async () => {
 
 test('it reports the id of the imp it read when a later step of the readying fails', async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
 
   chmodSync(guestATC, 0o644);
 
@@ -2231,7 +2236,7 @@ test('it reports the id of the imp it read when a later step of the readying fai
 
 test('it reports no imp id when a failed readying destroys the imp it created', async () => {
   const ctx = setupTest();
-  const guestATC = createStubBin(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
+  const guestATC = writeStubProgram(ctx.directory, 'image-atc', '#!/bin/sh\necho 1.0.0\n');
 
   chmodSync(guestATC, 0o644);
 

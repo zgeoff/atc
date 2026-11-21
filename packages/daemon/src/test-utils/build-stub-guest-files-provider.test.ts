@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { RESOLVE_AGENT_HOME_SCRIPT } from '../auth/read-host-agent-home';
 import { buildStubGuestFilesProvider } from './build-stub-guest-files-provider';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-guest-files-');
+  const temporaryDirectory = createTempDir('atc-guest-files-');
 
   return { directory: temporaryDirectory.path };
 }

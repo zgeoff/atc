@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 
 export type CallOutcome<T> =
   | { readonly kind: 'answered'; readonly value: T }
@@ -8,7 +8,7 @@ export type CallOutcome<T> =
 export async function waitForOutcome<T>(
   call: Readonly<Promise<T>>,
   timeoutMs: number,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
 ): Promise<CallOutcome<T>> {
   const timeout = Promise.withResolvers<CallOutcome<T>>();
 

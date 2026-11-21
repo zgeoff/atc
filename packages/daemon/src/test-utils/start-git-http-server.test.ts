@@ -1,8 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { $ } from 'bun';
 import { startGitHTTPServer } from './start-git-http-server';
 

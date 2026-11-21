@@ -1,8 +1,8 @@
 import type { Config } from '@atc/config';
-import type { Clock } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
+import type { Clock } from '@zgeoff/std';
 import type { ClientActor } from '../client/build-client-machine';
 import type { FleetMirror } from '../fleet/create-fleet-mirror';
 import { resolveAgentMetadata } from '../fleet/resolve-agent-metadata';
@@ -15,7 +15,7 @@ export interface RestartDaemonDeps<TLink> {
   readonly mirror: FleetMirror;
   readonly overlay: OverlayScreen;
   readonly transport: DaemonTransport<TLink>;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly getBoot: () => DaemonBoot;
   readonly getClient: () => DaemonClient;
   readonly restartDaemonAt: (socketPath: string) => Promise<boolean>;

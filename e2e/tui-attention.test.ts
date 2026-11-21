@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import { spawnClaudeSession } from '@atc/app/test-utils/spawn-claude-session';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { waitFor } from '@zgeoff/testing';
 
 function setupTest() {
   return startTUIHarness({ createStateDB: createMigratedStateDB });

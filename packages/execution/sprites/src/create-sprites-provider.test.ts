@@ -3,12 +3,11 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { AuthProfile, HarnessSpec } from '@atc/plugin-api';
 import { formatRelayFrame, parseDaemonFrame } from '@atc/protocol/relay';
 import type { GuestFrame } from '@atc/protocol/relay';
+import { updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import type { SpritesTarget } from './config/parse-sprites-target';
 import { createSpritesProvider } from './create-sprites-provider';
 import { UNPACK_ARCHIVE_SCRIPT } from './guest-scripts/unpack-archive-script';
@@ -44,7 +43,7 @@ function setupTest() {
     dependencies: [],
   };
 
-  const directory = setupTempDir('atc-sprites-provider-');
+  const directory = createTempDir('atc-sprites-provider-');
   const binary = join(directory.path, 'atc');
 
   writeFileSync(binary, 'compiled-binary-bytes');

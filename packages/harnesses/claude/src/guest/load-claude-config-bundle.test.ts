@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { loadClaudeConfigBundle } from './load-claude-config-bundle';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-claude-bundle-');
+  const temporaryDirectory = createTempDir('atc-claude-bundle-');
 
   return { directory: temporaryDirectory.path };
 }

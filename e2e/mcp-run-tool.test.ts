@@ -5,9 +5,6 @@ import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { isRecord } from '@atc/core';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildPayloadHash } from '@atc/daemon';
 import { buildStubBrokeredAgentAdapter } from '@atc/daemon/test-utils/build-stub-brokered-agent-adapter';
 import { createImpProvider } from '@atc/execution-imp';
@@ -26,6 +23,8 @@ import { createDaemonClient } from '@atc/protocol/client';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { createStateStore } from '@atc/store';
 import { REQUEST_PARAM_SCHEMAS, toAgentSessionID, toSessionID } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 
@@ -1684,7 +1683,7 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
 });
 
 test('it rebinds the host of a session whose restore was refused for a changed auth selection', async () => {
-  const temporaryDirectory = setupTempDir('atc-run-tool-auth-');
+  const temporaryDirectory = createTempDir('atc-run-tool-auth-');
   const port = createStubImpPort();
 
   const provider = createImpProvider(
@@ -1776,7 +1775,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
 });
 
 test('it adopts a session whose restore was refused once its host is rebound', async () => {
-  const temporaryDirectory = setupTempDir('atc-run-tool-auth-');
+  const temporaryDirectory = createTempDir('atc-run-tool-auth-');
   const port = createStubImpPort();
 
   const provider = createImpProvider(
@@ -1865,7 +1864,7 @@ test('it adopts a session whose restore was refused once its host is rebound', a
 });
 
 test('it refuses a rebind from a remote client acting as a principal and binds nothing', async () => {
-  const temporaryDirectory = setupTempDir('atc-run-tool-auth-');
+  const temporaryDirectory = createTempDir('atc-run-tool-auth-');
   const port = createStubImpPort();
 
   const provider = createImpProvider(

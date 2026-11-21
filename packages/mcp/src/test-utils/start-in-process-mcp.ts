@@ -1,4 +1,3 @@
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { createDaemonClient } from '@atc/protocol/client';
 import {
   InMemoryTransport,
@@ -7,6 +6,7 @@ import {
   isSpecType,
 } from '@modelcontextprotocol/server';
 import type { ClientRequest, JSONRPCResponse, RequestId } from '@modelcontextprotocol/server';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { createMCPServer } from '../tools/create-mcp-server';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { buildMCPToolCalls } from './build-mcp-tool-calls';

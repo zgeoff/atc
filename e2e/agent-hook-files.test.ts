@@ -3,10 +3,10 @@ import { mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runATC } from '@atc/app/test-utils/run-atc';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-hook-files-');
+  const temporaryDirectory = createTempDir('atc-e2e-hook-files-');
 
   return { home: temporaryDirectory.path };
 }

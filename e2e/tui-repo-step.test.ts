@@ -5,13 +5,13 @@ import { openAgentStep } from '@atc/app/test-utils/open-agent-step';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { tabToRepoRows } from '@atc/app/test-utils/tab-to-repo-rows';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { createDaemonClient } from '@atc/protocol/client';
 import { buildStubSignedInGH } from '@atc/source-github/test-utils/build-stub-signed-in-gh';
 import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-signed-out-gh';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
 import { $ } from 'bun';
 
 function setupTest() {
@@ -23,7 +23,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   const destination = join(
     ctx.home,
@@ -127,7 +127,7 @@ test('it filters refs by name on the ref step', async () => {
 
   await $`git branch beta main`.env(fixture.env).cwd(fixture.upstream).quiet();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.boot();
 
@@ -153,7 +153,7 @@ test('it refuses an abbreviated commit id on the ref step', async () => {
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.boot();
 
@@ -176,7 +176,7 @@ test('it refuses an abbreviated commit id on the ref step', async () => {
 test("it lists the gh account's repositories and an owner's on request, and leaves on esc", async () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedInGH() });
 
   ctx.boot();
 
@@ -206,7 +206,7 @@ test("it lists the gh account's repositories and an owner's on request, and leav
 test('it shows a repository the daemon cannot read on the list', async () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.boot();
 
@@ -228,7 +228,7 @@ test('it opens the target step after a typed repository on a target that takes a
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.writeConfig({
     targets: {
@@ -296,7 +296,7 @@ test('it opens the target step after a typed repository on a target that takes a
 test('it lists github on the one target that takes a workspace without a target step, and esc returns to the agent', async () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.writeConfig({
     targets: { local: { provider: 'local-pty' }, far: { provider: 'nowhere' } },
@@ -324,7 +324,7 @@ test("it builds each target's own default destination when the target changes", 
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   const name = `upstream-main-${fixture.sha.slice(0, 7)}`;
 
@@ -397,7 +397,7 @@ test('it leaves a destination under a ~ root to a remote target and refuses a ty
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   // the imp target url is unreachable, which is fine because no spawn is sent.
   ctx.writeConfig({
@@ -454,7 +454,7 @@ test('it offers the other URL form after a failed probe and checks that form on 
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
   mkdirSync(join(ctx.home, 'mirror', 'acme'), { recursive: true });
 
   await $`git clone --quiet --bare --template= ${fixture.upstream} ${join(ctx.home, 'mirror', 'acme', 'app.git')}`
@@ -496,7 +496,7 @@ test('it drops a typed destination when the repository changes', async () => {
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   const other = join(ctx.home, 'other.git');
 

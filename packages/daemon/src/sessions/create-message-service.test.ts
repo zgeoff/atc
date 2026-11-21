@@ -2,8 +2,6 @@ import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import { createStateStore } from '@atc/store';
@@ -11,6 +9,8 @@ import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entr
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { updateEndedFleetMessages } from '../fleet/update-ended-fleet-messages';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
@@ -30,7 +30,7 @@ interface SetupTestConfig {
 }
 
 async function setupTest(config: SetupTestConfig) {
-  const temporaryDirectory = setupTempDir('atc-message-service-');
+  const temporaryDirectory = createTempDir('atc-message-service-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

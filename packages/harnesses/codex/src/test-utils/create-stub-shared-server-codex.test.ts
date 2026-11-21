@@ -3,8 +3,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildStubRecordingATC } from '@atc/core/test-utils/build-stub-recording-atc';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { run } from '@zgeoff/testing/process';
 import { createStubSharedServerCodex } from './create-stub-shared-server-codex';
 
 function setupTest() {
@@ -14,7 +14,9 @@ function setupTest() {
     rmSync(directory, { recursive: true, force: true });
   });
 
-  const atc = createStubBin(directory, 'atc', buildStubRecordingATC(join(directory, 'hooks.log')));
+  const atc = createStubBin(directory, 'atc', {
+    script: buildStubRecordingATC(join(directory, 'hooks.log')),
+  }).path;
 
   writeFileSync(join(directory, 'composer.js'), "console.log('COMPOSER_RAN');\n");
 
@@ -29,12 +31,12 @@ function setupTest() {
 test('it runs the hooks of a later start with the session of the first start', async () => {
   const ctx = setupTest();
 
-  await runCommand([ctx.stub], {
+  await run([ctx.stub], {
     cwd: ctx.directory,
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
 
-  await runCommand([ctx.stub], {
+  await run([ctx.stub], {
     cwd: ctx.directory,
     env: { ...process.env, ATC_SESSION_ID: 's-2' },
   });
@@ -50,12 +52,12 @@ test('it runs the hooks of a later start with the session of the first start', a
 test('it runs the hooks of a start with --no-daemon under its own session', async () => {
   const ctx = setupTest();
 
-  await runCommand([ctx.stub], {
+  await run([ctx.stub], {
     cwd: ctx.directory,
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
 
-  await runCommand([ctx.stub, '--no-daemon'], {
+  await run([ctx.stub, '--no-daemon'], {
     cwd: ctx.directory,
     env: { ...process.env, ATC_SESSION_ID: 's-2' },
   });
@@ -69,7 +71,7 @@ test('it runs the hooks of a start with --no-daemon under its own session', asyn
 test('it reports the thread it resumes', async () => {
   const ctx = setupTest();
 
-  await runCommand([ctx.stub, '--no-daemon', 'resume', 't-9'], {
+  await run([ctx.stub, '--no-daemon', 'resume', 't-9'], {
     cwd: ctx.directory,
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
@@ -83,10 +85,10 @@ test('it reports the thread it resumes', async () => {
 test('it prints its arguments, then runs the composer', async () => {
   const ctx = setupTest();
 
-  const run = await runCommand([ctx.stub, '--no-daemon', 'resume', 't-9'], {
+  const result = await run([ctx.stub, '--no-daemon', 'resume', 't-9'], {
     cwd: ctx.directory,
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
 
-  expect(run.stdout).toBe('FAKE_CODEX_UP args: --no-daemon resume t-9\nCOMPOSER_RAN\n');
+  expect(result.stdout).toBe('FAKE_CODEX_UP args: --no-daemon resume t-9\nCOMPOSER_RAN\n');
 });

@@ -1,8 +1,8 @@
-import type { Clock } from '@atc/core';
 import { ansi } from '@atc/core';
 import { MAX_CHUNK, PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { OutputClient } from '../types';
 import { createAttachRegistry } from './create-attach-registry';
 import type { Dims } from './create-attach-registry';
@@ -25,7 +25,7 @@ interface SessionOutputDeps {
     SessionManager,
     'sessions' | 'collectDescriptors' | 'findProvider' | 'requireExecution' | 'attach'
   >;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
   readonly emitEvent: (event: EventMsg, scope: HookScope | null) => void;
   readonly findHookScope: (sessionID: SessionID) => HookScope | null;

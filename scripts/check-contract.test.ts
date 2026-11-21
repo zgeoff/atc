@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('check-contract-');
+  const temporaryDirectory = createTempDir('check-contract-');
 
   symlinkSync(
     join(import.meta.dir, '../node_modules'),
@@ -47,7 +47,7 @@ test('it writes each declaration file to the snapshot with the specifiers Node r
     "export const SOCKET_NAME = 'atc.sock';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-contract.ts'),
     ctx.directory,
@@ -111,7 +111,7 @@ test('it passes declarations that match the snapshot', async () => {
     '// index.d.ts\nexport type SessionID = string;\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-contract.ts'),
     ctx.directory,
@@ -157,7 +157,7 @@ test('it fails on declarations that differ from the snapshot, naming the first l
     '// index.d.ts\nexport type SessionID = string;\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-contract.ts'),
     ctx.directory,
@@ -201,7 +201,7 @@ test('it removes the declarations it emitted when the check fails', async () => 
 
   mkdirSync(join(ctx.directory, 'tmp'));
 
-  await runCommand(
+  await run(
     [
       process.execPath,
       join(import.meta.dir, 'check-contract.ts'),

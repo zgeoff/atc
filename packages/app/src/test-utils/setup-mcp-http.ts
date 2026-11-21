@@ -1,9 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import { systemClock } from '@atc/core';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
 import { createTransportCaller, openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
@@ -11,6 +8,9 @@ import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authentic
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { systemClock } from '@zgeoff/std';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { buildLocalTarget } from './build-local-target';
 
@@ -19,7 +19,7 @@ interface MCPHTTPSetupOptions {
 }
 
 export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
-  const temporaryDirectory = setupTempDir('atc-mcp-http-');
+  const temporaryDirectory = createTempDir('atc-mcp-http-');
 
   // Registered after the directory, so it releases first: each part stops
   // before the one it depends on, and the directory goes last.
@@ -27,7 +27,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   const teardown = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.defer(temporaryDirectory.teardown);
+  stack.defer(temporaryDirectory.remove);
 
   const socketPath = join(temporaryDirectory.path, 'daemon.sock');
   const paths = resolvePaths({ HOME: temporaryDirectory.path });

@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStateStore } from '../stores/create-state-store';
 import { createMigratedStateDB } from './create-migrated-state-db';
 import { seedSweptIdempotencyKeys } from './seed-swept-idempotency-keys';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-remove-completed-keys-');
+  const temporaryDirectory = createTempDir('atc-remove-completed-keys-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

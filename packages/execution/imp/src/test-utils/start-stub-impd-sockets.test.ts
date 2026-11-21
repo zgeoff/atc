@@ -1,7 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { TEST_TOKEN, startTestImpd } from '@impz/testing';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { startStubImpdSockets } from './start-stub-impd-sockets';
 
 test('it refuses an exec open as a start whose broker is not ready', async () => {

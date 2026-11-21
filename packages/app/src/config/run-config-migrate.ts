@@ -1,5 +1,5 @@
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
-import { systemClock } from '@atc/core';
+import { systemClock } from '@zgeoff/std';
 import { PROCESS_IO } from '../cli/process-io';
 import type { ProcessIO } from '../cli/process-io';
 import { buildMigratedConfig } from './build-migrated-config';

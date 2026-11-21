@@ -1,8 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { LEGACY_BROKER_PLACEHOLDER } from '@atc/config';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { AuthProfile, LaunchTicket } from '@atc/plugin-api';
 import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
@@ -10,6 +8,8 @@ import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildMockAuthBinding } from '../test-utils/build-mock-auth-binding';
 import { buildStubBinderBroker } from '../test-utils/build-stub-binder-broker';
@@ -19,7 +19,7 @@ import { buildAuthBinding } from './build-auth-binding';
 import { createRuntimeAuthBinder } from './create-runtime-auth-binder';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-auth-binder-');
+  const temporaryDirectory = createTempDir('atc-auth-binder-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

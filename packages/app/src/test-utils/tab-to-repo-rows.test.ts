@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-signed-out-gh';
+import { createStubBin } from '@zgeoff/testing/bin';
 import { startTUIHarness } from './start-tui-harness';
 import { tabToRepoRows } from './tab-to-repo-rows';
 
@@ -9,7 +9,7 @@ import { tabToRepoRows } from './tab-to-repo-rows';
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: () => {} });
 
-  createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(tui.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   tui.boot();
 

@@ -1,8 +1,6 @@
 import { expect, test } from 'bun:test';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
 import { createStateStore } from '@atc/store';
@@ -10,6 +8,7 @@ import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entr
 import type { SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
 import { faker } from '@faker-js/faker';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 
 test('it keeps the last-used agent when a restored session reports its start', async () => {
   const sessionID = toSessionID(faker.string.uuid());

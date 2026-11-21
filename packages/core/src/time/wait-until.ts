@@ -1,7 +1,7 @@
-import type { Clock } from './system-clock';
+import type { Clock } from '@zgeoff/std';
 
 interface WaitUntilOptions {
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   readonly intervalMs: number;
 

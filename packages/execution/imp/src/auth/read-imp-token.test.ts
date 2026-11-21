@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readImpToken } from './read-imp-token';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-read-imp-token-');
+  const temporaryDirectory = createTempDir('atc-read-imp-token-');
 
   return { directory: temporaryDirectory.path };
 }

@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { readDaemonRecord } from '@atc/lifecycle';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { z } from 'zod';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-tcp-');
+  const temporaryDirectory = createTempDir('atc-e2e-tcp-');
 
   return {
     home: temporaryDirectory.path,

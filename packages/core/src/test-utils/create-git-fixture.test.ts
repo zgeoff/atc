@@ -1,10 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { updateEnv } from '@zgeoff/testing';
+import { run } from '@zgeoff/testing/process';
 import { $ } from 'bun';
 import { createGitFixture } from './create-git-fixture';
-import { runCommand } from './run-command';
-import { updateEnv } from './update-env';
 
 test('it pushes the initial commit to the upstream main branch', async () => {
   const fixture = await createGitFixture();
@@ -90,7 +90,7 @@ test('it removes its directory once removed', async () => {
 });
 
 test('it refuses to build its template outside the test home', async () => {
-  const result = await runCommand(
+  const result = await run(
     [
       process.execPath,
       '-e',
@@ -98,9 +98,7 @@ test('it refuses to build its template outside the test home', async () => {
     ],
     {
       cwd: import.meta.dir,
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(([name]) => name !== 'ATC_TEST_HOME'),
-      ),
+      env: { ATC_TEST_HOME: undefined },
     },
   );
 

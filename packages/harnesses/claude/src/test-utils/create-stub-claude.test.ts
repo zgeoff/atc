@@ -2,15 +2,14 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubRecordingATC } from '@atc/core/test-utils/build-stub-recording-atc';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { createStubClaude } from './create-stub-claude';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-claude-');
+  const temporaryDirectory = createTempDir('atc-stub-claude-');
   const settings = join(temporaryDirectory.path, 'settings.json');
 
   writeFileSync(
@@ -35,7 +34,7 @@ test('it reports a start and a permission prompt through the settings hook comma
     composer: join(ctx.directory, 'composer.js'),
   });
 
-  await runCommand([stub, '--settings', ctx.settings], {
+  await run([stub, '--settings', ctx.settings], {
     env: { ...process.env, HOME: ctx.directory, ATC_SESSION_ID: 's-1' },
   });
 
@@ -62,7 +61,7 @@ test('it prints its arguments, its TERM, the parent-session variable, and the PT
     composer: join(ctx.directory, 'composer.js'),
   });
 
-  const run = await runCommand([stub, '--settings', ctx.settings], {
+  const result = await run([stub, '--settings', ctx.settings], {
     env: {
       ...process.env,
       HOME: ctx.directory,
@@ -72,7 +71,7 @@ test('it prints its arguments, its TERM, the parent-session variable, and the PT
     },
   });
 
-  expect(run.stdout).toBe(
+  expect(result.stdout).toBe(
     `FAKE_CLAUDE_UP args: --settings ${ctx.settings}\nFAKE_CLAUDE_TERM:[dumb]\nFAKE_CLAUDE_PARENT:[parent]\nFAKE_CLAUDE_PTY_LIB:[/opt/pty/librust_pty.so]\n`,
   );
 });
@@ -85,12 +84,12 @@ test('it echoes each input line once its reports are sent', async () => {
     composer: join(ctx.directory, 'composer.js'),
   });
 
-  const run = await runCommand([stub, '--settings', ctx.settings], {
+  const result = await run([stub, '--settings', ctx.settings], {
     env: { ...process.env, HOME: ctx.directory },
-    stdin: Buffer.from('hello\nworld\n'),
+    input: 'hello\nworld\n',
   });
 
-  expect(run.stdout).toEndWith('GOT:hello\nGOT:world\n');
+  expect(result.stdout).toEndWith('GOT:hello\nGOT:world\n');
 });
 
 test('it appends its atc session id to the starts log on every run', async () => {
@@ -102,7 +101,7 @@ test('it appends its atc session id to the starts log on every run', async () =>
   });
 
   for (const id of ['s-1', 's-2']) {
-    await runCommand([stub, '--settings', ctx.settings], {
+    await run([stub, '--settings', ctx.settings], {
       env: { ...process.env, HOME: ctx.directory, ATC_SESSION_ID: id },
     });
   }
@@ -123,7 +122,7 @@ test('it reports the payloads of the events file after the permission prompt', a
     '{"hook_event_name":"Stop","session_id":"fake-1"}\n\n{"hook_event_name":"SessionEnd","session_id":"fake-1"}\n',
   );
 
-  await runCommand([stub, '--settings', ctx.settings], {
+  await run([stub, '--settings', ctx.settings], {
     env: { ...process.env, HOME: ctx.directory },
   });
 
@@ -154,9 +153,9 @@ test('it exits after its reports without reading input when the home asks it to'
 
   writeFileSync(join(ctx.directory, 'fake-claude-exit'), '');
 
-  const run = await runCommand([stub, '--settings', ctx.settings], {
+  const result = await run([stub, '--settings', ctx.settings], {
     env: { ...process.env, HOME: ctx.directory },
-    stdin: Buffer.from('hello\n'),
+    input: 'hello\n',
   });
 
   const hooks = readFileSync(join(ctx.directory, 'hooks.jsonl'), 'utf8')
@@ -164,8 +163,8 @@ test('it exits after its reports without reading input when the home asks it to'
     .split('\n')
     .map((line): unknown => JSON.parse(line));
 
-  expect(run.exitCode).toBe(0);
-  expect(run.stdout).not.toInclude('GOT:hello');
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).not.toInclude('GOT:hello');
 
   expect(hooks).toStrictEqual([
     {
@@ -189,9 +188,9 @@ test('it runs the composer after its reports when the home asks for one last', a
 
   writeFileSync(join(ctx.directory, 'fake-claude-composer-last'), '');
 
-  const run = await runCommand([stub, '--settings', ctx.settings], {
+  const result = await run([stub, '--settings', ctx.settings], {
     env: { ...process.env, HOME: ctx.directory },
-    stdin: Buffer.from('hello\n'),
+    input: 'hello\n',
   });
 
   const hooks = readFileSync(join(ctx.directory, 'hooks.jsonl'), 'utf8')
@@ -199,8 +198,8 @@ test('it runs the composer after its reports when the home asks for one last', a
     .split('\n')
     .map((line): unknown => JSON.parse(line));
 
-  expect(run.stdout).toEndWith('COMPOSER_RAN\n');
-  expect(run.stdout).not.toInclude('GOT:hello');
+  expect(result.stdout).toEndWith('COMPOSER_RAN\n');
+  expect(result.stdout).not.toInclude('GOT:hello');
 
   expect(hooks).toStrictEqual([
     {
@@ -222,7 +221,7 @@ test('it reports its atc session id as the agent session when the home asks it t
 
   writeFileSync(join(ctx.directory, 'fake-claude-own-id'), '');
 
-  await runCommand([stub, '--settings', ctx.settings], {
+  await run([stub, '--settings', ctx.settings], {
     env: { ...process.env, HOME: ctx.directory, ATC_SESSION_ID: 's-own' },
   });
 
@@ -251,13 +250,13 @@ test('it exits at once without a report when it resumes an agent session the hom
 
   writeFileSync(join(ctx.directory, 'fake-claude-dies-agent-a'), '');
 
-  const run = await runCommand([stub, '--settings', ctx.settings, '--resume', 'agent-a'], {
+  const result = await run([stub, '--settings', ctx.settings, '--resume', 'agent-a'], {
     env: { ...process.env, HOME: ctx.directory },
-    stdin: Buffer.from('hello\n'),
+    input: 'hello\n',
   });
 
-  expect(run.exitCode).toBe(0);
-  expect(run.stdout).not.toInclude('GOT:hello');
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).not.toInclude('GOT:hello');
   expect(readdirSync(ctx.directory)).not.toContain('hooks.jsonl');
 });
 
@@ -271,12 +270,12 @@ test('it reports nothing and only echoes input while the home holds its start', 
 
   writeFileSync(join(ctx.directory, 'fake-claude-hold-start'), '');
 
-  const run = await runCommand([stub, '--settings', ctx.settings], {
+  const result = await run([stub, '--settings', ctx.settings], {
     env: { ...process.env, HOME: ctx.directory },
-    stdin: Buffer.from('hello\n'),
+    input: 'hello\n',
   });
 
-  expect(run.stdout).toEndWith('GOT:hello\n');
+  expect(result.stdout).toEndWith('GOT:hello\n');
   expect(readdirSync(ctx.directory)).not.toContain('hooks.jsonl');
 });
 
@@ -292,11 +291,11 @@ test('it runs the composer in its place when the home asks for one', async () =>
 
   writeFileSync(join(ctx.directory, 'fake-claude-composer'), '');
 
-  const run = await runCommand([stub, '--settings', ctx.settings], {
+  const result = await run([stub, '--settings', ctx.settings], {
     env: { ...process.env, HOME: ctx.directory },
   });
 
-  expect(run.stdout).toEndWith('COMPOSER_RAN\n');
+  expect(result.stdout).toEndWith('COMPOSER_RAN\n');
   expect(readdirSync(ctx.directory)).not.toContain('hooks.jsonl');
 });
 
@@ -350,7 +349,10 @@ test('it holds its reports at the gate until an input line arrives, removing the
 
 test('it runs a daemon restart after its start once and removes the request', async () => {
   const ctx = setupTest();
-  const atc = createStubBin(ctx.directory, 'atc', buildStubRecordingATC('/dev/stdout'));
+
+  const atc = createStubBin(ctx.directory, 'atc', {
+    script: buildStubRecordingATC('/dev/stdout'),
+  }).path;
 
   const stub = createStubClaude(ctx.directory, {
     atc: [atc],
@@ -359,7 +361,7 @@ test('it runs a daemon restart after its start once and removes the request', as
 
   writeFileSync(join(ctx.directory, 'fake-claude-restart'), '');
 
-  await runCommand([stub, '--settings', ctx.settings], {
+  await run([stub, '--settings', ctx.settings], {
     env: { ...process.env, HOME: ctx.directory, ATC_SESSION_ID: 's-1' },
   });
 
@@ -372,7 +374,10 @@ test('it runs a daemon restart after its start once and removes the request', as
 
 test('it taps its own session into the tap log when the home asks it to', async () => {
   const ctx = setupTest();
-  const atc = createStubBin(ctx.directory, 'atc', buildStubRecordingATC('/dev/stdout'));
+
+  const atc = createStubBin(ctx.directory, 'atc', {
+    script: buildStubRecordingATC('/dev/stdout'),
+  }).path;
 
   const stub = createStubClaude(ctx.directory, {
     atc: [atc],
@@ -381,7 +386,7 @@ test('it taps its own session into the tap log when the home asks it to', async 
 
   writeFileSync(join(ctx.directory, 'fake-claude-tap'), '');
 
-  await runCommand([stub, '--settings', ctx.settings], {
+  await run([stub, '--settings', ctx.settings], {
     env: { ...process.env, HOME: ctx.directory, ATC_SESSION_ID: 's-tap' },
   });
 

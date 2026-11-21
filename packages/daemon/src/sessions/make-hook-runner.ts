@@ -1,7 +1,7 @@
 import type { HookEntry, HooksConfig } from '@atc/config';
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import type { EventMsg } from '@atc/protocol/wire';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import type { Subprocess } from 'bun';
 
 export interface HookScope {
@@ -20,7 +20,7 @@ export interface HookOutcome {
 interface HookRunnerOptions {
   readonly onSettled?: (event: EventMsg, outcomes: readonly HookOutcome[]) => void;
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 }
 
 export function makeHookRunner(hooks: HooksConfig, options: HookRunnerOptions = {}): RunHooks {
@@ -59,7 +59,7 @@ function isUnderDir(candidate: string, directory: string): boolean {
 async function runHooks(
   entries: readonly HookEntry[],
   event: EventMsg,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
   onSettled: (event: EventMsg, outcomes: readonly HookOutcome[]) => void,
 ): Promise<void> {
   const outcomes = await Promise.all(entries.map((entry) => runHook(entry, event, clock)));
@@ -69,7 +69,11 @@ async function runHooks(
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-async function runHook(entry: HookEntry, event: EventMsg, clock: Clock): Promise<HookOutcome> {
+async function runHook(
+  entry: HookEntry,
+  event: EventMsg,
+  clock: Pick<Clock, 'now' | 'schedule'>,
+): Promise<HookOutcome> {
   let subprocess: ReturnType<typeof Bun.spawn>;
 
   try {

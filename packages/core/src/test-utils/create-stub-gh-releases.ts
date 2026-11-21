@@ -1,8 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubBin } from '@zgeoff/testing/bin';
 import { z } from 'zod';
 import { toShellArg } from '../index';
-import { createStubBin } from './create-stub-bin';
 
 const RELEASE_SCHEMA = z.object({ tagName: z.string(), isLatest: z.boolean() });
 const RELEASES_SCHEMA = z.array(RELEASE_SCHEMA);
@@ -39,10 +39,8 @@ export function createStubGHReleases(
   const stateLiteral = toShellArg(state);
   const rivalsLiteral = toShellArg(rivals);
 
-  createStubBin(
-    bin,
-    'gh',
-    [
+  createStubBin(bin, 'gh', {
+    script: [
       '#!/bin/sh',
       'set -eu',
       `printf '%s\\n' "$*" >> ${toShellArg(calls)}`,
@@ -63,7 +61,7 @@ export function createStubGHReleases(
       'esac',
       '',
     ].join('\n'),
-  );
+  });
 
   return {
     directory: bin,

@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { RESET_INPUT_MODES, createInputModeTracker } from '@atc/core';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { Terminal } from '@xterm/headless';
+import { waitFor } from '@zgeoff/testing';
 import { createScreenModel } from './create-screen-model';
 import { findCellLink } from './find-cell-link';
 

@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { writePTYLibrary } from './write-pty-library';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-pty-library-');
+  const temporaryDirectory = createTempDir('atc-pty-library-');
 
   return { directory: temporaryDirectory.path };
 }

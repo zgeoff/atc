@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { updateEnv } from '@atc/core/test-utils/update-env';
+import { updateEnv } from '@zgeoff/testing';
 import { $ } from 'bun';
 import { resolvePathSource } from './resolve-path-source';
 

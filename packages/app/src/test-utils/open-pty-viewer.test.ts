@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import type { Server } from 'bun';
 import { openPTYViewer } from './open-pty-viewer';
 

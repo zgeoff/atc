@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('check-reach-');
+  const temporaryDirectory = createTempDir('check-reach-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -33,7 +33,7 @@ test('it passes a gateway that reaches only what its allowance holds', async () 
     "import { GATEWAY } from './gateway/run-gateway';\n\nconsole.log(GATEWAY);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -76,7 +76,7 @@ test('it passes a gateway that reaches a new file in an allowed package with no 
     "import { HELPER } from '@atc/core';\n\nconsole.log(HELPER);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -111,7 +111,7 @@ test('it fails on a gateway that reaches the daemon through an allowed module', 
     "const clients = await import('./auth/run-clients');\n\nconsole.log(clients.CLIENTS);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -154,7 +154,7 @@ test('it fails on a gateway that reaches a module in the daemon package', async 
     "import { DAEMON } from '@atc/daemon';\n\nconsole.log(DAEMON);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -185,7 +185,7 @@ test('it fails on a gateway that reaches a daemon module written as .mjs', async
     "import { START } from './daemon/start.mjs';\n\nconsole.log(START);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -216,7 +216,7 @@ test('it fails on a type-only reach that the bundle drops', async () => {
     "import type { Screen } from './client/index';\n\nconst screens: Screen[] = [];\n\nconsole.log(screens);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -247,7 +247,7 @@ test('it fails on a reached module outside every package src/ folder', async () 
     "import { HELPER } from '../../unlisted/new-helper';\n\nconsole.log(HELPER);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -278,7 +278,7 @@ test('it fails on a reached module in a package outside the allowance', async ()
     "import { HELPER } from '../../harnesses/claude/src/new-helper';\n\nconsole.log(HELPER);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -321,7 +321,7 @@ test('it follows a workspace package import through a wildcard export', async ()
     "import { BOOT } from '@atc/lifecycle/boot/boot-daemon';\n\nconsole.log(BOOT);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -364,7 +364,7 @@ test('it follows a workspace package import through the package exports', async 
     "import { BOOT } from '@atc/lifecycle';\n\nconsole.log(BOOT);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -415,7 +415,7 @@ test('it follows a workspace package import through a named entry point', async 
     "import { OPEN } from '@atc/store/sqlite';\n\nconsole.log(OPEN);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -457,7 +457,7 @@ test('it fails on a gateway that reaches the store outside its sqlite folder', a
     "import { STORE } from '@atc/store';\n\nconsole.log(STORE);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -543,7 +543,7 @@ test('it passes reporters whose static imports load only light entry points', as
     'export const MUX = 1;\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -625,7 +625,7 @@ test('it fails on a reporter whose static imports load a root entry point', asyn
     'export const MUX = 1;\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -711,7 +711,7 @@ test('it fails on a CLI entry whose static imports load the core schema entry', 
     'export const MUX = 1;\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -756,7 +756,7 @@ test('it fails on a missing reporter entry beside the CLI entry', async () => {
     'export const REPORT = 1;\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -791,7 +791,7 @@ test('it passes a daemon entry that never reaches the mcp-auth.db opener', async
     "export { SERVE } from './serve';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -828,7 +828,7 @@ test('it fails on a daemon entry that reaches the mcp-auth.db opener through a d
     "export { SERVE } from './serve';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -872,7 +872,7 @@ test('it fails on a missing daemon entry beside the CLI entry', async () => {
     'export const OPEN = 1;\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -921,7 +921,7 @@ test('it fails on a missing mcp-auth.db opener beside the CLI entry', async () =
     'export const STUB = 1;\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -954,7 +954,7 @@ test('it fails on a daemon entry that reaches the mcp-auth.db opener through a t
     "export type { Open } from '../../app/src/mcp/open-mcp-auth-database';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -987,7 +987,7 @@ test('it fails on a daemon testing entry that reaches the mcp-auth.db opener', a
     "export { OPEN } from '../../../app/src/mcp/open-mcp-auth-database';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1030,7 +1030,7 @@ test('it fails on a daemon test helper beside the test daemon that reaches the m
     "export { OPEN } from '../../../app/src/mcp/open-mcp-auth-database';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1063,7 +1063,7 @@ test('it fails on a daemon module that opens mcp-auth.db by its file name', asyn
     "export { SERVE } from './serve';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1091,7 +1091,7 @@ test('it fails on a daemon module that names mcp-auth.db inside a template', asy
     `export const SERVE = (dir: string) => \`\${dir}/mcp-auth.db\`;\n`,
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1119,7 +1119,7 @@ test('it fails on a daemon test helper that names mcp-auth.db in upper case', as
     "export const STUB = '/state/MCP-AUTH.DB';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1152,7 +1152,7 @@ test('it fails on a daemon test helper that reads the config path of mcp-auth.db
     "import { mcpAuthDBFile } from '../../../config/src/host/constants';\n\nexport const STUB = mcpAuthDBFile;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1190,7 +1190,7 @@ test('it passes a daemon entry that reaches the config modules that define the m
     "export * from '../../config/src/host/constants';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1217,7 +1217,7 @@ test('it passes a daemon module that names mcp-auth.db only in a comment', async
     '// never opens mcp-auth.db\nexport const DAEMON = 1;\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1257,7 +1257,7 @@ test('it passes a contract that imports only its own files, zod, @orpc/contract 
 
   await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1304,7 +1304,7 @@ test('it fails on a contract that reaches a private workspace package', async ()
 
   await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1350,7 +1350,7 @@ test('it fails on a contract file that imports a package the contract does not d
 
   await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,
@@ -1382,7 +1382,7 @@ test('it fails on a contract package with no light entry', async () => {
   await Bun.write(join(ctx.directory, 'packages/contract/src/index.ts'), 'export const A = 1;\n');
   await Bun.write(join(ctx.directory, 'packages/app/src/gateway.ts'), 'console.log(1);\n');
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-reach.ts'),
     ctx.directory,

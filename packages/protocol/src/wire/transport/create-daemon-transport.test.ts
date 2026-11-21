@@ -1,9 +1,9 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openDaemonConnection } from '@atcx/client/connection';
 import type { DaemonConnection } from '@atcx/client/connection';
 import { startStubDaemon } from '@atcx/client/test-utils/start-stub-daemon';
+import { waitFor } from '@zgeoff/testing';
 import { createDaemonTransport } from './create-daemon-transport';
 
 async function setupTest() {

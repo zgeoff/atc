@@ -1,7 +1,7 @@
 import { FFIType, dlopen, ptr } from 'bun:ffi';
 import { closeSync, writeFileSync } from 'node:fs';
-import type { Clock } from '@atc/core';
-import { systemClock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 
 export interface DaemonLock {
   readonly dispose: () => void;
@@ -21,7 +21,7 @@ const RETRY_MS = 50;
 export async function claimDaemonLock(
   lockPath: string,
   waitMs: number,
-  clock: Clock = systemClock,
+  clock: Pick<Clock, 'now' | 'schedule'> = systemClock,
 ): Promise<DaemonLock | null> {
   writeFileSync(lockPath, '', { flag: 'a' });
 

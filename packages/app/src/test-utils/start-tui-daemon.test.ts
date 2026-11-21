@@ -1,8 +1,8 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { waitFor } from '@zgeoff/testing';
 import { startTUIDaemon } from './start-tui-daemon';
 import { startTUIHarness } from './start-tui-harness';
 

@@ -163,7 +163,7 @@ test('it rejects an answer when no request under the method is sent before the w
 
   expect(daemon.answer('agents.list', {})).rejects.toThrowWithMessage(
     Error,
-    'no agents.list request is waiting for an answer',
+    'timed out after 50 ms: no agents.list request is waiting for an answer',
   );
 });
 
@@ -185,6 +185,6 @@ test('it rejects an answer the client never reacts to before the wait ends', () 
 
   expect(daemon.answer('agents.list', {})).rejects.toThrowWithMessage(
     Error,
-    'nothing reacted to the agents.list answer',
+    'timed out after 50 ms: nothing reacted to the agents.list answer',
   );
 });

@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
+import { updateEnv } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { resolveHeadlessExecutable } from './resolve-headless-executable';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-headless-exec-');
+  const temporaryDirectory = createTempDir('atc-headless-exec-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -31,7 +31,7 @@ test('it runs a JavaScript claude entry under node', () => {
 test('it resolves a bare binary name on PATH for a compiled binary', () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.directory, 'bin'), 'fake-claude', '#!/bin/sh\n');
+  createStubBin(join(ctx.directory, 'bin'), 'fake-claude', { script: '#!/bin/sh\n' });
   updateEnv('PATH', join(ctx.directory, 'bin'));
 
   expect(resolveHeadlessExecutable('fake-claude', true)).toStrictEqual({

@@ -10,13 +10,13 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { lock } from 'proper-lockfile';
 import { withClaudeConfigLock } from './with-claude-config-lock';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-claude-lock-');
+  const temporaryDirectory = createTempDir('atc-claude-lock-');
 
   return { directory: temporaryDirectory.path };
 }

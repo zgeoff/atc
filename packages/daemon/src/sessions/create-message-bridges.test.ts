@@ -2,15 +2,14 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { HookEvent } from '@atc/protocol/session';
 import { createStateStore } from '@atc/store';
 import { buildMockMessageRecord } from '@atc/store/test-utils/build-mock-message-record';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toMessageID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
@@ -27,7 +26,7 @@ import type { SessionRuntime } from './create-session-runtime';
 import { createTapRegistry } from './create-tap-registry';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-message-bridges-');
+  const temporaryDirectory = createTempDir('atc-message-bridges-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

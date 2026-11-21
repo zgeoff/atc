@@ -5,10 +5,9 @@ import { spawnGrokSession } from '@atc/app/test-utils/spawn-grok-session';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { resolvePaths } from '@atc/config';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 
 function setupTest() {
   return startTUIHarness({ createStateDB: createMigratedStateDB });

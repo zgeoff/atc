@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readDaemonRecord } from './read-daemon-record';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-daemon-record-');
+  const temporaryDirectory = createTempDir('atc-daemon-record-');
 
   return { recordPath: join(temporaryDirectory.path, 'daemon.json') };
 }

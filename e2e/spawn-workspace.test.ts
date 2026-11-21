@@ -13,11 +13,7 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockExecutionTarget } from '@atc/daemon/test-utils/build-mock-execution-target';
 import { startGitHTTPServer } from '@atc/daemon/test-utils/start-git-http-server';
 import { createLocalPTYProvider } from '@atc/execution-local';
@@ -29,6 +25,8 @@ import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
 import { $ } from 'bun';
 import invariant from 'tiny-invariant';
 
@@ -3094,11 +3092,9 @@ test("it runs git from the daemon's PATH for a git spawn on an allowed transport
     }),
   });
 
-  createStubBin(
-    daemon.directory,
-    'git',
-    `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
-  );
+  createStubBin(daemon.directory, 'git', {
+    script: `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
+  });
 
   updateEnv('PATH', `${daemon.directory}:${process.env['PATH'] ?? ''}`);
 
@@ -3139,11 +3135,9 @@ test('it refuses a git source on a local transport before it runs git, transferr
     }),
   });
 
-  createStubBin(
-    ctx.directory,
-    'git',
-    `#!/bin/sh\necho ran >> '${join(ctx.directory, 'git-ran')}'\nexit 1\n`,
-  );
+  createStubBin(ctx.directory, 'git', {
+    script: `#!/bin/sh\necho ran >> '${join(ctx.directory, 'git-ran')}'\nexit 1\n`,
+  });
 
   updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
 
@@ -3442,11 +3436,9 @@ test("it runs git from the daemon's PATH for a probe under a valid transport lis
     }),
   });
 
-  createStubBin(
-    daemon.directory,
-    'git',
-    `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
-  );
+  createStubBin(daemon.directory, 'git', {
+    script: `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
+  });
 
   updateEnv('PATH', `${daemon.directory}:${process.env['PATH'] ?? ''}`);
 
@@ -3485,11 +3477,9 @@ test('it refuses a probe under an invalid transport list before any git runs', a
     }),
   });
 
-  createStubBin(
-    daemon.directory,
-    'git',
-    `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
-  );
+  createStubBin(daemon.directory, 'git', {
+    script: `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
+  });
 
   updateEnv('PATH', `${daemon.directory}:${process.env['PATH'] ?? ''}`);
 
@@ -3538,11 +3528,9 @@ test('it refuses a git spawn under an invalid transport list before any git runs
     }),
   });
 
-  createStubBin(
-    daemon.directory,
-    'git',
-    `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
-  );
+  createStubBin(daemon.directory, 'git', {
+    script: `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
+  });
 
   updateEnv('PATH', `${daemon.directory}:${process.env['PATH'] ?? ''}`);
 
@@ -3590,11 +3578,9 @@ test("it runs git from the daemon's PATH for a checkout spawn under a valid tran
     }),
   });
 
-  createStubBin(
-    ctx.directory,
-    'git',
-    `#!/bin/sh\necho ran >> '${join(ctx.directory, 'git-ran')}'\nexit 1\n`,
-  );
+  createStubBin(ctx.directory, 'git', {
+    script: `#!/bin/sh\necho ran >> '${join(ctx.directory, 'git-ran')}'\nexit 1\n`,
+  });
 
   updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
 
@@ -3639,11 +3625,9 @@ test('it refuses a checkout spawn under an invalid transport list before any git
     }),
   });
 
-  createStubBin(
-    ctx.directory,
-    'git',
-    `#!/bin/sh\necho ran >> '${join(ctx.directory, 'git-ran')}'\nexit 1\n`,
-  );
+  createStubBin(ctx.directory, 'git', {
+    script: `#!/bin/sh\necho ran >> '${join(ctx.directory, 'git-ran')}'\nexit 1\n`,
+  });
 
   updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
 

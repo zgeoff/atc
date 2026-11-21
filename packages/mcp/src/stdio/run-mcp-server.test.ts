@@ -1,11 +1,9 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import type { JSONRPCMessage } from '@modelcontextprotocol/server';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createChannelCaller } from '../tools/create-channel-caller';
 import { runMCPServer } from './run-mcp-server';
 
@@ -73,7 +71,7 @@ test('it answers initialize before it boots a daemon, and boots one for the firs
 test('it serves a remote session through its bridge socket and never boots a daemon', async () => {
   const ctx = await setupTest();
 
-  const bridgePath = join(setupTempDir('atc-mcp-bridge-').path, 'bridge.sock');
+  const bridgePath = join(createTempDir('atc-mcp-bridge-').path, 'bridge.sock');
   const received: string[] = [];
 
   const bridge = Bun.listen({
@@ -114,7 +112,7 @@ test('it serves a remote session through its bridge socket and never boots a dae
 test('it calls a named daemon through the channels the entry opens, never the bridge socket of its session', async () => {
   const ctx = await setupTest();
 
-  const bridgePath = join(setupTempDir('atc-mcp-named-').path, 'bridge.sock');
+  const bridgePath = join(createTempDir('atc-mcp-named-').path, 'bridge.sock');
   const received: string[] = [];
 
   const bridge = Bun.listen({

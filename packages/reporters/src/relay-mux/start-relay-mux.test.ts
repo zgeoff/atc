@@ -4,14 +4,14 @@ import { connect } from 'node:net';
 import type { Socket } from 'node:net';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createByteLineSplitter, formatRelayFrame, parseGuestFrame } from '@atc/protocol/relay';
 import type { DaemonFrame, ParsedGuestFrame } from '@atc/protocol/relay';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startRelayMux } from './start-relay-mux';
 
 async function setupTest() {
-  const directory = setupTempDir('atc-relay-mux-');
+  const directory = createTempDir('atc-relay-mux-');
   const socketPath = join(directory.path, 'bridge.sock');
   const splitLines = createByteLineSplitter();
   const stdout: ParsedGuestFrame[] = [];

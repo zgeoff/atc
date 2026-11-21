@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { createDaemonClient } from '@atc/protocol/client';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { spawnClaudeSession } from './spawn-claude-session';
 import { startTUIDaemon } from './start-tui-daemon';
 import { startTUIHarness } from './start-tui-harness';

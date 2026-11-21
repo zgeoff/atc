@@ -3,19 +3,18 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { buildDaemonStatePaths, resolvePaths } from '@atc/config/host';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { ProtocolMismatch } from '@atc/protocol';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildMockLifecycleHost } from '../test-utils/build-mock-lifecycle-host';
 import { startStubUnansweringUnixListener } from '../test-utils/start-stub-unanswering-unix-listener';
 import { bootDaemonClient } from './boot-daemon-client';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-boot-daemon-');
+  const temporaryDirectory = createTempDir('atc-boot-daemon-');
 
   const paths = resolvePaths({
     HOME: temporaryDirectory.path,

@@ -5,7 +5,7 @@ import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemo
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getRecords } from '@atc/core/test-utils/get-records';
 import { getString } from '@atc/core/test-utils/get-string';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
 
 function setupTest() {
   return startStubAgentDaemon();

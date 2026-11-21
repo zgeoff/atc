@@ -40,6 +40,7 @@
   "devDependencies": {
     "@faker-js/faker": "catalog:",
     "@xterm/headless": "catalog:",
+    "@zgeoff/testing": "catalog:",
     "bun-pty": "catalog:"
   }
 }

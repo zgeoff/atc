@@ -1,10 +1,8 @@
 import { loadConfig } from '@atc/config';
 import { resolvePaths } from '@atc/config/host';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildExecutionTargets, startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { createHostServices } from '../daemon/create-host-services';
 import { createShippedExecutionProvider } from '../plugins/create-shipped-execution-provider';

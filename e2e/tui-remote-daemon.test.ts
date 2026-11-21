@@ -4,13 +4,13 @@ import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildMockAgentProfile } from '@atc/plugin-api/test-utils/build-mock-agent-profile';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildDirsSource } from '@atc/source-dirs';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { waitFor } from '@zgeoff/testing';
 
 function setupTest() {
   const tui = startTUIHarness({ createStateDB: createMigratedStateDB });

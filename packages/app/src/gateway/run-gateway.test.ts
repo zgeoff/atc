@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { mintServiceSecret } from '@atc/mcp';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { openTestAuthAdmin } from '../test-utils/open-test-auth-admin';
 import { buildGatewayStatePaths } from './build-gateway-state-paths';
 import { runGateway } from './run-gateway';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-run-gateway-');
+  const temporaryDirectory = createTempDir('atc-run-gateway-');
 
   return { directory: temporaryDirectory.path };
 }

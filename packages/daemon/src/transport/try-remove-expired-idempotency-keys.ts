@@ -1,9 +1,9 @@
-import type { Clock } from '@atc/core';
 import type { StateStore } from '@atc/store';
+import type { Clock } from '@zgeoff/std';
 
 export async function tryRemoveExpiredIdempotencyKeys(
   store: Pick<StateStore, 'removeExpiredIdempotencyKeys'>,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
   retentionMs: number,
 ): Promise<boolean> {
   try {

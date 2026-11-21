@@ -1,6 +1,6 @@
-import { systemClock } from '@atc/core';
 import { openATCAuthAdmin } from '@atc/mcp';
 import type { MCPAuthAdmin } from '@atc/mcp';
+import { systemClock } from '@zgeoff/std';
 import { openMCPAuthDatabase } from './open-mcp-auth-database';
 
 export async function withMCPAuthAdmin<Result>(

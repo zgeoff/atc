@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { loadListenerTokens } from './load-listener-tokens';
 import { NODE_TOKEN_FILE_ACCESS } from './node-token-file-access';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-listener-tokens-');
+  const temporaryDirectory = createTempDir('atc-listener-tokens-');
 
   return { directory: temporaryDirectory.path };
 }

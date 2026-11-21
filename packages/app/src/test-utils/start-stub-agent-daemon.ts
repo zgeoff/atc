@@ -1,9 +1,9 @@
 import { LOCAL_TARGET, parseConfig } from '@atc/config';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildStubTargets } from '@atc/daemon/test-utils/build-stub-targets';
 import { createStubAgentCLIs } from '@atc/daemon/test-utils/create-stub-agent-clis';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildAgentAdapters } from '../agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { startTestDaemon } from './start-test-daemon';
@@ -19,7 +19,7 @@ interface StubAgentDaemonConfig {
 }
 
 export async function startStubAgentDaemon(config: StubAgentDaemonConfig = {}) {
-  const temporaryDirectory = setupTempDir('atc-stub-agents-');
+  const temporaryDirectory = createTempDir('atc-stub-agents-');
   const agents = createStubAgentCLIs(temporaryDirectory.path);
   const entries = config.agents?.(agents.bins) ?? { claude: { bin: agents.bins.claude } };
 
