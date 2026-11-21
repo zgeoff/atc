@@ -1,7 +1,7 @@
 import { pickPlaceColour } from '../places/pick-place-colour';
 import { measureWidth } from '../terminal/measure-width';
 import { formatDir } from '../terminal/pick-matches';
-import { buildLastLines, buildPanelFrame } from './build-panel-frame';
+import { buildEdges, buildLastLines, buildPanelFrame } from './build-panel-frame';
 import { buildSessionLine, formatName, formatVia } from './build-session-line';
 import {
   AMBER,
@@ -47,7 +47,12 @@ export function buildListPanel(input: Readonly<PanelInput>, size: Size): PanelPl
   const lastLines = buildLastLines(input, { sessions, selected, width });
   const capacity = Math.max(1, size.rows - PANEL_MARGIN_ROWS - FRAME_LINES - lastLines.length);
   const window = planListWindow(content.lines.length, capacity, content.selectedLine);
-  const shown = content.lines.slice(window.start, window.end);
+
+  const shown = content.lines.slice(window.start, window.end).map((line) => ({
+    spans: [...buildEdges(width), ...line.spans],
+    isSelected: line.isSelected,
+  }));
+
   const height = shown.length + FRAME_LINES + lastLines.length;
 
   const frame = buildPanelFrame({

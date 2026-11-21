@@ -52,7 +52,28 @@ test('it draws a group header with its count and the sessions that need the user
     { cols: 120, rows: 30 },
   );
 
-  expect(renderPanelText(plan)[1]).toStartWith('  sprite  2  ◆ 1 ─');
+  expect(renderPanelText(plan)[1]).toStartWith('│ sprite  2  ◆ 1 ─');
+});
+
+test('it draws the side borders on a session row and a group header', () => {
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      grouping: 'repo',
+      rows: [
+        { kind: 'header', label: 'shop', count: 1, needYou: 0 },
+        { kind: 'session', session: buildMockMirrorSession({ name: 'api' }), via: null },
+      ],
+      selected: 0,
+    }),
+    { cols: 120, rows: 30 },
+  );
+
+  const lines = renderPanelText(plan);
+
+  expect([lines[1], lines[2]].map((line) => [line?.at(0), line?.at(-1)])).toStrictEqual([
+    ['│', '│'],
+    ['│', '│'],
+  ]);
 });
 
 test('it separates two groups with one blank line', () => {
@@ -71,7 +92,10 @@ test('it separates two groups with one blank line', () => {
 
   const lines = renderPanelText(plan);
 
-  expect([lines[3], lines[4]?.startsWith('  two  1 ─')]).toStrictEqual(['', true]);
+  expect([lines[3], lines[4]?.startsWith('│ two  1 ─')]).toStrictEqual([
+    `│${' '.repeat(110)}│`,
+    true,
+  ]);
 });
 
 test('it shows the daemon column only with more than one daemon', () => {
@@ -174,7 +198,7 @@ test('it shows only the glyph, name, message and age under 90 columns', () => {
 
   expect(row).toInclude('api');
   expect(row).toInclude('turn done');
-  expect(row).toEndWith('4m');
+  expect(row).toEndWith('4m │');
   expect(row).not.toInclude('sprite');
   expect(row).not.toInclude('claude');
 });
@@ -288,8 +312,8 @@ test('it says no sessions for an empty list and no matches under a filter', () =
   const filtered = buildListPanel(buildMockPanelInput({ filter: 'zz' }), { cols: 120, rows: 30 });
 
   expect([renderPanelText(empty)[1], renderPanelText(filtered)[1]]).toStrictEqual([
-    '  no sessions — n to spawn',
-    '  no matches',
+    `${'│ no sessions — n to spawn'.padEnd(111)}│`,
+    `${'│ no matches'.padEnd(111)}│`,
   ]);
 });
 
@@ -326,7 +350,7 @@ test('it drops the age and shortens the name of a row in a 14-column window', ()
     { cols: 14, rows: 20 },
   );
 
-  expect(renderPanelText(plan)[1]).toBe('  ▌✓ abcd…');
+  expect(renderPanelText(plan)[1]).toBe('│ ▌✓ abcd…   │');
 });
 
 test.each([
@@ -343,7 +367,7 @@ test.each([
     { cols: 120, rows: 20 },
   );
 
-  const nameSpans = plan.content[0]?.spans.slice(2, 5) ?? [];
+  const nameSpans = plan.content[0]?.spans.slice(4, 7) ?? [];
 
   expect(nameSpans.map((span) => [span.text.trimEnd(), span.fg === AMBER])).toStrictEqual([
     [row.expected[0], false],

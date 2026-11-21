@@ -130,7 +130,7 @@ export function buildLastLines(
   return [buildLastLine(last, frame, room)];
 }
 
-function buildEdges(width: number): PanelSpan[] {
+export function buildEdges(width: number): PanelSpan[] {
   return [span(0, '│', BORDER_COLOUR), span(width - 1, '│', BORDER_COLOUR)];
 }
 

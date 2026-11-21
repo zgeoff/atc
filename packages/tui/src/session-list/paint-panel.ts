@@ -41,7 +41,7 @@ export function paintPanel(buffer: CellBuffer, plan: PanelPlan, options: PaintOp
     const isContent = index >= 1 && index <= lastContent;
     const textOpacity = isContent ? options.motion.row(index - 1) : options.motion.frame;
 
-    paintLine(buffer, { line, plan, row, textOpacity, options });
+    paintLine(buffer, { line, plan, row, textOpacity, edgeOpacity: options.motion.frame, options });
   }
 }
 
@@ -66,6 +66,9 @@ interface LinePaint {
 
   // how much of the line's text shows, from 0 to 1
   readonly textOpacity: number;
+
+  // how much of the side borders shows, from 0 to 1
+  readonly edgeOpacity: number;
   readonly options: PaintOptions;
 }
 
@@ -109,11 +112,15 @@ function paintLine(buffer: CellBuffer, paint: LinePaint): void {
   for (const span of paint.line.spans) {
     let offset = span.col;
 
+    // a span in the panel's first or last column is its side border, which fades with the frame
+    const isEdge = span.col === 0 || span.col === plan.width - 1;
+    const opacity = isEdge ? paint.edgeOpacity : paint.textOpacity;
+
     for (const grapheme of splitGraphemes(span.text)) {
       const background = backgrounds[offset];
 
       if (grapheme.width > 0 && background !== undefined && offset + grapheme.width <= plan.width) {
-        const fg = blendRGB(background, span.fg, paint.textOpacity);
+        const fg = blendRGB(background, span.fg, opacity);
 
         const cell = {
           ...BLANK_CELL,
