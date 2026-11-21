@@ -33,8 +33,10 @@ and a client sends the field only to a daemon that lists it. The replay holds:
 
 1. a full reset, then the normal buffer with its scrollback rows, scroll region and cursor;
 2. the alternate buffer, when the agent is on it, with its scroll region;
-3. the cursor's visibility and the origin, wrap, insert and reverse-wrap modes;
-4. the input modes from the daemon's input mode tracker, with one push for each kitty stack entry.
+3. the OSC 8 hyperlinks of the visible rows, which the serializer drops, written again as runs;
+4. the cursor's visibility and the origin, wrap, insert and reverse-wrap modes. The origin mode goes
+   in before the active buffer's cursor position, since it homes the cursor;
+5. the input modes from the daemon's input mode tracker, with one push for each kitty stack entry.
 
 The replay arrives in bounded chunks, cut between characters. Each carries the `seq` of the last
 output the replay includes, and the last chunk carries `done`. The client applies only the output
