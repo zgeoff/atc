@@ -14,10 +14,19 @@ function setupTest(animations: boolean) {
     isOpen: boolean;
     canFadeOut: boolean;
     sessionState: 'done' | 'running';
+    stateSince: number | null;
+    cols: number;
 
     // how long the host takes to write a frame, which can carry the clock past the end of a fade
     drawStallMs: number;
-  } = { isOpen: false, canFadeOut: true, sessionState: 'done', drawStallMs: 0 };
+  } = {
+    isOpen: false,
+    canFadeOut: true,
+    sessionState: 'done',
+    stateSince: null,
+    cols: 100,
+    drawStallMs: 0,
+  };
 
   const frames: { readonly at: number; readonly buffer: CellBuffer }[] = [];
 
@@ -31,7 +40,11 @@ function setupTest(animations: boolean) {
       rows: [
         {
           kind: 'session',
-          session: buildMockMirrorSession({ name: 'api', state: state.sessionState }),
+          session: buildMockMirrorSession({
+            name: 'api',
+            state: state.sessionState,
+            stateSince: state.stateSince,
+          }),
           via: null,
         },
       ],
@@ -55,14 +68,14 @@ function setupTest(animations: boolean) {
     animations,
     collectLayers: () => (layer.isVisible() ? [layer] : []),
     drawFrame: () => {
-      const buffer = buildCellBuffer(100, 20);
+      const buffer = buildCellBuffer(state.cols, 20);
 
       buffer.set(0, 0, { ...BLANK_CELL, ch: 'x' });
       buffer.set(0, 19, { ...BLANK_CELL, ch: 'y' });
 
       layer.draw(buffer, {
         now: clock.now(),
-        cols: 100,
+        cols: state.cols,
         rows: 20,
         terminal: {
           depth: 'truecolor',
@@ -266,4 +279,101 @@ test('it keeps asking for frames at 10 Hz while a row shows a running session', 
   const lateTimes = ctx.frames.map((frame) => frame.at).filter((at) => at > 2200);
 
   expect(lateTimes).toStrictEqual([2300, 2400, 2500, 2600, 2700]);
+});
+
+test('it redraws a done row once a second, as its age steps, after the open has finished', () => {
+  const ctx = setupTest(true);
+
+  ctx.state.stateSince = 0;
+  ctx.state.isOpen = true;
+
+  ctx.frameClock.request();
+  ctx.clock.advance(5000);
+
+  const lateTimes = ctx.frames.map((frame) => frame.at).filter((at) => at > 1300);
+
+  expect(lateTimes).toStrictEqual([2000, 3000, 4000, 5000, 6000]);
+});
+
+test('it starts the close from the fade the open had reached', () => {
+  const ctx = setupTest(true);
+
+  ctx.state.isOpen = true;
+
+  ctx.frameClock.request();
+  ctx.clock.advance(112);
+
+  const lastOpen = ctx.frames.at(-1);
+
+  ctx.state.isOpen = false;
+
+  ctx.frameClock.request();
+  ctx.clock.advance(0);
+
+  const firstClose = ctx.frames.at(-1);
+
+  expect({
+    at: firstClose?.at,
+    corner: firstClose?.buffer.get(4, 7).fg,
+    name: firstClose?.buffer.get(9, 8).fg,
+  }).toStrictEqual({
+    at: lastOpen?.at,
+    corner: lastOpen?.buffer.get(4, 7).fg,
+    name: lastOpen?.buffer.get(9, 8).fg,
+  });
+});
+
+test('it starts the reopen from the fade the close had reached', () => {
+  const ctx = setupTest(true);
+
+  ctx.state.isOpen = true;
+
+  ctx.frameClock.request();
+  ctx.clock.advance(700);
+
+  ctx.state.isOpen = false;
+
+  ctx.frameClock.request();
+  ctx.clock.advance(48);
+
+  const lastClose = ctx.frames.at(-1);
+
+  ctx.state.isOpen = true;
+
+  ctx.frameClock.request();
+  ctx.clock.advance(0);
+
+  const firstReopen = ctx.frames.at(-1);
+
+  expect({
+    at: firstReopen?.at,
+    corner: firstReopen?.buffer.get(4, 7).fg,
+    name: firstReopen?.buffer.get(9, 8).fg,
+  }).toStrictEqual({
+    at: lastClose?.at,
+    corner: lastClose?.buffer.get(4, 7).fg,
+    name: lastClose?.buffer.get(9, 8).fg,
+  });
+});
+
+test('it centres a closing panel in the size the terminal shrank to', () => {
+  const ctx = setupTest(true);
+
+  ctx.state.cols = 200;
+  ctx.state.isOpen = true;
+
+  ctx.frameClock.request();
+  ctx.clock.advance(700);
+
+  ctx.state.isOpen = false;
+
+  ctx.frameClock.request();
+  ctx.clock.advance(20);
+
+  ctx.state.cols = 60;
+
+  ctx.frameClock.request();
+  ctx.clock.advance(0);
+
+  expect(ctx.frames.at(-1)?.buffer.get(4, 7).ch).toBe('╭');
 });

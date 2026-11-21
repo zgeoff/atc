@@ -4,6 +4,7 @@ import type { ColourDepth } from '../compositor/types';
 import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session';
 import { buildMockPanelInput } from '../test-utils/build-mock-panel-input';
 import { buildListPanel } from './build-list-panel';
+import { HIDDEN_FADE } from './constants';
 import { paintPanel } from './paint-panel';
 import { pickListMotion } from './pick-list-motion';
 
@@ -25,7 +26,7 @@ function setupTest() {
         foreground: { red: 0, green: 0, blue: 0 },
         kittyKeyboard: false,
       },
-      motion: pickListMotion({ kind: 'opening', startedAtMs: 0 }, openedForMs, {
+      motion: pickListMotion({ kind: 'opening', startedAtMs: 0, from: HIDDEN_FADE }, openedForMs, {
         animations: true,
         rowCount: 1,
       }),

@@ -1,4 +1,5 @@
 import type { RGB } from '../compositor/types';
+import type { FadeLevels } from './types';
 
 export const PANEL_BACKGROUND: RGB = { red: 0x0f, green: 0x14, blue: 0x24 };
 export const BORDER_COLOUR: RGB = { red: 0x2a, green: 0x33, blue: 0x50 };
@@ -30,6 +31,16 @@ export const ROW_DELAY_MS = 80;
 export const ROW_STEP_MS = 18;
 export const ROW_FADE_MS = 180;
 export const CLOSE_FADE_MS = 120;
+
+// the steps of a row's age: seconds, then minutes, hours and days
+export const SECOND_MS = 1000;
+export const MINUTE_MS = 60 * SECOND_MS;
+export const HOUR_MS = 60 * MINUTE_MS;
+export const DAY_MS = 24 * HOUR_MS;
+
+// the levels a fade starts from when the panel opens from nothing, or closes from whole
+export const HIDDEN_FADE: FadeLevels = { dim: 0, frame: 0, rows: [] };
+export const WHOLE_FADE: FadeLevels = { dim: 1, frame: 1, rows: [] };
 
 // the border, then a space, then the bar of a row
 export const CONTENT_COL = 2;

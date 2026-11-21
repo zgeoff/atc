@@ -14,6 +14,7 @@ import {
   TEXT,
   WIDE_PANEL_COLS,
 } from './constants';
+import { findNextAgeChangeAt } from './find-next-age-change-at';
 import { fitText } from './fit-text';
 import { planListColumns } from './plan-list-columns';
 import type { ColumnPlan } from './plan-list-columns';
@@ -63,8 +64,8 @@ export function buildListPanel(input: Readonly<PanelInput>, size: Size): PanelPl
     selected,
     width,
     lastLines: budget.lastLines,
-    hiddenAbove: countSessionLines(content.sessionLines.slice(0, window.start)),
-    hiddenBelow: countSessionLines(content.sessionLines.slice(window.end)),
+    hiddenAbove: countSessionLines(content.lineSessions.slice(0, window.start)),
+    hiddenBelow: countSessionLines(content.lineSessions.slice(window.end)),
   });
 
   return {
@@ -72,6 +73,10 @@ export function buildListPanel(input: Readonly<PanelInput>, size: Size): PanelPl
     top: Math.max(0, Math.floor((size.rows - 1 - height) / 2)),
     width,
     isSpinning: sessions.some((row) => row.session.state === 'running'),
+    nextAgeChangeAtMs:
+      plan.age > 0
+        ? findEarliestAgeChange(content.lineSessions.slice(window.start, window.end), input.nowMs)
+        : null,
     content: shown,
     topBorder: budget.borders >= 1 ? frame.topBorder : null,
     divider: budget.borders >= 3 ? frame.divider : null,
@@ -108,8 +113,8 @@ function planColumns(
 interface ContentLines {
   readonly lines: readonly PanelLine[];
 
-  // for each line, whether it holds a session row
-  readonly sessionLines: readonly boolean[];
+  // for each line, the session row it holds, or null
+  readonly lineSessions: readonly (SessionRow | null)[];
   readonly selectedLine: number;
 }
 
@@ -125,13 +130,13 @@ function buildContentLines(
 
     return {
       lines: [{ spans: [span(CONTENT_COL, text, MUTED)], isSelected: false }],
-      sessionLines: [false],
+      lineSessions: [null],
       selectedLine: 0,
     };
   }
 
   const lines: PanelLine[] = [];
-  const sessionLines: boolean[] = [];
+  const lineSessions: (SessionRow | null)[] = [];
   let sessionIndex = 0;
   let selectedLine = 0;
 
@@ -139,11 +144,11 @@ function buildContentLines(
     if (row.kind === 'header') {
       if (lines.length > 0) {
         lines.push({ spans: [], isSelected: false });
-        sessionLines.push(false);
+        lineSessions.push(null);
       }
 
       lines.push(buildHeaderLine(row, input.rows[rowIndex + 1], width));
-      sessionLines.push(false);
+      lineSessions.push(null);
       continue;
     }
 
@@ -156,12 +161,12 @@ function buildContentLines(
     const label = input.jump?.labels[sessionIndex] ?? null;
 
     lines.push(buildSessionLine(row, { input, plan, width, isSelected, label, all: sessions }));
-    sessionLines.push(true);
+    lineSessions.push(row);
 
     sessionIndex += 1;
   }
 
-  return { lines, sessionLines, selectedLine };
+  return { lines, lineSessions, selectedLine };
 }
 
 function buildHeaderLine(
@@ -235,6 +240,21 @@ function planLineBudget(
   return { lastLines: kept, borders, capacity: Math.min(preferred, frameRoom - borders) };
 }
 
-function countSessionLines(sessionLines: readonly boolean[]): number {
-  return sessionLines.filter(Boolean).length;
+function countSessionLines(lineSessions: readonly (SessionRow | null)[]): number {
+  return lineSessions.filter((row) => row !== null).length;
+}
+
+// the first moment an age on the shown rows changes, or null when no shown row has an age
+function findEarliestAgeChange(
+  lineSessions: readonly (SessionRow | null)[],
+  nowMs: number,
+): number | null {
+  const changes = lineSessions.flatMap((row) => {
+    const at =
+      row === null ? null : findNextAgeChangeAt(row.session.state, row.session.stateSince, nowMs);
+
+    return at === null ? [] : [at];
+  });
+
+  return changes.length === 0 ? null : Math.min(...changes);
 }

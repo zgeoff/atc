@@ -1,9 +1,5 @@
 import type { SessionViewState } from '@atc/protocol';
-
-const SECOND_MS = 1000;
-const MINUTE_MS = 60 * SECOND_MS;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
+import { DAY_MS, HOUR_MS, MINUTE_MS, SECOND_MS } from './constants';
 
 // The time since a session entered its state, as `6s`, `4m`, `3h` or `2d`. A session in `running`,
 // and one whose state time the TUI never saw, has none.

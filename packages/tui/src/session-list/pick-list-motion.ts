@@ -1,9 +1,10 @@
 import { CLOSE_FADE_MS, OPEN_FADE_MS, ROW_DELAY_MS, ROW_FADE_MS, ROW_STEP_MS } from './constants';
+import type { FadeLevels } from './types';
 
 export type ListPhase =
   | { readonly kind: 'closed' }
-  | { readonly kind: 'opening'; readonly startedAtMs: number }
-  | { readonly kind: 'closing'; readonly startedAtMs: number };
+  | { readonly kind: 'opening'; readonly startedAtMs: number; readonly from: FadeLevels }
+  | { readonly kind: 'closing'; readonly startedAtMs: number; readonly from: FadeLevels };
 
 export interface MotionOptions {
   readonly animations: boolean;
@@ -27,9 +28,9 @@ export interface ListMotion {
   readonly row: (index: number) => number;
 }
 
-// The fades of the panel at one moment. Opening fades in the dim and the frame over 180 ms, and
-// row `i` fades in over 180 ms from 80 + 18·i ms. Closing fades everything out over 120 ms. With
-// animations off the panel is whole at once and gone at once.
+// The fades of the panel at one moment, each from its level in `from`. Opening fades in the dim and
+// frame over 180 ms, and row `i` over 180 ms from 80 + 18·i ms; closing fades all out over 120 ms.
+// With animations off the panel is whole at once and gone at once.
 export function pickListMotion(
   phase: ListPhase,
   nowMs: number,
@@ -40,29 +41,46 @@ export function pickListMotion(
   }
 
   const elapsedMs = nowMs - phase.startedAtMs;
+  const from = phase.from;
+  const readFromRow = (index: number): number => from.rows[index] ?? from.frame;
 
   if (phase.kind === 'closing') {
     const left = clamp(1 - elapsedMs / CLOSE_FADE_MS);
 
-    return { isVisible: left > 0, isMoving: left > 0, dim: left, frame: left, row: () => left };
+    return {
+      isVisible: left > 0,
+      isMoving: left > 0,
+      dim: from.dim * left,
+      frame: from.frame * left,
+      row: (index) => readFromRow(index) * left,
+    };
   }
 
   if (!options.animations) {
     return { isVisible: true, isMoving: false, dim: 1, frame: 1, row: () => 1 };
   }
 
-  const frame = clamp(elapsedMs / OPEN_FADE_MS);
+  const opened = clamp(elapsedMs / OPEN_FADE_MS);
   const lastRowEndMs = ROW_DELAY_MS + ROW_STEP_MS * Math.max(0, options.rowCount - 1) + ROW_FADE_MS;
 
   return {
     isVisible: true,
     isMoving: elapsedMs < Math.max(OPEN_FADE_MS, lastRowEndMs),
-    dim: frame,
-    frame,
-    row: (index) => clamp((elapsedMs - ROW_DELAY_MS - ROW_STEP_MS * index) / ROW_FADE_MS),
+    dim: raise(from.dim, opened),
+    frame: raise(from.frame, opened),
+    row: (index) =>
+      raise(
+        readFromRow(index),
+        clamp((elapsedMs - ROW_DELAY_MS - ROW_STEP_MS * index) / ROW_FADE_MS),
+      ),
   };
 }
 
 function clamp(value: number): number {
   return Math.max(0, Math.min(1, value));
+}
+
+// the level that a fade from `start` to 1 has reached after `share` of it
+function raise(start: number, share: number): number {
+  return start + (1 - start) * share;
 }

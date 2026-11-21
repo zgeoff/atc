@@ -31,7 +31,30 @@ test('#renderPanelText lays each span at its column and gives one string for eac
       isSelected: false,
     },
     isSpinning: false,
+    nextAgeChangeAtMs: null,
   });
 
   expect(text).toStrictEqual([' top', '  a界', 'mid', '   last', '     end']);
+});
+
+test('#renderPanelText leaves out the borders a plan dropped', () => {
+  const text = renderPanelText({
+    left: 0,
+    top: 0,
+    width: 8,
+    topBorder: null,
+    content: [],
+    divider: null,
+    lastLines: [
+      {
+        spans: [{ col: 1, text: 'last', fg: { red: 0, green: 0, blue: 0 }, bold: false }],
+        isSelected: false,
+      },
+    ],
+    bottomBorder: null,
+    isSpinning: false,
+    nextAgeChangeAtMs: null,
+  });
+
+  expect(text).toStrictEqual([' last']);
 });

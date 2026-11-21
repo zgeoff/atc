@@ -88,6 +88,9 @@ export interface PanelPlan {
 
   // true while a visible row shows a running session, whose spinner turns
   readonly isSpinning: boolean;
+
+  // when the first age on a shown row next changes, or null when no shown row has an age
+  readonly nextAgeChangeAtMs: number | null;
 }
 
 export interface PanelInput {
@@ -111,3 +114,12 @@ export interface PanelInput {
 }
 
 export type SessionRow = Extract<ListRow, { readonly kind: 'session' }>;
+
+// How far each fade had reached when the panel turned to open or to close, from 0 to 1.
+export interface FadeLevels {
+  readonly dim: number;
+  readonly frame: number;
+
+  // each row by its index; a row past the end is at the frame's level
+  readonly rows: readonly number[];
+}
