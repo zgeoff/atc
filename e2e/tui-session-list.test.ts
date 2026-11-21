@@ -153,6 +153,23 @@ test('it asks before it ends a dead session, and removes it on y', async () => {
   expect(ctx.tui.readScreen()).not.toInclude('doomed');
 });
 
+test('it opens the list on a leader typed in one chunk with the next key, and gives the list that key', async () => {
+  const ctx = await setupTest();
+  const id = await spawnDaemonSession(ctx.tui, 'shown');
+
+  await ctx.attachFirst();
+
+  ctx.tui.reset();
+  ctx.tui.write(`${KEYS.ctrlSpace}i`);
+
+  await ctx.tui.waitFor('atc — control tower');
+
+  const sessionScreen = await ctx.readSessionScreen(id);
+
+  // the session's terminal echoes a NUL as ^@
+  expect(sessionScreen).not.toInclude('^@i');
+});
+
 test('it shows home behind the list once K kills the attached session', async () => {
   const ctx = await setupTest();
 
