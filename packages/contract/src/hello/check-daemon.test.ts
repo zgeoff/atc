@@ -7,7 +7,13 @@ test.each<[string, string, string[], DaemonCheck]>([
   [
     'a matching daemon',
     'atc/7.4.2+lq2x9a',
-    ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace', 'session.host'],
+    [
+      'events.read.from-start',
+      'daemon.hello.viewer',
+      'session.forget.workspace',
+      'session.host',
+      'full-replay',
+    ],
     { verdict: 'match', missing: [], added: [] },
   ],
   [
@@ -33,6 +39,7 @@ test.each<[string, string, string[], DaemonCheck]>([
         'daemon.hello.viewer',
         'session.forget.workspace',
         'session.host',
+        'full-replay',
       ],
       added: [],
     },
@@ -45,6 +52,7 @@ test.each<[string, string, string[], DaemonCheck]>([
       'daemon.hello.viewer',
       'session.forget.workspace',
       'session.host',
+      'full-replay',
       'session.watch',
     ],
     { verdict: 'match', missing: [], added: ['session.watch'] },
@@ -63,6 +71,7 @@ test('it matches a daemon of its own version that lists every feature', () => {
         'daemon.hello.viewer',
         'session.forget.workspace',
         'session.host',
+        'full-replay',
       ],
     }),
   ).toStrictEqual({ verdict: 'match', missing: [], added: [] });

@@ -143,7 +143,8 @@ export function buildDaemonContext(deps: DaemonContextDeps): DaemonContext {
     readSessionMenu: (id) => input.readSessionMenu(id),
     applySessionMenuChoice: (id, choice) => input.applySessionMenuChoice(id, choice),
     answerPermission: (request, decision) => permissions.answer(request, decision),
-    attachSession: (client, sessionID, dims) => output.attachSession(client, sessionID, dims),
+    attachSession: (client, sessionID, dims, replay) =>
+      output.attachSession(client, sessionID, dims, replay),
     watchSession: (client, sessionID) => output.watchSession(client, sessionID),
     detachSession: (client, sessionID) => {
       output.detachSession(client, sessionID);

@@ -116,7 +116,7 @@ test('it sends the output of a session to an attached client under the next sequ
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 
-  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 });
+  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 }, 'screen');
 
   const [harness] = ctx.provider.harnesses;
 
@@ -182,7 +182,7 @@ test('it replays the screen to an attaching client after a clear', async () => {
     },
   };
 
-  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 });
+  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 }, 'screen');
 
   await waitFor(() => {
     expect(sent.join('')).toStartWith(ansi.clear);
@@ -205,6 +205,7 @@ test('it announces an attach with the session it attached', async () => {
     { sendOutput: mock<OutputClient['sendOutput']>() },
     session.id,
     { cols: 80, rows: 24 },
+    'screen',
   );
 
   expect(attached).toBe('ok');
@@ -218,6 +219,7 @@ test('it refuses to attach a session the manager does not hold', async () => {
     { sendOutput: mock<OutputClient['sendOutput']>() },
     toSessionID('s-gone'),
     { cols: 80, rows: 24 },
+    'screen',
   );
 
   expect(attached).toBe('missing');
@@ -248,6 +250,7 @@ test('it refuses to attach a session whose terminal has ended', async () => {
     { sendOutput: mock<OutputClient['sendOutput']>() },
     session.id,
     { cols: 80, rows: 24 },
+    'screen',
   );
 
   expect(attached).toBe('dead');
@@ -264,15 +267,25 @@ test('it sizes the terminal to the smallest size across its attached clients', a
     rows: 24,
   });
 
-  ctx.output.attachSession({ sendOutput: mock<OutputClient['sendOutput']>() }, session.id, {
-    cols: 120,
-    rows: 30,
-  });
+  ctx.output.attachSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    session.id,
+    {
+      cols: 120,
+      rows: 30,
+    },
+    'screen',
+  );
 
-  ctx.output.attachSession({ sendOutput: mock<OutputClient['sendOutput']>() }, session.id, {
-    cols: 100,
-    rows: 40,
-  });
+  ctx.output.attachSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    session.id,
+    {
+      cols: 100,
+      rows: 40,
+    },
+    'screen',
+  );
 
   const [harness] = ctx.provider.harnesses;
 
@@ -299,7 +312,7 @@ test('it applies a client resize once the wait for more has passed', async () =>
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 
-  ctx.output.attachSession(client, session.id, { cols: 120, rows: 30 });
+  ctx.output.attachSession(client, session.id, { cols: 120, rows: 30 }, 'screen');
 
   const resized = ctx.output.updateSessionDims(client, session.id, { cols: 90, rows: 20 });
 
@@ -348,10 +361,15 @@ test('it keeps the terminal size on a host that cannot resize and still announce
     rows: 24,
   });
 
-  ctx.output.attachSession({ sendOutput: mock<OutputClient['sendOutput']>() }, session.id, {
-    cols: 120,
-    rows: 30,
-  });
+  ctx.output.attachSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    session.id,
+    {
+      cols: 120,
+      rows: 30,
+    },
+    'screen',
+  );
 
   const [harness] = ctx.provider.harnesses;
 
@@ -394,7 +412,7 @@ test('it announces a detach and sends the client no more output', async () => {
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 
-  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 });
+  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 }, 'screen');
   ctx.output.detachSession(client, session.id);
   client.sendOutput.mockClear();
 
@@ -429,8 +447,8 @@ test('it detaches a leaving client from every session it attached', async () => 
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 
-  ctx.output.attachSession(client, one.id, { cols: 80, rows: 24 });
-  ctx.output.attachSession(client, two.id, { cols: 80, rows: 24 });
+  ctx.output.attachSession(client, one.id, { cols: 80, rows: 24 }, 'screen');
+  ctx.output.attachSession(client, two.id, { cols: 80, rows: 24 }, 'screen');
   ctx.output.detachClient(client);
 
   const detached = ctx.emitted.filter((event) => event.ev === 'SessionDetached');
@@ -451,7 +469,7 @@ test('it sends a removed session no more output to its clients', async () => {
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 
-  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 });
+  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 }, 'screen');
   ctx.output.removeSession(session.id);
   client.sendOutput.mockClear();
 
@@ -479,10 +497,15 @@ test('it starts a watcher with the replayed screen and the last sequence it hold
 
   invariant(harness);
 
-  ctx.output.attachSession({ sendOutput: mock<OutputClient['sendOutput']>() }, session.id, {
-    cols: 80,
-    rows: 24,
-  });
+  ctx.output.attachSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    session.id,
+    {
+      cols: 80,
+      rows: 24,
+    },
+    'screen',
+  );
 
   harness.emitData('tests passed');
 
@@ -516,7 +539,7 @@ test('it answers a watch with the size the replay is laid out at while a resize 
 
   const client = { sendOutput: mock<OutputClient['sendOutput']>() };
 
-  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 });
+  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 }, 'screen');
   ctx.output.updateSessionDims(client, session.id, { cols: 40, rows: 12 });
 
   const watch = await ctx.output.watchSession(
@@ -654,10 +677,15 @@ test('it leaves the terminal size and the attach record alone when a watcher com
     rows: 24,
   });
 
-  ctx.output.attachSession({ sendOutput: mock<OutputClient['sendOutput']>() }, session.id, {
-    cols: 120,
-    rows: 30,
-  });
+  ctx.output.attachSession(
+    { sendOutput: mock<OutputClient['sendOutput']>() },
+    session.id,
+    {
+      cols: 120,
+      rows: 30,
+    },
+    'screen',
+  );
 
   const before = ctx.manager.sessions.find((x) => x.id === session.id);
 
@@ -765,4 +793,72 @@ test('it refuses to watch a session whose terminal has ended', async () => {
   );
 
   expect(watch).toBe('dead');
+});
+
+test('it sends a full-replay client the state as replay events and no screen output', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const [harness] = ctx.provider.harnesses;
+
+  invariant(harness);
+
+  harness.emitData('tests passed\u001B[?2004h');
+
+  const sent: EventMsg[] = [];
+
+  ctx.output.attachSession(
+    {
+      sendOutput: (_sessionID: SessionID, event: EventMsg) => {
+        sent.push(event);
+      },
+    },
+    session.id,
+    { cols: 80, rows: 24 },
+    'full',
+  );
+
+  await waitFor(() => {
+    expect(sent.at(-1)).toMatchObject({ ev: 'SessionReplay', done: true });
+  });
+
+  expect(sent.map((event) => event['ev'])).toStrictEqual(['SessionReplay']);
+  expect(sent.map((event) => String(event['data'])).join('')).toInclude('tests passed');
+});
+
+test('it sends a full-replay client a fresh replay on a resync', async () => {
+  const ctx = await setupTest({ resize: true });
+
+  const session = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const sent: EventMsg[] = [];
+
+  const client = {
+    sendOutput: (_sessionID: SessionID, event: EventMsg) => {
+      sent.push(event);
+    },
+  };
+
+  ctx.output.attachSession(client, session.id, { cols: 80, rows: 24 }, 'full');
+
+  await waitFor(() => {
+    expect(sent).toHaveLength(1);
+  });
+
+  await ctx.output.sendReplay(session.id, client);
+
+  expect(sent.map((event) => event['ev'])).toStrictEqual(['SessionReplay', 'SessionReplay']);
 });

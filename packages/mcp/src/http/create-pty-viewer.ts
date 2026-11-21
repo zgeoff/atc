@@ -298,6 +298,7 @@ export function createPTYViewer(options: PTYViewerOptions): PTYViewer {
         {
           ev: P.union(
             'SessionRenamed',
+            'SessionReplay',
             'PermissionRequested',
             'PermissionResolved',
             'SessionMessage',

@@ -178,8 +178,8 @@ export function buildScopedContext(
 
       return owner !== null && canSee(owner) ? ctx.answerPermission(request, decision) : 'unknown';
     },
-    attachSession: (client, sessionID, dims) =>
-      canSee(sessionID) ? ctx.attachSession(client, sessionID, dims) : 'missing',
+    attachSession: (client, sessionID, dims, replay) =>
+      canSee(sessionID) ? ctx.attachSession(client, sessionID, dims, replay) : 'missing',
 
     // A session can leave the caller's reach while its replay is captured,
     // such as when a sub-session on another target joins its tree, so the

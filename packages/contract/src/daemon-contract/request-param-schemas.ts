@@ -301,6 +301,7 @@ export const REQUEST_PARAM_SCHEMAS = {
   'session.attach': SESSION_DEFAULTED.extend({
     cols: buildTerminalSize(80),
     rows: buildTerminalSize(24),
+    replay: z.enum(['screen', 'full'], { error: 'replay must be screen or full' }).optional(),
   }),
   'session.detach': SESSION_DEFAULTED,
   'session.watch': SESSION_DEFAULTED,

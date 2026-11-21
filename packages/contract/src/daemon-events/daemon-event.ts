@@ -30,6 +30,13 @@ export const DAEMON_EVENT_SCHEMA = z.discriminatedUnion('ev', [
     seq: z.number(),
     data: z.string(),
   }),
+  z.object({
+    ev: z.literal('SessionReplay'),
+    sessionID: z.string(),
+    seq: z.number(),
+    data: z.string(),
+    done: z.boolean(),
+  }),
   z.object({ ev: z.literal('SessionDesync'), sessionID: z.string(), dropped: z.number() }),
   z.object({
     ev: z.literal('PermissionRequested'),

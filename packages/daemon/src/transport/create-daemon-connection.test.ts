@@ -2293,6 +2293,7 @@ test('it answers a peer handshake with the session the kernel names as its peer 
           'daemon.hello.viewer',
           'session.forget.workspace',
           'session.host',
+          'full-replay',
         ],
       },
     }),

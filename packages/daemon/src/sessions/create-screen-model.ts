@@ -1,16 +1,14 @@
-import { RESET_INPUT_MODES, ansi } from '@atc/core';
+import { RESET_INPUT_MODES, ansi, createInputModeTracker, formatInputModes } from '@atc/core';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal } from '@xterm/headless';
+import { readEmulatorInternals } from './read-emulator-internals';
+import type { ScrollRegion } from './read-emulator-internals';
 
 export interface ScreenText {
   readonly text: string;
   readonly cols: number;
   readonly rows: number;
 }
-
-// The serializer already re-emits the modes the vt engine models (mouse
-// tracking, bracketed paste, focus events); these are the ones it drops.
-const REPLAYED_DEC_MODES = new Set([1006, 1007, 2031]);
 
 interface FullReplay<T> {
   readonly replay: string;
@@ -26,6 +24,8 @@ export interface ScreenModel {
 
   readonly captureFullReplay: <T>(readMark: () => T) => Promise<FullReplay<T>>;
 
+  readonly captureStateReplay: <T>(readMark: () => T) => Promise<FullReplay<T>>;
+
   readonly hasBracketedPaste: () => boolean;
 
   readonly captureText: () => Promise<ScreenText>;
@@ -33,56 +33,16 @@ export interface ScreenModel {
   readonly stop: () => void;
 }
 
+const RIS = '\u001Bc';
+
 export function createScreenModel(cols: number, rows: number): ScreenModel {
   let flushed: Promise<void> = Promise.resolve();
-
-  const decModes = new Map<number, boolean>();
-
-  const kittyFlags: number[] = [];
-  let modifyOtherKeys = 0;
+  const tracker = createInputModeTracker();
 
   const term = new Terminal({ cols, rows, allowProposedApi: true, scrollback: 300 });
   const serializer = new SerializeAddon();
 
   term.loadAddon(serializer);
-
-  // The xterm serialize addon omits the input-encoding modes a fullscreen agent sets, so a replay
-  // would lose them.
-  for (const final of ['h', 'l'] as const) {
-    term.parser.registerCsiHandler({ prefix: '?', final }, (params) => {
-      for (const parameter of params) {
-        if (typeof parameter === 'number' && REPLAYED_DEC_MODES.has(parameter)) {
-          decModes.set(parameter, final === 'h');
-        }
-      }
-
-      return false;
-    });
-  }
-
-  term.parser.registerCsiHandler({ prefix: '>', final: 'u' }, (params) => {
-    const flags = typeof params[0] === 'number' ? params[0] : 0;
-
-    kittyFlags.push(flags);
-
-    return false;
-  });
-
-  term.parser.registerCsiHandler({ prefix: '<', final: 'u' }, (params) => {
-    const count = typeof params[0] === 'number' && params[0] > 0 ? params[0] : 1;
-
-    kittyFlags.splice(Math.max(0, kittyFlags.length - count));
-
-    return false;
-  });
-
-  term.parser.registerCsiHandler({ prefix: '>', final: 'm' }, (params) => {
-    if (params[0] === 4) {
-      modifyOtherKeys = typeof params[1] === 'number' ? params[1] : 0;
-    }
-
-    return false;
-  });
 
   const waitForFlush = async (): Promise<void> => {
     let pending: Promise<void>;
@@ -104,28 +64,42 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
     return switchAt === -1 ? serialized : serialized.slice(switchAt + altSwitch.length);
   };
 
-  const renderInputModes = (): string => {
-    let out = '';
+  // A client that resets its own emulator and writes this gets both buffers, the active one, each
+  // cursor, each scroll region and every input mode. The addon puts the alternate buffer last.
+  const readStateReplay = (): string => {
+    const internals = readEmulatorInternals(term);
+    const serialized = serializer.serialize({ excludeModes: true });
+    const altSwitch = `${ansi.altScreenOn}${ansi.cursorHome}`;
+    const switchAt = serialized.lastIndexOf(altSwitch);
+    const normal = switchAt === -1 ? serialized : serialized.slice(0, switchAt);
+    let out = `${RIS}${normal}${renderRegion(internals.normalRegion, term.buffer.normal)}`;
 
-    for (const [mode, on] of decModes) {
-      if (on) {
-        out += `\u001B[?${mode}h`;
-      }
+    if (switchAt !== -1) {
+      out += `${altSwitch}${serialized.slice(switchAt + altSwitch.length)}`;
+      out += renderRegion(internals.altRegion, term.buffer.alternate);
     }
 
-    for (const flags of kittyFlags) {
-      out += `\u001B[>${flags}u`;
-    }
+    return `${out}${readModes(internals.isCursorHidden)}`;
+  };
 
-    if (modifyOtherKeys > 0) {
-      out += `\u001B[>4;${modifyOtherKeys}m`;
-    }
+  const readModes = (isCursorHidden: boolean): string =>
+    `${formatInputModes(tracker.read())}${readTerminalModes()}${isCursorHidden ? ansi.hideCursor : ''}`;
 
-    return out;
+  const readTerminalModes = (): string => {
+    const modes = term.modes;
+
+    return [
+      modes.originMode ? '\u001B[?6h' : '',
+      modes.wraparoundMode ? '' : '\u001B[?7l',
+      modes.insertMode ? '\u001B[4h' : '',
+      modes.reverseWraparoundMode ? '\u001B[?45h' : '',
+    ].join('');
   };
 
   return {
     record: (data) => {
+      tracker.write(data);
+
       flushed = new Promise((resolve) => {
         term.write(data, () => {
           resolve();
@@ -136,14 +110,25 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
     captureReplay: async () => {
       await waitForFlush();
 
-      return RESET_INPUT_MODES + renderVisibleScreen() + renderInputModes();
+      return RESET_INPUT_MODES + renderVisibleScreen() + formatInputModes(tracker.read());
     },
 
     captureFullReplay: async (readMark) => {
       await waitForFlush();
 
       return {
-        replay: RESET_INPUT_MODES + serializer.serialize() + renderInputModes(),
+        replay: RESET_INPUT_MODES + serializer.serialize() + formatInputModes(tracker.read()),
+        cols: term.cols,
+        rows: term.rows,
+        mark: readMark(),
+      };
+    },
+
+    captureStateReplay: async (readMark) => {
+      await waitForFlush();
+
+      return {
+        replay: readStateReplay(),
         cols: term.cols,
         rows: term.rows,
         mark: readMark(),
@@ -177,4 +162,18 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
       term.dispose();
     },
   };
+}
+
+interface CursorPosition {
+  readonly cursorX: number;
+  readonly cursorY: number;
+}
+
+function renderRegion(region: ScrollRegion | null, buffer: CursorPosition): string {
+  if (region === null) {
+    return '';
+  }
+
+  // DECSTBM homes the cursor, so the cursor goes back where the buffer had it.
+  return `\u001B[${region.top + 1};${region.bottom + 1}r\u001B[${buffer.cursorY + 1};${buffer.cursorX + 1}H`;
 }
