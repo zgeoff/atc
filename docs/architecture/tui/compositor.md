@@ -4,8 +4,8 @@ The TUI draws every screen into one grid of cells, the cell buffer, and writes t
 terminal only the cells that changed since the last frame. The bottom layer is the session the user
 is attached to. The TUI feeds that session's output to a terminal emulator of its own and copies the
 emulator's screen into the grid, so the session's bytes never reach the user's terminal directly.
-Each of the TUI's own screens, such as home (the screen the TUI shows with no session attached), the
-session list, help, the spawn picker and the prompts, is a layer drawn over the session layer.
+The TUI's own screens, such as home (the screen the TUI shows with no session attached), the session
+list, help, the spawn picker and the prompts, draw in layers over the session layer.
 
 One layer at a time has focus, and the keys the user types go to it. The attached session has focus
 until the user opens another screen, such as the session list, and gets it back when that screen
@@ -140,15 +140,17 @@ The frame clock decides when the compositor draws:
   earliest one. A frame the clock schedules this way is a tick. When every layer answers null, the
   clock stops.
 - A tick that fires more than one frame interval late is skipped, so a busy event loop never draws a
-  backlog of ticks. The clock never queues a second tick behind the first. A skipped tick can fall
-  after the end of a layer's motion, such as a fade. When it does, no layer asks for a later frame,
-  so the clock draws one frame at once, and the screen shows where the motion ended.
+  backlog of ticks. The clock never queues a second tick behind the first.
+- When the clock skips a tick and then finds that no layer asks for a later frame, the clock draws
+  one frame at once. Without that frame, a fade that ended during the skipped tick would stay on the
+  screen part-way through.
 - When an event asks for a frame while a tick is overdue, the tick becomes a requested frame, and it
   draws however late it runs.
 
 The config key `animations` reaches each layer through the clock, and a layer drops its decorative
-motion when the key is false. The [fleet bar](./fleet-bar.md) is the one layer that asks for frames,
-for its spinner, and the spinner shows state, so it turns whatever `animations` says.
+motion when the key is false. Two layers ask for frames: the [session list](./session-list.md), for
+its fades and spinners, and the [fleet bar](./fleet-bar.md), for its spinner. A spinner shows that a
+session is running, so it spins whatever `animations` says.
 
 ## Colour
 
