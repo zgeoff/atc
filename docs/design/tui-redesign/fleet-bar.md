@@ -29,6 +29,9 @@ const bar = buildFleetBar(sessions, {
   cols: 120,
   leaderLabel: 'ctrl+space',
   attachedPlaceKey: 'daemon:d1:laptop',
+  daemonOrder: ['d1'], // the config's daemons, which pick a place's label
+  downDaemons: new Set(), // daemons whose link is not up
+  spinnerFrame: 0, // the bar layer passes the frame for the clock's time
 });
 // → { level: 'glyphs',
 //     places: [{ label: 'laptop', glyphs: ['◆', '⠋', '✓', '○'], more: 1, count: 5, needYou: 1, reachable: true }, …],
@@ -37,7 +40,7 @@ const bar = buildFleetBar(sessions, {
 
 ```ts
 // tui module: fleet bar
-// sessions: the TUI's OverlaySessionView list, the same one the session list draws from
+// sessions: the TUI's mirror sessions, with their daemon, state and place; the session list draws from the same ones
 interface FleetBar {
   level: 'glyphs' | 'counts' | 'short'; // the most detail that fits cols
   places: readonly PlaceSummary[]; // the ones that fit, in order
@@ -65,7 +68,8 @@ interface PlaceSummary {
   bar's row.
 - The attached session's place comes first, then the other places in label order.
 - A session's glyph follows its state: `◆` for `needs_you`, a braille spinner for `running`, `✓` for
-  `done` and `○` for `exited`. The spinner turns at 10 Hz.
+  `done`, `○` for `exited` and `?` for a state that a newer daemon added. The spinner turns at 10
+  Hz.
 - At `glyphs`, each place shows its label, up to 4 glyphs, then ` +<n>` for its other sessions.
   Glyphs sort `◆` first, then running, done and exited, so a `◆` goes into `+<n>` only when a place
   has more than 4 sessions in `needs_you`.

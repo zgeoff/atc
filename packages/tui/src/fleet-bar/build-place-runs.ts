@@ -11,27 +11,24 @@ const SHORT_LABEL_LENGTH = 3;
 export function buildPlaceRuns(place: PlaceSummary, level: FleetBarLevel): readonly PlaceRun[] {
   const mark = place.reachable ? '' : '?';
 
-  if (level === 'short') {
-    return [
-      { text: `${[...place.label].slice(0, SHORT_LABEL_LENGTH).join('')}${mark}`, kind: 'label' },
-    ];
-  }
+  const name =
+    level === 'short' ? [...place.label].slice(0, SHORT_LABEL_LENGTH).join('') : place.label;
 
-  const label: PlaceRun = { text: `${place.label}${mark}`, kind: 'label' };
+  const label: PlaceRun = { text: `${name}${mark}`, kind: 'label' };
 
-  if (level === 'counts') {
+  if (level === 'glyphs') {
     return [
       label,
-      { text: ` ${place.count}`, kind: 'plain' },
-      ...(place.needYou > 0 ? [{ text: ' ◆', kind: 'glyph' as const }] : []),
+      { text: ' ', kind: 'plain' },
+      ...place.glyphs.map((glyph) => ({ text: glyph, kind: 'glyph' as const })),
+      ...(place.more > 0 ? [{ text: ` +${place.more}`, kind: 'plain' as const }] : []),
     ];
   }
 
   return [
     label,
-    { text: ' ', kind: 'plain' },
-    ...place.glyphs.map((glyph) => ({ text: glyph, kind: 'glyph' as const })),
-    ...(place.more > 0 ? [{ text: ` +${place.more}`, kind: 'plain' as const }] : []),
+    { text: ` ${place.count}`, kind: 'plain' },
+    ...(place.needYou > 0 ? [{ text: ' ◆', kind: 'glyph' as const }] : []),
   ];
 }
 

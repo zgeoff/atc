@@ -141,7 +141,7 @@ test('it keeps an answer of the terminal that arrives late out of the session', 
   await ctx.tui.waitFor('GOT:typed');
 });
 
-test('it keeps the last row of the terminal out of the session', async () => {
+test('it keeps the last row of the terminal for the fleet bar, out of the session', async () => {
   const ctx = await setupTest();
 
   await ctx.attach();
@@ -157,5 +157,8 @@ test('it keeps the last row of the terminal out of the session', async () => {
 
   const screen = await viewer.sendRequest('session.screen', { session: ctx.sessionID });
 
-  expect([screen['rows'], ctx.tui.read().split('\n').at(-1)]).toStrictEqual([29, '']);
+  expect([screen['rows'], ctx.tui.read().split('\n').at(-1)]).toStrictEqual([
+    29,
+    expect.stringContaining('^Space'),
+  ]);
 });

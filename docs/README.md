@@ -37,6 +37,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
   daemon, link states and retries, session keys, and confirmations that hold their key
 - [The compositor](architecture/tui/compositor.md) — the session emulator, layers and frames,
   colour, mirrored input modes and the last row
+- [The fleet bar](architecture/tui/fleet-bar.md) — the bar on the last row while attached, places
+  and their labels and colours, layout levels, and Claude Code's status line
 
 ### Protocol
 

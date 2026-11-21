@@ -93,7 +93,7 @@ A frame clock decides when to draw. An event that needs a frame asks for one, an
 at once. After each frame the clock asks every layer when it next needs a frame, and schedules the
 earliest answer. When every layer answers null, the clock stops. A tick that fires more than one
 frame late is dropped, and the clock never queues a tick. The config key `animations` reaches the
-clock, and no layer animates yet.
+clock, and the [fleet bar](./fleet-bar.md) is the one layer that asks for frames, for its spinner.
 
 ## Colour
 
@@ -152,6 +152,6 @@ replays the modes from it to a client that attaches, with one push for each kitt
 ## The last row
 
 The TUI reports `rows - 1` rows as its size when it attaches and when it resizes, and keeps the last
-row of the terminal for the notices and for the fleet bar. The daemon sizes the session to the
-smallest size its attached clients report. When the PTY is smaller than the window, the session sits
-at the top left and the cells around it keep the default background.
+row of the terminal for the notices and for the [fleet bar](./fleet-bar.md). The daemon sizes the
+session to the smallest size its attached clients report. When the PTY is smaller than the window,
+the session sits at the top left and the cells around it keep the default background.

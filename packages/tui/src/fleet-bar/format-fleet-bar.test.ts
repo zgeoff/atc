@@ -32,13 +32,13 @@ test.each([
   },
   {
     title: 'short',
-    cols: 40,
-    expected: `doc    ink    lap${' '.repeat(7)}◆ 2   ctrl+space`,
+    cols: 48,
+    expected: `doc 1    ink 2 ◆    lap 6 ◆${' '.repeat(5)}◆ 2   ctrl+space`,
   },
   {
     title: 'short with … for the places that dropped',
     cols: 30,
-    expected: `doc    ink…${' '.repeat(3)}◆ 2   ctrl+space`,
+    expected: `doc 1…${' '.repeat(8)}◆ 2   ctrl+space`,
   },
 ])('#formatFleetBar draws the $title level on one row', (row) => {
   const ctx = setupTest();
