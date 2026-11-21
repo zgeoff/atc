@@ -107,10 +107,14 @@ type PlaceParts =
   `session.list`, `session.get` and `session.spawn`, and in each event that carries a descriptor.
 - The gateway passes `place` and `canDestroyHost` through unchanged.
 - `canDestroyHost` rides beside `place` because the [session list](./session-list.md#end) needs it
-  to word its end prompt. It is true when the provider can delete machines (its
-  `capabilities.destroy` is true) and this session's spawn created the machine it runs on.
-  Forgetting such a session deletes that machine. It is false for a session on a machine that
-  another session's spawn created.
+  to word its end prompt. It is true only when forgetting the session would delete its machine: this
+  session's spawn created the machine, and the daemon would let the session's target destroy it. It
+  is false in these cases:
+  - another session's spawn created the machine;
+  - the provider cannot delete machines (its `capabilities.destroy` is false);
+  - the daemon refuses the session's binding to its target, because the target changed since the
+    session started or restore could not confirm its unversioned binding, so `session.forget` fails
+    with `target_changed`.
 
 ### In the TUI
 

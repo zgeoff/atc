@@ -1,16 +1,19 @@
 import type { HostFact } from '@atc/plugin-api';
 import type { FleetStore } from '@atc/store';
 import type { DaemonID, SessionDescriptor, SessionLifecycle } from '@atcx/contract';
+import type { AtcError } from '@atcx/contract/light';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildPlaceKey } from '../fleet/build-place-key';
-import { isUnconfirmedBinding } from '../fleet/is-unconfirmed-binding';
 import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionRegistry } from './create-session-registry';
 import { pickSessionState } from './pick-session-state';
 import type { Session } from './session';
 
 export function collectSessionDescriptors(
-  registry: Pick<SessionRegistry, 'sessions' | 'findAdapter' | 'findProvider' | 'targets'>,
+  registry: Pick<
+    SessionRegistry,
+    'sessions' | 'findAdapter' | 'findProvider' | 'findExecutionRefusal' | 'targets'
+  >,
   store: Pick<FleetStore, 'daemonID'>,
 ): SessionDescriptor[] {
   return registry.sessions.map((session) => ({
@@ -41,10 +44,13 @@ export function collectSessionDescriptors(
     ...(session.model === undefined ? {} : { model: session.model }),
     ...(session.pluginDirs === undefined ? {} : { pluginDirs: session.pluginDirs }),
     ...buildHostField(registry.findProvider(session)?.findHostFact?.(session.hostKey) ?? null),
-    place: buildPlace(registry.targets.get(session.target), session, store.daemonID),
-    canDestroyHost:
-      registry.findProvider(session)?.capabilities.destroy === true &&
-      session.hostKey === session.id,
+    place: buildPlace(
+      registry.targets.get(session.target),
+      session,
+      store.daemonID,
+      registry.findExecutionRefusal(session, 'destroy'),
+    ),
+    canDestroyHost: canDestroyHost(registry, session),
   }));
 }
 
@@ -64,22 +70,18 @@ function buildHostField(fact: HostFact | null): Pick<SessionDescriptor, 'host'> 
   return fact === null ? {} : { host: fact };
 }
 
-// A session kept from an earlier config of its target must not join the place the target has now,
-// since restore refuses that binding. It gets a place of its own, keyed by the identity it was
-// saved with. A binding that is only unconfirmed counts as the target's own: restore confirms it.
+// A session whose binding its target refuses, because the target changed or never confirmed an
+// unversioned binding, must not join the place the target has now. It gets a place of its own,
+// keyed by the identity it was saved with.
 function buildPlace(
   target: ExecutionTarget | undefined,
   session: Pick<Session, 'target' | 'targetIdentity'>,
   daemonID: DaemonID,
+  refusal: AtcError | null,
 ): SessionDescriptor['place'] {
   const label = target?.label ?? session.target;
 
-  const isChanged =
-    target !== undefined &&
-    session.targetIdentity !== target.identity &&
-    !isUnconfirmedBinding(target, session.targetIdentity);
-
-  if (isChanged) {
+  if (target !== undefined && refusal?.code === 'target_changed') {
     return {
       key: buildPlaceKey({
         provider: target.kind,
@@ -101,4 +103,14 @@ function buildPlace(
     }),
     label,
   };
+}
+
+// session.forget deletes the host only when this check passes, so the descriptor asks the same.
+function canDestroyHost(
+  registry: Pick<SessionRegistry, 'findExecutionRefusal'>,
+  session: Session,
+): boolean {
+  return (
+    session.hostKey === session.id && registry.findExecutionRefusal(session, 'destroy') === null
+  );
 }

@@ -109,11 +109,11 @@ Every descriptor carries `place` and `canDestroyHost`, in the answers to `sessio
 `session.get` and `session.spawn` and in each event that carries a descriptor. The gateway passes
 both through unchanged. A daemon that predates places sends neither field.
 
-| Field            | Holds                                                                                                                        |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `place.key`      | the id a client groups sessions by; two daemons that reach one remote service send one key                                   |
-| `place.label`    | the `label` of the session's target in the config, else the target id                                                        |
-| `canDestroyHost` | whether forgetting the session deletes its machine: its provider can destroy hosts and this session's spawn made the machine |
+| Field            | Holds                                                                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `place.key`      | the id a client groups sessions by; two daemons that reach one remote service send one key                                                                 |
+| `place.label`    | the `label` of the session's target in the config, else the target id                                                                                      |
+| `canDestroyHost` | whether forgetting the session would delete its machine: this session's spawn made the machine, and the daemon lets the target destroy it for this session |
 
 The provider's `place` rule decides the key. A provider with no rule, and a provider whose rule
 answers daemon scope, gets `daemon:<daemon id>:<target id>`, with each part percent-encoded so that
@@ -122,8 +122,10 @@ where the hash covers only the options that name the remote service.
 [Places](../../design/tui-redesign/places.md) holds the rules for each provider, the key and the
 target label.
 
-A session saved on an earlier config of its target, which restore refuses with `target_changed`,
-keeps out of the target's current place. Its key is
+The daemon fills both fields from the check that `session.forget` runs before it deletes a machine.
+When that check refuses the session with `target_changed`, `canDestroyHost` is false and the session
+keeps out of the target's current place. The check refuses a session saved on an earlier config of
+its target, and a session whose unversioned binding restore could not confirm. Its key is
 `daemon:<daemon id>:<target id>:<saved identity>`, each part percent-encoded, so it never equals the
 key of a target whose id holds the saved identity.
 
