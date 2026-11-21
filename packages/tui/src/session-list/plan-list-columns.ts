@@ -36,9 +36,9 @@ const MIN_MESSAGE = 12;
 const MIN_NAME = 8;
 const CAPS = { name: 24, daemon: 10, place: 14, repo: 16, agent: 8 };
 
-// The widths of the columns for one panel width. The message takes what the other columns leave.
-// When it would get less than a dozen columns, the agent, the repository, the place and the daemon
-// drop out in that order, and then the name shrinks.
+// The widths of the columns for one panel width; the message takes what the others leave. Below a
+// dozen for it, the agent, repository, place and daemon drop out in turn, and the name shrinks to
+// 8. With no room left, the age drops out and the name shrinks to what is left.
 export function planListColumns(input: ColumnInput): ColumnPlan {
   const widths = {
     name: Math.min(CAPS.name, Math.max(MIN_NAME, input.wants.name)),
@@ -48,16 +48,17 @@ export function planListColumns(input: ColumnInput): ColumnPlan {
     agent: input.isNarrow ? 0 : Math.min(CAPS.agent, input.wants.agent),
   };
 
+  let age = AGE_WIDTH;
+
   const spareFor = (): number => {
     const shown = Object.values(widths).filter((width) => width > 0).length;
 
     return (
       input.contentWidth -
       ROW_PREFIX_WIDTH -
-      AGE_WIDTH -
+      (age > 0 ? age + COLUMN_GAP : 0) -
       Object.values(widths).reduce((sum, width) => sum + width, 0) -
-      shown * COLUMN_GAP -
-      COLUMN_GAP
+      shown * COLUMN_GAP
     );
   };
 
@@ -73,5 +74,13 @@ export function planListColumns(input: ColumnInput): ColumnPlan {
     widths.name -= 1;
   }
 
-  return { ...widths, message: Math.max(0, spareFor()), age: AGE_WIDTH };
+  if (spareFor() < 0) {
+    age = 0;
+  }
+
+  while (spareFor() < 0 && widths.name > 0) {
+    widths.name -= 1;
+  }
+
+  return { ...widths, message: Math.max(0, spareFor()), age };
 }

@@ -101,7 +101,7 @@ export function buildSessionLine(row: SessionRow, context: SessionLineContext): 
 
   const age = formatAge(session.state, session.stateSince, input.nowMs);
 
-  if (age !== '') {
+  if (age !== '' && plan.age > 0) {
     spans.push(span(context.width - CONTENT_COL - age.length, age, MUTED));
   }
 

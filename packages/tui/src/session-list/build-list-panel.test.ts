@@ -310,6 +310,25 @@ test('it puts a jump label in place of the state glyph of each row', () => {
   expect([text[1]?.slice(2, 4), text[2]?.slice(2, 4)]).toStrictEqual(['▎s', '▎d']);
 });
 
+test('it drops the age and shortens the name of a row in a 14-column window', () => {
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      rows: [
+        {
+          kind: 'session',
+          session: buildMockMirrorSession({ name: 'abcdefgh', state: 'done', stateSince: 0 }),
+          via: null,
+        },
+      ],
+      selected: 0,
+      nowMs: 120_000,
+    }),
+    { cols: 14, rows: 20 },
+  );
+
+  expect(renderPanelText(plan)[1]).toBe('  ▌✓ abcd…');
+});
+
 test.each([
   { typed: 'st', expected: ['İ', 'st', 'anbul'] },
   { typed: 'i', expected: ['', 'İ', 'stanbul'] },

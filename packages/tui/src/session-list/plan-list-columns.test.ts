@@ -68,6 +68,46 @@ test.each([
     },
     expected: { name: 16, daemon: 0, place: 7, repo: 8, agent: 0, message: 14, age: 4 },
   },
+  {
+    title: 'no age and a shorter name when the name of 8 and the age leave no room',
+    input: {
+      contentWidth: 10,
+      isNarrow: true,
+      showDaemon: false,
+      showRepo: true,
+      wants: { name: 8, daemon: 0, place: 0, repo: 0, agent: 0 },
+    },
+    expected: { name: 5, daemon: 0, place: 0, repo: 0, agent: 0, message: 0, age: 0 },
+  },
+  {
+    title: 'no age with a name of 8 when the name and the age just miss',
+    input: {
+      contentWidth: 18,
+      isNarrow: true,
+      showDaemon: false,
+      showRepo: true,
+      wants: { name: 8, daemon: 0, place: 0, repo: 0, agent: 0 },
+    },
+    expected: { name: 8, daemon: 0, place: 0, repo: 0, agent: 0, message: 5, age: 0 },
+  },
 ])('#planListColumns gives $title', (row) => {
   expect(planListColumns(row.input)).toStrictEqual(row.expected);
 });
+
+test.each(Array.from({ length: 28 }, (_, index) => index + 3))(
+  '#planListColumns fits the row in a content width of %i',
+  (contentWidth) => {
+    const plan = planListColumns({
+      contentWidth,
+      isNarrow: true,
+      showDaemon: false,
+      showRepo: true,
+      wants: { name: 8, daemon: 0, place: 0, repo: 0, agent: 0 },
+    });
+
+    const used =
+      3 + plan.name + (plan.name > 0 ? 2 : 0) + plan.message + (plan.age > 0 ? 2 + plan.age : 0);
+
+    expect(used).toBeLessThanOrEqual(contentWidth);
+  },
+);
