@@ -85,7 +85,8 @@ function buildPlace(
         provider: target.kind,
         placeParts: undefined,
         daemonID,
-        targetID: `${session.target}:${session.targetIdentity}`,
+        targetID: session.target,
+        savedIdentity: session.targetIdentity,
       }),
       label,
     };

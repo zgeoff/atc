@@ -11,10 +11,9 @@ import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import type { SessionID } from '@atcx/contract';
-import { toAgentSessionID, toDaemonID, toSessionID } from '@atcx/contract';
+import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
-import { collectSessionDescriptors } from '../sessions/collect-session-descriptors';
 import { createSessionManager } from '../sessions/create-session-manager';
 import { createSessionRuntime } from '../sessions/create-session-runtime';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
@@ -874,17 +873,9 @@ test('it keeps a restored session whose target changed out of the place the targ
     capMs: 0,
   });
 
-  const [descriptor] = collectSessionDescriptors(
-    {
-      sessions: ctx.manager.sessions,
-      findAdapter: () => null,
-      findProvider: () => null,
-      targets: new Map(ctx.targets.map((target) => [target.id, target])),
-    },
-    { daemonID: toDaemonID('d1') },
-  );
+  const [descriptor] = ctx.manager.collectDescriptors();
 
-  expect(descriptor?.place?.key).toBe('daemon:d1:cloud:imp:reach-v1:0123456789abcdef');
+  expect(descriptor?.place?.key).toMatch(/^daemon:[^:]+:cloud:imp%3Areach-v1%3A0123456789abcdef$/u);
 });
 
 test('it restores a stored session on its own target config revision after another target is added', async () => {

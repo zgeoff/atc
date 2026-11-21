@@ -116,14 +116,16 @@ both through unchanged. A daemon that predates places sends neither field.
 | `canDestroyHost` | whether forgetting the session deletes its machine: its provider can destroy hosts and this session's spawn made the machine |
 
 The provider's `place` rule decides the key. A provider with no rule, and a provider whose rule
-answers daemon scope, gets `daemon:<daemon id>:<target id>`. A shared rule gives
-`<provider>:<version>:<hash>`, where the hash covers only the options that name the remote service.
+answers daemon scope, gets `daemon:<daemon id>:<target id>`, with each part percent-encoded so that
+a colon inside a part never reads as a separator. A shared rule gives `<provider>:<version>:<hash>`,
+where the hash covers only the options that name the remote service.
 [Places](../../design/tui-redesign/places.md) holds the rules for each provider, the key and the
 target label.
 
 A session saved on an earlier config of its target, which restore refuses with `target_changed`,
 keeps out of the target's current place. Its key is
-`daemon:<daemon id>:<target id>:<saved identity>`.
+`daemon:<daemon id>:<target id>:<saved identity>`, each part percent-encoded, so it never equals the
+key of a target whose id holds the saved identity.
 
 ## Sub-sessions
 

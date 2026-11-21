@@ -11,6 +11,7 @@ interface KeyRow {
   readonly placeParts: PlaceParts | undefined;
   readonly daemonID: string;
   readonly targetID: string;
+  readonly savedIdentity?: string;
 }
 
 test.each<[string, KeyRow, string]>([
@@ -93,6 +94,22 @@ test.each<[string, KeyRow, string]>([
     'a provider with no rule',
     { provider: 'local-pty', placeParts: undefined, daemonID: 'd1', targetID: 'local' },
     'daemon:d1:local',
+  ],
+  [
+    'a daemon-scope target whose id holds a colon',
+    { provider: 'docker', placeParts: undefined, daemonID: 'd1', targetID: 'box:old' },
+    'daemon:d1:box%3Aold',
+  ],
+  [
+    'a session kept from an earlier identity of its target',
+    {
+      provider: 'cloud',
+      placeParts: undefined,
+      daemonID: 'd1',
+      targetID: 'box',
+      savedIdentity: 'cloud:old',
+    },
+    'daemon:d1:box:cloud%3Aold',
   ],
 ])('it builds the key of %s', (_title, row, expected) => {
   const ctx = setupTest();

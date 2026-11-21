@@ -89,7 +89,9 @@ type PlaceParts =
 
 - Daemon scope means the place belongs to one daemon and one target, and never merges with a place
   on another daemon. Its key is `daemon:<daemonID>:<target id>`, where `daemonID` is the id that
-  `atc daemon id` prints. A sprites target has daemon scope though its machines run remotely.
+  `atc daemon id` prints. atc percent-encodes each part, so a colon in a target id becomes `%3A` and
+  never splits the key into other parts. A sprites target has daemon scope though its machines run
+  remotely.
 - A provider with no `place` rule gets daemon scope.
 
 ### The target's label
