@@ -84,8 +84,8 @@ interface PlaceSummary {
 ### Other states
 
 - While a daemon is down, the bar keeps that daemon's sessions as they were last listed. A place
-  that the daemon serves draws all its glyphs in `#3a414b` and gets `?` after its label. Those
-  sessions still count toward `needYou`.
+  that holds a session from that daemon draws every one of its glyphs in `#3a414b`, and shows `?`
+  after its label. Those sessions still count toward `needYou`.
 - While the TUI has a notice to show, such as a failed call, the advice to update a daemon that runs
   an older build, or a lost connection, the notice takes the bar's row. The bar comes back when the
   notice ends.
@@ -95,9 +95,9 @@ interface PlaceSummary {
 
 ### Claude Code's status line
 
-- In a Claude Code session, the statusline reporter runs the user's own status line command and
-  prints only its output, or prints nothing when the user has none. It adds no atc text.
-- The reporter sends each status line report to the daemon.
+- In a Claude Code session, the statusline reporter sends each status line report to the daemon.
+- The reporter then runs the user's own status line command and prints only that command's output,
+  or nothing when the user has none.
 - The `--settings` file that atc generates for each Claude Code launch keeps its `statusLine` entry,
   which points Claude Code at the reporter.
 

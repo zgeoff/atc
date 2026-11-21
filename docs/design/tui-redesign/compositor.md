@@ -166,12 +166,15 @@ z.object({
   until the agent redraws it.
 - While the session has focus, `flush` puts the user's terminal cursor where the emulator's cursor
   is, with its shape and visibility. While another layer has focus, the cursor is hidden.
-- The TUI writes to the user's terminal only through `flush`.
-- The one exception is the sequences it passes on from the session, which it writes between frames.
+- The TUI draws the screen only through `flush`. It writes these between frames, outside `flush`:
+  the sequences it passes on from the session, the copies that `y` and `Y` make, a change of input
+  modes, the start-up queries, and the reset on exit.
 - Each `flush` is one write wrapped in synchronized output (`ESC[?2026h` … `ESC[?2026l`). A terminal
   that ignores mode 2026 still shows a correct frame.
 - The TUI waits for the emulator's `write` to resolve before it reads cells. The next frame draws
   all output whose `write` resolved before that frame started.
+- A session that writes without a pause always has a `write` pending. A frame then waits at most 16
+  ms for it, and draws. No frame draws while a replay arrives.
 
 ### Sequences from the session
 
@@ -230,8 +233,8 @@ z.object({
   at the earliest answer. When every layer answers null, the clock stops, and the TUI draws a frame
   only when a session writes, a key arrives, the fleet changes or the window resizes.
 - A layer that animates answers `now + 16`, so the clock runs at 60 Hz while it moves.
-- A frame that takes longer than 16 ms drops the next tick. The clock never queues ticks. A frame
-  that an event asked for always draws, even when it joins a late tick.
+- A frame that takes longer than 16 ms drops the next tick. The clock never queues ticks.
+- When an event asks for a frame while a tick is overdue, that tick draws, however late it runs.
 - The session list's open and close are decorative motion. When the config's `animations` is
   `false`, they take one frame, and the layer answers null.
 - A spinner shows state, so it turns at 10 Hz whatever `animations` says: a layer with a spinner
@@ -240,8 +243,8 @@ z.object({
 ### Exit
 
 - On exit, on detach and on error, the TUI resets every input mode it copied from a session, then
-  restores the terminal through the TUI's existing `restoreTerminal`: the main screen, a visible
-  cursor and default colours.
+  restores the terminal with `restoreTerminal`: the main screen, a visible cursor and default
+  colours.
 
 ## Decisions
 
@@ -256,21 +259,6 @@ z.object({
   one place.
 - **The user's terminal keeps no scrollback of a session,** because the TUI runs in the terminal's
   alternate screen.
-
-## Where the build differs
-
-The build in [the compositor architecture doc](../../architecture/tui/compositor.md) follows this
-design, with these differences:
-
-- RGB fields are `red`, `green` and `blue`. The lint rules refuse one-letter names.
-- The frame clock takes an `animations` flag from the config and passes it to the layers that
-  animate. No layer animates yet, so the flag changes nothing today.
-- The emulator has `reset`, `readSize` and `dispose`, which the session stream needs to start a
-  replay and to end a session.
-- The screens that already draw with escape sequences write through one function into a second
-  emulator, and a layer copies its cells. They move to layers of their own one at a time.
-- The flush writes a short run of unchanged cells in place of a cursor move, and repaints every cell
-  after a screen clears the terminal, so a screen that draws with `ESC[2J` needs no change.
 
 ## Builder decides
 

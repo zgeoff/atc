@@ -1,88 +1,109 @@
 # The fleet bar
 
-While the user is attached to a session, the TUI draws the fleet bar on the last row of the
-terminal. For each place, the bar shows a label and a glyph for each of up to 4 of its sessions. At
-its right end, it shows how many sessions need the user, and the leader key that opens the session
-list. The TUI draws the bar itself, so it looks the same under Claude Code, Codex and Grok.
+While a session has focus, the TUI draws the fleet bar on the last row of the terminal. The bar
+groups the TUI's sessions by place, the machine or service a session runs on, which the daemon
+reports for each session. For each place, the bar shows the place's label and a state glyph for each
+of up to 4 of its sessions. At its right end, it shows how many sessions need the user, then the
+leader key, the key that opens the session list. The TUI draws the bar itself, so it looks the same
+under Claude Code, Codex and Grok.
 
 ```text
 laptop ◆⠋✓○ +1    docker ⠴    ink ◆⠸✓✓ +2                     ◆ 2 need you   ^Space
 └─ place label, in its colour      └─ ◆ needs you · spinner running · ✓ done · ○ exited
 ```
 
-## Shape
+[Places](../../design/tui-redesign/places.md) defines a place and how the daemon builds its key. The
+bar is one layer of the [compositor](./compositor.md), which owns the frame clock and the cell
+buffer.
+
+## From sessions to the row
 
 ```mermaid
 flowchart LR
-  mirror[fleet mirror] --> build[buildFleetBar]
-  links[daemon links] -->|"daemons that are down"| build
-  build --> format[formatFleetBar]
-  format --> layer[bar layer]
-  clock[frame clock] -->|"at a fixed step while a session runs"| layer
-  layer --> buffer[cell buffer, last row]
+  mirror["the TUI's copy of each daemon's sessions"] --> build[buildFleetBar]
+  links["the TUI's daemon connections"] -->|"daemons that are down"| build
+  build -->|"places, counts, detail level"| format[formatFleetBar]
+  format -->|"cells"| layer[bar layer]
+  clock[frame clock] -->|"10 frames a second while a session runs"| layer
+  layer --> buffer["cell buffer, last row"]
 ```
 
-`buildFleetBar` is a pure function of the TUI's sessions, the width and the leader label. The bar
-layer calls it on each frame, so the bar needs no state of its own.
+The bar layer builds the bar again on each frame, so the bar keeps no state of its own.
+
+- `buildFleetBar` takes the TUI's sessions, the width, the leader key's label and the daemons that
+  are down. It returns the places to show, their counts and glyphs, and the detail level that fits.
+- `formatFleetBar` turns that result into coloured cells for the last row.
 
 ## Places in the TUI
 
-A mirror session holds `place`, the descriptor's `place` of `key` and `label`. A descriptor with no
-`place`, from a daemon built before the field existed, gets key `daemon:<daemon name>:<target id>`
-and label `<target id>`. The daemon on the TUI's own computer has no name in the config, and the TUI
-writes it as `local`.
+The TUI reads each session's place, a `key` and a `label`, from the session's descriptor in the
+daemon's listing. A descriptor with no `place` gets the key `daemon:<daemon name>:<target id>` and
+the label `<target id>`. The daemon on the TUI's own computer has no name in the config, and the TUI
+writes its name as `local`.
 
 `pickPlaceLabels` gives one label to each place key:
 
-- When the daemons in one place give it different labels, the TUI shows the label from the daemon on
-  its own computer, else from the daemon listed first in the config's `daemons`.
-- When two places end up with the same label, the TUI writes each as `<label> · <daemon name>`. When
-  two places on one daemon still match, it adds the target id, then the place key, and skips a part
-  that repeats the label.
+- When the daemons in one place give it different labels, the TUI uses the label from the daemon on
+  its own computer, else the label from the daemon listed first in the config's `daemons`.
+- When two places share a label, the TUI adds the daemon name, as `<label> · <daemon name>`. While
+  two labels still match, it adds the target id next, then the place key, one at a time, until they
+  differ. It never adds a name that equals the label.
 
-`pickPlaceColour` picks a place's colour from its key alone, from a palette of 12 colours, then
-moves each channel 20% toward `#6e7681`. A place has the same colour on every daemon that sends its
-key, and in every run.
+`pickPlaceColour` picks a place's colour from its key alone, so a place has the same colour on every
+daemon that sends its key, and in every run.
 
 ## Layout
 
-- The attached session's place comes first, then the other places in label order.
-- A session's glyph follows its state: `◆` for `needs_you`, a braille spinner for `running`, `✓` for
-  `done`, `○` for `exited` and `?` for a state a newer daemon added. Glyphs sort in that order, so a
-  `◆` goes into `+<n>` only when a place has more than 4 sessions in `needs_you`.
-- The bar uses the most detail that fits the width. At `glyphs`, a place shows its label, up to 4
-  glyphs and ` +<n>` for the rest. At `counts`, it shows its label, its session count and `◆` when
-  any of its sessions needs the user. At `short`, it is `counts` with the label cut to 3 letters.
-- When `short` leaves no room for every place, the bar drops places from the end of the order and
+The attached session's place comes first, then the other places in label order. Places are 4 columns
+apart, and the bar keeps 3 columns between the last place and the right end. The bar paints no
+background.
+
+A session's glyph follows its state: `◆` for `needs_you`, a braille spinner for `running`, `✓` for
+`done`, `○` for `exited` and `?` for a state a newer daemon added. Glyphs sort in that order, so a
+`◆` goes into the `+<n>` count only when a place has more than 4 sessions in `needs_you`.
+
+The bar uses the most detailed level that fits the width:
+
+| Level    | Each place shows                                                     |
+| -------- | -------------------------------------------------------------------- |
+| `glyphs` | its label, up to 4 glyphs, and ` +<n>` for the rest                  |
+| `counts` | its label, its session count, and `◆` when a session in it needs you |
+| `short`  | as `counts`, with the label cut to 3 letters                         |
+
+- When `short` leaves no room for every place, the bar drops places from the end of the order, and
   writes `…` after the last place it kept. The right end always shows.
 - The bar measures every width in terminal columns per grapheme, so a wide character such as `界`
-  takes two.
-- Places are 4 columns apart, and the bar keeps 3 columns between the last place and the right end.
-- The right end shows `◆ <k> need you` in amber (`#f0b45a`) when `k > 0`, then the leader label in
-  bold blue (`#7aa2f7`). Under 90 columns it shows `◆ <k>` without the words. `k` counts every
-  place, dropped ones included.
-- The bar paints no background.
+  takes two columns.
+
+At the right end, the bar shows `◆ <k> need you` in amber (`#f0b45a`) when `k > 0`, then the leader
+key's label in bold blue (`#7aa2f7`). `k` is the number of sessions in `needs_you` across every
+place, the dropped places included. Under 90 columns the bar shows `◆ <k>` without the words.
 
 ## A daemon that is down
 
-While a daemon's link is down, refused or mismatched, the mirror keeps that daemon's sessions as
-they were last listed. A place with a session from that daemon draws all its glyphs in `#3a414b` and
-gets `?` after its label. Those sessions still count toward the right end.
+The TUI treats a daemon as down while its connection is lost, while the daemon refuses the TUI's
+token, or while the daemon speaks another major protocol version. While a daemon is down, the TUI
+keeps that daemon's sessions as they were last listed.
+
+- A place that holds a session from a down daemon draws every one of its glyphs in `#3a414b`, and
+  shows `?` after its label.
+- Those sessions still count toward `k`.
 
 ## The row
 
-The bar layer draws after the layer that copies notices from the screen emulator, and only while a
-session has focus, or the session list is open over one, and no notice shows. A failed call, the
-advice to update a daemon, and a lost connection each take the row while they show, and the bar
-returns after. Home has no fleet bar. While the session list is open over a session, the bar keeps
-the last row, and the list leaves that row blank.
+The bar shows while a session has focus, and while the session list is open over an attached
+session. A notice takes the row while it shows, such as a failed call, the advice to update a
+daemon, or a lost connection, and the bar returns after it. The bar layer sits above the layer that
+draws notices, and draws nothing while a notice shows. Home, the screen with no session attached,
+has no fleet bar.
 
-The spinner turns at a fixed step, 10 times a second, whatever the `animations` setting says. The
-layer asks the frame clock for a frame only while the bar shows and a session runs.
+While a session runs, the spinner turns 10 times a second, whatever the config's `animations` says.
+The bar layer asks the frame clock for frames only while the bar shows and a session runs.
 
 ## Claude Code's status line
 
-The statusline reporter sends each status line report to the daemon, runs the user's own status line
-command, and prints only that command's output. It prints nothing when the user has none, and adds
-no atc text. The generated `--settings` file keeps its `statusLine` entry that points Claude Code at
-the reporter. See [agent integration](../agents/agent-integration.md).
+The fleet's state shows in the fleet bar, so Claude Code's own status line holds only the user's
+command. The statusline reporter sends each status line report to the daemon, runs the user's own
+status line command, and prints only that command's output, or nothing when the user has none.
+[Agent integration](../agents/agent-integration.md) owns the reporter and the generated `--settings`
+file.
