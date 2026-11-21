@@ -376,7 +376,7 @@ test('it exits 0 when Claude Code gives the start hook no env file', async () =>
   const ctx = setupTest();
 
   const ran = await run(['sh', '-c', ctx.telemetryHook], {
-    env: { PATH: process.env['PATH'], ATC_SESSION_ID: 's-1' },
+    env: { PATH: process.env['PATH'], ATC_SESSION_ID: 's-1', CLAUDE_ENV_FILE: undefined },
   });
 
   expect({ exitCode: ran.exitCode, stderr: ran.stderr }).toStrictEqual({ exitCode: 0, stderr: '' });
@@ -388,7 +388,7 @@ test('it leaves the env file as it was when the session has no atc session id', 
   writeFileSync(ctx.envFile, 'export LANG=C.UTF-8\n');
 
   const ran = await run(['sh', '-c', ctx.telemetryHook], {
-    env: { PATH: process.env['PATH'], CLAUDE_ENV_FILE: ctx.envFile },
+    env: { PATH: process.env['PATH'], ATC_SESSION_ID: undefined, CLAUDE_ENV_FILE: ctx.envFile },
   });
 
   expect({ exitCode: ran.exitCode, envFile: readFileSync(ctx.envFile, 'utf8') }).toStrictEqual({
