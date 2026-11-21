@@ -38,8 +38,10 @@ script, with shfmt's settings in `.editorconfig`, and leaves out the skill scrip
 from another repo. The guest script check (`bun run check:guest-scripts`) runs shellcheck over the
 shell scripts that atc holds as strings, which the shell lint cannot see.
 
-A squash merge makes the PR title the commit subject, so the `PR Title` workflow runs commitlint on
-the title each time a PR opens, changes its title, or takes a push.
+A squash merge makes the PR title the commit subject, so `.github/workflows/pr-title.yml`, a
+workflow that the tools repo's sync writes, runs commitlint on the title each time a PR opens,
+changes its title, or takes a push. When it fails, rename the PR as its log says; the rename runs it
+again.
 
 ## Running from source
 
