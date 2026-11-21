@@ -39,13 +39,9 @@ constraint holds.
 
 ## Contracts
 
-- `collectListRows` takes the names of the daemons in its options, beside `grouping` and `filter`.
-  Place mode needs them to find a place that holds sessions from more than one daemon.
-- A session whose machine sleeps (`hostAsleep` is true) shows `asleep` in the message column. When
-  the user presses `X` on it, the daemon refuses with `host_asleep`, and the TUI shows the notice
-  that [End](#end) gives.
-- The TUI sends `session.forget` without `refuseLive`, and the daemon then stops a live session
-  before it removes it.
+`collectListRows` in the TUI's session list module takes the names of the daemons in its options,
+beside `grouping` and `filter`. Place mode needs them to find a place that holds sessions from more
+than one daemon.
 
 ```ts
 const rows = collectListRows(sessions, { grouping: 'place', filter: '', daemons });

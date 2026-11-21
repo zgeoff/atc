@@ -75,12 +75,17 @@ you sort to the top:
 | `i`          | go home                                                       |
 | `K`          | kill the selected live session; it stays listed as exited     |
 | `X`          | end the selected session: stop it and remove it from the list |
+| `p`          | pin or unpin the selected session                             |
+| `y`, `Y`     | copy a command that resumes the session outside atc           |
 | `q`          | quit the client; sessions keep running                        |
 | `?`          | every other key                                               |
 
-A place is the machine a session runs on, such as your own machine or an imp, as
-[targets](./configuration/targets.md) describes. The `list.grouping` setting in
-[the config](./configuration.md) picks the grouping the list opens with: `flat`, `repo` or `place`.
+Each row shows, after its mark, the session's name, its place, its repository, its agent, its
+message (the last status the agent reported) and how long it has been in its state. A place is the
+machine a session runs on, such as your own machine or an imp, as
+[targets](./configuration/targets.md) describes. Set `list.grouping` in
+[the config](./configuration.md) to pick the grouping the list opens with: `flat`, `repo` or
+`place`.
 
 `K` kills a session: its agent stops, and the session stays in the list as exited, so you can attach
 it again later. On an imp, `K` puts the imp to sleep with the agent inside, and attaching the
@@ -88,25 +93,26 @@ session again wakes it where it left off.
 
 `X` ends a session: atc stops it and removes it from the list. atc first asks `end <name>?`, and you
 answer `y` to go ahead or any other key to keep the session. When ending the session also deletes
-its machine, such as an imp, the question names the machine. atc refuses `X` on a pinned session
-until you unpin it. When the session's machine sleeps, atc tells you to attach the session to wake
-the machine, then end it.
+its machine, such as an imp, the question names the machine. atc refuses `X` on a session you pinned
+with `p` until you unpin it. When the session's machine sleeps, atc tells you to attach the session
+to wake the machine, then end it.
 
 When you end a session, atc takes it off the list and removes the workspace folder that atc cloned
 for it. atc keeps a workspace folder that holds work found nowhere else, such as an unpushed commit.
 [Cleanup when you forget a session](./configuration/workspaces.md#cleanup-when-you-forget-a-session)
 lists every reason atc keeps one, and where the list shows it.
 
-With no question open, `y` copies a shell command that resumes the selected session outside atc, and
-`Y` copies it and then kills the session here. Only a session on the daemon's own machine has that
-command, because the session's folder and settings file exist only where its agent runs. For a
-session on an imp or another remote target, or for an agent that cannot resume outside atc, the
-session's message column shows why, and `Y` kills nothing.
+While no `K` or `X` question is open, `y` copies a shell command that resumes the selected session
+outside atc, and `Y` copies it and then kills the session here. Only a session on the daemon's own
+machine has that command, because the session's folder and settings file exist only where its agent
+runs. For a session on an imp or another remote target, or for an agent that cannot resume outside
+atc, the session's message column shows why, and `Y` kills nothing.
 
 While you are attached, the last row of the terminal shows the fleet bar: a label for each place, a
 glyph for each of its sessions (`◆` needs you, a spinner running, `✓` done, `○` exited), and at the
 right end how many sessions need you, then the leader key. The place of the session you are in comes
-first. Claude Code's own status line shows only what you configured for it.
+first. The fleet bar is atc's own row: atc adds nothing to Claude Code's status line, which shows
+only what you configured for it.
 
 When atc runs inside zellij or tmux, give the pane locked mode, so the leader key reaches atc.
 
