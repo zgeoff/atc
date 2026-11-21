@@ -84,10 +84,13 @@ function buildWordmarkRuns(window: WindowSize, wordmark: Wordmark, row: number):
 
 const FLEET_SEPARATOR = '  ·  ';
 
+type RunPart = Pick<HomeRun, 'text' | 'tone' | 'bold' | 'dim'>;
+
+// A fleet line too wide for the window drops its need-you part first, then cuts the count.
 function buildFleetRuns(cols: number, row: number, input: HomeInput): HomeRun[] {
   const count = String(input.sessionCount);
 
-  const parts: Pick<HomeRun, 'text' | 'tone' | 'bold' | 'dim'>[] =
+  const countParts: RunPart[] =
     input.sessionCount === 0
       ? [{ text: 'no sessions', tone: 'plain', bold: false, dim: true }]
       : [
@@ -100,34 +103,57 @@ function buildFleetRuns(cols: number, row: number, input: HomeInput): HomeRun[] 
           },
         ];
 
-  if (input.needYouCount > 0) {
-    parts.push(
-      { text: FLEET_SEPARATOR, tone: 'plain', bold: false, dim: true },
-      { text: '◆ ', tone: 'amber', bold: false, dim: false },
-      {
-        text: String(input.needYouCount),
-        tone: 'amber',
-        bold: true,
-        dim: false,
-      },
-      { text: ' need you', tone: 'amber', bold: false, dim: true },
-    );
-  }
+  const fullParts: RunPart[] =
+    input.needYouCount > 0
+      ? [
+          ...countParts,
+          { text: FLEET_SEPARATOR, tone: 'plain', bold: false, dim: true },
+          { text: '◆ ', tone: 'amber', bold: false, dim: false },
+          {
+            text: String(input.needYouCount),
+            tone: 'amber',
+            bold: true,
+            dim: false,
+          },
+          { text: ' need you', tone: 'amber', bold: false, dim: true },
+        ]
+      : countParts;
 
-  let col = centre(
-    cols,
-    parts.reduce((total, part) => total + measureWidth(part.text), 0),
-  );
+  const shownParts = measureParts(fullParts) <= cols ? fullParts : countParts;
+  const parts = fitParts(shownParts, cols);
 
-  const runs: HomeRun[] = [];
+  return layParts(parts, centre(cols, measureParts(parts)), row);
+}
 
-  for (const part of parts) {
-    runs.push({ ...part, col, row });
+function measureParts(parts: readonly RunPart[]): number {
+  return parts.reduce((total, part) => total + measureWidth(part.text), 0);
+}
+
+// The parts cut to `width` columns as one text: the part that is cut ends in `…`, and the parts
+// after it are dropped.
+function fitParts(parts: readonly RunPart[], width: number): RunPart[] {
+  const fitted = fitText(parts.map((part) => part.text).join(''), width);
+  let offset = 0;
+
+  return parts.flatMap((part) => {
+    const text = fitted.slice(offset, offset + part.text.length);
+
+    offset += part.text.length;
+
+    return text === '' ? [] : [{ ...part, text }];
+  });
+}
+
+function layParts(parts: readonly RunPart[], startCol: number, row: number): HomeRun[] {
+  let col = startCol;
+
+  return parts.map((part) => {
+    const run = { ...part, col, row };
 
     col += measureWidth(part.text);
-  }
 
-  return runs;
+    return run;
+  });
 }
 
 const KEY_GAP = 2;
@@ -137,24 +163,20 @@ function buildKeyRuns(cols: number, row: number, keys: readonly KeyEntry[]): Hom
   const labelWidth = Math.max(...keys.map((entry) => measureWidth(entry.label)));
   const left = centre(cols, keyWidth + KEY_GAP + labelWidth);
 
-  return keys.flatMap((entry, index) => [
-    {
-      col: left + keyWidth - measureWidth(entry.key),
-      row: row + index,
-      text: entry.key,
-      tone: 'blue' as const,
-      bold: true,
-      dim: false,
-    },
-    {
-      col: left + keyWidth + KEY_GAP,
-      row: row + index,
-      text: entry.label,
-      tone: 'plain' as const,
-      bold: false,
-      dim: true,
-    },
-  ]);
+  return keys.flatMap((entry, index) => {
+    const startCol = left + keyWidth - measureWidth(entry.key);
+
+    const parts = fitParts(
+      [
+        { text: entry.key, tone: 'blue', bold: true, dim: false },
+        { text: ' '.repeat(KEY_GAP), tone: 'plain', bold: false, dim: true },
+        { text: entry.label, tone: 'plain', bold: false, dim: true },
+      ],
+      cols - startCol,
+    );
+
+    return layParts(parts, startCol, row + index).filter((run) => run.text.trim() !== '');
+  });
 }
 
 function buildNoticeRuns(cols: number, row: number, notices: readonly string[]): HomeRun[] {

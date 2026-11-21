@@ -165,6 +165,67 @@ test('#buildHomeLayout cuts a notice of wide characters to the window width, ell
   });
 });
 
+test.each([
+  [
+    24,
+    [
+      [6, '15', true],
+      [8, ' sessions', false],
+    ],
+  ],
+  [
+    10,
+    [
+      [0, '15', true],
+      [2, ' sessio…', false],
+    ],
+  ],
+])(
+  '#buildHomeLayout drops the need-you part, then cuts the count with an ellipsis, in a %i column window',
+  (cols, fleetRuns) => {
+    const layout = buildHomeLayout(
+      { cols, rows: 8 },
+      { kind: 'text' },
+      { cols: 3, rows: 1 },
+      {
+        sessionCount: 15,
+        needYouCount: 2,
+        leaderLabel: 'ctrl+space',
+        notices: [],
+        restorableCount: 0,
+      },
+    );
+
+    expect(
+      layout.runs.filter((run) => run.row === 3).map((run) => [run.col, run.text, run.bold]),
+    ).toStrictEqual(fleetRuns);
+  },
+);
+
+test('#buildHomeLayout cuts a key row wider than the window with an ellipsis', () => {
+  const layout = buildHomeLayout(
+    { cols: 16, rows: 8 },
+    { kind: 'text' },
+    { cols: 3, rows: 1 },
+    {
+      sessionCount: 0,
+      needYouCount: 0,
+      leaderLabel: 'ctrl+space',
+      notices: [],
+      restorableCount: 0,
+    },
+  );
+
+  expect(
+    layout.runs.filter((run) => run.row >= 5).map((run) => [run.row, run.col, run.text]),
+  ).toStrictEqual([
+    [5, 0, 'ctrl+space'],
+    [5, 12, 'ses…'],
+    [6, 9, 'n'],
+    [6, 12, 'new'],
+  ]);
+});
+
 test('#buildHomeLayout lists the restore key while the last fleet has sessions to restore', () => {
   const ctx = setupTest();
   const layout = ctx.layOut({ restorableCount: 2 });
