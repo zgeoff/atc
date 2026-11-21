@@ -1,5 +1,16 @@
 # Changelog
 
+## [7.23.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.22.0...@zgeoff/atc@7.23.0) (2026-11-21)
+
+### Features
+
+- **tui:** draw home as a layer with the atc wordmark
+  ([#1371](https://github.com/zgeoff/atc/issues/1371))
+  ([c748d48](https://github.com/zgeoff/atc/commit/c748d48ab6e40183255b911dbbf0fefc77affdb3))
+- **tui:** redesign the session list as a panel over the session
+  ([#1365](https://github.com/zgeoff/atc/issues/1365))
+  ([799b7af](https://github.com/zgeoff/atc/commit/799b7af3878d91a942ee0cbdde38c2863d2744e9))
+
 ## [7.22.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.21.1...@zgeoff/atc@7.22.0) (2026-11-21)
 
 ### Features
