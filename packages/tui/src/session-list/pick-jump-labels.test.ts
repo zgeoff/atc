@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { pickJumpLabels } from './pick-jump-labels';
+import { stepJump } from './step-jump';
 
 test.each([
   {
@@ -33,10 +34,16 @@ test.each([
     expected: ['aa', 'as', 'ad'],
   },
   {
-    title: 'no label for a name past the two-letter labels',
+    title: 'two-letter labels that start with a blocked letter when no letter is free',
     names: Array.from({ length: 2 }, () => 'abcdefghijklmnopqrstuvwxyz'),
     typed: '',
-    expected: [null, null],
+    expected: ['aa', 'as'],
+  },
+  {
+    title: 'a blocked first letter only once the free first letter runs out',
+    names: Array.from({ length: 27 }, () => 'sdfghjklqwertyuiopzxcvbnm'),
+    typed: '',
+    expected: [...Array.from('asdfghjklqwertyuiopzxcvbnm', (letter) => `a${letter}`), 'sa'],
   },
 ])('#pickJumpLabels gives $title', (row) => {
   expect(pickJumpLabels(row.names, row.typed).slice(0, row.expected.length)).toStrictEqual([
@@ -51,4 +58,24 @@ test('#pickJumpLabels gives each label of 30 names once', () => {
   );
 
   expect(new Set(labels).size).toBe(30);
+});
+
+test('#pickJumpLabels gives 27 rows with one free letter labels that each pick their row', () => {
+  const names = Array.from({ length: 27 }, () => 'sdfghjklqwertyuiopzxcvbnm');
+
+  const steps = pickJumpLabels(names, '').map((label) => {
+    const [first = '', second = ''] = [...(label ?? '')];
+
+    return [
+      stepJump({ typed: '', prefix: '' }, first, names),
+      stepJump({ typed: '', prefix: first }, second, names),
+    ];
+  });
+
+  expect(steps).toStrictEqual(
+    names.map((_name, index) => [
+      { kind: 'continue', state: { typed: '', prefix: index < 26 ? 'a' : 's' } },
+      { kind: 'picked', index },
+    ]),
+  );
 });

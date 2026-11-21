@@ -1,8 +1,8 @@
 const LETTERS = 'asdfghjklqwertyuiopzxcvbnm';
 
-// A label for each name, in order, or null for a name that gets none. The names are the rows that
-// still match what the user typed. A label is never a letter that would extend the search. When
-// the free letters run out, every label is a free letter and then any letter.
+// A label for each name that still matches what the user typed, or null past 676 names. Free
+// letters, which never extend the search, come first; with too few, every label is a free letter
+// and then any letter, and the first letters run on into the letters that would extend the search.
 export function pickJumpLabels(names: readonly string[], typed: string): (string | null)[] {
   const needle = typed.toLowerCase();
   const blocked = collectExtendingLetters(names, needle);
@@ -12,8 +12,10 @@ export function pickJumpLabels(names: readonly string[], typed: string): (string
     return names.map((_name, index) => free[index] ?? null);
   }
 
+  const firsts = [...free, ...LETTERS.split('').filter((letter) => blocked.has(letter))];
+
   return names.map((_name, index) => {
-    const first = free[Math.floor(index / LETTERS.length)];
+    const first = firsts[Math.floor(index / LETTERS.length)];
 
     return first === undefined ? null : `${first}${LETTERS[index % LETTERS.length] ?? ''}`;
   });
