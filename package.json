@@ -47,7 +47,7 @@
       "@xterm/addon-serialize": "0.14.0",
       "@xterm/addon-unicode-graphemes": "0.4.0",
       "@xterm/headless": "6.0.0",
-      "@zgeoff/agent-hooks": "0.2.14",
+      "@zgeoff/agent-hooks": "0.3.0",
       "@zgeoff/bun-test-extended": "0.2.4",
       "@zgeoff/chex": "0.3.15",
       "@zgeoff/diet": "0.3.0",
