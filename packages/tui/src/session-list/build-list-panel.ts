@@ -14,6 +14,7 @@ import {
   TEXT,
   WIDE_PANEL_COLS,
 } from './constants';
+import { fitText } from './fit-text';
 import { planListColumns } from './plan-list-columns';
 import type { ColumnPlan } from './plan-list-columns';
 import { planListWindow } from './plan-list-window';
@@ -165,22 +166,23 @@ function buildHeaderLine(
   width: number,
 ): PanelLine {
   const colour = pickHeaderColour(row, next);
-  const spans: PanelSpan[] = [{ col: CONTENT_COL, text: row.label, fg: colour, bold: true }];
-  let col = CONTENT_COL + measureWidth(row.label) + 2;
+  const count = String(row.count);
+  const need = row.needYou > 0 ? `◆ ${row.needYou}` : '';
+  const ruleEnd = width - CONTENT_COL;
+  const marksWidth = 2 + count.length + (need === '' ? 0 : 2 + measureWidth(need));
+  const label = fitText(row.label, ruleEnd - CONTENT_COL - marksWidth);
+  const spans: PanelSpan[] = [{ col: CONTENT_COL, text: label, fg: colour, bold: true }];
+  let col = CONTENT_COL + measureWidth(label) + 2;
 
-  spans.push(span(col, String(row.count), MUTED));
+  spans.push(span(col, count, MUTED));
 
-  col += String(row.count).length;
+  col += count.length;
 
-  if (row.needYou > 0) {
-    const need = `◆ ${row.needYou}`;
-
+  if (need !== '') {
     spans.push(span(col + 2, need, AMBER));
 
     col += 2 + measureWidth(need);
   }
-
-  const ruleEnd = width - CONTENT_COL;
 
   if (col + 1 < ruleEnd) {
     spans.push(span(col + 1, '─'.repeat(ruleEnd - col - 1), BORDER_COLOUR));

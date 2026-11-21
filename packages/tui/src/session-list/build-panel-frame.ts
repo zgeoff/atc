@@ -48,26 +48,27 @@ function buildTopBorder(frame: Readonly<PanelFrameInput>): PanelLine {
   const noun = frame.sessions.length === 1 ? ' session' : ' sessions';
   const tail = `${noun}${formatGrouping(frame.input.grouping)}`;
 
-  const spans: PanelSpan[] = [
-    ...buildRule(frame.width, '╭', '╮'),
-    span(2, ' ', TEXT),
-    { col: 3, text: count, fg: TEXT, bold: true },
-    span(3 + count.length, tail, MUTED),
+  const title: Omit<PanelSpan, 'col'>[] = [
+    { text: ' ', fg: TEXT, bold: false },
+    { text: count, fg: TEXT, bold: true },
+    { text: tail, fg: MUTED, bold: false },
+    ...(needYou > 0
+      ? [
+          { text: ' ·', fg: MUTED, bold: false },
+          { text: ` ◆ ${needYou} need you`, fg: AMBER, bold: false },
+        ]
+      : []),
   ];
 
-  let col = 3 + count.length + measureWidth(tail);
+  // the title ends with a space, and one rule character stays before the corner
+  const fitted = fitSpans(title, 2, frame.width - 3);
+  const last = fitted.at(-1);
+  const end = last === undefined ? 2 : last.col + measureWidth(last.text);
 
-  if (needYou > 0) {
-    const need = ` ◆ ${needYou} need you`;
-
-    spans.push(span(col, ' ·', MUTED), span(col + 2, need, AMBER));
-
-    col += 2 + measureWidth(need);
-  }
-
-  spans.push(span(col, ' ', TEXT));
-
-  return { spans, isSelected: false };
+  return {
+    spans: [...buildRule(frame.width, '╭', '╮'), ...fitted, span(end, ' ', TEXT)],
+    isSelected: false,
+  };
 }
 
 function formatGrouping(grouping: PanelInput['grouping']): string {
@@ -78,10 +79,40 @@ function formatGrouping(grouping: PanelInput['grouping']): string {
   return grouping === 'repo' ? ' · by repo' : ' · by place';
 }
 
+// The texts laid one after the other from `startCol`, cut with `…` where they would reach
+// `endCol`, and left out past it.
+function fitSpans(
+  texts: readonly Omit<PanelSpan, 'col'>[],
+  startCol: number,
+  endCol: number,
+): PanelSpan[] {
+  const spans: PanelSpan[] = [];
+  let col = startCol;
+
+  for (const text of texts) {
+    const room = endCol - col;
+    const fitted = fitText(text.text, room);
+
+    if (fitted === '') {
+      break;
+    }
+
+    spans.push({ ...text, col, text: fitted });
+
+    col += measureWidth(fitted);
+
+    if (fitted !== text.text) {
+      break;
+    }
+  }
+
+  return spans;
+}
+
 function buildRule(width: number, left: string, right: string): PanelSpan[] {
   return [
     span(0, left, BORDER_COLOUR),
-    span(1, '─'.repeat(width - 2), BORDER_COLOUR),
+    span(1, '─'.repeat(Math.max(0, width - 2)), BORDER_COLOUR),
     span(width - 1, right, BORDER_COLOUR),
   ];
 }
@@ -89,14 +120,18 @@ function buildRule(width: number, left: string, right: string): PanelSpan[] {
 function buildDivider(frame: Readonly<PanelFrameInput>): PanelLine {
   const spans = buildRule(frame.width, '├', '┤');
 
-  const parts = [
-    ...(frame.hiddenAbove > 0 ? [`↑ ${frame.hiddenAbove} more`] : []),
-    ...(frame.hiddenBelow > 0 ? [`↓ ${frame.hiddenBelow} more`] : []),
+  const counts = [
+    ...(frame.hiddenAbove > 0 ? [`↑ ${frame.hiddenAbove}`] : []),
+    ...(frame.hiddenBelow > 0 ? [`↓ ${frame.hiddenBelow}`] : []),
   ];
 
-  if (parts.length > 0) {
-    const text = ` ${parts.join('  ')} `;
+  // the long form, then the counts alone, whichever leaves two rule characters by each corner
+  const text = [
+    ` ${counts.map((count) => `${count} more`).join('  ')} `,
+    ` ${counts.join('  ')} `,
+  ].find((candidate) => measureWidth(candidate) <= frame.width - 6);
 
+  if (counts.length > 0 && text !== undefined) {
     spans.push(span(frame.width - 3 - measureWidth(text), text, MUTED));
   }
 

@@ -27,6 +27,60 @@ test('it titles the panel with the session count and the sessions that need the 
   expect(renderPanelText(plan)[0]).toBe(`╭─ 2 sessions · ◆ 1 need you ${'─'.repeat(82)}╮`);
 });
 
+test('it cuts a long title with … and keeps the top right corner', () => {
+  const rows = Array.from({ length: 12 }, (_, index) => ({
+    kind: 'session' as const,
+    session: buildMockMirrorSession({ state: index % 3 === 0 ? 'needs_you' : 'done' }),
+    via: null,
+  }));
+
+  const plan = buildListPanel(buildMockPanelInput({ rows, grouping: 'place' }), {
+    cols: 40,
+    rows: 20,
+  });
+
+  expect(renderPanelText(plan)[0]).toBe('╭─ 12 sessions · by place · … ─╮');
+});
+
+test('it cuts a long group label with … and keeps its count and need-you mark', () => {
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      grouping: 'repo',
+      rows: [
+        {
+          kind: 'header',
+          label: '~/projects/a-very-long-repository-name/that/keeps/going/on',
+          count: 3,
+          needYou: 2,
+        },
+        { kind: 'session', session: buildMockMirrorSession(), via: null },
+      ],
+      selected: 0,
+    }),
+    { cols: 60, rows: 20 },
+  );
+
+  expect(renderPanelText(plan)[1]).toBe('│ ~/projects/a-very-long-repository-name/…  3  ◆ 2 │');
+});
+
+test.each([
+  { cols: 20, expected: '├──── ↑ 19  ↓ 19 ──┤' },
+  { cols: 12, expected: '├──────────┤' },
+])('it fits the hidden counts between the divider corners in $cols columns', (row) => {
+  const rows = Array.from({ length: 40 }, () => ({
+    kind: 'session' as const,
+    session: buildMockMirrorSession(),
+    via: null,
+  }));
+
+  const plan = buildListPanel(buildMockPanelInput({ rows, selected: 20 }), {
+    cols: row.cols,
+    rows: 12,
+  });
+
+  expect(renderPanelText(plan).at(-3)).toBe(row.expected);
+});
+
 test.each([
   { grouping: 'repo', expected: ' · by repo' },
   { grouping: 'place', expected: ' · by place' },
