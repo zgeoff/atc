@@ -1,6 +1,6 @@
 import type { TargetConfig, TargetConfigError } from '@atc/config';
 import type { TargetIdentityRule } from '@atc/core';
-import type { ExecutionProvider } from '@atc/plugin-api';
+import type { ExecutionProvider, PlaceParts } from '@atc/plugin-api';
 import { buildTargetIdentity } from '@atc/store';
 
 export interface ExecutionTarget {
@@ -12,6 +12,12 @@ export interface ExecutionTarget {
 
   readonly identityRule?: TargetIdentityRule;
 
+  // what a client shows for the target's place; absent when the config sets no label
+  readonly label?: string;
+
+  // absent for a provider with no place rule, which has daemon scope
+  readonly placeParts?: PlaceParts;
+
   readonly provider: ExecutionProvider | null;
 }
 
@@ -21,6 +27,8 @@ export interface ProviderBuild {
 
   // The plugin defines this rule, so it is known even when the provider fails to build.
   readonly identityRule?: TargetIdentityRule | undefined;
+
+  readonly placeParts?: PlaceParts | undefined;
 }
 
 interface ExecutionTargetsBuild {
@@ -47,6 +55,8 @@ export function buildExecutionTargets(
       options: config.options,
       identity: buildTargetIdentity(config.provider, config.options, built.identityRule),
       ...(built.identityRule === undefined ? {} : { identityRule: built.identityRule }),
+      ...(config.label === undefined ? {} : { label: config.label }),
+      ...(built.placeParts === undefined ? {} : { placeParts: built.placeParts }),
       provider: built.provider,
     };
   });

@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { collectTargets } from '@atc/config';
 import { buildTargetIdentity } from '@atc/store';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { buildExecutionTargets } from './build-execution-targets';
@@ -53,6 +54,51 @@ test('it gives an imp target another identity when its token file path changes',
   );
 
   expect(built.targets[0]?.identity).not.toBe(built.targets[1]?.identity);
+});
+
+test.each([[undefined], ['imp'], ['the other imp']])(
+  'it gives an imp target the same identity whatever its label is (%p)',
+  (label) => {
+    const collected = collectTargets(
+      {
+        box: {
+          provider: 'imp',
+          url: 'http://127.0.0.1:9',
+          ...(label === undefined ? {} : { label }),
+        },
+      },
+      'box',
+    );
+
+    const built = buildExecutionTargets(collected.targets, () => ({
+      provider: null,
+      problem: null,
+    }));
+
+    expect(built.targets[0]?.identity).toBe(
+      buildTargetIdentity('imp', { url: 'http://127.0.0.1:9' }),
+    );
+  },
+);
+
+test('it carries the label and the place parts of a target onto the built target', () => {
+  const built = buildExecutionTargets(
+    [{ id: 'box', provider: 'imp', label: 'imp', options: {} }],
+    () => ({
+      provider: null,
+      problem: null,
+      placeParts: {
+        scope: 'shared',
+        version: 'place-v1',
+        parts: { url: 'https://imp.example.dev' },
+      },
+    }),
+  );
+
+  expect(built.targets[0]).toMatchObject({
+    label: 'imp',
+    placeParts: { scope: 'shared', version: 'place-v1', parts: { url: 'https://imp.example.dev' } },
+  });
 });
 
 test('it builds the identities a daemon stored before the providers moved into packages', () => {

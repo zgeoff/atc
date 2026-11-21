@@ -16,8 +16,15 @@ your own:
 
 - `provider` selects the provider kind: `local-pty`, `imp`, `docker` or `sprites`. The
   [docker targets guide](./docker-targets.md) covers `docker`, and the
-  [sprites targets guide](./sprites-targets.md) covers `sprites`. Every other key in the entry is an
-  option for that provider.
+  [sprites targets guide](./sprites-targets.md) covers `sprites`.
+- `label` is optional text, such as `"label": "imp"`, that clients show as the name of the place the
+  target's sessions run in. Without it, clients show the target id. You can add or change a label at
+  any time: atc leaves it out when it decides whether a session still matches its target, so no
+  session is refused for it. Clients group sessions by place, and two targets that reach the same
+  imp service share a place whatever their labels say.
+  [The session descriptor](../../architecture/daemon/sessions.md#the-place-a-session-runs-in)
+  describes places.
+- Every other key in the entry is an option for that provider.
 - A target whose provider kind this atc does not have still lists, as unavailable, and a spawn to it
   fails with `target_unavailable`.
 - A `targets` map without `local` turns local sessions off: a spawn to `local` fails with

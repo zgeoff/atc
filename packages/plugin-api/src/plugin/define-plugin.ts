@@ -30,6 +30,19 @@ export interface PluginConfigContext extends PluginContext {
   readonly foreignFields: ReadonlySet<string>;
 }
 
+export type PlaceParts =
+  | {
+      readonly scope: 'shared';
+
+      // goes into the place key; a provider changes it when it changes what parts holds, so
+      // old and new keys never match
+      readonly version: string;
+
+      // only the option values that name the remote service
+      readonly parts: Readonly<Record<string, unknown>>;
+    }
+  | { readonly scope: 'daemon' };
+
 export interface PluginDefinition<K extends PluginKind, C> {
   readonly kind: K;
   readonly id: string;
@@ -39,6 +52,9 @@ export interface PluginDefinition<K extends PluginKind, C> {
   readonly configSchema: (context: PluginConfigContext) => z.ZodType<C>;
 
   readonly identity?: TargetIdentityRule;
+
+  // names the place a target's sessions run in; a plugin with no rule has daemon scope
+  readonly place?: (options: Readonly<Record<string, unknown>>) => PlaceParts;
   readonly create: (config: C, host: PluginHosts[K], context: PluginContext) => PluginContracts[K];
 }
 

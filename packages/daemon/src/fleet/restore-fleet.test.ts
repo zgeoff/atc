@@ -826,6 +826,58 @@ test('it refuses a stored session whose target config revision differs from the 
   ).toStrictEqual([['s-on-cloud', 'exited', "target 'cloud' changed"]]);
 });
 
+test('it keeps a restored session whose target changed out of the place the target has now', async () => {
+  const built = buildExecutionTargets(
+    [
+      {
+        id: 'cloud',
+        provider: 'imp',
+        options: { url: 'https://new.example.dev', tokenEnv: 'FIXTURE_IMP_TOKEN' },
+      },
+    ],
+    (config) => ({
+      provider: buildStubMemoryProvider({ kind: config.provider }),
+      problem: null,
+      identityRule: { version: 'reach-v1', ignoredOptions: [] },
+      placeParts: {
+        scope: 'shared',
+        version: 'place-v1',
+        parts: { url: 'https://new.example.dev' },
+      },
+    }),
+  );
+
+  onTestFinished(async () => {
+    for (const target of built.targets) {
+      await target.provider?.dispose();
+    }
+  });
+
+  const ctx = await setupTest({ targets: built.targets });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-on-cloud'),
+      cwd: ctx.directory,
+      target: 'cloud',
+      targetIdentity: 'imp:reach-v1:0123456789abcdef',
+    }),
+  ]);
+
+  await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  const [descriptor] = ctx.manager.collectDescriptors();
+
+  expect(descriptor?.place?.key).toMatch(/^daemon:[^:]+:cloud:imp%3Areach-v1%3A0123456789abcdef$/u);
+});
+
 test('it restores a stored session on its own target config revision after another target is added', async () => {
   const built = buildExecutionTargets(
     [

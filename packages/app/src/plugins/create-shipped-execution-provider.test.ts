@@ -95,6 +95,7 @@ test('it builds no provider and the problem for an imp entry whose token variabl
         'sessionEnv',
       ],
     },
+    placeParts: { scope: 'shared', version: 'place-v1', parts: { url: 'http://127.0.0.1:9' } },
   });
 });
 

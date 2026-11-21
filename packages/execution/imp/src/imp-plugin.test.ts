@@ -17,6 +17,21 @@ test('it creates an imp provider for a target with a url and a set token variabl
   expect(provider.kind).toBe('imp');
 });
 
+test.each([
+  ['https://imp.example.dev/', 'https://imp.example.dev'],
+  ['https://IMP.example.dev', 'https://imp.example.dev'],
+])('it places the imp target with url %s in the shared place of %s', (url, normalized) => {
+  expect(IMP_PLUGIN.place?.({ url, tokenEnv: 'A', image: 'dev' })).toStrictEqual({
+    scope: 'shared',
+    version: 'place-v1',
+    parts: { url: normalized },
+  });
+});
+
+test('it places an imp target with no url in a daemon place', () => {
+  expect(IMP_PLUGIN.place?.({ tokenEnv: 'A' })).toStrictEqual({ scope: 'daemon' });
+});
+
 test('it creates a provider that clones on its host, takes the daemon git identity, and can trust a clone', () => {
   const provider = IMP_PLUGIN.create(
     {

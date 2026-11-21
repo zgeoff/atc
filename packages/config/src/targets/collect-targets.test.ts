@@ -312,3 +312,37 @@ test('it takes two sprites targets whose prefixes differ, and ignores another pr
   expect(result.targets).toHaveLength(3);
   expect(result.errors).toStrictEqual([]);
 });
+
+test('it takes the label out of a target entry and keeps it off the options', () => {
+  expect(
+    collectTargets(
+      { box: { provider: 'imp', url: 'https://imp.example.dev', label: 'imp' } },
+      'box',
+    ),
+  ).toStrictEqual({
+    targets: [
+      { id: 'box', provider: 'imp', label: 'imp', options: { url: 'https://imp.example.dev' } },
+    ],
+    defaultTarget: 'box',
+    errors: [],
+  });
+});
+
+test.each(['', 5, null, {}])('it rejects the target label %p', (label) => {
+  expect(
+    collectTargets(
+      { local: { provider: 'local-pty' }, box: { provider: 'imp', label } },
+      undefined,
+    ),
+  ).toStrictEqual({
+    targets: [{ id: 'local', provider: 'local-pty', options: {} }],
+    defaultTarget: 'local',
+    errors: [
+      {
+        scope: 'target',
+        target: 'box',
+        problem: 'target "box" must give label as a non-empty string',
+      },
+    ],
+  });
+});

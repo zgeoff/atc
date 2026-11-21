@@ -14,6 +14,10 @@ test('it reads a target slice with its id, options, and environment', () => {
   ).toStrictEqual({ id: 'local', options: {}, env: { HOME: '/home/u' } });
 });
 
+test('it names no shared place, so a local target has daemon scope', () => {
+  expect(LOCAL_PTY_PLUGIN.place).toBeUndefined();
+});
+
 test('it creates a local PTY provider for a target', () => {
   const provider = LOCAL_PTY_PLUGIN.create(
     { id: 'local', options: {}, env: {} },

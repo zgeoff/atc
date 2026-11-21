@@ -22,6 +22,10 @@ test('it lists the target as unavailable when its config gives no image', () => 
   ).toThrow(expect.objectContaining({ problem: expect.stringContaining('image') }));
 });
 
+test('it names no shared place, so a docker target has daemon scope', () => {
+  expect(DOCKER_PLUGIN.place).toBeUndefined();
+});
+
 test('it declares the identity version and the one option that never selects a host', () => {
   expect(DOCKER_PLUGIN.identity).toStrictEqual({
     version: 'docker-v1',

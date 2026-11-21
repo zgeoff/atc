@@ -35,6 +35,32 @@ test('it rewrites every id of a session descriptor and keeps the agent session i
   });
 });
 
+test('it passes the place and canDestroyHost of a session descriptor through unchanged', () => {
+  const place = { key: 'cloud:place-v1:534c6df68a693f9c', label: 'cloud' };
+
+  const result = buildGatewayResult(
+    'session.get',
+    {
+      session: {
+        id: '2b7f0c1e-9a4d-4e8b-b1c2-3d4e5f6a7b8c',
+        locator: { daemonID: '0f6c2a8e-3d51-4b7a-9c2e-5a8d1e4f7b30', targetID: 'box' },
+        place,
+        canDestroyHost: true,
+      },
+    },
+    { name: 'cloud', incarnation: '0f6c2a8e' },
+  );
+
+  expect(result).toStrictEqual({
+    session: {
+      id: 'cloud.0f6c2a8e.2b7f0c1e-9a4d-4e8b-b1c2-3d4e5f6a7b8c',
+      locator: { daemon: 'cloud', incarnation: '0f6c2a8e', targetID: 'box' },
+      place,
+      canDestroyHost: true,
+    },
+  });
+});
+
 test('it rewrites the descriptors of a session list', () => {
   const result = buildGatewayResult(
     'session.list',

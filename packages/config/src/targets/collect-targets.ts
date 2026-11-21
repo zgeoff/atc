@@ -6,6 +6,9 @@ import { LOCAL_TARGET } from './local-target';
 export interface TargetConfig {
   readonly id: string;
   readonly provider: string;
+
+  // what a client shows for the target's place; never reaches the provider's options
+  readonly label?: string;
   readonly options: Readonly<Record<string, unknown>>;
 }
 
@@ -115,9 +118,21 @@ function collectTargetEntries(raw: unknown): TargetEntries {
       continue;
     }
 
-    const { provider: _, ...options } = entry;
+    const label = entry['label'];
 
-    targets.push({ id, provider, options });
+    if (label !== undefined && (typeof label !== 'string' || label === '')) {
+      errors.push({
+        scope: 'target',
+        target: id,
+        problem: `target ${JSON.stringify(id)} must give label as a non-empty string`,
+      });
+
+      continue;
+    }
+
+    const { provider: _, label: __, ...options } = entry;
+
+    targets.push({ id, provider, ...(label === undefined ? {} : { label }), options });
   }
 
   return refuseOverlappingSpritePrefixes(targets, errors);

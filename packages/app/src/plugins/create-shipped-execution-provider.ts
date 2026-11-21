@@ -26,6 +26,7 @@ export function createShippedExecutionProvider(
     return { provider: null, problem: null };
   }
 
+  const placeParts = plugin.place?.(options.config.options);
   const providerDir = createProviderStateDir(options.stateDir, options.config.id);
 
   if (providerDir === null) {
@@ -33,6 +34,7 @@ export function createShippedExecutionProvider(
       provider: null,
       problem: `target ${JSON.stringify(options.config.id)} cannot name a folder of its own`,
       identityRule: plugin.identity,
+      placeParts,
     };
   }
 
@@ -61,10 +63,10 @@ export function createShippedExecutionProvider(
       context: { authProfiles: options.authProfiles },
     });
 
-    return { provider, problem: null, identityRule: plugin.identity };
+    return { provider, problem: null, identityRule: plugin.identity, placeParts };
   } catch (error) {
     if (error instanceof TargetUnavailableError) {
-      return { provider: null, problem: error.problem, identityRule: plugin.identity };
+      return { provider: null, problem: error.problem, identityRule: plugin.identity, placeParts };
     }
 
     // a plugin's schema states each problem in full, with the target's id
@@ -73,6 +75,7 @@ export function createShippedExecutionProvider(
         provider: null,
         problem: error.issues.map((issue) => issue.message).join('; '),
         identityRule: plugin.identity,
+        placeParts,
       };
     }
 
