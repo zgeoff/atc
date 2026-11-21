@@ -1,13 +1,14 @@
 import type { HostFact } from '@atc/plugin-api';
 import type { FleetStore } from '@atc/store';
 import type { SessionDescriptor, SessionLifecycle } from '@atcx/contract';
+import { buildPlaceKey } from '../fleet/build-place-key';
 import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionRegistry } from './create-session-registry';
 import { pickSessionState } from './pick-session-state';
 import type { Session } from './session';
 
 export function collectSessionDescriptors(
-  registry: Pick<SessionRegistry, 'sessions' | 'findAdapter' | 'findProvider'>,
+  registry: Pick<SessionRegistry, 'sessions' | 'findAdapter' | 'findProvider' | 'targets'>,
   store: Pick<FleetStore, 'daemonID'>,
 ): SessionDescriptor[] {
   return registry.sessions.map((session) => ({
@@ -38,6 +39,18 @@ export function collectSessionDescriptors(
     ...(session.model === undefined ? {} : { model: session.model }),
     ...(session.pluginDirs === undefined ? {} : { pluginDirs: session.pluginDirs }),
     ...buildHostField(registry.findProvider(session)?.findHostFact?.(session.hostKey) ?? null),
+    place: {
+      key: buildPlaceKey({
+        provider: registry.targets.get(session.target)?.kind ?? '',
+        placeParts: registry.targets.get(session.target)?.placeParts,
+        daemonID: store.daemonID,
+        targetID: session.target,
+      }),
+      label: registry.targets.get(session.target)?.label ?? session.target,
+    },
+    canDestroyHost:
+      registry.findProvider(session)?.capabilities.destroy === true &&
+      session.hostKey === session.id,
   }));
 }
 

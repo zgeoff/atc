@@ -10,7 +10,12 @@ function setupTest() {
 
   const collect = (provider: ExecutionProvider | null) =>
     collectSessionDescriptors(
-      { sessions: [session], findAdapter: () => null, findProvider: () => provider },
+      {
+        sessions: [session],
+        findAdapter: () => null,
+        findProvider: () => provider,
+        targets: new Map(),
+      },
       { daemonID: toDaemonID('d1') },
     );
 
