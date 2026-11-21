@@ -308,3 +308,18 @@ test('it puts a jump label in place of the state glyph of each row', () => {
 
   expect([text[1]?.slice(2, 4), text[2]?.slice(2, 4)]).toStrictEqual(['▎s', '▎d']);
 });
+
+test('it wraps a prompt over lines so the keys that confirm it still show', () => {
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      prompt:
+        'end orchard-inventory-and-shipping-review? stops the agent and deletes its sprite machine, with every session on it · y / n',
+    }),
+    { cols: 80, rows: 30 },
+  );
+
+  const text = renderPanelText(plan).join('\n');
+
+  expect(text).toInclude('· y / n');
+  expect(text).toInclude('deletes its sprite machine');
+});

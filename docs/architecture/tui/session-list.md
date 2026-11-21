@@ -54,7 +54,9 @@ too and closes the list.
 
 The panel's last line shows the first of these that applies: a prompt, the filter or the jump
 `no match` text, a notice, the daemon line, the update advice, then the key bar. The advice for a
-daemon that runs an older build replaces the key bar whole.
+daemon that runs an older build replaces the key bar whole. A prompt wraps over as many lines as it
+needs, so the action, what it deletes and the confirming keys always show; every other text is cut
+to one line.
 
 ## Motion
 

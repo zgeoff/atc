@@ -3,8 +3,10 @@ import { KEY_BAR_GAP, buildKeyBar } from './build-key-bar';
 import { AMBER, BLUE, BORDER_COLOUR, CONTENT_COL, MUTED, TEXT } from './constants';
 import { fitText } from './fit-text';
 import { pickLastLine } from './pick-last-line';
+import type { LastLine } from './pick-last-line';
 import { span } from './span';
 import type { OverlaySessionView, PanelInput, PanelLine, PanelSpan, SessionRow } from './types';
+import { wrapText } from './wrap-text';
 
 export interface PanelFrameInput {
   readonly input: Readonly<PanelInput>;
@@ -15,24 +17,27 @@ export interface PanelFrameInput {
   // the session rows that the window leaves out above and below
   readonly hiddenAbove: number;
   readonly hiddenBelow: number;
+
+  // the lines of the panel's last line, from buildLastLines
+  readonly lastLines: readonly PanelLine[];
 }
 
 export interface PanelFrame {
   readonly topBorder: PanelLine;
   readonly divider: PanelLine;
-  readonly lastLine: PanelLine;
+  readonly lastLines: readonly PanelLine[];
   readonly bottomBorder: PanelLine;
 }
 
-// The four lines around the list: the top border with the title, the divider with the count of
-// hidden rows, the last line, and the bottom border.
+// The lines around the list: the top border with the title, the divider with the count of hidden
+// rows, the last lines, and the bottom border.
 export function buildPanelFrame(frame: Readonly<PanelFrameInput>): PanelFrame {
   const width = frame.width;
 
   return {
     topBorder: buildTopBorder(frame),
     divider: buildDivider(frame),
-    lastLine: buildLastLine(frame),
+    lastLines: frame.lastLines,
     bottomBorder: { spans: buildRule(width, '╰', '╯'), isSelected: false },
   };
 }
@@ -98,10 +103,13 @@ function buildDivider(frame: Readonly<PanelFrameInput>): PanelLine {
   return { spans, isSelected: false };
 }
 
-function buildLastLine(frame: Readonly<PanelFrameInput>): PanelLine {
-  const input = frame.input;
+// The panel's last lines. A prompt wraps over as many lines as it needs, so the action, what it
+// deletes and the keys that confirm it always show. Every other text takes one line.
+export function buildLastLines(
+  input: Readonly<PanelInput>,
+  frame: Pick<PanelFrameInput, 'sessions' | 'selected' | 'width'>,
+): PanelLine[] {
   const room = frame.width - CONTENT_COL * 2;
-  const edges = [span(0, '│', BORDER_COLOUR), span(frame.width - 1, '│', BORDER_COLOUR)];
 
   const last = pickLastLine({
     prompt: input.prompt,
@@ -113,11 +121,25 @@ function buildLastLine(frame: Readonly<PanelFrameInput>): PanelLine {
   });
 
   if (last.kind === 'prompt') {
-    return {
-      spans: [...edges, span(CONTENT_COL, fitText(last.text, room), AMBER)],
+    return wrapText(last.text, room).map((text) => ({
+      spans: [...buildEdges(frame.width), span(CONTENT_COL, text, AMBER)],
       isSelected: false,
-    };
+    }));
   }
+
+  return [buildLastLine(last, frame, room)];
+}
+
+function buildEdges(width: number): PanelSpan[] {
+  return [span(0, '│', BORDER_COLOUR), span(width - 1, '│', BORDER_COLOUR)];
+}
+
+function buildLastLine(
+  last: Exclude<LastLine, { readonly kind: 'prompt' }>,
+  frame: Pick<PanelFrameInput, 'selected' | 'width'>,
+  room: number,
+): PanelLine {
+  const edges = buildEdges(frame.width);
 
   if (last.kind === 'filter') {
     const text = fitText(last.text, room - 3);

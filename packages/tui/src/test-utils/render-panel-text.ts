@@ -7,7 +7,7 @@ export function renderPanelText(plan: Readonly<PanelPlan>): string[] {
     plan.topBorder,
     ...plan.content,
     plan.divider,
-    plan.lastLine,
+    ...plan.lastLines,
     plan.bottomBorder,
   ];
 

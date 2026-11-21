@@ -1,7 +1,7 @@
 import { pickPlaceColour } from '../places/pick-place-colour';
 import { measureWidth } from '../terminal/measure-width';
 import { formatDir } from '../terminal/pick-matches';
-import { buildPanelFrame } from './build-panel-frame';
+import { buildLastLines, buildPanelFrame } from './build-panel-frame';
 import { buildSessionLine, formatName, formatVia } from './build-session-line';
 import {
   AMBER,
@@ -23,8 +23,9 @@ import type { ListRow, PanelInput, PanelLine, PanelPlan, PanelSpan, SessionRow }
 
 const MIN_PANEL_WIDTH = 24;
 
-// the lines of the panel's frame: the top border, the divider, the last line and the bottom border
-const FRAME_LINES = 4;
+// the lines of the panel's frame besides its last lines: the top border, the divider and the
+// bottom border
+const FRAME_LINES = 3;
 
 interface Size {
   readonly cols: number;
@@ -42,16 +43,19 @@ export function buildListPanel(input: Readonly<PanelInput>, size: Size): PanelPl
   const sessions = input.rows.flatMap((row) => (row.kind === 'session' ? [row] : []));
   const plan = planColumns(input, sessions, width);
   const content = buildContentLines(input, sessions, plan, width);
-  const capacity = Math.max(1, size.rows - PANEL_MARGIN_ROWS - FRAME_LINES);
+  const selected = sessions[input.selected]?.session;
+  const lastLines = buildLastLines(input, { sessions, selected, width });
+  const capacity = Math.max(1, size.rows - PANEL_MARGIN_ROWS - FRAME_LINES - lastLines.length);
   const window = planListWindow(content.lines.length, capacity, content.selectedLine);
   const shown = content.lines.slice(window.start, window.end);
-  const height = shown.length + FRAME_LINES;
+  const height = shown.length + FRAME_LINES + lastLines.length;
 
   const frame = buildPanelFrame({
     input,
     sessions,
-    selected: sessions[input.selected]?.session,
+    selected,
     width,
+    lastLines,
     hiddenAbove: countSessionLines(content.sessionLines.slice(0, window.start)),
     hiddenBelow: countSessionLines(content.sessionLines.slice(window.end)),
   });

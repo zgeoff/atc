@@ -79,7 +79,9 @@ export interface PanelPlan {
   // the lines of the list, which fade in one after the other when the panel opens
   readonly content: readonly PanelLine[];
   readonly divider: PanelLine;
-  readonly lastLine: PanelLine;
+
+  // one line, or the several that a prompt wraps over
+  readonly lastLines: readonly PanelLine[];
   readonly bottomBorder: PanelLine;
 
   // true while a visible row shows a running session, whose spinner turns

@@ -141,7 +141,7 @@ interface OverlaySessionView {
   from the right until it fits.
 - These take the last line in place of the key bar while they show. When two want it, the one higher
   in this list wins:
-  1. a prompt;
+  1. a prompt, which wraps over as many lines as it needs and never cuts the keys that confirm it;
   2. the filter;
   3. a notice;
   4. a line for a daemon that is down;

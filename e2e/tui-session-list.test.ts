@@ -169,3 +169,33 @@ test('it keeps the fleet bar on the last row while the list is open', async () =
     expect(ctx.tui.readScreen().split('\n').at(-1)).toMatch(/^local \S+ +\^Space\s*$/u);
   });
 });
+
+test('it keeps the home screen behind a list that opens after i went home', async () => {
+  const ctx = await setupTest();
+
+  await spawnDaemonSession(ctx.tui, 'shown');
+
+  await ctx.attachFirst();
+
+  ctx.tui.write(KEYS.ctrlSpace);
+
+  await ctx.tui.waitFor('╭─ ');
+
+  ctx.tui.write('i');
+
+  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitForGone('╭─ ');
+
+  ctx.tui.write(KEYS.ctrlSpace);
+
+  await ctx.tui.waitFor('╭─ ');
+
+  expect(ctx.tui.readScreen()).toInclude('atc — control tower');
+
+  ctx.tui.write(KEYS.esc);
+
+  await ctx.tui.waitForGone('╭─ ');
+
+  expect(ctx.tui.readScreen()).toInclude('atc — control tower');
+  expect(ctx.tui.readScreen()).not.toInclude('FAKE_CLAUDE_UP');
+});

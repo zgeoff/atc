@@ -21,7 +21,14 @@ export interface PaintOptions {
 export function paintPanel(buffer: CellBuffer, plan: PanelPlan, options: PaintOptions): void {
   dimBackdrop(buffer, options);
 
-  const lines = [plan.topBorder, ...plan.content, plan.divider, plan.lastLine, plan.bottomBorder];
+  const lines = [
+    plan.topBorder,
+    ...plan.content,
+    plan.divider,
+    ...plan.lastLines,
+    plan.bottomBorder,
+  ];
+
   const lastContent = plan.content.length;
 
   for (const [index, line] of lines.entries()) {
@@ -92,7 +99,10 @@ function paintLine(buffer: CellBuffer, paint: LinePaint): void {
 
     buffer.set(col, paint.row, {
       ...BLANK_CELL,
-      bg: { kind: 'rgb', red: background.red, green: background.green, blue: background.blue },
+      bg:
+        terminal.depth === '16'
+          ? { kind: 'default' }
+          : { kind: 'rgb', red: background.red, green: background.green, blue: background.blue },
     });
   }
 

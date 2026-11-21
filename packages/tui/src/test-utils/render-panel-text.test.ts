@@ -20,10 +20,12 @@ test('#renderPanelText lays each span at its column and gives one string for eac
       spans: [{ col: 0, text: 'mid', fg: { red: 0, green: 0, blue: 0 }, bold: false }],
       isSelected: false,
     },
-    lastLine: {
-      spans: [{ col: 3, text: 'last', fg: { red: 0, green: 0, blue: 0 }, bold: false }],
-      isSelected: false,
-    },
+    lastLines: [
+      {
+        spans: [{ col: 3, text: 'last', fg: { red: 0, green: 0, blue: 0 }, bold: false }],
+        isSelected: false,
+      },
+    ],
     bottomBorder: {
       spans: [{ col: 5, text: 'end', fg: { red: 0, green: 0, blue: 0 }, bold: false }],
       isSelected: false,

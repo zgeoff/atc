@@ -110,6 +110,8 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const openHome = () => {
     attachment.detach();
 
+    focusedKey = null;
+
     drawHome(mirror.count, leader.label);
     scheduleStatus();
   };
