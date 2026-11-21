@@ -94,8 +94,9 @@ function pickUnderlineParam(cell: IBufferCell): string {
 
 function findExtendedValue(cell: IBufferCell, key: string): unknown {
   const extended = Reflect.get(cell, 'extended');
+  const value: unknown = isRecord(extended) ? extended[key] : undefined;
 
-  return isRecord(extended) ? extended[key] : undefined;
+  return value;
 }
 
 function renderColour(

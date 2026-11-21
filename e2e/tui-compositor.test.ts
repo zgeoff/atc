@@ -50,7 +50,11 @@ test('it shows the main screen again after a reattach when the session left the 
 
   ctx.tui.write(`${KEYS.esc}[?1049hALT_ONLY${KEYS.enter}`);
 
-  await ctx.tui.waitFor('ALT_ONLY');
+  // the terminal echoes a typed line before the session reads it, and the session reads in order,
+  // so its answer to a second line shows it entered the alternate screen
+  ctx.tui.write(`MARKER${KEYS.enter}`);
+
+  await ctx.tui.waitFor('GOT:MARKER');
 
   ctx.tui.write(KEYS.ctrlSpace);
 
@@ -66,7 +70,7 @@ test('it shows the main screen again after a reattach when the session left the 
 
   await ctx.tui.waitFor('FAKE_CLAUDE_UP args:');
 
-  expect(ctx.tui.read()).not.toInclude('ALT_ONLY\n');
+  expect(ctx.tui.read()).not.toInclude('GOT:MARKER');
 });
 
 test('it mirrors the input modes of the session while it has focus and resets them when the list opens', async () => {

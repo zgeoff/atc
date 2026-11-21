@@ -829,7 +829,7 @@ test('it sends a full-replay client the state as replay events and no screen out
     expect(sent.at(-1)).toMatchObject({ ev: 'SessionReplay', done: true });
   });
 
-  expect(sent.map((event) => event['ev'])).toStrictEqual(['SessionReplay']);
+  expect(sent.map((event) => event.ev)).toStrictEqual(['SessionReplay']);
   expect(sent.map((event) => String(event['data'])).join('')).toInclude('tests passed');
 });
 
@@ -860,5 +860,5 @@ test('it sends a full-replay client a fresh replay on a resync', async () => {
 
   await ctx.output.sendReplay(session.id, client);
 
-  expect(sent.map((event) => event['ev'])).toStrictEqual(['SessionReplay', 'SessionReplay']);
+  expect(sent.map((event) => event.ev)).toStrictEqual(['SessionReplay', 'SessionReplay']);
 });

@@ -10,7 +10,7 @@ function setupTest() {
       const buffer = buildCellBuffer(12, lines.length);
 
       for (const [row, line] of lines.entries()) {
-        for (const [col, ch] of [...line].entries()) {
+        for (const [col, ch] of line.split('').entries()) {
           buffer.set(col, row, { ...BLANK_CELL, ch, ...style });
         }
       }

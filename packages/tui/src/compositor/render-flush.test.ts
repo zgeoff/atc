@@ -11,7 +11,7 @@ function setupTest() {
   const buildBuffer = (text: string, cols = defaultCols) => {
     const buffer = buildCellBuffer(cols, 2);
 
-    for (const [col, ch] of [...text].entries()) {
+    for (const [col, ch] of text.split('').entries()) {
       buffer.set(col, 0, { ...BLANK_CELL, ch });
     }
 

@@ -36,7 +36,7 @@ export function renderFlush(input: FlushInput): FlushPlan {
   const clear = isSameSize ? '' : `${ESC}[0m${ESC}[2J`;
   const cells = renderFrameDiff(baseline, input.next, input.depth);
   const placed = input.cursor ?? HIDDEN;
-  const shownCursor = input.cursor === null ? HIDDEN : input.cursor;
+  const shownCursor = placed;
   const cursorMoved = cells !== '' || clear !== '' || !isSameCursor(placed, input.shownCursor);
 
   if (!cursorMoved) {
