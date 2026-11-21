@@ -5,10 +5,10 @@ the config's `leader` sets another. The panel opens over the attached session, o
 session is attached.
 
 The panel is a layer of the [compositor](./compositor.md). It writes its cells into the cell buffer,
-blends them over the layers below, and dims those layers. The TUI's other screens, such as home and
-help, draw into the screen emulator, which covers the whole terminal and hides the session while a
-screen uses it. The panel never draws there, so the session behind the panel keeps drawing while the
-list is open.
+blends them over the layers below, and dims those layers. The TUI's other screens, such as help and
+the spawn picker, draw into the screen emulator, which covers the whole terminal and hides the
+session while a screen uses it. The panel never draws there, so the session behind the panel keeps
+drawing while the list is open.
 
 ## The attachment outlives the list
 
@@ -27,8 +27,8 @@ The attachment ends when:
 When the daemon removes the attached session while the list is open, for example because another
 client ended it, the client goes home and the list stays open over home. When the attached session's
 agent stops while the list is open, for example on `K`, the panel also stays open over home. The
-client draws home under the panel each time the list opens, so the panel never sits over a blank
-screen.
+[home layer](./home.md) is the layer under the panel whenever no live session shows, so the panel
+never sits over a blank screen.
 
 Enter on the row of the attached session closes the list and sends the daemon a new attach, because
 the daemon marks a session read each time it receives an attach. A session the agent left waiting
@@ -108,7 +108,7 @@ A sub-session on its parent's machine deletes no machine, so the daemon ends it 
 
 When the daemon keeps the session's workspace folder, the list shows a notice that names the folder
 and the reasons. When the ended session was the attached one, the client goes home and shows the
-notice on home's status bar. The next opening of the list drops that notice.
+notice on home. The next opening of the list drops that notice.
 
 `K` kills a live session after a prompt: the agent stops, and the session stays in the list as
 exited.

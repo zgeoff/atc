@@ -1,9 +1,10 @@
 # Home
 
-- **Status:** draft
+- **Status:** built
 
 Home is what the TUI shows with no session attached: the `atc` wordmark, one line of fleet state,
 and the two keys a user needs. It paints no background, so it sits on the terminal's own theme.
+[Home](../../architecture/tui/home.md) describes what is built.
 
 ## Shape
 
@@ -14,6 +15,9 @@ and the two keys a user needs. It paints no background, so it sits on the termin
 
                 ctrl+space  sessions
                          n  new
+                         R  restore       only while a fleet waits to be restored
+
+        ⟳ update ready                    only while a notice or a daemon state shows
 ```
 
 ## Target screens
@@ -72,6 +76,12 @@ type Wordmark = { kind: 'outline'; size: 's10' | 'xs8' } | { kind: 'bitmap' } | 
 - The keys form two columns: each key right-aligned in bold blue (`#7aa2f7`), then two spaces, then
   its dim label. The first key is the leader key, which opens the [session list](./session-list.md),
   shown as the config's `leader` value, for example `ctrl+space`. The second is `n`, labelled `new`.
+  While the last fleet has sessions to restore, a third line lists `R`, labelled `restore`, and the
+  stack grows by that row.
+- The notices that the status bar carried on home show on one line of their own, in amber, one blank
+  row below the keys, centred: the name of a named remote daemon as `@<name>`, the TUI's notice, and
+  `⟳ waiting for daemon`, `⟳ restarting daemon` or `⟳ update ready`. The line sits outside the
+  stack, so a notice never moves it.
 - Home redraws only when the fleet counts change or the window resizes. It never animates.
 
 ## Wordmark geometry
@@ -141,7 +151,8 @@ const BITMAP_WORDMARK = [
 
 ## Builder decides
 
-- How the wordmark's coverage is cached between frames.
-- The module that holds the home layer, and its name.
-- Whether the keys also list `r` (adopt a session) while a session waits to be adopted, and `R`
-  (restore the fleet) while the fleet has sessions to restore. Both keys work on home either way.
+- How the wordmark's coverage is cached between frames: each layer keeps the coverage of the
+  wordmarks it has drawn.
+- The module that holds the home layer: the TUI's `home` folder.
+- Whether the keys also list `r` (adopt a session) and `R` (restore the fleet): `R` is listed while
+  the fleet has sessions to restore, and `r` is not listed. Both keys work on home either way.

@@ -3,6 +3,12 @@
 Run `atc` in a terminal. The first run starts the daemon, which hosts every session you spawn, so
 quitting atc leaves your sessions running.
 
+With no session attached, atc shows home: the `atc` wordmark, a line that counts your sessions and
+the ones that need you, and the two keys to go on. `Ctrl-Space` opens the
+[session list](#the-session-list) and `n` [spawns a session](#spawning-a-session). `R` restores the
+last fleet, and the keys list it while a fleet waits to be restored. Below the keys, home shows a
+notice such as `⟳ update ready` or `⟳ waiting for daemon`, and the name of a remote daemon.
+
 ## Spawning a session
 
 Press `n` to spawn a session: pick a daemon when
@@ -239,7 +245,7 @@ process refuses the send with `session_dead`: start it with `atc session adopt <
 When the daemon restarts, it restores the fleet by itself, and every session resumes from its
 transcript. Set `restoreFleetOnRestart` to `false` to wait for `R` on the home screen instead.
 
-After you upgrade atc, the status bar shows `⟳ update ready`, and `u` restarts the daemon and
+After you upgrade atc, home shows `⟳ update ready` below its keys, and `u` restarts the daemon and
 restores the fleet when you are ready. When the running daemon runs an older major version, atc asks
 before it restarts the daemon, since the restart ends every session the daemon hosts. When your
 client is the older side, such as a TUI you opened before the upgrade, atc exits and tells you to
