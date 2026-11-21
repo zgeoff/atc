@@ -75,7 +75,9 @@ function setupTest(input: Partial<HomeInput>) {
       }),
     });
 
-    onTestFinished(() => terminal.dispose());
+    onTestFinished(() => {
+      terminal.dispose();
+    });
 
     await terminal.write(renderFrameDiff(buildCellBuffer(cols, rows), buffer, 'truecolor'));
 
