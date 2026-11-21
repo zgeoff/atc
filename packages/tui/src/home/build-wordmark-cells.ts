@@ -11,13 +11,16 @@ export interface WordmarkCell {
 }
 
 // Turns pixel coverage into cells, two pixels to a cell: `▀` for a top pixel, `▄` for a bottom
-// one, and `▀` over a background for both. The colour runs from top to base, and a part-covered
-// pixel blends toward the terminal's background.
+// one, and `▀` over a background for both. The colour runs from the first lit pixel row to the
+// last, and a part-covered pixel blends toward the terminal's background.
 export function buildWordmarkCells(
   coverage: Coverage,
   background: RGB,
 ): readonly (readonly WordmarkCell[])[] {
   const height = coverage.length;
+  const litRows = coverage.flatMap((row, index) => (row.some((share) => share > 0) ? [index] : []));
+  const firstRow = litRows[0] ?? 0;
+  const span = (litRows.at(-1) ?? 0) - firstRow;
 
   const toPixel = (row: number, col: number): RGB | null => {
     const share = coverage[row]?.[col] ?? 0;
@@ -26,7 +29,7 @@ export function buildWordmarkCells(
       return null;
     }
 
-    const rowShare = height < 2 ? 0 : row / (height - 1);
+    const rowShare = span < 1 ? 0 : (row - firstRow) / span;
 
     return blendRGB(background, blendRGB(WORDMARK_TOP, WORDMARK_BASE, rowShare), share);
   };
