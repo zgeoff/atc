@@ -1,3 +1,5 @@
+import { measureWidth } from '../terminal/measure-width';
+import { splitGraphemes } from '../terminal/split-graphemes';
 import type { FleetBarLevel, PlaceSummary } from './types';
 
 export interface PlaceRun {
@@ -5,15 +7,12 @@ export interface PlaceRun {
   readonly kind: 'label' | 'glyph' | 'plain';
 }
 
-const SHORT_LABEL_LENGTH = 3;
+const SHORT_LABEL_COLS = 3;
 
 // The pieces of one place's text at a level, in drawing order.
 export function buildPlaceRuns(place: PlaceSummary, level: FleetBarLevel): readonly PlaceRun[] {
   const mark = place.reachable ? '' : '?';
-
-  const name =
-    level === 'short' ? [...place.label].slice(0, SHORT_LABEL_LENGTH).join('') : place.label;
-
+  const name = level === 'short' ? clipToWidth(place.label, SHORT_LABEL_COLS) : place.label;
   const label: PlaceRun = { text: `${name}${mark}`, kind: 'label' };
 
   if (level === 'glyphs') {
@@ -33,5 +32,21 @@ export function buildPlaceRuns(place: PlaceSummary, level: FleetBarLevel): reado
 }
 
 export function measureRuns(runs: readonly PlaceRun[]): number {
-  return runs.reduce((total, run) => total + [...run.text].length, 0);
+  return runs.reduce((total, run) => total + measureWidth(run.text), 0);
+}
+
+function clipToWidth(text: string, cols: number): string {
+  let used = 0;
+  let clipped = '';
+
+  for (const grapheme of splitGraphemes(text)) {
+    if (used + grapheme.width > cols) {
+      break;
+    }
+
+    used += grapheme.width;
+    clipped += grapheme.text;
+  }
+
+  return clipped;
 }

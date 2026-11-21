@@ -94,9 +94,10 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
 
   const barLayer = createFleetBarLayer(deps.fleetBar);
 
-  // the bar draws after the notice layer, which blanks the last row, and only when no notice shows
+  // the bar draws after the notice layer, which blanks the last row, and only when no notice shows;
+  // it also draws over a screen, such as the session list, that leaves the last row blank
   const collectLayers = (): readonly Layer[] =>
-    deps.isSessionFocused() ? [sessionLayer, noticeLayer, barLayer] : [screenLayer];
+    deps.isSessionFocused() ? [sessionLayer, noticeLayer, barLayer] : [screenLayer, barLayer];
 
   const readCursor = (): CursorPlacement | null => {
     const emulator = deps.isSessionFocused() ? stream.readEmulator() : screenEmulator;

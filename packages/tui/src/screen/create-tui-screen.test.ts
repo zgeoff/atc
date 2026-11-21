@@ -136,3 +136,18 @@ test('#requestFrame draws the fleet bar on the last row while a session has focu
     expect(ctx.written.join('')).toInclude('ctrl+space');
   });
 });
+
+test('#requestFrame draws the fleet bar on the last row while a screen has focus', async () => {
+  const ctx = setupTest();
+
+  ctx.state.isFocused = false;
+  ctx.state.isBarShown = true;
+
+  ctx.screen.requestFrame();
+
+  await waitFor(() => {
+    ctx.clock.advance(20);
+
+    expect(ctx.written.join('')).toInclude('ctrl+space');
+  });
+});

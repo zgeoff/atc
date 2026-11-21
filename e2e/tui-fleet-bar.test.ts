@@ -84,3 +84,17 @@ test('it draws no fleet bar on home', async () => {
 
   expect(ctx.readLastRow()).not.toInclude('◆');
 });
+
+test('it keeps the fleet bar on the last row while the session list is open over the session', async () => {
+  const ctx = setupTest();
+
+  await ctx.tui.waitFor('atc — control tower');
+  await ctx.spawnOn('local', 'here');
+  await ctx.attachFirst();
+
+  ctx.tui.write(KEYS.ctrlSpace);
+
+  await ctx.tui.waitFor('┌ sessions ');
+
+  expect(ctx.readLastRow()).toMatch(/^local \S+ +\^Space$/u);
+});

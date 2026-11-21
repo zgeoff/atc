@@ -1,4 +1,5 @@
 import type { Colour } from '../compositor/types';
+import { measureWidth } from '../terminal/measure-width';
 import { buildPlaceRuns } from './build-place-runs';
 import type { PlaceRun } from './build-place-runs';
 import { buildRightEnd } from './build-right-end';
@@ -31,7 +32,7 @@ export function formatFleetBar(bar: FleetBar, cols: number): readonly FleetBarRu
 
       runs.push({ col, text: run.text, fg, bold: false });
 
-      col += [...run.text].length;
+      col += measureWidth(run.text);
     }
   }
 
@@ -47,7 +48,7 @@ export function formatFleetBar(bar: FleetBar, cols: number): readonly FleetBarRu
   }
 
   runs.push({
-    col: rightCol + [...right.needYouText].length + right.gap,
+    col: rightCol + measureWidth(right.needYouText) + right.gap,
     text: right.leaderLabel,
     fg: BLUE,
     bold: true,

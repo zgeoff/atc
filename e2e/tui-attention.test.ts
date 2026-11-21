@@ -23,7 +23,7 @@ test('it clears the need state when attaching a needy session', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: needytest');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('┌ sessions ');
 
   ctx.write(KEYS.enter);
@@ -49,7 +49,7 @@ test('it attaches and acks the session that needs you on tab', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: needy');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('┌ sessions ');
 
   // The attach jiggle repaints the fake.
@@ -75,7 +75,7 @@ test('it attaches and acks the session that needs you on tab', async () => {
   // The daemon writes status.json before the client hears of the change, and a Tab the client
   // reads first finds nothing to jump to.
   await ctx.waitFor('┌ sessions ');
-  await ctx.waitFor('need you: urgent');
+  await ctx.waitFor('◆ 1 need you');
 
   ctx.reset();
   ctx.write(KEYS.tab);
@@ -113,7 +113,7 @@ test('it tab-jumps to a finished session when none need you', async () => {
   // The daemon writes status.json before the client hears of the change, and a Tab the client
   // reads first finds nothing to jump to.
   await ctx.waitFor('┌ sessions ');
-  await ctx.waitFor('✓ 1 done');
+  await ctx.waitFor('local ✓');
 
   ctx.reset();
   ctx.write(KEYS.tab);

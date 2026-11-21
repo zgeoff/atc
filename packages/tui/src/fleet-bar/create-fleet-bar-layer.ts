@@ -1,5 +1,6 @@
 import { BLANK_CELL } from '../compositor/blank-cell';
 import type { CellBuffer, FrameInfo, Layer } from '../compositor/types';
+import { splitGraphemes } from '../terminal/split-graphemes';
 import { SPINNER_FRAMES } from './constants';
 import { formatFleetBar } from './format-fleet-bar';
 import type { FleetBar } from './types';
@@ -30,12 +31,22 @@ export function createFleetBarLayer(deps: FleetBarLayerDeps): Layer {
       for (const run of formatFleetBar(deps.readBar(frame.cols, spinnerFrame), frame.cols)) {
         let col = run.col;
 
-        for (const ch of run.text) {
-          if (col < frame.cols) {
-            buffer.set(col, row, { ...BLANK_CELL, ch, fg: run.fg, bold: run.bold });
+        for (const grapheme of splitGraphemes(run.text)) {
+          if (grapheme.width > 0 && col + grapheme.width <= frame.cols) {
+            buffer.set(col, row, {
+              ...BLANK_CELL,
+              ch: grapheme.text,
+              fg: run.fg,
+              bold: run.bold,
+            });
+
+            // the second column of a wide grapheme holds an empty string
+            if (grapheme.width === 2) {
+              buffer.set(col + 1, row, { ...BLANK_CELL, ch: '', fg: run.fg, bold: run.bold });
+            }
           }
 
-          col += 1;
+          col += grapheme.width;
         }
       }
     },

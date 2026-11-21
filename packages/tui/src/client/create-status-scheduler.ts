@@ -3,16 +3,17 @@ import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonName } from '../fleet/session-key';
 import type { MirrorSession } from '../fleet/to-mirror-session';
 import { drawStatusBar, eraseStatusBar } from '../terminal/draw-status-bar';
-import type { ClientMode } from './build-client-machine';
 
 export interface StatusSchedulerDeps {
   readonly primaryName: DaemonName;
   readonly leaderLabel: string;
-  readonly getMode: () => ClientMode;
   readonly getBoot: () => DaemonBoot;
   readonly findFocused: () => MirrorSession | null;
   readonly listVisible: () => readonly MirrorSession[];
   readonly isAttachedLinkDown: () => boolean;
+
+  // true while a session shows, or the session list is open over one
+  readonly isOverSession: () => boolean;
   readonly isDaemonRestarting: () => boolean;
   readonly isDaemonWaiting: () => boolean;
 
@@ -37,7 +38,7 @@ export function createStatusScheduler(deps: StatusSchedulerDeps): () => void {
       deps.requestFrame();
 
       const notice = deps.findNotice();
-      const isOverAttached = deps.getMode() === 'attached' && !deps.isAttachedLinkDown();
+      const isOverAttached = deps.isOverSession() && !deps.isAttachedLinkDown();
 
       // Over a session the last row stays blank, except for a notice.
       if (isOverAttached && notice === null) {

@@ -53,6 +53,8 @@ key, and in every run.
   any of its sessions needs the user. At `short`, it is `counts` with the label cut to 3 letters.
 - When `short` leaves no room for every place, the bar drops places from the end of the order and
   writes `…` after the last place it kept. The right end always shows.
+- The bar measures every width in terminal columns per grapheme, so a wide character such as `界`
+  takes two.
 - Places are 4 columns apart, and the bar keeps 3 columns between the last place and the right end.
 - The right end shows `◆ <k> need you` in amber (`#f0b45a`) when `k > 0`, then the leader label in
   bold blue (`#7aa2f7`). Under 90 columns it shows `◆ <k>` without the words. `k` counts every
@@ -68,9 +70,10 @@ gets `?` after its label. Those sessions still count toward the right end.
 ## The row
 
 The bar layer draws after the layer that copies notices from the screen emulator, and only while a
-session has focus and no notice shows. A failed call, the advice to update a daemon, and a lost
-connection each take the row while they show, and the bar returns after. Home has no fleet bar.
-While the session list is open, the session behind it is not drawn, so the bar is not either.
+session has focus, or the session list is open over one, and no notice shows. A failed call, the
+advice to update a daemon, and a lost connection each take the row while they show, and the bar
+returns after. Home has no fleet bar. While the session list is open over a session, the bar keeps
+the last row, and the list leaves that row blank.
 
 The spinner turns at a fixed step, 10 times a second, whatever the `animations` setting says. The
 layer asks the frame clock for a frame only while the bar shows and a session runs.

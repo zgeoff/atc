@@ -4,6 +4,7 @@ import { buildFleetBar } from './build-fleet-bar';
 import { createFleetBarLayer } from './create-fleet-bar-layer';
 
 interface BarState {
+  readonly label?: string;
   readonly isShown: boolean;
   readonly isSpinning: boolean;
 }
@@ -15,8 +16,8 @@ function setupTest(state: BarState) {
     readBar: (cols, spinnerFrame) =>
       buildFleetBar(
         [
-          { daemon: null, state: 'running', place: { key: 'a', label: 'laptop' } },
-          { daemon: null, state: 'needs_you', place: { key: 'a', label: 'laptop' } },
+          { daemon: null, state: 'running', place: { key: 'a', label: state.label ?? 'laptop' } },
+          { daemon: null, state: 'needs_you', place: { key: 'a', label: state.label ?? 'laptop' } },
         ],
         { cols, leaderLabel: 'ctrl+space', attachedPlaceKey: 'a', spinnerFrame },
       ),
@@ -49,6 +50,22 @@ test('#draw writes the bar on the last row and leaves the other rows alone', () 
   expect([ctx.readRow(4, buffer), ctx.readRow(3, buffer)]).toStrictEqual([
     `laptop ◆⠹${' '.repeat(15)}◆ 1   ctrl+space`,
     ' '.repeat(40),
+  ]);
+});
+
+test('#draw gives a wide label two columns, so the glyphs after it keep their place', () => {
+  const ctx = setupTest({ isShown: true, isSpinning: true, label: '界' });
+  const buffer = buildCellBuffer(ctx.frame.cols, ctx.frame.rows);
+
+  ctx.layer.draw(buffer, ctx.frame);
+
+  expect(Array.from({ length: 6 }, (_, col) => buffer.get(col, 4).ch)).toStrictEqual([
+    '界',
+    '',
+    ' ',
+    '◆',
+    '⠹',
+    ' ',
   ]);
 });
 

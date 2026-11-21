@@ -42,6 +42,7 @@ import { createSessionActions } from './create-session-actions';
 import { createStatusScheduler } from './create-status-scheduler';
 import { drawModeScreen } from './draw-mode-screen';
 import { handleResize } from './handle-resize';
+import { isOverSession } from './is-over-session';
 import type { TUIHost } from './tui-host';
 
 const STATUS_NOTICE_MS = 8000;
@@ -69,9 +70,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
   let lastUsedAgent: AgentID = host.readConfig().defaultAgent;
   let statusNotice: string | null = null;
   let cancelStatusNotice: (() => void) | null = null;
-  const bootMetadata = resolveAgentMetadata(host.readConfig(), {});
   const stdout = process.stdout;
   const leader = host.readConfig().leader;
+  const isShowingSession = () => isOverSession(getMode(), findRestartConsent(), findFocused());
   const isSessionFocused = (): boolean => getMode() === 'attached' && findRestartConsent() === null;
 
   const screen = createTUIScreen({
@@ -88,7 +89,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
       links: () => links,
       leaderLabel: leader.label,
       findFocused: () => findFocused(),
-      isShown: () => isSessionFocused() && statusNotice === null && !isAttachedLinkDown(),
+      isShown: () => isShowingSession() && statusNotice === null && !isAttachedLinkDown(),
     }),
     sendSessionReply: (key, bytes) => {
       void sendInput(key, bytes);
@@ -116,7 +117,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const scheduleStatus = createStatusScheduler({
     primaryName,
     leaderLabel: leader.label,
-    getMode: () => getMode(),
+    isOverSession: isShowingSession,
     getBoot: () => getBoot(),
     findFocused,
     listVisible: () => overlay.listVisible(),
@@ -385,7 +386,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
 
   const overlay = createOverlayScreen({
     mirror,
-    bootMetadata,
+    bootMetadata: resolveAgentMetadata(host.readConfig(), {}),
     readConfig: host.readConfig,
     links,
     findFocusedKey,

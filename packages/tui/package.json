@@ -14,6 +14,7 @@
     "@atcx/contract": "workspace:*",
     "@xterm/headless": "catalog:",
     "@zgeoff/std": "catalog:",
+    "get-east-asian-width": "catalog:",
     "tiny-invariant": "catalog:",
     "ts-pattern": "catalog:",
     "xstate": "catalog:",

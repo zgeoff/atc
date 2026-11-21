@@ -59,6 +59,7 @@
       "bun-pty": "0.6.0",
       "elysia": "2.0.0-rc.3",
       "exact-mirror": "1.2.7",
+      "get-east-asian-width": "1.7.0",
       "gunshi": "1.0.0-rc.1",
       "knip": "6.44.1",
       "kysely": "0.29.8",

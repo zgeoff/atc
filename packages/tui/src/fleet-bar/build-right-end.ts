@@ -1,3 +1,5 @@
+import { measureWidth } from '../terminal/measure-width';
+
 export interface RightEnd {
   // empty when no session needs the user
   readonly needYouText: string;
@@ -16,7 +18,7 @@ export function buildRightEnd(needYou: number, leaderLabel: string, cols: number
     needYouText,
     leaderLabel,
     gap,
-    width: [...needYouText].length + gap + [...leaderLabel].length,
+    width: measureWidth(needYouText) + gap + measureWidth(leaderLabel),
   };
 }
 

@@ -80,7 +80,7 @@ test('it marks a grok session done on end-turn Stop', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('✓ 1 done');
+  await ctx.waitFor('local ✓');
 }, 15_000);
 
 test('it marks a grok session done on StopCancelled', async () => {
@@ -106,7 +106,7 @@ test('it marks a grok session done on StopCancelled', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('✓ 1 done');
+  await ctx.waitFor('local ✓');
 }, 15_000);
 
 test('it keeps a grok session running when a hook names a subagent', async () => {
@@ -166,7 +166,7 @@ test('it yanks a grok resume command once the id is captured', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: grokyank');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('┌ sessions ');
 
   ctx.reset();
@@ -278,6 +278,6 @@ test('it keeps needs-you when grok emits idle_prompt after permission_prompt', a
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: grokidle');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('┌ sessions ');
 }, 15_000);

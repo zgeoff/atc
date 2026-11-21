@@ -113,3 +113,21 @@ test('#formatFleetBar draws every glyph of an unreachable place in #3a414b', () 
       .map((run) => run.fg),
   ).toSatisfyAll((colour) => colour.kind === 'rgb' && colour.red === 0x3a);
 });
+
+test('#formatFleetBar starts the next run after the two columns of a wide label', () => {
+  const bar = buildFleetBar([{ daemon: null, state: 'done', place: { key: 'a', label: '界界' } }], {
+    cols: 100,
+    leaderLabel: 'ctrl+space',
+    attachedPlaceKey: null,
+  });
+
+  expect(
+    formatFleetBar(bar, 100)
+      .slice(0, 3)
+      .map((run) => [run.col, run.text]),
+  ).toStrictEqual([
+    [0, '界界'],
+    [4, ' '],
+    [5, '✓'],
+  ]);
+});

@@ -92,7 +92,7 @@ test('it pins a session from the overlay and marks its row', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: pinme');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('┌ sessions ');
 
   ctx.reset();
@@ -119,7 +119,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: first');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('┌ sessions ');
 
   await openAgentStep(ctx);
@@ -255,7 +255,7 @@ test('it preselects the focused session when the overlay opens', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: first');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('┌ sessions ');
 
   await spawnClaudeSession(ctx, 'second');
