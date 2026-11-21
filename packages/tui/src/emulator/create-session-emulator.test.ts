@@ -1,4 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { NO_INPUT_MODES } from '@atc/core';
+import type { InputModes } from '@atc/core';
+import type { Underline } from '../compositor/types';
 import { createSessionEmulator } from './create-session-emulator';
 
 function setupTest(kittyKeyboard = false) {
@@ -71,6 +74,58 @@ test('#readCell gives a wide grapheme in one cell and an empty string in the nex
     ctx.emulator.readCell(1, 0).ch,
     ctx.emulator.readCell(2, 0).ch,
   ]).toStrictEqual(['界', '', 'x']);
+});
+
+test.each(['😀', '✅', '👩‍💻', '👍🏽', '❤️', '🇯🇵', '界'])(
+  '#write measures %s as two columns, as a terminal does',
+  async (text) => {
+    const ctx = setupTest();
+
+    await ctx.emulator.write(text);
+
+    expect(ctx.emulator.readCursor().col).toBe(2);
+  },
+);
+
+test.each<{ name: string; data: string; expected: Underline }>([
+  { name: 'no underline the agent never set', data: 'ab', expected: 'none' },
+  { name: 'the underline the agent set', data: '\u001B[4:3mab', expected: 'curly' },
+])('#readCell reads a link cell with $name', async (row) => {
+  const ctx = setupTest();
+
+  await ctx.emulator.write(`\u001B]8;;https://example.test\u001B\\${row.data}`);
+
+  expect(ctx.emulator.readCell(0, 0).underline).toBe(row.expected);
+});
+
+test.each<{ name: string; data: string; expected: Partial<InputModes> }>([
+  {
+    name: 'the last mouse mode set',
+    data: '\u001B[?1003h\u001B[?1000h',
+    expected: { mouse: 'click' },
+  },
+  {
+    name: 'mouse off after another mouse mode resets',
+    data: '\u001B[?1003h\u001B[?1000l',
+    expected: {},
+  },
+  { name: 'X10 mouse', data: '\u001B[?9h', expected: { mouse: 'x10' } },
+  {
+    name: 'a soft reset of the keys and the keypad',
+    data: '\u001B[?1h\u001B=\u001B[!p',
+    expected: {},
+  },
+  {
+    name: 'a control byte inside a CSI',
+    data: '\u001B[?20\r04h',
+    expected: { bracketedPaste: true },
+  },
+])('#readInputModes reads $name as xterm does', async (row) => {
+  const ctx = setupTest();
+
+  await ctx.emulator.write(row.data);
+
+  expect(ctx.emulator.readInputModes()).toStrictEqual({ ...NO_INPUT_MODES, ...row.expected });
 });
 
 test('#readCell reads an OSC 8 link as the link of the cells it covers', async () => {

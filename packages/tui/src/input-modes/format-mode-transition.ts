@@ -39,6 +39,7 @@ function formatSwitch(wasOn: boolean, isOn: boolean, modes: readonly number[]): 
 
 const MOUSE_REPORTING: Record<InputModes['mouse'], number[]> = {
   off: [],
+  x10: [9],
   click: [1000],
   drag: [1002],
   any: [1003],

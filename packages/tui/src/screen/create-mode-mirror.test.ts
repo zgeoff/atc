@@ -3,15 +3,20 @@ import { NO_INPUT_MODES } from '@atc/core';
 import type { InputModes } from '@atc/core';
 import { createModeMirror } from './create-mode-mirror';
 
-function setupTest(kittyKeyboard = false) {
+function setupTest() {
   const written: string[] = [];
-  const state: { modes: InputModes | null; isFocused: boolean } = { modes: null, isFocused: true };
+
+  const state: { modes: InputModes | null; isFocused: boolean; hasKitty: boolean } = {
+    modes: null,
+    isFocused: true,
+    hasKitty: false,
+  };
 
   const mirror = createModeMirror({
     write: (chunk) => {
       written.push(chunk);
     },
-    hasKittyKeyboard: () => kittyKeyboard,
+    hasKittyKeyboard: () => state.hasKitty,
     readSessionModes: () => state.modes,
     isSessionFocused: () => state.isFocused,
   });
@@ -55,8 +60,9 @@ test('#sync takes the modes off the terminal when another layer has focus', () =
 });
 
 test('#sync sets the kitty flags to 0 on focus loss with a set, never a pop', () => {
-  const ctx = setupTest(true);
+  const ctx = setupTest();
 
+  ctx.state.hasKitty = true;
   ctx.state.modes = { ...NO_INPUT_MODES, kittyStack: [1, 5] };
 
   ctx.mirror.sync();
@@ -69,7 +75,7 @@ test('#sync sets the kitty flags to 0 on focus loss with a set, never a pop', ()
 });
 
 test('#sync sends no kitty sequence to a terminal without the protocol', () => {
-  const ctx = setupTest(false);
+  const ctx = setupTest();
 
   ctx.state.modes = { ...NO_INPUT_MODES, kittyStack: [1] };
 
@@ -87,4 +93,18 @@ test('#reset takes every mirrored mode off the terminal', () => {
   ctx.mirror.reset();
 
   expect(ctx.written.at(-1)).toBe('\u001B[?1004l');
+});
+
+test('#sync sets the kitty flags once the late kitty answer of the terminal arrives', () => {
+  const ctx = setupTest();
+
+  ctx.state.modes = { ...NO_INPUT_MODES, kittyStack: [1] };
+
+  ctx.mirror.sync();
+
+  ctx.state.hasKitty = true;
+
+  ctx.mirror.sync();
+
+  expect(ctx.written).toStrictEqual(['\u001B[=1;1u']);
 });

@@ -160,6 +160,7 @@
         "@orpc/standard-server": "catalog:",
         "@orpc/standard-server-peer": "catalog:",
         "@xterm/addon-serialize": "catalog:",
+        "@xterm/addon-unicode-graphemes": "catalog:",
         "@xterm/headless": "catalog:",
         "@zgeoff/std": "catalog:",
         "lru-cache": "catalog:",
@@ -446,6 +447,7 @@
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
         "@atcx/contract": "workspace:*",
+        "@xterm/addon-unicode-graphemes": "catalog:",
         "@xterm/headless": "catalog:",
         "@zgeoff/std": "catalog:",
         "get-east-asian-width": "catalog:",
@@ -490,6 +492,7 @@
     "@wringer/stream": "0.1.6",
     "@wringer/terminal": "0.1.3",
     "@xterm/addon-serialize": "0.14.0",
+    "@xterm/addon-unicode-graphemes": "0.4.0",
     "@xterm/headless": "6.0.0",
     "@zgeoff/agent-hooks": "0.2.14",
     "@zgeoff/bun-test-extended": "0.2.4",
@@ -1060,6 +1063,8 @@
     "@wringer/terminal": ["@wringer/terminal@0.1.3", "", { "peerDependencies": { "@wringer/core": "0.3.3", "zod": "^4.0.0" } }, "sha512-a8QETetYtAhFwtvDmuFh9cCw4O4AfmLImfzwHEi/uRQNecl/KYpGpnkSZWkHOqdSoGqyVjzeuFeM1GM+vef5Ww=="],
 
     "@xterm/addon-serialize": ["@xterm/addon-serialize@0.14.0", "", {}, "sha512-uteyTU1EkrQa2Ux6P/uFl2fzmXI46jy5uoQMKEOM0fKTyiW7cSn0WrFenHm5vO5uEXX/GpwW/FgILvv3r0WbkA=="],
+
+    "@xterm/addon-unicode-graphemes": ["@xterm/addon-unicode-graphemes@0.4.0", "", {}, "sha512-9+/CqwbKcnlkJU4d3wIgO+wjsL8f6vyz+UwUWLu6nADQz8Gr8ONqGCJfdDjIdI+yYZLABQqQy47FzEM6AWELjw=="],
 
     "@xterm/headless": ["@xterm/headless@6.0.0", "", {}, "sha512-5Yj1QINYCyzrZtf8OFIHi47iQtI+0qYFPHmouEfG8dHNxbZ9Tb9YGSuLcsEwj9Z+OL75GJqPyJbyoFer80a2Hw=="],
 

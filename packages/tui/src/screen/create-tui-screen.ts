@@ -38,6 +38,9 @@ export interface TUIScreen {
   readonly handleResize: () => void;
   readonly syncModes: () => void;
 
+  // true once the user's terminal answered the kitty keyboard query
+  readonly hasKittyKeyboard: () => boolean;
+
   // Takes a chunk of the user's terminal input, and gives back the keys in it: the answers to the
   // start-up questions are taken out, and so is each mouse report outside the session's area.
   readonly filterInput: (chunk: Buffer) => Buffer | null;
@@ -51,6 +54,9 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
   const size = deps.readSize();
   const answerFilter = createTerminalAnswerFilter();
   let pendingScreenWrites = 0;
+
+  // the user's terminal can split a paste across input chunks
+  let isInPaste = false;
 
   const facts = createTerminalFacts({
     env: deps.env,
@@ -166,6 +172,8 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
 
     syncModes: mirror.sync,
 
+    hasKittyKeyboard: () => facts.read().kittyKeyboard,
+
     filterInput: (chunk) => {
       const result = answerFilter.push(chunk.toString('latin1'));
 
@@ -173,7 +181,18 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
         facts.apply(answer);
       }
 
-      const keys = deps.isSessionFocused() ? filterSessionMouse(result.keys, stream) : result.keys;
+      const emulator = stream.readEmulator();
+
+      const filtered = filterMouseReports(
+        result.keys,
+        emulator?.readSize() ?? deps.readSize(),
+        isInPaste,
+      );
+
+      isInPaste = filtered.isInPaste;
+
+      const mouse = emulator?.readInputModes().mouse ?? 'off';
+      const keys = deps.isSessionFocused() && mouse !== 'off' ? filtered.data : result.keys;
 
       return keys === '' ? null : Buffer.from(keys, 'latin1');
     },
@@ -188,14 +207,4 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
       mirror.reset();
     },
   };
-}
-
-function filterSessionMouse(keys: string, stream: SessionStream): string {
-  const emulator = stream.readEmulator();
-
-  if (emulator === null || emulator.readInputModes().mouse === 'off') {
-    return keys;
-  }
-
-  return filterMouseReports(keys, emulator.readSize());
 }

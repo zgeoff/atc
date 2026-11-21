@@ -51,12 +51,21 @@ function readColour(cell: IBufferCell, ground: 'fg' | 'bg'): Colour {
   return { kind: 'palette', index: value };
 }
 
+// xterm 6 reports every cell of an OSC 8 link as underlined with a dashed style, so the agent's
+// own underline comes from the raw attribute bits: the underline flag in fg, the style in ext.
+const FG_UNDERLINE = 0x10_00_00_00;
+const EXT_UNDERLINE_STYLE = 0x1c_00_00_00;
+const EXT_UNDERLINE_SHIFT = 26;
+
 function readUnderline(cell: IBufferCell, extended: unknown): Underline {
-  if (cell.isUnderline() === 0) {
+  const fg = readMember(cell, 'fg');
+
+  if (typeof fg !== 'number' || (fg & FG_UNDERLINE) === 0) {
     return 'none';
   }
 
-  const style = readMember(extended, 'underlineStyle');
+  const ext = readMember(extended, '_ext');
+  const style = typeof ext === 'number' ? (ext & EXT_UNDERLINE_STYLE) >> EXT_UNDERLINE_SHIFT : 1;
 
   if (style === 2) {
     return 'double';

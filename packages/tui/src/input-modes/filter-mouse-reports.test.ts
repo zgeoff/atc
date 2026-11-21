@@ -32,6 +32,31 @@ test.each<{ name: string; data: string; expected: string }>([
     data: '\u001B[<0;1;1M\u001B[<0;1;30Mx',
     expected: '\u001B[<0;1;1Mx',
   },
+  {
+    name: 'keeps report-like text inside a bracketed paste',
+    data: '\u001B[200~log \u001B[<0;200;3M done\u001B[201~',
+    expected: '\u001B[200~log \u001B[<0;200;3M done\u001B[201~',
+  },
+  {
+    name: 'drops a report after a bracketed paste ends',
+    data: '\u001B[200~p\u001B[201~\u001B[<0;1;30M',
+    expected: '\u001B[200~p\u001B[201~',
+  },
 ])('#filterMouseReports $name', (row) => {
-  expect(filterMouseReports(row.data, { cols: 80, rows: 24 })).toBe(row.expected);
+  expect(filterMouseReports(row.data, { cols: 80, rows: 24 }, false)).toStrictEqual({
+    data: row.expected,
+    isInPaste: false,
+  });
+});
+
+test('#filterMouseReports keeps a paste open at the end of a chunk', () => {
+  expect(
+    filterMouseReports('\u001B[<0;1;30M\u001B[200~\u001B[<0;1;30M', { cols: 80, rows: 24 }, false),
+  ).toStrictEqual({ data: '\u001B[200~\u001B[<0;1;30M', isInPaste: true });
+});
+
+test('#filterMouseReports passes a chunk inside a paste that opened in an earlier chunk', () => {
+  expect(
+    filterMouseReports('\u001B[<0;1;30M\u001B[201~\u001B[<0;1;30M', { cols: 80, rows: 24 }, true),
+  ).toStrictEqual({ data: '\u001B[<0;1;30M\u001B[201~', isInPaste: false });
 });

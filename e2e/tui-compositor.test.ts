@@ -115,6 +115,63 @@ test('it resets the mirrored input modes and exits from the list', async () => {
   expect([exitCode, ctx.tui.read()]).toStrictEqual([0, expect.stringContaining(`${KEYS.esc}[?1l`)]);
 });
 
+test('it sends no kitty sequence on exit to a terminal that never answered the kitty query', async () => {
+  const ctx = await setupTest();
+
+  await ctx.attach();
+  await ctx.tui.waitFor('FAKE_CLAUDE_UP args:');
+
+  ctx.tui.write(KEYS.ctrlSpace);
+
+  await ctx.tui.waitFor('┌ sessions ');
+
+  ctx.tui.reset();
+  ctx.tui.write('q');
+
+  await ctx.tui.waitForExit();
+
+  const output = ctx.tui.read();
+
+  expect([output.includes(`${KEYS.esc}[<u`), output.includes(`${KEYS.esc}[=`)]).toStrictEqual([
+    false,
+    false,
+  ]);
+});
+
+test.each([
+  { name: 'switches from any-motion to click', second: '\u001B[?1000h' },
+  { name: 'resets click over any-motion', second: '\u001B[?1000l' },
+])('it takes any-motion mouse off the terminal when the session $name', async (row) => {
+  const ctx = await setupTest();
+
+  await ctx.attach();
+  await ctx.tui.waitFor('FAKE_CLAUDE_UP args:');
+
+  ctx.tui.write(`${KEYS.esc}[?1003h${KEYS.esc}[?1006hM1${KEYS.enter}`);
+
+  await ctx.tui.waitFor(`${KEYS.esc}[?1003h`);
+
+  ctx.tui.reset();
+  ctx.tui.write(`${row.second}M2${KEYS.enter}`);
+
+  await ctx.tui.waitFor(`${KEYS.esc}[?1003l`);
+});
+
+test('it passes a bracketed paste that holds report-like text to the session byte for byte', async () => {
+  const ctx = await setupTest();
+
+  await ctx.attach();
+  await ctx.tui.waitFor('FAKE_CLAUDE_UP args:');
+
+  ctx.tui.write(`${KEYS.esc}[?1000h${KEYS.esc}[?1006h${KEYS.esc}[?2004hM1${KEYS.enter}`);
+
+  await ctx.tui.waitFor(`${KEYS.esc}[?2004h`);
+
+  ctx.tui.write(`${KEYS.pasteOpen}P${KEYS.esc}[<0;500;3MQ${KEYS.pasteClose}${KEYS.enter}`);
+
+  await ctx.tui.waitFor('P^[[<0;500;3MQ');
+});
+
 test('it opens the list on the leader key in the kitty encoding while the session has kitty flags set', async () => {
   const ctx = await setupTest();
 

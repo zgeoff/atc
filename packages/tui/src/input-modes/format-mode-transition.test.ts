@@ -82,6 +82,13 @@ test.each<{
     expected: '\u001B[?1000l\u001B[?1003h',
   },
   {
+    name: 'mouse changing from any to X10',
+    from: { mouse: 'any' },
+    to: { mouse: 'x10' },
+    kitty: false,
+    expected: '\u001B[?1003l\u001B[?9h',
+  },
+  {
     name: 'mouse off with its encoding',
     from: { mouse: 'click', mouseEncoding: 'urxvt' },
     to: {},

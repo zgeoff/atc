@@ -13,7 +13,7 @@ export function formatInputModes(modes: InputModes): string {
     parts.push('\u001B=');
   }
 
-  const reporting = { off: [], click: [1000], drag: [1002], any: [1003] }[modes.mouse];
+  const reporting = { off: [], x10: [9], click: [1000], drag: [1002], any: [1003] }[modes.mouse];
 
   for (const mode of reporting) {
     parts.push(`\u001B[?${mode}h`);

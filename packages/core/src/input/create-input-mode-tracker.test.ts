@@ -16,10 +16,16 @@ test.each<{ name: string; writes: string[]; expected: Partial<InputModes> }>([
     expected: { mouse: 'any' },
   },
   {
-    name: 'mouse any off leaves drag',
-    writes: ['\u001B[?1002;1003h\u001B[?1003l'],
-    expected: { mouse: 'drag' },
+    name: 'the last mouse mode set',
+    writes: ['\u001B[?1003h\u001B[?1000h'],
+    expected: { mouse: 'click' },
   },
+  {
+    name: 'mouse off after a reset of another mouse mode',
+    writes: ['\u001B[?1002;1003h\u001B[?1000l'],
+    expected: {},
+  },
+  { name: 'X10 mouse', writes: ['\u001B[?9h'], expected: { mouse: 'x10' } },
   { name: 'sgr encoding', writes: ['\u001B[?1006h'], expected: { mouseEncoding: 'sgr' } },
   { name: 'urxvt encoding', writes: ['\u001B[?1015h'], expected: { mouseEncoding: 'urxvt' } },
   { name: 'sgr beats urxvt', writes: ['\u001B[?1015;1006h'], expected: { mouseEncoding: 'sgr' } },
@@ -51,6 +57,26 @@ test.each<{ name: string; writes: string[]; expected: Partial<InputModes> }>([
     writes: ['\u001B[>5u\u001B[=1;3u'],
     expected: { kittyStack: [4] },
   },
+  {
+    name: 'an empty kitty stack on the alternate screen',
+    writes: ['\u001B[>1u\u001B[?1049h'],
+    expected: {},
+  },
+  {
+    name: 'the main kitty stack back after the alternate screen',
+    writes: ['\u001B[>1u\u001B[?1049h\u001B[>3u\u001B[?1049l'],
+    expected: { kittyStack: [1] },
+  },
+  {
+    name: 'the alternate kitty stack through mode 1047',
+    writes: ['\u001B[>1u\u001B[?1047h\u001B[>3u'],
+    expected: { kittyStack: [3] },
+  },
+  {
+    name: 'the main kitty stack back after mode 47',
+    writes: ['\u001B[?47h\u001B[>31u\u001B[?47l'],
+    expected: {},
+  },
   { name: 'kitty query changes nothing', writes: ['\u001B[?u'], expected: {} },
   { name: 'modifyOtherKeys 2', writes: ['\u001B[>4;2m'], expected: { modifyOtherKeys: 2 } },
   { name: 'modifyOtherKeys reset', writes: ['\u001B[>4;2m\u001B[>4;0m'], expected: {} },
@@ -72,6 +98,21 @@ test.each<{ name: string; writes: string[]; expected: Partial<InputModes> }>([
   { name: 'a sequence inside an OSC string', writes: ['\u001B]0;\u001B[?1h\u0007'], expected: {} },
   { name: 'full reset', writes: ['\u001B[?1h\u001B[>3u\u001Bc'], expected: {} },
   { name: 'a charset designator is not the keypad', writes: ['\u001B(='], expected: {} },
+  {
+    name: 'a soft reset',
+    writes: ['\u001B[?1h\u001B=\u001B[?2004;1004;1007h\u001B[!p'],
+    expected: { alternateScroll: true },
+  },
+  {
+    name: 'a control byte inside a CSI',
+    writes: ['\u001B[?20\r04h'],
+    expected: { bracketedPaste: true },
+  },
+  {
+    name: 'a control byte after an escape',
+    writes: ['\u001B\n='],
+    expected: { applicationKeypad: true },
+  },
   { name: 'colon sub-parameters', writes: ['\u001B[?2004:1h'], expected: { bracketedPaste: true } },
 ])('#write tracks $name', (row) => {
   const expected = row.expected;
@@ -104,6 +145,14 @@ test('#write drops the oldest kitty entry past 16', () => {
   expect(tracker.read().kittyStack).toStrictEqual(
     Array.from({ length: 16 }, (_, index) => index + 1),
   );
+});
+
+test('#readKittyStacks gives the stack of each screen', () => {
+  const tracker = createInputModeTracker();
+
+  tracker.write('\u001B[>1u\u001B[>5u\u001B[?1049h\u001B[>3u');
+
+  expect(tracker.readKittyStacks()).toStrictEqual({ main: [1, 5], alternate: [3] });
 });
 
 test('#reset returns every mode to its default', () => {

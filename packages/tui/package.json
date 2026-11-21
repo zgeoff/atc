@@ -12,6 +12,7 @@
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atcx/contract": "workspace:*",
+    "@xterm/addon-unicode-graphemes": "catalog:",
     "@xterm/headless": "catalog:",
     "@zgeoff/std": "catalog:",
     "get-east-asian-width": "catalog:",

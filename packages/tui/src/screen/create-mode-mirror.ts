@@ -24,9 +24,11 @@ export function createModeMirror(deps: ModeMirrorDeps): ModeMirror {
   let applied: InputModes = NO_INPUT_MODES;
 
   const apply = (target: InputModes): void => {
-    const sequence = formatModeTransition(applied, target, deps.hasKittyKeyboard());
+    const hasKitty = deps.hasKittyKeyboard();
+    const sequence = formatModeTransition(applied, target, hasKitty);
 
-    applied = target;
+    // the kitty flags count as applied only once they reach a terminal that has the protocol
+    applied = hasKitty ? target : { ...target, kittyStack: applied.kittyStack };
 
     if (sequence !== '') {
       deps.write(sequence);

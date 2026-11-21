@@ -7,3 +7,7 @@ test('#splitGraphemes keeps a combined grapheme in one piece', () => {
     { text: '界', width: 2 },
   ]);
 });
+
+test('#splitGraphemes measures a flag as two columns, as a terminal does', () => {
+  expect(splitGraphemes('🇯🇵')).toStrictEqual([{ text: '🇯🇵', width: 2 }]);
+});

@@ -1,5 +1,5 @@
 export interface InputModes {
-  readonly mouse: 'off' | 'click' | 'drag' | 'any';
+  readonly mouse: 'off' | 'x10' | 'click' | 'drag' | 'any';
   readonly mouseEncoding: 'default' | 'sgr' | 'urxvt';
   readonly alternateScroll: boolean;
   readonly bracketedPaste: boolean;
@@ -24,9 +24,17 @@ export const NO_INPUT_MODES: InputModes = {
   colourSchemeUpdates: false,
 };
 
+export interface KittyStacks {
+  readonly main: readonly number[];
+  readonly alternate: readonly number[];
+}
+
 export interface InputModeTracker {
   readonly write: (data: string) => void;
   readonly read: () => InputModes;
+
+  // the kitty stack of each screen; `read` gives only the active screen's
+  readonly readKittyStacks: () => KittyStacks;
   readonly reset: () => void;
 }
 
@@ -40,6 +48,12 @@ export function createInputModeTracker(): InputModeTracker {
       }
     },
     read: () => collectInputModes(state),
+    readKittyStacks: () => {
+      const main = state.isAlternate ? state.inactiveKittyStack : state.kittyStack;
+      const alternate = state.isAlternate ? state.kittyStack : state.inactiveKittyStack;
+
+      return { main: [...main], alternate: [...alternate] };
+    },
     reset: () => {
       Object.assign(state, buildInitialState());
     },
@@ -51,10 +65,14 @@ type ParserState = 'ground' | 'escape' | 'escape-intermediate' | 'csi' | 'string
 interface TrackerState {
   parser: ParserState;
   csi: string;
-  mouseReporting: Set<number>;
+  mouse: InputModes['mouse'];
   mouseEncodings: Set<number>;
   flags: Set<number>;
+
+  // the active screen's stack; the other screen keeps its own until the next switch
   kittyStack: number[];
+  inactiveKittyStack: number[];
+  isAlternate: boolean;
   modifyOtherKeys: 0 | 1 | 2;
   applicationKeypad: boolean;
 }
@@ -63,10 +81,12 @@ function buildInitialState(): TrackerState {
   return {
     parser: 'ground',
     csi: '',
-    mouseReporting: new Set(),
+    mouse: 'off',
     mouseEncodings: new Set(),
     flags: new Set(),
     kittyStack: [],
+    inactiveKittyStack: [],
+    isAlternate: false,
     modifyOtherKeys: 0,
     applicationKeypad: false,
   };
@@ -107,6 +127,11 @@ function advanceParser(state: TrackerState, char: string): void {
     state.parser = 'escape';
     state.csi = '';
 
+    return;
+  }
+
+  // A terminal runs a control byte that arrives inside a sequence and goes on parsing it.
+  if (char < ' ' || char === '\u007F') {
     return;
   }
 
@@ -170,6 +195,12 @@ function applyCSI(state: TrackerState, body: string, final: string): void {
   const prefix = /^[?<=>]/u.test(body) ? body.slice(0, 1) : '';
   const rest = body.slice(prefix.length);
 
+  if (body === '!' && final === 'p') {
+    applySoftReset(state);
+
+    return;
+  }
+
   if (/[ -/]/u.test(rest)) {
     return;
   }
@@ -192,6 +223,25 @@ function applyCSI(state: TrackerState, body: string, final: string): void {
   }
 }
 
+// DECSTR resets the modes that xterm.js resets on a soft reset, and leaves the mouse alone.
+function applySoftReset(state: TrackerState): void {
+  for (const mode of [1, 1004, 2004]) {
+    state.flags.delete(mode);
+  }
+
+  state.applicationKeypad = false;
+}
+
+// xterm keeps one mouse protocol: the last mode set wins, and a reset of any of them turns it off.
+const MOUSE_LEVELS = new Map<number, InputModes['mouse']>([
+  [9, 'x10'],
+  [1000, 'click'],
+  [1002, 'drag'],
+  [1003, 'any'],
+]);
+
+const ALTERNATE_SCREEN_MODES = new Set([47, 1047, 1049]);
+
 function applyPrivateModes(
   state: TrackerState,
   params: readonly (number | null)[],
@@ -199,6 +249,18 @@ function applyPrivateModes(
 ): void {
   for (const mode of params) {
     if (mode === null) {
+      continue;
+    }
+
+    const mouse = MOUSE_LEVELS.get(mode);
+
+    if (mouse !== undefined) {
+      state.mouse = isSet ? mouse : 'off';
+      continue;
+    }
+
+    if (ALTERNATE_SCREEN_MODES.has(mode)) {
+      switchScreen(state, isSet);
       continue;
     }
 
@@ -216,17 +278,25 @@ function applyPrivateModes(
   }
 }
 
+// Each screen keeps its own kitty stack, as kitty's protocol specifies.
+function switchScreen(state: TrackerState, isAlternate: boolean): void {
+  if (state.isAlternate === isAlternate) {
+    return;
+  }
+
+  const active = state.kittyStack;
+
+  state.kittyStack = state.inactiveKittyStack;
+  state.inactiveKittyStack = active;
+  state.isAlternate = isAlternate;
+}
+
 const FLAG_MODES = new Set([1, 1007, 1004, 2004, 2031]);
-const MOUSE_REPORTING_MODES = new Set([1000, 1002, 1003]);
 const MOUSE_ENCODING_MODES = new Set([1006, 1015]);
 
 function pickModeSet(state: TrackerState, mode: number): Set<number> | null {
   if (FLAG_MODES.has(mode)) {
     return state.flags;
-  }
-
-  if (MOUSE_REPORTING_MODES.has(mode)) {
-    return state.mouseReporting;
   }
 
   return MOUSE_ENCODING_MODES.has(mode) ? state.mouseEncodings : null;
@@ -265,7 +335,7 @@ function setKittyFlags(state: TrackerState, flags: number, mode: number): void {
 
 function collectInputModes(state: TrackerState): InputModes {
   return {
-    mouse: pickMouse(state.mouseReporting),
+    mouse: state.mouse,
     mouseEncoding: pickMouseEncoding(state.mouseEncodings),
     alternateScroll: state.flags.has(1007),
     bracketedPaste: state.flags.has(2004),
@@ -276,18 +346,6 @@ function collectInputModes(state: TrackerState): InputModes {
     modifyOtherKeys: state.modifyOtherKeys,
     colourSchemeUpdates: state.flags.has(2031),
   };
-}
-
-function pickMouse(reporting: ReadonlySet<number>): InputModes['mouse'] {
-  if (reporting.has(1003)) {
-    return 'any';
-  }
-
-  if (reporting.has(1002)) {
-    return 'drag';
-  }
-
-  return reporting.has(1000) ? 'click' : 'off';
 }
 
 function pickMouseEncoding(encodings: ReadonlySet<number>): InputModes['mouseEncoding'] {

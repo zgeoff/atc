@@ -289,7 +289,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     connection.transport.stop();
     screen.stop();
 
-    restoreTerminal();
+    restoreTerminal(screen.hasKittyKeyboard());
 
     if (message !== undefined) {
       console.error(message);
@@ -486,7 +486,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
   links.onChange(reactions.handleLinkChange);
 
   const firstLink = await connection.transport.waitForConnection().catch((error: unknown) => {
-    restoreTerminal();
+    restoreTerminal(screen.hasKittyKeyboard());
 
     console.error(`atc: ${error instanceof Error ? error.message : String(error)}`);
 
@@ -576,7 +576,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
   process.on('uncaughtException', (err) => {
     screen.stop();
 
-    restoreTerminal();
+    restoreTerminal(screen.hasKittyKeyboard());
 
     console.error(err);
     process.exit(1);

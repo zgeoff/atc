@@ -25,11 +25,16 @@ function measureGrapheme(grapheme: string): number {
     return 0;
   }
 
-  if (grapheme.includes(EMOJI_PRESENTATION)) {
+  if (grapheme.includes(EMOJI_PRESENTATION) || isRegionalIndicator(first)) {
     return 2;
   }
 
   return isZeroWidth(first) ? 0 : eastAsianWidth(first);
+}
+
+// a pair of these is a flag
+function isRegionalIndicator(codePoint: number): boolean {
+  return codePoint >= 0x1_f1_e6 && codePoint <= 0x1_f1_ff;
 }
 
 function isZeroWidth(codePoint: number): boolean {

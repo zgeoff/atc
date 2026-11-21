@@ -309,7 +309,11 @@
           { "name": "confinement", "modules": ["bun-pty"], "allow": ["pty-files"] },
           {
             "name": "confinement",
-            "modules": ["@xterm/headless", "@xterm/addon-serialize"],
+            "modules": [
+              "@xterm/headless",
+              "@xterm/addon-serialize",
+              "@xterm/addon-unicode-graphemes"
+            ],
             "allow": ["xterm-files", "tests"]
           },
           { "name": "confinement", "modules": ["@impz/client"], "allow": ["imp-client-files"] },

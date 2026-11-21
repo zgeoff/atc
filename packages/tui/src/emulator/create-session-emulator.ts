@@ -1,5 +1,6 @@
 import { createInputModeTracker } from '@atc/core';
 import type { InputModes } from '@atc/core';
+import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes';
 import { Terminal } from '@xterm/headless';
 import { BLANK_CELL } from '../compositor/blank-cell';
 import type { Cell, CursorPlacement, TerminalFacts } from '../compositor/types';
@@ -51,6 +52,9 @@ export function createSessionEmulator(deps: SessionEmulatorDeps): SessionEmulato
     allowProposedApi: true,
     scrollback: 0,
   });
+
+  // xterm's default Unicode 6 tables measure most emoji as one column, where terminals draw two
+  term.loadAddon(new UnicodeGraphemesAddon());
 
   const tracker = createInputModeTracker();
   const replyListeners: ((bytes: string) => void)[] = [];
@@ -109,6 +113,12 @@ export function createSessionEmulator(deps: SessionEmulatorDeps): SessionEmulato
       return false;
     });
   }
+
+  term.parser.registerCsiHandler({ intermediates: '!', final: 'p' }, () => {
+    tracker.write('\u001B[!p');
+
+    return false;
+  });
 
   for (const final of ['=', '>', 'c']) {
     term.parser.registerEscHandler({ final }, () => {
