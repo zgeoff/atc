@@ -36,6 +36,8 @@ atc needs `claude`, `codex` or `grok` on your PATH, and Codex and Grok need
 
 ## Usage
 
+### The TUI
+
 Start the daemon and open the TUI:
 
 ```sh
@@ -44,6 +46,8 @@ atc
 
 Press `n` to spawn a session, `Ctrl-Space` for the list, and `?` for the keys. Quit the TUI and your
 sessions keep running.
+
+### Agents that drive agents
 
 Give an agent the whole fleet, or another machine's:
 
@@ -59,6 +63,8 @@ Then ask it:
 
 Each builder becomes a session in your TUI, so you can jump into any of them.
 
+### From the shell
+
 Message a session from anywhere:
 
 ```sh
@@ -72,6 +78,8 @@ atc events |
   jq --unbuffered -r 'select(.ev == "SessionState" and .session.state == "needs_you") | .session.name' |
   while read -r name; do ntfy publish me "$name is waiting on you"; done
 ```
+
+### From code
 
 Hand a stuck cloud agent to your orchestrator:
 
