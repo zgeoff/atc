@@ -336,9 +336,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
       openHome,
       openAttached,
       openOverlay: () => {
-        if (!isShowingSession()) {
-          drawHome(mirror.count, leader.label);
-        }
+        // Home waits under the session too, so the list keeps a screen behind it when that
+        // session dies while the list is open.
+        drawHome(mirror.count, leader.label);
 
         overlay.open();
       },

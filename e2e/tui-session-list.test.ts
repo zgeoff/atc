@@ -153,6 +153,30 @@ test('it asks before it ends a dead session, and removes it on y', async () => {
   expect(ctx.tui.readScreen()).not.toInclude('doomed');
 });
 
+test('it shows home behind the list once K kills the attached session', async () => {
+  const ctx = await setupTest();
+
+  await spawnDaemonSession(ctx.tui, 'doomed');
+
+  await ctx.attachFirst();
+
+  ctx.tui.write(KEYS.ctrlSpace);
+
+  await ctx.tui.waitFor('╭─ ');
+
+  ctx.tui.write('K');
+
+  await ctx.tui.waitFor('kill doomed? · y / n');
+
+  ctx.tui.write('y');
+
+  await ctx.tui.waitFor('X end');
+
+  await waitFor(() => {
+    expect(ctx.tui.readScreen()).toInclude('atc — control tower');
+  });
+});
+
 test('it keeps the fleet bar on the last row while the list is open', async () => {
   const ctx = await setupTest();
 
