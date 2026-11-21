@@ -101,7 +101,7 @@ test('it pins a session from the list and groups it under pinned', async () => {
   ctx.write('p');
 
   await waitFor(() => {
-    expect(ctx.readScreen()).toMatch(/^\s*pinned {2}1/mu);
+    expect(ctx.readScreen()).toMatch(/^\s*│ pinned {2}1/mu);
   });
 });
 
@@ -154,13 +154,13 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   await ctx.waitFor('second');
 
-  expect(ctx.readScreen()).not.toMatch(/^\s*otherproj {2}1/mu);
+  expect(ctx.readScreen()).not.toMatch(/^\s*│ otherproj {2}1/mu);
 
   ctx.write('g');
 
   await ctx.waitFor('by repo');
 
-  expect(ctx.readScreen()).toMatch(/^\s*otherproj {2}1/mu);
+  expect(ctx.readScreen()).toMatch(/^\s*│ otherproj {2}1/mu);
 });
 
 test('it lists a sub-session indented under its parent', async () => {

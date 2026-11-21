@@ -82,7 +82,7 @@ test('it cycles the grouping with g, and shows the place groups with their heade
 
   await ctx.tui.waitFor('by place');
 
-  expect(ctx.tui.readScreen()).toMatch(/^\s*local {2}1/mu);
+  expect(ctx.tui.readScreen()).toMatch(/^\s*│ local {2}1/mu);
 });
 
 test('it attaches the session a jump label names', async () => {
