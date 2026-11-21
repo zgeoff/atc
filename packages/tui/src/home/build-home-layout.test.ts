@@ -177,3 +177,33 @@ test.each([
   expect(noticeRun?.row).toBe(lowest);
   expect(lowest).toBeLessThan(rows);
 });
+
+test.each([
+  [10, 0],
+  [10, 2],
+  [11, 2],
+  [12, 2],
+])(
+  '#buildHomeLayout gives no two runs a shared cell in a %i row window with %i to restore',
+  (rows, restorable) => {
+    const layout = buildHomeLayout(
+      { cols: 30, rows },
+      { kind: 'bitmap' },
+      { cols: 21, rows: 4 },
+      {
+        sessionCount: 1,
+        needYouCount: 1,
+        leaderLabel: 'ctrl+space',
+        notices: ['daemon down', '⟳ update ready'],
+        restorableCount: restorable,
+      },
+    );
+
+    const cells = layout.runs.flatMap((run) =>
+      Array.from(run.text, (_ch, index) => `${run.row}:${run.col + index}`),
+    );
+
+    expect(new Set(cells).size).toBe(cells.length);
+    expect(Math.max(...layout.runs.map((run) => run.row))).toBeLessThan(rows);
+  },
+);

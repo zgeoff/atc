@@ -8,23 +8,31 @@ interface WindowSize {
 }
 
 // Lays out the stack: the wordmark, the fleet line, a blank row and the keys, centred in the window.
-// The notices go below the stack, and move it up only when the window is too short to show them.
+// The notices go below the stack. A short window drops the blank row above them, then the gap under
+// the wordmark, so they never share a row with a key.
 export function buildHomeLayout(
   window: WindowSize,
   wordmark: Wordmark,
   wordmarkSize: WindowSize,
   input: HomeInput,
 ): HomeLayout {
-  const wordmarkGap = wordmark.kind === 'outline' ? 2 : 1;
   const keys = listKeys(input);
-  const stackRows = wordmarkSize.rows + wordmarkGap + 1 + 1 + keys.length;
-  const noticeRows = input.notices.length > 0 ? 1 : 0;
+  const hasNotices = input.notices.length > 0;
+  const fullWordmarkGap = wordmark.kind === 'outline' ? 2 : 1;
+  const bodyRows = wordmarkSize.rows + 1 + 1 + keys.length;
+  const noticeRows = hasNotices ? 1 : 0;
+  const overflow = bodyRows + fullWordmarkGap + noticeRows * 2 - window.rows;
+  const noticeGap = hasNotices && overflow <= 0 ? 1 : 0;
+  const wordmarkGap = Math.max(0, fullWordmarkGap - Math.max(0, overflow - noticeRows));
+  const stackRows = bodyRows + wordmarkGap;
 
-  // The centred top, pulled up only when the notice row below the keys would fall off the window;
-  // in a window too short for the blank row above the notice, the notice sits on the last row.
+  // The centred top, pulled up only when the notice rows below the keys would fall off the window.
   const top = Math.max(
     0,
-    Math.min(Math.floor((window.rows - stackRows) / 2), window.rows - stackRows - noticeRows),
+    Math.min(
+      Math.floor((window.rows - stackRows) / 2),
+      window.rows - stackRows - noticeGap - noticeRows,
+    ),
   );
 
   const wordmarkAt = { col: centre(window.cols, wordmarkSize.cols), row: top };
@@ -35,11 +43,7 @@ export function buildHomeLayout(
     ...buildWordmarkRuns(window, wordmark, wordmarkAt.row),
     ...buildFleetRuns(window.cols, fleetRow, input),
     ...buildKeyRuns(window.cols, keysRow, keys),
-    ...buildNoticeRuns(
-      window.cols,
-      Math.min(keysRow + keys.length + 1, window.rows - 1),
-      input.notices,
-    ),
+    ...buildNoticeRuns(window.cols, keysRow + keys.length + noticeGap, input.notices),
   ];
 
   return { wordmarkAt, runs };
