@@ -152,3 +152,28 @@ test('#buildHomeLayout lists the restore key while the last fleet has sessions t
     `${' '.repeat(49)}R  restore`,
   ]);
 });
+
+test.each([
+  [10, 30],
+  [11, 30],
+  [12, 30],
+])('#buildHomeLayout keeps the notice line inside a %i row window', (rows, cols) => {
+  const layout = buildHomeLayout(
+    { cols, rows },
+    { kind: 'bitmap' },
+    { cols: 21, rows: 4 },
+    {
+      sessionCount: 1,
+      needYouCount: 0,
+      leaderLabel: 'ctrl+space',
+      notices: ['daemon down'],
+      restorableCount: 0,
+    },
+  );
+
+  const noticeRun = layout.runs.find((run) => run.text === 'daemon down');
+  const lowest = Math.max(...layout.runs.map((run) => run.row));
+
+  expect(noticeRun?.row).toBe(lowest);
+  expect(lowest).toBeLessThan(rows);
+});
