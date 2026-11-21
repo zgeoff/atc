@@ -21,8 +21,11 @@ function setupTest() {
     const line: string[] = Array.from({ length: window.cols }, () => ' ');
 
     for (const run of layout.runs.filter((entry) => entry.row === row)) {
-      for (const [index, ch] of [...run.text].entries()) {
-        line[run.col + index] = ch;
+      let col = run.col;
+
+      for (const ch of run.text) {
+        line[col] = ch;
+        col += 1;
       }
     }
 

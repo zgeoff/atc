@@ -71,7 +71,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
   // the scheduler comes later, because it reads what the notices and the screen hold
   const notices = createStatusNotices({
     clock: systemClock,
-    scheduleStatus: () => scheduleStatus(),
+    scheduleStatus: () => {
+      scheduleStatus();
+    },
   });
 
   const stdout = process.stdout;
