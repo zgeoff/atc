@@ -1,5 +1,15 @@
 # Changelog
 
+## [7.12.0](https://github.com/zgeoff/atc/compare/@atc/gateway@7.11.0...@atc/gateway@7.12.0) (2026-11-21)
+
+### Features
+
+- send each session's place in its descriptor ([#1346](https://github.com/zgeoff/atc/issues/1346))
+  ([b1a584f](https://github.com/zgeoff/atc/commit/b1a584f5aead8497eadcebe57ee46e20f1215933))
+- **tui:** draw every screen through a compositor, with a fleet bar
+  ([#1349](https://github.com/zgeoff/atc/issues/1349))
+  ([ba0d638](https://github.com/zgeoff/atc/commit/ba0d6389526b97ef172ad8702db717ea9a2a383c))
+
 ## [7.11.0](https://github.com/zgeoff/atc/compare/@atc/gateway@7.10.0...@atc/gateway@7.11.0) (2026-11-20)
 
 ### Features
