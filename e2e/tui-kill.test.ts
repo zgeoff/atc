@@ -15,7 +15,7 @@ test('it kills a needs-you session from the overlay on confirm', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'testsess');
 
@@ -46,7 +46,7 @@ test('it revives a killed session in place with a fresh terminal', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'revivable');
 
@@ -82,7 +82,7 @@ test('it explains a revive that has no saved transcript instead of failing silen
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'transcriptless');
 

@@ -19,18 +19,25 @@ interface TUIHarnessOptions {
 
   readonly bootMs?: number;
 
+  // the terminal's size, 110 by 30 when left out
+  readonly cols?: number;
+  readonly rows?: number;
+
   readonly now?: () => number;
 
   readonly wait?: (delayMs: number) => Promise<void>;
 }
 
-// The picker box takes the terminal width less 4 columns, at most 90, and its input row holds
-// the box less 8, so at this width the box is 90 columns and the input row 82.
-const COLS = 110;
-const ROWS = 30;
-const INPUT_MAX = Math.min(COLS - 4, 90) - 8;
+const DEFAULT_COLS = 110;
+const DEFAULT_ROWS = 30;
 
 export function startTUIHarness(options: TUIHarnessOptions) {
+  const COLS = options.cols ?? DEFAULT_COLS;
+  const ROWS = options.rows ?? DEFAULT_ROWS;
+
+  // The picker box takes the terminal width less 4 columns, at most 90, and its input row holds
+  // the box less 8, so at the default width the box is 90 columns and the input row 82.
+  const INPUT_MAX = Math.min(COLS - 4, 90) - 8;
   const now = options.now ?? Date.now;
   const wait = options.wait ?? Bun.sleep;
   const cliPath = readSourceEntry('atc');

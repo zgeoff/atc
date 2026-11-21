@@ -17,7 +17,7 @@ async function setupTest() {
 
   const client = tui.boot();
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitFor('n  new');
 
   const sessionID = await spawnDaemonSession(tui, 'shown');
 

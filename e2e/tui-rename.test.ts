@@ -20,7 +20,7 @@ test('it renames a session from the claude transcript custom-title', async () =>
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'typedname');
 

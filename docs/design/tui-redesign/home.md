@@ -1,9 +1,12 @@
 # Home
 
-- **Status:** draft
+- **Status:** built
 
-Home is what the TUI shows with no session attached: the `atc` wordmark, one line of fleet state,
-and the two keys a user needs. It paints no background, so it sits on the terminal's own theme.
+Home is what the TUI shows with no session attached: the `atc` wordmark, one line that counts the
+sessions, the keys that open the session list and spawn a session, and a line of notices. Home sets
+a background colour only on wordmark cells whose two pixels are both on, so it sits on the
+terminal's own theme. This doc holds the shape of home, its target screens and the wordmark's pixel
+geometry. [Home](../../architecture/tui/home.md) describes how the built home behaves.
 
 ## Shape
 
@@ -14,6 +17,9 @@ and the two keys a user needs. It paints no background, so it sits on the termin
 
                 ctrl+space  sessions
                          n  new
+                         R  restore       only while a saved session has stopped
+
+        ⟳ update ready                    only while a notice or a daemon state shows
 ```
 
 ## Target screens
@@ -43,11 +49,12 @@ type Wordmark = { kind: 'outline'; size: 's10' | 'xs8' } | { kind: 'bitmap' } | 
 
 ### The wordmark
 
-- `pickWordmark` picks the largest wordmark whose minimum window the window reaches in both columns
-  and rows: `s10` at 164x50, `xs8` at 136x40, `bitmap` at 30x10, else `text`. The minimums keep the
-  wordmark small next to the window, so it never fills more than about a fifth of the width.
-- In this doc, a pixel is half a cell: the TUI draws two pixels per cell with `▀` and `▄`, and
-  [Wordmark geometry](#wordmark-geometry) gives every size in pixels.
+- Each wordmark has a smallest window it fits: `s10` 164x50, `xs8` 136x40 and `bitmap` 30x10, in
+  columns by rows, while `text` fits any window. `pickWordmark` picks the largest wordmark that fits
+  by both columns and rows.
+- The TUI draws two pixels in each cell, `▀` for the top half and `▄` for the bottom half.
+  [Wordmark geometry](#wordmark-geometry) gives every size in these pixels. When both pixels of a
+  cell are on, the cell's background colour draws the bottom one.
 - The TUI draws the outline wordmark from signed distance fields: a rounded rectangle for each bowl
   of the a and the c, rectangles for the stems and the t's crossbar, and a rectangle cut from the
   right side of the c's bowl to open it.
@@ -55,24 +62,39 @@ type Wordmark = { kind: 'outline'; size: 's10' | 'xs8' } | { kind: 'bitmap' } | 
   anti-aliased. Coverage comes from 6x6 supersampling per pixel.
 - The bitmap wordmark has no anti-aliasing. The `text` wordmark is the word `atc` in bold, in
   `#eef1f8`.
-- The outline and bitmap wordmarks' colour runs from `#eef1f8` at the top to `#c4cde4` at the base.
-  The TUI blends a part-covered pixel toward the terminal's background colour, which it reads as
-  [the compositor's Colour section](./compositor.md#colour) says.
+- The outline and bitmap wordmarks' colour runs from `#eef1f8` on their top row of pixels to
+  `#c4cde4` on their bottom row. The TUI blends a part-covered pixel toward the terminal's
+  background colour, which it reads as [the compositor's Colour section](./compositor.md#colour)
+  says. On a terminal that shows 16 colours, the TUI leaves a pixel off when its colour maps to the
+  palette's black.
 
 ### The layout
 
-- Home is the wordmark, the fleet line and the keys, stacked. Every other cell stays at the
-  terminal's default background.
-- The stack sits in the middle of the window, top to bottom: the wordmark, two blank rows under an
-  outline wordmark or one under the others, the fleet line, one blank row, then the keys. The
-  wordmark and the fleet line are each centred left to right, and the keys are centred as one block.
+- Home is the wordmark, the fleet line and the keys, stacked, with the notice line below them.
+- The stack is centred in the window from top to bottom. From the top, it holds the wordmark, two
+  blank rows under an outline wordmark or one under the others, the fleet line, one blank row, then
+  the keys. The wordmark and the fleet line are each centred left to right, and the keys are centred
+  as one block.
 - The fleet line reads `<n> sessions` (`1 session` for one, `no sessions` for none), then
-  `  ·  ◆ <k> need you` when `k > 0`. `k` counts the sessions in the `needs_you` state. The two
+  `  ·  ◆ <k> need you` when `k > 0`. `<n>` counts the sessions that the
+  [session list](./session-list.md) shows, and `k` counts those in the `needs_you` state. The two
   numbers are bold, `◆ <k>` is amber (`#f0b45a`), and the words are dim.
+- When the fleet line is wider than the window, it drops the `◆ <k> need you` part first, then cuts
+  `<n> sessions` with `…`.
 - The keys form two columns: each key right-aligned in bold blue (`#7aa2f7`), then two spaces, then
-  its dim label. The first key is the leader key, which opens the [session list](./session-list.md),
-  shown as the config's `leader` value, for example `ctrl+space`. The second is `n`, labelled `new`.
-- Home redraws only when the fleet counts change or the window resizes. It never animates.
+  its dim label. The first key is the leader key, shown as the config's `leader` value, such as
+  `ctrl+space`, labelled `sessions`. The second is `n`, labelled `new`. `R` restores the fleet, the
+  sessions the local daemon saves to start again after a restart. While a session of the fleet has
+  stopped, a third line lists `R`, labelled `restore`, and the stack grows by that row. A key row
+  wider than the window is cut with `…`.
+- The notice line is one amber line, centred one blank row below the keys. It joins, with `  ·  `:
+  `@<daemon>`, when the client is on a daemon other than the default one; the client's one current
+  notice, such as a failed call or the folder that atc kept after the user ended a session; and
+  `⟳ waiting for daemon`, `⟳ restarting daemon` or `⟳ update ready`. The notice line sits outside
+  the stack, so the stack stays where it is when a notice shows. In a window too short for the blank
+  row, the notice line sits right under the keys; with no row left, it is dropped. It is cut to the
+  window's width with `…`.
+- Home never animates. It redraws when the sessions, the notices or the window size change.
 
 ## Wordmark geometry
 
@@ -141,7 +163,8 @@ const BITMAP_WORDMARK = [
 
 ## Builder decides
 
-- How the wordmark's coverage is cached between frames.
-- The module that holds the home layer, and its name.
-- Whether the keys also list `r` (adopt a session) while a session waits to be adopted, and `R`
-  (restore the fleet) while the fleet has sessions to restore. Both keys work on home either way.
+- How the wordmark's coverage is cached between frames: each layer keeps the coverage of the
+  wordmarks it has drawn.
+- The module that holds the home layer: the TUI's `home` folder.
+- Whether the keys also list `r`, which opens the spawn picker to resume an earlier conversation,
+  and `R`: the build lists `R` as the layout says, and never lists `r`. Both keys work on home.

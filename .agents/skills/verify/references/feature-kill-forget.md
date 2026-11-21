@@ -7,8 +7,9 @@ verify skill's Check a change say. Run the journey's lines in order. At the firs
 non-zero, skip to the cleanup lines at the end of the journey, run them, and count the feature as
 failed. The cleanup lines leave the daemon with no session for the next journey.
 
-- The TUI is atc's terminal client. `terminal start atc` starts it, and the title `control tower`
-  shows once it has connected to the daemon, the atc process that hosts the sessions.
+- The TUI is atc's terminal client. `terminal start atc` starts it, and home, the screen with the
+  `atc` wordmark, the fleet line and the keys, shows once it has connected to the daemon, the atc
+  process that hosts the sessions. The key line `n  new` is the text to wait for.
 - `up` installs a fake claude CLI, the stand-in, as the only agent, under the agent name `claude`.
   It prints a line that starts `FAKE_CLAUDE_UP`, then asks for one permission.
 - In the session list, which `ctrl+space` opens, `K` then `y` at `kill wv-kill? · y / n` acts on the
@@ -29,7 +30,7 @@ change the TUI user has not looked at.
 bun verify use --feature kill-forget
 bun verify action spawn-session --name wv-kill
 bun verify terminal start atc
-bun verify terminal wait --text 'control tower'
+bun verify terminal wait --text 'n  new'
 bun verify terminal press ctrl+space
 bun verify terminal wait --text wv-kill
 bun verify terminal type --text K

@@ -8,7 +8,7 @@ async function setupTest() {
 
   tui.boot();
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitFor('no sessions');
 
   return { tui };
 }

@@ -206,7 +206,7 @@ test('it keeps help open when a managed daemon returns', async () => {
     expect(second.countClients()).toBe(1);
   });
 
-  await ctx.waitFor('idle');
+  await ctx.waitFor('n  new');
 
   expect(ctx.read()).not.toInclude('no sessions — n to spawn');
 

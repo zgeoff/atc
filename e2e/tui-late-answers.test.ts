@@ -30,7 +30,7 @@ test('it stops a repository listing on esc to the agent step and lists again on 
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -83,7 +83,7 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -130,7 +130,7 @@ test('it keeps the ref the user moved to when a repository listing answers late'
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -178,7 +178,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -213,7 +213,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
   ctx.reset();
   ctx.write(KEYS.esc);
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   const mark = ctx.countClientLogLines();
 
@@ -221,7 +221,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
   ctx.reset();
   ctx.write(KEYS.enter);
 
-  await ctx.waitFor('slowclone', 10_000);
+  await ctx.waitFor('1 session', 10_000);
   await ctx.waitForClientLog('dropped spawn answer', mark);
 
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
@@ -251,7 +251,7 @@ test('it stays where the user moved when a directory listing answers late', asyn
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -301,7 +301,7 @@ test('it keeps a probe of a typed URL while the directory listing answers, spawn
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 

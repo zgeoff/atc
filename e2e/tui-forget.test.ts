@@ -7,7 +7,7 @@ import { getRecord } from '@atc/core/test-utils/get-record';
 import { KEYS } from '@atc/core/test-utils/keys';
 import { createDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
-import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { registerTestCleanup } from '@zgeoff/testing';
 
 // The client boots its own daemon, so the test's client can only connect once the tower draws.
 async function setupTest() {
@@ -15,7 +15,7 @@ async function setupTest() {
 
   tui.boot();
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitFor('n  new');
 
   const daemon = createDaemonClient(tui.paths.daemonSocketPath);
 
@@ -65,7 +65,7 @@ test('it shows the kept folder on home after X ends the attached session, and ne
   ctx.tui.write('y');
 
   await ctx.tui.waitForGone('╭─ ');
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
   await ctx.tui.waitFor('kept orchard-main');
 
   ctx.tui.reset();
@@ -76,11 +76,7 @@ test('it shows the kept folder on home after X ends the attached session, and ne
   ctx.tui.write(KEYS.esc);
 
   await ctx.tui.waitForGone('╭─ ');
-
-  // The open cleared the screen, so the status bar home shows now is one drawn after it.
-  await waitFor(() => {
-    expect(ctx.tui.readScreen()).toInclude('atc ▏');
-  });
+  await ctx.tui.waitFor('n  new');
 
   expect(ctx.tui.readScreen()).not.toInclude('kept orchard-main');
 });

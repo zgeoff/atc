@@ -8,6 +8,8 @@ import type { SessionEmulator } from '../emulator/create-session-emulator';
 import { createFleetBarLayer } from '../fleet-bar/create-fleet-bar-layer';
 import type { FleetBarLayerDeps } from '../fleet-bar/create-fleet-bar-layer';
 import type { SessionKey } from '../fleet/session-key';
+import { createHomeLayer } from '../home/create-home-layer';
+import type { HomeLayerDeps } from '../home/create-home-layer';
 import { filterMouseReports } from '../input-modes/filter-mouse-reports';
 import { createSessionListLayer } from '../session-list/create-session-list-layer';
 import type { SessionListLayerDeps } from '../session-list/create-session-list-layer';
@@ -33,13 +35,18 @@ export interface TUIScreenDeps {
   readonly isSessionShown: () => boolean;
   readonly sessionList: Omit<SessionListLayerDeps, 'clock' | 'animations'>;
   readonly fleetBar: FleetBarLayerDeps;
+  readonly home: HomeLayerDeps;
+
+  // true while home is the screen below everything else: nothing attached, or the session list
+  // open over nothing
+  readonly isHomeShown: () => boolean;
   readonly sendSessionReply: (key: SessionKey, bytes: string) => void;
 }
 
 export interface TUIScreen {
   readonly stream: SessionStream;
 
-  // text for the screens that draw with escape sequences: home, the list, help, the picker
+  // text for the screens that draw with escape sequences: help, the picker
   readonly writeScreen: (text: string) => void;
   readonly requestFrame: () => void;
   readonly handleResize: () => void;
@@ -109,6 +116,7 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
   });
 
   const barLayer = createFleetBarLayer(deps.fleetBar);
+  const homeLayer = createHomeLayer(deps.home);
 
   const listLayer = createSessionListLayer({
     ...deps.sessionList,
@@ -119,8 +127,16 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
   // The panel draws over the session or over the screen below it, and fades out over the screen
   // that replaced it. The bar draws after the notice layer, which blanks the last row, and only
   // when no notice shows. It also draws over the panel, which leaves the last row alone.
+  const pickBaseLayers = (): readonly Layer[] => {
+    if (deps.isSessionShown()) {
+      return [sessionLayer, noticeLayer];
+    }
+
+    return deps.isHomeShown() ? [homeLayer] : [screenLayer];
+  };
+
   const collectLayers = (): readonly Layer[] => {
-    const base = deps.isSessionShown() ? [sessionLayer, noticeLayer] : [screenLayer];
+    const base = pickBaseLayers();
 
     return listLayer.isVisible() ? [...base, listLayer, barLayer] : [...base, barLayer];
   };

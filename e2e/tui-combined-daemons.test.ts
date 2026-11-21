@@ -58,7 +58,7 @@ async function setupTest() {
 
     tui.boot();
 
-    await tui.waitFor('atc — control tower');
+    await tui.waitFor('n  new');
 
     tui.write(KEYS.ctrlSpace);
 
@@ -168,7 +168,7 @@ test('it lists the sessions of the local daemon and a remote daemon, each remote
   ctx.writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   await spawnDaemonSession(ctx.tui, 'on-the-laptop');
 
@@ -200,7 +200,7 @@ test('it sends typed lines and the answer to a needs-you prompt to the attached 
   ctx.writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   const localID = await spawnDaemonSession(ctx.tui, 'near-session');
 
@@ -250,7 +250,7 @@ test('it shows one line for a remote daemon that is down, and the local fleet st
   ctx.writeEntry(`127.0.0.1:${claimFreePorts(1).take()}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   await spawnDaemonSession(ctx.tui, 'still-here');
 
@@ -275,7 +275,7 @@ test('it shows one line for a remote daemon that refuses the token, and the loca
   ctx.writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   await spawnDaemonSession(ctx.tui, 'still-here');
 
@@ -302,7 +302,7 @@ test('it shows one line for a remote daemon on another protocol, and the local f
   ctx.writeEntry(`127.0.0.1:${legacy.port}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   await spawnDaemonSession(ctx.tui, 'still-here');
 
@@ -334,7 +334,7 @@ test('it hides the rows of a remote daemon that stops and shows its refreshed ro
   ctx.writeEntry(`127.0.0.1:${port}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   ctx.tui.write(KEYS.ctrlSpace);
 
@@ -360,6 +360,30 @@ test('it hides the rows of a remote daemon that stops and shows its refreshed ro
   await ctx.tui.waitFor('reborn');
 });
 
+test('it drops the sessions of a remote daemon that stops from the count on home', async () => {
+  const ctx = await setupTest();
+
+  const port = claimFreePorts(1).take();
+
+  const remote = await startRemoteTestDaemon(port);
+
+  await spawnNamedSession(
+    (method, params) => remote.client.sendRequest(method, params),
+    'far-session',
+    remote.directory,
+  );
+
+  ctx.writeEntry(`127.0.0.1:${port}`);
+  ctx.tui.boot();
+
+  await ctx.tui.waitFor('1 session');
+
+  ctx.tui.reset();
+
+  await remote.stop();
+  await ctx.tui.waitFor('no sessions');
+});
+
 test('it reattaches the attached remote session when its link drops and comes back', async () => {
   const ctx = await setupTest();
   const remote = await startRemoteTestDaemon();
@@ -373,7 +397,7 @@ test('it reattaches the attached remote session when its link drops and comes ba
   ctx.writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   ctx.tui.write(KEYS.ctrlSpace);
 
@@ -497,7 +521,7 @@ test('it tells the user why a line typed into an attached remote session went no
   ctx.writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   ctx.tui.write(KEYS.ctrlSpace);
 
@@ -554,7 +578,7 @@ test('it shows the refusal of a connected remote daemon for a line typed into it
   ctx.writeEntry(`127.0.0.1:${stub.port}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   ctx.tui.write(KEYS.ctrlSpace);
 
@@ -588,7 +612,7 @@ test('it opens the picker at the daemon step, lists the remote directories and s
   ctx.writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
   await ctx.openPickerWithRemoteUp(remote);
 
   expect(ctx.tui.read()).toInclude('\u001B[7mlocal');
@@ -632,7 +656,7 @@ test('it opens the picker at the agent step when the remote daemon is not up', a
   ctx.writeEntry(`127.0.0.1:${claimFreePorts(1).take()}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   ctx.tui.write(KEYS.ctrlSpace);
 
@@ -653,7 +677,7 @@ test('it ends the picker with the daemon state in the status bar when the daemon
   ctx.writeEntry(`127.0.0.1:${remote.daemon.listenPort}`);
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
   await ctx.openPickerWithRemoteUp(remote);
 
   ctx.tui.write(KEYS.down);

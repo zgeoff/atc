@@ -61,16 +61,16 @@ protocols.
 
 ## The screen emulator
 
-Every screen of the TUI's own except the session list, such as home, help and the spawn picker,
-draws with escape sequences. These screens all write through one function into a second emulator,
-the screen emulator, which is as large as the user's terminal. One layer, the screen layer, copies
-the screen emulator's cells into the cell buffer. When one of these screens writes a clear-screen
-sequence, the compositor repaints every cell in the next frame. While a session has focus, the
-screen layer copies only the last row of the screen emulator, where the TUI draws a notice over the
-session.
+Every screen of the TUI's own except the session list and [home](./home.md), such as help and the
+spawn picker, draws with escape sequences. These screens all write through one function into a
+second emulator, the screen emulator, which is as large as the user's terminal. One layer, the
+screen layer, copies the screen emulator's cells into the cell buffer. When one of these screens
+writes a clear-screen sequence, the compositor repaints every cell in the next frame. While a
+session has focus, the screen layer copies only the last row of the screen emulator, where the TUI
+draws a notice over the session.
 
-The session list never draws through the screen emulator. [Its panel](./session-list.md) is a layer
-of its own that writes cells into the cell buffer.
+The session list and home never draw through the screen emulator. [The panel](./session-list.md) and
+[home](./home.md) are layers of their own that write cells into the cell buffer.
 
 ## The session stream
 

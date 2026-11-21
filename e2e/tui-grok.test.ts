@@ -20,7 +20,7 @@ test('it spawns a grok session without resume or -p and marks it resumable', asy
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnGrokSession(ctx, 'groksess');
 
@@ -70,7 +70,7 @@ test('it marks a grok session done on end-turn Stop', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnGrokSession(ctx, 'grokdone');
 
@@ -96,7 +96,7 @@ test('it marks a grok session done on StopCancelled', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnGrokSession(ctx, 'grokcancel');
 
@@ -123,7 +123,7 @@ test('it keeps a grok session running when a hook names a subagent', async () =>
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnGrokSession(ctx, 'groksub');
 
@@ -159,7 +159,7 @@ test('it yanks a grok resume command once the id is captured', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnGrokSession(ctx, 'grokyank');
 
@@ -188,7 +188,7 @@ test('it yanks a grok command without --resume before SessionStart', async () =>
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnGrokSession(ctx, 'grokearly');
 
@@ -213,7 +213,7 @@ test('it ignores H on a grok row instead of opening the eject picker', async () 
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnGrokSession(ctx, 'grokheadless');
 
@@ -259,7 +259,7 @@ test('it keeps needs-you when grok emits idle_prompt after permission_prompt', a
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnGrokSession(ctx, 'grokidle');
 

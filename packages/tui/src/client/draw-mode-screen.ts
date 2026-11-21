@@ -3,13 +3,10 @@ import { match } from 'ts-pattern';
 import type { EjectScreen } from '../overlay/create-eject-screen';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
 import type { SpawnPicker } from '../picker/create-spawn-picker';
-import { drawHome } from '../terminal/draw-home';
 import type { ClientMode } from './build-client-machine';
 
 export interface DrawModeScreenDeps {
   readonly mode: ClientMode;
-  readonly sessionCount: number;
-  readonly leaderLabel: string;
   readonly overlay: Pick<OverlayScreen, 'render'>;
   readonly picker: Pick<SpawnPicker, 'render'>;
   readonly eject: Pick<EjectScreen, 'render'>;
@@ -20,7 +17,7 @@ export interface DrawModeScreenDeps {
 export function drawModeScreen(deps: DrawModeScreenDeps): void {
   match(deps.mode)
     .with('home', () => {
-      drawHome(deps.sessionCount, deps.leaderLabel);
+      // the home layer draws from the live fleet, so a resize or a reconnect needs no repaint
     })
     .with('overlay', () => {
       deps.overlay.render();

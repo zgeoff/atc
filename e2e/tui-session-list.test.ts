@@ -16,7 +16,7 @@ async function setupTest() {
 
   tui.boot();
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitFor('n  new');
 
   const daemon = createDaemonClient(tui.paths.daemonSocketPath);
 
@@ -63,7 +63,7 @@ test('it opens the list over an attached session that keeps drawing', async () =
   });
 
   expect(ctx.tui.readScreen()).toInclude('╭─ ');
-  expect(ctx.tui.readScreen()).not.toInclude('atc — control tower');
+  expect(ctx.tui.readScreen()).not.toInclude('n  new');
 });
 
 test('it cycles the grouping with g, and shows the place groups with their headers', async () => {
@@ -163,7 +163,7 @@ test('it opens the list on a leader typed in one chunk with the next key, and gi
   ctx.tui.reset();
   ctx.tui.write(`${KEYS.ctrlSpace}i`);
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   const sessionScreen = await ctx.readSessionScreen(id);
 
@@ -191,7 +191,7 @@ test('it shows home behind the list once K kills the attached session', async ()
   await ctx.tui.waitFor('X end');
 
   await waitFor(() => {
-    expect(ctx.tui.readScreen()).toInclude('atc — control tower');
+    expect(ctx.tui.readScreen()).toInclude('n  new');
   });
 });
 
@@ -224,19 +224,19 @@ test('it keeps the home screen behind a list that opens after i went home', asyn
 
   ctx.tui.write('i');
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
   await ctx.tui.waitForGone('╭─ ');
 
   ctx.tui.write(KEYS.ctrlSpace);
 
   await ctx.tui.waitFor('╭─ ');
 
-  expect(ctx.tui.readScreen()).toInclude('atc — control tower');
+  expect(ctx.tui.readScreen()).toInclude('n  new');
 
   ctx.tui.write(KEYS.esc);
 
   await ctx.tui.waitForGone('╭─ ');
 
-  expect(ctx.tui.readScreen()).toInclude('atc — control tower');
+  expect(ctx.tui.readScreen()).toInclude('n  new');
   expect(ctx.tui.readScreen()).not.toInclude('FAKE_CLAUDE_UP');
 });

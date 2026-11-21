@@ -55,7 +55,7 @@ function setupTest() {
 test('it draws the fleet bar on the last row while attached, with the attached place first', async () => {
   const ctx = setupTest();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
   await ctx.spawnOn('local', 'here');
   await ctx.attachFirst();
   await ctx.spawnOn('alt', 'there');
@@ -67,7 +67,7 @@ test('it draws the fleet bar on the last row while attached, with the attached p
 test('it shows ◆ and the count on the right when a session needs you', async () => {
   const ctx = setupTest();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
   await ctx.spawnOn('local', 'here');
   await ctx.attachFirst();
   await ctx.spawnOn('alt', 'needy');
@@ -79,7 +79,7 @@ test('it shows ◆ and the count on the right when a session needs you', async (
 test('it draws no fleet bar on home', async () => {
   const ctx = setupTest();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
   await ctx.spawnOn('alt', 'needy');
   await ctx.tui.waitFor('1 need you');
 
@@ -89,7 +89,7 @@ test('it draws no fleet bar on home', async () => {
 test('it keeps the fleet bar on the last row while the session list is open over the session', async () => {
   const ctx = setupTest();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
   await ctx.spawnOn('local', 'here');
   await ctx.attachFirst();
 

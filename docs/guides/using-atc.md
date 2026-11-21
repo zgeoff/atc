@@ -3,6 +3,20 @@
 Run `atc` in a terminal. The first run starts the daemon, which hosts every session you spawn, so
 quitting atc leaves your sessions running.
 
+With no session attached, atc shows home. Home shows the `atc` wordmark, a line that counts the
+sessions in your session list and the ones that need you, and the keys you press next:
+
+- `Ctrl-Space` opens the [session list](#the-session-list).
+- `n` [spawns a session](#spawning-a-session).
+- `R` [restores the fleet](#restarting-the-daemon): it starts again each session that your local
+  daemon saved and that has stopped. Home lists `R` only while such a session exists.
+
+`u` restarts the daemon when home shows `⟳ update ready`.
+
+Below the keys, home shows atc's notices on one line, such as `⟳ update ready` or
+`⟳ waiting for daemon`. When you opened a daemon other than your local one, the line starts with its
+name, as `@<name>`.
+
 ## Spawning a session
 
 Press `n` to spawn a session: pick a daemon when
@@ -239,7 +253,7 @@ process refuses the send with `session_dead`: start it with `atc session adopt <
 When the daemon restarts, it restores the fleet by itself, and every session resumes from its
 transcript. Set `restoreFleetOnRestart` to `false` to wait for `R` on the home screen instead.
 
-After you upgrade atc, the status bar shows `⟳ update ready`, and `u` restarts the daemon and
+After you upgrade atc, home shows `⟳ update ready` below its keys, and `u` restarts the daemon and
 restores the fleet when you are ready. When the running daemon runs an older major version, atc asks
 before it restarts the daemon, since the restart ends every session the daemon hosts. When your
 client is the older side, such as a TUI you opened before the upgrade, atc exits and tells you to
@@ -298,15 +312,15 @@ every 30 seconds, so fixing the token or upgrading the daemon heals the link. A 
 ends atc.
 
 Each action on a row goes to the daemon that holds the session. When that daemon is not up, atc
-sends nothing and the status bar shows its name and state.
+sends nothing and shows a notice with its name and state.
 [The TUI and its daemons](../architecture/tui/daemon-links.md) covers refusals, confirmations and
 reattaching.
 
 `n` asks which daemon to spawn on when a remote daemon is up beside the local one. The later steps
 list that daemon's directories, agents and targets. A remote daemon leaves out the directory you ran
 `atc` from, and `~` stands for its home. The new session attaches on that daemon. If the daemon
-drops while you pick, the picker closes and the status bar shows its state. `u`, `R` and the count
-of stored sessions on the home screen act on your local daemon only.
+drops while you pick, the picker closes and atc shows a notice with its state. `u` and `R` act on
+your local daemon only.
 
 ## Running the daemon under systemd
 

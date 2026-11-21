@@ -37,6 +37,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
   daemon, link states and retries, session keys, and confirmations that hold their key
 - [The compositor](architecture/tui/compositor.md) — the session emulator, layers and frames,
   colour, mirrored input modes and the last row
+- [Home](architecture/tui/home.md) — the screen with no session attached: the wordmark, the fleet
+  line, the keys, and where the notices of the old status bar went
 - [The session list](architecture/tui/session-list.md) — the panel over home or the attached
   session, grouping, jump mode, ending a session, and how the attachment outlives the list
 - [The fleet bar](architecture/tui/fleet-bar.md) — the bar on the last row while attached, places

@@ -19,6 +19,7 @@ function setupTest() {
 
   const mirror = createFleetMirror(null);
   let focused: SessionKey | null = null;
+  let livenessChanges = 0;
 
   mirror.upsert(
     buildMockMirrorSession({ daemon: null, id: 's-1', name: 'near', state: 'running' }),
@@ -42,13 +43,22 @@ function setupTest() {
     findFocused: () => null,
     scheduleStatus: () => {},
     stream: { applyEvent: () => {} },
+    onLivenessChange: () => {
+      livenessChanges += 1;
+    },
   };
 
   const apply = (daemon: string | null, raw: Parameters<typeof applyDaemonEvent>[1]) => {
     applyDaemonEvent(daemon, raw, deps);
   };
 
-  return { mirror, apply, focus: (key: SessionKey) => (focused = key), getFocused: () => focused };
+  return {
+    mirror,
+    apply,
+    focus: (key: SessionKey) => (focused = key),
+    getFocused: () => focused,
+    countLivenessChanges: () => livenessChanges,
+  };
 }
 
 test('it renames only the row of the daemon the event came from', () => {
@@ -133,4 +143,51 @@ test('it stamps the state time of a session that a SessionAdded event adds', () 
   });
 
   expect(ctx.mirror.find({ daemon: 'box', id: 's-2' })?.stateSince).toBe(5000);
+});
+
+test.each([
+  {
+    title: 'a primary session loses its terminal',
+    daemon: null,
+    alive: false,
+    changes: 1,
+  },
+  {
+    title: 'a primary session changes state and keeps its terminal',
+    daemon: null,
+    alive: true,
+    changes: 0,
+  },
+  {
+    title: 'a remote session loses its terminal',
+    daemon: 'box',
+    alive: false,
+    changes: 0,
+  },
+])('it reports $changes liveness changes when $title', (row) => {
+  const ctx = setupTest();
+
+  ctx.apply(row.daemon, {
+    ev: 'SessionState',
+    session: {
+      id: 's-1',
+      name: 'near',
+      cwd: '/repo',
+      state: 'needs_you',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: row.alive,
+    },
+  });
+
+  expect(ctx.countLivenessChanges()).toBe(row.changes);
+});
+
+test('it reports a liveness change when a primary session is removed', () => {
+  const ctx = setupTest();
+
+  ctx.apply(ctx.mirror.primary, { ev: 'SessionRemoved', sessionID: 's-1' });
+
+  expect(ctx.countLivenessChanges()).toBe(1);
 });
