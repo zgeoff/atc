@@ -10,6 +10,8 @@ const DESCRIPTOR_RULES: readonly (readonly [string, IDRule])[] = [
   ['host.name', 'keep'],
   ['host.id', 'keep'],
   ['host.issuer', 'keep'],
+  ['place.key', 'keep'],
+  ['place.label', 'keep'],
 ];
 
 export const ID_RULES: Readonly<Record<string, ReadonlyMap<string, IDRule>>> = {
