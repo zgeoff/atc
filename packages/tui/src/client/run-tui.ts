@@ -65,7 +65,6 @@ export async function runTUI(host: TUIHost): Promise<void> {
           );
 
   const logClientEvent = host.logEvent;
-  const clock = systemClock;
   const mirror = createFleetMirror(primaryName);
   let focusedKey: SessionKey | null = null;
   let lastUsedAgent: AgentID = host.readConfig().defaultAgent;
@@ -77,7 +76,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const isSessionFocused = (): boolean => getMode() === 'attached' && findRestartConsent() === null;
 
   const screen = createTUIScreen({
-    clock,
+    clock: systemClock,
     write: (chunk) => {
       stdout.write(chunk);
     },
@@ -139,7 +138,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     statusNotice = text;
     cancelStatusNotice?.();
 
-    cancelStatusNotice = clock.schedule(() => {
+    cancelStatusNotice = systemClock.schedule(() => {
       statusNotice = null;
       cancelStatusNotice = null;
 
@@ -328,7 +327,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
 
   const links = createDaemonLinks({
     daemons: host.daemons,
-    clock,
+    clock: systemClock,
     mirror,
     onEvent: (daemon, event) => {
       handleDaemonEvent(daemon, event);
@@ -366,7 +365,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     log: logClientEvent,
     getListingCache: (daemon) => host.daemons.find((entry) => entry.name === daemon)?.listingCache,
     getDaemonSocketPath: (daemon) => (daemon === primaryName ? getBoot().socketPath : ''),
-    clock,
+    clock: systemClock,
   });
 
   const service = createActor(
@@ -424,7 +423,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     service,
     mirror,
     overlay,
-    clock,
+    clock: systemClock,
     getMode,
     findFocusedKey,
     setFocusedKey: (key) => {
@@ -437,7 +436,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
   };
 
   const connection = createTUIDaemonConnection({
-    clock,
+    clock: systemClock,
     bootDaemonClient,
     primary: primaryName,
     links,
@@ -508,7 +507,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     mirror,
     overlay,
     transport: connection.transport,
-    clock,
+    clock: systemClock,
     getBoot,
     getClient: connection.getClient,
     restartDaemonAt,

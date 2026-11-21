@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import { pickColourDepth } from '../compositor/pick-colour-depth';
 import type { TerminalFacts } from '../compositor/types';
 import type { TerminalAnswer } from './create-terminal-answer-filter';
@@ -7,7 +7,7 @@ const ANSWER_WAIT_MS = 150;
 
 export interface TerminalFactsDeps {
   readonly env: { readonly colorterm: string | undefined; readonly term: string | undefined };
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly write: (chunk: string) => void;
   readonly onChange: () => void;
 }

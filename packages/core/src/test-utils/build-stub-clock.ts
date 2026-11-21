@@ -15,7 +15,6 @@ export function buildStubClock(startMs: number) {
 
   // the time a stall moved the clock to; the kit's clock catches up on the next advance
   let stalledTo = startMs;
-
   const now = (): number => Math.max(fake.now(), stalledTo);
 
   const clock: Pick<Clock, 'now' | 'schedule'> = {
