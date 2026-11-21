@@ -32,9 +32,7 @@ test('#renderFlush clears the terminal and draws a first frame in one synchroniz
     shownCursor: null,
   });
 
-  expect(plan.output).toBe(
-    '\u001B[?2026h\u001B[0m\u001B[2J\u001B[1;1H\u001B[0mhi\u001B[0m\u001B[?25l\u001B[?2026l',
-  );
+  expect(plan.output).toBe('\u001B[?2026h\u001B[0m\u001B[2J\u001B[1;1Hhi\u001B[?25l\u001B[?2026l');
 });
 
 test('#renderFlush writes nothing for an unchanged frame and cursor', () => {
@@ -63,7 +61,7 @@ test('#renderFlush places a visible cursor with its shape after the changed cell
   });
 
   expect(plan.output).toBe(
-    '\u001B[?2026h\u001B[1;2H\u001B[0mo\u001B[0m\u001B[2;3H\u001B[5 q\u001B[?25h\u001B[?2026l',
+    '\u001B[?2026h\u001B[1;2Ho\u001B[2;3H\u001B[5 q\u001B[?25h\u001B[?2026l',
   );
 });
 

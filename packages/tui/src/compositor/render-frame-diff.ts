@@ -1,3 +1,4 @@
+import { BLANK_CELL } from './blank-cell';
 import { formatSGR } from './format-sgr';
 import { isSameCell, isSameStyle } from './is-same-cell';
 import type { Cell, CellBuffer, ColourDepth } from './types';
@@ -37,7 +38,9 @@ export function renderFrameDiff(
     out += finishLink(state);
   }
 
-  return out.length === 0 ? '' : `${out}${ESC}[0m`;
+  return out.length === 0 || state.style === null || isSameStyle(state.style, BLANK_CELL)
+    ? out
+    : `${out}${ESC}[0m`;
 }
 
 function collectChangedCols(previous: CellBuffer, next: CellBuffer, row: number): boolean[] {
@@ -116,9 +119,10 @@ function renderCell(
   }
 
   let out = '';
+  const style = state.style ?? BLANK_CELL;
 
-  if (state.style === null || !isSameStyle(state.style, cell)) {
-    out += formatSGR(cell, depth);
+  if (!isSameStyle(style, cell)) {
+    out += formatSGR(cell, depth, state.style === null || isSameStyle(style, BLANK_CELL));
     state.style = cell;
   }
 

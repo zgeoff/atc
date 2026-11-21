@@ -525,7 +525,7 @@ test('it drops a typed destination when the repository changes', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlU);
 
-  await ctx.waitFor('> \u001B[93m█');
+  await ctx.waitFor('> █');
 
   ctx.write(`${custom}${KEYS.enter}`);
 
@@ -549,7 +549,7 @@ test('it drops a typed destination when the repository changes', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlU);
 
-  await ctx.waitFor('> \u001B[93m█');
+  await ctx.waitFor('> █');
 
   ctx.reset();
   ctx.write(`file://${other}${KEYS.enter}`);

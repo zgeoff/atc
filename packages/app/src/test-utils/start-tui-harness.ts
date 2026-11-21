@@ -6,6 +6,7 @@ import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
 import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { waitFor } from '@atc/core/test-utils/wait-for';
+import { Terminal } from '@xterm/headless';
 import { mergeDeep } from '@zgeoff/std';
 import { spawn } from 'bun-pty';
 import type { IDisposable, IPty } from 'bun-pty';
@@ -27,6 +28,7 @@ interface TUIHarnessOptions {
 // The picker box takes the terminal width less 4 columns, at most 90, and its input row holds
 // the box less 8, so at this width the box is 90 columns and the input row 82.
 const COLS = 110;
+const ROWS = 30;
 const INPUT_MAX = Math.min(COLS - 4, 90) - 8;
 
 export function startTUIHarness(options: TUIHarnessOptions) {
@@ -90,6 +92,8 @@ export function startTUIHarness(options: TUIHarnessOptions) {
   let capture: IDisposable | null = null;
   let exited: Promise<number> | null = null;
   let out = '';
+  let screen: Terminal | null = null;
+  let screenWrites: Promise<void> = Promise.resolve();
 
   // The client draws nothing until its daemon handshake completes, so a wait that starts
   // before the first byte of the latest boot gets the boot budget; later waits get their own.
@@ -114,11 +118,14 @@ export function startTUIHarness(options: TUIHarnessOptions) {
 
     boot(args: readonly string[] = []): IPty {
       capture?.dispose();
+      screen?.dispose();
+
+      screen = new Terminal({ cols: COLS, rows: ROWS, allowProposedApi: true });
 
       const booted = spawn(process.execPath, [cliPath, ...args], {
         name: 'xterm-256color',
         cols: COLS,
-        rows: 30,
+        rows: ROWS,
 
         // The picker lists the client's own directory first, so a spawn
         // that takes the first entry lands in the home.
@@ -145,6 +152,10 @@ export function startTUIHarness(options: TUIHarnessOptions) {
       capture = booted.onData((data) => {
         firstOutputAt ??= now();
         out += data;
+
+        screenWrites = new Promise<void>((resolve) => {
+          screen?.write(data, resolve);
+        });
       });
 
       return booted;
@@ -158,12 +169,25 @@ export function startTUIHarness(options: TUIHarnessOptions) {
       pty.write(data);
     },
 
+    // The client draws only the cells that changed, so the text a screen shows is not all in the
+    // output. This gives the output, then the text of the screen the output draws.
     read(): string {
-      return out;
+      return `${out}\n${readScreenText(screen)}`;
     },
 
     reset() {
       out = '';
+    },
+
+    // Also blanks the screen text, for a check that the client draws a cell again. A new terminal
+    // empties it at once, and no queued write lands on it.
+    resetScreen() {
+      out = '';
+      screen?.dispose();
+
+      screen = new Terminal({ cols: COLS, rows: ROWS, allowProposedApi: true });
+
+      screenWrites = Promise.resolve();
     },
 
     async waitFor(needle: string, timeoutMs = 4000): Promise<void> {
@@ -189,7 +213,7 @@ export function startTUIHarness(options: TUIHarnessOptions) {
 
       await waitFor(
         () => {
-          if (!out.includes(needle)) {
+          if (!out.includes(needle) && !readScreenText(screen).includes(needle)) {
             throw new Error(
               `timed out waiting for ${JSON.stringify(needle)}; tail: ${JSON.stringify(out.slice(-400))}`,
             );
@@ -202,6 +226,8 @@ export function startTUIHarness(options: TUIHarnessOptions) {
           wait,
         },
       );
+
+      await screenWrites;
     },
 
     waitForExit(): Promise<number> {
@@ -282,6 +308,20 @@ function isRunning(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+function readScreenText(screen: Terminal | null): string {
+  if (screen === null) {
+    return '';
+  }
+
+  const lines: string[] = [];
+
+  for (let row = 0; row < screen.rows; row++) {
+    lines.push(screen.buffer.active.getLine(row)?.translateToString(true) ?? '');
+  }
+
+  return lines.join('\n');
 }
 
 // The client creates this file only when it first writes to its log, so a missing file means no

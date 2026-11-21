@@ -1,3 +1,4 @@
+import { ansi } from '@atc/core';
 import type { Clock } from '@atc/core';
 import { createCompositor } from '../compositor/create-compositor';
 import { createFrameClock } from '../compositor/create-frame-clock';
@@ -138,7 +139,12 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
   return {
     stream,
 
+    // A screen that clears the terminal starts over, so the next frame repaints every cell.
     writeScreen: (text) => {
+      if (text.includes(ansi.eraseScreen)) {
+        compositor.invalidate();
+      }
+
       void writeToScreen(text);
     },
 

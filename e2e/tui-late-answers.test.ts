@@ -111,7 +111,7 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlU);
 
-  await ctx.waitFor('> \u001B[93m█');
+  await ctx.waitFor('> █');
 
   ctx.reset();
   ctx.write(`file://${fixture.upstream}${KEYS.enter}`);

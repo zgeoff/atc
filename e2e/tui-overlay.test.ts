@@ -43,7 +43,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 
   ctx.write('/');
 
-  await ctx.waitFor('/ \u001B[93m█');
+  await ctx.waitFor('/ █');
 
   ctx.reset();
   ctx.write('brav');
@@ -100,7 +100,7 @@ test('it pins a session from the overlay and marks its row', async () => {
 
   await ctx.waitFor('⋆');
 
-  expect(ctx.read()).toInclude('⋆\u001B[0m \u001B[7mpinme');
+  expect(ctx.read()).toInclude('●!⋆ pinme');
 });
 
 test('it clusters overlay rows under repository headers when grouping is toggled on', async () => {

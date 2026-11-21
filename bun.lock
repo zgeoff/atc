@@ -96,6 +96,7 @@
       },
       "devDependencies": {
         "@faker-js/faker": "catalog:",
+        "@xterm/headless": "catalog:",
         "bun-pty": "catalog:",
       },
     },
