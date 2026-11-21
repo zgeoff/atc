@@ -244,6 +244,7 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
     open: () => {
       self.filter = null;
       self.jump = null;
+      self.notice = null;
       void self.refreshAgents();
       const focused = deps.findFocusedKey();
 

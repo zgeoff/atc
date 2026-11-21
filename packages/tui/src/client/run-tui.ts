@@ -69,6 +69,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
   let lastUsedAgent: AgentID = host.readConfig().defaultAgent;
   let statusNotice: string | null = null;
   let cancelStatusNotice: (() => void) | null = null;
+
+  // the status notice that belongs to home, which the next opening of the list drops
+  let homeNotice: string | null = null;
   const stdout = process.stdout;
   const leader = host.readConfig().leader;
   const isShowingSession = () => isOverSession(getMode(), findRestartConsent(), findFocused());
@@ -157,6 +160,22 @@ export async function runTUI(host: TUIHost): Promise<void> {
     }, STATUS_NOTICE_MS);
 
     scheduleStatus();
+  };
+
+  const showHomeNotice = (text: string) => {
+    homeNotice = text;
+
+    showStatusNotice(text);
+  };
+
+  const dropHomeNotice = () => {
+    if (homeNotice !== null && statusNotice === homeNotice) {
+      cancelStatusNotice?.();
+      statusNotice = null;
+      cancelStatusNotice = null;
+    }
+
+    homeNotice = null;
   };
 
   const reportFailure = (daemon: DaemonName, error: unknown) => {
@@ -339,6 +358,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
         // Home waits under the session too, so the list keeps a screen behind it when that
         // session dies while the list is open.
         drawHome(mirror.count, leader.label);
+        dropHomeNotice();
 
         overlay.open();
       },
@@ -374,7 +394,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
     getMode,
     attach,
     ptyRows,
+    findFocusedKey,
     reportFailure,
+    showHomeNotice,
   });
 
   const eject = createEjectScreen({
