@@ -52,7 +52,7 @@ test.each([
   const text = Array.from({ length: row.cols }, () => ' ');
 
   for (const run of formatFleetBar(bar, row.cols)) {
-    [...run.text].forEach((ch, index) => {
+    run.text.split('').forEach((ch, index) => {
       text[run.col + index] = ch;
     });
   }
@@ -107,11 +107,15 @@ test('#formatFleetBar draws every glyph of an unreachable place in #3a414b', () 
     downDaemons: new Set([null]),
   });
 
-  expect(
-    formatFleetBar(bar, 100)
-      .filter((run) => run.text === '◆' || run.text === '⠋')
-      .map((run) => run.fg),
-  ).toSatisfyAll((colour) => colour.kind === 'rgb' && colour.red === 0x3a);
+  const colours = formatFleetBar(bar, 100)
+    .filter((run) => run.text === '◆' || run.text === '⠋')
+    .map((run) => run.fg);
+
+  expect(colours.length).toBeGreaterThan(0);
+
+  expect(colours).toStrictEqual(
+    colours.map(() => ({ kind: 'rgb', red: 0x3a, green: 0x41, blue: 0x4b })),
+  );
 });
 
 test('#formatFleetBar starts the next run after the two columns of a wide label', () => {
