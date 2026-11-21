@@ -3,6 +3,7 @@ import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal } from '@xterm/headless';
 import { readEmulatorInternals } from './read-emulator-internals';
 import type { ScrollRegion } from './read-emulator-internals';
+import { serializeLinkRuns } from './serialize-link-runs';
 
 export interface ScreenText {
   readonly text: string;
@@ -72,11 +73,19 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
     const altSwitch = `${ansi.altScreenOn}${ansi.cursorHome}`;
     const switchAt = serialized.lastIndexOf(altSwitch);
     const normal = switchAt === -1 ? serialized : serialized.slice(0, switchAt);
-    let out = `${RIS}${normal}${renderRegion(internals.normalRegion, term.buffer.normal)}`;
+    const isAlternateActive = switchAt !== -1;
+    let out = `${RIS}${normal}${serializeLinkRuns(term, term.buffer.normal)}`;
 
-    if (switchAt !== -1) {
+    out += renderPlacement(
+      internals.normalRegion,
+      term.buffer.normal,
+      term.modes.originMode && !isAlternateActive,
+    );
+
+    if (isAlternateActive) {
       out += `${altSwitch}${serialized.slice(switchAt + altSwitch.length)}`;
-      out += renderRegion(internals.altRegion, term.buffer.alternate);
+      out += serializeLinkRuns(term, term.buffer.alternate);
+      out += renderPlacement(internals.altRegion, term.buffer.alternate, term.modes.originMode);
     }
 
     return `${out}${readModes(internals.isCursorHidden)}`;
@@ -89,7 +98,6 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
     const modes = term.modes;
 
     return [
-      modes.originMode ? '\u001B[?6h' : '',
       modes.wraparoundMode ? '' : '\u001B[?7l',
       modes.insertMode ? '\u001B[4h' : '',
       modes.reverseWraparoundMode ? '\u001B[?45h' : '',
@@ -169,11 +177,17 @@ interface CursorPosition {
   readonly cursorY: number;
 }
 
-function renderRegion(region: ScrollRegion | null, buffer: CursorPosition): string {
-  if (region === null) {
-    return '';
-  }
+function renderPlacement(
+  region: ScrollRegion | null,
+  buffer: CursorPosition,
+  isOriginMode: boolean,
+): string {
+  // DECSTBM and DECOM each home the cursor, so the cursor goes last. In origin mode its row counts
+  // from the top of the scroll region.
+  const top = isOriginMode ? (region?.top ?? 0) : 0;
+  const row = Math.max(0, buffer.cursorY - top) + 1;
+  const regionSequence = region === null ? '' : `\u001B[${region.top + 1};${region.bottom + 1}r`;
+  const originSequence = isOriginMode ? '\u001B[?6h' : '';
 
-  // DECSTBM homes the cursor, so the cursor goes back where the buffer had it.
-  return `\u001B[${region.top + 1};${region.bottom + 1}r\u001B[${buffer.cursorY + 1};${buffer.cursorX + 1}H`;
+  return `${regionSequence}${originSequence}\u001B[${row};${buffer.cursorX + 1}H`;
 }

@@ -97,7 +97,7 @@
           // the terminal emulator that the daemon keeps per session and the TUI keeps for the
           // attached session
           "xterm-files": [
-            "packages/daemon/src/sessions/{create-screen-model,read-emulator-internals}.ts",
+            "packages/daemon/src/sessions/{create-screen-model,read-emulator-internals,find-cell-link,serialize-link-runs}.ts",
             "packages/tui/src/emulator/**"
           ],
           "e2e": ["e2e/**"],

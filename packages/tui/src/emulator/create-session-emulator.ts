@@ -35,6 +35,15 @@ export interface SessionEmulator {
 // OSC 0 and 2 set the title, OSC 9 and 777 notify, OSC 52 writes the clipboard.
 const PASSTHROUGH_OSC = [0, 2, 9, 52, 777] as const;
 
+const TRACKED_CSI = [
+  ['?', 'h'],
+  ['?', 'l'],
+  ['>', 'u'],
+  ['<', 'u'],
+  ['=', 'u'],
+  ['>', 'm'],
+] as const;
+
 export function createSessionEmulator(deps: SessionEmulatorDeps): SessionEmulator {
   const term = new Terminal({
     cols: deps.cols,
@@ -89,6 +98,26 @@ export function createSessionEmulator(deps: SessionEmulatorDeps): SessionEmulato
     });
   }
 
+  // The tracker advances as xterm parses, so a query sees the modes at its own place in a chunk.
+  // Each handler returns false, so xterm still runs its own.
+  for (const [prefix, final] of TRACKED_CSI) {
+    term.parser.registerCsiHandler({ prefix, final }, (params) => {
+      tracker.write(
+        `\u001B[${prefix}${params.map((param) => readFirstValue(param)).join(';')}${final}`,
+      );
+
+      return false;
+    });
+  }
+
+  for (const final of ['=', '>', 'c']) {
+    term.parser.registerEscHandler({ final }, () => {
+      tracker.write(`\u001B${final}`);
+
+      return false;
+    });
+  }
+
   term.parser.registerCsiHandler({ prefix: '?', final: 'u' }, () => {
     if (deps.readFacts().kittyKeyboard) {
       reply(`\u001B[?${tracker.read().kittyStack.at(-1) ?? 0}u`);
@@ -98,22 +127,16 @@ export function createSessionEmulator(deps: SessionEmulatorDeps): SessionEmulato
   });
 
   return {
-    write: (data) => {
-      tracker.write(data);
-
-      return new Promise<void>((resolve) => {
+    write: (data) =>
+      new Promise<void>((resolve) => {
         term.write(data, resolve);
-      });
-    },
+      }),
 
     // a reset in the write queue, so output written before it cannot land after it
-    reset: () => {
-      tracker.reset();
-
-      return new Promise<void>((resolve) => {
+    reset: () =>
+      new Promise<void>((resolve) => {
         term.write('\u001Bc', resolve);
-      });
-    },
+      }),
 
     resize: (cols, rows) => {
       term.resize(cols, rows);
@@ -156,4 +179,8 @@ export function createSessionEmulator(deps: SessionEmulatorDeps): SessionEmulato
       term.dispose();
     },
   };
+}
+
+function readFirstValue(param: number | number[]): number {
+  return typeof param === 'number' ? param : (param[0] ?? 0);
 }

@@ -198,3 +198,14 @@ test.each<{ name: string; data: string; expected: string[] }>([
 
   expect(ctx.passed).toStrictEqual(row.expected);
 });
+
+test('#onReply answers a kitty keyboard query with the flags at its place in the chunk', async () => {
+  const ctx = setupTest(true);
+
+  await ctx.emulator.write('\u001B[>1u\u001B[?u\u001B[>5u');
+
+  expect([ctx.replies, ctx.emulator.readInputModes().kittyStack]).toStrictEqual([
+    ['\u001B[?1u'],
+    [1, 5],
+  ]);
+});

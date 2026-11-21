@@ -3,6 +3,7 @@ import { RESET_INPUT_MODES, createInputModeTracker } from '@atc/core';
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import { Terminal } from '@xterm/headless';
 import { createScreenModel } from './create-screen-model';
+import { findCellLink } from './find-cell-link';
 
 test('it replays text written to the screen', async () => {
   const model = createScreenModel(40, 10);
@@ -317,9 +318,10 @@ function setupTest() {
 
         for (let col = 0; col < term.cols; col++) {
           const cell = line?.getCell(col);
+          const link = cell === undefined ? null : findCellLink(term, cell);
 
           cells.push(
-            `${cell?.getChars() ?? ''}/${cell?.getFgColor()}/${cell?.getBgColor()}/${cell?.isBold()}`,
+            `${cell?.getChars() ?? ''}/${cell?.getFgColor()}/${cell?.getBgColor()}/${cell?.isBold()}/${link}`,
           );
         }
 
@@ -441,4 +443,63 @@ test('it replays a scroll region and a hidden cursor', async () => {
 
   expect(replayed.replay).toInclude('\u001B[2;5r');
   expect(replayed.replay).toEndWith('\u001B[?25l');
+});
+
+test.each([
+  { name: 'a scroll region', feed: '\u001B[2;5r\u001B[?6h\u001B[3;3Hx' },
+  { name: 'no scroll region', feed: '\u001B[?6h\u001B[3;3Hx' },
+])('it replays the cursor of a session in origin mode with $name', async (row) => {
+  const ctx = setupTest();
+
+  await ctx.feed(row.feed);
+  await ctx.replay();
+
+  expect([
+    ctx.rebuilt.buffer.active.cursorX,
+    ctx.rebuilt.buffer.active.cursorY,
+    ctx.rebuilt.modes.originMode,
+  ]).toStrictEqual([
+    ctx.reference.buffer.active.cursorX,
+    ctx.reference.buffer.active.cursorY,
+    true,
+  ]);
+});
+
+test('it replays the cursor of the alternate screen in origin mode', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed('main\u001B[?1049h\u001B[2;5r\u001B[?6h\u001B[3;3Hx');
+  await ctx.replay();
+
+  expect([ctx.rebuilt.buffer.active.cursorX, ctx.rebuilt.buffer.active.cursorY]).toStrictEqual([
+    ctx.reference.buffer.active.cursorX,
+    ctx.reference.buffer.active.cursorY,
+  ]);
+});
+
+test('it replays the links of the main screen with their attributes', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed(
+    'a\u001B[1;31m\u001B]8;;https://example.test\u0007link\u001B[0m界\u001B]8;;\u0007 tail\r\n\u001B[4:3m\u001B]8;;https://other.test\u0007two\u001B]8;;\u0007',
+  );
+
+  await ctx.replay();
+
+  const [expected, actual] = ctx.readCells('normal');
+
+  expect(actual).toStrictEqual(expected);
+  expect(actual?.[0]).toInclude('/https://example.test');
+});
+
+test('it replays the links of the alternate screen', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed('\u001B[?1049h\u001B[2;3H\u001B]8;;https://example.test\u0007alt\u001B]8;;\u0007');
+  await ctx.replay();
+
+  const [expected, actual] = ctx.readCells('alternate');
+
+  expect(actual).toStrictEqual(expected);
+  expect(actual?.[1]).toInclude('/https://example.test');
 });
