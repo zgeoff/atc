@@ -1,6 +1,5 @@
 import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { Endpoints } from '@wringer/core';
-import { collectNamedSessions } from './collect-named-sessions.ts';
 import { parseDockerRunEndpoints } from './docker-run-endpoints.ts';
 import { openDaemonConnection } from './open-daemon-connection.ts';
 
@@ -23,7 +22,7 @@ export async function createDockerSession(
   await waitFor(async () => {
     const listed = await client.procedures.session.list({});
 
-    const [found] = collectNamedSessions(listed.sessions, name);
+    const found = listed.sessions.find((session) => session.id === answer.session.id);
 
     if (found?.alive !== true) {
       throw new Error(`session ${name} is not alive yet`);
