@@ -106,6 +106,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     }),
     home: createHomeDeps({
       mirror,
+      listVisible: () => overlay.listVisible(),
       leaderLabel: leader.label,
       readNoticeSource: () => ({
         daemonName: primaryName,
