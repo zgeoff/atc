@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { buildMockIdempotencyRecord } from '@atc/store/test-utils/build-mock-idempotency-record';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
@@ -16,7 +16,7 @@ import { createSessionManager } from './create-session-manager';
 import { createSpawnReplay } from './create-spawn-replay';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-spawn-replay-');
+  const temporaryDirectory = createTempDir('atc-spawn-replay-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildStubLocalProvider } from '../test-utils/build-stub-local-provider';
 import { readHostDirBytes } from './read-host-dir-bytes';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-host-dir-bytes-');
+  const temporaryDirectory = createTempDir('atc-host-dir-bytes-');
 
   return { directory: temporaryDirectory.path, provider: buildStubLocalProvider() };
 }

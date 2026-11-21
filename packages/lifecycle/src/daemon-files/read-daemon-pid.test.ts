@@ -2,11 +2,11 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config/host';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readDaemonPID } from './read-daemon-pid';
 
 function setupTest() {
-  const directory = setupTempDir('find-daemon-pid-').path;
+  const directory = createTempDir('find-daemon-pid-').path;
   const procRoot = join(directory, 'proc');
   const stateDir = resolvePaths({ HOME: join(directory, 'home') }).stateDir;
 

@@ -1,6 +1,6 @@
-import type { Clock } from '@atc/core';
 import type { GrantScope } from '@atcx/contract';
 import type { Access, SecuritySink } from '@zgeoff/mcp-auth';
+import type { Clock } from '@zgeoff/std';
 import type { Kysely } from 'kysely';
 import type { EventDeliverer } from '../events/create-event-deliverer';
 import type { EventSchema } from '../events/event-schema';
@@ -26,7 +26,7 @@ export interface HTTPServerContext {
 
   readonly security: SecuritySink;
 
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   readonly modern: ModernMCPHandler;
 

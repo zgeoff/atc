@@ -6,15 +6,15 @@ import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStubClaude } from '@atc/harness-claude/test-utils/create-stub-claude';
 import { createStubNativeClaude } from '@atc/harness-claude/test-utils/create-stub-native-claude';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-env-');
+  const temporaryDirectory = createTempDir('atc-e2e-env-');
   const atc = resolveATCCommand();
   const configDir = join(temporaryDirectory.path, '.config', 'atc');
 

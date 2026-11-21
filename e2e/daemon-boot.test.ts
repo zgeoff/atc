@@ -4,18 +4,17 @@ import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
 import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-daemon-boot-');
+  const temporaryDirectory = createTempDir('atc-daemon-boot-');
 
   // The client reads its paths from its environment, so each test boots it in a subprocess.
   const env = {

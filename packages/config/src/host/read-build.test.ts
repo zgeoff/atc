@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readBuild } from './read-build';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-get-build-');
+  const temporaryDirectory = createTempDir('atc-get-build-');
 
   return { directory: temporaryDirectory.path };
 }

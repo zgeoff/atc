@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createUnconfirmedSends } from './create-unconfirmed-sends';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-unconfirmed-sends-');
+  const temporaryDirectory = createTempDir('atc-unconfirmed-sends-');
   const logs: string[] = [];
 
   return {

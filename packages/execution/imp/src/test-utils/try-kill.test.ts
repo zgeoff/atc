@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { spawn } from 'bun-pty';
 import { tryKill } from './try-kill';
 

@@ -1,16 +1,16 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStateStore } from '../stores/create-state-store';
 import { buildMockFleetEntry } from './build-mock-fleet-entry';
 import { createMigratedStateDB } from './create-migrated-state-db';
 import { seedLaterEpochSessionOwner } from './seed-later-epoch-session-owner';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-seed-later-epoch-owner-');
+  const temporaryDirectory = createTempDir('atc-seed-later-epoch-owner-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

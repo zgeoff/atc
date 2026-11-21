@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { loadGatewayRegistry } from './load-gateway-registry';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-gateway-registry-');
+  const temporaryDirectory = createTempDir('atc-gateway-registry-');
 
   return { path: join(temporaryDirectory.path, 'registry.json') };
 }

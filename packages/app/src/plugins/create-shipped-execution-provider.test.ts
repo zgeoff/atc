@@ -1,10 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildExecutionTargets } from '@atc/daemon';
 import { IMP_PLUGIN } from '@atc/execution-imp';
 import { LOCAL_PTY_PLUGIN } from '@atc/execution-local';
 import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createShippedExecutionProvider } from './create-shipped-execution-provider';
 
 test('it builds the shipped provider a target entry selects', () => {
@@ -16,7 +16,7 @@ test('it builds the shipped provider a target entry selects', () => {
       options: { url: 'http://impd.example:7070', tokenEnv: 'FIXTURE_IMP_TOKEN' },
     },
     host: buildMockHostServices({ version: '1.0.0' }),
-    stateDir: setupTempDir('atc-shipped-provider-').path,
+    stateDir: createTempDir('atc-shipped-provider-').path,
     env: { FIXTURE_IMP_TOKEN: 'fixture-token' },
     authProfiles: new Map(),
   });
@@ -52,7 +52,7 @@ test('it gives a target whose imp provider builds the identity its stored sessio
         plugins: [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
         config,
         host: buildMockHostServices({ version: '1.0.0' }),
-        stateDir: setupTempDir('atc-shipped-provider-').path,
+        stateDir: createTempDir('atc-shipped-provider-').path,
         env: { EXAMPLE_TOKEN: 'fixture-token' },
         authProfiles: new Map(),
       }),
@@ -75,7 +75,7 @@ test('it builds no provider and the problem for an imp entry whose token variabl
       options: { url: 'http://127.0.0.1:9', tokenEnv: 'ATC_TEST_IMP_TOKEN' },
     },
     host: buildMockHostServices({ version: '1.0.0' }),
-    stateDir: setupTempDir('atc-shipped-provider-').path,
+    stateDir: createTempDir('atc-shipped-provider-').path,
     env: {},
     authProfiles: new Map(),
   });
@@ -104,7 +104,7 @@ test('it builds no provider and no problem for a kind this build ships no plugin
     plugins: [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
     config: { id: 'far', provider: 'teleport', options: {} },
     host: buildMockHostServices({ version: '1.0.0' }),
-    stateDir: setupTempDir('atc-shipped-provider-').path,
+    stateDir: createTempDir('atc-shipped-provider-').path,
     env: {},
     authProfiles: new Map(),
   });
@@ -126,7 +126,7 @@ test('it shows an error on each imp target when a profile has a secret name impd
         plugins: [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
         config,
         host: buildMockHostServices({ version: '1.0.0' }),
-        stateDir: setupTempDir('atc-shipped-provider-').path,
+        stateDir: createTempDir('atc-shipped-provider-').path,
         env: {},
         authProfiles: new Map([['notes', profile]]),
       }),
@@ -162,7 +162,7 @@ test('it shows no error for a profile with a secret name impd refuses when no im
         plugins: [LOCAL_PTY_PLUGIN, IMP_PLUGIN],
         config,
         host: buildMockHostServices({ version: '1.0.0' }),
-        stateDir: setupTempDir('atc-shipped-provider-').path,
+        stateDir: createTempDir('atc-shipped-provider-').path,
         env: {},
         authProfiles: new Map([['notes', profile]]),
       }),

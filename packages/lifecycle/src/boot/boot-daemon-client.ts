@@ -1,7 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { makeSingleFlight, toAgentID } from '@atc/core';
-import type { Clock } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths, ProtocolMismatch } from '@atc/protocol';
 import { formatProtocolMismatch, isClientBehind } from '@atc/protocol';
 import { createDaemonClient } from '@atc/protocol/client';
@@ -10,6 +9,7 @@ import { readSessionEnv } from '@atc/protocol/session';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { MISMATCH_REFUSAL_DATA_SCHEMA } from '@atcx/contract';
 import { AtcError, CONTRACT_MAJOR } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
 import { buildHostDaemonPaths } from '../daemon-files/build-host-daemon-paths';
 import { readDaemonPID } from '../daemon-files/read-daemon-pid';
 import { readDaemonRecord } from '../daemon-files/read-daemon-record';
@@ -163,7 +163,7 @@ interface OpenedDaemon {
 interface OpenOrBootOptions {
   readonly paths: DaemonPaths;
   readonly canStart: boolean;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly atcArgv: readonly string[];
   readonly build: string;
 }
@@ -193,7 +193,7 @@ async function openOrBootDaemon(options: OpenOrBootOptions): Promise<OpenedDaemo
 interface DaemonWait {
   readonly deadline: number;
   readonly timeoutMs: number;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly paths: DaemonPaths;
 
   readonly onWait: () => void;
@@ -286,11 +286,14 @@ function readGivenPathsFailure(paths: DaemonPaths): string {
   );
 }
 
-const bootFlights = new WeakMap<Clock, Map<string, () => Promise<void>>>();
+const bootFlights = new WeakMap<
+  Pick<Clock, 'now' | 'schedule'>,
+  Map<string, () => Promise<void>>
+>();
 
 function bootDaemonOnce(
   paths: DaemonPaths,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
   atcArgv: readonly string[],
   build: string,
 ): Promise<void> {
@@ -317,7 +320,7 @@ const BOOT_DEADLINE_MS = 8000;
 
 async function bootDaemon(
   paths: DaemonPaths,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
   atcArgv: readonly string[],
   build: string,
 ): Promise<void> {

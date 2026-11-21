@@ -2,14 +2,14 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildDaemonStatePaths } from '@atc/config';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startStubLegacyDaemonProcess } from './start-stub-legacy-daemon-process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-legacy-process-');
+  const temporaryDirectory = createTempDir('atc-legacy-process-');
 
   return {
     directory: temporaryDirectory.path,

@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
+import { waitFor } from '@zgeoff/testing';
 import { killProcessGroup } from './kill-process-group';
-import { waitFor } from './wait-for';
 
 test('it kills the leader of a group and a child the leader forked', async () => {
   const leader = Bun.spawn(

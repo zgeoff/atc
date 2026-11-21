@@ -6,9 +6,6 @@ import { LOCAL_TARGET } from '@atc/config';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { getOnlyImpName } from '@atc/execution-imp/test-utils/get-only-imp-name';
@@ -19,6 +16,7 @@ import { createDaemonClient } from '@atc/protocol/client';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 
 async function setupTest() {

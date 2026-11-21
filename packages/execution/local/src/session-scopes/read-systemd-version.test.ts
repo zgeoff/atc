@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readSystemdVersion } from './read-systemd-version';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-systemd-version-');
+  const temporaryDirectory = createTempDir('atc-systemd-version-');
 
   return { directory: temporaryDirectory.path };
 }

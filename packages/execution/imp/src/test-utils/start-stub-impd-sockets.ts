@@ -1,5 +1,5 @@
 import { isRecord } from '@atc/core';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import type { Server, ServerWebSocket } from 'bun';
 
 type StubExecReply = 'refuse' | 'count' | 'exit-early';

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { openTestEventDatabase } from '../test-utils/open-test-event-database';
 import { readCallbackVerifiedAt } from './read-callback-verified-at';
 import { writeCallbackVerifiedAt } from './write-callback-verified-at';

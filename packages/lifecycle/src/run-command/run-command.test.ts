@@ -2,16 +2,15 @@ import { expect, test } from 'bun:test';
 import { getEventListeners } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildStubForkingGH } from '../test-utils/build-stub-forking-gh';
 import { runCommand } from './run-command';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-run-command-');
+  const temporaryDirectory = createTempDir('atc-run-command-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -99,7 +98,10 @@ test('it stops a command at once when the signal aborted before the call', async
 test('it stops every process a command that is still running at abort started', async () => {
   const ctx = setupTest();
   const pidsFile = join(ctx.directory, 'pids');
-  const bin = createStubBin(ctx.directory, 'forking', buildStubForkingGH(pidsFile));
+
+  const bin = createStubBin(ctx.directory, 'forking', {
+    script: buildStubForkingGH(pidsFile),
+  }).path;
 
   const controller = new AbortController();
 

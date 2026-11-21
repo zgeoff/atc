@@ -1,25 +1,21 @@
 import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startOutputCapture } from '@atc/core/test-utils/start-output-capture';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildStubTUIGrok } from './build-stub-tui-grok';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-tui-grok-');
+  const temporaryDirectory = createTempDir('atc-stub-tui-grok-');
   const reporter = startStubReporterSocket(join(temporaryDirectory.path, 'report.sock'));
 
-  const bin = createStubBin(
-    temporaryDirectory.path,
-    'grok',
-    buildStubTUIGrok(readSourceEntry('atc')),
-  );
+  const bin = createStubBin(temporaryDirectory.path, 'grok', {
+    script: buildStubTUIGrok(readSourceEntry('atc')),
+  }).path;
 
   return { directory: temporaryDirectory.path, bin, lines: reporter.lines };
 }
@@ -236,7 +232,7 @@ test('it reports through the CLI entry it is given, with none in the environment
 
   updateEnv('ATC_CLI_ENTRY', undefined);
 
-  const bin = createStubBin(ctx.directory, 'given-entry', buildStubTUIGrok(entry));
+  const bin = createStubBin(ctx.directory, 'given-entry', { script: buildStubTUIGrok(entry) }).path;
 
   const subprocess = Bun.spawn([bin], {
     env: {

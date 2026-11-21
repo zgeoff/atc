@@ -2,14 +2,14 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubNpm } from '@atc/core/test-utils/build-stub-npm';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 // The entry script takes the root from its own path. The packer is a stand-in that prints the
 // tarball of the package it is asked for.
 function setupTest() {
-  const temporaryDirectory = setupTempDir('publish-contract-');
+  const temporaryDirectory = createTempDir('publish-contract-');
 
   mkdirSync(join(temporaryDirectory.path, 'scripts'));
 
@@ -35,13 +35,11 @@ test.each([
 ])('it refuses %s before it packs or publishes', async (_label, args) => {
   const ctx = setupTest();
 
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null),
-  );
+  createStubBin(join(ctx.directory, 'bin'), 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  });
 
-  const published = await runCommand(
+  const published = await run(
     ['bash', join(ctx.directory, 'scripts/publish-contract.sh'), ...args],
     { env: ctx.env },
   );
@@ -61,22 +59,19 @@ test.each(['catalog:', 'workspace:*'])(
       JSON.stringify({ name: '@atcx/contract', version: '7.3.0', dependencies: { zod: version } }),
     );
 
-    await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
+    await run(['tar', '-czf', 'contract.tgz', 'package'], {
       cwd: join(ctx.directory, 'tarball/contract'),
     });
 
     await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript);
 
-    createStubBin(
-      join(ctx.directory, 'bin'),
-      'npm',
-      buildStubNpm(join(ctx.directory, 'npm.log'), null),
-    );
+    createStubBin(join(ctx.directory, 'bin'), 'npm', {
+      script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+    });
 
-    const published = await runCommand(
-      ['bash', join(ctx.directory, 'scripts/publish-contract.sh')],
-      { env: ctx.env },
-    );
+    const published = await run(['bash', join(ctx.directory, 'scripts/publish-contract.sh')], {
+      env: ctx.env,
+    });
 
     expect({ exitCode: published.exitCode, stdout: published.stdout }).toStrictEqual({
       exitCode: 1,
@@ -98,19 +93,17 @@ test('it refuses a packed archive that holds TypeScript source before npm runs',
   await Bun.write(join(ctx.directory, 'tarball/contract/package/dist/index.d.ts'), 'export {};\n');
   await Bun.write(join(ctx.directory, 'tarball/contract/package/dist/index.ts'), 'export {};\n');
 
-  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
+  await run(['tar', '-czf', 'contract.tgz', 'package'], {
     cwd: join(ctx.directory, 'tarball/contract'),
   });
 
   await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript);
 
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null),
-  );
+  createStubBin(join(ctx.directory, 'bin'), 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  });
 
-  const published = await runCommand(['bash', join(ctx.directory, 'scripts/publish-contract.sh')], {
+  const published = await run(['bash', join(ctx.directory, 'scripts/publish-contract.sh')], {
     env: ctx.env,
   });
 
@@ -136,19 +129,17 @@ test.each([
 
   await Bun.write(join(ctx.directory, 'tarball/contract/package/dist/index.js'), source);
 
-  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], {
+  await run(['tar', '-czf', 'contract.tgz', 'package'], {
     cwd: join(ctx.directory, 'tarball/contract'),
   });
 
   await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript);
 
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null),
-  );
+  createStubBin(join(ctx.directory, 'bin'), 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  });
 
-  const published = await runCommand(['bash', join(ctx.directory, 'scripts/publish-contract.sh')], {
+  const published = await run(['bash', join(ctx.directory, 'scripts/publish-contract.sh')], {
     env: ctx.env,
   });
 
@@ -179,20 +170,18 @@ test('it publishes the contract and then the client with provenance when npm lac
       "import { z } from 'zod';\nexport { z };\n",
     );
 
-    await runCommand(['tar', '-czf', `${name}.tgz`, 'package'], {
+    await run(['tar', '-czf', `${name}.tgz`, 'package'], {
       cwd: join(ctx.directory, `tarball/${name}`),
     });
   }
 
   await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript);
 
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null),
-  );
+  createStubBin(join(ctx.directory, 'bin'), 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  });
 
-  const published = await runCommand(['bash', join(ctx.directory, 'scripts/publish-contract.sh')], {
+  const published = await run(['bash', join(ctx.directory, 'scripts/publish-contract.sh')], {
     env: ctx.env,
   });
 
@@ -218,20 +207,18 @@ test('it publishes nothing when npm holds the packed versions already', async ()
 
     await Bun.write(join(ctx.directory, `tarball/${name}/package/dist/index.js`), 'export {};\n');
 
-    await runCommand(['tar', '-czf', `${name}.tgz`, 'package'], {
+    await run(['tar', '-czf', `${name}.tgz`, 'package'], {
       cwd: join(ctx.directory, `tarball/${name}`),
     });
   }
 
   await Bun.write(join(ctx.directory, 'scripts/pack-contract.ts'), ctx.packerScript);
 
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), '7.3.0'),
-  );
+  createStubBin(join(ctx.directory, 'bin'), 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), '7.3.0'),
+  });
 
-  const published = await runCommand(['bash', join(ctx.directory, 'scripts/publish-contract.sh')], {
+  const published = await run(['bash', join(ctx.directory, 'scripts/publish-contract.sh')], {
     env: ctx.env,
   });
 

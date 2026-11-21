@@ -1,13 +1,13 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { CompiledQuery } from 'kysely';
 import { readQueryPlan } from './read-query-plan';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-query-plan-');
+  const temporaryDirectory = createTempDir('atc-query-plan-');
 
   return { dbPath: join(temporaryDirectory.path, 'plan.db') };
 }

@@ -6,8 +6,6 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { collectPrincipals, collectTargets } from '@atc/config';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildStubAttentionAdapter } from '@atc/daemon/test-utils/build-stub-attention-adapter';
 import { buildStubHostHold } from '@atc/daemon/test-utils/build-stub-host-hold';
 import { buildStubTargets } from '@atc/daemon/test-utils/build-stub-targets';
@@ -22,6 +20,7 @@ import { trySendRequest } from '@atc/protocol/test-utils/try-send-request';
 import { seedTargetlessCompletedIdempotencyKeys } from '@atc/store/test-utils/seed-targetless-completed-idempotency-keys';
 import type { DaemonEvent } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 

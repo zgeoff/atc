@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-run-stub-app-server-');
+  const temporaryDirectory = createTempDir('atc-run-stub-app-server-');
 
   return {
     directory: temporaryDirectory.path,
@@ -17,13 +17,7 @@ function setupTest() {
 test('it refuses arguments that are not an app server listening on a Unix socket', async () => {
   const ctx = setupTest();
 
-  const result = await runCommand([
-    process.execPath,
-    ctx.script,
-    ctx.directory,
-    'resume',
-    'thread-1',
-  ]);
+  const result = await run([process.execPath, ctx.script, ctx.directory, 'resume', 'thread-1']);
 
   expect(result.exitCode).toBe(2);
 });

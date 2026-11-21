@@ -6,10 +6,10 @@ import { spawnClaudeSession } from '@atc/app/test-utils/spawn-claude-session';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { buildHookSettingsPath } from '@atc/harness-claude';
 import { createDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { $ } from 'bun';
 
 function setupTest() {

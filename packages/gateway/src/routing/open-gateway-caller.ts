@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import { createDaemonPool } from '../daemons/create-daemon-pool';
 import { createGatewayStore } from '../key-binding/create-gateway-store';
 import type { BindingDatabase } from '../key-binding/create-gateway-store';
@@ -18,7 +18,7 @@ interface GatewayCallerOptions {
 
   readonly fanOutTimeoutMs?: number;
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 
   readonly onWarning: (message: string) => void;
 }

@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildCodexGuestLaunch } from './build-codex-guest-launch';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-codex-launch-');
+  const temporaryDirectory = createTempDir('atc-codex-launch-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -33,11 +33,11 @@ test('it copies the staged sign-in, config, and hooks into the Codex home and ru
     'c-1',
   ]);
 
-  const run = await runCommand([launch.bin, ...launch.args], { env: { ...launch.env } });
+  const result = await run([launch.bin, ...launch.args], { env: { ...launch.env } });
 
   const home = join(ctx.directory, 'codex-home');
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
+  expect({ exitCode: result.exitCode, stdout: result.stdout }).toStrictEqual({
     exitCode: 0,
     stdout: `${home}|resume c-1`,
   });
@@ -83,15 +83,15 @@ test('it appends the clone trust seed to the config on every launch that finds o
 
   const first = buildCodexGuestLaunch(ctx.directory, 'auth-r1', ['true']);
 
-  await runCommand([first.bin, ...first.args]);
+  await run([first.bin, ...first.args]);
 
   const second = buildCodexGuestLaunch(ctx.directory, 'auth-r2', ['true']);
 
-  const run = await runCommand([second.bin, ...second.args]);
+  const result = await run([second.bin, ...second.args]);
 
   const home = join(ctx.directory, 'codex-home');
 
-  expect(run.exitCode).toBe(0);
+  expect(result.exitCode).toBe(0);
   expect(readFileSync(join(home, 'auth.json'), 'utf8')).toBe('{"rev":"auth-r2"}');
 
   expect(readFileSync(join(home, 'config.toml'), 'utf8')).toBe(
@@ -118,7 +118,7 @@ test('it unsets every variable that would sign Codex in another way', async () =
     'for v in OPENAI_API_KEY CODEX_API_KEY CODEX_ACCESS_TOKEN KEPT; do printf "%s," "$(printenv "$v" || echo unset)"; done',
   ]);
 
-  const run = await runCommand([launch.bin, ...launch.args], {
+  const result = await run([launch.bin, ...launch.args], {
     env: {
       OPENAI_API_KEY: 'sk-example',
       CODEX_API_KEY: 'sk-example',
@@ -127,16 +127,16 @@ test('it unsets every variable that would sign Codex in another way', async () =
     },
   });
 
-  expect(run.stdout).toBe('unset,unset,unset,kept,');
+  expect(result.stdout).toBe('unset,unset,unset,kept,');
 });
 
 test('it stops before the CLI runs when the staged sign-in is missing', async () => {
   const ctx = setupTest();
   const launch = buildCodexGuestLaunch(ctx.directory, 'auth-r1', ['sh', '-c', 'echo ran']);
 
-  const run = await runCommand([launch.bin, ...launch.args]);
+  const result = await run([launch.bin, ...launch.args]);
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout }).toStrictEqual({
+  expect({ exitCode: result.exitCode, stdout: result.stdout }).toStrictEqual({
     exitCode: 1,
     stdout: '',
   });

@@ -3,9 +3,8 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DEFAULT_GIT_TRANSPORTS } from '@atc/config';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { updateEnv, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
 import { $ } from 'bun';
 import { buildStubRecordingGit } from '../test-utils/build-stub-recording-git';
 import { startGitHTTPServer } from '../test-utils/start-git-http-server';
@@ -302,7 +301,10 @@ test.each([
 ])('it refuses the URL %s before any git runs', async (url, message) => {
   const ctx = await setupTest();
 
-  createStubBin(ctx.directory, 'git', buildStubRecordingGit(join(ctx.directory, 'git-ran')));
+  createStubBin(ctx.directory, 'git', {
+    script: buildStubRecordingGit(join(ctx.directory, 'git-ran')),
+  });
+
   updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
 
   const access = await checkRepositoryAccess({ url, transports: DEFAULT_GIT_TRANSPORTS });

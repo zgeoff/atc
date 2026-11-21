@@ -1,14 +1,14 @@
-import type { Clock } from '@atc/core';
 import type { StateStore } from '@atc/store';
+import type { Clock } from '@zgeoff/std';
 
 const EVENT_SWEEP_MS = 60 * 60 * 1000;
 
 interface EventSweepDeps {
   readonly store: Pick<StateStore, 'removeExpiredEvents'>;
 
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
-  readonly sweepClock: Clock;
+  readonly sweepClock: Pick<Clock, 'now' | 'schedule'>;
 }
 
 export async function startEventSweep(deps: EventSweepDeps): Promise<() => void> {

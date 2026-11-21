@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
+import { waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-peer-');
+  const temporaryDirectory = createTempDir('atc-e2e-peer-');
   const configDir = join(temporaryDirectory.path, '.config', 'atc');
 
   mkdirSync(configDir, { recursive: true });
@@ -45,16 +45,14 @@ test.skipIf(process.platform !== 'linux')(
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
     // The session's harness waits for one input line, so the probe runs only once the daemon holds the session.
-    createStubBin(
-      ctx.home,
-      'probe-agent',
-      `#!/usr/bin/env bash
+    createStubBin(ctx.home, 'probe-agent', {
+      script: `#!/usr/bin/env bash
 read -r _
 own="$ATC_SESSION_ID"
 env -u ATC_SESSION_ID "${process.execPath}" "${ctx.probe}" scope-add "${daemon.socketPath}" "$own" "${ctx.outPath}"
 exec cat
 `,
-    );
+    });
 
     const client = await daemon.openClient();
 
@@ -88,16 +86,14 @@ test.skipIf(process.platform !== 'linux')(
 
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    createStubBin(
-      ctx.home,
-      'probe-agent',
-      `#!/usr/bin/env bash
+    createStubBin(ctx.home, 'probe-agent', {
+      script: `#!/usr/bin/env bash
 read -r _
 own="$ATC_SESSION_ID"
 env -u ATC_SESSION_ID "${process.execPath}" "${ctx.probe}" message "${daemon.socketPath}" "$own" "${ctx.outPath}"
 exec cat
 `,
-    );
+    });
 
     const client = await daemon.openClient();
 
@@ -133,16 +129,14 @@ test.skipIf(process.platform !== 'linux')(
 
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    createStubBin(
-      ctx.home,
-      'probe-agent',
-      `#!/usr/bin/env bash
+    createStubBin(ctx.home, 'probe-agent', {
+      script: `#!/usr/bin/env bash
 read -r _
 own="$ATC_SESSION_ID"
 env -u ATC_SESSION_ID "${process.execPath}" "${ctx.probe}" message-as "${daemon.socketPath}" "$own" "${ctx.outPath}"
 exec cat
 `,
-    );
+    });
 
     const client = await daemon.openClient();
 
@@ -177,15 +171,13 @@ test.skipIf(process.platform !== 'linux')(
 
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    createStubBin(
-      ctx.home,
-      'probe-agent',
-      `#!/usr/bin/env bash
+    createStubBin(ctx.home, 'probe-agent', {
+      script: `#!/usr/bin/env bash
 read -r _
 "${process.execPath}" "${ctx.probe}" hello "${daemon.socketPath}" "a-session-it-is-not-in" "${ctx.outPath}"
 exec cat
 `,
-    );
+    });
 
     const client = await daemon.openClient();
 
@@ -219,15 +211,13 @@ test.skipIf(process.platform !== 'linux')(
 
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    createStubBin(
-      ctx.home,
-      'probe-agent',
-      `#!/usr/bin/env bash
+    createStubBin(ctx.home, 'probe-agent', {
+      script: `#!/usr/bin/env bash
 read -r _
 env -u ATC_SESSION_ID "${process.execPath}" "${ctx.probe}" peer-session "${daemon.socketPath}" - "${ctx.outPath}"
 exec cat
 `,
-    );
+    });
 
     const client = await daemon.openClient();
 
@@ -262,15 +252,13 @@ test.skipIf(process.platform !== 'linux')(
 
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    createStubBin(
-      ctx.home,
-      'probe-agent',
-      `#!/usr/bin/env bash
+    createStubBin(ctx.home, 'probe-agent', {
+      script: `#!/usr/bin/env bash
 read -r _
 ATC_SESSION_ID="$(cat "${otherIDPath}")" "${process.execPath}" "${ctx.probe}" peer-session "${daemon.socketPath}" - "${ctx.outPath}"
 exec cat
 `,
-    );
+    });
 
     const client = await daemon.openClient();
 
@@ -304,7 +292,7 @@ test("it answers the handshake of a client outside every session that gives a se
     JSON.stringify({ agents: { claude: { bin: join(ctx.home, 'idle-agent') } } }),
   );
 
-  createStubBin(ctx.home, 'idle-agent', '#!/usr/bin/env bash\nexec cat\n');
+  createStubBin(ctx.home, 'idle-agent', { script: '#!/usr/bin/env bash\nexec cat\n' });
 
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
@@ -335,15 +323,13 @@ test.skipIf(process.platform !== 'linux')(
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
     // The session inherits the daemon's runtime directory, so `atc events` finds the events socket without either variable.
-    createStubBin(
-      ctx.home,
-      'probe-agent',
-      `#!/usr/bin/env bash
+    createStubBin(ctx.home, 'probe-agent', {
+      script: `#!/usr/bin/env bash
 read -r _
 (env -u ATC_SESSION_ID -u ATC_SOCKET ${ctx.atc.map((part) => `"${part}"`).join(' ')} events | head -n 1 > "${ctx.outPath}") &
 exec cat
 `,
-    );
+    });
 
     const client = await daemon.openClient();
 
@@ -377,16 +363,14 @@ test.skipIf(process.platform === 'linux')(
 
     const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
-    createStubBin(
-      ctx.home,
-      'probe-agent',
-      `#!/usr/bin/env bash
+    createStubBin(ctx.home, 'probe-agent', {
+      script: `#!/usr/bin/env bash
 read -r _
 own="$ATC_SESSION_ID"
 env -u ATC_SESSION_ID "${process.execPath}" "${ctx.probe}" scope-add "${daemon.socketPath}" "$own" "${ctx.outPath}"
 exec cat
 `,
-    );
+    });
 
     const client = await daemon.openClient();
 
@@ -416,7 +400,7 @@ test("it lets the owner's client outside every session add to a session's scope"
     JSON.stringify({ agents: { claude: { bin: join(ctx.home, 'idle-agent') } } }),
   );
 
-  createStubBin(ctx.home, 'idle-agent', '#!/usr/bin/env bash\nexec cat\n');
+  createStubBin(ctx.home, 'idle-agent', { script: '#!/usr/bin/env bash\nexec cat\n' });
 
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
@@ -441,7 +425,7 @@ test("it labels a message from the owner's client as the owner, whatever from it
     JSON.stringify({ agents: { claude: { bin: join(ctx.home, 'idle-agent') } } }),
   );
 
-  createStubBin(ctx.home, 'idle-agent', '#!/usr/bin/env bash\nexec cat\n');
+  createStubBin(ctx.home, 'idle-agent', { script: '#!/usr/bin/env bash\nexec cat\n' });
 
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 
@@ -472,7 +456,7 @@ test('it labels a message from a program outside every session as local, with th
     JSON.stringify({ agents: { claude: { bin: join(ctx.home, 'idle-agent') } } }),
   );
 
-  createStubBin(ctx.home, 'idle-agent', '#!/usr/bin/env bash\nexec cat\n');
+  createStubBin(ctx.home, 'idle-agent', { script: '#!/usr/bin/env bash\nexec cat\n' });
 
   const daemon = startDaemonProcess({ command: ctx.atc, home: ctx.home });
 

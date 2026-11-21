@@ -1,10 +1,11 @@
-import type { AgentID, Clock } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
 import type { DaemonClient } from '@atc/protocol/client';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonEvent } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
 import type { ClientActor, ClientMode } from '../client/build-client-machine';
 import type { TUIDaemon } from '../client/tui-host';
 import type { FleetMirror } from '../fleet/create-fleet-mirror';
@@ -16,7 +17,7 @@ import type { DaemonLinks } from './create-daemon-links';
 import { waitForRestartConsent } from './wait-for-restart-consent';
 
 export interface TUIDaemonConnectionDeps {
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly bootDaemonClient: TUIDaemon['bootDaemon'];
 
   readonly primary: DaemonName;

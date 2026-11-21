@@ -1,9 +1,8 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
+import { registerTestCleanup, updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildStubLocalProvider } from './build-stub-local-provider';
 
 test('it builds a provider of the local kind on the daemon machine', () => {
@@ -14,7 +13,7 @@ test('it builds a provider of the local kind on the daemon machine', () => {
 });
 
 test('it runs a command on this machine and records it', async () => {
-  const temporaryDirectory = setupTempDir('atc-stub-local-');
+  const temporaryDirectory = createTempDir('atc-stub-local-');
   const provider = buildStubLocalProvider();
 
   const result = await provider.runCommand({
@@ -34,7 +33,7 @@ test('it runs a command on this machine and records it', async () => {
 });
 
 test('it unpacks an archive into a directory it creates, past the TAR_OPTIONS the test inherited', async () => {
-  const temporaryDirectory = setupTempDir('atc-stub-local-');
+  const temporaryDirectory = createTempDir('atc-stub-local-');
   const source = join(temporaryDirectory.path, 'source');
   const provider = buildStubLocalProvider();
 
@@ -61,7 +60,7 @@ test('it unpacks an archive into a directory it creates, past the TAR_OPTIONS th
 });
 
 test('it rejects an archive tar cannot read', () => {
-  const temporaryDirectory = setupTempDir('atc-stub-local-');
+  const temporaryDirectory = createTempDir('atc-stub-local-');
   const provider = buildStubLocalProvider();
 
   const transfer = provider.transferArchive(

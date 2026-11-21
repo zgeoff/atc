@@ -1,10 +1,11 @@
 import type { RemoteDaemon } from '@atc/config';
-import { systemClock, toAgentID } from '@atc/core';
-import type { Clock } from '@atc/core';
+import { toAgentID } from '@atc/core';
 import type { DaemonBoot, DaemonBootOptions } from '@atc/protocol';
 import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { AtcError, CONTRACT_MAJOR } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
 import { RemoteTokenError } from './remote-token-error';
 
@@ -123,7 +124,7 @@ type RemoteAttempt =
 interface OpenRemoteDaemonOptions {
   readonly build: string;
   readonly token: string;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly timeoutMs: number;
   readonly viewer: string | undefined;
 }

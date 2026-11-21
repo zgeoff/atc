@@ -4,12 +4,12 @@ import { linkSync, readdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createSessionRegistry } from '../sessions/create-session-registry';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { buildSeeder } from '../test-utils/build-seeder';
@@ -17,7 +17,7 @@ import { buildStubLog } from '../test-utils/build-stub-log';
 import { createSessionFleetWriter } from './create-session-fleet-writer';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-fleet-writer-');
+  const temporaryDirectory = createTempDir('atc-fleet-writer-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

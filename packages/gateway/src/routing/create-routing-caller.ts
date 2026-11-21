@@ -1,7 +1,7 @@
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import type { Principal } from '@atc/protocol';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { match } from 'ts-pattern';
 import type { DaemonPool } from '../daemons/create-daemon-pool';
 import type { GatewayDaemonCaller } from '../daemons/create-gateway-daemon-caller';
@@ -24,7 +24,7 @@ interface RoutingCallerOptions {
 
   readonly fanOutTimeoutMs?: number;
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 }
 
 const FAN_OUT_TIMEOUT_MS = 5000;
@@ -46,7 +46,7 @@ export function createRoutingCaller(opts: RoutingCallerOptions): RoutingCaller {
 
   const getCaller = (name: string): GatewayDaemonCaller => opts.pool.getCaller(name);
   const getTimeout = (): number => opts.fanOutTimeoutMs ?? FAN_OUT_TIMEOUT_MS;
-  const getClock = (): Clock => opts.clock ?? systemClock;
+  const getClock = (): Pick<Clock, 'now' | 'schedule'> => opts.clock ?? systemClock;
 
   const findNamedDaemon = (named: unknown): RegistryDaemon | null => {
     if (named === undefined) {

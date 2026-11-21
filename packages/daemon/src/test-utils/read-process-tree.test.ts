@@ -1,5 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
 import { readProcessTree } from './read-process-tree';
 
 // A spawned child shows its own argv only once it has exec'd, so the read is retried until

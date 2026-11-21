@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createBuiltinSources } from './create-builtin-sources';
 
 function setupTest() {
-  const temp = setupTempDir('atc-builtin-sources-');
+  const temp = createTempDir('atc-builtin-sources-');
 
   return { homeDir: temp.path, gh: join(temp.path, 'gh') };
 }

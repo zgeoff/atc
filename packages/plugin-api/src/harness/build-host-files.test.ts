@@ -1,12 +1,12 @@
 import { expect, mock, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { runLocalCommand } from '../test-utils/run-local-command';
 import { buildHostFiles } from './build-host-files';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-host-files-');
+  const temporaryDirectory = createTempDir('atc-host-files-');
 
   return { directory: temporaryDirectory.path };
 }

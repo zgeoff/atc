@@ -1,8 +1,7 @@
 import { resolvePaths } from '@atc/config/host';
-import { systemClock } from '@atc/core';
 import type { MockOverrides } from '@atc/core/test-utils/mock-overrides';
 import { faker } from '@faker-js/faker';
-import { mergeDeep } from '@zgeoff/std';
+import { mergeDeep, systemClock } from '@zgeoff/std';
 import { tryOpenDaemon } from '../boot/try-open-daemon';
 import type { LifecycleHost } from '../boot/types';
 

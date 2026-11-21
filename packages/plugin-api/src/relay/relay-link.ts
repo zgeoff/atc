@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 
 export interface RelayLinkOpenOptions {
   readonly replace?: boolean;
@@ -28,5 +28,5 @@ export interface StreamRelayOptions {
   readonly reconnectDelaysMs: readonly number[];
   readonly log?: (line: string) => void;
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 }

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { systemClock } from '@atc/core';
+import { systemClock } from '@zgeoff/std';
 import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
 import type { StateStoreSchema } from './state-store-schema';

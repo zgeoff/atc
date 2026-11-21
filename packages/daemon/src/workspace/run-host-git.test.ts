@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { updateEnv } from '@atc/core/test-utils/update-env';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
+import { updateEnv } from '@zgeoff/testing';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { runHostGit } from './run-host-git';
 

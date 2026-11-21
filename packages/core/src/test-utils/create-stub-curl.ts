@@ -1,10 +1,8 @@
-import { createStubBin } from './create-stub-bin';
+import { createStubBin } from '@zgeoff/testing/bin';
 
 export function createStubCurl(directory: string, downloads: string): string {
-  return createStubBin(
-    directory,
-    'curl',
-    `#!/usr/bin/env bash
+  return createStubBin(directory, 'curl', {
+    script: `#!/usr/bin/env bash
 out=""
 url=""
 while [ "$#" -gt 0 ]; do
@@ -18,5 +16,5 @@ source="${downloads}/\${url##*/}"
 [ -f "$source" ] || { echo "curl: (22) The requested URL returned error: 404" >&2; exit 22; }
 cp "$source" "$out"
 `,
-  );
+  }).path;
 }

@@ -1,10 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openHijackedStream } from './open-hijacked-stream';
 
 function setupTest(reply: string) {
-  const directory = setupTempDir('atc-hijack-');
+  const directory = createTempDir('atc-hijack-');
   const socketPath = join(directory.path, 'engine.sock');
 
   const server = Bun.listen({

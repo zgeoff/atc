@@ -5,16 +5,15 @@ import { createStubComposer } from '@atc/app/test-utils/create-stub-composer';
 import { resolvePaths } from '@atc/config';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStubSharedServerCodex } from '@atc/harness-codex/test-utils/create-stub-shared-server-codex';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 import { createStateStore } from '@atc/store';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-codex-shared-');
+  const temporaryDirectory = createTempDir('atc-e2e-codex-shared-');
   const atc = resolveATCCommand();
   const configDir = join(temporaryDirectory.path, '.config', 'atc');
 

@@ -1,7 +1,7 @@
-import type { Clock } from '@atc/core';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
+import type { Clock } from '@zgeoff/std';
 import { buildTargetAccess } from './auth/build-target-access';
 import { collectSessionSubtree } from './auth/collect-session-subtree';
 import { isTreeInReach } from './auth/is-tree-in-reach';
@@ -15,7 +15,7 @@ export interface DaemonContextDeps {
   readonly opts: DaemonOptions;
   readonly store: StateStore;
   readonly manager: SessionManager;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly targets: readonly ExecutionTarget[];
   readonly targetsByID: ReadonlyMap<string, ExecutionTarget>;
   readonly principals: ReadonlyMap<string, readonly string[]> | null;

@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { requirePluginDirsOnTarget } from './require-plugin-dirs-on-target';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-plugin-dirs-');
+  const temporaryDirectory = createTempDir('atc-plugin-dirs-');
 
   return { directory: temporaryDirectory.path };
 }

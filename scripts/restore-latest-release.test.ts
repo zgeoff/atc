@@ -2,11 +2,11 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createStubGHReleases } from '@atc/core/test-utils/create-stub-gh-releases';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('restore-latest-release-');
+  const temporaryDirectory = createTempDir('restore-latest-release-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -21,7 +21,7 @@ test('it leaves the latest mark on a release-branch release that is the newest',
     ],
   });
 
-  const restored = await runCommand(
+  const restored = await run(
     ['bash', join(import.meta.dir, 'restore-latest-release.sh'), 'zgeoff/atc'],
     { env: { ...process.env, PATH: `${gh.directory}:${process.env['PATH'] ?? ''}` } },
   );
@@ -48,7 +48,7 @@ test('it edits nothing when no release holds an atc tag', async () => {
     ],
   });
 
-  const restored = await runCommand(
+  const restored = await run(
     ['bash', join(import.meta.dir, 'restore-latest-release.sh'), 'zgeoff/atc'],
     { env: { ...process.env, PATH: `${gh.directory}:${process.env['PATH'] ?? ''}` } },
   );
@@ -79,7 +79,7 @@ test('it moves the latest mark from an older release-branch release to the newes
     ],
   });
 
-  const restored = await runCommand(
+  const restored = await run(
     ['bash', join(import.meta.dir, 'restore-latest-release.sh'), 'zgeoff/atc'],
     { env: { ...process.env, PATH: `${gh.directory}:${process.env['PATH'] ?? ''}` } },
   );
@@ -108,7 +108,7 @@ test('it moves the latest mark again when a main release lands between its read 
     rivals: ['@zgeoff/atc@7.4.1'],
   });
 
-  const restored = await runCommand(
+  const restored = await run(
     ['bash', join(import.meta.dir, 'restore-latest-release.sh'), 'zgeoff/atc'],
     { env: { ...process.env, PATH: `${gh.directory}:${process.env['PATH'] ?? ''}` } },
   );
@@ -138,7 +138,7 @@ test('it succeeds when its fifth edit leaves the latest mark on the newest relea
     rivals: ['@zgeoff/atc@7.4.1', '@zgeoff/atc@7.4.2', '@zgeoff/atc@7.4.3', '@zgeoff/atc@7.4.4'],
   });
 
-  const restored = await runCommand(
+  const restored = await run(
     ['bash', join(import.meta.dir, 'restore-latest-release.sh'), 'zgeoff/atc'],
     { env: { ...process.env, PATH: `${gh.directory}:${process.env['PATH'] ?? ''}` } },
   );
@@ -178,7 +178,7 @@ test('it fails after 5 edits when a newer release takes the latest mark before e
     ],
   });
 
-  const restored = await runCommand(
+  const restored = await run(
     ['bash', join(import.meta.dir, 'restore-latest-release.sh'), 'zgeoff/atc'],
     { env: { ...process.env, PATH: `${gh.directory}:${process.env['PATH'] ?? ''}` } },
   );

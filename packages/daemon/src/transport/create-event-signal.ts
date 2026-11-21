@@ -1,5 +1,5 @@
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 
 export interface EventSignal {
   generation: number;
@@ -12,7 +12,9 @@ export interface EventSignal {
   readonly dispose: () => void;
 }
 
-export function createEventSignal(clock: Clock = systemClock): EventSignal {
+export function createEventSignal(
+  clock: Pick<Clock, 'now' | 'schedule'> = systemClock,
+): EventSignal {
   const waiters = new Set<() => void>();
 
   const drainWaiters = (): void => {

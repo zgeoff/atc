@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
+import { run } from '@zgeoff/testing/process';
 import { findUnsuccessfulResult } from './find-unsuccessful-result';
 
 test.each([
@@ -14,10 +14,9 @@ test.each([
 });
 
 test('it fails the gate and names the result when a required job was skipped', async () => {
-  const gate = await runCommand(
-    [process.execPath, join(import.meta.dir, 'find-unsuccessful-result.ts')],
-    { env: { ...process.env, RESULTS: 'success skipped' } },
-  );
+  const gate = await run([process.execPath, join(import.meta.dir, 'find-unsuccessful-result.ts')], {
+    env: { ...process.env, RESULTS: 'success skipped' },
+  });
 
   expect({ exitCode: gate.exitCode, stdout: gate.stdout, stderr: gate.stderr }).toStrictEqual({
     exitCode: 1,
@@ -27,10 +26,9 @@ test('it fails the gate and names the result when a required job was skipped', a
 });
 
 test('it passes the gate when every required job succeeded', async () => {
-  const gate = await runCommand(
-    [process.execPath, join(import.meta.dir, 'find-unsuccessful-result.ts')],
-    { env: { ...process.env, RESULTS: 'success success' } },
-  );
+  const gate = await run([process.execPath, join(import.meta.dir, 'find-unsuccessful-result.ts')], {
+    env: { ...process.env, RESULTS: 'success success' },
+  });
 
   expect({ exitCode: gate.exitCode, stdout: gate.stdout, stderr: gate.stderr }).toStrictEqual({
     exitCode: 0,

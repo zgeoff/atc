@@ -2,15 +2,14 @@ import { expect, test } from 'bun:test';
 import { once } from 'node:events';
 import { connect } from 'node:net';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import type { Socket } from 'bun';
 import { createOutboundQueue } from './create-outbound-queue';
 import type { OutboundQueue } from './create-outbound-queue';
 
 async function setupTest() {
-  const temp = setupTempDir('atc-queue-');
+  const temp = createTempDir('atc-queue-');
   const opened = Promise.withResolvers<Socket<{ queue: OutboundQueue }>>();
 
   const server = Bun.listen<{ queue: OutboundQueue }>({

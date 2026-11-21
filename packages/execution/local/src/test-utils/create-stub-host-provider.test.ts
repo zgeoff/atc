@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStubHostProvider } from './create-stub-host-provider';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-host-');
+  const temporaryDirectory = createTempDir('atc-stub-host-');
 
   return { directory: temporaryDirectory.path };
 }

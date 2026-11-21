@@ -1,5 +1,5 @@
-import { systemClock } from '@atc/core';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { systemClock } from '@zgeoff/std';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import { openTestAuthDatabase } from './open-test-auth-database';
 

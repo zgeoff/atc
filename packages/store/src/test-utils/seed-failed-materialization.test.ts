@@ -2,15 +2,15 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStateStore } from '../stores/create-state-store';
 import { createMigratedStateDB } from './create-migrated-state-db';
 import { seedFailedMaterialization } from './seed-failed-materialization';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-seed-failed-materialization-');
+  const temporaryDirectory = createTempDir('atc-seed-failed-materialization-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

@@ -1,7 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { readCleanEnv } from '@atc/config';
-import { systemClock, waitUntil } from '@atc/core';
-import type { Clock } from '@atc/core';
+import { waitUntil } from '@atc/core';
 import type {
   CommandResult,
   CommandSpec,
@@ -11,11 +10,13 @@ import type {
   HarnessSpec,
 } from '@atc/plugin-api';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { bunPTYSpawn } from './pty-library/bun-pty-spawn';
 import type { SessionScopes } from './session-scopes/create-session-scopes';
 
 export function createLocalPTYProvider(
-  clock: Clock = systemClock,
+  clock: Pick<Clock, 'now' | 'schedule'> = systemClock,
   scopes: SessionScopes | null = null,
   spawnPTY: typeof bunPTYSpawn = bunPTYSpawn,
 ): ExecutionProvider {

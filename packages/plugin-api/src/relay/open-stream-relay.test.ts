@@ -1,8 +1,8 @@
 /* oxlint-disable id-length -- `t` and `v` are the relay's frame keys */
 import { expect, onTestFinished, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { formatRelayFrame } from '@atc/protocol/relay';
+import { waitFor } from '@zgeoff/testing';
 import type { HarnessRelay } from '../execution/execution-provider';
 import { buildStubRelayLink } from '../test-utils/build-stub-relay-link';
 import { openStreamRelay } from './open-stream-relay';

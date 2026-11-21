@@ -2,15 +2,14 @@ import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildDaemonStatePaths } from '@atc/config';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-run-legacy-');
+  const temporaryDirectory = createTempDir('atc-run-legacy-');
   const socketPath = join(temporaryDirectory.path, 'daemon.sock');
 
   const subprocess = Bun.spawn(
@@ -118,12 +117,9 @@ test('it answers a handshake on the current protocol as an older build when told
 });
 
 test('it stops with a usage error when given no socket path and state directory', async () => {
-  const run = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'run-stub-legacy-daemon.ts'),
-  ]);
+  const result = await run([process.execPath, join(import.meta.dir, 'run-stub-legacy-daemon.ts')]);
 
-  expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
+  expect({ exitCode: result.exitCode, stderr: result.stderr }).toStrictEqual({
     exitCode: 1,
     stderr: expect.toInclude('usage: run-stub-legacy-daemon.ts <socket path> <state dir>'),
   });

@@ -2,13 +2,13 @@ import { expect, test } from 'bun:test';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { claimDaemonLock } from './claim-daemon-lock';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-daemon-lock-');
+  const temporaryDirectory = createTempDir('atc-daemon-lock-');
 
   return { directory: temporaryDirectory.path };
 }

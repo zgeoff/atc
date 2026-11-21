@@ -2,9 +2,8 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { probeProcessAlive } from '../daemon-process/probe-process-alive';
 import { setupMCPHome } from './setup-mcp-home';
@@ -49,7 +48,7 @@ test('it writes the stand-in claude as an executable', async () => {
 
 test('it stops the daemon its pid file holds before removing the home', async () => {
   const mcpHome = setupMCPHome();
-  const records = setupTempDir('atc-mcp-home-records-');
+  const records = createTempDir('atc-mcp-home-records-');
   const seen = join(records.path, 'seen');
 
   const daemon = Bun.spawn(

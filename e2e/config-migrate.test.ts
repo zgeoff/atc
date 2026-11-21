@@ -3,11 +3,11 @@ import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runATC } from '@atc/app/test-utils/run-atc';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-config-migrate-');
+  const temporaryDirectory = createTempDir('atc-e2e-config-migrate-');
 
   return { directory: temporaryDirectory.path };
 }

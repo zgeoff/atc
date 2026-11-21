@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { resolveRepoRoot } from './resolve-repo-root';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-repo-root-');
+  const temporaryDirectory = createTempDir('atc-repo-root-');
 
   // A test may leave a directory unreadable, and nothing can remove a tree
   // it cannot read, so every mode is restored before the tree is removed.

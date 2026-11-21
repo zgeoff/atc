@@ -1,20 +1,18 @@
 import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 import { buildSessionEnv } from '@atc/protocol/session';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { z } from 'zod';
 import { buildStubMessageBridgeHost } from '../test-utils/build-stub-message-bridge-host';
 import { createStubAppServerCodex } from '../test-utils/create-stub-app-server-codex';
 import { startCodexAppServerBridge } from './start-codex-app-server-bridge';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-codex-app-server-');
+  const temporaryDirectory = createTempDir('atc-codex-app-server-');
 
   return {
     directory: temporaryDirectory.path,
@@ -50,7 +48,7 @@ test('it starts the App Server again when it exits, and the bridge resumes its t
   const ctx = setupTest();
   const codex = createStubAppServerCodex(ctx.directory);
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.directory,
     'pid-codex',
     `#!/usr/bin/env bash\necho $$ >> '${join(ctx.directory, 'pids')}'\nexec '${codex}' "$@"\n`,
@@ -138,7 +136,7 @@ test("it starts the App Server tagged with its session ID after the daemon's res
   const ctx = setupTest();
   const codex = createStubAppServerCodex(ctx.directory);
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.directory,
     'env-codex',
     `#!/usr/bin/env bash\nprintf '%s' "$OTEL_RESOURCE_ATTRIBUTES" > '${join(ctx.directory, 'attributes')}'\nexec '${codex}' "$@"\n`,
@@ -166,7 +164,7 @@ test("it starts the App Server tagged with its session ID after the daemon's res
 
 test('it rejects and leaves no socket when no App Server comes to listen', async () => {
   const ctx = setupTest();
-  const bin = createStubBin(ctx.directory, 'dead-codex', '#!/usr/bin/env bash\nexit 1\n');
+  const bin = writeStubProgram(ctx.directory, 'dead-codex', '#!/usr/bin/env bash\nexit 1\n');
 
   const started = startCodexAppServerBridge(
     {
@@ -232,7 +230,7 @@ test('it kills a server an earlier daemon left running that ignores the stop sig
   const bin = createStubAppServerCodex(ctx.directory);
   const socket = join(ctx.bridgeDir, 'codex.sock');
 
-  const stubborn = createStubBin(
+  const stubborn = writeStubProgram(
     ctx.directory,
     'stubborn-codex',
     `#!/usr/bin/env bash\ntrap '' TERM\ntouch '${join(ctx.directory, 'stubborn-ready')}'\nwhile :; do sleep 0.05; done\n`,
@@ -307,7 +305,7 @@ test('it leaves alone a process whose pid the system gave out again', async () =
 test('it kills a server that ignores the stop signal once the stop grace ends', () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.directory,
     'stubborn-codex',
     `#!/usr/bin/env bash\ntrap '' TERM\necho $$ > '${join(ctx.directory, 'pid')}'\nwhile :; do sleep 0.05; done\n`,

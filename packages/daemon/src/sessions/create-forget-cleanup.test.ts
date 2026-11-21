@@ -3,12 +3,11 @@ import { existsSync, mkdirSync, realpathSync, symlinkSync, writeFileSync } from 
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
@@ -19,7 +18,7 @@ import { createForgetCleanup } from './create-forget-cleanup';
 import { createSessionManager } from './create-session-manager';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-forget-cleanup-');
+  const temporaryDirectory = createTempDir('atc-forget-cleanup-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

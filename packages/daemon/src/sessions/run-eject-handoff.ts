@@ -1,5 +1,5 @@
-import { systemClock } from '@atc/core';
 import type { SessionID } from '@atcx/contract';
+import { systemClock } from '@zgeoff/std';
 import type { SessionRuntime } from './create-session-runtime';
 
 export type SettleScheduler = (onTimeout: () => void, delayMs: number) => () => void;

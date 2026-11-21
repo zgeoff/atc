@@ -1,4 +1,4 @@
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 
 interface StubGrokConfig {
   readonly atc: readonly string[];
@@ -9,7 +9,7 @@ interface StubGrokConfig {
 export function createStubGrok(directory: string, config: StubGrokConfig): string {
   const report = `${config.atc.map((part) => `"${part}"`).join(' ')} hook-report --agent grok`;
 
-  return createStubBin(
+  return writeStubProgram(
     directory,
     'fake-grok',
     `#!/usr/bin/env bash

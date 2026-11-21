@@ -2,12 +2,12 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubNpm } from '@atc/core/test-utils/build-stub-npm';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('publish-tarball-');
+  const temporaryDirectory = createTempDir('publish-tarball-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -19,19 +19,14 @@ test.each([
 ])('it refuses %s before it reads a tarball or calls npm', async (_label, args) => {
   const ctx = setupTest();
 
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null),
-  );
+  createStubBin(join(ctx.directory, 'bin'), 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  });
 
-  const published = await runCommand(
-    ['bash', join(import.meta.dir, 'publish-tarball.sh'), ...args],
-    {
-      cwd: ctx.directory,
-      env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` },
-    },
-  );
+  const published = await run(['bash', join(import.meta.dir, 'publish-tarball.sh'), ...args], {
+    cwd: ctx.directory,
+    env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` },
+  });
 
   expect(published.exitCode).toBe(2);
   expect(published.stderr).toInclude('usage: publish-tarball.sh [--dry-run] <tarball>');
@@ -46,15 +41,13 @@ test('it publishes a version npm does not hold with provenance', async () => {
     JSON.stringify({ name: '@atcx/contract', version: '7.1.0' }),
   );
 
-  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], { cwd: ctx.directory });
+  await run(['tar', '-czf', 'contract.tgz', 'package'], { cwd: ctx.directory });
 
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null),
-  );
+  createStubBin(join(ctx.directory, 'bin'), 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  });
 
-  const published = await runCommand(
+  const published = await run(
     ['bash', join(import.meta.dir, 'publish-tarball.sh'), join(ctx.directory, 'contract.tgz')],
     { env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` } },
   );
@@ -74,15 +67,13 @@ test('it runs a dry run of a version npm does not hold without provenance', asyn
     JSON.stringify({ name: '@atcx/contract', version: '7.1.0' }),
   );
 
-  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], { cwd: ctx.directory });
+  await run(['tar', '-czf', 'contract.tgz', 'package'], { cwd: ctx.directory });
 
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null),
-  );
+  createStubBin(join(ctx.directory, 'bin'), 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  });
 
-  const published = await runCommand(
+  const published = await run(
     [
       'bash',
       join(import.meta.dir, 'publish-tarball.sh'),
@@ -110,15 +101,13 @@ test.each([
     JSON.stringify({ name: '@atcx/contract', version: '7.1.0' }),
   );
 
-  await runCommand(['tar', '-czf', 'contract.tgz', 'package'], { cwd: ctx.directory });
+  await run(['tar', '-czf', 'contract.tgz', 'package'], { cwd: ctx.directory });
 
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), '7.1.0'),
-  );
+  createStubBin(join(ctx.directory, 'bin'), 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), '7.1.0'),
+  });
 
-  const published = await runCommand(
+  const published = await run(
     [
       'bash',
       join(import.meta.dir, 'publish-tarball.sh'),

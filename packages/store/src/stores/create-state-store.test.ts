@@ -9,13 +9,12 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockPublishedRecord } from '@atc/protocol/test-utils/build-mock-published-record';
 import { buildMockRestartResult } from '@atc/protocol/test-utils/build-mock-restart-result';
 import { toAgentSessionID, toMessageID, toSessionID } from '@atcx/contract';
 import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { Kysely } from 'kysely';
 import type { CompiledQuery } from 'kysely';
 import { Migrator } from 'kysely/migration';
@@ -32,7 +31,7 @@ import { readQueryPlan } from '../test-utils/read-query-plan';
 import { createStateStore } from './create-state-store';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);
@@ -580,7 +579,7 @@ test('it lists a spawn directory once for each target it was spawned on', async 
 });
 
 test('it carries spawn directories from before their target was recorded over as spawns on the default local target', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -859,7 +858,7 @@ test('it round-trips a fleet row with its execution target and identity', async 
 });
 
 test('it adds parent to a fleet row that predates it', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -949,7 +948,7 @@ test('it loads last-used agent from a reopened store', async () => {
 });
 
 test('it renames the id column and defaults agent for a store written before both', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -991,7 +990,7 @@ test('it renames the id column and defaults agent for a store written before bot
 });
 
 test('it adds pinned to a fleet row that predates it', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1033,7 +1032,7 @@ test('it adds pinned to a fleet row that predates it', async () => {
 });
 
 test('it adds the last-attached time to a fleet row that predates it', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1079,7 +1078,7 @@ test('it adds the last-attached time to a fleet row that predates it', async () 
 });
 
 test('it adds agent to a fleet row that predates it', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1126,7 +1125,7 @@ test('it adds agent to a fleet row that predates it', async () => {
 });
 
 test('it adds exited to a fleet row that predates it', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1173,7 +1172,7 @@ test('it adds exited to a fleet row that predates it', async () => {
 });
 
 test('it runs every migration once on the first open of a fresh database', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const store = await createStateStore(dbPath);
@@ -1238,7 +1237,7 @@ test('it runs every migration once on the first open of a fresh database', async
 });
 
 test('it adds the restart results table and leaves every row of an older database as it was', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1303,7 +1302,7 @@ test('it adds the restart results table and leaves every row of an older databas
 });
 
 test('it drops the resume column from a database that stopped at the step that added it, and keeps its fleet', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1350,7 +1349,7 @@ test('it drops the resume column from a database that stopped at the step that a
 });
 
 test('it records the resume column drop and keeps the fleet when a crash left the column dropped but the step unrecorded', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1399,7 +1398,7 @@ test('it records the resume column drop and keeps the fleet when a crash left th
 });
 
 test('it reads a runtime auth binding bound before the host column rename as the same binding after it', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1450,7 +1449,7 @@ test('it reads a runtime auth binding bound before the host column rename as the
 });
 
 test('it finishes the host column rename and keeps the binding when a crash left one column renamed but the step unrecorded', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1502,7 +1501,7 @@ test('it finishes the host column rename and keeps the binding when a crash left
 });
 
 test('it renames the workspace directory column and keeps the workspace of a database that stopped before the rename', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1551,7 +1550,7 @@ test('it renames the workspace directory column and keeps the workspace of a dat
 });
 
 test('it keeps the workspace when a crash left the directory column renamed but the step unrecorded', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1587,7 +1586,7 @@ test('it keeps the workspace when a crash left the directory column renamed but 
 });
 
 test('it re-runs no migration when it reopens a migrated database', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const first = await createStateStore(dbPath);
@@ -1617,7 +1616,7 @@ test('it re-runs no migration when it reopens a migrated database', async () => 
 });
 
 test('it keeps the fleet of a migrated database across a reopen', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -1669,7 +1668,7 @@ test('it keeps the fleet of a migrated database across a reopen', async () => {
 });
 
 test('it ends a fresh database at the same fleet schema as a fully migrated old one', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const freshPath = join(temporaryDirectory.path, 'fresh.db');
   const oldPath = join(temporaryDirectory.path, 'old.db');
 
@@ -1738,7 +1737,7 @@ test('it ends a fresh database at the same fleet schema as a fully migrated old 
 });
 
 test('it refuses a database that holds a fleet table but no migration ledger', () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const db = new Database(dbPath);
@@ -4320,7 +4319,7 @@ test('it lists the other messages of one turn in send order when they share a se
 });
 
 test('it rebuilds a fleet at the model-and-effort shape keyed by a minted session id', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -4468,7 +4467,7 @@ test('it keeps the same daemon id across a reopen', async () => {
 });
 
 test('it records this daemon as the owner of every fleet row it migrates', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-');
+  const temporaryDirectory = createTempDir('atc-store-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   const older = new Database(dbPath);
@@ -6270,7 +6269,7 @@ test('it refuses a backup onto its own database through a symlinked directory', 
 });
 
 test('it refuses a backup onto the file its database path links to', async () => {
-  const temporaryDirectory = setupTempDir('atc-store-linked-');
+  const temporaryDirectory = createTempDir('atc-store-linked-');
   const realPath = join(temporaryDirectory.path, 'live.db');
   const linkPath = join(temporaryDirectory.path, 'state.db');
 

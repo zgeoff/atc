@@ -1,4 +1,4 @@
-import type { Clock } from './system-clock';
+import type { Clock } from '@zgeoff/std';
 
 // The clock shape xstate's actors take.
 export interface TimerClock {
@@ -8,7 +8,7 @@ export interface TimerClock {
 
 // xstate clears a timer by the id that setTimeout returned, but our scheduler returns a cancel
 // function instead, so each pending timer's cancel is kept under its id.
-export function toTimerClock(clock: Clock): TimerClock {
+export function toTimerClock(clock: Pick<Clock, 'now' | 'schedule'>): TimerClock {
   const cancels = new Map<number, () => void>();
 
   let nextTimerID = 0;

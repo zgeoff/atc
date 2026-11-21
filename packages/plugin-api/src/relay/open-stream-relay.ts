@@ -1,8 +1,8 @@
 /* oxlint-disable id-length -- `t` and `v` are the relay's frame keys */
 import { randomUUID } from 'node:crypto';
-import { systemClock } from '@atc/core';
 import { createByteLineSplitter, formatRelayFrame, parseGuestFrame } from '@atc/protocol/relay';
 import type { DaemonFrame, GuestFrame } from '@atc/protocol/relay';
+import { systemClock } from '@zgeoff/std';
 import type { HarnessRelay } from '../execution/execution-provider';
 import type { OpenedRelay, RelayLink, RelayLinkConnection, StreamRelayOptions } from './relay-link';
 

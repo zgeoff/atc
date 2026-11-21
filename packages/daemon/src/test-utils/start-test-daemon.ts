@@ -1,13 +1,13 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_TARGET } from '@atc/config';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { openRawDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import type { DaemonEvent } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import type { Socket } from 'bun';
 import type { DaemonHandle } from '../daemon-handle';
 import { startDaemon } from '../start-daemon';
@@ -76,14 +76,14 @@ export function startTestDaemon<const Config extends TestDaemonConfig = TestDaem
 ): Promise<StartedTestDaemon<Config>>;
 
 export async function startTestDaemon(config: TestDaemonConfig = {}): Promise<TestDaemon> {
-  const temporaryDirectory = setupTempDir(config.prefix ?? 'atc-test-daemon-');
+  const temporaryDirectory = createTempDir(config.prefix ?? 'atc-test-daemon-');
   const build = config.build ?? 'atc/test-build';
 
   const stack = new AsyncDisposableStack();
 
   const dispose = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.defer(temporaryDirectory.teardown);
+  stack.defer(temporaryDirectory.remove);
 
   const paths: TestDaemonPaths = {
     directory: temporaryDirectory.path,

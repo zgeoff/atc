@@ -5,15 +5,15 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildStubGuestFilesProvider } from '@atc/daemon/test-utils/build-stub-guest-files-provider';
 import { createClaudeAdapter } from '@atc/harness-claude';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 test('it names a remote Claude session after the /rename title in the transcript inside its host', async () => {
-  const temporaryDirectory = setupTempDir('atc-remote-name-');
+  const temporaryDirectory = createTempDir('atc-remote-name-');
   const guestFiles = join(temporaryDirectory.path, 'guest');
 
   const config = parseConfig(SHIPPED_HARNESS_PLUGINS, {

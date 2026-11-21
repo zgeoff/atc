@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-handoff-');
+  const temporaryDirectory = createTempDir('atc-stub-handoff-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -25,15 +25,16 @@ test('it moves the listening socket to the daemon socket path it is given and ex
     listening.stop(true);
   });
 
-  const atc = createStubBin(
-    join(ctx.directory, 'bin'),
-    'atc',
-    buildStubHandoffDaemon(join(ctx.directory, 'next.sock'), join(ctx.directory, 'handed.sock')),
-  );
+  const atc = createStubBin(join(ctx.directory, 'bin'), 'atc', {
+    script: buildStubHandoffDaemon(
+      join(ctx.directory, 'next.sock'),
+      join(ctx.directory, 'handed.sock'),
+    ),
+  }).path;
 
-  const run = await runCommand([atc, 'daemon'], { env: { PATH: '/usr/bin:/bin' } });
+  const result = await run([atc, 'daemon'], { env: { PATH: '/usr/bin:/bin' } });
 
-  expect(run.exitCode).toBe(0);
+  expect(result.exitCode).toBe(0);
   expect(existsSync(join(ctx.directory, 'handed.sock'))).toBe(true);
   expect(existsSync(join(ctx.directory, 'next.sock'))).toBe(false);
 });

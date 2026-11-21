@@ -1,6 +1,6 @@
-import type { Clock } from '../index';
+import type { Clock } from '@zgeoff/std';
 
-export function buildStubSkipClock(): Clock {
+export function buildStubSkipClock(): Pick<Clock, 'now' | 'schedule'> {
   let time = 0;
 
   return {

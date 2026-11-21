@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStubImpCommands } from './create-stub-imp-commands';
 import { createStubImpFleet } from './create-stub-imp-fleet';
 
@@ -85,7 +84,7 @@ test('it runs a command with the guest PATH and not the one of the daemon', asyn
 test('it runs a command with the guest home as HOME and as its working directory', async () => {
   const ctx = await setupTest();
 
-  const temporaryDirectory = setupTempDir('atc-stub-imp-commands-');
+  const temporaryDirectory = createTempDir('atc-stub-imp-commands-');
 
   ctx.commands.setHomeDir(temporaryDirectory.path);
 

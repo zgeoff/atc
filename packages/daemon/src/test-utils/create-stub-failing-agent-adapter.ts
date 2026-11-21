@@ -1,7 +1,7 @@
 import { closeSync, constants, openSync, readSync } from 'node:fs';
-import { runCommand } from '@atc/core/test-utils/run-command';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { run } from '@zgeoff/testing/process';
 
 interface Plan {
   readonly bin: string;
@@ -72,7 +72,7 @@ export async function createStubFailingAgentAdapter(config: FailingAgentAdapterC
 }
 
 async function createPipe(path: string): Promise<void> {
-  const made = await runCommand(['mkfifo', path]);
+  const made = await run(['mkfifo', path]);
 
   if (made.exitCode !== 0) {
     throw new Error(`mkfifo could not make ${path} (${made.stderr.trim()})`);

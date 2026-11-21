@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { systemClock } from '@atc/core';
 import { SPAWN_ANSWER_SCHEMA } from '@atcx/contract';
+import { systemClock } from '@zgeoff/std';
 import { startStubAgentDaemon } from '../test-utils/start-stub-agent-daemon';
 import { openSendConnection } from './open-send-connection';
 import { runSend } from './run-send';

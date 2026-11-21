@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
 import { createInMemoryEngine } from './create-in-memory-engine';
 
 function setupTest() {

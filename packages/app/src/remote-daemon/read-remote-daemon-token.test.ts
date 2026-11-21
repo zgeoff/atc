@@ -2,15 +2,15 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildStubForkingGH } from '@atc/lifecycle/test-utils/build-stub-forking-gh';
+import { waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildMockRemoteDaemon } from '../test-utils/build-mock-remote-daemon';
 import { readRemoteDaemonToken } from './read-remote-daemon-token';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-remote-token-');
+  const temporaryDirectory = createTempDir('atc-remote-token-');
 
   return {
     directory: temporaryDirectory.path,
@@ -103,7 +103,11 @@ test('it rejects a command that exits non-zero, without its output in the messag
 test('it stops a command whose child keeps its output open once the deadline passes', async () => {
   const ctx = setupTest();
   const pidsFile = join(ctx.directory, 'pids');
-  const bin = createStubBin(ctx.directory, 'forking-helper', buildStubForkingGH(pidsFile));
+
+  const bin = createStubBin(ctx.directory, 'forking-helper', {
+    script: buildStubForkingGH(pidsFile),
+  }).path;
+
   const started = performance.now();
 
   const rejection = await readRemoteDaemonToken(

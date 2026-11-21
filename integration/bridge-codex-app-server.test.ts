@@ -6,15 +6,15 @@ import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { CODEX_PLUGIN, createCodexAdapter } from '@atc/harness-codex';
 import { createStubAppServerCodex } from '@atc/harness-codex/test-utils/create-stub-app-server-codex';
 import { startCodexTerminalThread } from '@atc/harness-codex/test-utils/start-codex-terminal-thread';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { z } from 'zod';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-codex-app-server-');
+  const temporaryDirectory = createTempDir('atc-codex-app-server-');
   const bin = createStubAppServerCodex(temporaryDirectory.path);
 
   const codex = createCodexAdapter(

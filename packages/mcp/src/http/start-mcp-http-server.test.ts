@@ -1,15 +1,14 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { systemClock } from '@atc/core';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { systemClock } from '@zgeoff/std';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import { createSubscriptionStore } from '../events/create-subscription-store';
@@ -404,7 +403,7 @@ test('it refuses an MCP request that does not accept an event stream with 406', 
 });
 
 test('it shows a remote MCP client the sessions of the targets the principals grant to its client id', async () => {
-  const temporaryDirectory = setupTempDir('atc-mcp-http-');
+  const temporaryDirectory = createTempDir('atc-mcp-http-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
   const sqlite = openTestAuthDatabase(dbPath);
 
@@ -507,7 +506,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
 });
 
 test('it shows a remote MCP client no sessions when the principals grant the targets to another client id', async () => {
-  const temporaryDirectory = setupTempDir('atc-mcp-http-');
+  const temporaryDirectory = createTempDir('atc-mcp-http-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
   const sqlite = openTestAuthDatabase(dbPath);
 
@@ -2188,7 +2187,7 @@ test.each([
   ['0.0.0.0', 'http://localhost:8414'],
   ['192.168.1.10', null],
 ])('it refuses to listen on %p with the public URL %p', (host, publicURL) => {
-  const temporaryDirectory = setupTempDir('atc-mcp-http-');
+  const temporaryDirectory = createTempDir('atc-mcp-http-');
 
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),
@@ -2216,7 +2215,7 @@ test.each([
 });
 
 test('it listens beyond loopback behind an https public URL', async () => {
-  const temporaryDirectory = setupTempDir('atc-mcp-http-');
+  const temporaryDirectory = createTempDir('atc-mcp-http-');
 
   const caller = createTransportCaller(
     join(temporaryDirectory.path, 'daemon.sock'),

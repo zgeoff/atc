@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
 import { readHostBranch } from './read-host-branch';
@@ -29,7 +29,7 @@ test('it finds no branch for a detached checkout', async () => {
 });
 
 test('it finds no branch for a directory outside git', async () => {
-  const temporaryDirectory = setupTempDir('atc-host-branch-plain-');
+  const temporaryDirectory = createTempDir('atc-host-branch-plain-');
   const provider = buildStubMemoryProvider({ kind: 'local-pty', runCommand: runLocalCommand });
 
   const branch = await readHostBranch(provider, 's-1', temporaryDirectory.path);

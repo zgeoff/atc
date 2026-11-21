@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { removeStaleTestHomes } from './remove-stale-test-homes';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stale-test-homes-');
+  const temporaryDirectory = createTempDir('atc-stale-test-homes-');
 
   return { directory: temporaryDirectory.path };
 }

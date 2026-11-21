@@ -1,10 +1,10 @@
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 
 export function createStubAppServerCodex(directory: string): string {
   const server = join(import.meta.dir, 'run-stub-codex-app-server.ts');
 
-  return createStubBin(
+  return writeStubProgram(
     directory,
     'fake-codex',
     `#!/usr/bin/env bash

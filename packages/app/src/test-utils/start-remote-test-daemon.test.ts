@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
 import { startRemoteTestDaemon } from './start-remote-test-daemon';
 
 test('it accepts the principal laptop with the token of 32 letters a over TCP', async () => {

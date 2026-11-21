@@ -5,7 +5,6 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildGuestSessionDirectory } from '@atc/daemon';
 import { buildMockExecutionTarget } from '@atc/daemon/test-utils/build-mock-execution-target';
 import { createImpProvider } from '@atc/execution-imp';
@@ -13,13 +12,14 @@ import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp
 import { createStubDirProvider } from '@atc/execution-local/test-utils/create-stub-dir-provider';
 import { buildGuestSettingsPath } from '@atc/harness-claude';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-agent-env-');
+  const temporaryDirectory = createTempDir('atc-agent-env-');
   const clis = createStubGuestCLIs(join(temporaryDirectory.path, 'bin'));
   const port = createStubImpPort();
   const local = createStubDirProvider();

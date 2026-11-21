@@ -1,6 +1,6 @@
 import { createServer } from 'node:net';
 import type { Socket } from 'node:net';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 
 interface StubAnsweringListener {
   readonly peers: readonly Socket[];

@@ -1,8 +1,9 @@
-import { makeKeyedLock, systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
+import { makeKeyedLock } from '@atc/core';
 import { EffectRemainsError } from '@atc/plugin-api';
 import type { EffectTarget, IdempotencyRecord, StateStore } from '@atc/store';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 
 export interface KeyedRequest {
   readonly key: string;
@@ -36,7 +37,7 @@ export function createIdempotencyLedger(
   store: StateStore,
   principal: string,
   log: (line: string) => void,
-  clock: Clock = systemClock,
+  clock: Pick<Clock, 'now' | 'schedule'> = systemClock,
 ): IdempotencyLedger {
   const withKeyLock = makeKeyedLock();
 

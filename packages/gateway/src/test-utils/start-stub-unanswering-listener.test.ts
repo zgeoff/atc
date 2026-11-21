@@ -1,6 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { startStubUnansweringListener } from './start-stub-unanswering-listener';
 
 test('it records what a connection sends, answers nothing, and keeps the connection open', async () => {

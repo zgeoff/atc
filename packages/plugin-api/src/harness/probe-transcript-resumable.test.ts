@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { probeTranscriptResumable } from './probe-transcript-resumable';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-resume-');
+  const temporaryDirectory = createTempDir('atc-resume-');
 
   return { directory: temporaryDirectory.path };
 }

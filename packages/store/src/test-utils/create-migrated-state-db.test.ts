@@ -1,14 +1,13 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
+import { registerTestCleanup, updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createMigratedStateDB } from './create-migrated-state-db';
 import { seedDaemonID } from './seed-daemon-id';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-migrated-state-');
+  const temporaryDirectory = createTempDir('atc-migrated-state-');
 
   return { directory: temporaryDirectory.path };
 }

@@ -1,6 +1,6 @@
-import type { Clock } from '@atc/core';
-import { systemClock } from '@atc/core';
 import type { SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { LRUCache } from 'lru-cache';
 
 export interface PermissionRequest {
@@ -32,7 +32,7 @@ export interface PermissionRegistry {
 export function createPermissionRegistry(
   callbacks: PermissionCallbacks,
   timeoutMs = 60_000,
-  clock: Clock = systemClock,
+  clock: Pick<Clock, 'now' | 'schedule'> = systemClock,
 ): PermissionRegistry {
   const pending = new Map<string, PendingRequest>();
   const resolved = new LRUCache<string, SessionID>({ max: 1000 });

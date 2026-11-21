@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readParentPID } from './read-parent-pid';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-parent-pid-');
+  const temporaryDirectory = createTempDir('atc-parent-pid-');
 
   return { procDir: temporaryDirectory.path };
 }

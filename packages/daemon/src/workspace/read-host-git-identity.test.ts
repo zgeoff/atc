@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
+import { updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readHostGitIdentity } from './read-host-git-identity';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-host-identity-');
+  const temporaryDirectory = createTempDir('atc-host-identity-');
   const config = join(temporaryDirectory.path, 'gitconfig');
 
   updateEnv('GIT_CONFIG_GLOBAL', config);
@@ -53,7 +53,7 @@ test('it ignores the identity of the repository the daemon runs in', async () =>
 
   writeFileSync(ctx.config, '[user]\n\tname = Ada Lovelace\n\temail = ada@example.com\n');
 
-  const repo = setupTempDir('atc-host-identity-repo-');
+  const repo = createTempDir('atc-host-identity-repo-');
   const gitDir = join(repo.path, '.git');
 
   mkdirSync(join(gitDir, 'objects'), { recursive: true });
@@ -86,7 +86,7 @@ test('it ignores the identity of the repository the environment points git at', 
 
   writeFileSync(ctx.config, '[user]\n\tname = Ada Lovelace\n\temail = ada@example.com\n');
 
-  const repo = setupTempDir('atc-host-identity-env-repo-');
+  const repo = createTempDir('atc-host-identity-env-repo-');
   const gitDir = join(repo.path, '.git');
 
   mkdirSync(join(gitDir, 'objects'), { recursive: true });

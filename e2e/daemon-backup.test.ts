@@ -7,16 +7,16 @@ import { resolvePaths } from '@atc/config';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createDaemonClient } from '@atc/protocol/client';
 import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 async function setupTest() {
   const source = await startStubAgentDaemon();
   const fresh = await startStubAgentDaemon();
 
-  const cliHome = setupTempDir('atc-e2e-backup-cli-').path;
-  const work = setupTempDir('atc-e2e-backup-work-').path;
+  const cliHome = createTempDir('atc-e2e-backup-cli-').path;
+  const work = createTempDir('atc-e2e-backup-work-').path;
 
   symlinkSync(
     source.daemon.socketPath,

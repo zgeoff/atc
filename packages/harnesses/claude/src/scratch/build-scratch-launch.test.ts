@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildScratchLaunch } from './build-scratch-launch';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-scratch-launch-');
+  const temporaryDirectory = createTempDir('atc-scratch-launch-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -24,9 +24,9 @@ test('it creates the scratch folder, readable by its owner alone, and runs the C
     'a b',
   ]);
 
-  const run = await runCommand([launch.bin, ...launch.args]);
+  const result = await run([launch.bin, ...launch.args]);
 
-  expect(run.exitCode).toBe(0);
+  expect(result.exitCode).toBe(0);
   expect(statSync(scratch).mode & 0o777).toBe(0o700);
   expect(readFileSync(out, 'utf8')).toBe('a b\n');
 });
@@ -39,9 +39,9 @@ test('it takes an existing scratch folder back to its owner alone', async () => 
   mkdirSync(scratch);
   chmodSync(scratch, 0o755);
 
-  const run = await runCommand([launch.bin, ...launch.args]);
+  const result = await run([launch.bin, ...launch.args]);
 
-  expect(run.exitCode).toBe(0);
+  expect(result.exitCode).toBe(0);
   expect(statSync(scratch).mode & 0o777).toBe(0o700);
 });
 

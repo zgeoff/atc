@@ -3,16 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { openRawDaemonClient as openDaemonClient } from './open-raw-daemon-client';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-legacy-');
+  const temporaryDirectory = createTempDir('atc-legacy-');
 
   return { socketPath: join(temporaryDirectory.path, 'daemon.sock') };
 }

@@ -2,13 +2,13 @@ import { Database } from 'bun:sqlite';
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildMockRestartResult } from '@atc/protocol/test-utils/build-mock-restart-result';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { buildNoteTrailEntry } from '../sessions/build-note-trail-entry';
 import { createSessionManager } from '../sessions/create-session-manager';
@@ -19,7 +19,7 @@ import { createEventSignal } from './create-event-signal';
 import { createEventTrail } from './create-event-trail';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-event-trail-');
+  const temporaryDirectory = createTempDir('atc-event-trail-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

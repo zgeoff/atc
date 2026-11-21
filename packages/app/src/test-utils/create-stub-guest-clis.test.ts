@@ -2,14 +2,14 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubRecordingATC } from '@atc/core/test-utils/build-stub-recording-atc';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { createStubGuestCLIs } from './create-stub-guest-clis';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-guest-clis-');
+  const temporaryDirectory = createTempDir('atc-stub-guest-clis-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -26,7 +26,7 @@ test('it creates both tools under the directory', () => {
 test('it creates an atc that runs the CLI of this source tree', async () => {
   const ctx = setupTest();
 
-  const result = await runCommand([createStubGuestCLIs(ctx.directory).atc, 'help']);
+  const result = await run([createStubGuestCLIs(ctx.directory).atc, 'help']);
 
   expect(result.stdout).toInclude('Terminal control tower for coding-agent sessions');
 });
@@ -34,8 +34,8 @@ test('it creates an atc that runs the CLI of this source tree', async () => {
 test('it creates a claude that prints its pid, then echoes each line it reads', async () => {
   const ctx = setupTest();
 
-  const result = await runCommand([createStubGuestCLIs(ctx.directory).claude], {
-    stdin: Buffer.from('hello\n'),
+  const result = await run([createStubGuestCLIs(ctx.directory).claude], {
+    input: 'hello\n',
   });
 
   expect(result.stdout).toMatch(/^UP:\d+\nGOT:hello\n$/u);
@@ -54,10 +54,10 @@ test('it reports a SessionStart with a transcript only the host holds for start'
   const clis = createStubGuestCLIs(ctx.directory);
   const log = join(ctx.directory, 'atc.log');
 
-  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+  createStubBin(ctx.directory, 'atc', { script: buildStubRecordingATC(log) });
 
-  await runCommand([clis.claude], {
-    stdin: Buffer.from('start c-1\n'),
+  await run([clis.claude], {
+    input: 'start c-1\n',
     env: { ...process.env, ATC_SESSION_ID: 's-own' },
   });
 
@@ -71,10 +71,10 @@ test('it reports a Notification carrying the text for notify', async () => {
   const clis = createStubGuestCLIs(ctx.directory);
   const log = join(ctx.directory, 'atc.log');
 
-  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+  createStubBin(ctx.directory, 'atc', { script: buildStubRecordingATC(log) });
 
-  await runCommand([clis.claude], {
-    stdin: Buffer.from('notify needs you\n'),
+  await run([clis.claude], {
+    input: 'notify needs you\n',
     env: { ...process.env, ATC_SESSION_ID: 's-own' },
   });
 
@@ -88,10 +88,10 @@ test('it reports a Stop for stop', async () => {
   const clis = createStubGuestCLIs(ctx.directory);
   const log = join(ctx.directory, 'atc.log');
 
-  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+  createStubBin(ctx.directory, 'atc', { script: buildStubRecordingATC(log) });
 
-  await runCommand([clis.claude], {
-    stdin: Buffer.from('stop\n'),
+  await run([clis.claude], {
+    input: 'stop\n',
     env: { ...process.env, ATC_SESSION_ID: 's-own' },
   });
 
@@ -105,10 +105,10 @@ test('it reports a SessionStart from a nested Codex harness for nested', async (
   const clis = createStubGuestCLIs(ctx.directory);
   const log = join(ctx.directory, 'atc.log');
 
-  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+  createStubBin(ctx.directory, 'atc', { script: buildStubRecordingATC(log) });
 
-  await runCommand([clis.claude], {
-    stdin: Buffer.from('nested x-1\n'),
+  await run([clis.claude], {
+    input: 'nested x-1\n',
     env: { ...process.env, ATC_SESSION_ID: 's-own' },
   });
 
@@ -122,10 +122,10 @@ test('it reports a Notification as another atc session for forge', async () => {
   const clis = createStubGuestCLIs(ctx.directory);
   const log = join(ctx.directory, 'atc.log');
 
-  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+  createStubBin(ctx.directory, 'atc', { script: buildStubRecordingATC(log) });
 
-  await runCommand([clis.claude], {
-    stdin: Buffer.from('forge s-other\n'),
+  await run([clis.claude], {
+    input: 'forge s-other\n',
     env: { ...process.env, ATC_SESSION_ID: 's-own' },
   });
 
@@ -139,10 +139,10 @@ test('it answers the message with the text for answer', async () => {
   const clis = createStubGuestCLIs(ctx.directory);
   const log = join(ctx.directory, 'atc.log');
 
-  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+  createStubBin(ctx.directory, 'atc', { script: buildStubRecordingATC(log) });
 
-  await runCommand([clis.claude], {
-    stdin: Buffer.from('answer m-1 the answer\n'),
+  await run([clis.claude], {
+    input: 'answer m-1 the answer\n',
     env: { ...process.env, ATC_SESSION_ID: 's-own' },
   });
 
@@ -156,10 +156,10 @@ test('it reports a note labelled progress for note', async () => {
   const clis = createStubGuestCLIs(ctx.directory);
   const log = join(ctx.directory, 'atc.log');
 
-  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+  createStubBin(ctx.directory, 'atc', { script: buildStubRecordingATC(log) });
 
-  await runCommand([clis.claude], {
-    stdin: Buffer.from('note half way\n'),
+  await run([clis.claude], {
+    input: 'note half way\n',
     env: { ...process.env, ATC_SESSION_ID: 's-own' },
   });
 
@@ -173,10 +173,10 @@ test('it runs the tap in the background, printing into the file, for tap', async
   const clis = createStubGuestCLIs(ctx.directory);
   const tapFile = join(ctx.directory, 'tap.log');
 
-  createStubBin(ctx.directory, 'atc', buildStubRecordingATC('/dev/stdout'));
+  createStubBin(ctx.directory, 'atc', { script: buildStubRecordingATC('/dev/stdout') });
 
-  await runCommand([clis.claude], {
-    stdin: Buffer.from(`tap ${tapFile}\n`),
+  await run([clis.claude], {
+    input: `tap ${tapFile}\n`,
     env: { ...process.env, ATC_SESSION_ID: 's-own' },
   });
 
@@ -190,15 +190,12 @@ test('it refuses note and answer when its --plugin-dir holds no mod at start', a
   const clis = createStubGuestCLIs(ctx.directory);
   const log = join(ctx.directory, 'atc.log');
 
-  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+  createStubBin(ctx.directory, 'atc', { script: buildStubRecordingATC(log) });
 
-  const result = await runCommand(
-    [clis.claude, '--plugin-dir', join(ctx.directory, 'atc-bridge')],
-    {
-      stdin: Buffer.from('note half way\nanswer m-1 the answer\n'),
-      env: { ...process.env, ATC_SESSION_ID: 's-own' },
-    },
-  );
+  const result = await run([clis.claude, '--plugin-dir', join(ctx.directory, 'atc-bridge')], {
+    input: 'note half way\nanswer m-1 the answer\n',
+    env: { ...process.env, ATC_SESSION_ID: 's-own' },
+  });
 
   expect(result.stdout).toMatch(
     /^UP:\d+\nNO-TOOL:note half way\nNO-TOOL:answer m-1 the answer\n$/u,
@@ -213,12 +210,12 @@ test('it reports a note when its --plugin-dir holds the mod at start', async () 
   const log = join(ctx.directory, 'atc.log');
   const modDir = join(ctx.directory, 'atc-bridge');
 
-  createStubBin(ctx.directory, 'atc', buildStubRecordingATC(log));
+  createStubBin(ctx.directory, 'atc', { script: buildStubRecordingATC(log) });
   mkdirSync(join(modDir, '.claude-plugin'), { recursive: true });
   writeFileSync(join(modDir, '.claude-plugin', 'plugin.json'), '{ "name": "atc-bridge" }');
 
-  await runCommand([clis.claude, '--plugin-dir', modDir], {
-    stdin: Buffer.from('note half way\n'),
+  await run([clis.claude, '--plugin-dir', modDir], {
+    input: 'note half way\n',
     env: { ...process.env, ATC_SESSION_ID: 's-own' },
   });
 

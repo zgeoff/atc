@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('check-imports-');
+  const temporaryDirectory = createTempDir('check-imports-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -27,7 +27,7 @@ test('it passes a tree whose imports hold no cycle', async () => {
     "import type { HookEvent } from '../plugins/hook-event';\n\nexport const HOOKS: HookEvent[] = [];\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -57,7 +57,7 @@ test('it fails on a cycle closed by a type-only import', async () => {
     "import type { Auth } from './types';\n\nexport function openAuth(): Auth | null {\n  return null;\n}\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -87,7 +87,7 @@ test('it leaves a confined package and a computed specifier to the other gates',
     "import { ImpClient } from '@impz/client';\n\nexport const CLIENT = ImpClient;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -117,7 +117,7 @@ test('it ignores import text inside a one-line string literal', async () => {
     "export const FILES = {\n  'register.ts': \"import { SOURCES } from '../sources/discover';\\n\",\n};\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -147,7 +147,7 @@ test('it reads an import whose list holds a comment with an apostrophe', async (
     "import {\n  ID, // the client's id, `quoted`\n} from '../client/ids';\n\nexport const USED = ID;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -177,7 +177,7 @@ test('it reads a require call', async () => {
     "const ids = require('../client/ids');\n\nexport const USED = ids;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -207,7 +207,7 @@ test('it reads an import-equals require', async () => {
     "import ids = require('../client/ids');\n\nexport const USED = ids;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -237,7 +237,7 @@ test('it reads a dynamic import whose specifier is a template literal', async ()
     'export const LOADED = await import(`../client/ids`);\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -267,7 +267,7 @@ test('it reads an import that follows a regular expression holding a quote', asy
     "export const QUOTE = /['\"`]/;\n\nexport { ID } from '../client/ids';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -297,7 +297,7 @@ test('it reads an import that follows a regular expression after a control condi
     "const ok = true;\nif (ok) /`/.test('a');\n\nexport { ID } from '../client/ids';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -327,7 +327,7 @@ test('it reads an import that follows a regular expression after a block', async
     "{\n  const a = 1;\n}\n/`/.test('a');\n\nexport { ID } from '../client/ids';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -357,7 +357,7 @@ test('it reads a literal module resolved through import.meta.resolve', async () 
     "export const PATH = import.meta.resolve('../client/ids');\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -387,7 +387,7 @@ test('it reads a literal module resolved through Bun.resolveSync', async () => {
     "export const PATH = Bun.resolveSync('../client/ids', import.meta.dir);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -417,7 +417,7 @@ test('it reads a literal module located with a URL relative to import.meta.url',
     "export const PATH = new URL('../client/ids.ts', import.meta.url);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,
@@ -442,7 +442,7 @@ test('it ignores a URL that is not relative to the module', async () => {
     "const base = 'https://example.com';\nexport const SITE = new URL(base);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-imports.ts'),
     ctx.directory,

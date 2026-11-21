@@ -1,9 +1,9 @@
 import { expect, mock, test } from 'bun:test';
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { toSessionID } from '@atcx/contract';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
@@ -474,7 +474,7 @@ test('it keeps a claimed directory on the host when the host home cannot be reso
 });
 
 test('it keeps a claimed directory on the host when a stale relative directory is a symlink whose target lay inside it', async () => {
-  const temporaryDirectory = setupTempDir('atc-host-dir-claims-');
+  const temporaryDirectory = createTempDir('atc-host-dir-claims-');
   const home = join(temporaryDirectory.path, 'home');
   const workspace = join(home, 'work', 'a');
 
@@ -523,7 +523,7 @@ test('it keeps a claimed directory on the host when a stale relative directory i
 test('it keeps a directory on the daemon host that a held session reaches through a symlink', async () => {
   const provider = buildStubLocalProvider();
   const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'local', provider })] });
-  const temporaryDirectory = setupTempDir('atc-held-claims-');
+  const temporaryDirectory = createTempDir('atc-held-claims-');
   const workspace = join(temporaryDirectory.path, 'workspace');
   const alias = join(temporaryDirectory.path, 'alias');
 
@@ -550,7 +550,7 @@ test('it keeps a directory on the daemon host that a held session reaches throug
 test('it removes a directory on the daemon host once the session that reached it is released', async () => {
   const provider = buildStubLocalProvider();
   const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'local', provider })] });
-  const temporaryDirectory = setupTempDir('atc-held-claims-');
+  const temporaryDirectory = createTempDir('atc-held-claims-');
   const workspace = join(temporaryDirectory.path, 'workspace');
   const alias = join(temporaryDirectory.path, 'alias');
 
@@ -575,7 +575,7 @@ test('it removes a directory on the daemon host once the session that reached it
 test('it keeps holding a session that a second hold has after the first hold releases it', async () => {
   const provider = buildStubLocalProvider();
   const ctx = setupTest({ targets: [buildMockExecutionTarget({ id: 'local', provider })] });
-  const temporaryDirectory = setupTempDir('atc-held-claims-');
+  const temporaryDirectory = createTempDir('atc-held-claims-');
   const workspace = join(temporaryDirectory.path, 'workspace');
 
   mkdirSync(join(workspace, 'inner'), { recursive: true });

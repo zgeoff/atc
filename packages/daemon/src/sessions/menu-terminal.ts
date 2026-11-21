@@ -1,5 +1,5 @@
-import type { Clock } from '@atc/core';
 import type { ScreenMenu } from '@atc/plugin-api';
+import type { Clock } from '@zgeoff/std';
 
 export interface MenuTerminal {
   readonly readScreenMenu: () => Promise<ScreenMenu | null>;
@@ -36,7 +36,7 @@ export const MENU_TIMING: MenuTiming = {
 };
 
 export interface MenuWaits {
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly timing: MenuTiming;
 }
 

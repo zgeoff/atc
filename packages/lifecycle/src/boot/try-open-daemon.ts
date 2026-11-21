@@ -1,9 +1,9 @@
-import type { Clock } from '@atc/core';
 import { createDaemonClient } from '@atc/protocol/client';
 import type { DaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
 import { HELLO_RESULT_SCHEMA } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
 
 const HELLO_FIELDS = HELLO_RESULT_SCHEMA.pick({ daemon: true, daemonID: true });
 
@@ -25,7 +25,7 @@ interface DaemonProbeOptions {
   readonly build: string;
 
   readonly deadline: number;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   readonly keepOpen?: boolean;
 }

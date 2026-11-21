@@ -316,7 +316,7 @@ async function readSendDependencies() {
   const host = await import('@atc/config/host');
   const harnessPlugins = await import('./plugins/shipped-harness-plugins');
   const resolver = await import('./remote-daemon/resolve-remote-daemon');
-  const core = await import('@atc/core');
+  const std = await import('@zgeoff/std');
   const hostServices = await resolveHostServices();
 
   return {
@@ -332,7 +332,7 @@ async function readSendDependencies() {
             config.configFile,
           ),
       }),
-    clock: core.systemClock,
+    clock: std.systemClock,
     io: PROCESS_IO,
   };
 }

@@ -1,11 +1,11 @@
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import type { Principal } from '@atc/protocol';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
 import type { DaemonTransport } from '@atc/protocol/wire/transport';
 import { HELLO_RESULT_SCHEMA, checkDaemon } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import type { DaemonHello, GatewayChannel, ParamsPreparer, RegistryDaemon } from '../types';
 import { GatewayError } from './gateway-error';
 import { pickDaemonAdmission } from './pick-daemon-admission';
@@ -21,7 +21,7 @@ interface GatewayDaemonCallerOptions {
   readonly connectTimeoutMs?: number;
   readonly responseTimeoutMs?: number;
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 
   readonly onWarning: (message: string) => void;
 }

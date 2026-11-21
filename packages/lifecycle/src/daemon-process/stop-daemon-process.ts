@@ -1,8 +1,11 @@
-import type { Clock } from '@atc/core';
 import { waitUntil } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import { probeProcessAlive } from './probe-process-alive';
 
-export async function stopDaemonProcess(pid: number, clock: Clock): Promise<'exited' | 'killed'> {
+export async function stopDaemonProcess(
+  pid: number,
+  clock: Pick<Clock, 'now' | 'schedule'>,
+): Promise<'exited' | 'killed'> {
   try {
     process.kill(pid, 'SIGTERM');
   } catch {
@@ -28,7 +31,7 @@ export async function stopDaemonProcess(pid: number, clock: Clock): Promise<'exi
 
 const EXIT_WAIT_MS = 10_000;
 
-function waitForExit(pid: number, clock: Clock): Promise<boolean> {
+function waitForExit(pid: number, clock: Pick<Clock, 'now' | 'schedule'>): Promise<boolean> {
   return waitUntil(() => !probeProcessAlive(pid), {
     clock,
     intervalMs: 50,

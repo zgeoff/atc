@@ -1,7 +1,5 @@
-import { afterEach } from 'bun:test';
 import { join, normalize } from 'node:path';
 import { SESSION_ENV_NAMES } from '@atcx/contract/light';
-import { removeEnvOverrides } from './remove-env-overrides';
 
 // Bun hands a spawned child the environment it started with, not one a preload
 // changed, so only a home the test script sets before Bun starts reaches every
@@ -13,10 +11,6 @@ if (marker === undefined) {
 }
 
 requireTestHome(marker);
-
-afterEach(() => {
-  removeEnvOverrides();
-});
 
 // Claude reads its config folder from CLAUDE_CONFIG_DIR, so an inherited value would put that
 // folder outside the test home even when every home variable matches.

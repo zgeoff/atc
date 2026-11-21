@@ -7,9 +7,6 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openGatewayCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon } from '@atc/gateway/test-utils/build-mock-registry-daemon';
 import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-binding-database';
@@ -23,11 +20,13 @@ import { sendModernMCPRequest } from '@atc/mcp/test-utils/send-modern-mcp-reques
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-gateway-events-');
+  const temporaryDirectory = createTempDir('atc-gateway-events-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
 
   const auth = await openTestAuthAdmin(dbPath);

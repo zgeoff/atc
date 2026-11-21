@@ -4,11 +4,11 @@ import { join } from 'node:path';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { createStateStore, parsePublishedRecord } from '@atc/store';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { z } from 'zod';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
@@ -17,7 +17,7 @@ import { PLACE_COPY_SCRIPT, createPublishedRecords } from './create-published-re
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-records-' });
 
-  const temporaryDirectory = setupTempDir('atc-records-state-');
+  const temporaryDirectory = createTempDir('atc-records-state-');
 
   const store = await createStateStore(join(temporaryDirectory.path, 'atc.db'));
 
@@ -1062,7 +1062,7 @@ test('it refuses a record whose host takes the read-only copy but not its scope 
 test('it refreshes the guest-folder scope file beside the guest copy on a host that keeps read-only files', async () => {
   const ctx = await setupTest();
 
-  const guest = setupTempDir('atc-records-guest-');
+  const guest = createTempDir('atc-records-guest-');
 
   mkdirSync(join(guest.path, 'records'));
   writeFileSync(join(guest.path, 'records', 's-upgraded.json'), '{}');
@@ -1107,7 +1107,7 @@ test('it refreshes the guest-folder scope file beside the guest copy on a host t
 test('it adds no guest-folder scope file for a harness whose guest copy has none', async () => {
   const ctx = await setupTest();
 
-  const guest = setupTempDir('atc-records-guest-');
+  const guest = createTempDir('atc-records-guest-');
 
   mkdirSync(join(guest.path, 'records'));
   writeFileSync(join(guest.path, 'records', 's-older.json'), '{}');

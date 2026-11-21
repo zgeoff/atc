@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('check-manifests-');
+  const temporaryDirectory = createTempDir('check-manifests-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -37,7 +37,7 @@ test('it passes packages whose manifests declare what their files import', async
     "import { faker } from '@faker-js/faker';\n\nexport const NAME = faker;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -82,7 +82,7 @@ test('it fails on a relative import into another package', async () => {
     "import { SESSIONS } from '../../daemon/src/sessions';\n\nexport const A = SESSIONS;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -118,7 +118,7 @@ test('it fails on a module load whose specifier is a template literal', async ()
     'export const FS = await import(`node:fs`);\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -162,7 +162,7 @@ test('it fails on a module load or a resolve form whose specifier is computed', 
     ].join('\n'),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -199,7 +199,7 @@ test('it fails on a mod that loads a module through a template literal', async (
     'export const CLIENT: unknown = await import(`@impz/client`);\n',
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -230,7 +230,7 @@ test('it lets the root package resolve a computed specifier and never load one',
     "const name = './plugin';\nexport const PATH = Bun.resolveSync(name, import.meta.dir);\nexport const PLUGIN = await import(name);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -266,7 +266,7 @@ test('it fails on a literal dynamic import into another package', async () => {
     "export const LOADED = await import('../../store/src/open-store');\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -306,7 +306,7 @@ test('it fails on a bare import the manifest does not declare', async () => {
     "import type { SessionID } from '@atc/core/ids';\n\nexport type A = SessionID;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -351,7 +351,7 @@ test('it fails on a production file importing a dev dependency', async () => {
     "import invariant from 'tiny-invariant';\n\nexport const B = invariant;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -405,7 +405,7 @@ test("it lets a package's src/test-utils folder import a dev dependency, unlike 
     "import invariant from 'tiny-invariant';\n\nexport const HELPER = invariant;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -444,7 +444,7 @@ test('it fails on manifest entries that are not workspace or catalog references'
     }),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -490,7 +490,7 @@ test('it fails on a root catalog entry or root devDependency that is not exact',
     }),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -531,7 +531,7 @@ test('it fails on a package named outside the @atc/ and @atcx/ scopes', async ()
     JSON.stringify({ name: '@atcx/schemas', exports: { '.': './src/index.ts' } }),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -571,7 +571,7 @@ test('it fails on a published package that depends on a private one', async () =
     }),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -634,7 +634,7 @@ test('it reads the committed zones table and refuses a dependency outside a pack
     }),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -723,7 +723,7 @@ test('it fails on a production dependency that an edge of the zones table refuse
     }),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -774,7 +774,7 @@ test.each([
     }),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -807,7 +807,7 @@ test('it lets the root reach the app by path and nothing else', async () => {
     "import { waitFor } from '../packages/app/src/test-utils/wait-for';\nimport { render } from '../packages/tui/src/render';\n\nexport const JOURNEY = [waitFor, render];\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -838,7 +838,7 @@ test('it ignores a package named only to resolve a path', async () => {
     "export const PATH = Bun.resolveSync('bun-pty/package.json', import.meta.dir);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -891,7 +891,7 @@ test('it passes imports of a package root and of a named entry point', async () 
     "import { isRecord } from '@atc/core';\nimport { DaemonClient } from '@atc/protocol/wire';\n\nexport const A = [isRecord, DaemonClient];\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -935,7 +935,7 @@ test('it leaves a subpath the exports map does not list to the import lint rules
     "import { isRecord } from '@atc/core/is-record';\n\nexport const A = isRecord;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -973,7 +973,7 @@ test('it fails on a package with no exports map or a wildcard entry', async () =
     }),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -1015,7 +1015,7 @@ test("it allows a package's test-utils wildcard and no other wildcard", async ()
     }),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -1070,7 +1070,7 @@ test('it fails on an entry point that loads a preloaded module', async () => {
     "export const ROOT = '/';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -1132,7 +1132,7 @@ test('it fails on a test helper that loads a preloaded module through the test-u
     "import { ROOT } from './isolate-home.ts';\n\nexport const CHECK = ROOT;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -1185,7 +1185,7 @@ test('it lets a test load a preloaded module that no entry point reaches', async
     "export const ROOT = '/';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -1235,7 +1235,7 @@ test('it lets an entry point name a preloaded module only through type-only spec
     "export type Home = { root: string };\nexport const startHome = () => '/';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -1280,7 +1280,7 @@ test('it fails on an entry point that names a preloaded module among a value and
     "export type Home = { root: string };\nexport const startHome = () => '/';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,
@@ -1329,7 +1329,7 @@ test('it resolves an extensionless preload the way bun does', async () => {
     "export const ROOT = '/';\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-manifests.ts'),
     ctx.directory,

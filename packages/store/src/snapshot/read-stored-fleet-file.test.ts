@@ -2,13 +2,13 @@ import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { registerRefusedSQLiteName } from '../sqlite/register-refused-sqlite-name';
 import { readStoredFleetFile } from './read-stored-fleet-file';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('read-stored-fleet-file-');
+  const temporaryDirectory = createTempDir('read-stored-fleet-file-');
 
   return { dbPath: join(temporaryDirectory.path, 'atc.db') };
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, rename, writeFile } from 'node:fs/promises';
 import { posix } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { requireGuestScratchDir } from '../client/require-guest-scratch-dir';
 import { buildImpdRefusal } from '../impd/build-impd-refusal';
 import type { ImpdBareRefusalCode, ImpdExecRefusal, ImpdOutput } from '../impd/impd-procedure';

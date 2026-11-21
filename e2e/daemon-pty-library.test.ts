@@ -5,13 +5,13 @@ import { createStubComposer } from '@atc/app/test-utils/create-stub-composer';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStubClaude } from '@atc/harness-claude/test-utils/create-stub-claude';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-pty-library-');
+  const temporaryDirectory = createTempDir('atc-e2e-pty-library-');
   const atc = resolveATCCommand();
   const temporary = join(temporaryDirectory.path, 'tmp');
 

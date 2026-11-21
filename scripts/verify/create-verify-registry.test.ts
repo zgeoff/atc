@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { updateEnv } from '@atc/core/test-utils/update-env';
+import { updateEnv } from '@zgeoff/testing';
 import { createVerifyRegistry } from './create-verify-registry.ts';
 
 test('it uploads the evidence of the launch targets to the file host and keeps the prod evidence local', () => {

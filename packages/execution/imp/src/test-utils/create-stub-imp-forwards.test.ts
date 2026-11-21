@@ -1,14 +1,13 @@
 import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import type { ImpRelayConnection } from '../port/imp-port';
 import { createStubImpForwards } from './create-stub-imp-forwards';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-imp-forwards-');
+  const temporaryDirectory = createTempDir('atc-stub-imp-forwards-');
   const calls: string[] = [];
   const forwards = createStubImpForwards({ calls });
   const guestPath = join(temporaryDirectory.path, 'guest.sock');

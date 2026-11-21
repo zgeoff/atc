@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
+import { updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { runHookReport } from './run-hook-report';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-hook-report-');
+  const temporaryDirectory = createTempDir('atc-hook-report-');
   const sock = join(temporaryDirectory.path, 'reporter.sock');
   const reporter = startStubReporterSocket(sock);
 
@@ -43,7 +43,7 @@ test('it forwards a Claude SessionStart envelope as SessionStart', async () => {
 });
 
 test('it waits past 2 s for the daemon to close a session start report', async () => {
-  const temporaryDirectory = setupTempDir('atc-hook-report-held-');
+  const temporaryDirectory = createTempDir('atc-hook-report-held-');
   const sock = join(temporaryDirectory.path, 'reporter.sock');
   const order: string[] = [];
 

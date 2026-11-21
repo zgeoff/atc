@@ -1,6 +1,5 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { startStubSilentServer } from './start-stub-silent-server';
 
 test('it takes a request and never answers it', async () => {

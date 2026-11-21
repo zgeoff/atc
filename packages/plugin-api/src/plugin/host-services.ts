@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 
 export interface HostServices {
   readonly atcArgv: readonly string[];
@@ -11,7 +11,7 @@ export interface HostServices {
     argv: readonly string[],
     options?: HostCommandOptions,
   ) => Promise<HostCommandResult>;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   readonly log: (line: string) => void;
 }

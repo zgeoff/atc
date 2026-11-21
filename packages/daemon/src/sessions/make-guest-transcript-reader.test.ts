@@ -1,12 +1,12 @@
 import { expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { makeGuestTranscriptReader } from './make-guest-transcript-reader';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-guest-transcript-');
+  const temporaryDirectory = createTempDir('atc-guest-transcript-');
 
   return { directory: temporaryDirectory.path };
 }

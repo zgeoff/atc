@@ -3,16 +3,16 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startTestDaemon } from '../test-utils/start-test-daemon';
 import { runWorkspacesPrune } from './run-workspaces-prune';
 
 async function setupTest() {
   const git = await createGitFixture({ prefix: 'atc-workspaces-prune-' });
 
-  const root = setupTempDir('atc-workspaces-prune-root-').path;
+  const root = createTempDir('atc-workspaces-prune-root-').path;
 
   const daemon = await startTestDaemon({
     prefix: 'atc-workspaces-prune-daemon-',

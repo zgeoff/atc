@@ -1,15 +1,15 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { closeSync, constants, openSync, readSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { writeUntilPipeFull } from './write-until-pipe-full';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-write-until-pipe-full-');
+  const temporaryDirectory = createTempDir('atc-write-until-pipe-full-');
   const fifoPath = join(temporaryDirectory.path, 'pipe');
 
-  await runCommand(['mkfifo', fifoPath]);
+  await run(['mkfifo', fifoPath]);
 
   const readEnd = openSync(fifoPath, constants.O_RDONLY | constants.O_NONBLOCK);
 

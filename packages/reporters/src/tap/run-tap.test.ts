@@ -3,14 +3,13 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { startStubRecordingListener } from '@atc/protocol/test-utils/start-stub-recording-listener';
 import { startStubSessionBridge } from '@atc/protocol/test-utils/start-stub-session-bridge';
+import { updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { runTap } from './run-tap';
 
@@ -93,7 +92,7 @@ test('it writes each pending message as an NDJSON line and acks it', async () =>
 });
 
 test('it sends the build it is given as the client of its handshake', async () => {
-  const temporaryDirectory = setupTempDir('atc-tap-');
+  const temporaryDirectory = createTempDir('atc-tap-');
   const sock = join(temporaryDirectory.path, 'atc-daemon.sock');
   const listener = startStubRecordingListener(sock);
 
@@ -125,7 +124,7 @@ test('it sends the build it is given as the client of its handshake', async () =
 });
 
 test('it exits 1 with a hint when no daemon listens', async () => {
-  const temporaryDirectory = setupTempDir('atc-tap-');
+  const temporaryDirectory = createTempDir('atc-tap-');
   const errors: string[] = [];
   const codes: number[] = [];
 
@@ -252,7 +251,7 @@ test('it exits 0 when another tap replaces it', async () => {
 });
 
 test('it taps through the session bridge inside a remote host', async () => {
-  const temporaryDirectory = setupTempDir('atc-tap-');
+  const temporaryDirectory = createTempDir('atc-tap-');
   const sock = join(temporaryDirectory.path, 'bridge.sock');
   const outbox = join(temporaryDirectory.path, 'outbox');
 

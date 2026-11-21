@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 
 interface TestCertificate {
@@ -10,7 +10,7 @@ interface TestCertificate {
 
 // Shells out to openssl because neither Bun nor node:crypto can create an X.509 certificate.
 export async function createTestCertificate(hostname: string): Promise<TestCertificate> {
-  const temporaryDirectory = setupTempDir('atc-test-certificate-');
+  const temporaryDirectory = createTempDir('atc-test-certificate-');
   const certPath = join(temporaryDirectory.path, 'cert.pem');
   const keyPath = join(temporaryDirectory.path, 'key.pem');
 

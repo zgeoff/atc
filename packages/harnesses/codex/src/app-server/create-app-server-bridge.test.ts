@@ -1,7 +1,7 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildStubMessageBridgeHost } from '../test-utils/build-stub-message-bridge-host';
 import { startCodexTerminalThread } from '../test-utils/start-codex-terminal-thread';
 import { startStubCodexAppServer } from '../test-utils/start-stub-codex-app-server';
@@ -11,7 +11,7 @@ import { createAppServerConnection } from './create-app-server-connection';
 import type { AppServerConnection, AppServerNotification } from './create-app-server-connection';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-app-server-bridge-');
+  const temporaryDirectory = createTempDir('atc-app-server-bridge-');
   const socket = join(temporaryDirectory.path, 'codex.sock');
 
   return {

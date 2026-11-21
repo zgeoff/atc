@@ -1,16 +1,15 @@
 import { expect, mock, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock } from '@atc/core';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
 import type { AgentAdapter, GuestPaths } from '@atc/plugin-api';
 import { EffectRemainsError } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
+import { systemClock } from '@zgeoff/std';
+import { registerTestCleanup, updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createAuthSetup } from '../auth/create-auth-setup';
 import { createRuntimeAuthBinder } from '../auth/create-runtime-auth-binder';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
@@ -40,7 +39,7 @@ interface SetupTestConfig {
 }
 
 async function setupTest(config: SetupTestConfig) {
-  const temporaryDirectory = setupTempDir('atc-session-spawner-');
+  const temporaryDirectory = createTempDir('atc-session-spawner-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);
@@ -234,7 +233,7 @@ test("it tags the environment of a local session's message bridge with the sessi
 test("it tags a remote session's telemetry with its ID alone, without the daemon's resource attributes", async () => {
   updateEnv('OTEL_RESOURCE_ATTRIBUTES', 'service.namespace=lab');
 
-  const directory = setupTempDir('atc-session-spawner-guest-').path;
+  const directory = createTempDir('atc-session-spawner-guest-').path;
 
   const provider = buildStubMemoryProvider({
     kind: 'cloud',
@@ -264,7 +263,7 @@ test("it tags a remote session's telemetry with its ID alone, without the daemon
 });
 
 test('it refuses a remote spawn on a provider that cannot carry the session bridge, before it readies a host', async () => {
-  const directory = setupTempDir('atc-session-spawner-guest-').path;
+  const directory = createTempDir('atc-session-spawner-guest-').path;
 
   const provider = buildStubMemoryProvider({
     kind: 'cloud',
@@ -300,7 +299,7 @@ test('it refuses a remote spawn on a provider that cannot carry the session brid
 });
 
 test('it launches a routed session at revision 1 with no binding, admission or recorded revision', async () => {
-  const directory = setupTempDir('atc-session-spawner-routed-').path;
+  const directory = createTempDir('atc-session-spawner-routed-').path;
   const stub = buildStubCredentialRouter();
   const planned: GuestPaths[] = [];
 
@@ -357,7 +356,7 @@ test('it launches a routed session at revision 1 with no binding, admission or r
 });
 
 test('it refuses a routed launch whose routes do not verify before it readies a host', async () => {
-  const directory = setupTempDir('atc-session-spawner-routed-').path;
+  const directory = createTempDir('atc-session-spawner-routed-').path;
   const stub = buildStubCredentialRouter();
 
   const provider = buildStubMemoryProvider({
@@ -395,7 +394,7 @@ test('it refuses a routed launch whose routes do not verify before it readies a 
 });
 
 test('it refuses to revoke or rebind the auth of a routed host', async () => {
-  const directory = setupTempDir('atc-session-spawner-routed-').path;
+  const directory = createTempDir('atc-session-spawner-routed-').path;
 
   const provider = buildStubMemoryProvider({
     kind: 'cloud',

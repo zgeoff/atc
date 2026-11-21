@@ -1,4 +1,3 @@
-import type { Clock } from '@atc/core';
 import { isRecord, truncateToBytes } from '@atc/core';
 import type { HarnessRelay } from '@atc/plugin-api';
 import type { AdapterEvent } from '@atc/protocol';
@@ -6,6 +5,7 @@ import type { HookEvent } from '@atc/protocol/session';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { StateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { BridgeBinding } from '../auth/is-binding-current';
 import { formatLogField } from '../logging/format-log-field';
 import { ANSWER_BYTE_CAP } from '../transport/constants';
@@ -34,7 +34,7 @@ interface HookIntakeDeps {
     | 'updateMessagesAnswered'
     | 'updateMessagesUnanswered'
   >;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly messages: Pick<
     MessageService,
     | 'recordTrailEntry'

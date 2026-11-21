@@ -1,6 +1,6 @@
-import type { Clock } from '@atc/core';
 import type { StateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { SessionManager } from '../sessions/create-session-manager';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
 import { restoreFleet } from './restore-fleet';
@@ -15,7 +15,7 @@ export interface FleetRestorer {
 interface FleetRestorerDeps {
   readonly manager: SessionManager;
   readonly store: StateStore;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
   readonly capMs: number;

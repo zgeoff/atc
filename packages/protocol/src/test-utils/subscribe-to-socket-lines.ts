@@ -1,5 +1,4 @@
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { createOutboundQueue } from '../wire/index';
 import type { OutboundQueue } from '../wire/index';
 
@@ -91,7 +90,7 @@ export async function subscribeToSocketLines(
         {
           timeoutMs,
           now: options.now ?? Date.now,
-          wait: options.wait ?? Bun.sleep,
+          sleep: options.wait ?? Bun.sleep,
         },
       );
 

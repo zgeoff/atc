@@ -1,12 +1,11 @@
 import { expect, test } from 'bun:test';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { runGit } from './run-git';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-run-git-');
+  const temporaryDirectory = createTempDir('atc-run-git-');
 
   return { directory: temporaryDirectory.path };
 }

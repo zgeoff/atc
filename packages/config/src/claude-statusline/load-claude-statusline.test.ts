@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
+import { updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { loadClaudeStatusLine } from './load-claude-statusline';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-claude-statusline-');
+  const temporaryDirectory = createTempDir('atc-claude-statusline-');
 
   return { home: temporaryDirectory.path };
 }

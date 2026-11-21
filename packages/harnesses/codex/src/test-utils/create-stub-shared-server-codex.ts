@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 
 interface StubSharedServerCodexConfig {
   readonly atc: readonly string[];
@@ -17,7 +17,7 @@ export function createStubSharedServerCodex(
   const report = `${config.atc.map((part) => `"${part}"`).join(' ')} hook-report --agent codex`;
   const server = join(directory, 'codex-shared-server.env');
 
-  return createStubBin(
+  return writeStubProgram(
     directory,
     'fake-codex',
     `#!/usr/bin/env bash

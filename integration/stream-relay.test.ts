@@ -2,14 +2,14 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { openStreamRelay } from '@atc/plugin-api';
 import type { HarnessRelay, RelayLink, RelayLinkConnection } from '@atc/plugin-api';
 import { startRelayMux } from '@atc/reporters/relay-mux';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 async function setupTest() {
-  const directory = setupTempDir('atc-stream-relay-');
+  const directory = createTempDir('atc-stream-relay-');
   const socketPath = join(directory.path, 'bridge.sock');
   const clock = buildStubClock(0);
 

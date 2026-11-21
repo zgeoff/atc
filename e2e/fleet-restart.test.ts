@@ -3,15 +3,13 @@ import { chmod, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { RestoreSettled } from '@atc/daemon';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 test('it restores the stored sessions by itself after a restart', async () => {
   const clock = buildStubClock(0);
@@ -494,7 +492,7 @@ test('it spawns nothing for a fleet.restore after the automatic restore settled'
 });
 
 test('it restores the rest of the fleet past rows whose repository cannot be resolved', async () => {
-  const locked = setupTempDir('atc-daemon-fleet-locked-').path;
+  const locked = createTempDir('atc-daemon-fleet-locked-').path;
   const clock = buildStubClock(0);
   const settles: RestoreSettled[] = [];
 

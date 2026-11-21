@@ -1,20 +1,18 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildStubMCPGrok } from './build-stub-mcp-grok';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-mcp-grok-');
+  const temporaryDirectory = createTempDir('atc-stub-mcp-grok-');
   const reporter = startStubReporterSocket(join(temporaryDirectory.path, 'report.sock'));
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     temporaryDirectory.path,
     'grok',
     buildStubMCPGrok(readSourceEntry('atc')),
@@ -139,7 +137,7 @@ test('it reports through the CLI entry it is given, with none in the environment
 
   updateEnv('ATC_CLI_ENTRY', undefined);
 
-  const bin = createStubBin(ctx.directory, 'given-entry', buildStubMCPGrok(entry));
+  const bin = writeStubProgram(ctx.directory, 'given-entry', buildStubMCPGrok(entry));
 
   const subprocess = Bun.spawn([bin], {
     env: {

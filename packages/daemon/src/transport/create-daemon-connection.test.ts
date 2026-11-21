@@ -1,8 +1,5 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildPeerRequestLine } from '@atc/protocol/test-utils/build-peer-request-line';
 import { buildStubPeerSocket } from '@atc/protocol/test-utils/build-stub-peer-socket';
 import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
@@ -12,6 +9,9 @@ import { MAX_LINE, PROTOCOL_V } from '@atc/protocol/wire';
 import type { DaemonEvent, SessionID } from '@atcx/contract';
 import { toSessionID } from '@atcx/contract';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import { buildStubDaemonContext } from '../test-utils/build-stub-daemon-context';
@@ -20,7 +20,7 @@ import type { DaemonContext } from '../types';
 import { createDaemonConnection } from './create-daemon-connection';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-daemon-connection-');
+  const temporaryDirectory = createTempDir('atc-daemon-connection-');
 
   return { socketPath: join(temporaryDirectory.path, 'daemon.sock') };
 }
@@ -2203,11 +2203,14 @@ test('it sends a closed peer connection disposed again no event, so xstate warns
     'conn.dispose();',
   ].join('\n');
 
-  const run = await runCommand([process.execPath, '--conditions', 'development', '-e', script], {
+  const result = await run([process.execPath, '--conditions', 'development', '-e', script], {
     cwd: import.meta.dir,
   });
 
-  expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({ exitCode: 0, stderr: '' });
+  expect({ exitCode: result.exitCode, stderr: result.stderr }).toStrictEqual({
+    exitCode: 0,
+    stderr: '',
+  });
 });
 
 test('it refuses a peer handshake that gives another session than the one the kernel names, and ends the connection', async () => {

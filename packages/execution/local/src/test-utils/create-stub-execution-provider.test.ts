@@ -1,14 +1,13 @@
 import { expect, mock, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createLocalPTYProvider } from '../create-local-pty-provider';
 import { createStubExecutionProvider } from './create-stub-execution-provider';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-provider-');
+  const temporaryDirectory = createTempDir('atc-stub-provider-');
 
   return { directory: temporaryDirectory.path };
 }

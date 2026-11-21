@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openATCAuthAdmin } from '@atc/mcp';
 import type { PasskeyID } from '@atc/mcp';
 import { toTagged } from '@zgeoff/std';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { seedATCPasskey } from './seed-atc-passkey';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-seed-atc-passkey-');
+  const temporaryDirectory = createTempDir('atc-seed-atc-passkey-');
   const sqlite = openMCPAuthDatabase(join(temporaryDirectory.path, 'mcp-auth.db'));
 
   registerTestCleanup(() => {

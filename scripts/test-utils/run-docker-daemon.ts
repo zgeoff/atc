@@ -1,10 +1,10 @@
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStandInImage } from '@atc/execution-docker/test-utils/create-stand-in-image';
 import { readDockerLines } from '@atc/execution-docker/test-utils/read-docker-lines';
 import { runDocker } from '@atc/execution-docker/test-utils/run-docker';
+import { waitFor } from '@zgeoff/testing';
 import { dockerTokenValue } from '../verify/constants.ts';
 import { openDaemonConnection } from '../verify/open-daemon-connection.ts';
 import { readRunHome } from '../verify/read-run-home.ts';

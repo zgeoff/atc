@@ -3,8 +3,6 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { updateEnv } from '@atc/core/test-utils/update-env';
 import { buildStubGH } from '@atc/daemon/test-utils/build-stub-gh';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubDirProvider } from '@atc/execution-local/test-utils/create-stub-dir-provider';
@@ -13,6 +11,8 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { buildDirsSource } from '@atc/source-dirs';
 import { buildGitSource } from '@atc/source-git';
 import { buildGitHubSource } from '@atc/source-github';
+import { updateEnv } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
 
 test('it lists the sources it offers in order in agents.list', async () => {
   const daemon = await startTestDaemon({
@@ -236,10 +236,8 @@ test('it lists the configured GitHub owner through gh at the clone URL gh prefer
     }),
   });
 
-  createStubBin(
-    daemon.directory,
-    'gh',
-    buildStubGH({
+  createStubBin(daemon.directory, 'gh', {
+    script: buildStubGH({
       replies: {
         config: { stdout: 'ssh\n' },
         repo: {
@@ -249,7 +247,7 @@ test('it lists the configured GitHub owner through gh at the clone URL gh prefer
       },
       argvFile: join(daemon.directory, 'gh-argv'),
     }),
-  );
+  });
 
   const listed = await daemon.client.sendRequest('sources.list', { source: 'github' });
   const argv = await readFile(join(daemon.directory, 'gh-argv'), 'utf8');
@@ -289,10 +287,8 @@ test('it lists the scope a request holds over the configured owner, at https URL
     }),
   });
 
-  createStubBin(
-    daemon.directory,
-    'gh',
-    buildStubGH({
+  createStubBin(daemon.directory, 'gh', {
+    script: buildStubGH({
       replies: {
         config: { exitCode: 1 },
         repo: {
@@ -302,7 +298,7 @@ test('it lists the scope a request holds over the configured owner, at https URL
       },
       argvFile: join(daemon.directory, 'gh-argv'),
     }),
-  );
+  });
 
   const listed = await daemon.client.sendRequest('sources.list', {
     source: 'github',
@@ -344,14 +340,12 @@ test('it refuses a GitHub scope gh could read as an option, running no gh', asyn
     }),
   });
 
-  createStubBin(
-    daemon.directory,
-    'gh',
-    buildStubGH({
+  createStubBin(daemon.directory, 'gh', {
+    script: buildStubGH({
       replies: { repo: { stdout: '[]\n' } },
       argvFile: join(daemon.directory, 'gh-argv'),
     }),
-  );
+  });
 
   const listed = daemon.client.sendRequest('sources.list', {
     source: 'github',
@@ -577,7 +571,9 @@ test.each([
     }),
   });
 
-  createStubBin(daemon.directory, 'gh', buildStubGH({ replies: { config: { stdout: 'ssh\n' } } }));
+  createStubBin(daemon.directory, 'gh', {
+    script: buildStubGH({ replies: { config: { stdout: 'ssh\n' } } }),
+  });
 
   const interpreted = await daemon.client.sendRequest('sources.interpret', { source, input });
 

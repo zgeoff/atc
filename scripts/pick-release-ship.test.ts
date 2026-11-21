@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { copyFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { pickReleaseShip } from './pick-release-ship';
 
 test.each([
@@ -161,13 +161,13 @@ test.each([
 });
 
 test('it runs from a folder with no installed packages, as the release job runs it', async () => {
-  const directory = setupTempDir('pick-release-ship-bare-');
+  const directory = createTempDir('pick-release-ship-bare-');
   const output = join(directory.path, 'output');
   const script = join(directory.path, 'pick-release-ship.ts');
 
   copyFileSync(join(import.meta.dir, 'pick-release-ship.ts'), script);
 
-  const picked = await runCommand(['bun', '--no-install', script], {
+  const picked = await run(['bun', '--no-install', script], {
     cwd: directory.path,
     env: {
       ...process.env,
@@ -186,10 +186,10 @@ test('it runs from a folder with no installed packages, as the release job runs 
 });
 
 test('it writes the picked ship to the step output', async () => {
-  const directory = setupTempDir('pick-release-ship-');
+  const directory = createTempDir('pick-release-ship-');
   const output = join(directory.path, 'output');
 
-  const picked = await runCommand(['bun', join(import.meta.dir, 'pick-release-ship.ts')], {
+  const picked = await run(['bun', join(import.meta.dir, 'pick-release-ship.ts')], {
     env: {
       ...process.env,
       GITHUB_OUTPUT: output,

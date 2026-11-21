@@ -3,13 +3,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectHooks } from '@atc/config';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { EventMsg } from '@atc/protocol/wire';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { makeHookRunner } from './make-hook-runner';
 import type { HookOutcome } from './make-hook-runner';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-hook-runner-');
+  const temporaryDirectory = createTempDir('atc-hook-runner-');
   const settled = Promise.withResolvers<readonly HookOutcome[]>();
   const clock = buildStubClock(0);
 

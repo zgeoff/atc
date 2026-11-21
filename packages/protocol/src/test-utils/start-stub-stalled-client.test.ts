@@ -3,9 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { PROTOCOL_V } from '../wire/index';
 import { buildPeerRequestLine } from './build-peer-request-line';
@@ -13,7 +12,7 @@ import { startStubAnsweringListener } from './start-stub-answering-listener';
 import { startStubStalledClient } from './start-stub-stalled-client';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-stalled-client-');
+  const temporaryDirectory = createTempDir('atc-stub-stalled-client-');
   const path = join(temporaryDirectory.path, 'daemon.sock');
 
   const listener = await startStubAnsweringListener(path);

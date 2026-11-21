@@ -2,11 +2,11 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { runATC } from './run-atc';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-run-atc-');
+  const temporaryDirectory = createTempDir('atc-run-atc-');
 
   return { directory: temporaryDirectory.path };
 }

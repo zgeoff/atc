@@ -1,10 +1,10 @@
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 
 // Modelled on the composers the Codex and Grok TUIs draw: raw mode with
 // bracketed paste on, where each read is one input event batch and a read of
 // more than one byte outside a paste is a paste burst.
 export function createStubComposer(directory: string): string {
-  return createStubBin(
+  return writeStubProgram(
     directory,
     'fake-composer.js',
     String.raw`const OPEN = '\u001B[200~';

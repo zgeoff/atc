@@ -1,8 +1,8 @@
-import type { Clock } from '@atc/core';
-import { systemClock } from '@atc/core';
 import type { HarnessHandle } from '@atc/plugin-api';
 import type { FleetEntry, StateStore } from '@atc/store';
 import type { SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import type { SessionManager } from '../sessions/create-session-manager';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
 import type { Session } from '../sessions/session';
@@ -28,7 +28,7 @@ interface RestoreFleetParams {
 
   readonly retryDelaysMs?: readonly number[];
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 }
 
 const RESTORE_RETRY_DELAYS_MS: readonly number[] = [5000, 15_000, 45_000];

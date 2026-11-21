@@ -3,14 +3,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { buildStubRecordingATC } from '@atc/core/test-utils/build-stub-recording-atc';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { createStubSystemd } from './create-stub-systemd';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-systemd-');
+  const temporaryDirectory = createTempDir('atc-stub-systemd-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -18,7 +18,7 @@ function setupTest() {
 test('it answers a MainPID that no process holds while none is written', async () => {
   const fake = createStubSystemd(['/bin/true']);
 
-  const show = await runCommand([
+  const show = await run([
     join(fake.binDir, 'systemctl'),
     '--user',
     'show',
@@ -36,7 +36,7 @@ test('it answers the MainPID that was written', async () => {
 
   fake.writeMainPID(4321);
 
-  const show = await runCommand([
+  const show = await run([
     join(fake.binDir, 'systemctl'),
     '--user',
     'show',
@@ -52,7 +52,7 @@ test('it answers the MainPID that was written', async () => {
 test('it answers an ExecStart that runs atc daemon', async () => {
   const fake = createStubSystemd(['/bin/true']);
 
-  const show = await runCommand([
+  const show = await run([
     join(fake.binDir, 'systemctl'),
     '--user',
     'show',
@@ -68,20 +68,18 @@ test('it answers an ExecStart that runs atc daemon', async () => {
 test('it records a restart without a main pid and exits 0', async () => {
   const fake = createStubSystemd(['/bin/true']);
 
-  const run = await runCommand([join(fake.binDir, 'systemctl'), '--user', 'restart', 'a.service']);
+  const result = await run([join(fake.binDir, 'systemctl'), '--user', 'restart', 'a.service']);
 
-  expect(run.exitCode).toBe(0);
+  expect(result.exitCode).toBe(0);
   expect(fake.readSystemctlCalls()).toStrictEqual(['--user restart a.service']);
 });
 
 test('it stops the main pid and starts atc daemon on restart', async () => {
   const ctx = setupTest();
 
-  const atc = createStubBin(
-    join(ctx.directory, 'bin'),
-    'atc',
-    buildStubRecordingATC(join(ctx.directory, 'started')),
-  );
+  const atc = createStubBin(join(ctx.directory, 'bin'), 'atc', {
+    script: buildStubRecordingATC(join(ctx.directory, 'started')),
+  }).path;
 
   const fake = createStubSystemd([atc]);
   const main = Bun.spawn(['sleep', '30']);
@@ -92,7 +90,7 @@ test('it stops the main pid and starts atc daemon on restart', async () => {
 
   fake.writeMainPID(main.pid);
 
-  await runCommand([join(fake.binDir, 'systemctl'), '--user', 'restart', 'a.service']);
+  await run([join(fake.binDir, 'systemctl'), '--user', 'restart', 'a.service']);
 
   await waitFor(() => {
     expect(readFileSync(join(ctx.directory, 'started'), 'utf8')).toBe(
@@ -110,7 +108,7 @@ test('it runs the systemd-run command with only the setenv variables and the uni
   const fake = createStubSystemd(['/bin/true']);
   const out = join(ctx.directory, 'out.log');
 
-  await runCommand([
+  await run([
     join(fake.binDir, 'systemd-run'),
     '--user',
     '--collect',
@@ -137,7 +135,7 @@ test('it runs the systemd-run command with only the setenv variables and the uni
 test('it records every systemd-run call', async () => {
   const fake = createStubSystemd(['/bin/true']);
 
-  await runCommand([
+  await run([
     join(fake.binDir, 'systemd-run'),
     '--user',
     '--unit',
@@ -155,7 +153,7 @@ test('it records every systemd-run call', async () => {
 test('it prints no bound units while none are written', async () => {
   const fake = createStubSystemd(['/bin/true']);
 
-  const show = await runCommand([
+  const show = await run([
     join(fake.binDir, 'systemctl'),
     '--user',
     'show',
@@ -172,7 +170,7 @@ test('it prints the bound units that were written', async () => {
 
   fake.writeBoundBy(['a-session-1.scope', 'other.scope']);
 
-  const show = await runCommand([
+  const show = await run([
     join(fake.binDir, 'systemctl'),
     '--user',
     'show',
@@ -187,7 +185,7 @@ test('it prints the bound units that were written', async () => {
 test('it replaces systemd-run with the scope command in its own process and environment', async () => {
   const fake = createStubSystemd(['/bin/true']);
 
-  const run = Bun.spawn(
+  const scope = Bun.spawn(
     [
       join(fake.binDir, 'systemd-run'),
       '--user',
@@ -201,9 +199,9 @@ test('it replaces systemd-run with the scope command in its own process and envi
     { env: { PATH: process.env['PATH'], SCOPED: 'yes' }, stdout: 'pipe' },
   );
 
-  const stdout = await new Response(run.stdout).text();
+  const stdout = await new Response(scope.stdout).text();
 
-  expect(stdout).toBe(`pid:${run.pid} scoped:yes\n`);
+  expect(stdout).toBe(`pid:${scope.pid} scoped:yes\n`);
 
   expect(fake.readSystemdRunCalls()).toStrictEqual([
     '--user --scope --unit=a-session-1.scope -- bash -c echo "pid:$$ scoped:$SCOPED"',

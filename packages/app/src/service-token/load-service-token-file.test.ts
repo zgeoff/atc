@@ -2,11 +2,11 @@ import { expect, test } from 'bun:test';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NODE_TOKEN_FILE_ACCESS } from '@atc/config/token-file';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { loadServiceTokenFile } from './load-service-token-file';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-service-token-file-');
+  const temporaryDirectory = createTempDir('atc-service-token-file-');
 
   return { directory: temporaryDirectory.path };
 }

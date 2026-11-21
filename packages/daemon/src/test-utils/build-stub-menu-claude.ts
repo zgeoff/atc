@@ -1,6 +1,5 @@
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
-import { machineTypes } from '@zgeoff/std';
+import type { Clock } from '@zgeoff/std';
+import { machineTypes, systemClock } from '@zgeoff/std';
 import { createActor, enqueueActions, raise, setup } from 'xstate';
 import type { StubMemoryHarness } from './build-stub-memory-provider';
 
@@ -36,7 +35,9 @@ interface StubMenuClaude {
   readonly exit: () => void;
 }
 
-export function buildStubMenuClaude(clock: Clock = systemClock): StubMenuClaude {
+export function buildStubMenuClaude(
+  clock: Pick<Clock, 'now' | 'schedule'> = systemClock,
+): StubMenuClaude {
   const log: Readonly<Record<string, unknown>>[] = [];
   const sessions: { harness: StubMemoryHarness; open: (menu: StubMenu) => void }[] = [];
   let loaded: StubMenuScenario | null = null;
@@ -112,7 +113,7 @@ function runStubMenuSession(
   harness: StubMemoryHarness,
   scenario: StubMenuScenario,
   log: Readonly<Record<string, unknown>>[],
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
 ): (menu: StubMenu) => void {
   const [first] = scenario.menus;
 

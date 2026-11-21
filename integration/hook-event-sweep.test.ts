@@ -2,11 +2,10 @@ import { expect, test } from 'bun:test';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import type { AdapterEvent } from '@atc/protocol';
 import { createStateStore } from '@atc/store';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 
 async function setupTest() {
   const clock = buildStubClock(Date.parse('2026-01-01T00:00:00.000Z'));

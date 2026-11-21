@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import type { GatewayChannel, GatewayRegistry, RegistryDaemon } from '../types';
 import { createGatewayDaemonCaller } from './create-gateway-daemon-caller';
 import type { GatewayDaemonCaller } from './create-gateway-daemon-caller';
@@ -11,7 +11,7 @@ interface DaemonPoolOptions {
   ) => GatewayChannel | Promise<GatewayChannel>;
   readonly connectTimeoutMs?: number;
   readonly responseTimeoutMs?: number;
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
   readonly onWarning: (message: string) => void;
 }
 

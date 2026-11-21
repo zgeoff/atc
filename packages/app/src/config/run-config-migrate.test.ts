@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { runConfigMigrate } from './run-config-migrate';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-config-migrate-');
+  const temporaryDirectory = createTempDir('atc-config-migrate-');
 
   return { directory: temporaryDirectory.path };
 }

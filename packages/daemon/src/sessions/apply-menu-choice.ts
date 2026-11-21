@@ -1,7 +1,7 @@
-import type { Clock } from '@atc/core';
 import type { ScreenMenu } from '@atc/plugin-api';
 import type { MenuView } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
 import { buildMenuView } from './build-menu-view';
 import { expandScreenMenu } from './expand-screen-menu';
 import { MENU_KEYS, MENU_TIMING } from './menu-terminal';
@@ -25,7 +25,7 @@ export interface MenuChoiceResult {
 export async function applyMenuChoice(
   terminal: MenuTerminal,
   choice: MenuChoice,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
   timing: MenuTiming = MENU_TIMING,
 ): Promise<MenuChoiceResult> {
   const waits = { clock, timing };

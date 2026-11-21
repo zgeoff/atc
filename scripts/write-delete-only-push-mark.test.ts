@@ -9,8 +9,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { $ } from 'bun';
 import { spawn } from 'bun-pty';
 import invariant from 'tiny-invariant';

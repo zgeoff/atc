@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
+import { updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { resolveClaudeGlobalConfigPath } from './resolve-claude-global-config-path';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-claude-config-path-');
+  const temporaryDirectory = createTempDir('atc-claude-config-path-');
 
   return { directory: temporaryDirectory.path };
 }

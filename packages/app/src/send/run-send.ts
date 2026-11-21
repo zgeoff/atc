@@ -1,5 +1,5 @@
-import type { Clock } from '@atc/core';
 import { MESSAGE_ANSWER_SCHEMA } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { formatCommandOutcome } from '../cli/format-command-outcome';
@@ -27,7 +27,7 @@ export interface SendDependencies {
 
   readonly insideSession: boolean;
   readonly mintKey: () => string;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly io: Pick<ProcessIO, 'print' | 'printError'>;
 }
 

@@ -2,13 +2,13 @@ import { expect, mock, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config/host';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildMockLifecycleHost } from '../test-utils/build-mock-lifecycle-host';
 import { restartDaemonAtSocket } from './restart-daemon-at-socket';
 
 function setupTest() {
-  const directory = setupTempDir('restart-daemon-at-socket-').path;
+  const directory = createTempDir('restart-daemon-at-socket-').path;
   const paths = resolvePaths({ HOME: directory, XDG_RUNTIME_DIR: directory });
   const procRoot = join(directory, 'proc');
 

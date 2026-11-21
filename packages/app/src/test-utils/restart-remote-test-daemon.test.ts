@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
+import { waitFor } from '@zgeoff/testing';
 import { restartRemoteTestDaemon } from './restart-remote-test-daemon';
 import { startRemoteTestDaemon } from './start-remote-test-daemon';
 

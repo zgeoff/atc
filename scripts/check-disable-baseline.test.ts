@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('check-disable-baseline-');
+  const temporaryDirectory = createTempDir('check-disable-baseline-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -31,7 +31,7 @@ test('it passes a count at the baseline, skipping other rules and strings', asyn
     ].join('\n'),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
     ctx.directory,
@@ -74,7 +74,7 @@ test('it fails on more import rule directives than the baseline', async () => {
     "// oxlint-disable-next-line import/no-cycle\nimport { A } from './a';\n\nexport const B = A;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
     ctx.directory,
@@ -105,7 +105,7 @@ test('it counts a directive that switches off the package boundaries', async () 
     "// oxlint-disable-next-line zgeoff/import-zones -- the clock reads the host\nimport { hrtime } from 'node:process';\n\nexport const NOW = hrtime;\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
     ctx.directory,
@@ -141,7 +141,7 @@ test('it counts a directive that switches off the require ban, in a mod too', as
     "// eslint-disable-next-line @typescript-eslint/no-require-imports\nexport const PTY: unknown = require('bun-pty');\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
     ctx.directory,
@@ -181,7 +181,7 @@ test('it counts a block directive whose rules span several lines', async () => {
     ].join('\n'),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
     ctx.directory,
@@ -221,7 +221,7 @@ test('it skips directive text inside a multiline template', async () => {
     ].join('\n'),
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
     ctx.directory,
@@ -248,7 +248,7 @@ test('it asks for a lower baseline when the count falls below it', async () => {
 
   await Bun.write(join(ctx.directory, 'packages/core/src/a.ts'), 'export const A = 1;\n');
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-disable-baseline.ts'),
     ctx.directory,
