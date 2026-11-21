@@ -223,6 +223,70 @@ test('it attaches the selected row on its own daemon when two daemons hold the s
   expect(ctx.sent).toStrictEqual(['attach:local/s-1', 'attach:box/s-1']);
 });
 
+test.each([
+  { name: 'enter', key: '\r', expected: ['attach:local/app'] },
+  { name: 'p', key: 'p', expected: ['pin:local/app'] },
+])('it acts on the selected session with $name after a fleet change moved its row', (row) => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'api', name: 'api', lastAttachedAt: 3 }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'app', name: 'app', lastAttachedAt: 2 }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'web', name: 'web', lastAttachedAt: 1 }));
+  ctx.overlay.select(1);
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'web', name: 'web', lastAttachedAt: 10 }));
+  ctx.press(row.key);
+
+  expect(ctx.sent).toStrictEqual([...row.expected]);
+});
+
+test('it asks to kill the selected session after a fleet change moved its row', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'api', name: 'api', lastAttachedAt: 3 }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'app', name: 'app', lastAttachedAt: 2 }));
+  ctx.overlay.select(1);
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'app', name: 'app', lastAttachedAt: 10 }));
+  ctx.press('K');
+
+  expect(ctx.service.getSnapshot().context.confirmKey).toStrictEqual({ daemon: null, id: 'app' });
+});
+
+test('it moves down from the selected session with j after a fleet change moved its row', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'api', name: 'api', lastAttachedAt: 3 }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'app', name: 'app', lastAttachedAt: 2 }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'web', name: 'web', lastAttachedAt: 1 }));
+  ctx.overlay.select(0);
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'api', name: 'api', lastAttachedAt: 0 }));
+  ctx.press('j');
+
+  expect(ctx.overlay.pickSessions()[ctx.overlay.selected]?.id).toBe('api');
+});
+
+test('it takes the next key as a list key once the session a question was open on left the list', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({ daemon: null, id: 's-1', name: 'doomed', lastAttachedAt: 2 }),
+  );
+
+  ctx.mirror.upsert(
+    buildMockMirrorSession({ daemon: null, id: 's-2', name: 'keeper', lastAttachedAt: 1 }),
+  );
+
+  ctx.press('X');
+
+  ctx.mirror.sessions = ctx.mirror.sessions.filter((session) => session.id !== 's-1');
+
+  ctx.press('g');
+
+  expect({
+    grouping: ctx.overlay.grouping,
+    confirm: ctx.service.getSnapshot().value.confirm,
+  }).toStrictEqual({ grouping: 'repo', confirm: 'none' });
+});
+
 test('it cycles the grouping from flat to repo, to place, and back to flat with g', () => {
   const ctx = setupTest();
   const seen = [ctx.overlay.grouping];

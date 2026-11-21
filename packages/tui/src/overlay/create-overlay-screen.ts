@@ -63,6 +63,10 @@ export interface OverlayScreen {
   // selection follows it when the rows reorder.
   readonly select: (index: number) => void;
 
+  // The rows `pickSessions` gives, with `selected` moved onto the selected session's row, since a
+  // fleet change can reorder the rows before the next frame does.
+  readonly syncSelection: () => MirrorSession[];
+
   // the panel the list draws, for the frame at `nowMs`
   readonly readInput: (nowMs: number, spinnerFrame: number) => PanelInput;
 
@@ -116,6 +120,18 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
     return narrowListRows(rows, self.jump?.typed ?? '');
   };
 
+  const moveSelectionTo = (sessions: readonly MirrorSession[], target: SessionKey | null) => {
+    const targetIndex = sessions.findIndex(
+      (session) => target !== null && isSameSessionKey(session, target),
+    );
+
+    if (targetIndex !== -1) {
+      self.selected = targetIndex;
+    }
+
+    self.selected = Math.max(0, Math.min(self.selected, sessions.length - 1));
+  };
+
   const self: OverlayScreen = {
     selected: 0,
     filter: null,
@@ -134,22 +150,21 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
       selectedKey = self.pickSessions()[index] ?? null;
     },
 
+    syncSelection: () => {
+      const sessions = self.pickSessions();
+
+      moveSelectionTo(sessions, selectedKey);
+
+      return sessions;
+    },
+
     readInput: (nowMs, spinnerFrame) => {
       const rows = pickRows();
       const sessions = rows.flatMap((row) => (row.kind === 'session' ? [row.session] : []));
       const confirm = deps.getConfirm();
       const confirmKey = confirm === 'none' ? null : deps.findConfirmKey();
-      const target = confirmKey ?? selectedKey;
 
-      const targetIndex = sessions.findIndex(
-        (session) => target !== null && isSameSessionKey(session, target),
-      );
-
-      if (targetIndex !== -1) {
-        self.selected = targetIndex;
-      }
-
-      self.selected = Math.max(0, Math.min(self.selected, sessions.length - 1));
+      moveSelectionTo(sessions, confirmKey ?? selectedKey);
 
       const subject = confirmKey === null ? undefined : deps.mirror.find(confirmKey);
       const daemonLines = collectDaemonLines();
