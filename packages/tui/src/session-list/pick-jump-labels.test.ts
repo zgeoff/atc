@@ -64,7 +64,8 @@ test('#pickJumpLabels gives 27 rows with one free letter labels that each pick t
   const names = Array.from({ length: 27 }, () => 'sdfghjklqwertyuiopzxcvbnm');
 
   const steps = pickJumpLabels(names, '').map((label) => {
-    const [first = '', second = ''] = [...(label ?? '')];
+    const first = label?.slice(0, 1) ?? '';
+    const second = label?.slice(1, 2) ?? '';
 
     return [
       stepJump({ typed: '', prefix: '' }, first, names),

@@ -25,10 +25,9 @@ test.each([4500, 59_999, 150_000, 5_400_000, 90_000_000])(
   '#findNextAgeChangeAt gives the moment the age shown at %i ms changes, and no sooner',
   (nowMs) => {
     const next = findNextAgeChangeAt('done', 0, nowMs) ?? 0;
+    const shown = formatAge('done', 0, nowMs);
 
-    expect([formatAge('done', 0, next - 1), formatAge('done', 0, next)]).toStrictEqual([
-      formatAge('done', 0, nowMs),
-      expect.not.stringMatching(`^${formatAge('done', 0, nowMs)}$`),
-    ]);
+    expect(formatAge('done', 0, next - 1)).toBe(shown);
+    expect(formatAge('done', 0, next)).not.toBe(shown);
   },
 );

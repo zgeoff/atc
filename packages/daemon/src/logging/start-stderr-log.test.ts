@@ -282,7 +282,11 @@ test('it writes its lines when an earlier owner of the process left LogTape conf
     closeSync(fd);
   });
 
-  await configure({ sinks: { left: () => {} }, loggers: [{ category: ['atc'], sinks: ['left'] }] });
+  await configure({
+    reset: true,
+    sinks: { left: () => {} },
+    loggers: [{ category: ['atc'], sinks: ['left'] }],
+  });
 
   onTestFinished(() => reset());
 
