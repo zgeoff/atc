@@ -535,7 +535,7 @@
     "@zgeoff/kysely-bun-sqlite": "0.3.3",
     "@zgeoff/mcp-auth": "0.3.0",
     "@zgeoff/oxlint-config": "0.11.1",
-    "@zgeoff/rig": "0.2.6",
+    "@zgeoff/rig": "0.3.2",
     "@zgeoff/std": "0.4.5",
     "@zgeoff/testing": "0.4.0",
     "bun-pty": "0.6.0",
@@ -1120,7 +1120,7 @@
 
     "@zgeoff/oxlint-config": ["@zgeoff/oxlint-config@0.11.1", "", { "dependencies": { "@stylistic/eslint-plugin": "5.10.0" }, "peerDependencies": { "oxlint": ">=1.78.0" } }, "sha512-Ja1TWQbOIxFk80v2YsvKLt7Hw9koRLK98yc1piQfqQuAPFL53+YAWtTOUBQgoPTrbe/F6VrBGsMTQSA5H1eJcA=="],
 
-    "@zgeoff/rig": ["@zgeoff/rig@0.2.6", "", { "dependencies": { "@zgeoff/diet": "0.2.3", "@zgeoff/std": "0.4.4", "gunshi": "1.0.0-rc.1", "ts-pattern": "5.9.2", "zod": "4.6.7" }, "bin": { "rig": "src/cli.ts" } }, "sha512-pV/SNB7OV+w8KoI2ZPwTRYAi4xHyuZQGhGty51mzYFd+FL/9AXKMHBJPXBALxu6gcjh4icnYuTnJrHbv2jj62Q=="],
+    "@zgeoff/rig": ["@zgeoff/rig@0.3.2", "", { "dependencies": { "@zgeoff/diet": "0.3.2", "@zgeoff/std": "0.4.5", "gunshi": "1.0.0-rc.1", "ts-pattern": "5.9.2", "zod": "4.6.7" }, "bin": { "rig": "src/cli.ts" } }, "sha512-uIrFSTALNo1okBayfOy0HyrC2B4DyNf8aw1/gxV23Ux8VC5q7vg74+ZATsLzyeGRPCLxGwZD2j3fCnxJagvaQg=="],
 
     "@zgeoff/std": ["@zgeoff/std@0.4.5", "", {}, "sha512-Z2rD5v0OVXRZTa3Jh2I8zmx9znzvnAa/bC5Ai0NidPh+pfJGfDLmQIVZhshbGXPu/S/9SFdP/chDw+N5Pk/lzg=="],
 
@@ -1704,9 +1704,7 @@
 
     "@wringer/gunshi/gunshi": ["gunshi@0.37.3", "", {}, "sha512-uwm23bguqDcleEetknuQnF5okLcgmQPM3iv4aWVHTPDbiSs9shh02F079NCY0mWkrIRjHqNhgmzW6k0FCXhy1g=="],
 
-    "@zgeoff/rig/@zgeoff/diet": ["@zgeoff/diet@0.2.3", "", { "bin": { "diet": "diet.sh" } }, "sha512-/UHiaa0sMLCNtvpr/puCJFRX9OpKJ020OF4STNyc1ncTVGAdPOeSt0TcTeVuU2fqDkl9pHeLgP7dW2MrXoc8Cg=="],
-
-    "@zgeoff/rig/@zgeoff/std": ["@zgeoff/std@0.4.4", "", {}, "sha512-AlT4lgjyC0ZhLUxxG0Sg9pxQG/+MIziC7BA9k29QDNt/ubGvB1+RCpTr/LaYkjFxiZnKG42psa4f2cp5BHGyzQ=="],
+    "@zgeoff/rig/@zgeoff/diet": ["@zgeoff/diet@0.3.2", "", { "bin": { "diet": "diet.sh" } }, "sha512-WTr8W2oOHfGFSASJgy/8LFHmiW5vRu2jduhsM5ixsMi7gAiTcERG7JhdLcIwksuyGTmOVxlCf7cRP6crAPDOig=="],
 
     "better-call/rou3": ["rou3@0.9.2", "", {}, "sha512-3SOzvaAg8rkHrXtRjpCvCvbyO5to9oOO27Z/XqHEYXfMRVSw/qMIVdmaOk9W2lcRLtR6dlqTjo9hDeJk70QBYQ=="],
 
