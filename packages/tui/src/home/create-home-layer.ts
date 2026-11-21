@@ -56,7 +56,7 @@ export function createHomeLayer(deps: HomeLayerDeps): Layer {
       if (coverage !== null) {
         paintWordmark(
           buffer,
-          buildWordmarkCells(coverage, frame.terminal.background),
+          buildWordmarkCells(coverage, frame.terminal.background, frame.terminal.depth),
           layout.wordmarkAt,
         );
       }

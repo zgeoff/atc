@@ -11,7 +11,7 @@ function setupTest() {
   // the colour one pixel shows once drawn: the top pixel of a cell is the `▀` foreground, and the
   // bottom pixel is the `▄` foreground or the `▀` background
   const drawPixel = (coverage: Coverage, row: number, col: number) => {
-    const cell = buildWordmarkCells(coverage, background)[Math.floor(row / 2)]?.[col];
+    const cell = buildWordmarkCells(coverage, background, 'truecolor')[Math.floor(row / 2)]?.[col];
 
     if (row % 2 === 0) {
       return cell?.ch === '▀' ? cell.fg : null;
@@ -32,6 +32,7 @@ test('#buildWordmarkCells draws a top pixel as an upper half, a bottom pixel as 
       [0, 1, 1, 0],
     ],
     ctx.background,
+    'truecolor',
   );
 
   expect(cells[0]?.map((cell) => [cell.ch, cell.fg !== null, cell.bg !== null])).toStrictEqual([
@@ -44,7 +45,7 @@ test('#buildWordmarkCells draws a top pixel as an upper half, a bottom pixel as 
 
 test('#buildWordmarkCells runs the colour from the top colour to the base colour', () => {
   const ctx = setupTest();
-  const cells = buildWordmarkCells([[1], [1], [1], [1]], ctx.background);
+  const cells = buildWordmarkCells([[1], [1], [1], [1]], ctx.background, 'truecolor');
 
   expect([cells[0]?.[0]?.fg, cells[1]?.[0]?.bg]).toStrictEqual([
     { red: 0xee, green: 0xf1, blue: 0xf8 },
@@ -75,7 +76,18 @@ test.each([
 );
 
 test('#buildWordmarkCells blends a part-covered pixel toward the background', () => {
-  const cells = buildWordmarkCells([[0.5], [0]], { red: 0, green: 0, blue: 100 });
+  const cells = buildWordmarkCells([[0.5], [0]], { red: 0, green: 0, blue: 100 }, 'truecolor');
 
   expect(cells[0]?.[0]?.fg).toStrictEqual({ red: 119, green: 121, blue: 174 });
+});
+
+test('#buildWordmarkCells leaves off a faint pixel that 16 colours would show as black', () => {
+  const ctx = setupTest();
+  const cells = buildWordmarkCells([[0.05], [1]], ctx.background, '16');
+
+  expect(cells[0]?.[0]).toStrictEqual({
+    ch: '▄',
+    fg: { red: 0xc4, green: 0xcd, blue: 0xe4 },
+    bg: null,
+  });
 });

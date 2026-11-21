@@ -1,5 +1,6 @@
 import { blendRGB } from '../compositor/blend-rgb';
-import type { RGB } from '../compositor/types';
+import { quantiseColour } from '../compositor/quantise-colour';
+import type { ColourDepth, RGB } from '../compositor/types';
 import { WORDMARK_BASE, WORDMARK_TOP } from './constants';
 import type { Coverage } from './types';
 
@@ -16,6 +17,7 @@ export interface WordmarkCell {
 export function buildWordmarkCells(
   coverage: Coverage,
   background: RGB,
+  depth: ColourDepth,
 ): readonly (readonly WordmarkCell[])[] {
   const height = coverage.length;
   const litRows = coverage.flatMap((row, index) => (row.some((share) => share > 0) ? [index] : []));
@@ -30,8 +32,9 @@ export function buildWordmarkCells(
     }
 
     const rowShare = span < 1 ? 0 : (row - firstRow) / span;
+    const pixel = blendRGB(background, blendRGB(WORDMARK_TOP, WORDMARK_BASE, rowShare), share);
 
-    return blendRGB(background, blendRGB(WORDMARK_TOP, WORDMARK_BASE, rowShare), share);
+    return isPaletteBlack(pixel, depth) ? null : pixel;
   };
 
   const buildRow = (cellRow: number): WordmarkCell[] =>
@@ -40,6 +43,14 @@ export function buildWordmarkCells(
     );
 
   return Array.from({ length: height / 2 }, (_, cellRow) => buildRow(cellRow));
+}
+
+// A faint pixel over a dark background lands on the palette's black, which paints a black cell
+// over the terminal's own background colour.
+function isPaletteBlack(pixel: RGB, depth: ColourDepth): boolean {
+  const shown = quantiseColour({ kind: 'rgb', ...pixel }, depth);
+
+  return shown.kind === 'palette' && shown.index === 0;
 }
 
 function buildCell(top: RGB | null, bottom: RGB | null): WordmarkCell {

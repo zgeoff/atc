@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
 import { buildCellBuffer } from '../compositor/build-cell-buffer';
+import { quantiseColour } from '../compositor/quantise-colour';
+import type { ColourDepth } from '../compositor/types';
 import { createHomeLayer } from './create-home-layer';
 import type { HomeInput } from './types';
 
@@ -15,7 +17,7 @@ function setupTest(input: Partial<HomeInput>) {
     }),
   });
 
-  const draw = (cols: number, rows: number) => {
+  const drawBuffer = (cols: number, rows: number, depth: ColourDepth) => {
     const buffer = buildCellBuffer(cols, rows);
 
     layer.draw(buffer, {
@@ -23,12 +25,18 @@ function setupTest(input: Partial<HomeInput>) {
       cols,
       rows,
       terminal: {
-        depth: 'truecolor',
+        depth,
         background: { red: 0, green: 0, blue: 0 },
         foreground: { red: 255, green: 255, blue: 255 },
         kittyKeyboard: false,
       },
     });
+
+    return buffer;
+  };
+
+  const draw = (cols: number, rows: number) => {
+    const buffer = drawBuffer(cols, rows, 'truecolor');
 
     return Array.from({ length: rows }, (_, row) =>
       Array.from({ length: cols }, (_unused, col) => buffer.get(col, row).ch)
@@ -37,7 +45,20 @@ function setupTest(input: Partial<HomeInput>) {
     ).filter((line) => line !== '');
   };
 
-  return { layer, draw };
+  // every colour a cell sets, as the terminal at `depth` would show it
+  const drawColours = (cols: number, rows: number, depth: ColourDepth) => {
+    const buffer = drawBuffer(cols, rows, depth);
+
+    return Array.from({ length: rows }, (_, row) =>
+      Array.from({ length: cols }, (_unused, col) => buffer.get(col, row)),
+    )
+      .flat()
+      .flatMap((cell) => [cell.fg, cell.bg])
+      .filter((colour) => colour.kind !== 'default')
+      .map((colour) => quantiseColour(colour, depth));
+  };
+
+  return { layer, draw, drawColours };
 }
 
 test('#draw shows the text wordmark, the fleet line and the keys in a small window', () => {
@@ -61,6 +82,16 @@ test('#draw draws the bitmap wordmark in half-cell blocks', () => {
     '                   ▀    ▀    ▀   ▀',
     '                   ▀▄▄▄▄▀    ▀   ▀▄▄▄▄▄',
   ]);
+});
+
+test('#draw leaves a pixel that 16 colours would show as black at the terminal default', () => {
+  const ctx = setupTest({});
+  const colours = ctx.drawColours(170, 50, '16');
+
+  expect([
+    colours.length > 0,
+    colours.filter((colour) => colour.kind === 'palette' && colour.index === 0),
+  ]).toStrictEqual([true, []]);
 });
 
 test('#nextFrameAt asks for no frame', () => {
