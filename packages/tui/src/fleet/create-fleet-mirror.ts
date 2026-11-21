@@ -1,20 +1,25 @@
 import type { DaemonClient } from '@atc/protocol/client';
 import type { Clock } from '@zgeoff/std';
 import { systemClock } from '@zgeoff/std';
+import { z } from 'zod';
 import { createSessionMap } from './create-session-map';
 import type { SessionMap } from './create-session-map';
 import { isSameSessionKey, toSessionKey } from './session-key';
 import type { DaemonName, SessionKey } from './session-key';
 import { toMirrorSession } from './to-mirror-session';
 import type { MirrorSession } from './to-mirror-session';
+import type { FleetRow } from './types';
 
 export interface FleetMirror {
+  readonly primary: DaemonName;
+
   sessions: MirrorSession[];
 
   // Sessions already done before this client connected have no entry and rank last.
   readonly doneAt: SessionMap<number>;
 
-  count: number;
+  // the primary daemon's stored fleet
+  fleet: FleetRow[];
 
   readonly upsert: (session: Readonly<MirrorSession>) => void;
   readonly find: (key: SessionKey) => MirrorSession | undefined;
@@ -24,16 +29,22 @@ export interface FleetMirror {
     daemon: DaemonName,
     client: Pick<DaemonClient, 'sendRequest'>,
   ) => Promise<void>;
+
+  readonly refreshFleet: (client: Pick<DaemonClient, 'sendRequest'>) => Promise<void>;
 }
+
+const FLEET_ROW_SCHEMA = z.looseObject({ sessionID: z.string(), exited: z.boolean().optional() });
+const FLEET_ANSWER_SCHEMA = z.looseObject({ fleet: z.array(FLEET_ROW_SCHEMA) });
 
 export function createFleetMirror(
   primary: DaemonName,
   clock: Pick<Clock, 'now'> = systemClock,
 ): FleetMirror {
   const self: FleetMirror = {
+    primary,
     sessions: [],
     doneAt: createSessionMap<number>(),
-    count: 0,
+    fleet: [],
 
     upsert: (session) => {
       const existing = self.find({ daemon: session.daemon, id: session.id });
@@ -101,17 +112,24 @@ export function createFleetMirror(
         }
       }
 
-      if (daemon !== primary) {
-        return;
+      if (daemon === primary) {
+        await self.refreshFleet(client);
       }
+    },
 
+    refreshFleet: async (client) => {
       const answer: Readonly<Record<string, unknown>> = await client
         .sendRequest('fleet.list')
         .catch(() => ({}) as const);
 
-      const entries = answer['fleet'];
+      const parsed = FLEET_ANSWER_SCHEMA.safeParse(answer);
 
-      self.count = Array.isArray(entries) ? entries.length : 0;
+      self.fleet = parsed.success
+        ? parsed.data.fleet.map((row) => ({
+            sessionID: row.sessionID,
+            exited: row.exited === true,
+          }))
+        : [];
     },
   };
 

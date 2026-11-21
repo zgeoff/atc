@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { resolvePaths } from '@atc/config';
+import { KEYS } from '@atc/core/test-utils/keys';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
@@ -46,7 +47,7 @@ test('it restores the fleet from disk after a crash', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('R  restore');
+  await ctx.waitFor('1 session');
 
   ctx.reset();
   ctx.write('R');
@@ -96,7 +97,7 @@ test('it restores a grok session with grok --resume after a crash', async () => 
 
   ctx.boot();
 
-  await ctx.waitFor('R  restore');
+  await ctx.waitFor('1 session');
 
   ctx.reset();
   ctx.write('R');
@@ -107,3 +108,70 @@ test('it restores a grok session with grok --resume after a crash', async () => 
   expect(ctx.read()).not.toInclude('claude --resume');
   expect(ctx.read()).not.toInclude('FAKE_CLAUDE_UP');
 }, 15_000);
+
+test('it takes the restore line off home once R restores the fleet', async () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.home, env: ctx.env });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  const sessionID = await spawnNamedSession(
+    (method, params) => client.sendRequest(method, params),
+    'harbour',
+    ctx.home,
+  );
+
+  ctx.boot();
+
+  await ctx.waitFor('1 session');
+  await client.sendRequest('session.input', { session: sessionID, data: KEYS.ctrlC });
+  await ctx.waitFor('R  restore');
+
+  ctx.reset();
+  ctx.write('R');
+
+  await ctx.waitFor('FAKE_CLAUDE_UP');
+
+  ctx.write(KEYS.ctrlSpace);
+
+  await ctx.waitFor('╭─ ');
+
+  ctx.write('i');
+
+  await ctx.waitForGone('╭─ ');
+  await ctx.waitFor('n  new');
+  await ctx.waitForGone('R  restore');
+});
+
+test('it shows no restore line on home when every session of the fleet is live', async () => {
+  const ctx = setupTest();
+  const daemon = startDaemonProcess({ command: resolveATCCommand(), home: ctx.home, env: ctx.env });
+
+  const client = await daemon.openClient();
+
+  await client.sendHello('atc/test');
+
+  await spawnNamedSession(
+    (method, params) => client.sendRequest(method, params),
+    'lantern',
+    ctx.home,
+  );
+
+  ctx.boot();
+
+  await ctx.waitFor('1 session');
+
+  ctx.write(KEYS.ctrlSpace);
+
+  await ctx.waitFor('╭─ ');
+
+  ctx.reset();
+  ctx.write(KEYS.esc);
+
+  await ctx.waitForGone('╭─ ');
+  await ctx.waitFor('n  new');
+
+  expect(ctx.readScreen()).not.toInclude('R  restore');
+});

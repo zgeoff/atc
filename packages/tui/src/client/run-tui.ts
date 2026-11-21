@@ -15,6 +15,7 @@ import { createFleetBarDeps } from '../fleet-bar/create-fleet-bar-deps';
 import { applyDaemonEvent } from '../fleet/apply-daemon-event';
 import type { DaemonEventDeps } from '../fleet/apply-daemon-event';
 import { createFleetMirror } from '../fleet/create-fleet-mirror';
+import { createFleetRefresher } from '../fleet/create-fleet-refresher';
 import { resolveAgentMetadata } from '../fleet/resolve-agent-metadata';
 import { toSessionKey } from '../fleet/session-key';
 import type { DaemonName, SessionKey } from '../fleet/session-key';
@@ -397,7 +398,14 @@ export async function runTUI(host: TUIHost): Promise<void> {
     scheduleStatus,
   });
 
+  const fleetRefresher = createFleetRefresher({
+    mirror,
+    readClient: () => connection.getClient(),
+    onRefreshed: scheduleStatus,
+  });
+
   const eventDeps: DaemonEventDeps = {
+    onLivenessChange: fleetRefresher.refresh,
     service,
     mirror,
     overlay,
