@@ -16,7 +16,7 @@ The client keeps the session attached while the list is open. The client tracks 
 apart from the row the user selects in the list, so the session keeps streaming output and taking
 resizes behind the panel.
 
-The attachment ends in three cases:
+The attachment ends when:
 
 - The user goes home with `i`.
 - The user quits.
