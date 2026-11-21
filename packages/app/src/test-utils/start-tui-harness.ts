@@ -246,7 +246,7 @@ export function startTUIHarness(options: TUIHarnessOptions) {
             throw new Error(`timed out waiting for ${JSON.stringify(needle)} to leave the screen`);
           }
         },
-        { timeoutMs, intervalMs: 50, now, wait },
+        { timeoutMs, intervalMs: 50, now, sleep: wait },
       );
     },
 

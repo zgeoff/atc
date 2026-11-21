@@ -3,10 +3,9 @@ import { spawnDaemonSession } from '@atc/app/test-utils/spawn-daemon-session';
 import { startTUIDaemon } from '@atc/app/test-utils/start-tui-daemon';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 
 // The client attaches to a daemon in the test's process, so a boot loads one process instead of
 // two. The stand-in claude echoes each line it reads as `GOT:<line>`.

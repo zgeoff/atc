@@ -1,6 +1,6 @@
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { createSessionMap } from './create-session-map';
 import type { SessionMap } from './create-session-map';
 import { isSameSessionKey, toSessionKey } from './session-key';

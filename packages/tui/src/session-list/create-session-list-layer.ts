@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import type { CellBuffer, FrameInfo, Layer } from '../compositor/types';
 import { SPINNER_FRAMES } from '../fleet-bar/constants';
 import { buildListPanel } from './build-list-panel';
