@@ -6,7 +6,7 @@ description:
   feature works. Load it before you check a change in the running app, run the journey of a feature,
   read the deployed gateway on prod, or put the verdicts in a PR.'
 metadata:
-  wringer-template: 'sha256:3a8295eb8ec4'
+  wringer-template: 'sha256:c276ebe8d896'
   wringer-command: bun verify
 ---
 
@@ -21,9 +21,8 @@ changes a feature with no verdict there.
 The mistakes that cost the most time:
 
 - **Using the app before `doctor` passes.** `bun verify doctor` checks that the app answers and that
-  each driver works. A driver is a package, such as `@wringer/http`, that adds a group of commands,
-  such as `bun verify http request`. Until `doctor` passes after `bun verify up` or
-  `bun verify attach`, any command that touches the app fails with exit code 3.
+  each driver works. Until `doctor` passes after `bun verify up` or `bun verify attach`, any command
+  that touches the app fails with exit code 3.
 - **Editing the app's code while `up` runs it.** The next command that touches the app fails with
   `doctor-required`. Run `bun verify up --restart` and `bun verify doctor`, then the journey again.
 - **Running `done` before you check the end state.** `done` checks only that one command of the
@@ -90,25 +89,28 @@ Read a feature's file before you run its journey.
    - In any other case, such as a `read-only` failure or a bug your change did not cause, skip
      `done` for this feature. List it in your reply with the end state you expected and the `data`
      you got.
-6. Finish each edit to a file that matches the feature's `paths` before you run `done`. An edit
-   after `done` makes the feature's verdict `stale`. A commit alone leaves the verdict as it was.
-   Run `bun verify done` to record a verdict for the feature that `use --feature` set. Expect:
-   `ok: true`. It fails with `check-failed` until a journey command succeeds after `doctor`.
+6. Record the verdict:
+   - Finish each edit to a file that matches the feature's `paths` first. An edit after `done` makes
+     the verdict `stale`. A commit alone leaves the verdict as it was.
+   - Once the end state matches in step 5, run `bun verify done`. Expect: `ok: true`. `done` records
+     a verdict for the feature that `use --feature` set.
+   - `done` checks only that a journey command succeeded after `doctor`, and never reads the end
+     state. Until a journey command succeeds, `done` fails with `check-failed`.
 7. Repeat steps 4 to 6 for each feature with `changed: true`, and for each feature your task names,
    in the order of the table in [References](#references). When the [Targets](#targets) section says
    to run a feature's journey last, run it after every other journey.
 8. Run `bun verify report --human` to read the report. Expect: `verified` on each changed feature
    you did not skip in step 5. Repeat steps 4 to 6 for each `stale` feature.
 9. Push the branch. When no PR is open for it, open one: `publish` fails without it.
-10. Check that both `VERIFY_UPLOAD_URL` (the file host for the evidence) and
-    `VERIFY_UPLOAD_TOKEN_REF` (the token's 1Password `op://` reference) are set. When either is
-    empty, stop and report a blocker. Never run `op read` on its own: it prints the token.
+10. Check that both `CLOUD_FILES_URL` (the file host for the evidence) and `CLOUD_FILES_TOKEN_REF`
+    (the token's 1Password `op://` reference) are set. When either is empty, stop and report a
+    blocker. Never run `op read` on its own: it prints the token.
 11. Publish the report, even when you skipped a feature. The subshell keeps the token out of your
     shell, and `&&` stops the command before `publish` when `op read` fails: report that as a
     blocker.
 
     ```bash
-    (VERIFY_UPLOAD_TOKEN="$(op read "$VERIFY_UPLOAD_TOKEN_REF")" && export VERIFY_UPLOAD_TOKEN && bun verify publish)
+    (CLOUD_FILES_TOKEN="$(op read "$CLOUD_FILES_TOKEN_REF")" && export CLOUD_FILES_TOKEN && bun verify publish)
     ```
 
     For another PR, put `--pr <number>` after `publish`, inside the parentheses. Expect: `ok: true`,

@@ -1,7 +1,10 @@
+import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { Endpoints } from '@wringer/core';
 import { parseDockerRunEndpoints } from './docker-run-endpoints.ts';
 import { openDaemonConnection } from './open-daemon-connection.ts';
 
+// The daemon answers the spawn before the harness container starts, so the action waits until the
+// session is alive: the journey's next line reads that container.
 export async function createDockerSession(
   endpoints: Endpoints,
   name: string,
@@ -14,6 +17,16 @@ export async function createDockerSession(
     cwd: '/home/agent',
     name,
     target: 'box',
+  });
+
+  await waitFor(async () => {
+    const listed = await client.procedures.session.list({});
+
+    const found = listed.sessions.find((session) => session.id === answer.session.id);
+
+    if (found?.alive !== true) {
+      throw new Error(`session ${name} is not alive yet`);
+    }
   });
 
   return { id: answer.session.id, name: answer.session.name };
