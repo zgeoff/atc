@@ -125,9 +125,9 @@ target label.
 The daemon fills both fields from the check that `session.forget` runs before it deletes a machine.
 When that check refuses the session with `target_changed`, `canDestroyHost` is false and the session
 keeps out of the target's current place. The check refuses a session saved on an earlier config of
-its target, and a session whose unversioned binding restore could not confirm. Its key is
-`daemon:<daemon id>:<target id>:<saved identity>`, each part percent-encoded, so it never equals the
-key of a target whose id holds the saved identity.
+its target, and a session whose unversioned binding restore could not confirm. The place key of such
+a refused session is `daemon:<daemon id>:<target id>:<saved identity>`, each part percent-encoded,
+so it never equals the key of a target whose id holds the saved identity.
 
 ## Sub-sessions
 

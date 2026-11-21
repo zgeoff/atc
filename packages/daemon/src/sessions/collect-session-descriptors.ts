@@ -16,7 +16,21 @@ export function collectSessionDescriptors(
   >,
   store: Pick<FleetStore, 'daemonID'>,
 ): SessionDescriptor[] {
-  return registry.sessions.map((session) => ({
+  return registry.sessions.map((session) => collectDescriptor(registry, store, session));
+}
+
+function collectDescriptor(
+  registry: Pick<
+    SessionRegistry,
+    'findAdapter' | 'findProvider' | 'findExecutionRefusal' | 'targets'
+  >,
+  store: Pick<FleetStore, 'daemonID'>,
+  session: Session,
+): SessionDescriptor {
+  // session.forget deletes a host only when this check passes, so the descriptor asks the same
+  const destroyRefusal = registry.findExecutionRefusal(session, 'destroy');
+
+  return {
     id: session.id,
     name: session.name,
     cwd: session.cwd,
@@ -48,10 +62,10 @@ export function collectSessionDescriptors(
       registry.targets.get(session.target),
       session,
       store.daemonID,
-      registry.findExecutionRefusal(session, 'destroy'),
+      destroyRefusal,
     ),
-    canDestroyHost: canDestroyHost(registry, session),
-  }));
+    canDestroyHost: session.hostKey === session.id && destroyRefusal === null,
+  };
 }
 
 function buildLifecycle(session: Session): SessionLifecycle {
@@ -103,14 +117,4 @@ function buildPlace(
     }),
     label,
   };
-}
-
-// session.forget deletes the host only when this check passes, so the descriptor asks the same.
-function canDestroyHost(
-  registry: Pick<SessionRegistry, 'findExecutionRefusal'>,
-  session: Session,
-): boolean {
-  return (
-    session.hostKey === session.id && registry.findExecutionRefusal(session, 'destroy') === null
-  );
 }
