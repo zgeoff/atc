@@ -60,11 +60,21 @@ can each hold a session with the same id.
 The columns change with the grouping and the terminal's width:
 
 - The daemon column shows only when the sessions come from more than one daemon, and never in place
-  mode.
+  mode. Repository mode drops the repository column.
 - In place mode the group header names the place. A place can hold sessions that reach the client
   through different daemons, and a row in such a group shows `via <daemon>` in the place column.
 - When the terminal is narrower than 90 columns, a row shows only the state glyph, the name, the
   message and the age.
+
+The age stays blank for a `running` session. The client takes the age from `stateSince`, the time it
+saw the session enter its state, and keeps that time across a reconnect to the daemon. A session
+that was already in its state at the client's first listing has no `stateSince`, so its age stays
+blank until its state next changes.
+
+Inside a group, sessions sort by state in the order `needs_you`, `done`, `running`, `exited`,
+`unknown`, then by the most recent attach. Groups sort by their first session, then by label. A
+repository group's label adds the daemon name, then parent folders, until it differs from every
+other group's label, so two groups never share a label.
 
 ## Jump mode
 
@@ -105,13 +115,20 @@ client does next depends on the prompt the user answered:
   the user answers `y`.
 
 A sub-session on its parent's machine deletes no machine, so the daemon ends it on the first call.
+When the session has ended sub-sessions, the prompt adds that it removes them, with their count. The
+client counts every ended sub-session, so the count can include one the daemon keeps, and it never
+misses one the daemon removes. When the session's machine is asleep, the daemon refuses with
+`host_asleep`, and the client shows a notice that tells the user to attach to wake the machine, then
+end the session.
 
 When the daemon keeps the session's workspace folder, the list shows a notice that names the folder
 and the reasons. When the ended session was the attached one, the client goes home and shows the
 notice on home. The next opening of the list drops that notice.
 
 `K` kills a live session after a prompt: the agent stops, and the session stays in the list as
-exited.
+exited. On a dead session `K` does nothing, and the key bar on the panel's
+[last line](#the-last-line) shows `X end` in its place. `X` is the only key that deletes a machine.
+Attaching a session is the only way to mark it read.
 
 While a prompt for `X` or `K` is open, `y` confirms it, and any other key cancels it. The leader key
 cancels the prompt and closes the list. When the session leaves the fleet while its prompt is open,
@@ -148,9 +165,10 @@ fade had reached, so the panel never jumps. With the config's `animations` off, 
 closes in one frame. The durations are constants in
 [`constants.ts`](../../../packages/tui/src/session-list/constants.ts).
 
-The panel lays itself out again on each frame while it is open. While it fades out, it keeps the
-input it last drew, because the list's state can be gone by then, and lays that input out again when
-the terminal's size changes.
+The panel dims the screen behind it, apart from the terminal's last row, so the
+[fleet bar](./fleet-bar.md) stays readable. The panel lays itself out again on each frame while it
+is open. While it fades out, it keeps the input it last drew, because the list's state can be gone
+by then, and lays that input out again when the terminal's size changes.
 
 The panel asks the [frame clock](./compositor.md) for frames only while something on it moves:
 

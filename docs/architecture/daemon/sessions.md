@@ -121,9 +121,38 @@ Each execution provider can declare a `place` rule for its targets. A target who
 a shared place gets the key `<provider id>:<rule version>:<hash>`, where the hash covers only the
 options that name the remote service. Every other target gets `daemon:<daemon id>:<target id>`. atc
 percent-encodes each part, so a colon inside a part never reads as a separator.
-[Places](../../design/tui-redesign/places.md) gives the rule for each provider, the key and the
-target label.
 
+| Provider    | Scope  | Rule version | Options the key hashes |
+| ----------- | ------ | ------------ | ---------------------- |
+| `imp`       | shared | `place-v1`   | `url`                  |
+| `docker`    | daemon |              |                        |
+| `sprites`   | daemon |              |                        |
+| `local-pty` | daemon |              |                        |
+
+A provider with no `place` rule gets daemon scope. A sprites target gets daemon scope though its
+machines run remotely, because its options name the API and not the account's org: a key built from
+them would put every sprites account in one place. Two imp accounts on one imp service are one
+place, because imp's key covers only `url`.
+
+atc hashes the options a rule names the way it hashes a target's options for the target's
+[identity](../execution/targets.md#binding-to-a-target): keys sorted at every depth by code unit, so
+two daemons with different locales sort alike, then JSON, then sha256. The key keeps the first 16
+hex characters. The place key stays separate from the target's identity, because the identity hashes
+every option that finds a target's machines again, such as imp's `tokenFile`, which differs between
+two daemons that reach one service.
+
+Before hashing, a provider writes each URL through `formatPlaceURL` in `@atc/plugin-api`, so
+`https://imp.example.dev/`, `https://IMP.example.dev:443` and `https://imp.example.dev./` give one
+key. The function lowercases the scheme and the host, and drops a default port, a trailing dot on
+the host, trailing slashes on the path and an empty fragment. It keeps the query. A string that does
+not parse as a URL with a `scheme://` keeps its own spelling, trimmed of spaces.
+
+A target entry in the config holds `provider`, an optional `label`, and the provider's options. atc
+takes `label` out of the entry before it passes the options to the provider, so the label changes
+neither the target identity nor the place key.
+
+`canDestroyHost` is false when the provider has no hosts to delete, as for a local session, when
+another session's spawn created the host, and when the provider's `capabilities.destroy` is false.
 The daemon fills both fields from the same check that `session.forget` runs before it deletes a
 host. The check refuses a session with `target_changed` in two cases:
 

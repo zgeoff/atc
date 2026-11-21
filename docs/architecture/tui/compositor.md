@@ -11,9 +11,9 @@ One layer at a time has focus, and the keys the user types go to it. The attache
 until the user opens another screen, such as the session list, and gets it back when that screen
 closes. A session can stay attached without focus, drawn behind the screen that has it.
 
-[The TUI redesign](../../design/tui-redesign/README.md) and
-[the decision record](../../decisions/0003-the-tui-composites-attached-sessions.md) hold the design
-and the reasons for it.
+[The decision record](../../decisions/0003-the-tui-composites-attached-sessions.md) gives the reason
+the TUI composites the attached session. atc never uses a TUI framework: the compositor is written
+by hand, and the `hand-rolled-tui` lint rule refuses a framework import.
 
 ```mermaid
 flowchart LR
@@ -163,7 +163,9 @@ A layer can dim the layers below it. To dim a cell, the compositor applies `inve
 blends each colour toward the terminal's background. For the blend, a default foreground resolves to
 the terminal's own foreground, and a palette index to the standard xterm palette. The compositor
 never blends a default background: the cell keeps it, so a transparent terminal stays transparent.
-At 16 colours a blend has no colour to land on, so the cell keeps its colours and gains SGR dim.
+atc paints no background of its own: home and every empty cell use the terminal's background
+(`ESC[49m`), so the user's theme shows through. At 16 colours a blend has no colour to land on, so
+the cell keeps its colours and gains SGR dim.
 
 At start, the TUI asks the user's terminal three questions: OSC 10, OSC 11 and `CSI ? u`. It sends a
 device attributes request after them, because every terminal answers that one, and its answer means
@@ -229,6 +231,7 @@ one push per stack entry. Those pushes go to the client's emulator, never to the
 ## The last row
 
 The TUI reports `rows - 1` rows as its size when it attaches and when it resizes. It keeps the last
-row of the terminal for notices and for the [fleet bar](./fleet-bar.md). The daemon sizes the
+row of the terminal for notices and for the [fleet bar](./fleet-bar.md). The TUI draws in the
+alternate screen, so the user's terminal keeps no scrollback of a session. The daemon sizes the
 session to the smallest size that its attached clients report. When the PTY is smaller than the
 window, the session sits at the top left, and the cells around it keep the default background.
