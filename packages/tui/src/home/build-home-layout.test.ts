@@ -141,6 +141,30 @@ test('#buildHomeLayout puts the notices below the keys, so they never move the s
   ]).toStrictEqual([[...plain.runs], '⟳ update ready']);
 });
 
+test('#buildHomeLayout cuts a notice of wide characters to the window width, ellipsis included', () => {
+  const layout = buildHomeLayout(
+    { cols: 30, rows: 20 },
+    { kind: 'bitmap' },
+    { cols: 21, rows: 4 },
+    {
+      sessionCount: 1,
+      needYouCount: 0,
+      leaderLabel: 'ctrl+space',
+      notices: [`kept folder /tmp/${'界'.repeat(20)}`],
+      restorableCount: 0,
+    },
+  );
+
+  expect(layout.runs.at(-1)).toStrictEqual({
+    col: 0,
+    row: 15,
+    text: `kept folder /tmp/${'界'.repeat(6)}…`,
+    tone: 'amber',
+    bold: false,
+    dim: false,
+  });
+});
+
 test('#buildHomeLayout lists the restore key while the last fleet has sessions to restore', () => {
   const ctx = setupTest();
   const layout = ctx.layOut({ restorableCount: 2 });

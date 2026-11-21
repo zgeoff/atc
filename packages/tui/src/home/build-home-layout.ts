@@ -1,5 +1,5 @@
+import { fitText } from '../session-list/fit-text';
 import { measureWidth } from '../terminal/measure-width';
-import { truncate } from '../terminal/truncate';
 import type { HomeInput, HomeLayout, HomeRun, Wordmark } from './types';
 
 interface WindowSize {
@@ -162,7 +162,7 @@ function buildNoticeRuns(cols: number, row: number, notices: readonly string[]):
     return [];
   }
 
-  const text = truncate(notices.join(FLEET_SEPARATOR), cols);
+  const text = fitText(notices.join(FLEET_SEPARATOR), cols);
 
   return [
     {
