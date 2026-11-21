@@ -12,7 +12,7 @@ async function setupTest() {
 
   tui.boot();
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitFor('no sessions');
 
   return { tui };
 }
@@ -22,7 +22,7 @@ test('it boots the client in its home, where the client starts its daemon', asyn
 
   tui.boot();
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitFor('no sessions');
 
   const paths = resolvePaths({ HOME: tui.home, XDG_RUNTIME_DIR: tui.home });
 
@@ -65,7 +65,7 @@ test('it stops capturing a client that a second boot replaced', async () => {
     firstOutput.push(data);
   });
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitFor('no sessions');
 
   tui.boot(['--version']);
 
@@ -85,7 +85,7 @@ test('it kills a client a later boot replaced on stop', async () => {
   const tui = startTUIHarness({ createStateDB: () => {} });
   const first = tui.boot();
 
-  await tui.waitFor('atc — control tower');
+  await tui.waitFor('no sessions');
 
   tui.boot(['--version']);
 
@@ -107,14 +107,14 @@ test('it rejects a wait for text the client never draws with the tail of the cap
   // the first draw on the real clock.
   await waitFor(
     () => {
-      expect(tui.read()).toInclude('atc — control tower');
+      expect(tui.read()).toInclude('no sessions');
     },
     { timeoutMs: 9000 },
   );
 
   expect(tui.waitFor('never drawn', 100)).rejects.toThrowWithMessage(
     Error,
-    /^timed out after 100 ms: timed out waiting for "never drawn"; tail: ".*atc — control tower/su,
+    /^timed out after 100 ms: timed out waiting for "never drawn"; tail: ".*no sessions/su,
   );
 });
 
@@ -128,8 +128,8 @@ test('it rejects a wait made while the client has drawn nothing', () => {
     wait: clock.wait,
   });
 
-  expect(tui.waitFor('atc — control tower')).rejects.toThrow(
-    'timed out waiting for "atc — control tower"; the client wrote nothing in 100ms of boot',
+  expect(tui.waitFor('no sessions')).rejects.toThrow(
+    'timed out waiting for "no sessions"; the client wrote nothing in 100ms of boot',
   );
 });
 
@@ -160,7 +160,7 @@ test('it forgets what the screen shows on a screen reset', async () => {
 
   ctx.tui.resetScreen();
 
-  expect(ctx.tui.read()).not.toInclude('atc — control tower');
+  expect(ctx.tui.read()).not.toInclude('no sessions');
 });
 
 test('it reads the text of the screen without the output before it', async () => {
@@ -168,7 +168,7 @@ test('it reads the text of the screen without the output before it', async () =>
 
   ctx.tui.reset();
 
-  expect(ctx.tui.readScreen()).toInclude('atc — control tower');
+  expect(ctx.tui.readScreen()).toInclude('no sessions');
   expect(ctx.tui.read()).toBe(`\n${ctx.tui.readScreen()}`);
 });
 
@@ -267,7 +267,7 @@ test('it rejects a wait for a log line written only before the mark', async () =
   // the same budget the harness allows a real boot.
   await waitFor(
     () => {
-      expect(tui.read()).toInclude('atc — control tower');
+      expect(tui.read()).toInclude('no sessions');
     },
     { timeoutMs: 9000 },
   );

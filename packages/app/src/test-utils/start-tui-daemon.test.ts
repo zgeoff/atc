@@ -17,7 +17,7 @@ test('it boots the client against the daemon in the test process and starts no d
 
   ctx.tui.boot();
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('no sessions');
 
   expect(existsSync(ctx.tui.paths.daemonPidFile)).toBeFalse();
 });
