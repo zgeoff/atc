@@ -20,9 +20,9 @@ Run the journey on a `local` run where `doctor` has succeeded. Steps 2 and 3 of
   [End state](#end-state) for that line differs. After a failed line, run line 11,
   `action forget-session`, as [Journey commands](journey-commands.md#sessions) says. Then skip
   `done` until the whole journey passes, and go on as step 5 of Check a change says.
-- Replace each placeholder with the `data.stdout` of the send on the line given, trimmed. That
-  stdout holds the message id alone: `<first_id>` from line 3, `<cron_id>` from line 5 and
-  `<wait_id>` from line 7.
+- Replace each quoted placeholder, quotes included, with the `data.stdout` of the send on the line
+  given, trimmed. That stdout holds the message id alone: `<first_id>` from line 3, `<cron_id>` from
+  line 5 and `<wait_id>` from line 7.
 - Expect each `--wait` on a live session to end at its `--timeout`, in seconds. The session runs the
   stand-in claude, which takes each message and never answers it. `--wait` waits for an answer, or
   for the message to end unanswered.
@@ -33,13 +33,13 @@ Run the journey on a `local` run where `doctor` has succeeded. Steps 2 and 3 of
 bun verify use --feature cli-send
 bun verify action spawn-session --name wv-send
 bun verify cli run -- send wv-send "check the hangar"
-bun verify cli run -- message get <first_id> --json
+bun verify cli run -- message get '<first_id>' --json
 bun verify cli run -- send wv-send "ring the bell" --from cron
-bun verify cli run -- message get <cron_id> --json
+bun verify cli run -- message get '<cron_id>' --json
 bun verify cli run -- send wv-send "anyone there" --wait --timeout 1
-bun verify cli run -- message get <wait_id> --wait --timeout 1 --json
+bun verify cli run -- message get '<wait_id>' --wait --timeout 1 --json
 bun verify action stop-session --name wv-send
-bun verify cli run -- message get <wait_id> --wait --timeout 5 --json
+bun verify cli run -- message get '<wait_id>' --wait --timeout 5 --json
 bun verify action forget-session --name wv-send
 ```
 
