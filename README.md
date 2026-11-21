@@ -24,6 +24,19 @@ from one TUI, script them from a shell or the client, and let them work together
   <img src="./docs/assets/hero-light.svg" alt="An animated diagram of atc. You ask an orchestrator on your laptop for an orders page, and it spawns builder-ui on a sprite. builder-ui asks builder-api, on an imp microVM, what the API returns. When builder-ui needs approval to deploy, the request rises through the atc gateway into your inbox. You clear it, and builder-ui deploys a preview." width="1000">
 </picture>
 
+## Install
+
+```sh
+brew install zgeoff/tap/atc
+```
+
+atc needs `claude`, `codex` or `grok` on your PATH, and Codex and Grok need
+[atc's hooks](./docs/guides/using-atc.md#grok-and-codex-hooks). The
+[install guide](./docs/guides/install.md) covers the other ways to install.
+
+Run `atc` to start the daemon and open the TUI. Press `n` to spawn a session, `Ctrl-Space` for the
+list, and `?` for the keys. Quit the TUI and the sessions keep running.
+
 ## Usage
 
 Give an agent the whole fleet, or another machine's:
@@ -69,19 +82,6 @@ for await (const event of cloud.events()) {
   await local.session.message({ session: orchestrator, text });
 }
 ```
-
-## Install
-
-```sh
-brew install zgeoff/tap/atc
-```
-
-atc needs `claude`, `codex` or `grok` on your PATH, and Codex and Grok need
-[atc's hooks](./docs/guides/using-atc.md#grok-and-codex-hooks). The
-[install guide](./docs/guides/install.md) covers the other ways to install.
-
-Run `atc` to start the daemon and open the TUI. Press `n` to spawn a session, `Ctrl-Space` for the
-list, and `?` for the keys. Quit the TUI and the sessions keep running.
 
 ## Features
 
