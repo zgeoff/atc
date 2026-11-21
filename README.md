@@ -71,15 +71,20 @@ Hand a stuck cloud agent to your orchestrator, after `bun add @atcx/client`:
 
 ```ts
 import { connect } from '@atcx/client';
-const address = { hostname: 'cloud', port: 7420 };
+
 await using local = await connect();
-await using cloud = await connect({ address, token: process.env.CLOUD_TOKEN, principal: 'laptop' });
-const { sessions } = await local.session.list({});
-const orchestrator = sessions.find((session) => session.name === 'orchestrator')!.id;
+await using cloud = await connect({ ... });
+
+const listed = await local.session.list({});
+const orchestrator = listed.sessions.find((session) => session.name === 'orchestrator');
+
 for await (const event of cloud.events()) {
-  if (event.ev !== 'SessionState' || event.session.state !== 'needs_you') continue;
+  if (event.ev !== 'SessionState' || event.session.state !== 'needs_you') {
+    continue;
+  }
+
   const text = `cloud ${event.session.name} is stuck. Unblock it or tell me.`;
-  await local.session.message({ session: orchestrator, text });
+  await local.session.message({ session: orchestrator.id, text });
 }
 ```
 
