@@ -1,11 +1,15 @@
 # The compositor
 
-The TUI draws every screen into one grid of cells, and writes to the user's terminal only the cells
-that changed since the last frame. The bottom layer of the grid is the session the user is attached
-to. The TUI feeds that session's output to a terminal emulator of its own and copies the emulator's
-screen into the grid, so the session's bytes never reach the user's terminal directly. Each of the
-TUI's own screens, such as home (the screen the TUI shows with no session attached), the session
-list, help, the spawn picker and the prompts, is a layer drawn over the session layer.
+The TUI draws every screen into one grid of cells, the cell buffer, and writes to the user's
+terminal only the cells that changed since the last frame. The bottom layer is the session the user
+is attached to. The TUI feeds that session's output to a terminal emulator of its own and copies the
+emulator's screen into the grid, so the session's bytes never reach the user's terminal directly.
+Each of the TUI's own screens, such as home (the screen the TUI shows with no session attached), the
+session list, help, the spawn picker and the prompts, is a layer drawn over the session layer.
+
+One layer at a time has focus, and the keys the user types go to it. The attached session has focus
+until the user opens another screen, such as the session list, and gets it back when that screen
+closes. A session can stay attached without focus, drawn behind the screen that has it.
 
 [The TUI redesign](../../design/tui-redesign/README.md) and
 [the decision record](../../decisions/0003-the-tui-composites-attached-sessions.md) hold the design
@@ -37,10 +41,12 @@ the agent gets one answer from each client.
 
 Three queries get answers from what the TUI knows about the user's terminal:
 
-- OSC 10 gets the terminal's foreground colour, and OSC 11 its background colour.
-- A kitty keyboard query (`CSI ? u`) gets the session's current kitty flags, but only when the
-  user's terminal supports the kitty keyboard protocol. Otherwise the emulator sends no answer, and
-  an agent that probes for the protocol falls back as it does on a terminal without it.
+- OSC 10 gets the terminal's foreground colour.
+- OSC 11 gets the terminal's background colour.
+- A kitty keyboard query (`CSI ? u`) gets the session's current kitty flags, as
+  [Input modes](#input-modes) describes them, but only when the user's terminal supports the kitty
+  keyboard protocol. Otherwise the emulator sends no answer, and an agent that probes for the
+  protocol falls back as it does on a terminal without it.
 
 Every emulator, the daemon's included, measures text with xterm's grapheme width provider,
 `@xterm/addon-unicode-graphemes`. An emoji, a skin tone or a joined emoji then takes two columns, as
@@ -55,11 +61,11 @@ protocols.
 
 ## The screen emulator
 
-The TUI's own screens draw with escape sequences. They all write through one function, which feeds a
-second emulator, the screen emulator, the size of the terminal. A layer copies the screen emulator's
-cells into the grid. A screen that clears the terminal makes the next frame repaint every cell.
-While a session has focus, that layer copies only the last row of the screen emulator, where the TUI
-draws a notice over the session.
+The TUI's own screens draw with escape sequences. They all write through one function into a second
+emulator, the screen emulator, which is as large as the user's terminal. One layer, the screen
+layer, copies the screen emulator's cells into the cell buffer. A screen that clears the terminal
+makes the next frame repaint every cell. While a session has focus, the screen layer copies only the
+last row of the screen emulator, where the TUI draws a notice over the session.
 
 ## The session stream
 
@@ -69,10 +75,14 @@ attach. The emulator takes the TUI's own size at first, then the size in the dae
 
 A daemon lists the features it supports in its hello message. When the list holds `full-replay`, the
 daemon sends the session's whole emulator state as `SessionReplay` events, on attach and after each
-`SessionDesync`. Each event holds one chunk of the replay, and the last chunk has `done` set.
+`SessionDesync`, the event the daemon sends after it drops output that a slow client could not take
+([Backpressure](../daemon/terminals.md#backpressure)). Each event holds one chunk of the replay.
+Every chunk carries the `seq` of the last output the replay holds, and the last chunk has `done`
+set.
 
 1. On the first chunk, the stream resets the emulator. It writes every chunk.
-2. After the chunk with `done`, the stream lets the session draw, so no frame shows half a replay.
+2. After the chunk with `done`, the stream lets the session layer draw again, so no frame shows half
+   a replay.
 3. It then writes each `SessionOutput` whose `seq` is above the replay's, and drops the others,
    because the replay already holds their bytes. For the same reason it drops output that arrives
    between the attach and the replay, or between a desync and its replay.
@@ -83,11 +93,12 @@ When the daemon's list lacks `full-replay`, the daemon sends the visible screen 
 and the stream writes every output event. When the agent then leaves the alternate screen, the main
 screen shows blank until the agent redraws it.
 
-The emulator's `write` resolves once its input is parsed. Its `resize` goes through the same queue,
-so a `SessionResized` that arrives behind a replay or behind output applies after them.
+The session emulator's `write` resolves once xterm has parsed its input. Its `resize` goes through
+xterm's same write queue, so a `SessionResized` that arrives behind a replay or behind output
+applies after them.
 
-The TUI draws a frame only when no write to either emulator is pending, so a frame never shows a
-screen halfway through a chunk. Two cases differ:
+When the frame clock asks for a frame while a write to either emulator is pending, the TUI waits for
+the write, so a frame never shows a screen halfway through a chunk. Two cases change the wait:
 
 - A session that writes without a pause always has a write pending. A frame then waits one frame
   interval, at 60 Hz, and draws anyway.
@@ -95,25 +106,26 @@ screen halfway through a chunk. Two cases differ:
 
 ## Layers and frames
 
-Each layer draws into a buffer of cells over the layers below it. The compositor asks each layer
-when it next needs a frame, and the layer answers with a time or null.
+Each layer draws into the cell buffer over the layers below it. Each layer also gives the frame
+clock the time it next needs a frame, or null when it needs none.
 
 Each cell holds one grapheme, its foreground and background colours, its attributes (bold, dim,
 italic, underline in four styles, strikethrough, inverse) and an OSC 8 link. A wide grapheme takes
 its cell and leaves the next cell empty.
 
-- The emulator reads a link cell's underline from the cell's own attribute bits, so the cell keeps
-  the underline the agent set. xterm 6 reports every link cell as underlined.
-- When the session emulator is wider than the frame, a wide grapheme can start in the frame's last
-  column. The session layer draws a blank there, because the user's terminal would wrap the grapheme
-  onto the next row.
+- xterm 6 reports every link cell as underlined. The session layer therefore reads a link cell's
+  underline from the cell's own attribute bits, so the cell keeps the underline the agent set.
+- When the window shrinks, the cell buffer shrinks at once, and the session emulator only when the
+  daemon's `SessionResized` arrives. Until then the emulator is wider than the frame, and a wide
+  grapheme can start in the frame's last column. The session layer draws a blank there, because the
+  user's terminal would wrap the grapheme onto the next row.
 
 The compositor composes the layers into a buffer and flushes the buffer to the user's terminal. A
 flush is one write, wrapped in synchronized output (`ESC[?2026h` to `ESC[?2026l`). A terminal that
 supports the mode shows no half frame, and one that does not still shows a correct frame. The flush
 writes only the cells that differ from the last frame. The first frame, and a frame of another size,
-clear the terminal first. The cursor goes where the focused layer's cursor is, with its shape, and
-is hidden while a layer other than the session has focus.
+clear the terminal first. While the session has focus, the cursor goes where the session emulator's
+cursor is, with its shape. While another layer has focus, the cursor is hidden.
 
 The frame clock decides when the compositor draws:
 
@@ -127,9 +139,9 @@ The frame clock decides when the compositor draws:
 - When an event asks for a frame while a tick is overdue, the tick becomes a requested frame, and it
   draws however late it runs.
 
-A layer reads the config key `animations` from the clock, and when it is false, the layer drops its
-decorative motion. The [fleet bar](./fleet-bar.md) is the one layer that asks for frames, for its
-spinner, and the spinner turns whatever `animations` says.
+The config key `animations` reaches each layer through the clock, and a layer drops its decorative
+motion when the key is false. The [fleet bar](./fleet-bar.md) is the one layer that asks for frames,
+for its spinner, and the spinner shows state, so it turns whatever `animations` says.
 
 ## Colour
 
@@ -138,10 +150,10 @@ and is 16 colours otherwise. The flush maps each colour to the nearest one the d
 a palette index inside the depth as the agent sent it.
 
 A layer can dim the layers below it. To dim a cell, the compositor applies `inverse` first, then
-blends each colour toward the terminal's background. A default colour resolves from the terminal's
-own foreground and background, and a palette index from the standard xterm palette. A cell with a
-default background keeps it, so a transparent terminal stays transparent. At 16 colours a blend has
-no colour to land on, so the cell keeps its colours and gains SGR dim.
+blends each colour toward the terminal's background. For the blend, a default foreground resolves to
+the terminal's own foreground, and a palette index to the standard xterm palette. The compositor
+never blends a default background: the cell keeps it, so a transparent terminal stays transparent.
+At 16 colours a blend has no colour to land on, so the cell keeps its colours and gains SGR dim.
 
 At start, the TUI asks the user's terminal three questions: OSC 10, OSC 11 and `CSI ? u`. It sends a
 device attributes request after them, because every terminal answers that one, and its answer means
@@ -153,8 +165,9 @@ no other answer is coming.
 3. When the device attributes answer arrives, or the TUI's answer timeout ends, the TUI stops
    waiting, and keeps the fallback for each question with no answer.
 
-The input reader takes these answers out of the input stream whenever they arrive, even after the
-wait ends, so they never reach the session as keys.
+The TUI's input reader, which reads the bytes the user's terminal sends, takes these answers out of
+the input stream whenever they arrive, even after the wait ends, so they never reach the session as
+keys.
 
 ## Input modes
 

@@ -28,26 +28,29 @@ flowchart LR
   layer --> buffer["cell buffer, last row"]
 ```
 
-The bar layer builds the bar again on each frame, so the bar keeps no state of its own.
+The bar layer builds the bar again on each frame, so the bar keeps no state of its own. A change to
+the fleet, such as a session that changes state, asks the frame clock for a frame, as any event
+does.
 
-- `buildFleetBar` takes the TUI's sessions, the width, the leader key's label and the daemons that
-  are down. It returns the places to show, their counts and glyphs, and the detail level that fits.
-- `formatFleetBar` turns that result into coloured cells for the last row.
+`buildFleetBar` picks what the bar shows, and `formatFleetBar` turns its result into coloured cells
+for the last row.
 
 ## Places in the TUI
 
 The TUI reads each session's place, a `key` and a `label`, from the session's descriptor in the
 daemon's listing. A descriptor with no `place` gets the key `daemon:<daemon name>:<target id>` and
-the label `<target id>`. The daemon on the TUI's own computer has no name in the config, and the TUI
-writes its name as `local`.
+the label `<target id>`, where the target id names the execution target in the daemon's config that
+runs the session. The daemon on the TUI's own computer has no name in the config, and the TUI writes
+its name as `local`.
 
 `pickPlaceLabels` gives one label to each place key:
 
 - When the daemons in one place give it different labels, the TUI uses the label from the daemon on
   its own computer, else the label from the daemon listed first in the config's `daemons`.
-- When two places share a label, the TUI adds the daemon name, as `<label> · <daemon name>`. While
-  two labels still match, it adds the target id next, then the place key, one at a time, until they
-  differ. It never adds a name that equals the label.
+- When two places share a label, the TUI adds the name of the daemon whose label it uses, as
+  `<label> · <daemon name>`. While two labels still match, it adds the target id next, then the
+  place key, one at a time, until they differ. It skips a name that equals the label, and takes the
+  next one.
 
 `pickPlaceColour` picks a place's colour from its key alone, so a place has the same colour on every
 daemon that sends its key, and in every run.
@@ -85,25 +88,26 @@ The TUI treats a daemon as down while its connection is lost, while the daemon r
 token, or while the daemon speaks another major protocol version. While a daemon is down, the TUI
 keeps that daemon's sessions as they were last listed.
 
-- A place that holds a session from a down daemon draws every one of its glyphs in `#3a414b`, and
-  shows `?` after its label.
+- When a place holds a session from a down daemon, the bar draws every glyph of that place in
+  `#3a414b`, the glyphs of its other daemons' sessions included, and puts `?` after its label.
 - Those sessions still count toward `k`.
 
-## The row
+## When the bar shows
 
 The bar shows while a session has focus, and while the session list is open over an attached
-session. A notice takes the row while it shows, such as a failed call, the advice to update a
-daemon, or a lost connection, and the bar returns after it. The bar layer sits above the layer that
-draws notices, and draws nothing while a notice shows. Home, the screen with no session attached,
-has no fleet bar.
+session. While the TUI shows a notice, such as a failed call, the advice to update a daemon, or a
+lost connection, the notice takes the row, and the bar returns after it. The bar layer draws nothing
+while a notice shows, so the notice layer below it shows through. Home, the screen with no session
+attached, has no fleet bar.
 
 While a session runs, the spinner turns 10 times a second, whatever the config's `animations` says.
 The bar layer asks the frame clock for frames only while the bar shows and a session runs.
 
 ## Claude Code's status line
 
-The fleet's state shows in the fleet bar, so Claude Code's own status line holds only the user's
-command. The statusline reporter sends each status line report to the daemon, runs the user's own
-status line command, and prints only that command's output, or nothing when the user has none.
+The fleet's state shows in the fleet bar, so Claude Code's own status line shows only the output of
+the user's status line command. Claude Code runs the statusline reporter with a JSON report of the
+session, such as its model and cost. The reporter sends each report to the daemon, runs the user's
+own status line command, and prints only that command's output, or nothing when the user has none.
 [Agent integration](../agents/agent-integration.md) owns the reporter and the generated `--settings`
 file.

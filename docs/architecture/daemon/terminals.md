@@ -34,19 +34,20 @@ list holds `full-replay`. The replay holds, in order:
 
 1. a full reset, then the kitty keyboard stack of each screen, from the
    [input mode tracker](../tui/compositor.md#the-input-mode-tracker);
-2. the visible rows of the normal buffer, with its scroll region, tab stops and cursor, and the
-   cursor and pen that DECSC saved. The scrollback stays out, so a replay stays near the size of two
-   screens;
+2. the visible rows of the normal buffer, with its tab stops, the cursor and pen (the colours and
+   attributes for the next text) that DECSC saved, its scroll region and origin mode, then its
+   cursor. The scroll region and origin mode each move the cursor home, so the cursor goes after
+   them. The scrollback stays out, so a replay stays near the size of two screens;
 3. the alternate buffer, with the same state, when the agent is on it. The replay switches to the
    alternate buffer with mode 1047, because 1049 would save the cursor again over the normal
    buffer's saved cursor;
 4. the runs of cells that `@xterm/addon-serialize`, which writes the buffers, gets wrong, written
    again: OSC 8 hyperlinks, the double, curly, dotted and dashed underlines, and the underline
    colour;
-5. a wrap pending at the last column, made again by printing the last cell again;
+5. a wrap pending at the last column: the replay prints the row's last cell a second time, which
+   leaves the cursor waiting to wrap;
 6. the DEC line-drawing charsets and the active charset, then the current pen;
-7. the cursor's visibility and shape, and the origin, wrap, insert and reverse-wrap modes. Origin
-   mode homes the cursor, so it goes in before the active buffer's cursor position;
+7. the cursor's visibility and shape, and the wrap, insert and reverse-wrap modes;
 8. the other input modes, from the input mode tracker.
 
 The daemon's screen model and the client's emulator both measure graphemes with xterm's Unicode
@@ -57,10 +58,10 @@ arrives in bounded chunks, cut between characters. Each chunk carries the `seq` 
 the replay holds, and the last chunk carries `done`. The client then applies only the output events
 with a greater `seq`.
 
-When the daemon drops a client's output, it sends a desync event, as [Backpressure](#backpressure)
-describes. To a client that attached with `replay: 'full'`, the daemon then sends a full replay in
-place of the repaint. A client that attached without it gets the visible screen as ordinary output,
-as [Attaching](#attaching) describes.
+When the daemon drops a client's output, it sends a desync event and then repaints the client's
+screen, as [Backpressure](#backpressure) describes. To a client that attached with `replay: 'full'`,
+the daemon sends a full replay in place of that repaint. A client that attached without it gets the
+visible screen as ordinary output, as [Attaching](#attaching) describes.
 
 The screen model lives in memory only. A session that ends keeps its last screen until the daemon
 drops the session, so a caller can still read a dead session's last screen as plain text, through a
