@@ -27,36 +27,44 @@ session it no longer shows takes no part in the [effective size](#several-client
 
 ## Full replay
 
-A client that attaches with `replay: 'full'` gets the session's whole emulator state in place of the
-visible screen, as `SessionReplay` events. The daemon lists the `full-replay` feature in its hello,
-and a client sends the field only to a daemon that lists it. The replay holds:
+A client that attaches with `replay: 'full'` gets the session's whole emulator state, as
+`SessionReplay` events, in place of the visible screen. Each daemon lists the features it supports
+in its hello, the first message on a connection, and a client sends `replay` only to a daemon whose
+list holds `full-replay`. The replay holds, in order:
 
-1. a full reset, then the kitty keyboard stack of each screen, from the daemon's input mode tracker;
-2. the visible rows of the normal buffer, with its scroll region, tab stops, cursor, and the cursor
-   and pen that DECSC saved. The scrollback stays behind, so a replay stays near the size of two
+1. a full reset, then the kitty keyboard stack of each screen, from the
+   [input mode tracker](../tui/compositor.md#the-input-mode-tracker);
+2. the visible rows of the normal buffer, with its scroll region, tab stops and cursor, and the
+   cursor and pen that DECSC saved. The scrollback stays out, so a replay stays near the size of two
    screens;
-3. the alternate buffer, when the agent is on it, with the same state. The replay switches to it
-   with mode 1047, because 1049 would save the cursor again over the normal buffer's DECSC state;
-4. the runs of cells the serializer writes wrong, written again: OSC 8 hyperlinks, and the double,
-   curly, dotted and dashed underlines and the underline colour;
+3. the alternate buffer, with the same state, when the agent is on it. The replay switches to the
+   alternate buffer with mode 1047, because 1049 would save the cursor again over the normal
+   buffer's saved cursor;
+4. the runs of cells that `@xterm/addon-serialize`, which writes the buffers, gets wrong, written
+   again: OSC 8 hyperlinks, the double, curly, dotted and dashed underlines, and the underline
+   colour;
 5. a wrap pending at the last column, made again by printing the last cell again;
 6. the DEC line-drawing charsets and the active charset, then the current pen;
-7. the cursor's visibility and shape, and the origin, wrap, insert and reverse-wrap modes. The
-   origin mode goes in before the active buffer's cursor position, since it homes the cursor;
-8. the other input modes from the input mode tracker.
+7. the cursor's visibility and shape, and the origin, wrap, insert and reverse-wrap modes. Origin
+   mode homes the cursor, so it goes in before the active buffer's cursor position;
+8. the other input modes, from the input mode tracker.
 
 The daemon's screen model and the client's emulator both measure graphemes with xterm's Unicode
 graphemes addon, so an emoji takes the same columns on each side.
 
-The replay arrives in bounded chunks, cut between characters. Each carries the `seq` of the last
-output the replay includes, and the last chunk carries `done`. The client applies only the output
-events with a greater `seq`. After a desync the daemon sends a full replay in place of the repaint,
-to a client that attached with `replay: 'full'`. A client that attached without it gets the visible
-screen as ordinary output, as above.
+Output events carry a sequence number, `seq`, per session, so a client can detect a gap. The replay
+arrives in bounded chunks, cut between characters. Each chunk carries the `seq` of the last output
+the replay holds, and the last chunk carries `done`. The client then applies only the output events
+with a greater `seq`.
 
-Output events carry a sequence number per session, so a client can detect a gap. The screen model
-lives in memory only. A session that ends keeps its last screen until the daemon drops the session,
-so a caller can still read what a dead session last showed, as plain text through a screen read.
+When the daemon drops a client's output, it sends a desync event, as [Backpressure](#backpressure)
+describes. To a client that attached with `replay: 'full'`, the daemon then sends a full replay in
+place of the repaint. A client that attached without it gets the visible screen as ordinary output,
+as [Attaching](#attaching) describes.
+
+The screen model lives in memory only. A session that ends keeps its last screen until the daemon
+drops the session, so a caller can still read a dead session's last screen as plain text, through a
+screen read.
 
 ## Watching
 
@@ -89,11 +97,12 @@ it when the socket drains. What happens on overflow depends on what overflows:
   event with the count, then a full repaint from the screen model. A lagging client wants the
   current screen, not the backlog it missed, and the repaint replaces every dropped chunk, so a
   stream cut in the middle of an escape sequence never corrupts the client's terminal.
-- **A full replay goes in whole.** The daemon counts none of its bytes against the queue, so a
-  replay larger than the queue reaches the client complete, with the session's later output behind
+- **A full replay goes in whole.** The daemon counts none of a replay's bytes against the queue, so
+  a replay larger than the queue reaches the client complete, with the session's later output behind
   it. The client shows none of a replay before its last chunk, so a cut replay would show nothing.
-  The socket still waits to drain between writes. A replay holds no scrollback, so its size stays
-  near two screens of cells.
+- **The queue holds one unsent replay per session.** A newer replay of a session drops an older one
+  that has not started sending, and the session's queued output at or below the newer replay's
+  `seq`. A replay that has started sending goes out whole first.
 - **Control is not droppable.** A response or a state event that overflows the queue means a bug or
   a hostile peer, so the daemon closes the connection.
 - **A headless session has no stream to attach to.** The daemon refuses an attach to a session with
