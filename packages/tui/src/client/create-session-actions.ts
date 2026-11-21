@@ -3,6 +3,7 @@ import { match } from 'ts-pattern';
 import { sendToDaemon } from '../daemon-link/send-to-daemon';
 import type { RequestLinks } from '../daemon-link/send-to-daemon';
 import type { FleetMirror } from '../fleet/create-fleet-mirror';
+import { isSameSessionKey } from '../fleet/session-key';
 import type { SessionKey } from '../fleet/session-key';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
 import { pickEndNotice } from '../overlay/pick-end-notice';
@@ -18,8 +19,12 @@ export interface SessionActionsDeps {
   readonly getMode: () => ClientMode;
   readonly attach: (key: SessionKey) => Promise<void>;
   readonly ptyRows: () => number;
+  readonly findFocusedKey: () => SessionKey | null;
 
   readonly reportFailure: (daemon: SessionKey['daemon'], error: unknown) => void;
+
+  // a notice on the status bar over home, which the next opening of the list drops
+  readonly showHomeNotice: (text: string) => void;
 }
 
 export interface SessionActions {
@@ -64,9 +69,21 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
   // The forgotten row leaves the list at once, so the notice goes on the
   // hint line instead of the row's message column.
   const showNotice = (notice: string) => {
+    if (deps.getMode() !== 'overlay') {
+      deps.showHomeNotice(notice);
+
+      return;
+    }
+
     deps.overlay.notice = notice;
 
     renderOverlay();
+  };
+
+  const isFocused = (key: SessionKey): boolean => {
+    const focused = deps.findFocusedKey();
+
+    return focused !== null && isSameSessionKey(focused, key);
   };
 
   const applyForgetAnswer = (key: SessionKey, answer: Readonly<Record<string, unknown>>) => {
@@ -77,7 +94,12 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
         renderOverlay();
       })
       .with({ step: 'notice' }, (step) => {
-        showNotice(step.notice);
+        // the list closes on home once the attached session leaves the fleet
+        if (isFocused(key)) {
+          deps.showHomeNotice(step.notice);
+        } else {
+          showNotice(step.notice);
+        }
       })
       .with({ step: 'none' }, () => {})
       .exhaustive();

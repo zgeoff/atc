@@ -25,6 +25,7 @@ export interface OverlayKeyDeps {
     | 'listVisible'
     | 'selected'
     | 'select'
+    | 'syncSelection'
     | 'filter'
     | 'grouping'
     | 'jump'
@@ -48,7 +49,7 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
     deps.overlay.render();
   }
 
-  const confirm = deps.getConfirm();
+  const confirm = dropVanishedPrompt(deps);
 
   if (deps.isLeaderKey(buf)) {
     if (confirm !== 'none') {
@@ -77,6 +78,21 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
   }
 
   applyListKey(buf, deps);
+}
+
+// The list stops showing a prompt once its session leaves the fleet, so the prompt must not take
+// the next key either.
+function dropVanishedPrompt(deps: OverlayKeyDeps): OverlayConfirm {
+  const confirm = deps.getConfirm();
+  const confirmKey = deps.service.getSnapshot().context.confirmKey;
+
+  if (confirm === 'none' || (confirmKey !== null && deps.mirror.has(confirmKey))) {
+    return confirm;
+  }
+
+  deps.service.send({ type: 'CONFIRM_DONE' });
+
+  return 'none';
 }
 
 function applyOverlayFilterKey(buf: Buffer, deps: OverlayKeyDeps): boolean {
@@ -144,7 +160,7 @@ const NEXT_GROUPING: Readonly<Record<Grouping, Grouping>> = {
 
 function applyListKey(buf: Buffer, deps: OverlayKeyDeps) {
   const overlay = deps.overlay;
-  const filtered = overlay.pickSessions();
+  const filtered = overlay.syncSelection();
   const sel = filtered[overlay.selected];
   const ch = buf.toString();
 
@@ -256,7 +272,7 @@ function applyEndKey(sel: MirrorSession, deps: OverlayKeyDeps) {
 
 // the keys that act on the session or the daemon without changing the list
 function applyActionKey(buf: Buffer, deps: OverlayKeyDeps) {
-  const sel = deps.overlay.pickSessions()[deps.overlay.selected];
+  const sel = deps.overlay.syncSelection()[deps.overlay.selected];
   const ch = buf.toString();
 
   if (ch === 'n') {

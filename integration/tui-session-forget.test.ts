@@ -63,6 +63,57 @@ test('#sendEnd shows the kept folder and its reasons when the forget keeps the w
   expect(ctx.overlay.notice).toBe('kept orchard-main: 1 uncommitted or untracked path');
 });
 
+test('#sendEnd shows the kept folder on home, not the list, when the ended session is the attached one', async () => {
+  const ctx = await setupTest();
+  const git = await createGitFixture({ prefix: 'atc-tui-forget-' });
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    target: 'local',
+    cwd: join(git.directory, 'orchard-main'),
+    workspace: { kind: 'git', url: `file://${git.upstream}`, ref: 'main' },
+    cols: 80,
+    rows: 24,
+  });
+
+  const session = getRecord(spawned, 'session');
+  const key = { daemon: null, id: String(session['id']) };
+
+  writeFileSync(join(String(session['cwd']), 'harvest-plan.md'), '# pick the pears first\n');
+
+  ctx.focus(key);
+
+  await ctx.actions.sendEnd(key, false);
+
+  expect({ home: ctx.homeNotices, list: ctx.overlay.notice }).toStrictEqual({
+    home: ['kept orchard-main: 1 uncommitted or untracked path'],
+    list: null,
+  });
+});
+
+test("#sendEnd ends a sub-session on its parent's machine at once, asking no machine question", async () => {
+  const ctx = await setupTest();
+
+  const base = { target: 'imp', cwd: ctx.directory, cols: 80, rows: 24 };
+
+  const parent = await ctx.client.sendRequest('session.spawn', base);
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+
+  const child = await ctx.client.sendRequest('session.spawn', { ...base, parent: parentID });
+
+  const childID = String(getRecord(child, 'session')['id']);
+
+  await ctx.actions.sendEnd({ daemon: null, id: childID }, false);
+
+  const listed = await ctx.client.sendRequest('session.list');
+
+  expect({
+    confirm: ctx.service.getSnapshot().value.confirm,
+    destroyed: ctx.imp.destroyed,
+    left: getRecords(listed, 'sessions').map((session) => session['id']),
+  }).toStrictEqual({ confirm: 'none', destroyed: [], left: [parentID] });
+});
+
 test('#sendEnd shows no notice when the forget removes the workspace', async () => {
   const ctx = await setupTest();
   const git = await createGitFixture({ prefix: 'atc-tui-forget-' });

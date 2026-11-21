@@ -70,6 +70,16 @@ test('it keeps the selection on its session when another session moves above it'
   expect(sessions[input.selected]).toBe('b');
 });
 
+test('it drops the notice of an earlier opening when the list opens', () => {
+  const ctx = setupTest();
+
+  ctx.overlay.notice = 'kept orchard-main: a stash';
+
+  ctx.overlay.open();
+
+  expect(ctx.overlay.readInput(0, 0).notice).toBeNull();
+});
+
 test('it starts grouped as the config sets', () => {
   const ctx = setupTest({ list: { grouping: 'place' } });
 

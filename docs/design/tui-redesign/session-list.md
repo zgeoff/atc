@@ -241,7 +241,9 @@ including when it keeps a session's workspace folder.
   `<name>'s machine is asleep: attach to wake it, then end it`.
 - When the forget keeps the session's workspace folder, the TUI shows the notice
   `kept <folder>: <reasons>`, with the reasons the daemon gives.
-- Ending the attached session closes the list and shows home.
+- Ending the attached session closes the list and shows home, with the kept-folder notice on the
+  status bar. The next open of the list drops that notice.
+- When `K` kills the attached session, the list stays open, over home.
 
 ### Motion
 

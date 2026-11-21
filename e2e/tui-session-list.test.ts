@@ -63,6 +63,7 @@ test('it opens the list over an attached session that keeps drawing', async () =
   });
 
   expect(ctx.tui.readScreen()).toInclude('╭─ ');
+  expect(ctx.tui.readScreen()).not.toInclude('atc — control tower');
 });
 
 test('it cycles the grouping with g, and shows the place groups with their headers', async () => {
@@ -151,6 +152,47 @@ test('it asks before it ends a dead session, and removes it on y', async () => {
   await ctx.tui.waitFor('no sessions — n to spawn');
 
   expect(ctx.tui.readScreen()).not.toInclude('doomed');
+});
+
+test('it opens the list on a leader typed in one chunk with the next key, and gives the list that key', async () => {
+  const ctx = await setupTest();
+  const id = await spawnDaemonSession(ctx.tui, 'shown');
+
+  await ctx.attachFirst();
+
+  ctx.tui.reset();
+  ctx.tui.write(`${KEYS.ctrlSpace}i`);
+
+  await ctx.tui.waitFor('atc — control tower');
+
+  const sessionScreen = await ctx.readSessionScreen(id);
+
+  // the session's terminal echoes a NUL as ^@
+  expect(sessionScreen).not.toInclude('^@i');
+});
+
+test('it shows home behind the list once K kills the attached session', async () => {
+  const ctx = await setupTest();
+
+  await spawnDaemonSession(ctx.tui, 'doomed');
+
+  await ctx.attachFirst();
+
+  ctx.tui.write(KEYS.ctrlSpace);
+
+  await ctx.tui.waitFor('╭─ ');
+
+  ctx.tui.write('K');
+
+  await ctx.tui.waitFor('kill doomed? · y / n');
+
+  ctx.tui.write('y');
+
+  await ctx.tui.waitFor('X end');
+
+  await waitFor(() => {
+    expect(ctx.tui.readScreen()).toInclude('atc — control tower');
+  });
 });
 
 test('it keeps the fleet bar on the last row while the list is open', async () => {

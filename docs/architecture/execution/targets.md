@@ -37,7 +37,7 @@ daemon checks the declaration before it calls the provider:
 `local-pty` declares every capability except `suspend` and `destroy`, since its host is the daemon's
 own machine. What a session's kill and forget do follows from these two: a target that can suspend
 puts its host to sleep on a kill, and a revive later wakes it with the harness inside. A target that
-can destroy its host makes a forget take a confirm token
+can destroy its host makes a forget of the session that owns the host take a confirm token
 ([sessions](../daemon/sessions.md#ending-a-session)).
 
 A remote provider that declares no `relay` cannot carry a session's hooks to the daemon, so the
