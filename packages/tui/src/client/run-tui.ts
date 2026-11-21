@@ -588,7 +588,6 @@ export async function runTUI(host: TUIHost): Promise<void> {
   service.start();
 }
 
-// The terminal's last row stays free of the session.
 function ptyRows(): number {
   return Math.max(4, rows() - 1);
 }

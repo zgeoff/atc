@@ -3,7 +3,7 @@ import { pickColourDepth } from '../compositor/pick-colour-depth';
 import type { TerminalFacts } from '../compositor/types';
 import type { TerminalAnswer } from './create-terminal-answer-filter';
 
-export const ANSWER_WAIT_MS = 150;
+const ANSWER_WAIT_MS = 150;
 
 export interface TerminalFactsDeps {
   readonly env: { readonly colorterm: string | undefined; readonly term: string | undefined };

@@ -147,10 +147,18 @@ test('it rejects a wait for exit before the client boots', () => {
   expect(() => tui.waitForExit()).toThrow('wait for exit before boot');
 });
 
-test('it forgets what the client drew on reset', async () => {
+test('it forgets the output the client wrote on reset', async () => {
   const ctx = await setupTest();
 
   ctx.tui.reset();
+
+  expect(ctx.tui.read()).not.toInclude('\u001B[2J');
+});
+
+test('it forgets what the screen shows on a screen reset', async () => {
+  const ctx = await setupTest();
+
+  ctx.tui.resetScreen();
 
   expect(ctx.tui.read()).not.toInclude('atc — control tower');
 });

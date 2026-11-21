@@ -13,7 +13,7 @@ export interface CompositorDeps {
   readonly readCursor: () => CursorPlacement | null;
 }
 
-export interface Frame {
+interface Frame {
   readonly buffer: CellBuffer;
   readonly info: FrameInfo;
 }

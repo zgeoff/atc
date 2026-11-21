@@ -232,6 +232,7 @@ export declare const CONFIG_FILE_SCHEMA: z.ZodObject<{
     principals: z.ZodOptional<z.ZodUnknown>;
     daemons: z.ZodOptional<z.ZodUnknown>;
     restoreFleetOnRestart: z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
+    animations: z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
 }, z.core.$strip>;
 export type ConfigFile = z.output<typeof CONFIG_FILE_SCHEMA>;
 

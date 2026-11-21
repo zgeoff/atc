@@ -53,7 +53,7 @@ interface Cell {
 
 type Colour =
   | { kind: 'default' } // the terminal's own colour: ESC[39m / ESC[49m
-  | { kind: 'rgb'; r: number; g: number; b: number }
+  | { kind: 'rgb'; red: number; green: number; blue: number }
   | { kind: 'palette'; index: number }; // 0-255, as the agent sent it
 
 interface Layer {
@@ -81,12 +81,15 @@ interface TerminalFacts {
 // tui module: session emulator. Adapter: @xterm/headless.
 interface SessionEmulator {
   write(data: string): Promise<void>; // SessionOutput bytes, in order; resolves once parsed
+  reset(): Promise<void>; // a hard reset, written through the same queue as write; the first chunk of a replay calls it
   resize(cols: number, rows: number): void; // follows the PTY's size from SessionResized
+  readSize(): { cols: number; rows: number };
   readCell(col: number, row: number): Cell;
   readCursor(): { col: number; row: number; visible: boolean; shape: CursorShape };
   readInputModes(): InputModes;
   onReply(listener: (bytes: string) => void): void; // answers to the agent's queries
   onPassthrough(listener: (sequence: string) => void): void;
+  dispose(): void;
 }
 
 // core module: input modes, tracked in one place for the TUI and for the daemon's own emulator of each session
@@ -109,7 +112,7 @@ interface InputModes {
 ```
 
 ```ts
-// @atcx/contract: session.attach gains an input field, and the daemon events gain SessionReplay
+// @atcx/contract: session.attach gains an input field, a `full-replay` feature in the daemon's hello that gates it, and the daemon events gain SessionReplay
 const attached = await client.procedures.session.attach({
   session: 'sess_8f2',
   cols: 120,
@@ -252,6 +255,21 @@ z.object({
   one place.
 - **The user's terminal keeps no scrollback of a session,** because the TUI runs in the terminal's
   alternate screen.
+
+## Where the build differs
+
+The build in [the compositor architecture doc](../../architecture/tui/compositor.md) follows this
+design, with these differences:
+
+- RGB fields are `red`, `green` and `blue`. The lint rules refuse one-letter names.
+- The frame clock takes an `animations` flag from the config and passes it to the layers that
+  animate. No layer animates yet, so the flag changes nothing today.
+- The emulator has `reset`, `readSize` and `dispose`, which the session stream needs to start a
+  replay and to end a session.
+- The screens that already draw with escape sequences write through one function into a second
+  emulator, and a layer copies its cells. They move to layers of their own one at a time.
+- The flush writes a short run of unchanged cells in place of a cursor move, and repaints every cell
+  after a screen clears the terminal, so a screen that draws with `ESC[2J` needs no change.
 
 ## Builder decides
 

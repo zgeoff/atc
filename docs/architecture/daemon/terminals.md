@@ -25,6 +25,23 @@ session it no longer shows takes no part in the [effective size](#several-client
 3. Live output follows the replay. The replay goes out as ordinary output events, so the client
    cannot tell replay from live output and needs no separate path for it.
 
+## Full replay
+
+A client that attaches with `replay: 'full'` gets the session's whole emulator state in place of the
+visible screen, as `SessionReplay` events. The daemon lists the `full-replay` feature in its hello,
+and a client sends the field only to a daemon that lists it. The replay holds:
+
+1. a full reset, then the normal buffer with its scrollback rows, scroll region and cursor;
+2. the alternate buffer, when the agent is on it, with its scroll region;
+3. the cursor's visibility and the origin, wrap, insert and reverse-wrap modes;
+4. the input modes from the daemon's input mode tracker, with one push for each kitty stack entry.
+
+The replay arrives in bounded chunks, cut between characters. Each carries the `seq` of the last
+output the replay includes, and the last chunk carries `done`. The client applies only the output
+events with a greater `seq`. After a desync the daemon sends a full replay in place of the repaint,
+to a client that attached with `replay: 'full'`. A client that attached without it gets the visible
+screen as ordinary output, as above.
+
 Output events carry a sequence number per session, so a client can detect a gap. The screen model
 lives in memory only. A session that ends keeps its last screen until the daemon drops the session,
 so a caller can still read what a dead session last showed, as plain text through a screen read.

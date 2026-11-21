@@ -2,7 +2,7 @@ import type { Clock } from '@atc/core';
 import { isLateTick, pickNextFrameAt } from './pick-next-frame-at';
 import type { Layer } from './types';
 
-export const FRAME_MS = 16;
+const FRAME_MS = 16;
 
 export interface FrameClockDeps {
   readonly clock: Clock;

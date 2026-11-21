@@ -35,6 +35,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
 
 - [The TUI and its daemons](architecture/tui/daemon-links.md) — one link per daemon, the primary
   daemon, link states and retries, session keys, and confirmations that hold their key
+- [The compositor](architecture/tui/compositor.md) — the session emulator, layers and frames,
+  colour, mirrored input modes and the last row
 
 ### Protocol
 

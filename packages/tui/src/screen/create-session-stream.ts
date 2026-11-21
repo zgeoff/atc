@@ -13,7 +13,7 @@ export interface SessionStreamDeps {
   readonly onChange: () => void;
 }
 
-export type SessionStreamEvent =
+type SessionStreamEvent =
   | {
       readonly ev: 'SessionOutput';
       readonly sessionID: string;
