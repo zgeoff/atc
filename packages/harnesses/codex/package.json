@@ -18,6 +18,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@zgeoff/testing": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

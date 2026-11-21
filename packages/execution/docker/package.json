@@ -16,5 +16,8 @@
     "@atcx/contract": "workspace:*",
     "tiny-invariant": "catalog:",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@zgeoff/testing": "catalog:"
   }
 }

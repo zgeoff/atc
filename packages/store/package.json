@@ -14,12 +14,13 @@
     "@atc/protocol": "workspace:*",
     "@atcx/contract": "workspace:*",
     "@zgeoff/kysely-bun-sqlite": "catalog:",
+    "@zgeoff/std": "catalog:",
     "kysely": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@faker-js/faker": "catalog:",
-    "@zgeoff/std": "catalog:",
+    "@zgeoff/testing": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

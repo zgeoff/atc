@@ -11,5 +11,8 @@
     "@atc/core": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@zgeoff/testing": "catalog:"
   }
 }

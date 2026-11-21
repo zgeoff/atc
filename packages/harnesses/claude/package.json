@@ -17,13 +17,14 @@
     "@atc/protocol": "workspace:*",
     "@atcx/contract": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
+    "@zgeoff/std": "catalog:",
     "ts-pattern": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@faker-js/faker": "catalog:",
     "@types/proper-lockfile": "catalog:",
-    "@zgeoff/std": "catalog:",
+    "@zgeoff/testing": "catalog:",
     "proper-lockfile": "catalog:",
     "tiny-invariant": "catalog:"
   }
