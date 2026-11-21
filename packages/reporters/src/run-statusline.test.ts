@@ -67,7 +67,7 @@ test.each([
   expect(runChained).not.toHaveBeenCalled();
 });
 
-test('it prints an empty line when the user has no statusline', async () => {
+test('it prints nothing when the user has no statusline', async () => {
   setupTest();
 
   const printed: string[] = [];
@@ -81,7 +81,7 @@ test('it prints an empty line when the user has no statusline', async () => {
     exit: () => {},
   });
 
-  expect(printed).toStrictEqual(['']);
+  expect(printed).toStrictEqual([]);
 });
 
 test("it reports the payload to the session's socket as a Statusline event", async () => {
@@ -131,7 +131,7 @@ test('it adds no text of its own inside a remote host', async () => {
     exit: () => {},
   });
 
-  expect(printed).toStrictEqual(['']);
+  expect(printed).toStrictEqual([]);
 });
 
 test('it exits 0 when the chained statusline fails', async () => {

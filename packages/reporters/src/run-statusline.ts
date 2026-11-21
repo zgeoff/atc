@@ -1,6 +1,7 @@
 import { loadClaudeStatusLine } from '@atc/config/claude-statusline';
 import { isRecord } from '@atc/core';
 import { readSessionEnv } from '@atc/protocol/session';
+import { runChainedCommand } from './run-chained-command';
 import { sendReport } from './send-report';
 
 interface StatuslineIO {
@@ -57,28 +58,12 @@ export async function runStatusline(agent: string, io: StatuslineIO = PROCESS_IO
     }
   } catch {}
 
-  io.print(chained);
+  // with no line of the user's to show, the status line stays empty, with no blank line in it
+  if (chained !== '') {
+    io.print(chained);
+  }
+
   io.exit(0);
-}
-
-const CHAINED_TIMEOUT_MS = 1500;
-
-async function runChainedCommand(command: string, stdin: string): Promise<string> {
-  const subprocess = Bun.spawn(['bash', '-c', command], {
-    stdin: new TextEncoder().encode(stdin),
-    stdout: 'pipe',
-    stderr: 'ignore',
-  });
-
-  const timer = setTimeout(() => {
-    subprocess.kill();
-  }, CHAINED_TIMEOUT_MS);
-
-  const text = await new Response(subprocess.stdout).text();
-
-  clearTimeout(timer);
-
-  return text;
 }
 
 function isSelfCommand(cmd: string): boolean {
