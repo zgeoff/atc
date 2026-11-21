@@ -55,6 +55,7 @@ function setupTest() {
         needYouCount: 1,
         leaderLabel: 'ctrl+space',
         notices: [],
+        restorableCount: 0,
       }),
     },
     isHomeShown: () => state.isHomeShown,

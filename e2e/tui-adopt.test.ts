@@ -13,7 +13,7 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   ctx.reset();
   ctx.write('r');
@@ -58,7 +58,7 @@ test('it adopts grok with --no-leader and without --resume', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   ctx.reset();
   ctx.write('r');
@@ -108,7 +108,7 @@ test('it offers an adopt only the targets that run on this host', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   ctx.reset();
   ctx.write('r');

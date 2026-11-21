@@ -12,7 +12,7 @@ test('it quits the client on q from the overlay', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);

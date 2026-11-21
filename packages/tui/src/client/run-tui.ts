@@ -106,13 +106,19 @@ export async function runTUI(host: TUIHost): Promise<void> {
       mirror,
       leaderLabel: leader.label,
       readNoticeSource: () => ({
+        daemonName: primaryName,
         notice: notices.read(),
         isWaiting: isDaemonWaiting(),
         isRestarting: isDaemonRestarting(),
         isStale: getBoot().stale,
       }),
     }),
-    isHomeShown: () => isHomeShown(getMode(), isShowingSession()),
+    isHomeShown: () =>
+      isHomeShown({
+        mode: getMode(),
+        isSessionShown: isShowingSession(),
+        isPrompting: findRestartConsent() !== null,
+      }),
     sendSessionReply: (key, bytes) => {
       void sendInput(key, bytes);
     },

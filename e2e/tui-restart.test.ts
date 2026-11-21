@@ -77,7 +77,7 @@ test('it restarts a daemon on another protocol after the user confirms and resto
   ctx.reset();
   ctx.write('y');
 
-  await ctx.waitFor('fleettest');
+  await ctx.waitFor('1 session');
 
   await legacy.exited;
 
@@ -137,7 +137,7 @@ test('it stops a daemon on another protocol after the user confirms, and the man
 
   registerTestCleanup(() => next.stop());
 
-  await ctx.waitFor('1 running');
+  await ctx.waitFor('1 session');
 
   ctx.write(KEYS.ctrlSpace);
 

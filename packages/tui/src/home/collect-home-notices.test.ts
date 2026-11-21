@@ -2,17 +2,36 @@ import { expect, test } from 'bun:test';
 import { collectHomeNotices } from './collect-home-notices';
 
 test.each([
-  [{ notice: null, isWaiting: false, isRestarting: false, isStale: false }, []],
+  [{ daemonName: null, notice: null, isWaiting: false, isRestarting: false, isStale: false }, []],
   [
-    { notice: 'kept folder /tmp/work', isWaiting: false, isRestarting: false, isStale: false },
+    {
+      daemonName: null,
+      notice: 'kept folder /tmp/work',
+      isWaiting: false,
+      isRestarting: false,
+      isStale: false,
+    },
     ['kept folder /tmp/work'],
   ],
-  [{ notice: null, isWaiting: false, isRestarting: false, isStale: true }, ['⟳ update ready']],
-  [{ notice: null, isWaiting: false, isRestarting: true, isStale: true }, ['⟳ restarting daemon']],
-  [{ notice: null, isWaiting: true, isRestarting: true, isStale: false }, ['⟳ waiting for daemon']],
   [
-    { notice: 'refused', isWaiting: false, isRestarting: false, isStale: true },
+    { daemonName: null, notice: null, isWaiting: false, isRestarting: false, isStale: true },
+    ['⟳ update ready'],
+  ],
+  [
+    { daemonName: null, notice: null, isWaiting: false, isRestarting: true, isStale: true },
+    ['⟳ restarting daemon'],
+  ],
+  [
+    { daemonName: null, notice: null, isWaiting: true, isRestarting: true, isStale: false },
+    ['⟳ waiting for daemon'],
+  ],
+  [
+    { daemonName: null, notice: 'refused', isWaiting: false, isRestarting: false, isStale: true },
     ['refused', '⟳ update ready'],
+  ],
+  [
+    { daemonName: 'box', notice: 'refused', isWaiting: false, isRestarting: false, isStale: false },
+    ['@box', 'refused'],
   ],
 ])('#collectHomeNotices lists the notices for %o', (source, expected) => {
   expect(collectHomeNotices(source)).toStrictEqual(expected);

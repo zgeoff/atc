@@ -54,7 +54,7 @@ test('it returns a spawn into an existing destination to the confirm screen with
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -104,7 +104,7 @@ test('it returns a spawn whose clone fails to the list', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -139,7 +139,7 @@ test('it returns a spawn whose commit left the upstream to the ref step with the
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 

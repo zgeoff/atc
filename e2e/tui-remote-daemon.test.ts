@@ -59,7 +59,7 @@ test('it shows the fleet of the remote daemon the flag selects and starts no loc
 
   ctx.tui.boot(['--daemon', 'box']);
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   ctx.tui.write(KEYS.ctrlSpace);
 
@@ -68,7 +68,7 @@ test('it shows the fleet of the remote daemon the flag selects and starts no loc
 
   // The client draws the status bar on a 50 ms timer after it draws the
   // list, so the list can show before the daemon's name does.
-  await ctx.tui.waitFor(' atc@box ▏');
+  await ctx.tui.waitFor('@box');
 
   expect(existsSync(ctx.tui.paths.daemonPidFile)).toBe(false);
 });
@@ -127,7 +127,7 @@ test("it lists only the remote daemon's directories and spawns in the first of t
 
   ctx.tui.boot(['--daemon', 'box']);
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   ctx.tui.write('n');
 
@@ -200,7 +200,7 @@ test("it completes and resolves a typed ~ path on the remote daemon's host", asy
 
   ctx.tui.boot(['--daemon', 'box']);
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   ctx.tui.write('n');
 
@@ -268,7 +268,7 @@ test('it exits with the refusal when a reconnect to the remote daemon is refused
 
   ctx.tui.boot(['--daemon', 'box']);
 
-  await ctx.tui.waitFor('atc — control tower');
+  await ctx.tui.waitFor('n  new');
 
   writeFileSync(join(remote.directory, 'gateway-token'), `${'b'.repeat(32)}\n`);
 

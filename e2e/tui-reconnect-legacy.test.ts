@@ -13,7 +13,7 @@ async function setupTest() {
   const socketPath = harness.paths.daemonSocketPath;
   const pty = harness.boot();
 
-  await harness.waitFor('idle');
+  await harness.waitFor('n  new');
 
   const first = readDaemonRecord(harness.paths.daemonRecordFile);
 

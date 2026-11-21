@@ -24,7 +24,7 @@ test('it keeps paths and slash filters in the one list', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -57,7 +57,7 @@ test('it moves tab to the next source with rows and wraps to the directories', a
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -86,7 +86,7 @@ test('it keeps a pasted git URL in the one list as typed text', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -123,7 +123,7 @@ test('it drives a source from its candidates to the confirm screen', async () =>
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -163,7 +163,7 @@ test('it spawns the repository a source reads typed text as, through to its work
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -230,7 +230,7 @@ test('it lists the scope a source reads from typed text once, with no target ste
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -265,7 +265,7 @@ test('it refuses a spawn when the config offers no sources', async () => {
   ctx.writeConfig({ workspaces: { sources: [] } });
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -284,7 +284,7 @@ test('it lists an owner typed in the list through the source that reads it', asy
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -325,7 +325,7 @@ test('it probes a repository typed in the list at the URL its source reads it as
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -356,7 +356,7 @@ test('it offers only the sources the config gives, and returns esc from the ref 
   ctx.writeConfig({ workspaces: { sources: ['git', 'dirs'] } });
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 

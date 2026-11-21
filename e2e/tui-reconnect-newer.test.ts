@@ -13,7 +13,7 @@ test('it tells the user to reopen a client that a reconnect finds older than the
 
   harness.boot();
 
-  await harness.waitFor('idle');
+  await harness.waitFor('n  new');
 
   const first = readDaemonRecord(harness.paths.daemonRecordFile);
 

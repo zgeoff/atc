@@ -4,7 +4,7 @@ import type { HomeNoticeSource } from './collect-home-notices';
 import type { HomeLayerDeps } from './create-home-layer';
 
 export interface HomeDepsSource {
-  readonly mirror: Pick<FleetMirror, 'sessions'>;
+  readonly mirror: Pick<FleetMirror, 'sessions' | 'count'>;
   readonly leaderLabel: string;
   readonly readNoticeSource: () => HomeNoticeSource;
 }
@@ -17,6 +17,7 @@ export function createHomeDeps(source: HomeDepsSource): HomeLayerDeps {
         ...source.readNoticeSource(),
         sessionStates: source.mirror.sessions.map((session) => session.state),
         leaderLabel: source.leaderLabel,
+        restorableCount: source.mirror.count,
       }),
   };
 }

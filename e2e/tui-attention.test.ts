@@ -16,7 +16,7 @@ test('it clears the need state when attaching a needy session', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'needytest');
 
@@ -42,7 +42,7 @@ test('it attaches and acks the session that needs you on tab', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'needy');
 
@@ -97,7 +97,7 @@ test('it tab-jumps to a finished session when none need you', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'finished');
 

@@ -36,7 +36,7 @@ test('it spawns a session from a git repository at the commit the confirm screen
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -131,7 +131,7 @@ test('it filters refs by name on the ref step', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -157,7 +157,7 @@ test('it refuses an abbreviated commit id on the ref step', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -180,7 +180,7 @@ test("it lists the gh account's repositories and an owner's on request, and leav
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -210,7 +210,7 @@ test('it shows a repository the daemon cannot read on the list', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -241,7 +241,7 @@ test('it opens the target step after a typed repository on a target that takes a
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -305,7 +305,7 @@ test('it lists github on the one target that takes a workspace without a target 
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -336,7 +336,7 @@ test("it builds each target's own default destination when the target changes", 
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -411,7 +411,7 @@ test('it leaves a destination under a ~ root to a remote target and refuses a ty
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -469,7 +469,7 @@ test('it offers the other URL form after a failed probe and checks that form on 
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 
@@ -508,7 +508,7 @@ test('it drops a typed destination when the repository changes', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await tabToRepoRows(ctx);
 

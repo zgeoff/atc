@@ -10,6 +10,7 @@ function setupTest(input: Partial<HomeInput>) {
       needYouCount: 0,
       leaderLabel: 'ctrl+space',
       notices: [],
+      restorableCount: 0,
       ...input,
     }),
   });

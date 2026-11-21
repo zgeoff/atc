@@ -16,7 +16,8 @@ export function buildHomeLayout(
   input: HomeInput,
 ): HomeLayout {
   const wordmarkGap = wordmark.kind === 'outline' ? 2 : 1;
-  const stackRows = wordmarkSize.rows + wordmarkGap + 1 + 1 + 2;
+  const keys = listKeys(input);
+  const stackRows = wordmarkSize.rows + wordmarkGap + 1 + 1 + keys.length;
   const top = Math.max(0, Math.floor((window.rows - stackRows) / 2));
   const wordmarkAt = { col: centre(window.cols, wordmarkSize.cols), row: top };
   const fleetRow = top + wordmarkSize.rows + wordmarkGap;
@@ -25,11 +26,25 @@ export function buildHomeLayout(
   const runs: HomeRun[] = [
     ...buildWordmarkRuns(window, wordmark, wordmarkAt.row),
     ...buildFleetRuns(window.cols, fleetRow, input),
-    ...buildKeyRuns(window.cols, keysRow, input.leaderLabel),
-    ...buildNoticeRuns(window.cols, keysRow + 3, input.notices),
+    ...buildKeyRuns(window.cols, keysRow, keys),
+    ...buildNoticeRuns(window.cols, keysRow + keys.length + 1, input.notices),
   ];
 
   return { wordmarkAt, runs };
+}
+
+interface KeyEntry {
+  readonly key: string;
+  readonly label: string;
+}
+
+function listKeys(input: HomeInput): KeyEntry[] {
+  const keys = [
+    { key: input.leaderLabel, label: 'sessions' },
+    { key: 'n', label: 'new' },
+  ];
+
+  return input.restorableCount > 0 ? [...keys, { key: 'R', label: 'restore' }] : keys;
 }
 
 function centre(width: number, contentWidth: number): number {
@@ -101,15 +116,10 @@ function buildFleetRuns(cols: number, row: number, input: HomeInput): HomeRun[] 
 
 const KEY_GAP = 2;
 
-function buildKeyRuns(cols: number, row: number, leaderLabel: string): HomeRun[] {
-  const keyWidth = Math.max(measureWidth(leaderLabel), 1);
-  const labelWidth = measureWidth('sessions');
+function buildKeyRuns(cols: number, row: number, keys: readonly KeyEntry[]): HomeRun[] {
+  const keyWidth = Math.max(...keys.map((entry) => measureWidth(entry.key)));
+  const labelWidth = Math.max(...keys.map((entry) => measureWidth(entry.label)));
   const left = centre(cols, keyWidth + KEY_GAP + labelWidth);
-
-  const keys = [
-    { key: leaderLabel, label: 'sessions' },
-    { key: 'n', label: 'new' },
-  ];
 
   return keys.flatMap((entry, index) => [
     {

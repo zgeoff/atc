@@ -21,7 +21,7 @@ test('it leaves an agent with no installed binary out of the picker', async () =
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   ctx.reset();
   ctx.write('n');
@@ -49,7 +49,7 @@ test('it shows a refused spawn in the picker and keeps the entered prompt', asyn
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   // One installed agent is no choice, so the flow passes the agent step on its own once the daemon answers; a key typed there would land on the directory step instead.
   ctx.write('n');
@@ -95,7 +95,7 @@ test('it spawns on the target chosen in the target step, keeping the choice acro
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -178,7 +178,7 @@ test('it keeps the target step open on a target whose provider the daemon lacks'
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -232,7 +232,7 @@ test('it sends a dirty local directory to a target off the daemon machine as a p
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await openAgentStep(ctx);
 
@@ -276,7 +276,7 @@ test('it starts claude with the settings file atc generates', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'withsettings');
 

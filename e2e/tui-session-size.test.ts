@@ -23,7 +23,7 @@ test('it sizes a session to the client that shows it once another client moves t
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   const firstID = await spawnDaemonSession(ctx, 'first');
 
@@ -66,7 +66,7 @@ test('it sizes a session to the smaller of two clients that both show it', async
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   const firstID = await spawnDaemonSession(ctx, 'first');
 

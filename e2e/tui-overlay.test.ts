@@ -30,7 +30,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnDaemonSession(ctx, 'alpha');
   await spawnDaemonSession(ctx, 'bravo');
@@ -64,10 +64,10 @@ test('it opens the overlay with a configured leader key', async () => {
   ctx.writeConfig({ leader: 'ctrl-]' });
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
-  // An attached session draws no status bar, so this label only appears on the home screen.
-  await ctx.waitFor('▏^] ');
+  // Home shows the configured leader key beside its label.
+  await ctx.waitFor('^]  sessions');
 
   await spawnDaemonSession(ctx, 'leadertest');
 
@@ -84,7 +84,7 @@ test('it pins a session from the list and groups it under pinned', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'pinme');
 
@@ -114,7 +114,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'first');
 
@@ -168,7 +168,7 @@ test('it lists a sub-session indented under its parent', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   const daemon = createDaemonClient(ctx.paths.daemonSocketPath);
 
@@ -205,7 +205,7 @@ test('it lists a detached sub-session as top-level', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   const daemon = createDaemonClient(ctx.paths.daemonSocketPath);
 
@@ -250,7 +250,7 @@ test('it preselects the focused session when the overlay opens', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnClaudeSession(ctx, 'first');
 
@@ -275,7 +275,7 @@ test('it opens the key reference from the overlay and returns on esc', async () 
 
   ctx.boot();
 
-  await ctx.waitFor('atc — control tower');
+  await ctx.waitFor('n  new');
 
   await spawnDaemonSession(ctx, 'helptest');
 

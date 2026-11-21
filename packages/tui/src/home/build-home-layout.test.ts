@@ -12,6 +12,7 @@ function setupTest() {
       needYouCount: 0,
       leaderLabel: 'ctrl+space',
       notices: [],
+      restorableCount: 0,
       ...override,
     });
 
@@ -52,7 +53,13 @@ test('#buildHomeLayout centres the stack and leaves two blank rows under an outl
     { cols: 170, rows: 50 },
     { kind: 'outline', size: 's10' },
     { cols: 36, rows: 7 },
-    { sessionCount: 3, needYouCount: 0, leaderLabel: 'ctrl+space', notices: [] },
+    {
+      sessionCount: 3,
+      needYouCount: 0,
+      leaderLabel: 'ctrl+space',
+      notices: [],
+      restorableCount: 0,
+    },
   );
 
   expect([
@@ -101,7 +108,13 @@ test('#buildHomeLayout draws the text wordmark as bold text', () => {
     { cols: 24, rows: 8 },
     { kind: 'text' },
     { cols: 3, rows: 1 },
-    { sessionCount: 0, needYouCount: 0, leaderLabel: 'ctrl+space', notices: [] },
+    {
+      sessionCount: 0,
+      needYouCount: 0,
+      leaderLabel: 'ctrl+space',
+      notices: [],
+      restorableCount: 0,
+    },
   );
 
   expect(layout.runs[0]).toStrictEqual({
@@ -123,4 +136,19 @@ test('#buildHomeLayout puts the notices below the keys, so they never move the s
     noticed.runs.slice(0, plain.runs.length),
     ctx.readLine(noticed, 20).trim(),
   ]).toStrictEqual([[...plain.runs], '⟳ update ready']);
+});
+
+test('#buildHomeLayout lists the restore key while the last fleet has sessions to restore', () => {
+  const ctx = setupTest();
+  const layout = ctx.layOut({ restorableCount: 2 });
+
+  expect([
+    ctx.readLine(layout, 17),
+    ctx.readLine(layout, 18),
+    ctx.readLine(layout, 19),
+  ]).toStrictEqual([
+    `${' '.repeat(40)}ctrl+space  sessions`,
+    `${' '.repeat(49)}n  new`,
+    `${' '.repeat(49)}R  restore`,
+  ]);
 });

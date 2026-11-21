@@ -46,7 +46,7 @@ test('it restores the fleet from disk after a crash', async () => {
 
   ctx.boot();
 
-  await ctx.waitFor('restore last fleet (1 sessions)');
+  await ctx.waitFor('R  restore');
 
   ctx.reset();
   ctx.write('R');
@@ -96,7 +96,7 @@ test('it restores a grok session with grok --resume after a crash', async () => 
 
   ctx.boot();
 
-  await ctx.waitFor('restore last fleet (1 sessions)');
+  await ctx.waitFor('R  restore');
 
   ctx.reset();
   ctx.write('R');

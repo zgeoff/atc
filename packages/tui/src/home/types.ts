@@ -57,6 +57,9 @@ export interface HomeInput {
   readonly needYouCount: number;
   readonly leaderLabel: string;
 
+  // how many sessions of the last fleet the R key would restore
+  readonly restorableCount: number;
+
   // lines for what the user still needs on home: a notice, an update, a daemon that is down
   readonly notices: readonly string[];
 }
