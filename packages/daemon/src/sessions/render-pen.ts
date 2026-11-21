@@ -74,7 +74,7 @@ const EXT_UNDERLINE_STYLE = 0x1c_00_00_00;
 const EXT_UNDERLINE_SHIFT = 26;
 
 function renderUnderline(pen: Pen): string[] {
-  const fg = Reflect.get(pen, 'fg');
+  const fg: unknown = Reflect.get(pen, 'fg');
 
   if (typeof fg !== 'number' || (fg & FG_UNDERLINE) === 0) {
     return [];
