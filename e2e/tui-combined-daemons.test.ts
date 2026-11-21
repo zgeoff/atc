@@ -360,6 +360,30 @@ test('it hides the rows of a remote daemon that stops and shows its refreshed ro
   await ctx.tui.waitFor('reborn');
 });
 
+test('it drops the sessions of a remote daemon that stops from the count on home', async () => {
+  const ctx = await setupTest();
+
+  const port = claimFreePorts(1).take();
+
+  const remote = await startRemoteTestDaemon(port);
+
+  await spawnNamedSession(
+    (method, params) => remote.client.sendRequest(method, params),
+    'far-session',
+    remote.directory,
+  );
+
+  ctx.writeEntry(`127.0.0.1:${port}`);
+  ctx.tui.boot();
+
+  await ctx.tui.waitFor('1 session');
+
+  ctx.tui.reset();
+
+  await remote.stop();
+  await ctx.tui.waitFor('no sessions');
+});
+
 test('it reattaches the attached remote session when its link drops and comes back', async () => {
   const ctx = await setupTest();
   const remote = await startRemoteTestDaemon();

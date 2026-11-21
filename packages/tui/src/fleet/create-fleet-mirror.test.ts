@@ -76,27 +76,47 @@ test('it deletes the done time of each session a refreshed daemon no longer hold
   ]).toStrictEqual([undefined, 200, 300]);
 });
 
-test('it counts the stored fleet of the primary daemon only', async () => {
+test('it holds the stored fleet of the primary daemon only', async () => {
   const mirror = createFleetMirror(null);
 
   const remote = buildStubRequestClient({
     'session.list': { sessions: [] },
-    'fleet.list': { fleet: [{}] },
+    'fleet.list': { fleet: [{ sessionID: 'far', name: 'far' }] },
   });
 
   await mirror.refresh('box', remote);
 
   const local = buildStubRequestClient({
     'session.list': { sessions: [] },
-    'fleet.list': { fleet: [{}, {}] },
+    'fleet.list': {
+      fleet: [
+        { sessionID: 's-1', name: 'kept' },
+        { sessionID: 's-2', name: 'killed', exited: true },
+      ],
+    },
   });
 
   await mirror.refresh(null, local);
 
-  expect({ count: mirror.count, remoteAsked: remote.asked }).toStrictEqual({
-    count: 2,
+  expect({ fleet: mirror.fleet, remoteAsked: remote.asked }).toStrictEqual({
+    fleet: [
+      { sessionID: 's-1', exited: false },
+      { sessionID: 's-2', exited: true },
+    ],
     remoteAsked: ['session.list'],
   });
+});
+
+test('it holds no fleet when the primary daemon refuses fleet.list', async () => {
+  const mirror = createFleetMirror(null);
+
+  await mirror.refreshFleet(
+    buildStubRequestClient({ 'fleet.list': { fleet: [{ sessionID: 's-1', name: 'kept' }] } }),
+  );
+
+  await mirror.refreshFleet(buildStubRequestClient({}, new Error('the connection dropped')));
+
+  expect(mirror.fleet).toStrictEqual([]);
 });
 
 test('it keeps the rows of a daemon whose list request fails', () => {

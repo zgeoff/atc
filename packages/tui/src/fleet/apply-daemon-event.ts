@@ -5,8 +5,9 @@ import type { ClientActor, ClientMode } from '../client/build-client-machine';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
 import type { SessionStream } from '../screen/create-session-stream';
 import type { FleetMirror } from './create-fleet-mirror';
+import { formatSessionLiveness } from './format-session-liveness';
 import { parseDaemonEvent } from './parse-daemon-event';
-import type { RawDaemonEvent } from './parse-daemon-event';
+import type { DaemonEvent, RawDaemonEvent } from './parse-daemon-event';
 import { isSameSessionKey } from './session-key';
 import type { DaemonName, SessionKey } from './session-key';
 import type { MirrorSession } from './to-mirror-session';
@@ -23,6 +24,9 @@ export interface DaemonEventDeps {
   readonly findFocused: () => MirrorSession | null;
   readonly scheduleStatus: () => void;
   readonly stream: Pick<SessionStream, 'applyEvent'>;
+
+  // a session of the primary daemon came, went, or gained or lost its terminal
+  readonly onLivenessChange: () => void;
 }
 
 export function applyDaemonEvent(daemon: DaemonName, raw: RawDaemonEvent, deps: DaemonEventDeps) {
@@ -32,6 +36,17 @@ export function applyDaemonEvent(daemon: DaemonName, raw: RawDaemonEvent, deps: 
     return;
   }
 
+  const mirror = deps.mirror;
+  const livenessBefore = formatSessionLiveness(mirror.sessions, mirror.primary);
+
+  applyParsedEvent(daemon, event, deps);
+
+  if (formatSessionLiveness(mirror.sessions, mirror.primary) !== livenessBefore) {
+    deps.onLivenessChange();
+  }
+}
+
+function applyParsedEvent(daemon: DaemonName, event: DaemonEvent, deps: DaemonEventDeps) {
   const mirror = deps.mirror;
 
   match(event)
