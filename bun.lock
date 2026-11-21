@@ -503,7 +503,7 @@
     "@zgeoff/mcp-auth": "0.3.0",
     "@zgeoff/oxlint-config": "0.10.7",
     "@zgeoff/rig": "0.2.6",
-    "@zgeoff/std": "0.4.4",
+    "@zgeoff/std": "0.4.5",
     "bun-pty": "0.6.0",
     "elysia": "2.0.0-rc.3",
     "exact-mirror": "1.2.7",
@@ -1086,7 +1086,7 @@
 
     "@zgeoff/rig": ["@zgeoff/rig@0.2.6", "", { "dependencies": { "@zgeoff/diet": "0.2.3", "@zgeoff/std": "0.4.4", "gunshi": "1.0.0-rc.1", "ts-pattern": "5.9.2", "zod": "4.6.7" }, "bin": { "rig": "src/cli.ts" } }, "sha512-pV/SNB7OV+w8KoI2ZPwTRYAi4xHyuZQGhGty51mzYFd+FL/9AXKMHBJPXBALxu6gcjh4icnYuTnJrHbv2jj62Q=="],
 
-    "@zgeoff/std": ["@zgeoff/std@0.4.4", "", {}, "sha512-AlT4lgjyC0ZhLUxxG0Sg9pxQG/+MIziC7BA9k29QDNt/ubGvB1+RCpTr/LaYkjFxiZnKG42psa4f2cp5BHGyzQ=="],
+    "@zgeoff/std": ["@zgeoff/std@0.4.5", "", {}, "sha512-Z2rD5v0OVXRZTa3Jh2I8zmx9znzvnAa/bC5Ai0NidPh+pfJGfDLmQIVZhshbGXPu/S/9SFdP/chDw+N5Pk/lzg=="],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 
@@ -1666,11 +1666,15 @@
 
     "@orpc/openapi-client/@orpc/standard-server": ["@orpc/standard-server@1.16.2", "", { "dependencies": { "@orpc/shared": "1.16.2" } }, "sha512-tfDncJE1025RNnkav67Bz9KmxX8yhOflDXTRIXs4EAy2KGK/cT1KdN3sQ1U/sEhfRKu5PYYWkAO6AvRD2NQt0g=="],
 
+    "@wringer/core/@zgeoff/std": ["@zgeoff/std@0.4.4", "", {}, "sha512-AlT4lgjyC0ZhLUxxG0Sg9pxQG/+MIziC7BA9k29QDNt/ubGvB1+RCpTr/LaYkjFxiZnKG42psa4f2cp5BHGyzQ=="],
+
     "@wringer/gunshi/gunshi": ["gunshi@0.37.3", "", {}, "sha512-uwm23bguqDcleEetknuQnF5okLcgmQPM3iv4aWVHTPDbiSs9shh02F079NCY0mWkrIRjHqNhgmzW6k0FCXhy1g=="],
 
-    "@zgeoff/mcp-auth/@zgeoff/std": ["@zgeoff/std@0.4.5", "", {}, "sha512-Z2rD5v0OVXRZTa3Jh2I8zmx9znzvnAa/bC5Ai0NidPh+pfJGfDLmQIVZhshbGXPu/S/9SFdP/chDw+N5Pk/lzg=="],
+    "@zgeoff/chex/@zgeoff/std": ["@zgeoff/std@0.4.4", "", {}, "sha512-AlT4lgjyC0ZhLUxxG0Sg9pxQG/+MIziC7BA9k29QDNt/ubGvB1+RCpTr/LaYkjFxiZnKG42psa4f2cp5BHGyzQ=="],
 
     "@zgeoff/rig/@zgeoff/diet": ["@zgeoff/diet@0.2.3", "", { "bin": { "diet": "diet.sh" } }, "sha512-/UHiaa0sMLCNtvpr/puCJFRX9OpKJ020OF4STNyc1ncTVGAdPOeSt0TcTeVuU2fqDkl9pHeLgP7dW2MrXoc8Cg=="],
+
+    "@zgeoff/rig/@zgeoff/std": ["@zgeoff/std@0.4.4", "", {}, "sha512-AlT4lgjyC0ZhLUxxG0Sg9pxQG/+MIziC7BA9k29QDNt/ubGvB1+RCpTr/LaYkjFxiZnKG42psa4f2cp5BHGyzQ=="],
 
     "better-call/rou3": ["rou3@0.9.2", "", {}, "sha512-3SOzvaAg8rkHrXtRjpCvCvbyO5to9oOO27Z/XqHEYXfMRVSw/qMIVdmaOk9W2lcRLtR6dlqTjo9hDeJk70QBYQ=="],
 
@@ -1743,8 +1747,6 @@
     "@impz/testing/@orpc/server/@orpc/standard-server-node": ["@orpc/standard-server-node@1.16.2", "", { "dependencies": { "@orpc/shared": "1.16.2", "@orpc/standard-server": "1.16.2", "@orpc/standard-server-fetch": "1.16.2" } }, "sha512-cwdVnBSQ2h46TSkxz0U9NPXCCrjxEN/s3T6uEyOLZaMY8E4QnjgAyZ5DuF1SkqLy4d9/FtQjAy4X4zn0NelYGw=="],
 
     "@impz/testing/@orpc/server/@orpc/standard-server-peer": ["@orpc/standard-server-peer@1.16.2", "", { "dependencies": { "@orpc/shared": "1.16.2", "@orpc/standard-server": "1.16.2" } }, "sha512-vtYUUWIShiUs4CVbaMWrnGI/Wgro9aZXme69kaIONJ2siq15oYT+PASbQaePdokr2NUe8aL1NKLKlsT/2rMT4A=="],
-
-    "@impz/testing/@zgeoff/mcp-auth/@zgeoff/std": ["@zgeoff/std@0.4.5", "", {}, "sha512-Z2rD5v0OVXRZTa3Jh2I8zmx9znzvnAa/bC5Ai0NidPh+pfJGfDLmQIVZhshbGXPu/S/9SFdP/chDw+N5Pk/lzg=="],
 
     "@orpc/openapi-client/@orpc/client/@orpc/standard-server-fetch": ["@orpc/standard-server-fetch@1.16.2", "", { "dependencies": { "@orpc/shared": "1.16.2", "@orpc/standard-server": "1.16.2" } }, "sha512-LKuyi5H6Exsvm611XjJxNfQiqjXbvNjKkMVAu/yC46LeTPc0o6cO/AF6G6VERl95E97dZCtPkMfKDyOppLONsw=="],
 
