@@ -19,6 +19,37 @@ test('it replays text written to the screen', async () => {
   expect(replay).toInclude('hello fleet');
 });
 
+test('it measures an emoji as two columns, as a terminal does', async () => {
+  const model = createScreenModel(40, 10);
+
+  onTestFinished(() => {
+    model.stop();
+  });
+
+  model.record('❤️ab\u001B[1;3HZ');
+
+  const screen = await model.captureText();
+
+  expect(screen.text).toBe('❤️Zb');
+});
+
+test('it gives a full replay the kitty stack of each screen', async () => {
+  const model = createScreenModel(40, 10);
+  const tracker = createInputModeTracker();
+
+  onTestFinished(() => {
+    model.stop();
+  });
+
+  model.record('\u001B[>1u\u001B[?1049h\u001B[>3u');
+
+  const captured = await model.captureStateReplay(() => 0);
+
+  tracker.write(captured.replay);
+
+  expect(tracker.readKittyStacks()).toStrictEqual({ main: [1], alternate: [3] });
+});
+
 test('it gives a full replay the size it renders at once a resize applies, and the mark it reads', async () => {
   const model = createScreenModel(40, 10);
 
