@@ -52,6 +52,45 @@ test('#writeScreen draws the text in one synchronized write on the next frame', 
   expect(ctx.written.at(-1)).toEndWith('\u001B[?2026l');
 });
 
+test('#requestFrame draws a frame once one has waited 16 ms for session output to finish parsing', () => {
+  const ctx = setupTest();
+
+  ctx.state.isFocused = true;
+
+  ctx.screen.stream.begin({ daemon: null, id: 's-1' }, 'screen', { cols: 20, rows: 5 });
+  ctx.screen.stream.applyEvent(null, { ev: 'SessionOutput', sessionID: 's-1', seq: 1, data: 'a' });
+  ctx.clock.advance(0);
+  ctx.clock.advance(16);
+  ctx.screen.stream.applyEvent(null, { ev: 'SessionOutput', sessionID: 's-1', seq: 2, data: 'b' });
+  ctx.screen.requestFrame();
+  ctx.clock.advance(0);
+
+  expect(ctx.written.join('')).toInclude('\u001B[?2026h');
+});
+
+test('#requestFrame draws no frame of a replay that is still arriving', () => {
+  const ctx = setupTest();
+
+  ctx.state.isFocused = true;
+
+  ctx.screen.stream.begin({ daemon: null, id: 's-1' }, 'full', { cols: 20, rows: 5 });
+
+  ctx.screen.stream.applyEvent(null, {
+    ev: 'SessionReplay',
+    sessionID: 's-1',
+    seq: 1,
+    data: 'half',
+    done: false,
+  });
+
+  ctx.clock.advance(0);
+  ctx.clock.advance(100);
+  ctx.screen.requestFrame();
+  ctx.clock.advance(0);
+
+  expect(ctx.written.join('')).not.toInclude('\u001B[?2026h');
+});
+
 test('#filterInput takes the answers to the start-up questions out of the keys', () => {
   const ctx = setupTest();
 

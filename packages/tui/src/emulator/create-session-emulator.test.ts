@@ -176,10 +176,10 @@ test('#reset forgets the screen and the modes', async () => {
   ]).toStrictEqual([' ', false]);
 });
 
-test('#resize changes the size the emulator reports', () => {
+test('#resize changes the size the emulator reports', async () => {
   const ctx = setupTest();
 
-  ctx.emulator.resize(30, 8);
+  await ctx.emulator.resize(30, 8);
 
   expect(ctx.emulator.readSize()).toStrictEqual({ cols: 30, rows: 8 });
 });

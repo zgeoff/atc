@@ -82,7 +82,7 @@ interface TerminalFacts {
 interface SessionEmulator {
   write(data: string): Promise<void>; // SessionOutput bytes, in order; resolves once parsed
   reset(): Promise<void>; // a hard reset, written through the same queue as write; the first chunk of a replay calls it
-  resize(cols: number, rows: number): void; // follows the PTY's size from SessionResized
+  resize(cols: number, rows: number): Promise<void>; // follows SessionResized, in order behind the writes before it
   readSize(): { cols: number; rows: number };
   readCell(col: number, row: number): Cell;
   readCursor(): { col: number; row: number; visible: boolean; shape: CursorShape };

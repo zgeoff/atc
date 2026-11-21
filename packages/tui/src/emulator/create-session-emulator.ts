@@ -19,7 +19,9 @@ export interface SessionEmulator {
 
   // forgets the screen, the modes and the scrollback, as a terminal does on a hard reset
   readonly reset: () => Promise<void>;
-  readonly resize: (cols: number, rows: number) => void;
+
+  // resizes after the bytes written before it are parsed, and resolves once it applies
+  readonly resize: (cols: number, rows: number) => Promise<void>;
   readonly readSize: () => { readonly cols: number; readonly rows: number };
   readonly readCell: (col: number, row: number) => Cell;
   readonly readCursor: () => CursorPlacement;
@@ -148,9 +150,15 @@ export function createSessionEmulator(deps: SessionEmulatorDeps): SessionEmulato
         term.write('\u001Bc', resolve);
       }),
 
-    resize: (cols, rows) => {
-      term.resize(cols, rows);
-    },
+    // xterm runs a write's callback between the chunks it parses, so the resize keeps its place
+    resize: (cols, rows) =>
+      new Promise<void>((resolve) => {
+        term.write('', () => {
+          term.resize(cols, rows);
+
+          resolve();
+        });
+      }),
 
     readSize: () => ({ cols: term.cols, rows: term.rows }),
 

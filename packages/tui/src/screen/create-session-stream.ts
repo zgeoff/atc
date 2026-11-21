@@ -51,6 +51,9 @@ export interface SessionStream {
   // false while a replay is arriving or the emulator still parses output, when its screen would
   // show half a state
   readonly isSettled: () => boolean;
+
+  // true while a replay arrives or its last chunk still parses, when no frame may show it
+  readonly isReplaying: () => boolean;
   readonly applyEvent: (daemon: DaemonName, event: SessionStreamEvent) => void;
 }
 
@@ -63,6 +66,7 @@ interface Active {
   phase: 'waiting' | 'replaying' | 'live';
   replaySeq: number;
   pendingWrites: number;
+  isReplayParsing: boolean;
 }
 
 export function createSessionStream(deps: SessionStreamDeps): SessionStream {
@@ -94,6 +98,7 @@ export function createSessionStream(deps: SessionStreamDeps): SessionStream {
         phase: replay === 'full' ? 'waiting' : 'live',
         replaySeq: 0,
         pendingWrites: 0,
+        isReplayParsing: false,
       };
 
       deps.onChange();
@@ -107,14 +112,17 @@ export function createSessionStream(deps: SessionStreamDeps): SessionStream {
     },
 
     resize: (cols, rows) => {
-      active?.emulator.resize(cols, rows);
-      deps.onChange();
+      if (active !== null) {
+        void applyResize(active, { cols, rows }, deps.onChange);
+      }
     },
 
     readEmulator: () => active?.emulator ?? null,
 
     isSettled: () =>
       active === null || (active.pendingWrites === 0 && active.phase !== 'replaying'),
+
+    isReplaying: () => active !== null && (active.phase === 'replaying' || active.isReplayParsing),
 
     applyEvent: (daemon, event) => {
       const target = findActive(daemon, event.sessionID);
@@ -124,8 +132,7 @@ export function createSessionStream(deps: SessionStreamDeps): SessionStream {
       }
 
       if (event.ev === 'SessionResized') {
-        target.emulator.resize(event.cols, event.rows);
-        deps.onChange();
+        void applyResize(target, event, deps.onChange);
       } else if (event.ev === 'SessionDesync') {
         applyDesync(target);
       } else if (event.ev === 'SessionReplay') {
@@ -135,6 +142,23 @@ export function createSessionStream(deps: SessionStreamDeps): SessionStream {
       }
     },
   };
+}
+
+// The daemon sends a resize behind the output it sent before it, so it applies in that order.
+async function applyResize(
+  target: Active,
+  size: TerminalSize,
+  onChange: () => void,
+): Promise<void> {
+  target.pendingWrites += 1;
+
+  try {
+    await target.emulator.resize(size.cols, size.rows);
+  } finally {
+    target.pendingWrites -= 1;
+  }
+
+  onChange();
 }
 
 // After a desync the daemon drops the client's output until its fresh replay, so the output
@@ -160,8 +184,11 @@ async function applyReplay(
   if (event.done) {
     target.phase = 'live';
     target.replaySeq = event.seq;
+    target.isReplayParsing = true;
 
     await written;
+
+    target.isReplayParsing = false;
 
     onChange();
   }

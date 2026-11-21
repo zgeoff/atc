@@ -15,6 +15,7 @@ import { createEmulatorLayer } from './create-emulator-layer';
 import { createModeMirror } from './create-mode-mirror';
 import { createSessionStream } from './create-session-stream';
 import type { SessionStream } from './create-session-stream';
+import { shouldDrawFrame } from './should-draw-frame';
 
 export interface TUIScreenDeps {
   readonly clock: Clock;
@@ -57,6 +58,9 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
 
   // the user's terminal can split a paste across input chunks
   let isInPaste = false;
+
+  // when the first frame that found the session output still parsing was asked for
+  let waitingSinceMs: number | null = null;
 
   const facts = createTerminalFacts({
     env: deps.env,
@@ -133,8 +137,22 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
     drawFrame: () => {
       mirror.sync();
 
-      if (pendingScreenWrites === 0 && stream.isSettled()) {
+      const nowMs = deps.clock.now();
+
+      const isDrawn = shouldDrawFrame({
+        isScreenWriting: pendingScreenWrites > 0,
+        isStreamSettled: stream.isSettled(),
+        isReplaying: stream.isReplaying(),
+        waitingSinceMs,
+        nowMs,
+      });
+
+      if (isDrawn) {
+        waitingSinceMs = null;
+
         compositor.flush(compositor.compose(collectLayers()));
+      } else {
+        waitingSinceMs ??= nowMs;
       }
     },
   });
@@ -143,6 +161,16 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
     pendingScreenWrites += 1;
 
     await screenEmulator.write(text);
+
+    pendingScreenWrites -= 1;
+
+    frameClock.request();
+  };
+
+  const resizeScreen = async (cols: number, rows: number): Promise<void> => {
+    pendingScreenWrites += 1;
+
+    await screenEmulator.resize(cols, rows);
 
     pendingScreenWrites -= 1;
 
@@ -166,8 +194,7 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
     handleResize: () => {
       const next = deps.readSize();
 
-      screenEmulator.resize(next.cols, next.rows);
-      frameClock.request();
+      void resizeScreen(next.cols, next.rows);
     },
 
     syncModes: mirror.sync,
