@@ -11,9 +11,10 @@ import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import type { SessionID } from '@atcx/contract';
-import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { toAgentSessionID, toDaemonID, toSessionID } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
 import invariant from 'tiny-invariant';
+import { collectSessionDescriptors } from '../sessions/collect-session-descriptors';
 import { createSessionManager } from '../sessions/create-session-manager';
 import { createSessionRuntime } from '../sessions/create-session-runtime';
 import type { SessionRuntime } from '../sessions/create-session-runtime';
@@ -824,6 +825,66 @@ test('it refuses a stored session whose target config revision differs from the 
   expect(
     ctx.manager.sessions.map((session) => [session.id, session.state, session.lastMsg]),
   ).toStrictEqual([['s-on-cloud', 'exited', "target 'cloud' changed"]]);
+});
+
+test('it keeps a restored session whose target changed out of the place the target has now', async () => {
+  const built = buildExecutionTargets(
+    [
+      {
+        id: 'cloud',
+        provider: 'imp',
+        options: { url: 'https://new.example.dev', tokenEnv: 'FIXTURE_IMP_TOKEN' },
+      },
+    ],
+    (config) => ({
+      provider: buildStubMemoryProvider({ kind: config.provider }),
+      problem: null,
+      identityRule: { version: 'reach-v1', ignoredOptions: [] },
+      placeParts: {
+        scope: 'shared',
+        version: 'place-v1',
+        parts: { url: 'https://new.example.dev' },
+      },
+    }),
+  );
+
+  onTestFinished(async () => {
+    for (const target of built.targets) {
+      await target.provider?.dispose();
+    }
+  });
+
+  const ctx = await setupTest({ targets: built.targets });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-on-cloud'),
+      cwd: ctx.directory,
+      target: 'cloud',
+      targetIdentity: 'imp:reach-v1:0123456789abcdef',
+    }),
+  ]);
+
+  await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
+
+  const [descriptor] = collectSessionDescriptors(
+    {
+      sessions: ctx.manager.sessions,
+      findAdapter: () => null,
+      findProvider: () => null,
+      targets: new Map(ctx.targets.map((target) => [target.id, target])),
+    },
+    { daemonID: toDaemonID('d1') },
+  );
+
+  expect(descriptor?.place?.key).toBe('daemon:d1:cloud:imp:reach-v1:0123456789abcdef');
 });
 
 test('it restores a stored session on its own target config revision after another target is added', async () => {

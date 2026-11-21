@@ -1,7 +1,9 @@
 import type { HostFact } from '@atc/plugin-api';
 import type { FleetStore } from '@atc/store';
-import type { SessionDescriptor, SessionLifecycle } from '@atcx/contract';
+import type { DaemonID, SessionDescriptor, SessionLifecycle } from '@atcx/contract';
+import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildPlaceKey } from '../fleet/build-place-key';
+import { isUnconfirmedBinding } from '../fleet/is-unconfirmed-binding';
 import { buildSessionLifecycle } from './build-session-lifecycle';
 import type { SessionRegistry } from './create-session-registry';
 import { pickSessionState } from './pick-session-state';
@@ -39,15 +41,7 @@ export function collectSessionDescriptors(
     ...(session.model === undefined ? {} : { model: session.model }),
     ...(session.pluginDirs === undefined ? {} : { pluginDirs: session.pluginDirs }),
     ...buildHostField(registry.findProvider(session)?.findHostFact?.(session.hostKey) ?? null),
-    place: {
-      key: buildPlaceKey({
-        provider: registry.targets.get(session.target)?.kind ?? '',
-        placeParts: registry.targets.get(session.target)?.placeParts,
-        daemonID: store.daemonID,
-        targetID: session.target,
-      }),
-      label: registry.targets.get(session.target)?.label ?? session.target,
-    },
+    place: buildPlace(registry.targets.get(session.target), session, store.daemonID),
     canDestroyHost:
       registry.findProvider(session)?.capabilities.destroy === true &&
       session.hostKey === session.id,
@@ -68,4 +62,42 @@ function buildLifecycle(session: Session): SessionLifecycle {
 
 function buildHostField(fact: HostFact | null): Pick<SessionDescriptor, 'host'> {
   return fact === null ? {} : { host: fact };
+}
+
+// A session kept from an earlier config of its target must not join the place the target has now,
+// since restore refuses that binding. It gets a place of its own, keyed by the identity it was
+// saved with. A binding that is only unconfirmed counts as the target's own: restore confirms it.
+function buildPlace(
+  target: ExecutionTarget | undefined,
+  session: Pick<Session, 'target' | 'targetIdentity'>,
+  daemonID: DaemonID,
+): SessionDescriptor['place'] {
+  const label = target?.label ?? session.target;
+
+  const isChanged =
+    target !== undefined &&
+    session.targetIdentity !== target.identity &&
+    !isUnconfirmedBinding(target, session.targetIdentity);
+
+  if (isChanged) {
+    return {
+      key: buildPlaceKey({
+        provider: target.kind,
+        placeParts: undefined,
+        daemonID,
+        targetID: `${session.target}:${session.targetIdentity}`,
+      }),
+      label,
+    };
+  }
+
+  return {
+    key: buildPlaceKey({
+      provider: target?.kind ?? '',
+      placeParts: target?.placeParts,
+      daemonID,
+      targetID: session.target,
+    }),
+    label,
+  };
 }
