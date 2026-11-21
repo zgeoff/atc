@@ -53,7 +53,13 @@ export function buildTerminalRequests(deps: RequestDeps): TerminalRequests {
   return {
     applyAttach: (data, ctx) => {
       const sessionID = data.session;
-      const result = ctx.attachSession(client, sessionID, { cols: data.cols, rows: data.rows });
+
+      const result = ctx.attachSession(
+        client,
+        sessionID,
+        { cols: data.cols, rows: data.rows },
+        data.replay ?? 'screen',
+      );
 
       if (result === 'missing') {
         throw new AtcError('no_such_session', `no session '${sessionID}'`);

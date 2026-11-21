@@ -580,6 +580,7 @@ test('it writes a first-run config with the three built-in sources and no old so
 
   expect(JSON.parse(readFileSync(ctx.configPath, 'utf8'))).toStrictEqual({
     agents: { claude: {} },
+    animations: true,
     sources: { dirs: { roots: [] }, github: {}, git: {} },
     hooks: {},
     leader: { code: 0, label: '^Space' },

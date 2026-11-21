@@ -40,7 +40,7 @@ test('it keeps paths and slash filters in the one list', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlU);
 
-  await ctx.waitFor('> \u001B[93m█');
+  await ctx.waitFor('> █');
 
   ctx.reset();
   ctx.write('atc/src');

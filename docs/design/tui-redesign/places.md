@@ -126,12 +126,15 @@ type PlaceParts =
 
 - When a descriptor has no `place`, because its daemon was built before the field existed, the TUI
   uses key `daemon:<daemon name>:<target id>` and label `<target id>`, where `<daemon name>` is the
-  daemon's name in the TUI's config. Those sessions group by daemon and target. When that daemon
-  upgrades, its places get daemon-scope or shared keys, and their colours can change.
+  daemon's name in the TUI's config, and `local` for the daemon on the TUI's own computer, which has
+  no name there. Those sessions group by daemon and target. When that daemon upgrades, its places
+  get daemon-scope or shared keys, and their colours can change.
 - When the daemons in one place give it different labels, the TUI shows the label from the daemon on
   the TUI's own computer, else from the daemon listed first in the TUI config's `daemons`.
 - When two different places have the same label, the TUI writes each as `<label> · <daemon name>`,
-  with the name of the daemon whose label it shows, in group headers and in the fleet bar.
+  with the name of the daemon whose label it shows, in group headers and in the fleet bar. When one
+  daemon serves both places, the two labels still match, so the TUI adds the target id next, then
+  the place key, one at a time, until the labels differ. It never adds a name that equals the label.
 - The TUI picks a place's colour from its key, so a place has the same colour on every daemon that
   sends its key, and in every run.
 

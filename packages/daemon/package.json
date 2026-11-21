@@ -22,6 +22,7 @@
     "@orpc/standard-server": "catalog:",
     "@orpc/standard-server-peer": "catalog:",
     "@xterm/addon-serialize": "catalog:",
+    "@xterm/addon-unicode-graphemes": "catalog:",
     "@xterm/headless": "catalog:",
     "@zgeoff/std": "catalog:",
     "lru-cache": "catalog:",

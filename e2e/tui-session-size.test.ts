@@ -92,5 +92,5 @@ test('it sizes a session to the smaller of two clients that both show it', async
     rows: 50,
   });
 
-  expect(attached).toStrictEqual({ cols: 110, rows: 30 });
+  expect(attached).toStrictEqual({ cols: 110, rows: 29 });
 });

@@ -129,6 +129,7 @@ test('it accepts a TCP handshake with a token a SIGHUP reload kept', async () =>
       'daemon.hello.viewer',
       'session.forget.workspace',
       'session.host',
+      'full-replay',
     ],
   });
 });

@@ -36,6 +36,7 @@ test('it round-trips a gateway agent id instead of coercing it to claude', () =>
     agent: 'zai',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -75,6 +76,7 @@ test('it falls back the last attach time to the creation time when the descripto
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -114,6 +116,7 @@ test('it falls back the repository root to the working directory when the descri
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -153,6 +156,7 @@ test('it reads a session as a terminal session when the descriptor omits its kin
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -193,6 +197,7 @@ test('it keeps the parent when the descriptor carries one', () => {
     agent: 'claude',
     parent: 's-0',
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -232,6 +237,7 @@ test('it reports no parent when the descriptor omits it', () => {
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -276,6 +282,7 @@ test('it offers the headless handoff when the descriptor allows it', () => {
     agent: 'zai',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -315,6 +322,7 @@ test('it withholds the headless handoff when the descriptor omits it', () => {
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -355,6 +363,7 @@ test('it reads the target from the descriptor locator', () => {
     agent: 'claude',
     parent: null,
     target: 'imp-box',
+    place: { key: 'daemon:local:imp-box', label: 'imp-box' },
     model: null,
     harness: 'running',
   });
@@ -394,6 +403,7 @@ test('it falls back the target to local when the descriptor carries no locator',
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -434,6 +444,7 @@ test('it keeps the model the session was spawned with', () => {
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: 'opus',
     harness: 'running',
   });
@@ -473,6 +484,7 @@ test('it reports no model when the descriptor omits it', () => {
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });
@@ -513,6 +525,7 @@ test('it reads the harness layer of the descriptor lifecycle', () => {
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'suspended',
   });
@@ -552,6 +565,7 @@ test('it reads an exited harness from a dead session when the descriptor omits t
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'exited',
   });
@@ -591,6 +605,7 @@ test('it reads a running harness from a live session when the descriptor omits t
     agent: 'claude',
     parent: null,
     target: 'local',
+    place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
   });

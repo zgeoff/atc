@@ -91,6 +91,7 @@ test('it answers a hello on the daemon socket in its test directory', async () =
       'daemon.hello.viewer',
       'session.forget.workspace',
       'session.host',
+      'full-replay',
     ],
   });
 });

@@ -71,7 +71,7 @@ test('it shows why a forget kept the workspace until the next keypress', async (
   ctx.tui.reset();
   ctx.tui.write('j');
 
-  await ctx.tui.waitFor('┘');
+  await ctx.tui.waitFor('g groups · n new · ? keys');
 
   expect(ctx.tui.read()).not.toInclude('kept orchard-main');
 });

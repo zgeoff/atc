@@ -7,6 +7,7 @@ import type { RequestLinks } from '../daemon-link/send-to-daemon';
 import type { SessionKey } from '../fleet/session-key';
 import { drawPicker } from '../terminal/draw-overlay';
 import { planTextEdit } from '../terminal/key';
+import { writeOut } from '../terminal/write-out';
 
 export interface EjectScreenDeps {
   readonly service: ClientActor;
@@ -66,8 +67,7 @@ export function createEjectScreen(deps: EjectScreenDeps): EjectScreen {
       target = key;
       input = '';
 
-      process.stdout.write(ansi.clear);
-
+      writeOut(ansi.clear);
       render();
     },
 

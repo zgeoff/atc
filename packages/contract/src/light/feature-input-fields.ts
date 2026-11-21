@@ -4,4 +4,5 @@ import type { DaemonFeature } from '../hello/daemon-features';
 // must list in its hello answer before a client sends the field. A nested field is a dotted path.
 export const FEATURE_INPUT_FIELDS = {
   'events.read': { from: 'events.read.from-start' },
+  'session.attach': { replay: 'full-replay' },
 } as const satisfies Readonly<Record<string, Readonly<Record<string, DaemonFeature>>>>;

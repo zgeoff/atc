@@ -65,6 +65,9 @@ export interface Config {
 
   restoreFleetOnRestart: boolean;
 
+  // false turns off the TUI's decorative motion; spinners keep turning
+  animations: boolean;
+
   // The keys the file sets that atc no longer reads, in the order the file
   // holds them. Values are never recorded.
   removedKeys: readonly string[];
@@ -100,6 +103,7 @@ const DEFAULTS: Omit<
   daemons: new Map(),
   daemonErrors: [],
   restoreFleetOnRestart: true,
+  animations: true,
   removedKeys: [],
   deprecations: [],
 };
@@ -321,6 +325,7 @@ export function parseConfig(
     daemons: daemons.daemons,
     daemonErrors: daemons.errors,
     restoreFleetOnRestart: parsed.data.restoreFleetOnRestart ?? DEFAULTS.restoreFleetOnRestart,
+    animations: parsed.data.animations ?? DEFAULTS.animations,
     removedKeys: REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key)),
     deprecations: [
       ...(replacement.warning === null ? [] : [replacement.warning]),

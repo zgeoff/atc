@@ -70,7 +70,7 @@ to add by hand. Set the variable in the daemon's environment, where atc appends 
 Every Claude Code session starts with files atc wrote for it:
 
 - **A generated settings file**, passed with `--settings`, holds the atc hooks for start, end,
-  prompt submit, notification and stop, and a chained statusline. Hooks that an entry's extra
+  prompt submit, notification and stop, and a statusline reporter. Hooks that an entry's extra
   session settings add run after atc's own, so they join the reporter rather than replacing it.
 - **The `atc-bridge` mod**, passed with `--plugin-dir`, connects the session to its inbox and gives
   the model a `note` tool and an `answer` tool.
@@ -81,9 +81,12 @@ Claude Code runs none of these hooks before its start, so the daemon reads the s
 that has not started yet for a dialog that waits on the owner
 ([waits before the agent starts](../daemon/sessions.md#waits-before-the-agent-starts)).
 
-The chained statusline runs the owner's own configured statusline first, then appends a fleet
-segment read from `status.json`. Each render also sends its input to the daemon as a heartbeat, a
-second path for capturing the agent session id.
+The statusline reporter runs the owner's own configured statusline and prints only its output, or
+nothing when the owner has none. The command runs in a process group of its own, and after a short
+timeout the reporter kills the whole group and prints what the command wrote by then, so a child the
+command left running never holds the reporter open. It adds no atc text, because the TUI draws the
+[fleet bar](../tui/fleet-bar.md) itself. Each render also sends its input to the daemon as a
+heartbeat, a second path for capturing the agent session id.
 
 Session names come from Claude Code's transcript: a title the owner set with `/rename`, else the
 summary Claude Code wrote.

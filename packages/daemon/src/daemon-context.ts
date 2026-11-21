@@ -277,6 +277,7 @@ export interface DaemonContext {
     client: OutputClient,
     sessionID: SessionID,
     dims: Dims,
+    replay: 'screen' | 'full',
   ) => 'ok' | 'missing' | 'dead';
   readonly watchSession: (
     client: OutputClient,

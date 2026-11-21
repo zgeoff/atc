@@ -7,6 +7,7 @@ async function setupTest() {
   const records: LogRecord[] = [];
 
   await configure({
+    reset: true,
     sinks: {
       kept: (record) => {
         records.push(record);

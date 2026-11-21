@@ -89,8 +89,10 @@ session's folder and settings file exist only where its agent runs. For a sessio
 another remote target, or for an agent that cannot resume outside atc, the session's message column
 shows why, and `Y` kills nothing.
 
-Inside a Claude Code session, your statusline gains a fleet segment, so `● 2 need you: auth-bug`
-shows without opening the list.
+While you are attached, the last row of the terminal shows the fleet bar: a label for each place, a
+glyph for each of its sessions (`◆` needs you, a spinner running, `✓` done, `○` exited), and at the
+right end how many sessions need you, then the leader key. The place of the session you are in comes
+first. Claude Code's own status line shows only what you configured for it.
 
 atc runs inside zellij or tmux. Give the pane locked mode, so the leader key reaches atc.
 

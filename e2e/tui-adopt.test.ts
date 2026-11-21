@@ -40,7 +40,7 @@ test('it adopts a session with --resume and yanks its resume command', async () 
 
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: adopted');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('\u001B[7madopted');
 
   ctx.reset();

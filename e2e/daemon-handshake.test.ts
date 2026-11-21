@@ -38,6 +38,7 @@ test('it answers daemon.hello with the build and limits', async () => {
       'daemon.hello.viewer',
       'session.forget.workspace',
       'session.host',
+      'full-replay',
     ],
   });
 });

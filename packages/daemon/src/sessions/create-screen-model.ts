@@ -1,16 +1,14 @@
-import { RESET_INPUT_MODES, ansi } from '@atc/core';
+import { RESET_INPUT_MODES, ansi, createInputModeTracker, formatInputModes } from '@atc/core';
 import { SerializeAddon } from '@xterm/addon-serialize';
+import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes';
 import { Terminal } from '@xterm/headless';
+import { readStateReplay } from './read-state-replay';
 
 export interface ScreenText {
   readonly text: string;
   readonly cols: number;
   readonly rows: number;
 }
-
-// The serializer already re-emits the modes the vt engine models (mouse
-// tracking, bracketed paste, focus events); these are the ones it drops.
-const REPLAYED_DEC_MODES = new Set([1006, 1007, 2031]);
 
 interface FullReplay<T> {
   readonly replay: string;
@@ -26,6 +24,8 @@ export interface ScreenModel {
 
   readonly captureFullReplay: <T>(readMark: () => T) => Promise<FullReplay<T>>;
 
+  readonly captureStateReplay: <T>(readMark: () => T) => Promise<FullReplay<T>>;
+
   readonly hasBracketedPaste: () => boolean;
 
   readonly captureText: () => Promise<ScreenText>;
@@ -35,54 +35,15 @@ export interface ScreenModel {
 
 export function createScreenModel(cols: number, rows: number): ScreenModel {
   let flushed: Promise<void> = Promise.resolve();
-
-  const decModes = new Map<number, boolean>();
-
-  const kittyFlags: number[] = [];
-  let modifyOtherKeys = 0;
+  const tracker = createInputModeTracker();
 
   const term = new Terminal({ cols, rows, allowProposedApi: true, scrollback: 300 });
   const serializer = new SerializeAddon();
 
   term.loadAddon(serializer);
 
-  // The xterm serialize addon omits the input-encoding modes a fullscreen agent sets, so a replay
-  // would lose them.
-  for (const final of ['h', 'l'] as const) {
-    term.parser.registerCsiHandler({ prefix: '?', final }, (params) => {
-      for (const parameter of params) {
-        if (typeof parameter === 'number' && REPLAYED_DEC_MODES.has(parameter)) {
-          decModes.set(parameter, final === 'h');
-        }
-      }
-
-      return false;
-    });
-  }
-
-  term.parser.registerCsiHandler({ prefix: '>', final: 'u' }, (params) => {
-    const flags = typeof params[0] === 'number' ? params[0] : 0;
-
-    kittyFlags.push(flags);
-
-    return false;
-  });
-
-  term.parser.registerCsiHandler({ prefix: '<', final: 'u' }, (params) => {
-    const count = typeof params[0] === 'number' && params[0] > 0 ? params[0] : 1;
-
-    kittyFlags.splice(Math.max(0, kittyFlags.length - count));
-
-    return false;
-  });
-
-  term.parser.registerCsiHandler({ prefix: '>', final: 'm' }, (params) => {
-    if (params[0] === 4) {
-      modifyOtherKeys = typeof params[1] === 'number' ? params[1] : 0;
-    }
-
-    return false;
-  });
+  // the client's emulator measures graphemes the same way, so a replay lands in the same cells
+  term.loadAddon(new UnicodeGraphemesAddon());
 
   const waitForFlush = async (): Promise<void> => {
     let pending: Promise<void>;
@@ -104,28 +65,10 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
     return switchAt === -1 ? serialized : serialized.slice(switchAt + altSwitch.length);
   };
 
-  const renderInputModes = (): string => {
-    let out = '';
-
-    for (const [mode, on] of decModes) {
-      if (on) {
-        out += `\u001B[?${mode}h`;
-      }
-    }
-
-    for (const flags of kittyFlags) {
-      out += `\u001B[>${flags}u`;
-    }
-
-    if (modifyOtherKeys > 0) {
-      out += `\u001B[>4;${modifyOtherKeys}m`;
-    }
-
-    return out;
-  };
-
   return {
     record: (data) => {
+      tracker.write(data);
+
       flushed = new Promise((resolve) => {
         term.write(data, () => {
           resolve();
@@ -136,14 +79,30 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
     captureReplay: async () => {
       await waitForFlush();
 
-      return RESET_INPUT_MODES + renderVisibleScreen() + renderInputModes();
+      return RESET_INPUT_MODES + renderVisibleScreen() + formatInputModes(tracker.read());
     },
 
     captureFullReplay: async (readMark) => {
       await waitForFlush();
 
       return {
-        replay: RESET_INPUT_MODES + serializer.serialize() + renderInputModes(),
+        replay: RESET_INPUT_MODES + serializer.serialize() + formatInputModes(tracker.read()),
+        cols: term.cols,
+        rows: term.rows,
+        mark: readMark(),
+      };
+    },
+
+    captureStateReplay: async (readMark) => {
+      await waitForFlush();
+
+      return {
+        replay: readStateReplay({
+          term,
+          serializer,
+          inputModes: tracker.read(),
+          kittyStacks: tracker.readKittyStacks(),
+        }),
         cols: term.cols,
         rows: term.rows,
         mark: readMark(),

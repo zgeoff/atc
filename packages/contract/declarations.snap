@@ -232,6 +232,7 @@ export declare const CONFIG_FILE_SCHEMA: z.ZodObject<{
     principals: z.ZodOptional<z.ZodUnknown>;
     daemons: z.ZodOptional<z.ZodUnknown>;
     restoreFleetOnRestart: z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
+    animations: z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
 }, z.core.$strip>;
 export type ConfigFile = z.output<typeof CONFIG_FILE_SCHEMA>;
 
@@ -954,6 +955,10 @@ export declare const DAEMON_CONTRACT: {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
             rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+            replay: z.ZodOptional<z.ZodEnum<{
+                full: "full";
+                screen: "screen";
+            }>>;
         }, z.core.$strip>, z.ZodObject<{
             cols: z.ZodNumber;
             rows: z.ZodNumber;
@@ -1301,6 +1306,12 @@ export declare const DAEMON_CONTRACT: {
             seq: number;
             data: string;
         } | {
+            ev: "SessionReplay";
+            sessionID: string;
+            seq: number;
+            data: string;
+            done: boolean;
+        } | {
             ev: "SessionDesync";
             sessionID: string;
             dropped: number;
@@ -1626,6 +1637,12 @@ export declare const DAEMON_CONTRACT: {
             sessionID: string;
             seq: number;
             data: string;
+        } | {
+            ev: "SessionReplay";
+            sessionID: string;
+            seq: number;
+            data: string;
+            done: boolean;
         } | {
             ev: "SessionDesync";
             sessionID: string;
@@ -2256,6 +2273,10 @@ export declare const REQUEST_PARAM_SCHEMAS: {
         session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
         cols: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
         rows: z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>;
+        replay: z.ZodOptional<z.ZodEnum<{
+            full: "full";
+            screen: "screen";
+        }>>;
     }, z.core.$strip>;
     readonly 'session.detach': z.ZodObject<{
         session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
@@ -2702,6 +2723,12 @@ export declare const DAEMON_EVENT_SCHEMA: z.ZodDiscriminatedUnion<[z.ZodObject<{
     seq: z.ZodNumber;
     data: z.ZodString;
 }, z.core.$strip>, z.ZodObject<{
+    ev: z.ZodLiteral<"SessionReplay">;
+    sessionID: z.ZodString;
+    seq: z.ZodNumber;
+    data: z.ZodString;
+    done: z.ZodBoolean;
+}, z.core.$strip>, z.ZodObject<{
     ev: z.ZodLiteral<"SessionDesync">;
     sessionID: z.ZodString;
     dropped: z.ZodNumber;
@@ -2974,7 +3001,7 @@ export type DaemonCheck = {
 export declare function checkDaemon(hello: Pick<HelloResult, 'daemon' | 'features'>, contractVersion?: string): DaemonCheck;
 
 // hello/daemon-features.d.ts
-export declare const DAEMON_FEATURES: readonly ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace', 'session.host'];
+export declare const DAEMON_FEATURES: readonly ['events.read.from-start', 'daemon.hello.viewer', 'session.forget.workspace', 'session.host', 'full-replay'];
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];
 
 // hello/daemon-record-socket-schema.d.ts
@@ -3149,6 +3176,9 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
 export declare const FEATURE_INPUT_FIELDS: {
     readonly 'events.read': {
         readonly from: 'events.read.from-start';
+    };
+    readonly 'session.attach': {
+        readonly replay: 'full-replay';
     };
 };
 

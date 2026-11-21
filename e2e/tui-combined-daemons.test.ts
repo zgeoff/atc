@@ -66,7 +66,7 @@ async function setupTest() {
 
     tui.write('/');
 
-    await tui.waitFor('/ \u001B[93m█');
+    await tui.waitFor('/ █');
 
     tui.write('far-');
 
@@ -210,7 +210,7 @@ test('it sends typed lines and the answer to a needs-you prompt to the attached 
 
   ctx.tui.write('/');
 
-  await ctx.tui.waitFor('/ \u001B[93m█');
+  await ctx.tui.waitFor('/ █');
 
   ctx.tui.write('far-');
 
@@ -381,7 +381,7 @@ test('it reattaches the attached remote session when its link drops and comes ba
 
   ctx.tui.write('/');
 
-  await ctx.tui.waitFor('/ \u001B[93m█');
+  await ctx.tui.waitFor('/ █');
 
   ctx.tui.write('far-');
 
@@ -398,7 +398,7 @@ test('it reattaches the attached remote session when its link drops and comes ba
   writeFileSync(join(remote.directory, 'gateway-token'), `${'b'.repeat(32)}\n`);
 
   remote.daemon.refreshTokens();
-  ctx.tui.reset();
+  ctx.tui.resetScreen();
 
   await ctx.tui.waitFor('REMOTE_UP');
 
@@ -417,7 +417,7 @@ test('it reattaches the attached remote session under the same id when the remot
   await remote.stop();
   await ctx.tui.waitFor('waiting for daemon');
 
-  ctx.tui.reset();
+  ctx.tui.resetScreen();
 
   await restartRemoteTestDaemon(remote, { restoreFleet: true });
 
@@ -476,7 +476,7 @@ test('it tells the user why a line typed into an attached remote session went no
 
   ctx.tui.write('/');
 
-  await ctx.tui.waitFor('/ \u001B[93m█');
+  await ctx.tui.waitFor('/ █');
 
   ctx.tui.write('far-');
 
@@ -533,7 +533,7 @@ test('it shows the refusal of a connected remote daemon for a line typed into it
 
   ctx.tui.write('/');
 
-  await ctx.tui.waitFor('/ \u001B[93m█');
+  await ctx.tui.waitFor('/ █');
 
   ctx.tui.write('far-');
 

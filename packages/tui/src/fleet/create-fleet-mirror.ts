@@ -50,6 +50,7 @@ export function createFleetMirror(primary: DaemonName): FleetMirror {
         existing.canEject = session.canEject;
         existing.agent = session.agent;
         existing.target = session.target;
+        existing.place = session.place;
         existing.model = session.model;
         existing.harness = session.harness;
       }

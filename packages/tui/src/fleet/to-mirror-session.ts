@@ -2,6 +2,8 @@ import type { AgentID } from '@atc/core';
 import { isRecord, toAgentID } from '@atc/core';
 import type { SessionState, SessionViewState } from '@atc/protocol';
 import { z } from 'zod';
+import { toSessionPlace } from '../places/to-session-place';
+import type { SessionPlace } from '../places/types';
 import type { DaemonName } from './session-key';
 
 export type HarnessLifecycle = 'running' | 'suspended' | 'exited';
@@ -26,6 +28,7 @@ export interface MirrorSession {
   parent: string | null;
 
   target: string;
+  place: SessionPlace;
 
   model: string | null;
 
@@ -51,6 +54,7 @@ export function toMirrorSession(value: unknown, daemon: DaemonName): MirrorSessi
   }
 
   const record = parsed.data;
+  const target = getTargetID(record['locator']);
 
   return {
     daemon,
@@ -71,17 +75,11 @@ export function toMirrorSession(value: unknown, daemon: DaemonName): MirrorSessi
     canEject: record['canEject'] === true,
     agent: toAgentID(record['agent']),
     parent: typeof record['parent'] === 'string' ? record['parent'] : null,
-    target: getTargetID(record['locator']),
+    target,
+    place: toSessionPlace(record['place'], daemon, target),
     model: typeof record['model'] === 'string' ? record['model'] : null,
     harness: parseHarnessLifecycle(record['lifecycle'], record.alive),
   };
-}
-
-const SESSION_STATES: readonly SessionState[] = ['running', 'needs_you', 'done', 'exited'];
-
-// A state that a newer daemon adds shows as unknown.
-function parseSessionState(state: string): SessionViewState {
-  return SESSION_STATES.find((known) => known === state) ?? 'unknown';
 }
 
 function getTargetID(locator: unknown): string {
@@ -90,6 +88,13 @@ function getTargetID(locator: unknown): string {
   }
 
   return 'local';
+}
+
+const SESSION_STATES: readonly SessionState[] = ['running', 'needs_you', 'done', 'exited'];
+
+// A state that a newer daemon adds shows as unknown.
+function parseSessionState(state: string): SessionViewState {
+  return SESSION_STATES.find((known) => known === state) ?? 'unknown';
 }
 
 function parseHarnessLifecycle(lifecycle: unknown, alive: boolean): HarnessLifecycle {

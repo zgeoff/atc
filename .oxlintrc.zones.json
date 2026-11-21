@@ -94,6 +94,12 @@
           "config-lock-check": [
             "packages/harnesses/claude/src/local-trust/with-claude-config-lock.test.ts"
           ],
+          // the terminal emulator that the daemon keeps per session and the TUI keeps for the
+          // attached session
+          "xterm-files": [
+            "packages/daemon/src/sessions/{create-screen-model,read-emulator-internals,find-cell-link,serialize-link-runs,render-pen,read-state-replay}.ts",
+            "packages/tui/src/emulator/**"
+          ],
           "e2e": ["e2e/**"],
           "integration": ["integration/**"],
           "scripts": ["scripts/**"],
@@ -301,6 +307,15 @@
             "reason": "@atcx/client runs on Node 22 and Bun alike"
           },
           { "name": "confinement", "modules": ["bun-pty"], "allow": ["pty-files"] },
+          {
+            "name": "confinement",
+            "modules": [
+              "@xterm/headless",
+              "@xterm/addon-serialize",
+              "@xterm/addon-unicode-graphemes"
+            ],
+            "allow": ["xterm-files", "tests"]
+          },
           { "name": "confinement", "modules": ["@impz/client"], "allow": ["imp-client-files"] },
           { "name": "confinement", "modules": ["@fly/sprites"], "allow": ["sprites-sdk-files"] },
           {

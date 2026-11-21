@@ -6,6 +6,7 @@ export const DAEMON_FEATURES = [
   'daemon.hello.viewer',
   'session.forget.workspace',
   'session.host',
+  'full-replay',
 ] as const;
 
 export type DaemonFeature = (typeof DAEMON_FEATURES)[number];

@@ -1,7 +1,9 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { RESET_INPUT_MODES } from '@atc/core';
+import { RESET_INPUT_MODES, createInputModeTracker } from '@atc/core';
 import { waitFor } from '@atc/core/test-utils/wait-for';
+import { Terminal } from '@xterm/headless';
 import { createScreenModel } from './create-screen-model';
+import { findCellLink } from './find-cell-link';
 
 test('it replays text written to the screen', async () => {
   const model = createScreenModel(40, 10);
@@ -15,6 +17,37 @@ test('it replays text written to the screen', async () => {
   const replay = await model.captureReplay();
 
   expect(replay).toInclude('hello fleet');
+});
+
+test('it measures an emoji as two columns, as a terminal does', async () => {
+  const model = createScreenModel(40, 10);
+
+  onTestFinished(() => {
+    model.stop();
+  });
+
+  model.record('❤️ab\u001B[1;3HZ');
+
+  const screen = await model.captureText();
+
+  expect(screen.text).toBe('❤️Zb');
+});
+
+test('it gives a full replay the kitty stack of each screen', async () => {
+  const model = createScreenModel(40, 10);
+  const tracker = createInputModeTracker();
+
+  onTestFinished(() => {
+    model.stop();
+  });
+
+  model.record('\u001B[>1u\u001B[?1049h\u001B[>3u');
+
+  const captured = await model.captureStateReplay(() => 0);
+
+  tracker.write(captured.replay);
+
+  expect(tracker.readKittyStacks()).toStrictEqual({ main: [1], alternate: [3] });
 });
 
 test('it gives a full replay the size it renders at once a resize applies, and the mark it reads', async () => {
@@ -291,4 +324,213 @@ test('it reports bracketed paste off once the tui turns it off', async () => {
   await waitFor(() => {
     expect(model.hasBracketedPaste()).toBeFalse();
   });
+});
+
+function setupTest() {
+  const model = createScreenModel(30, 8);
+
+  const reference = new Terminal({ cols: 30, rows: 8, allowProposedApi: true, scrollback: 300 });
+  const rebuilt = new Terminal({ cols: 30, rows: 8, allowProposedApi: true, scrollback: 300 });
+
+  onTestFinished(() => {
+    model.stop();
+    reference.dispose();
+    rebuilt.dispose();
+  });
+
+  const readCells = (kind: 'normal' | 'alternate') =>
+    [reference, rebuilt].map((term) => {
+      const buffer = kind === 'normal' ? term.buffer.normal : term.buffer.alternate;
+      const lines: string[] = [];
+
+      for (let row = 0; row < buffer.length; row++) {
+        const line = buffer.getLine(row);
+        const cells: string[] = [];
+
+        for (let col = 0; col < term.cols; col++) {
+          const cell = line?.getCell(col);
+          const link = cell === undefined ? null : findCellLink(term, cell);
+
+          cells.push(
+            `${cell?.getChars() ?? ''}/${cell?.getFgColor()}/${cell?.getBgColor()}/${cell?.isBold()}/${link}`,
+          );
+        }
+
+        lines.push(cells.join(' '));
+      }
+
+      return lines;
+    });
+
+  return {
+    rebuilt,
+    reference,
+    readCells,
+    feed: async (data: string) => {
+      model.record(data);
+
+      await new Promise<void>((resolve) => {
+        reference.write(data, resolve);
+      });
+    },
+    replay: async () => {
+      const captured = await model.captureStateReplay(() => 0);
+
+      await new Promise<void>((resolve) => {
+        rebuilt.write(captured.replay, resolve);
+      });
+
+      const tracker = createInputModeTracker();
+
+      tracker.write(captured.replay);
+
+      return { replay: captured.replay, modes: tracker.read() };
+    },
+  };
+}
+
+test('it replays the main screen cell for cell', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed(
+    'plain line\r\n\u001B[1;31mred bold\u001B[0m\r\n\u001B[38;2;10;20;30mrgb\u001B[0m\u001B[4;9H',
+  );
+
+  await ctx.replay();
+
+  const [expected, actual] = ctx.readCells('normal');
+
+  expect(actual).toStrictEqual(expected);
+});
+
+test('it replays the cursor of the main screen', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed('one\r\ntwo\u001B[2;2H');
+  await ctx.replay();
+
+  expect([ctx.rebuilt.buffer.active.cursorX, ctx.rebuilt.buffer.active.cursorY]).toStrictEqual([
+    ctx.reference.buffer.active.cursorX,
+    ctx.reference.buffer.active.cursorY,
+  ]);
+});
+
+test('it replays both buffers while the alternate screen is active', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed('main text\u001B[?1049h\u001B[2J\u001B[3;4Halt text\u001B[1;32m!\u001B[0m');
+  await ctx.replay();
+
+  const [expectedAlternate, actualAlternate] = ctx.readCells('alternate');
+  const [expectedNormal, actualNormal] = ctx.readCells('normal');
+
+  expect([ctx.rebuilt.buffer.active.type, actualAlternate, actualNormal]).toStrictEqual([
+    'alternate',
+    expectedAlternate,
+    expectedNormal,
+  ]);
+});
+
+test('it replays the main screen after the alternate screen was left', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed('main text\u001B[?1049halt text\u001B[?1049l');
+  await ctx.replay();
+
+  const [expectedNormal, actualNormal] = ctx.readCells('normal');
+
+  expect([ctx.rebuilt.buffer.active.type, actualNormal]).toStrictEqual(['normal', expectedNormal]);
+});
+
+test('it replays every input mode with the kitty stack re-created', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed(
+    '\u001B[>1u\u001B[>5u\u001B[?2004h\u001B[?1h\u001B=\u001B[?1002h\u001B[?1006h\u001B[?1004h\u001B[?1007h\u001B[>4;2m\u001B[?2031h',
+  );
+
+  const replayed = await ctx.replay();
+
+  expect(replayed.modes).toStrictEqual({
+    mouse: 'drag',
+    mouseEncoding: 'sgr',
+    alternateScroll: true,
+    bracketedPaste: true,
+    focusEvents: true,
+    applicationCursorKeys: true,
+    applicationKeypad: true,
+    kittyStack: [1, 5],
+    modifyOtherKeys: 2,
+    colourSchemeUpdates: true,
+  });
+});
+
+test('it replays a scroll region and a hidden cursor', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed('\u001B[2;5r\u001B[?25l\u001B[3;3Hx');
+
+  const replayed = await ctx.replay();
+
+  expect(replayed.replay).toInclude('\u001B[2;5r');
+  expect(replayed.replay).toEndWith('\u001B[?25l');
+});
+
+test.each([
+  { name: 'a scroll region', feed: '\u001B[2;5r\u001B[?6h\u001B[3;3Hx' },
+  { name: 'no scroll region', feed: '\u001B[?6h\u001B[3;3Hx' },
+])('it replays the cursor of a session in origin mode with $name', async (row) => {
+  const ctx = setupTest();
+
+  await ctx.feed(row.feed);
+  await ctx.replay();
+
+  expect([
+    ctx.rebuilt.buffer.active.cursorX,
+    ctx.rebuilt.buffer.active.cursorY,
+    ctx.rebuilt.modes.originMode,
+  ]).toStrictEqual([
+    ctx.reference.buffer.active.cursorX,
+    ctx.reference.buffer.active.cursorY,
+    true,
+  ]);
+});
+
+test('it replays the cursor of the alternate screen in origin mode', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed('main\u001B[?1049h\u001B[2;5r\u001B[?6h\u001B[3;3Hx');
+  await ctx.replay();
+
+  expect([ctx.rebuilt.buffer.active.cursorX, ctx.rebuilt.buffer.active.cursorY]).toStrictEqual([
+    ctx.reference.buffer.active.cursorX,
+    ctx.reference.buffer.active.cursorY,
+  ]);
+});
+
+test('it replays the links of the main screen with their attributes', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed(
+    'a\u001B[1;31m\u001B]8;;https://example.test\u0007link\u001B[0m界\u001B]8;;\u0007 tail\r\n\u001B[4:3m\u001B]8;;https://other.test\u0007two\u001B]8;;\u0007',
+  );
+
+  await ctx.replay();
+
+  const [expected, actual] = ctx.readCells('normal');
+
+  expect(actual).toStrictEqual(expected);
+  expect(actual?.[0]).toInclude('/https://example.test');
+});
+
+test('it replays the links of the alternate screen', async () => {
+  const ctx = setupTest();
+
+  await ctx.feed('\u001B[?1049h\u001B[2;3H\u001B]8;;https://example.test\u0007alt\u001B]8;;\u0007');
+  await ctx.replay();
+
+  const [expected, actual] = ctx.readCells('alternate');
+
+  expect(actual).toStrictEqual(expected);
+  expect(actual?.[1]).toInclude('/https://example.test');
 });

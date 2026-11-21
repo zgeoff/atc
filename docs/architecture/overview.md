@@ -97,8 +97,8 @@ connection that orders every query ([fleet and restore](./daemon/fleet-and-resto
 
 The state directory holds these entries beside `atc.db` and its SQLite WAL files:
 
-- `status.json` holds the fleet's counts for the statusline, and stays a plain file because a
-  statusline helper reads it without speaking the protocol.
+- `status.json` holds the fleet's counts, and stays a plain file because a script can read it
+  without speaking the protocol.
 - `mcp-auth.db` holds the OAuth state of `atc mcp --http`, which the daemon never opens
   ([OAuth](./remote/oauth.md)).
 - `daemon.lock` is the lock file that admits one daemon per state directory, and `daemon.json` holds

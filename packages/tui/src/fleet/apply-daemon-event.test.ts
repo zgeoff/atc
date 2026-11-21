@@ -41,6 +41,7 @@ function setupTest() {
     setLastUsedAgent: () => {},
     findFocused: () => null,
     scheduleStatus: () => {},
+    stream: { applyEvent: () => {} },
   };
 
   const apply = (daemon: string | null, raw: Parameters<typeof applyDaemonEvent>[1]) => {

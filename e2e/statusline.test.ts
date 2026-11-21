@@ -12,7 +12,7 @@ function setupTest() {
   return { directory: temporaryDirectory.path };
 }
 
-test('it chains the user statusline and appends the fleet segment', async () => {
+test('it prints the user statusline command and nothing else', async () => {
   const ctx = setupTest();
 
   mkdirSync(join(ctx.directory, '.claude'), { recursive: true });
@@ -36,9 +36,7 @@ test('it chains the user statusline and appends the fleet segment', async () => 
     env: { ...process.env, HOME: ctx.directory, PATH: '/usr/sbin:/usr/bin:/bin' },
   });
 
-  expect(subprocess.stdout).toBe(
-    'CHAINED-SEGMENT \u001B[90m▏\u001B[0m \u001B[1;31m● 2 need you: auth-bug\u001B[0m \u001B[36m◐ 1\u001B[0m\n',
-  );
+  expect(subprocess.stdout).toBe('CHAINED-SEGMENT\n');
 });
 
 test.each([

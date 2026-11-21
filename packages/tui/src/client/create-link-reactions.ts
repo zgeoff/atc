@@ -8,7 +8,6 @@ import type { MirrorSession } from '../fleet/to-mirror-session';
 import type { EjectScreen } from '../overlay/create-eject-screen';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
 import type { SpawnPicker } from '../picker/create-spawn-picker';
-import { cols } from '../terminal/cols';
 import type { ClientActor, ClientMode } from './build-client-machine';
 
 export interface LinkReactionsDeps {
@@ -29,7 +28,7 @@ export interface LinkReactionsDeps {
     method: string,
     params?: Readonly<Record<string, unknown>>,
   ) => Promise<void>;
-  readonly ptyRows: () => number;
+  readonly reattach: (key: SessionKey) => void;
   readonly showStatusNotice: (text: string) => void;
   readonly scheduleStatus: () => void;
 }
@@ -82,12 +81,7 @@ export function createLinkReactions(deps: LinkReactionsDeps): LinkReactions {
     }
 
     deps.write(ansi.clear);
-
-    void deps.sendQuiet(daemon, 'session.attach', {
-      session: focused.id,
-      cols: cols(),
-      rows: deps.ptyRows(),
-    });
+    deps.reattach({ daemon, id: focused.id });
   };
 
   const endPickerOn = (daemon: DaemonName) => {

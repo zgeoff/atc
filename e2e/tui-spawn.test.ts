@@ -280,7 +280,8 @@ test('it starts claude with the settings file atc generates', async () => {
 
   await spawnClaudeSession(ctx, 'withsettings');
 
-  expect(ctx.read()).toInclude(
+  // The stub prints its arguments on one line, which the screen wraps.
+  expect(ctx.read().replaceAll('\n', '')).toInclude(
     `--settings ${buildHookSettingsPath(ctx.paths.stateDir, 'claude')} `,
   );
 });

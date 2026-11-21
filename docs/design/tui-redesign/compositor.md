@@ -53,7 +53,7 @@ interface Cell {
 
 type Colour =
   | { kind: 'default' } // the terminal's own colour: ESC[39m / ESC[49m
-  | { kind: 'rgb'; r: number; g: number; b: number }
+  | { kind: 'rgb'; red: number; green: number; blue: number }
   | { kind: 'palette'; index: number }; // 0-255, as the agent sent it
 
 interface Layer {
@@ -81,12 +81,15 @@ interface TerminalFacts {
 // tui module: session emulator. Adapter: @xterm/headless.
 interface SessionEmulator {
   write(data: string): Promise<void>; // SessionOutput bytes, in order; resolves once parsed
-  resize(cols: number, rows: number): void; // follows the PTY's size from SessionResized
+  reset(): Promise<void>; // a hard reset, written through the same queue as write; the first chunk of a replay calls it
+  resize(cols: number, rows: number): Promise<void>; // follows SessionResized, in order behind the writes before it
+  readSize(): { cols: number; rows: number };
   readCell(col: number, row: number): Cell;
   readCursor(): { col: number; row: number; visible: boolean; shape: CursorShape };
   readInputModes(): InputModes;
   onReply(listener: (bytes: string) => void): void; // answers to the agent's queries
   onPassthrough(listener: (sequence: string) => void): void;
+  dispose(): void;
 }
 
 // core module: input modes, tracked in one place for the TUI and for the daemon's own emulator of each session
@@ -109,7 +112,7 @@ interface InputModes {
 ```
 
 ```ts
-// @atcx/contract: session.attach gains an input field, and the daemon events gain SessionReplay
+// @atcx/contract: session.attach gains an input field, a `full-replay` feature in the daemon's hello that gates it, and the daemon events gain SessionReplay
 const attached = await client.procedures.session.attach({
   session: 'sess_8f2',
   cols: 120,
@@ -163,12 +166,15 @@ z.object({
   until the agent redraws it.
 - While the session has focus, `flush` puts the user's terminal cursor where the emulator's cursor
   is, with its shape and visibility. While another layer has focus, the cursor is hidden.
-- The TUI writes to the user's terminal only through `flush`.
-- The one exception is the sequences it passes on from the session, which it writes between frames.
+- The TUI draws the screen only through `flush`. It writes these between frames, outside `flush`:
+  the sequences it passes on from the session, the copies that `y` and `Y` make, a change of input
+  modes, the start-up queries, and the reset on exit.
 - Each `flush` is one write wrapped in synchronized output (`ESC[?2026h` … `ESC[?2026l`). A terminal
   that ignores mode 2026 still shows a correct frame.
 - The TUI waits for the emulator's `write` to resolve before it reads cells. The next frame draws
   all output whose `write` resolved before that frame started.
+- A session that writes without a pause always has a `write` pending. A frame then waits at most 16
+  ms for it, and draws. No frame draws while a replay arrives.
 
 ### Sequences from the session
 
@@ -228,6 +234,7 @@ z.object({
   only when a session writes, a key arrives, the fleet changes or the window resizes.
 - A layer that animates answers `now + 16`, so the clock runs at 60 Hz while it moves.
 - A frame that takes longer than 16 ms drops the next tick. The clock never queues ticks.
+- When an event asks for a frame while a tick is overdue, that tick draws, however late it runs.
 - The session list's open and close are decorative motion. When the config's `animations` is
   `false`, they take one frame, and the layer answers null.
 - A spinner shows state, so it turns at 10 Hz whatever `animations` says: a layer with a spinner
@@ -236,8 +243,8 @@ z.object({
 ### Exit
 
 - On exit, on detach and on error, the TUI resets every input mode it copied from a session, then
-  restores the terminal through the TUI's existing `restoreTerminal`: the main screen, a visible
-  cursor and default colours.
+  restores the terminal with `restoreTerminal`: the main screen, a visible cursor and default
+  colours.
 
 ## Decisions
 

@@ -6,11 +6,13 @@ import type { SessionID } from '@atcx/contract';
 import type { OutputClient } from '../types';
 import { createAttachRegistry } from './create-attach-registry';
 import type { Dims } from './create-attach-registry';
+import type { ScreenModel } from './create-screen-model';
 import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 import { getDescriptor } from './get-descriptor';
 import type { HookScope } from './make-hook-runner';
 import type { Session } from './session';
+import { splitReplayChunks } from './split-replay-chunks';
 
 const DEFAULT_DIMS: Dims = { cols: 80, rows: 24 };
 
@@ -47,6 +49,7 @@ export interface SessionOutput {
     client: OutputClient,
     sessionID: SessionID,
     dims: Dims,
+    replay: 'screen' | 'full',
   ) => 'ok' | 'missing' | 'dead';
 
   readonly watchSession: (
@@ -76,6 +79,17 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
   const attachments = createAttachRegistry<OutputClient>();
 
   const watchers = new Map<SessionID, Set<OutputClient>>();
+  const fullReplayClients = new Map<SessionID, Set<OutputClient>>();
+
+  const removeFullReplayClient = (sessionID: SessionID, client: OutputClient): void => {
+    const clients = fullReplayClients.get(sessionID);
+
+    clients?.delete(client);
+
+    if (clients?.size === 0) {
+      fullReplayClients.delete(sessionID);
+    }
+  };
 
   const removeWatcher = (sessionID: SessionID, client: OutputClient): boolean => {
     const clients = watchers.get(sessionID);
@@ -145,6 +159,12 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
     // A replay sent as output has no boundary a watcher could tell from live output, so a watcher
     // must request a fresh watch instead.
     if (runtime === undefined || runtime.screen === null || isWatcher(sessionID, client)) {
+      return;
+    }
+
+    if (fullReplayClients.get(sessionID)?.has(client) ?? false) {
+      await sendFullReplay(sessionID, client, runtime.screen, runtime);
+
       return;
     }
 
@@ -229,7 +249,7 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
     sendReplay,
 
-    attachSession: (client, sessionID, dims) => {
+    attachSession: (client, sessionID, dims, replay) => {
       const session = manager.sessions.find((x) => x.id === sessionID);
 
       if (session === undefined) {
@@ -242,6 +262,16 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
       manager.requireExecution(session, 'attach');
       attachments.attach(sessionID, client, dims);
+
+      if (replay === 'full') {
+        const clients = fullReplayClients.get(sessionID) ?? new Set<OutputClient>();
+
+        clients.add(client);
+        fullReplayClients.set(sessionID, clients);
+      } else {
+        removeFullReplayClient(sessionID, client);
+      }
+
       manager.attach(sessionID);
 
       // resize before the replay renders: a replay at the previous attachment's
@@ -300,6 +330,7 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
 
     detachSession: (client, sessionID) => {
       removeWatcher(sessionID, client);
+      removeFullReplayClient(sessionID, client);
 
       if (!attachments.removeClient(sessionID, client)) {
         return;
@@ -312,6 +343,10 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
     detachClient: (client) => {
       for (const sessionID of watchers.keys()) {
         removeWatcher(sessionID, client);
+      }
+
+      for (const sessionID of fullReplayClients.keys()) {
+        removeFullReplayClient(sessionID, client);
       }
 
       for (const sessionID of attachments.detachAll(client)) {
@@ -337,6 +372,33 @@ export function createSessionOutput(deps: SessionOutputDeps): SessionOutput {
     removeSession: (sessionID) => {
       attachments.removeSession(sessionID);
       watchers.delete(sessionID);
+      fullReplayClients.delete(sessionID);
     },
   };
+}
+
+async function sendFullReplay(
+  sessionID: SessionID,
+  client: OutputClient,
+  screen: ScreenModel,
+  runtime: SessionRuntime,
+): Promise<void> {
+  const captured = await screen.captureStateReplay(() => runtime.seq);
+
+  const chunks = splitReplayChunks(captured.replay, MAX_CHUNK);
+
+  for (const [index, chunk] of chunks.entries()) {
+    client.sendOutput(
+      sessionID,
+      {
+        version: PROTOCOL_V,
+        ev: 'SessionReplay',
+        sessionID,
+        seq: captured.mark,
+        data: chunk,
+        done: index === chunks.length - 1,
+      },
+      chunk.length,
+    );
+  }
 }

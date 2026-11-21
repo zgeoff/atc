@@ -43,7 +43,7 @@ test('it narrows the overlay to sessions matching the slash filter', async () =>
 
   ctx.write('/');
 
-  await ctx.waitFor('/ \u001B[93m█');
+  await ctx.waitFor('/ █');
 
   ctx.reset();
   ctx.write('brav');
@@ -92,7 +92,7 @@ test('it pins a session from the overlay and marks its row', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: pinme');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('┌ sessions ');
 
   ctx.reset();
@@ -100,7 +100,7 @@ test('it pins a session from the overlay and marks its row', async () => {
 
   await ctx.waitFor('⋆');
 
-  expect(ctx.read()).toInclude('⋆\u001B[0m \u001B[7mpinme');
+  expect(ctx.read()).toInclude('●!⋆ pinme');
 });
 
 test('it clusters overlay rows under repository headers when grouping is toggled on', async () => {
@@ -119,7 +119,7 @@ test('it clusters overlay rows under repository headers when grouping is toggled
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: first');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('┌ sessions ');
 
   await openAgentStep(ctx);
@@ -255,7 +255,7 @@ test('it preselects the focused session when the overlay opens', async () => {
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('need you: first');
+  await ctx.waitFor('◆ 1 need you');
   await ctx.waitFor('┌ sessions ');
 
   await spawnClaudeSession(ctx, 'second');
