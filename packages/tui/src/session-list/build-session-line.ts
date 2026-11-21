@@ -4,6 +4,7 @@ import { SPINNER_FRAMES } from '../fleet-bar/constants';
 import { pickPlaceColour } from '../places/pick-place-colour';
 import { measureWidth } from '../terminal/measure-width';
 import { formatDir } from '../terminal/pick-matches';
+import { splitGraphemes } from '../terminal/split-graphemes';
 import { AMBER, CONTENT_COL, DONE, FAINT, MUTED, RUNNING, TEXT } from './constants';
 import { fitText } from './fit-text';
 import { formatAge } from './format-age';
@@ -147,21 +148,55 @@ function pickGlyph(
 
 // The name, with the letters that jump mode matched in amber.
 function buildNameSpans(name: string, col: number, style: NameStyle, typed: string): PanelSpan[] {
-  const at = typed === '' ? -1 : name.toLowerCase().indexOf(typed.toLowerCase());
+  const range = typed === '' ? null : findMatchedGraphemes(name, typed.toLowerCase());
 
-  if (at === -1) {
+  if (range === null) {
     return [{ col, text: name, fg: style.fg, bold: style.bold }];
   }
 
-  const before = name.slice(0, at);
-  const matched = name.slice(at, at + typed.length);
-  const after = name.slice(at + typed.length);
+  const graphemes = splitGraphemes(name).map((grapheme) => grapheme.text);
+  const before = graphemes.slice(0, range.start).join('');
+  const matched = graphemes.slice(range.start, range.end).join('');
+  const after = graphemes.slice(range.end).join('');
 
   return [
     { col, text: before, fg: style.fg, bold: style.bold },
     { col: col + measureWidth(before), text: matched, fg: AMBER, bold: true },
     { col: col + measureWidth(before + matched), text: after, fg: style.fg, bold: style.bold },
   ];
+}
+
+// The graphemes, from `start` up to but not including `end`, whose lowercase holds the first match
+// of `needle`. A letter's lowercase can be longer than the letter, as `İ` is.
+function findMatchedGraphemes(
+  name: string,
+  needle: string,
+): { readonly start: number; readonly end: number } | null {
+  const lowered = splitGraphemes(name).map((grapheme) => grapheme.text.toLowerCase());
+  const at = lowered.join('').indexOf(needle);
+
+  if (at === -1) {
+    return null;
+  }
+
+  let offset = 0;
+  let start = -1;
+
+  for (const [index, text] of lowered.entries()) {
+    const next = offset + text.length;
+
+    if (start === -1 && at < next) {
+      start = index;
+    }
+
+    if (at + needle.length <= next) {
+      return { start, end: index + 1 };
+    }
+
+    offset = next;
+  }
+
+  return null;
 }
 
 export function formatName(

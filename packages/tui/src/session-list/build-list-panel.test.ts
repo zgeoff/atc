@@ -3,6 +3,7 @@ import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session'
 import { buildMockPanelInput } from '../test-utils/build-mock-panel-input';
 import { renderPanelText } from '../test-utils/render-panel-text';
 import { buildListPanel } from './build-list-panel';
+import { AMBER } from './constants';
 
 test('it centres a panel of min(112, cols - 8) columns', () => {
   const wide = buildListPanel(buildMockPanelInput(), { cols: 200, rows: 30 });
@@ -307,6 +308,29 @@ test('it puts a jump label in place of the state glyph of each row', () => {
   const text = renderPanelText(plan);
 
   expect([text[1]?.slice(2, 4), text[2]?.slice(2, 4)]).toStrictEqual(['▎s', '▎d']);
+});
+
+test.each([
+  { typed: 'st', expected: ['İ', 'st', 'anbul'] },
+  { typed: 'i', expected: ['', 'İ', 'stanbul'] },
+  { typed: 'AN', expected: ['İst', 'an', 'bul'] },
+])('it highlights the letters of İstanbul that jump mode matched with $typed', (row) => {
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      rows: [{ kind: 'session', session: buildMockMirrorSession({ name: 'İstanbul' }), via: null }],
+      selected: 0,
+      jump: { labels: ['a'], typed: row.typed },
+    }),
+    { cols: 120, rows: 20 },
+  );
+
+  const nameSpans = plan.content[0]?.spans.slice(2, 5) ?? [];
+
+  expect(nameSpans.map((span) => [span.text.trimEnd(), span.fg === AMBER])).toStrictEqual([
+    [row.expected[0], false],
+    [row.expected[1], true],
+    [row.expected[2], false],
+  ]);
 });
 
 test('it wraps a prompt over lines so the keys that confirm it still show', () => {
