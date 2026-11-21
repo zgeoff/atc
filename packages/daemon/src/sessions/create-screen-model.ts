@@ -1,9 +1,8 @@
 import { RESET_INPUT_MODES, ansi, createInputModeTracker, formatInputModes } from '@atc/core';
 import { SerializeAddon } from '@xterm/addon-serialize';
+import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes';
 import { Terminal } from '@xterm/headless';
-import { readEmulatorInternals } from './read-emulator-internals';
-import type { ScrollRegion } from './read-emulator-internals';
-import { serializeLinkRuns } from './serialize-link-runs';
+import { readStateReplay } from './read-state-replay';
 
 export interface ScreenText {
   readonly text: string;
@@ -34,8 +33,6 @@ export interface ScreenModel {
   readonly stop: () => void;
 }
 
-const RIS = '\u001Bc';
-
 export function createScreenModel(cols: number, rows: number): ScreenModel {
   let flushed: Promise<void> = Promise.resolve();
   const tracker = createInputModeTracker();
@@ -44,6 +41,9 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
   const serializer = new SerializeAddon();
 
   term.loadAddon(serializer);
+
+  // the client's emulator measures graphemes the same way, so a replay lands in the same cells
+  term.loadAddon(new UnicodeGraphemesAddon());
 
   const waitForFlush = async (): Promise<void> => {
     let pending: Promise<void>;
@@ -63,45 +63,6 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
     const switchAt = serialized.lastIndexOf(altSwitch);
 
     return switchAt === -1 ? serialized : serialized.slice(switchAt + altSwitch.length);
-  };
-
-  // A client that resets its own emulator and writes this gets both buffers, the active one, each
-  // cursor, each scroll region and every input mode. The addon puts the alternate buffer last.
-  const readStateReplay = (): string => {
-    const internals = readEmulatorInternals(term);
-    const serialized = serializer.serialize({ excludeModes: true });
-    const altSwitch = `${ansi.altScreenOn}${ansi.cursorHome}`;
-    const switchAt = serialized.lastIndexOf(altSwitch);
-    const normal = switchAt === -1 ? serialized : serialized.slice(0, switchAt);
-    const isAlternateActive = switchAt !== -1;
-    let out = `${RIS}${normal}${serializeLinkRuns(term, term.buffer.normal)}`;
-
-    out += renderPlacement(
-      internals.normalRegion,
-      term.buffer.normal,
-      term.modes.originMode && !isAlternateActive,
-    );
-
-    if (isAlternateActive) {
-      out += `${altSwitch}${serialized.slice(switchAt + altSwitch.length)}`;
-      out += serializeLinkRuns(term, term.buffer.alternate);
-      out += renderPlacement(internals.altRegion, term.buffer.alternate, term.modes.originMode);
-    }
-
-    return `${out}${readModes(internals.isCursorHidden)}`;
-  };
-
-  const readModes = (isCursorHidden: boolean): string =>
-    `${formatInputModes(tracker.read())}${readTerminalModes()}${isCursorHidden ? ansi.hideCursor : ''}`;
-
-  const readTerminalModes = (): string => {
-    const modes = term.modes;
-
-    return [
-      modes.wraparoundMode ? '' : '\u001B[?7l',
-      modes.insertMode ? '\u001B[4h' : '',
-      modes.reverseWraparoundMode ? '\u001B[?45h' : '',
-    ].join('');
   };
 
   return {
@@ -136,7 +97,12 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
       await waitForFlush();
 
       return {
-        replay: readStateReplay(),
+        replay: readStateReplay({
+          term,
+          serializer,
+          inputModes: tracker.read(),
+          kittyStacks: tracker.readKittyStacks(),
+        }),
         cols: term.cols,
         rows: term.rows,
         mark: readMark(),
@@ -170,24 +136,4 @@ export function createScreenModel(cols: number, rows: number): ScreenModel {
       term.dispose();
     },
   };
-}
-
-interface CursorPosition {
-  readonly cursorX: number;
-  readonly cursorY: number;
-}
-
-function renderPlacement(
-  region: ScrollRegion | null,
-  buffer: CursorPosition,
-  isOriginMode: boolean,
-): string {
-  // DECSTBM and DECOM each home the cursor, so the cursor goes last. In origin mode its row counts
-  // from the top of the scroll region.
-  const top = isOriginMode ? (region?.top ?? 0) : 0;
-  const row = Math.max(0, buffer.cursorY - top) + 1;
-  const regionSequence = region === null ? '' : `\u001B[${region.top + 1};${region.bottom + 1}r`;
-  const originSequence = isOriginMode ? '\u001B[?6h' : '';
-
-  return `${regionSequence}${originSequence}\u001B[${row};${buffer.cursorX + 1}H`;
 }

@@ -82,9 +82,9 @@ that has not started yet for a dialog that waits on the owner
 ([waits before the agent starts](../daemon/sessions.md#waits-before-the-agent-starts)).
 
 The statusline reporter runs the owner's own configured statusline and prints only its output, or
-nothing when the owner has none. The command runs in a process group of its own, and after 1.5 s the
-reporter kills the whole group and prints what the command wrote by then, so a child the command
-left running never holds the reporter open. It adds no atc text, because the TUI draws the
+nothing when the owner has none. The command runs in a process group of its own, and after a short
+timeout the reporter kills the whole group and prints what the command wrote by then, so a child the
+command left running never holds the reporter open. It adds no atc text, because the TUI draws the
 [fleet bar](../tui/fleet-bar.md) itself. Each render also sends its input to the daemon as a
 heartbeat, a second path for capturing the agent session id.
 

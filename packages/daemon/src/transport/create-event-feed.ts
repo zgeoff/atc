@@ -91,6 +91,14 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
       return;
     }
 
+    // A replay is the whole screen, sent in one burst after a drain or on attach, and a client
+    // shows none of it before its last chunk, so it enters whole and outside the output budget.
+    if (event.ev === 'SessionReplay') {
+      scheduleEvent(state, event, 0);
+
+      return;
+    }
+
     if (hasRoom(state, options.capacity, byteLength)) {
       scheduleEvent(state, event, byteLength);
 

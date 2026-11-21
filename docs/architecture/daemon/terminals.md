@@ -31,12 +31,22 @@ A client that attaches with `replay: 'full'` gets the session's whole emulator s
 visible screen, as `SessionReplay` events. The daemon lists the `full-replay` feature in its hello,
 and a client sends the field only to a daemon that lists it. The replay holds:
 
-1. a full reset, then the normal buffer with its scrollback rows, scroll region and cursor;
-2. the alternate buffer, when the agent is on it, with its scroll region;
-3. the OSC 8 hyperlinks of the visible rows, which the serializer drops, written again as runs;
-4. the cursor's visibility and the origin, wrap, insert and reverse-wrap modes. The origin mode goes
-   in before the active buffer's cursor position, since it homes the cursor;
-5. the input modes from the daemon's input mode tracker, with one push for each kitty stack entry.
+1. a full reset, then the kitty keyboard stack of each screen, from the daemon's input mode tracker;
+2. the visible rows of the normal buffer, with its scroll region, tab stops, cursor, and the cursor
+   and pen that DECSC saved. The scrollback stays behind, so a replay stays near the size of two
+   screens;
+3. the alternate buffer, when the agent is on it, with the same state. The replay switches to it
+   with mode 1047, because 1049 would save the cursor again over the normal buffer's DECSC state;
+4. the runs of cells the serializer writes wrong, written again: OSC 8 hyperlinks, and the double,
+   curly, dotted and dashed underlines and the underline colour;
+5. a wrap pending at the last column, made again by printing the last cell again;
+6. the DEC line-drawing charsets and the active charset, then the current pen;
+7. the cursor's visibility and shape, and the origin, wrap, insert and reverse-wrap modes. The
+   origin mode goes in before the active buffer's cursor position, since it homes the cursor;
+8. the other input modes from the input mode tracker.
+
+The daemon's screen model and the client's emulator both measure graphemes with xterm's Unicode
+graphemes addon, so an emoji takes the same columns on each side.
 
 The replay arrives in bounded chunks, cut between characters. Each carries the `seq` of the last
 output the replay includes, and the last chunk carries `done`. The client applies only the output
@@ -79,6 +89,11 @@ it when the socket drains. What happens on overflow depends on what overflows:
   event with the count, then a full repaint from the screen model. A lagging client wants the
   current screen, not the backlog it missed, and the repaint replaces every dropped chunk, so a
   stream cut in the middle of an escape sequence never corrupts the client's terminal.
+- **A full replay goes in whole.** The daemon counts none of its bytes against the queue, so a
+  replay larger than the queue reaches the client complete, with the session's later output behind
+  it. The client shows none of a replay before its last chunk, so a cut replay would show nothing.
+  The socket still waits to drain between writes. A replay holds no scrollback, so its size stays
+  near two screens of cells.
 - **Control is not droppable.** A response or a state event that overflows the queue means a bug or
   a hostile peer, so the daemon closes the connection.
 - **A headless session has no stream to attach to.** The daemon refuses an attach to a session with

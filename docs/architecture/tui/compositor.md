@@ -73,8 +73,8 @@ until the agent redraws it.
 The emulator's `write` resolves once its input is parsed, and its `resize` goes through the same
 queue, so a `SessionResized` that arrives behind a replay or output applies after them. A frame
 waits for pending writes, so it rarely shows a screen halfway through a chunk. A session that writes
-without a pause always has a write pending, so a frame waits at most 16 ms and then draws. A frame
-never draws while a replay arrives or its last chunk parses.
+without a pause always has a write pending, so a frame waits at most one frame interval and then
+draws. A frame never draws while a replay arrives or its last chunk parses.
 
 ## Layers and frames
 
