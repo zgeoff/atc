@@ -121,6 +121,10 @@ answers daemon scope, gets `daemon:<daemon id>:<target id>`. A shared rule gives
 [Places](../../design/tui-redesign/places.md) holds the rules for each provider, the key and the
 target label.
 
+A session saved on an earlier config of its target, which restore refuses with `target_changed`,
+keeps out of the target's current place. Its key is
+`daemon:<daemon id>:<target id>:<saved identity>`.
+
 ## Sub-sessions
 
 A sub-session is a session spawned with a parent. `atc mcp` started inside a local session reads
