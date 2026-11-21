@@ -76,6 +76,7 @@ await using local = await connect();
 await using cloud = await connect({ ... });
 
 const listed = await local.session.list({});
+
 const orchestrator = listed.sessions.find((session) => session.name === 'orchestrator');
 
 for await (const event of cloud.events()) {
@@ -84,6 +85,7 @@ for await (const event of cloud.events()) {
   }
 
   const text = `cloud ${event.session.name} is stuck. Unblock it or tell me.`;
+
   await local.session.message({ session: orchestrator.id, text });
 }
 ```
