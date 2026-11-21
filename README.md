@@ -16,7 +16,7 @@
   </p>
 </div>
 
-<img src="./docs/assets/demo.gif" alt="atc: one session list over a local and a cloud daemon. The orchestrator starts a UI builder on the cloud box and messages the API builder, and the new builder asks the API builder a question." width="1100">
+<img src="./docs/assets/hero.svg" alt="An animated diagram of atc. You ask an orchestrator on your laptop for an orders page, and it spawns builder-ui on a sprite. builder-ui asks builder-api, on an imp microVM, what the API returns. When builder-ui needs approval to deploy, the request rises through the atc gateway into your inbox. You clear it, and builder-ui deploys a preview." width="1000">
 
 **atc** runs your agents in a daemon, on as many machines as you like. Manage them all through a
 TUI, script them via shell or the client, and have them work together via MCP.
