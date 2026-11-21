@@ -488,7 +488,7 @@
     "@wringer/db": "0.1.8",
     "@wringer/gunshi": "0.3.10",
     "@wringer/http": "0.1.9",
-    "@wringer/mcp": "0.1.4",
+    "@wringer/mcp": "0.1.6",
     "@wringer/stream": "0.1.8",
     "@wringer/terminal": "0.1.5",
     "@xterm/addon-serialize": "0.14.0",
@@ -1056,7 +1056,7 @@
 
     "@wringer/http": ["@wringer/http@0.1.9", "", { "peerDependencies": { "@wringer/core": "0.4.1", "zod": "^4.0.0" } }, "sha512-bRRVPzZMsD9RdfAc0PL+hI662HdeBa6lhmXHBRykZdKQxQ6vSdwugXUraQn3+hGUvLr1sZWuH0gWHvE2mp0RMg=="],
 
-    "@wringer/mcp": ["@wringer/mcp@0.1.4", "", { "dependencies": { "@modelcontextprotocol/client": "2.4.0" }, "peerDependencies": { "@wringer/core": "0.3.3", "zod": "^4.0.0" } }, "sha512-rnhL/CW4UEQIfbK81GOvqlP0BR4chVnEOceeTVkWnCgHqv3JOSeOkUSxeuOYcTmDP1wktqMy0fXMWhdMjlHsTg=="],
+    "@wringer/mcp": ["@wringer/mcp@0.1.6", "", { "dependencies": { "@modelcontextprotocol/client": "2.4.0" }, "peerDependencies": { "@wringer/core": "0.4.1", "zod": "^4.0.0" } }, "sha512-WzeODaifXjqo2PiWHIjnY6jh3ULcnn+JHTBRZqxZSTtgXuG1b7heO9WuQ+yHOCoag7w8cDBPXx961QM7h70dKQ=="],
 
     "@wringer/stream": ["@wringer/stream@0.1.8", "", { "dependencies": { "xstate": "5.33.3" }, "peerDependencies": { "@wringer/core": "0.4.1", "zod": "^4.0.0" } }, "sha512-IUu8knC4M2N587fN5/SyO0wVqNLZXqO7JL6s7BBtnr2fK1meha+XnkhWihsd1QKL/gvuJlSCmeUq0PaEGzpxkA=="],
 
