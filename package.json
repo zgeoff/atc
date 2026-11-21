@@ -57,7 +57,7 @@
       "@zgeoff/oxlint-config": "0.11.1",
       "@zgeoff/rig": "0.2.6",
       "@zgeoff/std": "0.4.5",
-      "@zgeoff/testing": "0.4.0",
+      "@zgeoff/testing": "0.4.2",
       "bun-pty": "0.6.0",
       "elysia": "2.0.0-rc.3",
       "exact-mirror": "1.2.7",
