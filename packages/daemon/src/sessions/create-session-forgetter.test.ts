@@ -210,6 +210,45 @@ test('it destroys the host and forgets the session when the forget carries its t
   expect(ctx.provider.destroyed).toHaveLength(1);
 });
 
+test("it forgets a sub-session on its parent's host at once, with no token, on a host-destroying target", async () => {
+  const ctx = await setupTest({ destroy: true });
+
+  const parent = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'lead',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+  });
+
+  const child = await ctx.manager.spawn({
+    cwd: ctx.directory,
+    name: 'helper',
+    prompt: '',
+    cols: 80,
+    rows: 24,
+    parent: parent.id,
+  });
+
+  await ctx.forgetter.killSession(child.id, false);
+
+  const forgotten = await ctx.forgetter.forgetSession(
+    child.id,
+    undefined,
+    { pinned: false, live: false },
+    null,
+  );
+
+  expect(forgotten).toStrictEqual({
+    forgotten: true,
+    destroyed: false,
+    workspace: { outcome: 'none' },
+  });
+
+  expect(ctx.manager.sessions.map((session) => session.id)).toStrictEqual([parent.id]);
+  expect(ctx.provider.destroyed).toBeEmpty();
+});
+
 test('it refuses a pinned session when the caller asks it to', async () => {
   const ctx = await setupTest({ destroy: false });
 

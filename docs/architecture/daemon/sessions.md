@@ -189,10 +189,11 @@ a kill does depends on what the session's target can do with its host:
 - **Second kill of a dead session.** It forgets the session: the daemon drops it and its dead
   sub-sessions from the list and the fleet, except a sub-session with a pin of its own, which stays
   as a top-level session.
-- **Forget on a target that can destroy its host.** Destroying the host destroys everything on it,
-  so a second kill refuses, and a forget takes two calls: the first returns a confirm token that
-  belongs to one session, works once and expires quickly, and the second destroys the host with
-  every session on it.
+- **Forget of a session that owns its host, on a target that can destroy hosts.** Destroying the
+  host destroys everything on it, so a second kill refuses, and a forget takes two calls: the first
+  returns a confirm token that belongs to one session, works once and expires quickly, and the
+  second destroys the host with every session on it. A sub-session on its parent's host destroys
+  nothing, so one forget call removes it.
 
 A forget can refuse a pinned session or a live one in the same step that forgets it, when the caller
 asks, so a pin or a revive that lands first wins. That pin check skips a pin a sub-session inherits
