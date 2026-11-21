@@ -95,3 +95,28 @@ test('it groups a sub-session under its parent repository, not its own', () => {
 
   expect(ids).toStrictEqual(['other', 'wrangler', 'worker']);
 });
+
+test('it groups a grandchild under the repository of its family root', () => {
+  const fleet = [
+    {
+      ...buildMockSortableSessionView({ id: 'wrangler', state: 'running', lastAttachedAt: 1 }),
+      repoRoot: '/repo/alpha',
+    },
+    {
+      ...buildMockSortableSessionView({ id: 'worker', parent: 'wrangler', lastAttachedAt: 2 }),
+      repoRoot: '/repo/beta',
+    },
+    {
+      ...buildMockSortableSessionView({ id: 'helper', parent: 'worker', lastAttachedAt: 3 }),
+      repoRoot: '/repo/beta',
+    },
+    {
+      ...buildMockSortableSessionView({ id: 'other', state: 'running', lastAttachedAt: 4 }),
+      repoRoot: '/repo/beta',
+    },
+  ];
+
+  const ids = sortGroupedSessionViews(fleet).map((session) => session.id);
+
+  expect(ids).toStrictEqual(['other', 'wrangler', 'worker', 'helper']);
+});

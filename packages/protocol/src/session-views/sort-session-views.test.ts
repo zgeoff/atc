@@ -138,3 +138,34 @@ test('it keeps a pinned parent and its sub-sessions together at the top', () => 
 
   expect(ids).toStrictEqual(['wrangler', 'worker', 'urgent']);
 });
+
+test.each([
+  {
+    title: 'a grandchild under its parent, under the root',
+    parents: { one: null, two: 'one', three: 'two' },
+    expected: ['one', 'two', 'three'],
+  },
+  {
+    title: 'two sessions whose parents point at each other as top-level rows',
+    parents: { one: 'two', two: 'one', three: null },
+    expected: ['one', 'two', 'three'],
+  },
+  {
+    title: 'a session that is its own parent as a top-level row',
+    parents: { one: 'one', two: null, three: null },
+    expected: ['one', 'two', 'three'],
+  },
+  {
+    title: 'a child of a session in a loop under that session',
+    parents: { one: 'two', two: 'one', three: 'one' },
+    expected: ['one', 'three', 'two'],
+  },
+] as const)('it lists every session once, with $title', (row) => {
+  const fleet = Object.entries(row.parents).map(([id, parent], index) =>
+    buildMockSortableSessionView({ id, parent, state: 'running', lastAttachedAt: 9 - index }),
+  );
+
+  const ids = sortSessionViews(fleet).map((session) => session.id);
+
+  expect(ids).toStrictEqual([...row.expected]);
+});
