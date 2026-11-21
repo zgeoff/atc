@@ -39,11 +39,13 @@ constraint holds.
 
 ## Contracts
 
-`collectListRows` takes the daemon names as a third option, because place mode labels a group by the
-place's own name and needs the daemon list to tell a place that spans daemons. A session whose
-machine sleeps (`hostAsleep`) shows `asleep` in the message column, and `X` on it shows a notice to
-attach first. The daemon accepts `session.forget` on a live session without `refuseLive`. When the
-stale-daemon advice shows, it takes the whole last line in place of the key bar.
+- `collectListRows` takes the names of the daemons in its options, beside `grouping` and `filter`.
+  Place mode needs them to find a place that holds sessions from more than one daemon.
+- A session whose machine sleeps (`hostAsleep` is true) shows `asleep` in the message column. When
+  the user presses `X` on it, the daemon refuses with `host_asleep`, and the TUI shows the notice
+  that [End](#end) gives.
+- The TUI sends `session.forget` without `refuseLive`, and the daemon then stops a live session
+  before it removes it.
 
 ```ts
 const rows = collectListRows(sessions, { grouping: 'place', filter: '', daemons });

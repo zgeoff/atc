@@ -1,70 +1,104 @@
 # The session list
 
-The session list is a see-through panel that the leader key opens over home or over the attached
-session. It is a layer of the [compositor](./compositor.md): the panel writes cells into the cell
-buffer, blends them over what is below, and dims the layers below it. It never goes through the
-screen emulator, so the session behind it keeps drawing while the list is open.
+The leader key, `ctrl+space` unless the config's `leader` sets another, opens the session list: a
+see-through panel over home, the screen with no session attached, or over the attached session. The
+panel is a layer of the [compositor](./compositor.md). It writes its cells into the cell buffer,
+blends them over the layers below, and dims those layers. It never draws through the screen
+emulator, which the TUI's other screens share, so the session behind the panel keeps drawing while
+the list is open.
 
 ## The attachment outlives the list
 
-Opening the list does not detach the session. The client keeps one attachment, held apart from the
-list's focus, so the session keeps streaming and resizing behind the panel. This is why the dimmed
-session stays live. The attachment ends only when the user goes home, quits, or attaches a different
-session, which first lets the old one go so the daemon can size it for its other clients.
+The client keeps the session attached while the list is open. The client tracks the attached session
+apart from the row the user selects in the list, so the session keeps streaming output and taking
+resizes behind the panel.
 
-Pressing Enter on the session that is already attached closes the list and sends the daemon an
-attach again, because the daemon marks a session read and clears its need when it hears an attach.
-The client keeps the session's stream as it is. Closing the list without Enter re-requests an attach
-only when the attachment was lost, such as after a daemon reconnect. If the focused session leaves
-the fleet while the list is open, the client goes home.
+The attachment ends in three cases:
+
+- The user goes home with `i`.
+- The user quits.
+- The user attaches a different session. The client detaches the old session first, so the daemon
+  sizes the old session's PTY for the clients that stay attached to it.
+
+When the attached session leaves the fleet while the list is open, the client goes home.
+
+Enter on the row of the attached session closes the list and sends the daemon a new attach. The
+daemon marks a session read, and clears its `needs_you` state, each time it receives an attach. The
+client keeps the session's stream as it is. When the user closes the list without Enter, the client
+sends an attach only if it lost the attachment, for example across a daemon reconnect.
 
 ## Rows and grouping
 
-The list collects its rows from the fleet mirror in three groupings: flat, by repository and by
-place. `g` cycles them, and the config's `list.grouping` sets the one the list opens with. Pinned
-sessions of every daemon form one group at the top. The selection follows a session, not a row
-number, so a session that changes state and moves in the sort keeps the selection. Sort ids carry
-the daemon, so two daemons that hold the same session id stay apart.
+The client keeps a copy of every daemon's fleet, and the list builds its rows from that copy. `g`
+cycles three groupings: flat, by repository, and by place, the machine a session runs on. The
+config's `list.grouping` sets the grouping the list opens with. In both grouped modes, the pinned
+sessions of every daemon form one group at the top.
 
-In place mode the place column gives way to the daemon a session comes through, and the daemon
-column never shows. Under 90 columns the list drops its optional columns and keeps the mark, the
-name, the message and the age.
+The selection belongs to a session, so it stays on that session when a state change moves the
+session to another row. The list keys each row by its daemon and its session id, because two daemons
+can each hold a session with the same id.
+
+The list shows the daemon column only when the fleet spans more than one daemon, and never in place
+mode. In place mode the group header names the place, and a row in a group that mixes daemons shows
+`via <daemon>` in the place column. When the terminal is narrower than 90 columns, the list shows
+only the state glyph, the name, the message and the age of each row.
 
 ## Jump mode
 
-`f` puts a letter on each visible row. The letters come from the home row first. No label is a
-letter that the visible names would read as a typed filter: with nothing typed, a label avoids every
-letter in the names, and after the user types text, a label avoids the letter that follows each
-occurrence of that text. When the letters run out, labels take two letters. Typing narrows the rows
-and a complete label attaches its session. A label on an exited row moves the selection and attaches
-nothing.
+`f` labels each visible row with a letter, which the user types to pick the row. The labels take the
+keyboard's home row first (`asdfghjkl`), then the other letters. The user can also type part of a
+name to narrow the rows, so a label never uses a letter that would extend the user's search:
+
+- With nothing typed, a label uses no letter that appears in a visible name.
+- After the user types text, a label uses no letter that follows the typed text in a visible name.
+
+When single letters run out, the labels take two letters. A label on a live session attaches it. A
+label on an exited session selects its row and attaches nothing.
 
 ## Ending a session
 
-`X` sends `session.forget` with `refusePinned` set and without `refuseLive`, because the daemon
-stops a live session before it forgets it. When the target would destroy the session's host, the
-daemon answers with a token, and the client asks again with the machine named. After that answer the
-client resends the request at once with the token. `K` stays for live sessions and keeps the session
-listed as exited.
+`X` ends a session: the daemon stops the agent and removes the session from the fleet. The TUI sends
+`session.forget` with `refusePinned` set and without `refuseLive`, so the daemon stops a live
+session before it removes it.
 
-A prompt on the last line holds the key, and any key but `y` cancels it. The leader key cancels it
-too and closes the list.
+When the session's target would delete the machine the session runs on, the daemon answers the first
+`session.forget` with a confirm token in place of ending the session. What the TUI does next depends
+on the prompt the user answered:
+
+- When the prompt named the machine, because the descriptor's `canDestroyHost` was true, the TUI
+  sends `session.forget` again at once with the token.
+- Otherwise the TUI shows a second prompt that names the machine, and sends the token only after the
+  user answers `y`.
+
+`K` kills a live session: the agent stops, and the session stays in the list as exited.
+
+A prompt for `X` or `K` takes the panel's last line until the user answers. `y` confirms, and any
+other key cancels. The leader key cancels the prompt and closes the list.
 
 ## The last line
 
-The panel's last line shows the first of these that applies: a prompt, the filter or the jump
-`no match` text, a notice, the daemon line, the update advice, then the key bar. The advice for a
-daemon that runs an older build replaces the key bar whole. A prompt wraps over as many lines as it
-needs, so the action, what it deletes and the confirming keys always show; every other text is cut
-to one line.
+The panel's last line shows the key bar, unless one of these needs the line. When several do, the
+first in this list wins:
+
+1. a prompt;
+2. the filter the user is typing, or `no match` when jump mode has narrowed the rows to none;
+3. a notice, such as the result of an action;
+4. a line for each daemon that is down;
+5. the advice to update a daemon that runs an older build.
+
+A prompt wraps over as many lines as it needs, so the user always sees the action, what it deletes
+and the keys that confirm it. The list cuts every other text to one line.
 
 ## Motion
 
-The panel fades in, and each row follows in a cascade that starts a little later for each row. The
-close fades faster than the open, and only when the base is a session or home: a screen that takes
-over from the list, such as the picker, closes it at once. With `animations` off, the panel opens
-and closes in a single frame. The panel asks the frame clock for a frame at the display rate while a
-fade moves, and at a slow tick while a row shows a running session, so an idle list costs nothing.
-After a close ends, the panel asks for one more frame, which draws the screen without it, so a late
-tick never leaves a faint panel on the screen. The timings are constants in the session-list folder
-of the TUI package.
+The panel fades in, and the rows fade in one after another, each starting a fixed step after the row
+above it. The close is a shorter fade when the list closes back to a session or to home. When a
+screen such as the spawn picker replaces the list, the list closes at once. With the config's
+`animations` off, the panel opens and closes in one frame. The durations are constants in
+`packages/tui/src/session-list/constants.ts`.
+
+While a fade runs, the panel asks the [frame clock](./compositor.md) for a frame at the clock's
+frame interval. While a row shows a running session, the panel asks for a frame each time the row's
+spinner turns, at the fleet bar's spinner rate. With no fade and no running session, the panel asks
+for no frame. After the close fade ends, the panel asks for one more frame, which draws the screen
+without it, so a late tick never leaves a faint panel on the screen.

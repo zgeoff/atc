@@ -51,9 +51,10 @@ sources read typed text.
 
 ## The session list
 
-`Ctrl-Space` opens the session list as a panel over whatever you are attached to. The session stays
-attached and keeps drawing, dimmed, behind the panel. Each row carries a state mark, and the
-sessions that need you sort to the top:
+`Ctrl-Space`, the leader key, opens the session list as a panel over the session you are attached
+to, or over home, the screen atc shows with no session attached. The session stays attached and
+keeps drawing, dimmed, behind the panel. Each row carries a state mark, and the sessions that need
+you sort to the top:
 
 | Mark | State                                  |
 | ---- | -------------------------------------- |
@@ -69,7 +70,7 @@ sessions that need you sort to the top:
 | `Tab`        | attach the session that needs you most                        |
 | `Enter`      | attach the selected session                                   |
 | `/`          | filter by name or directory                                   |
-| `g`          | group by repository, then by place, then back to a flat list  |
+| `g`          | group by repository, then by place, then list flat again      |
 | `f`          | jump: type the letter on a row to attach it                   |
 | `i`          | go home                                                       |
 | `K`          | kill the selected live session; it stays listed as exited     |
@@ -77,32 +78,37 @@ sessions that need you sort to the top:
 | `q`          | quit the client; sessions keep running                        |
 | `?`          | every other key                                               |
 
-The `list.grouping` setting in [the config](./configuration.md) picks the grouping the list opens
-with: `flat`, `repo` or `place`.
+A place is the machine a session runs on, such as your own machine or an imp, as
+[targets](./configuration/targets.md) describes. The `list.grouping` setting in
+[the config](./configuration.md) picks the grouping the list opens with: `flat`, `repo` or `place`.
 
-`K` on a live session ends it, and the session stays listed as exited. On an imp, `K` puts the imp
-to sleep instead, with the agent inside, and a revive wakes it where it left off. `X` asks
-`end <name>?`, and `y` stops the session and removes it. Where ending destroys the session's host,
-such as an imp, the question names the machine. A pinned session refuses `X` until you unpin it, and
-a session whose machine sleeps tells you to attach to wake it first.
+`K` kills a session: its agent stops, and the session stays in the list as exited, so you can attach
+it again later. On an imp, `K` puts the imp to sleep with the agent inside, and attaching the
+session again wakes it where it left off.
+
+`X` ends a session: atc stops it and removes it from the list. atc first asks `end <name>?`, and you
+answer `y` to go ahead or any other key to keep the session. When ending the session also deletes
+its machine, such as an imp, the question names the machine. atc refuses `X` on a pinned session
+until you unpin it. When the session's machine sleeps, atc tells you to attach the session to wake
+the machine, then end it.
 
 When you end a session, atc takes it off the list and removes the workspace folder that atc cloned
 for it. atc keeps a workspace folder that holds work found nowhere else, such as an unpushed commit.
 [Cleanup when you forget a session](./configuration/workspaces.md#cleanup-when-you-forget-a-session)
 lists every reason atc keeps one, and where the list shows it.
 
-`y` copies a shell command that resumes the selected session outside atc, and `Y` copies it and then
-kills the session here. Only a session on the daemon's own machine has that command, because the
-session's folder and settings file exist only where its agent runs. For a session on an imp or
-another remote target, or for an agent that cannot resume outside atc, the session's message column
-shows why, and `Y` kills nothing.
+With no question open, `y` copies a shell command that resumes the selected session outside atc, and
+`Y` copies it and then kills the session here. Only a session on the daemon's own machine has that
+command, because the session's folder and settings file exist only where its agent runs. For a
+session on an imp or another remote target, or for an agent that cannot resume outside atc, the
+session's message column shows why, and `Y` kills nothing.
 
 While you are attached, the last row of the terminal shows the fleet bar: a label for each place, a
 glyph for each of its sessions (`◆` needs you, a spinner running, `✓` done, `○` exited), and at the
 right end how many sessions need you, then the leader key. The place of the session you are in comes
 first. Claude Code's own status line shows only what you configured for it.
 
-atc runs inside zellij or tmux. Give the pane locked mode, so the leader key reaches atc.
+When atc runs inside zellij or tmux, give the pane locked mode, so the leader key reaches atc.
 
 ## Grok and Codex hooks
 
