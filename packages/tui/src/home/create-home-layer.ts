@@ -99,17 +99,17 @@ function toColour(colour: RGB): Colour {
 }
 
 function paintRun(buffer: CellBuffer, run: HomeRun): void {
+  const style = { ...BLANK_CELL, fg: readToneColour(run.tone), bold: run.bold, dim: run.dim };
   let col = run.col;
 
   for (const grapheme of splitGraphemes(run.text)) {
     if (grapheme.width > 0) {
-      buffer.set(col, run.row, {
-        ...BLANK_CELL,
-        ch: grapheme.text,
-        fg: readToneColour(run.tone),
-        bold: run.bold,
-        dim: run.dim,
-      });
+      buffer.set(col, run.row, { ...style, ch: grapheme.text });
+    }
+
+    // the second column of a wide grapheme holds an empty string
+    if (grapheme.width === 2) {
+      buffer.set(col + 1, run.row, { ...style, ch: '' });
     }
 
     col += grapheme.width;
