@@ -81,9 +81,10 @@ Claude Code runs none of these hooks before its start, so the daemon reads the s
 that has not started yet for a dialog that waits on the owner
 ([waits before the agent starts](../daemon/sessions.md#waits-before-the-agent-starts)).
 
-The chained statusline runs the owner's own configured statusline first, then appends a fleet
-segment read from `status.json`. Each render also sends its input to the daemon as a heartbeat, a
-second path for capturing the agent session id.
+The statusline reporter runs the owner's own configured statusline and prints only its output, or
+nothing when the owner has none. It adds no atc text, because the TUI draws the
+[fleet bar](../tui/fleet-bar.md) itself. Each render also sends its input to the daemon as a
+heartbeat, a second path for capturing the agent session id.
 
 Session names come from Claude Code's transcript: a title the owner set with `/rename`, else the
 summary Claude Code wrote.

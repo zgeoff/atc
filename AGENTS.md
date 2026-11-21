@@ -204,8 +204,7 @@ instrumented. These rules hold for any change to it:
 State lives in `~/.local/state/atc/`, and the [architecture overview](docs/architecture/overview.md)
 covers its stores.
 
-- `status.json` stays a plain file, because statusline reporters read it without speaking the
-  protocol.
+- `status.json` stays a plain file, because a script can read it without speaking the protocol.
 - A session death the owner never asked for rewrites nothing in the fleet, so a crash leaves a
   restorable fleet. [Fleet and restore](docs/architecture/daemon/fleet-and-restore.md) holds the
   rules for each rewrite.

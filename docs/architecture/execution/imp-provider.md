@@ -77,8 +77,8 @@ A cold boot of the imp clears the guest folder, so each readying restores the li
 session's settings and its copy of the `atc-bridge` mod unpack into a folder for the session. Its
 [record](./session-record.md) goes to impd's read-only files, which refuse a plain write from any
 process in the imp. On an impd or an imp agent from before them, the record lands in the guest
-folder instead, owned by root and mode 0444. A remote session's statusline shows its own state
-alone, never the rest of the fleet, because the imp holds no copy of the fleet.
+folder instead, owned by root and mode 0444. A remote session's statusline prints only the owner's
+own command, as a local one does.
 
 ## Working directories
 
@@ -94,7 +94,7 @@ land in one physical directory, and a directory missing under the home fails the
 A session inside an imp never reaches the daemon's sockets. Each harness gets a socket of its own
 inside the imp, which impd forwards to the daemon, and the daemon serves it as the session bridge, a
 closed dialect of its own. Through the bridge, the session's hooks report, its notes and answers
-land, its tap takes messages, and its statusline reads the session's state:
+land, its tap takes messages, and its statusline report lands:
 
 | Operation     | Does                                                            |
 | ------------- | --------------------------------------------------------------- |

@@ -18,7 +18,7 @@ function setupTest() {
   };
 }
 
-test('it chains the user statusline and appends the fleet segment', async () => {
+test('it prints only the output of the user statusline', async () => {
   const ctx = setupTest();
 
   writeFileSync(
@@ -31,8 +31,6 @@ test('it chains the user statusline and appends the fleet segment', async () => 
 
   await runStatusline('', {
     readStdin: () => Promise.resolve('{"session_id":"sl-1"}'),
-    readStatusFile: () =>
-      JSON.stringify({ needs_you: 2, running: 1, done: 0, exited: 0, urgent: 'auth-bug' }),
     runChained,
     print: (line) => {
       printed.push(line);
@@ -41,10 +39,7 @@ test('it chains the user statusline and appends the fleet segment', async () => 
   });
 
   expect(runChained).toHaveBeenCalledExactlyOnceWith('ccline --short', '{"session_id":"sl-1"}');
-
-  expect(printed).toStrictEqual([
-    'CHAINED-SEGMENT \u001B[90m▏\u001B[0m \u001B[1;31m● 2 need you: auth-bug\u001B[0m \u001B[36m◐ 1\u001B[0m',
-  ]);
+  expect(printed).toStrictEqual(['CHAINED-SEGMENT']);
 });
 
 test.each([
@@ -64,7 +59,6 @@ test.each([
 
   await runStatusline('', {
     readStdin: () => Promise.resolve('{}'),
-    readStatusFile: () => '{}',
     runChained,
     print: () => {},
     exit: () => {},
@@ -73,16 +67,13 @@ test.each([
   expect(runChained).not.toHaveBeenCalled();
 });
 
-test('it prints an empty line when no statusline is set and the status file is missing', async () => {
+test('it prints an empty line when the user has no statusline', async () => {
   setupTest();
 
   const printed: string[] = [];
 
   await runStatusline('', {
     readStdin: () => Promise.resolve('{}'),
-    readStatusFile: () => {
-      throw new Error('ENOENT: no such file or directory');
-    },
     runChained: () => Promise.resolve(''),
     print: (line) => {
       printed.push(line);
@@ -102,7 +93,6 @@ test("it reports the payload to the session's socket as a Statusline event", asy
 
   await runStatusline('claude', {
     readStdin: () => Promise.resolve('{"session_id":"sl-1"}'),
-    readStatusFile: () => '{}',
     runChained: () => Promise.resolve(''),
     print: () => {},
     exit: () => {},
@@ -120,7 +110,7 @@ test("it reports the payload to the session's socket as a Statusline event", asy
   });
 });
 
-test("it renders the session's own state from the bridge inside a remote host", async () => {
+test('it adds no text of its own inside a remote host', async () => {
   const ctx = setupTest();
 
   startStubSessionBridge(ctx.sock, (request) =>
@@ -134,7 +124,6 @@ test("it renders the session's own state from the bridge inside a remote host", 
 
   await runStatusline('', {
     readStdin: () => Promise.resolve('{}'),
-    readStatusFile: () => JSON.stringify({ needs_you: 5 }),
     runChained: () => Promise.resolve(''),
     print: (line) => {
       printed.push(line);
@@ -142,7 +131,7 @@ test("it renders the session's own state from the bridge inside a remote host", 
     exit: () => {},
   });
 
-  expect(printed).toStrictEqual(['\u001B[1;31m● needs you\u001B[0m']);
+  expect(printed).toStrictEqual(['']);
 });
 
 test('it exits 0 when the chained statusline fails', async () => {
@@ -157,7 +146,6 @@ test('it exits 0 when the chained statusline fails', async () => {
 
   await runStatusline('', {
     readStdin: () => Promise.resolve('{}'),
-    readStatusFile: () => '{}',
     runChained: () => Promise.reject(new Error('bash: ccline: command not found')),
     print: () => {},
     exit: (code) => {
