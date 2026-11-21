@@ -1,4 +1,3 @@
-import { ansi } from '@atc/core';
 import type { DaemonBoot } from '@atc/protocol';
 import type { ClientActor } from '../client/build-client-machine';
 import type { SessionActions } from '../client/create-session-actions';
@@ -6,8 +5,11 @@ import type { DaemonLinks } from '../daemon-link/create-daemon-links';
 import type { FleetMirror } from '../fleet/create-fleet-mirror';
 import { toSessionKey } from '../fleet/session-key';
 import type { SessionKey } from '../fleet/session-key';
+import type { MirrorSession } from '../fleet/to-mirror-session';
+import type { Grouping } from '../session-list/types';
 import { KEY, isDown, isUp } from '../terminal/key';
-import { writeOut } from '../terminal/write-out';
+import { applyJumpKey } from './apply-jump-key';
+import { applyPromptKey } from './apply-prompt-key';
 import type { OverlayConfirm, OverlayScreen } from './create-overlay-screen';
 import { pickPinTarget } from './pick-pin-target';
 import { pickTabTarget } from './pick-tab-target';
@@ -17,7 +19,16 @@ export interface OverlayKeyDeps {
   readonly mirror: FleetMirror;
   readonly overlay: Pick<
     OverlayScreen,
-    'notice' | 'render' | 'pickSessions' | 'listVisible' | 'selected' | 'filter' | 'grouped'
+    | 'notice'
+    | 'render'
+    | 'pickSessions'
+    | 'listVisible'
+    | 'selected'
+    | 'select'
+    | 'syncSelection'
+    | 'filter'
+    | 'grouping'
+    | 'jump'
   >;
   readonly actions: SessionActions;
   readonly links: Pick<DaemonLinks, 'stateOf'>;
@@ -38,38 +49,26 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
     deps.overlay.render();
   }
 
-  const filtered = deps.overlay.pickSessions();
-  const sel = filtered[deps.overlay.selected];
-  const confirm = deps.getConfirm();
-  const confirmKey = deps.service.getSnapshot().context.confirmKey;
+  const confirm = dropVanishedPrompt(deps);
 
-  const confirmed =
-    confirmKey !== null &&
-    deps.mirror.has(toSessionKey(confirmKey)) &&
-    deps.links.stateOf(confirmKey.daemon).kind === 'up'
-      ? confirmKey
-      : null;
-
-  if (confirm === 'kill') {
-    const session = confirmed === null ? undefined : deps.mirror.find(toSessionKey(confirmed));
-
-    if (buf[0] === KEY.y && confirmed !== null && session !== undefined) {
-      void (session.alive ? deps.actions.sendKill(confirmed) : deps.actions.sendForget(confirmed));
+  if (deps.isLeaderKey(buf)) {
+    if (confirm !== 'none') {
+      deps.service.send({ type: 'CONFIRM_DONE' });
     }
 
-    deps.service.send({ type: 'CONFIRM_DONE' });
-    deps.overlay.render();
+    deps.showBase();
 
     return;
   }
 
-  if (confirm === 'destroy' && confirmKey !== null) {
-    if (buf[0] === KEY.y && confirmed !== null) {
-      void deps.actions.sendDestroy(confirmed);
-    }
+  if (confirm !== 'none') {
+    applyPromptKey(buf, confirm, deps);
 
-    deps.service.send({ type: 'CONFIRM_DONE' });
-    deps.overlay.render();
+    return;
+  }
+
+  if (deps.overlay.jump !== null) {
+    applyJumpKey(buf, deps);
 
     return;
   }
@@ -78,43 +77,124 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
     return;
   }
 
-  if (buf.toString() === '/') {
-    deps.overlay.filter = '';
-    deps.overlay.selected = 0;
+  applyListKey(buf, deps);
+}
 
-    writeOut(ansi.clear);
+// The list stops showing a prompt once its session leaves the fleet, so the prompt must not take
+// the next key either.
+function dropVanishedPrompt(deps: OverlayKeyDeps): OverlayConfirm {
+  const confirm = deps.getConfirm();
+  const confirmKey = deps.service.getSnapshot().context.confirmKey;
 
-    deps.overlay.render();
+  if (confirm === 'none' || (confirmKey !== null && deps.mirror.has(confirmKey))) {
+    return confirm;
+  }
+
+  deps.service.send({ type: 'CONFIRM_DONE' });
+
+  return 'none';
+}
+
+function applyOverlayFilterKey(buf: Buffer, deps: OverlayKeyDeps): boolean {
+  const overlay = deps.overlay;
+
+  if (overlay.filter === null) {
+    return false;
+  }
+
+  if (buf[0] === KEY.esc && buf.length === 1) {
+    overlay.filter = null;
+
+    overlay.render();
+
+    return true;
+  }
+
+  if (buf[0] === KEY.backspace) {
+    overlay.filter = overlay.filter.slice(0, -1);
+
+    overlay.select(0);
+    overlay.render();
+
+    return true;
+  }
+
+  if (buf[0] === KEY.ctrlU) {
+    overlay.filter = '';
+
+    overlay.select(0);
+    overlay.render();
+
+    return true;
+  }
+
+  if (buf[0] === KEY.enter || isUp(buf) || isDown(buf)) {
+    return false;
+  }
+
+  const text = buf.toString();
+  let printable = text.length > 0;
+
+  for (const character of text) {
+    if (character < ' ' || character === '\u007F') {
+      printable = false;
+      break;
+    }
+  }
+
+  if (printable) {
+    overlay.filter += text;
+
+    overlay.select(0);
+    overlay.render();
+  }
+
+  return true;
+}
+
+const NEXT_GROUPING: Readonly<Record<Grouping, Grouping>> = {
+  flat: 'repo',
+  repo: 'place',
+  place: 'flat',
+};
+
+function applyListKey(buf: Buffer, deps: OverlayKeyDeps) {
+  const overlay = deps.overlay;
+  const filtered = overlay.syncSelection();
+  const sel = filtered[overlay.selected];
+  const ch = buf.toString();
+
+  if (ch === '/') {
+    overlay.filter = '';
+
+    overlay.select(0);
+    overlay.render();
 
     return;
   }
 
-  if (deps.isLeaderKey(buf) || (buf[0] === KEY.esc && buf.length === 1)) {
+  if (buf[0] === KEY.esc && buf.length === 1) {
     deps.showBase();
 
     return;
   }
 
-  if (isDown(buf) || buf.toString() === 'j') {
-    deps.overlay.selected = Math.min(filtered.length - 1, deps.overlay.selected + 1);
-
-    deps.overlay.render();
-
-    return;
-  }
-
-  if (isUp(buf) || buf.toString() === 'k') {
-    deps.overlay.selected = Math.max(0, deps.overlay.selected - 1);
-
-    deps.overlay.render();
+  if (isDown(buf) || ch === 'j') {
+    overlay.select(Math.min(filtered.length - 1, overlay.selected + 1));
+    overlay.render();
 
     return;
   }
 
-  const ch = buf.toString();
+  if (isUp(buf) || ch === 'k') {
+    overlay.select(Math.max(0, overlay.selected - 1));
+    overlay.render();
+
+    return;
+  }
 
   if (buf[0] === KEY.tab) {
-    const target = pickTabTarget(deps.overlay.listVisible(), (key) => deps.mirror.doneAt.get(key));
+    const target = pickTabTarget(overlay.listVisible(), (key) => deps.mirror.doneAt.get(key));
 
     if (target !== undefined) {
       void deps.attach(toSessionKey(target));
@@ -129,25 +209,24 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
     return;
   }
 
-  if (ch === 'a' && sel !== undefined) {
-    void deps.actions.sendAck(toSessionKey(sel));
-    deps.overlay.render();
+  if (ch === 'f' && filtered.length > 0) {
+    overlay.jump = { typed: '', prefix: '' };
 
-    return;
-  }
-
-  if (ch === 'n') {
-    deps.service.send({ type: 'SPAWN', resume: false });
+    overlay.render();
 
     return;
   }
 
   if (ch === 'g') {
-    deps.overlay.grouped = !deps.overlay.grouped;
+    overlay.grouping = NEXT_GROUPING[overlay.grouping];
 
-    writeOut(ansi.clear);
+    overlay.render();
 
-    deps.overlay.render();
+    return;
+  }
+
+  if (ch === 'i') {
+    deps.service.send({ type: 'HOME' });
 
     return;
   }
@@ -157,7 +236,47 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
 
     target.pinned = !target.pinned;
     void deps.actions.sendPinned(toSessionKey(target), target.pinned);
-    deps.overlay.render();
+    overlay.render();
+
+    return;
+  }
+
+  if (ch === 'K' && sel?.alive === true) {
+    deps.service.send({ type: 'CONFIRM_KILL', key: toSessionKey(sel) });
+    overlay.render();
+
+    return;
+  }
+
+  if (ch === 'X' && sel !== undefined) {
+    applyEndKey(sel, deps);
+
+    return;
+  }
+
+  applyActionKey(buf, deps);
+}
+
+// `X` asks before it sends anything, and a pinned session has to be unpinned first.
+function applyEndKey(sel: MirrorSession, deps: OverlayKeyDeps) {
+  const owner = pickPinTarget(sel, deps.mirror.sessions);
+
+  if (sel.pinned || owner.pinned) {
+    deps.overlay.notice = `unpin ${owner.pinned ? owner.name : sel.name} first`;
+  } else {
+    deps.service.send({ type: 'CONFIRM_END', key: toSessionKey(sel) });
+  }
+
+  deps.overlay.render();
+}
+
+// the keys that act on the session or the daemon without changing the list
+function applyActionKey(buf: Buffer, deps: OverlayKeyDeps) {
+  const sel = deps.overlay.syncSelection()[deps.overlay.selected];
+  const ch = buf.toString();
+
+  if (ch === 'n') {
+    deps.service.send({ type: 'SPAWN', resume: false });
 
     return;
   }
@@ -204,76 +323,7 @@ export function applyOverlayKey(buf: Buffer, deps: OverlayKeyDeps) {
     return;
   }
 
-  if (ch === 'K' && sel !== undefined) {
-    deps.service.send({ type: 'CONFIRM_KILL', key: toSessionKey(sel) });
-    deps.overlay.render();
-
-    return;
-  }
-
   if (ch === 'q' || buf[0] === KEY.ctrlC) {
     deps.quit();
   }
-}
-
-function applyOverlayFilterKey(buf: Buffer, deps: OverlayKeyDeps): boolean {
-  if (deps.overlay.filter === null) {
-    return false;
-  }
-
-  if (buf[0] === KEY.esc && buf.length === 1) {
-    deps.overlay.filter = null;
-
-    writeOut(ansi.clear);
-
-    deps.overlay.render();
-
-    return true;
-  }
-
-  if (buf[0] === KEY.backspace) {
-    deps.overlay.filter = deps.overlay.filter.slice(0, -1);
-
-    writeOut(ansi.clear);
-
-    deps.overlay.render();
-
-    return true;
-  }
-
-  if (buf[0] === KEY.ctrlU) {
-    deps.overlay.filter = '';
-
-    writeOut(ansi.clear);
-
-    deps.overlay.render();
-
-    return true;
-  }
-
-  if (buf[0] === KEY.enter || isUp(buf) || isDown(buf) || deps.isLeaderKey(buf)) {
-    return false;
-  }
-
-  const text = buf.toString();
-  let printable = text.length > 0;
-
-  for (const character of text) {
-    if (character < ' ' || character === '\u007F') {
-      printable = false;
-      break;
-    }
-  }
-
-  if (printable) {
-    deps.overlay.filter += text;
-
-    writeOut(ansi.clear);
-
-    deps.overlay.render();
-
-    return true;
-  }
-
-  return true;
 }

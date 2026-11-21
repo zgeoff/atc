@@ -46,15 +46,25 @@ export function createFrameClock(deps: FrameClockDeps): FrameClock {
       return;
     }
 
-    if (!(frame.isTick && isLateTick(frame.dueAtMs, deps.clock.now(), FRAME_MS))) {
+    const isDropped = frame.isTick && isLateTick(frame.dueAtMs, deps.clock.now(), FRAME_MS);
+
+    if (!isDropped) {
       deps.drawFrame();
     }
 
     const nowMs = deps.clock.now();
     const next = pickNextFrameAt(deps.collectLayers().map((layer) => layer.nextFrameAt(nowMs)));
 
-    if (next !== null && pending === null) {
+    if (pending !== null) {
+      return;
+    }
+
+    if (next !== null) {
       schedule(next, true);
+    } else if (isDropped) {
+      // The motion ended while its last tick was dropped, so the screen still shows an earlier
+      // step of it.
+      schedule(nowMs, false);
     }
   };
 

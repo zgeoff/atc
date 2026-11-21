@@ -1,11 +1,12 @@
 import { formatError } from '@atc/core';
-import { AtcError } from '@atcx/contract/light';
 import { match } from 'ts-pattern';
 import { sendToDaemon } from '../daemon-link/send-to-daemon';
 import type { RequestLinks } from '../daemon-link/send-to-daemon';
 import type { FleetMirror } from '../fleet/create-fleet-mirror';
+import { isSameSessionKey } from '../fleet/session-key';
 import type { SessionKey } from '../fleet/session-key';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
+import { pickEndNotice } from '../overlay/pick-end-notice';
 import { pickForgetStep } from '../overlay/pick-forget-step';
 import { cols } from '../terminal/cols';
 import type { ClientActor, ClientMode } from './build-client-machine';
@@ -18,18 +19,20 @@ export interface SessionActionsDeps {
   readonly getMode: () => ClientMode;
   readonly attach: (key: SessionKey) => Promise<void>;
   readonly ptyRows: () => number;
+  readonly findFocusedKey: () => SessionKey | null;
 
   readonly reportFailure: (daemon: SessionKey['daemon'], error: unknown) => void;
+
+  // a notice on the status bar over home, which the next opening of the list drops
+  readonly showHomeNotice: (text: string) => void;
 }
 
 export interface SessionActions {
   readonly sendKill: (key: SessionKey) => Promise<void>;
 
-  readonly sendForget: (key: SessionKey) => Promise<void>;
-
-  readonly sendDestroy: (key: SessionKey) => Promise<void>;
-
-  readonly sendAck: (key: SessionKey) => Promise<void>;
+  // Ends a session: stops its agent and removes it from the fleet. The daemon deletes the machine
+  // only after a confirm token, which `namesMachine` says the user's question already asked for.
+  readonly sendEnd: (key: SessionKey, namesMachine: boolean) => Promise<void>;
   readonly sendPinned: (key: SessionKey, pinned: boolean) => Promise<void>;
 
   readonly adoptSession: (key: SessionKey) => Promise<void>;
@@ -66,9 +69,21 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
   // The forgotten row leaves the list at once, so the notice goes on the
   // hint line instead of the row's message column.
   const showNotice = (notice: string) => {
+    if (deps.getMode() !== 'overlay') {
+      deps.showHomeNotice(notice);
+
+      return;
+    }
+
     deps.overlay.notice = notice;
 
     renderOverlay();
+  };
+
+  const isFocused = (key: SessionKey): boolean => {
+    const focused = deps.findFocusedKey();
+
+    return focused !== null && isSameSessionKey(focused, key);
   };
 
   const applyForgetAnswer = (key: SessionKey, answer: Readonly<Record<string, unknown>>) => {
@@ -79,7 +94,12 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
         renderOverlay();
       })
       .with({ step: 'notice' }, (step) => {
-        showNotice(step.notice);
+        // the list closes on home once the attached session leaves the fleet
+        if (isFocused(key)) {
+          deps.showHomeNotice(step.notice);
+        } else {
+          showNotice(step.notice);
+        }
       })
       .with({ step: 'none' }, () => {})
       .exhaustive();
@@ -93,10 +113,15 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
     }
   };
 
-  const reportAndShow = (key: SessionKey, error: unknown) => {
-    deps.reportFailure(key.daemon, error);
+  const reportEndFailure = (key: SessionKey, error: unknown) => {
+    const name = deps.mirror.find(key)?.name ?? key.id;
+    const notice = pickEndNotice(error, name);
 
-    showNotice(formatError(error));
+    if (notice === null) {
+      deps.reportFailure(key.daemon, error);
+    }
+
+    showNotice(notice ?? formatError(error));
   };
 
   return {
@@ -104,7 +129,23 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
       try {
         await send(key, 'session.kill', {});
       } catch (error) {
-        if (error instanceof AtcError && error.code === 'confirmation_required') {
+        deps.reportFailure(key.daemon, error);
+      }
+    },
+
+    sendEnd: async (key, namesMachine) => {
+      try {
+        const offered = await send(key, 'session.forget', { refusePinned: true });
+
+        const confirmToken = offered['confirmToken'];
+
+        if (typeof confirmToken !== 'string') {
+          applyForgetAnswer(key, offered);
+
+          return;
+        }
+
+        if (!namesMachine) {
           deps.service.send({ type: 'CONFIRM_DESTROY', key });
 
           renderOverlay();
@@ -112,42 +153,11 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
           return;
         }
 
-        deps.reportFailure(key.daemon, error);
-      }
-    },
-
-    sendForget: async (key) => {
-      try {
-        const answer = await send(key, 'session.forget', { refuseLive: true });
+        const answer = await send(key, 'session.forget', { confirmToken, refusePinned: true });
 
         applyForgetAnswer(key, answer);
       } catch (error) {
-        reportAndShow(key, error);
-      }
-    },
-
-    sendDestroy: async (key) => {
-      try {
-        const offered = await send(key, 'session.forget', { refuseLive: true });
-
-        const confirmToken = offered['confirmToken'];
-
-        const answer =
-          typeof confirmToken === 'string'
-            ? await send(key, 'session.forget', { confirmToken, refuseLive: true })
-            : offered;
-
-        applyForgetAnswer(key, answer);
-      } catch (error) {
-        reportAndShow(key, error);
-      }
-    },
-
-    sendAck: async (key) => {
-      try {
-        await send(key, 'session.ack', {});
-      } catch (error) {
-        deps.reportFailure(key.daemon, error);
+        reportEndFailure(key, error);
       }
     },
 

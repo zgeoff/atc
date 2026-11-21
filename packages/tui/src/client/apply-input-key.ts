@@ -5,17 +5,21 @@ import type { OverlayKeyDeps } from '../overlay/apply-overlay-key';
 import type { EjectScreen } from '../overlay/create-eject-screen';
 import type { SpawnPicker } from '../picker/create-spawn-picker';
 import { KEY } from '../terminal/key';
+import { splitKeys } from '../terminal/split-keys';
 import type { ClientMode, RestartConsent } from './build-client-machine';
 
 export interface InputKeyDeps extends OverlayKeyDeps {
-  readonly picker: SpawnPicker;
-  readonly eject: EjectScreen;
+  readonly picker: Pick<SpawnPicker, 'applyKey'>;
+  readonly eject: Pick<EjectScreen, 'applyKey'>;
   readonly stdinDecoder: TextDecoder;
   readonly getMode: () => ClientMode;
   readonly findFocusedKey: () => SessionKey | null;
   readonly sendInput: (key: SessionKey, data: string) => Promise<void>;
   readonly findRestartConsent: () => RestartConsent | null;
   readonly restoreFleet: () => Promise<void>;
+
+  // a bracketed paste to the attached session that an earlier chunk opened and none closed yet
+  readonly paste: { isOpen: boolean };
 }
 
 export function applyInputKey(buf: Buffer, deps: InputKeyDeps) {
@@ -28,40 +32,107 @@ export function applyInputKey(buf: Buffer, deps: InputKeyDeps) {
     return;
   }
 
-  match(deps.getMode())
-    .with('attached', () => {
-      applyAttachedKey(buf, deps);
-    })
+  // A chunk can hold several keys typed fast, and a key can change the mode the next one meets.
+  let keys: readonly Buffer[] = splitKeys(buf);
+
+  while (keys.length > 0) {
+    keys = applyModeKeys(keys, deps);
+  }
+}
+
+// Applies the keys the current mode takes from the front of `keys`, and returns the rest.
+function applyModeKeys(keys: readonly Buffer[], deps: InputKeyDeps): readonly Buffer[] {
+  const [first, ...rest] = keys;
+
+  if (first === undefined) {
+    return [];
+  }
+
+  return match(deps.getMode())
+    .with('attached', () => applyAttachedKeys(keys, deps))
     .with('home', () => {
-      applyHomeKey(buf, deps);
+      applyHomeKey(first, deps);
+
+      return rest;
     })
     .with('overlay', () => {
-      applyOverlayKey(buf, deps);
+      applyOverlayKey(first, deps);
+
+      return rest;
     })
     .with('help', () => {
-      applyHelpKey(buf, deps);
+      applyHelpKey(first, deps);
+
+      return rest;
     })
     .with('picker', () => {
-      deps.picker.applyKey(buf);
+      deps.picker.applyKey(Buffer.concat(keys));
+
+      return [];
     })
     .with('picker-eject', () => {
-      deps.eject.applyKey(buf);
+      deps.eject.applyKey(Buffer.concat(keys));
+
+      return [];
     })
     .exhaustive();
 }
 
-function applyAttachedKey(buf: Buffer, deps: InputKeyDeps) {
-  if (deps.isLeaderKey(buf)) {
-    deps.service.send({ type: 'OVERLAY' });
+// The session takes every key before the leader, and the list the keys after it.
+function applyAttachedKeys(keys: readonly Buffer[], deps: InputKeyDeps): readonly Buffer[] {
+  const scan = scanForLeader(keys, deps.paste.isOpen, deps.isLeaderKey);
+  const leaderIndex = scan.leaderIndex;
 
-    return;
-  }
+  deps.paste.isOpen = scan.isInPaste;
 
+  const sessionKeys = leaderIndex === null ? keys : keys.slice(0, leaderIndex);
   const focused = deps.findFocusedKey();
 
-  if (focused !== null) {
-    void deps.sendInput(focused, deps.stdinDecoder.decode(buf, { stream: true }));
+  if (focused !== null && sessionKeys.length > 0) {
+    void deps.sendInput(
+      focused,
+      deps.stdinDecoder.decode(Buffer.concat(sessionKeys), { stream: true }),
+    );
   }
+
+  if (leaderIndex === null) {
+    return [];
+  }
+
+  deps.service.send({ type: 'OVERLAY' });
+
+  return keys.slice(leaderIndex + 1);
+}
+
+const PASTE_OPEN = '\u001B[200~';
+const PASTE_CLOSE = '\u001B[201~';
+
+interface LeaderScan {
+  readonly leaderIndex: number | null;
+
+  // whether a paste is still open after the keys the scan read
+  readonly isInPaste: boolean;
+}
+
+// A leader byte inside a paste is text for the session, and a paste can span several chunks.
+function scanForLeader(
+  keys: readonly Buffer[],
+  wasInPaste: boolean,
+  isLeaderKey: (key: Buffer) => boolean,
+): LeaderScan {
+  let isInPaste = wasInPaste;
+
+  for (const [index, key] of keys.entries()) {
+    const text = key.toString();
+
+    if (text === PASTE_OPEN || text === PASTE_CLOSE) {
+      isInPaste = text === PASTE_OPEN;
+    } else if (!isInPaste && isLeaderKey(key)) {
+      return { leaderIndex: index, isInPaste };
+    }
+  }
+
+  return { leaderIndex: null, isInPaste };
 }
 
 function applyHomeKey(buf: Buffer, deps: InputKeyDeps) {

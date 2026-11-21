@@ -1,4 +1,6 @@
 import type { DaemonName } from '../fleet/session-key';
+import { pickDistinctLabels } from './pick-distinct-labels';
+import type { LabelCandidate } from './pick-distinct-labels';
 import { toDaemonLabel } from './to-session-place';
 import type { SessionPlace } from './types';
 
@@ -8,12 +10,8 @@ interface PlacedSession {
   readonly place: SessionPlace;
 }
 
-interface Candidate {
+interface Candidate extends LabelCandidate {
   readonly rank: number;
-  readonly label: string;
-
-  // what tells two places with one label apart, in the order the label takes them
-  readonly qualifiers: readonly string[];
 }
 
 // One label for each place key. The daemon on this computer wins a disagreement, then the daemon
@@ -43,13 +41,10 @@ export function pickPlaceLabels(
     }
   }
 
-  const labels = new Map<string, string>();
+  const keys = [...chosen.keys()];
+  const labels = pickDistinctLabels([...chosen.values()]);
 
-  for (const [key, candidate] of chosen) {
-    labels.set(key, pickDistinctLabel(candidate, [...chosen.values()]));
-  }
-
-  return labels;
+  return new Map(keys.map((key, index) => [key, labels[index] ?? key]));
 }
 
 function rankDaemon(daemon: DaemonName, daemonOrder: readonly DaemonName[]): number {
@@ -60,23 +55,4 @@ function rankDaemon(daemon: DaemonName, daemonOrder: readonly DaemonName[]): num
   const index = daemonOrder.indexOf(daemon);
 
   return index === -1 ? daemonOrder.length : index;
-}
-
-// the shortest label, with qualifiers added one at a time, that no other place shares
-function pickDistinctLabel(candidate: Candidate, all: readonly Candidate[]): string {
-  const others = all.filter((other) => other !== candidate);
-
-  for (let depth = 0; depth < candidate.qualifiers.length; depth++) {
-    const label = formatLabel(candidate, depth);
-
-    if (others.every((other) => formatLabel(other, depth) !== label)) {
-      return label;
-    }
-  }
-
-  return formatLabel(candidate, candidate.qualifiers.length);
-}
-
-function formatLabel(candidate: Candidate, depth: number): string {
-  return [candidate.label, ...candidate.qualifiers.slice(0, depth)].join(' · ');
 }

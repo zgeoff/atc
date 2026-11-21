@@ -68,6 +68,9 @@ export interface Config {
   // false turns off the TUI's decorative motion; spinners keep turning
   animations: boolean;
 
+  // where the session list's `g` key starts
+  list: { readonly grouping: 'flat' | 'repo' | 'place' };
+
   // The keys the file sets that atc no longer reads, in the order the file
   // holds them. Values are never recorded.
   removedKeys: readonly string[];
@@ -104,6 +107,7 @@ const DEFAULTS: Omit<
   daemonErrors: [],
   restoreFleetOnRestart: true,
   animations: true,
+  list: { grouping: 'flat' },
   removedKeys: [],
   deprecations: [],
 };
@@ -326,12 +330,19 @@ export function parseConfig(
     daemonErrors: daemons.errors,
     restoreFleetOnRestart: parsed.data.restoreFleetOnRestart ?? DEFAULTS.restoreFleetOnRestart,
     animations: parsed.data.animations ?? DEFAULTS.animations,
+    list: { grouping: pickListGrouping(parsed.data.list) },
     removedKeys: REMOVED_CONFIG_KEYS.filter((key) => Object.hasOwn(raw, key)),
     deprecations: [
       ...(replacement.warning === null ? [] : [replacement.warning]),
       ...(legacy.keys.length === 0 ? [] : [formatLegacySourceKeys(legacy.keys)]),
     ],
   };
+}
+
+function pickListGrouping(list: unknown): 'flat' | 'repo' | 'place' {
+  const grouping = isRecord(list) ? list['grouping'] : undefined;
+
+  return grouping === 'repo' || grouping === 'place' ? grouping : DEFAULTS.list.grouping;
 }
 
 // Control bytes the terminal needs for its own input: enter, tab, and esc

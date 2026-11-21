@@ -207,7 +207,11 @@ export function createSessionForgetter(deps: SessionForgetterDeps): SessionForge
         });
       }
 
-      if (manager.findProvider(session)?.capabilities.destroy === true) {
+      // only the session that owns its host destroys it, so a sub-session sharing it needs no token
+      if (
+        session.hostKey === session.id &&
+        manager.findProvider(session)?.capabilities.destroy === true
+      ) {
         manager.requireExecution(session, 'destroy');
 
         if (confirmToken === undefined) {

@@ -10,8 +10,6 @@ import { createActor } from 'xstate';
 import { createDaemonLinks } from '../daemon-link/create-daemon-links';
 import { createDaemonRestarter } from '../daemon-link/create-daemon-restarter';
 import { createTUIDaemonConnection } from '../daemon-link/create-tui-daemon-connection';
-import { formatLinkState } from '../daemon-link/daemon-link-state';
-import { pickReplay } from '../daemon-link/pick-replay';
 import { formatDaemonFailure, sendToDaemon } from '../daemon-link/send-to-daemon';
 import { createFleetBarDeps } from '../fleet-bar/create-fleet-bar-deps';
 import { applyDaemonEvent } from '../fleet/apply-daemon-event';
@@ -38,6 +36,7 @@ import { applyInputKey } from './apply-input-key';
 import type { InputKeyDeps } from './apply-input-key';
 import { buildClientMachine } from './build-client-machine';
 import type { RestartConsent } from './build-client-machine';
+import { createAttachment } from './create-attachment';
 import { createLinkReactions } from './create-link-reactions';
 import { createSessionActions } from './create-session-actions';
 import { createStatusScheduler } from './create-status-scheduler';
@@ -70,6 +69,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
   let lastUsedAgent: AgentID = host.readConfig().defaultAgent;
   let statusNotice: string | null = null;
   let cancelStatusNotice: (() => void) | null = null;
+
+  // the status notice that belongs to home, which the next opening of the list drops
+  let homeNotice: string | null = null;
   const stdout = process.stdout;
   const leader = host.readConfig().leader;
   const isShowingSession = () => isOverSession(getMode(), findRestartConsent(), findFocused());
@@ -84,6 +86,13 @@ export async function runTUI(host: TUIHost): Promise<void> {
     env: { colorterm: process.env['COLORTERM'], term: process.env['TERM'] },
     animations: host.readConfig().animations,
     isSessionFocused,
+    isSessionShown: () => isShowingSession(),
+    sessionList: {
+      isOpen: () => getMode() === 'overlay',
+      canFadeOut: () => ['attached', 'home'].includes(getMode()),
+      isOverSession: () => isShowingSession(),
+      readInput: (nowMs, spinnerFrame) => overlay.readInput(nowMs, spinnerFrame),
+    },
     fleetBar: createFleetBarDeps({
       mirror,
       links: () => links,
@@ -102,6 +111,10 @@ export async function runTUI(host: TUIHost): Promise<void> {
     focusedKey === null ? null : (mirror.find(toSessionKey(focusedKey)) ?? null);
 
   const openHome = () => {
+    attachment.detach();
+
+    focusedKey = null;
+
     drawHome(mirror.count, leader.label);
     scheduleStatus();
   };
@@ -118,6 +131,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     primaryName,
     leaderLabel: leader.label,
     isOverSession: isShowingSession,
+    isListOpen: () => getMode() === 'overlay',
     getBoot: () => getBoot(),
     findFocused,
     listVisible: () => overlay.listVisible(),
@@ -148,6 +162,22 @@ export async function runTUI(host: TUIHost): Promise<void> {
     scheduleStatus();
   };
 
+  const showHomeNotice = (text: string) => {
+    homeNotice = text;
+
+    showStatusNotice(text);
+  };
+
+  const dropHomeNotice = () => {
+    if (homeNotice !== null && statusNotice === homeNotice) {
+      cancelStatusNotice?.();
+      statusNotice = null;
+      cancelStatusNotice = null;
+    }
+
+    homeNotice = null;
+  };
+
   const reportFailure = (daemon: DaemonName, error: unknown) => {
     const text = formatDaemonFailure(daemon, error);
 
@@ -174,70 +204,23 @@ export async function runTUI(host: TUIHost): Promise<void> {
     }
   };
 
-  const requestAttach = async (key: SessionKey) => {
-    const replay = pickReplay(links, key.daemon);
-    const size = { cols: cols(), rows: ptyRows() };
+  const attachment = createAttachment({
+    links: {
+      clientFor: (daemon) => links.clientFor(daemon),
+      stateOf: (daemon) => links.stateOf(daemon),
+    },
+    stream: screen.stream,
+    readService: () => service,
+    findFocused,
+    readSize: () => ({ cols: cols(), rows: ptyRows() }),
+    sendQuiet,
+    showStatusNotice,
+    reportFailure,
+  });
 
-    screen.stream.begin(key, replay, size);
-
-    const answer = await sendToDaemon(links, key.daemon, 'session.attach', {
-      session: key.id,
-      ...size,
-      ...(replay === 'full' ? { replay } : {}),
-    });
-
-    if (typeof answer['cols'] === 'number' && typeof answer['rows'] === 'number') {
-      screen.stream.resize(answer['cols'], answer['rows']);
-    }
-  };
-
-  const attach = async (key: SessionKey) => {
-    if (links.clientFor(key.daemon) === null) {
-      showStatusNotice(formatLinkState(key.daemon, links.stateOf(key.daemon)));
-
-      return;
-    }
-
-    service.send({ type: 'ATTACH', key });
-
-    try {
-      await requestAttach(key);
-    } catch (error) {
-      reportFailure(key.daemon, error);
-
-      service.send({ type: 'OVERLAY' });
-    }
-  };
-
-  const reattachQuietly = async (key: SessionKey) => {
-    try {
-      await requestAttach(key);
-    } catch {}
-  };
-
-  const reattach = (key: SessionKey) => {
-    void reattachQuietly(key);
-  };
-
-  const detachFocused = () => {
-    if (focusedKey !== null) {
-      void sendQuiet(focusedKey.daemon, 'session.detach', { session: focusedKey.id });
-    }
-
-    screen.stream.end();
-  };
-
-  const showBase = () => {
-    const focused = findFocused();
-
-    if (focused !== null && focused.alive) {
-      service.send({ type: 'ATTACH', key: { daemon: focused.daemon, id: focused.id } });
-
-      reattach({ daemon: focused.daemon, id: focused.id });
-    } else {
-      service.send({ type: 'HOME' });
-    }
-  };
+  const attach = attachment.attach;
+  const reattach = attachment.reattach;
+  const showBase = attachment.showBase;
 
   const openHelp = () => {
     screen.writeScreen(ansi.clear);
@@ -283,8 +266,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
   };
 
   const quit = (code = 0, message?: string): never => {
-    detachFocused();
-
+    attachment.detach();
     links.stop();
     connection.transport.stop();
     screen.stop();
@@ -372,8 +354,12 @@ export async function runTUI(host: TUIHost): Promise<void> {
     buildClientMachine({
       openHome,
       openAttached,
-      closeAttached: detachFocused,
       openOverlay: () => {
+        // Home waits under the session too, so the list keeps a screen behind it when that
+        // session dies while the list is open.
+        drawHome(mirror.count, leader.label);
+        dropHomeNotice();
+
         overlay.open();
       },
       openHelp,
@@ -395,8 +381,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
     findConfirmKey: () => service.getSnapshot().context.confirmKey,
     isBootStale: () => getBoot().stale,
     isDaemonRestarting,
+    isDaemonWaiting,
     scheduleStatus,
-    write: screen.writeScreen,
+    requestFrame: screen.requestFrame,
   });
 
   const actions = createSessionActions({
@@ -407,7 +394,9 @@ export async function runTUI(host: TUIHost): Promise<void> {
     getMode,
     attach,
     ptyRows,
+    findFocusedKey,
     reportFailure,
+    showHomeNotice,
   });
 
   const eject = createEjectScreen({
@@ -544,6 +533,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     attach,
     sendInput,
     restoreFleet,
+    paste: { isOpen: false },
     restartDaemonOnce,
     logClientEvent,
     quit,
@@ -563,8 +553,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     screen.handleResize();
 
     handleResize({
-      mode: getMode(),
-      focusedKey,
+      attachedKey: attachment.readAttachedKey(),
       restartPrompt: findRestartConsent()?.prompt ?? null,
       ptyRows: ptyRows(),
       write: screen.writeScreen,

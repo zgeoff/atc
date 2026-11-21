@@ -33,12 +33,15 @@ test('it round-trips a gateway agent id instead of coercing it to claude', () =>
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'zai',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -73,12 +76,15 @@ test('it falls back the last attach time to the creation time when the descripto
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -113,12 +119,15 @@ test('it falls back the repository root to the working directory when the descri
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -153,12 +162,15 @@ test('it reads a session as a terminal session when the descriptor omits its kin
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -194,12 +206,15 @@ test('it keeps the parent when the descriptor carries one', () => {
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: 's-0',
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -234,12 +249,15 @@ test('it reports no parent when the descriptor omits it', () => {
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -279,12 +297,15 @@ test('it offers the headless handoff when the descriptor allows it', () => {
     alive: true,
     resumable: false,
     canEject: true,
+    canDestroyHost: null,
     agent: 'zai',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -319,12 +340,15 @@ test('it withholds the headless handoff when the descriptor omits it', () => {
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -360,12 +384,15 @@ test('it reads the target from the descriptor locator', () => {
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'imp-box',
     place: { key: 'daemon:local:imp-box', label: 'imp-box' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -400,12 +427,15 @@ test('it falls back the target to local when the descriptor carries no locator',
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -441,12 +471,15 @@ test('it keeps the model the session was spawned with', () => {
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: 'opus',
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -481,12 +514,15 @@ test('it reports no model when the descriptor omits it', () => {
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -522,12 +558,15 @@ test('it reads the harness layer of the descriptor lifecycle', () => {
     alive: false,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'suspended',
+    hostAsleep: true,
+    stateSince: null,
   });
 });
 
@@ -562,12 +601,15 @@ test('it reads an exited harness from a dead session when the descriptor omits t
     alive: false,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'exited',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -602,12 +644,15 @@ test('it reads a running harness from a live session when the descriptor omits t
     alive: true,
     resumable: false,
     canEject: false,
+    canDestroyHost: null,
     agent: 'claude',
     parent: null,
     target: 'local',
     place: { key: 'daemon:local:local', label: 'local' },
     model: null,
     harness: 'running',
+    hostAsleep: false,
+    stateSince: null,
   });
 });
 
@@ -644,4 +689,27 @@ test('it shows a state it does not know as unknown', () => {
   );
 
   expect(mirror?.state).toBe('unknown');
+});
+
+test.each([
+  { title: 'true when the descriptor sends true', sent: true, expected: true },
+  { title: 'false when the descriptor sends false', sent: false, expected: false },
+  { title: 'null when the descriptor sends none', sent: undefined, expected: null },
+])('#toMirrorSession gives canDestroyHost $title', (row) => {
+  const mirror = toMirrorSession(
+    {
+      id: 's-1',
+      name: 'work',
+      cwd: '/repo',
+      state: 'running',
+      unread: false,
+      lastMsg: 'hi',
+      createdAt: 1000,
+      alive: true,
+      canDestroyHost: row.sent,
+    },
+    null,
+  );
+
+  expect(mirror?.canDestroyHost).toBe(row.expected);
 });

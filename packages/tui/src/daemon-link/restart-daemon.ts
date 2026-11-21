@@ -57,8 +57,6 @@ export async function restartDaemon<TLink>(deps: RestartDaemonDeps<TLink>) {
   const baseline = resolveAgentMetadata(deps.readConfig(), {});
 
   deps.overlay.agentLabels = baseline.labels;
-  deps.overlay.agentModels = baseline.models;
-  deps.overlay.availableTargets = 0;
 
   deps.service.send({ type: 'RESTART_AWAITING_FRESH', freshUntil: deps.clock.now() + 8000 });
 

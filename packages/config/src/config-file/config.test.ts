@@ -61,6 +61,7 @@ test('#parseConfig leaves every target unusable, local included, and grants no p
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -126,6 +127,7 @@ test('#parseConfig falls back field by field when a field is wrong-typed instead
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: ["config.json uses dirs; run 'atc config migrate' to move it into sources"],
   });
@@ -204,6 +206,7 @@ test('#parseConfig leaves every target unusable and names the migrate command fo
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -427,6 +430,7 @@ test('#parseConfig reads the targets and default target a config sets', () => {
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -479,6 +483,7 @@ test('#parseConfig reads the principals a config sets', () => {
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -568,6 +573,7 @@ test('#parseConfig holds no targets and an error instead of throwing for a malfo
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -616,6 +622,7 @@ test('#parseConfig reads the config a first run writes back as the defaults, wit
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -666,6 +673,7 @@ test('#parseConfig gives a file with no agent keys at all the three built-in age
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -717,6 +725,7 @@ test('#parseConfig loads exactly the agents an agents map holds and records no o
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -761,6 +770,7 @@ test('#parseConfig keeps reporting claude as the default agent for an empty regi
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -799,6 +809,7 @@ test('#parseConfig leaves the registry empty with one error when agents is not a
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -855,6 +866,7 @@ test('#parseConfig refuses a config that sets agents beside an old agent key', (
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -923,6 +935,7 @@ test('#parseConfig restores the fleet on restart by default', () => {
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -1043,6 +1056,7 @@ test('#parseConfig loads a config that still sets resumeInterruptedTurns and rep
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: ['resumeInterruptedTurns'],
     deprecations: [],
   });
@@ -1056,6 +1070,7 @@ test('#renderDefaultConfig writes an agents map with the claude entry, a sources
     leader: { code: 0, label: '^Space' },
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     workspaces: {
       gitTransports: ['https', 'ssh'],
       root: null,
@@ -1083,6 +1098,7 @@ test('#loadConfig writes the default config when the file is missing', () => {
     leader: { code: 0, label: '^Space' },
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     workspaces: {
       gitTransports: ['https', 'ssh'],
       root: null,
@@ -1155,6 +1171,7 @@ test('#loadConfig returns the defaults when the file is missing', () => {
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -1215,6 +1232,7 @@ test('#loadConfig reads an existing file against the home it is given', () => {
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -1303,6 +1321,7 @@ test('#loadConfig leaves every target unusable when the file cannot be read', ()
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -1368,6 +1387,7 @@ test('#loadConfig leaves every target unusable when the file is not valid JSON',
     daemonErrors: [],
     restoreFleetOnRestart: true,
     animations: true,
+    list: { grouping: 'flat' },
     removedKeys: [],
     deprecations: [],
   });
@@ -1380,4 +1400,26 @@ test.each<{ name: string; file: Record<string, unknown>; expected: boolean }>([
   { name: 'true when the file sets a wrong type', file: { animations: 'off' }, expected: true },
 ])('#parseConfig reads animations as $name', (row) => {
   expect(parseConfig(buildStubHarnessPlugins(), row.file).animations).toBe(row.expected);
+});
+
+test.each<{
+  name: string;
+  file: Record<string, unknown>;
+  expected: 'flat' | 'repo' | 'place';
+}>([
+  { name: 'flat when the file leaves it out', file: {}, expected: 'flat' },
+  { name: 'repo when the file sets repo', file: { list: { grouping: 'repo' } }, expected: 'repo' },
+  {
+    name: 'place when the file sets place',
+    file: { list: { grouping: 'place' } },
+    expected: 'place',
+  },
+  {
+    name: 'flat when the file sets an unknown value',
+    file: { list: { grouping: 'x' } },
+    expected: 'flat',
+  },
+  { name: 'flat when the file sets a wrong type', file: { list: 'place' }, expected: 'flat' },
+])('#parseConfig reads the list grouping as $name', (row) => {
+  expect(parseConfig(buildStubHarnessPlugins(), row.file).list.grouping).toBe(row.expected);
 });

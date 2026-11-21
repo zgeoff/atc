@@ -38,12 +38,13 @@ function setupTest() {
   const attachFirst = async () => {
     tui.write(KEYS.ctrlSpace);
 
-    await tui.waitFor('┌ sessions ');
+    await tui.waitFor('╭─ ');
 
     tui.resetScreen();
     tui.write(KEYS.enter);
 
     await tui.waitFor('FAKE_CLAUDE_UP');
+    await tui.waitForGone('╭─ ');
   };
 
   const readLastRow = () => tui.read().split('\n').at(-1) ?? '';
@@ -94,7 +95,7 @@ test('it keeps the fleet bar on the last row while the session list is open over
 
   ctx.tui.write(KEYS.ctrlSpace);
 
-  await ctx.tui.waitFor('┌ sessions ');
+  await ctx.tui.waitFor('╭─ ');
 
   expect(ctx.readLastRow()).toMatch(/^local \S+ +\^Space$/u);
 });

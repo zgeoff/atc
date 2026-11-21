@@ -163,6 +163,29 @@ test('it forgets what the screen shows on a screen reset', async () => {
   expect(ctx.tui.read()).not.toInclude('atc — control tower');
 });
 
+test('it reads the text of the screen without the output before it', async () => {
+  const ctx = await setupTest();
+
+  ctx.tui.reset();
+
+  expect(ctx.tui.readScreen()).toInclude('atc — control tower');
+  expect(ctx.tui.read()).toBe(`\n${ctx.tui.readScreen()}`);
+});
+
+test('it waits for a text to leave the screen', async () => {
+  const ctx = await setupTest();
+
+  ctx.tui.write('n');
+
+  await ctx.tui.waitFor('spawn: agent');
+
+  ctx.tui.write(KEYS.esc);
+
+  await ctx.tui.waitForGone('spawn: agent');
+
+  expect(ctx.tui.readScreen()).not.toInclude('spawn: agent');
+});
+
 test('it formats a short text as the whole input row', () => {
   const tui = startTUIHarness({ createStateDB: () => {} });
 
@@ -222,7 +245,7 @@ test('it moves the mark past a line the client logs after it', async () => {
   ctx.tui.reset();
   ctx.tui.write(KEYS.ctrlSpace);
 
-  await ctx.tui.waitFor('┌ sessions ─');
+  await ctx.tui.waitFor('╭─ ');
 
   const mark = ctx.tui.countClientLogLines();
 
@@ -253,7 +276,7 @@ test('it rejects a wait for a log line written only before the mark', async () =
   tui.write(KEYS.ctrlSpace);
 
   await waitFor(() => {
-    expect(tui.read()).toInclude('┌ sessions ─');
+    expect(tui.read()).toInclude('╭─ ');
   });
 
   tui.write('H');

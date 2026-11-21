@@ -29,17 +29,18 @@ test('it sizes a session to the client that shows it once another client moves t
 
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   ctx.reset();
   ctx.write(KEYS.enter);
 
   await ctx.waitFor('FAKE_CLAUDE_UP');
+  await ctx.waitForGone('╭─ ');
 
   ctx.reset();
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   await spawnClaudeSession(ctx, 'second');
 
@@ -71,7 +72,7 @@ test('it sizes a session to the smaller of two clients that both show it', async
 
   ctx.write(KEYS.ctrlSpace);
 
-  await ctx.waitFor('┌ sessions ');
+  await ctx.waitFor('╭─ ');
 
   ctx.reset();
   ctx.write(KEYS.enter);

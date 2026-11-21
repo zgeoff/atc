@@ -18,6 +18,7 @@ export const CONFIG_FILE_SCHEMA = z.object({
   daemons: z.unknown().optional(),
   restoreFleetOnRestart: buildOptionalBoolean(),
   animations: buildOptionalBoolean(),
+  list: z.unknown().optional(),
 });
 
 export type ConfigFile = z.output<typeof CONFIG_FILE_SCHEMA>;
