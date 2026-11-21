@@ -330,3 +330,111 @@ test('it drops a full replay of a session whose output already overflowed, for t
     { ev: 'SessionDesync', sessionID: 's-1', dropped: 13 },
   ]);
 });
+
+test('it keeps only the newest unsent full replay of a session, with the output after its seq', async () => {
+  const feed = createEventFeed({
+    capacity: 100,
+    canSeeOutput: () => true,
+    resync: () => {},
+    onOverflow: () => {},
+  });
+
+  const sessionID = toSessionID('s-1');
+
+  for (const seq of [4, 6, 8]) {
+    feed.emitOutput(
+      sessionID,
+      {
+        version: PROTOCOL_V,
+        ev: 'SessionReplay',
+        sessionID,
+        seq,
+        data: 'r'.repeat(80),
+        done: false,
+      },
+      80,
+    );
+
+    feed.emitOutput(
+      sessionID,
+      { version: PROTOCOL_V, ev: 'SessionReplay', sessionID, seq, data: `end-${seq}`, done: true },
+      5,
+    );
+
+    feed.emitOutput(
+      sessionID,
+      {
+        version: PROTOCOL_V,
+        ev: 'SessionOutput',
+        sessionID,
+        seq: seq + 1,
+        data: `live-${seq + 1}`,
+      },
+      6,
+    );
+  }
+
+  feed.emit({ version: PROTOCOL_V, ev: 'SessionRemoved', sessionID: 's-1' });
+
+  const stream = feed.subscribe(new AbortController().signal);
+  const events: unknown[] = [];
+
+  for (let read = 0; read < 4; read++) {
+    const next = await stream.next();
+
+    events.push(next.value);
+  }
+
+  expect(events).toStrictEqual([
+    { ev: 'SessionReplay', sessionID: 's-1', seq: 8, data: 'r'.repeat(80), done: false },
+    { ev: 'SessionReplay', sessionID: 's-1', seq: 8, data: 'end-8', done: true },
+    { ev: 'SessionOutput', sessionID: 's-1', seq: 9, data: 'live-9' },
+    { ev: 'SessionRemoved', sessionID: 's-1' },
+  ]);
+});
+
+test('it finishes a full replay it has started sending before the newer replay', async () => {
+  const feed = createEventFeed({
+    capacity: 100,
+    canSeeOutput: () => true,
+    resync: () => {},
+    onOverflow: () => {},
+  });
+
+  const sessionID = toSessionID('s-1');
+
+  feed.emitOutput(
+    sessionID,
+    { version: PROTOCOL_V, ev: 'SessionReplay', sessionID, seq: 4, data: 'old-start', done: false },
+    9,
+  );
+
+  feed.emitOutput(
+    sessionID,
+    { version: PROTOCOL_V, ev: 'SessionReplay', sessionID, seq: 4, data: 'old-end', done: true },
+    7,
+  );
+
+  const stream = feed.subscribe(new AbortController().signal);
+
+  await stream.next();
+
+  feed.emitOutput(
+    sessionID,
+    { version: PROTOCOL_V, ev: 'SessionReplay', sessionID, seq: 6, data: 'new', done: true },
+    3,
+  );
+
+  const events: unknown[] = [];
+
+  for (let read = 0; read < 2; read++) {
+    const next = await stream.next();
+
+    events.push(next.value);
+  }
+
+  expect(events).toStrictEqual([
+    { ev: 'SessionReplay', sessionID: 's-1', seq: 4, data: 'old-end', done: true },
+    { ev: 'SessionReplay', sessionID: 's-1', seq: 6, data: 'new', done: true },
+  ]);
+});

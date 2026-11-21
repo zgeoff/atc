@@ -36,6 +36,7 @@ interface FeedState {
   readonly backlog: QueuedEvent[];
 
   readonly desynced: Map<SessionID, number>;
+  readonly sendingReplays: Set<SessionID>;
   queuedBytes: number;
   wake: PromiseWithResolvers<void> | null;
 }
@@ -45,6 +46,7 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
     actor: createActor(EVENT_FEED_MACHINE).start(),
     backlog: [],
     desynced: new Map(),
+    sendingReplays: new Set(),
     queuedBytes: 0,
     wake: null,
   };
@@ -74,6 +76,7 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
     state.queuedBytes = 0;
 
     state.desynced.clear();
+    state.sendingReplays.clear();
   };
 
   // Cutting a byte stream mid-escape corrupts the client's terminal state, so a dropped chunk
@@ -93,7 +96,20 @@ export function createEventFeed(options: EventFeedOptions): EventFeed {
 
     // A replay is the whole screen, sent in one burst after a drain or on attach, and a client
     // shows none of it before its last chunk, so it enters whole and outside the output budget.
+    // A newer replay covers an older one, so the queue holds at most one per session unsent.
     if (event.ev === 'SessionReplay') {
+      if (!isReplayOpen(state.backlog, sessionID)) {
+        replaceBacklog(
+          state,
+          collectUnsupersededBacklog(
+            state.backlog,
+            sessionID,
+            event['seq'],
+            state.sendingReplays.has(sessionID),
+          ),
+        );
+      }
+
       scheduleEvent(state, event, 0);
 
       return;
@@ -147,6 +163,58 @@ function scheduleEvent(state: FeedState, event: EventMsg, bytes: number): void {
   state.wake?.resolve();
 }
 
+// The chunks of one replay enter in one synchronous burst, so a replay of the session whose last
+// queued chunk is not its last is the one still entering.
+function isReplayOpen(backlog: readonly QueuedEvent[], sessionID: SessionID): boolean {
+  const last = backlog.findLast(
+    (queued) => queued.event.ev === 'SessionReplay' && findEventSession(queued.event) === sessionID,
+  );
+
+  return last !== undefined && last.event['done'] !== true;
+}
+
+function replaceBacklog(state: FeedState, kept: readonly QueuedEvent[]): void {
+  state.backlog.length = 0;
+
+  state.backlog.push(...kept);
+
+  state.queuedBytes = kept.reduce((total, queued) => total + queued.bytes, 0);
+}
+
+// A client joins the chunks of a replay until its last one, so a replay it has started reading
+// stays whole; output at or below the newer replay's seq is already in that replay.
+function collectUnsupersededBacklog(
+  backlog: readonly QueuedEvent[],
+  sessionID: SessionID,
+  replaySeq: unknown,
+  isSendingReplay: boolean,
+): QueuedEvent[] {
+  let isKeepingReplay = isSendingReplay;
+
+  return backlog.filter((queued) => {
+    const event = queued.event;
+
+    if (findEventSession(event) !== sessionID) {
+      return true;
+    }
+
+    if (event.ev === 'SessionReplay') {
+      const isKept = isKeepingReplay;
+
+      isKeepingReplay &&= event['done'] !== true;
+
+      return isKept;
+    }
+
+    return !(
+      event.ev === 'SessionOutput' &&
+      typeof event['seq'] === 'number' &&
+      typeof replaySeq === 'number' &&
+      event['seq'] <= replaySeq
+    );
+  });
+}
+
 async function* drainBacklog(
   state: FeedState,
   signal: AbortSignal,
@@ -158,6 +226,8 @@ async function* drainBacklog(
 
       if (next !== undefined) {
         state.queuedBytes -= next.bytes;
+
+        recordReplaySent(state, next.event);
         yield DAEMON_EVENT_SCHEMA.parse(next.event);
         continue;
       }
@@ -171,6 +241,20 @@ async function* drainBacklog(
     }
   } finally {
     state.actor.send({ type: 'UNSUBSCRIBE' });
+  }
+}
+
+function recordReplaySent(state: FeedState, event: EventMsg): void {
+  const sessionID = findEventSession(event);
+
+  if (event.ev !== 'SessionReplay' || sessionID === null) {
+    return;
+  }
+
+  if (event['done'] === true) {
+    state.sendingReplays.delete(sessionID);
+  } else {
+    state.sendingReplays.add(sessionID);
   }
 }
 
@@ -209,11 +293,10 @@ function emitDesyncs(
 }
 
 function dropSessionBacklog(state: FeedState, sessionID: SessionID): void {
-  const kept = state.backlog.filter((queued) => findEventSession(queued.event) !== sessionID);
+  state.sendingReplays.delete(sessionID);
 
-  state.backlog.length = 0;
-
-  state.backlog.push(...kept);
-
-  state.queuedBytes = kept.reduce((total, queued) => total + queued.bytes, 0);
+  replaceBacklog(
+    state,
+    state.backlog.filter((queued) => findEventSession(queued.event) !== sessionID),
+  );
 }
