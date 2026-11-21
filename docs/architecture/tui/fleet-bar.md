@@ -36,7 +36,9 @@ writes it as `local`.
 
 - When the daemons in one place give it different labels, the TUI shows the label from the daemon on
   its own computer, else from the daemon listed first in the config's `daemons`.
-- When two places end up with the same label, the TUI writes each as `<label> · <daemon name>`.
+- When two places end up with the same label, the TUI writes each as `<label> · <daemon name>`. When
+  two places on one daemon still match, it adds the target id, then the place key, and skips a part
+  that repeats the label.
 
 `pickPlaceColour` picks a place's colour from its key alone, from a palette of 12 colours, then
 moves each channel 20% toward `#6e7681`. A place has the same colour on every daemon that sends its

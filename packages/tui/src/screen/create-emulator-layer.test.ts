@@ -53,6 +53,21 @@ test('#draw copies the emulator screen to the top left of the buffer', async () 
   ]);
 });
 
+test('#draw blanks a wide grapheme whose second half falls past the last column', async () => {
+  const ctx = await setupTest();
+
+  await ctx.emulator.write('\u001B[1;3H界');
+
+  const buffer = buildCellBuffer(3, 4);
+
+  createEmulatorLayer({ readEmulator: () => ctx.emulator, isRowDrawn: () => true }).draw(buffer, {
+    ...ctx.frame,
+    cols: 3,
+  });
+
+  expect([buffer.get(1, 0).ch, buffer.get(2, 0).ch]).toStrictEqual(['b', ' ']);
+});
+
 test('#draw leaves the cells outside the emulator as they were', async () => {
   const ctx = await setupTest();
 

@@ -32,6 +32,11 @@ agent sends to its terminal, such as cursor position and device attributes. The 
 answers from its terminal, and the user's terminal never sees the queries. The TUI sends each answer
 to the session as input. With several clients attached, the agent gets one answer from each.
 
+Every emulator, the daemon's included, measures text with xterm's grapheme width provider,
+`@xterm/addon-unicode-graphemes`. An emoji, a skin tone or a joined emoji then takes the two columns
+it takes in the user's terminal and in the TUI's own text layout. With xterm's default Unicode 6
+tables, most emoji take one column, and every cell after them lands one column early.
+
 The emulator also answers two queries from what the TUI knows about the user's terminal. OSC 10 and
 OSC 11 get the foreground and background colours. A kitty keyboard query (`CSI ? u`) gets the
 session's current flags, and only when the user's terminal has the protocol. With no answer to give,
@@ -73,7 +78,11 @@ write is pending, so a frame never shows a screen halfway through a chunk.
 A layer draws into a buffer of cells over the layers below it, and says when it next needs a frame.
 A cell holds one grapheme (a wide grapheme leaves the cell after it empty), a foreground and a
 background colour, the attributes (bold, dim, italic, underline in four styles, strikethrough,
-inverse) and an OSC 8 link.
+inverse) and an OSC 8 link. A link cell keeps the underline the agent set, because xterm 6 reports
+every link cell as underlined, so the emulator reads the underline from the cell's own attribute
+bits. When the emulator is wider than the frame and a wide grapheme starts in the frame's last
+column, the session layer draws a blank there, because the terminal would wrap the grapheme onto the
+next row.
 
 The compositor composes the layers into a buffer and flushes it. A flush is one write wrapped in
 synchronized output (`ESC[?2026h` to `ESC[?2026l`), so a terminal that supports the mode shows no
@@ -92,8 +101,10 @@ differ from the last frame:
 A frame clock decides when to draw. An event that needs a frame asks for one, and the clock draws it
 at once. After each frame the clock asks every layer when it next needs a frame, and schedules the
 earliest answer. When every layer answers null, the clock stops. A tick that fires more than one
-frame late is dropped, and the clock never queues a tick. The config key `animations` reaches the
-clock, and the [fleet bar](./fleet-bar.md) is the one layer that asks for frames, for its spinner.
+frame late is dropped, and the clock never queues a tick. An event that asks for a frame while a
+tick is overdue joins that tick, and the frame draws however late it runs. The config key
+`animations` reaches the clock, and the [fleet bar](./fleet-bar.md) is the one layer that asks for
+frames, for its spinner.
 
 ## Colour
 

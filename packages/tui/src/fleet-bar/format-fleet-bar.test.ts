@@ -5,15 +5,15 @@ import type { FleetBarSession } from './types';
 
 function setupTest() {
   const sessions: FleetBarSession[] = [
-    { daemon: null, state: 'needs_you', place: { key: 'a', label: 'laptop' } },
-    { daemon: null, state: 'running', place: { key: 'a', label: 'laptop' } },
-    { daemon: null, state: 'running', place: { key: 'a', label: 'laptop' } },
-    { daemon: null, state: 'done', place: { key: 'a', label: 'laptop' } },
-    { daemon: null, state: 'exited', place: { key: 'a', label: 'laptop' } },
-    { daemon: null, state: 'done', place: { key: 'a', label: 'laptop' } },
-    { daemon: null, state: 'running', place: { key: 'b', label: 'docker' } },
-    { daemon: null, state: 'needs_you', place: { key: 'c', label: 'ink' } },
-    { daemon: null, state: 'done', place: { key: 'c', label: 'ink' } },
+    { daemon: null, state: 'needs_you', target: 'box', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'running', target: 'box', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'running', target: 'box', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'done', target: 'box', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'exited', target: 'box', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'done', target: 'box', place: { key: 'a', label: 'laptop' } },
+    { daemon: null, state: 'running', target: 'box', place: { key: 'b', label: 'docker' } },
+    { daemon: null, state: 'needs_you', target: 'box', place: { key: 'c', label: 'ink' } },
+    { daemon: null, state: 'done', target: 'box', place: { key: 'c', label: 'ink' } },
   ];
 
   return { sessions };
@@ -119,11 +119,14 @@ test('#formatFleetBar draws every glyph of an unreachable place in #3a414b', () 
 });
 
 test('#formatFleetBar starts the next run after the two columns of a wide label', () => {
-  const bar = buildFleetBar([{ daemon: null, state: 'done', place: { key: 'a', label: '界界' } }], {
-    cols: 100,
-    leaderLabel: 'ctrl+space',
-    attachedPlaceKey: null,
-  });
+  const bar = buildFleetBar(
+    [{ daemon: null, state: 'done', target: 'box', place: { key: 'a', label: '界界' } }],
+    {
+      cols: 100,
+      leaderLabel: 'ctrl+space',
+      attachedPlaceKey: null,
+    },
+  );
 
   expect(
     formatFleetBar(bar, 100)

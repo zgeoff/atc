@@ -114,3 +114,17 @@ test('it leaves the other waiting callbacks alone when a callback that ran is ca
 
   expect(clock.collectPending()).toStrictEqual([50]);
 });
+
+test('it runs a callback that fell due during a stall late, at the stalled time', () => {
+  const clock = buildStubClock(0);
+  const calls: number[] = [];
+
+  clock.schedule(() => {
+    calls.push(clock.now());
+  }, 100);
+
+  clock.stall(150);
+  clock.advance(0);
+
+  expect(calls).toStrictEqual([150]);
+});

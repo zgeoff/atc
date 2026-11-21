@@ -16,8 +16,18 @@ function setupTest(state: BarState) {
     readBar: (cols, spinnerFrame) =>
       buildFleetBar(
         [
-          { daemon: null, state: 'running', place: { key: 'a', label: state.label ?? 'laptop' } },
-          { daemon: null, state: 'needs_you', place: { key: 'a', label: state.label ?? 'laptop' } },
+          {
+            daemon: null,
+            state: 'running',
+            target: 'box',
+            place: { key: 'a', label: state.label ?? 'laptop' },
+          },
+          {
+            daemon: null,
+            state: 'needs_you',
+            target: 'box',
+            place: { key: 'a', label: state.label ?? 'laptop' },
+          },
         ],
         { cols, leaderLabel: 'ctrl+space', attachedPlaceKey: 'a', spinnerFrame },
       ),

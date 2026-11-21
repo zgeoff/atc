@@ -47,12 +47,18 @@ export function buildStubClock(startMs: number) {
       for (let due = findDue(until); due !== null; due = findDue(until)) {
         timers.delete(due[0]);
 
-        time = due[1].dueAt;
+        time = Math.max(time, due[1].dueAt);
 
         due[1].callback();
       }
 
       time = until;
+    },
+
+    // moves the time on and runs no callback, as a busy event loop does; the next advance runs
+    // the callbacks that fell due, late
+    stall(durationMs: number): void {
+      time += durationMs;
     },
     collectPending: (): number[] =>
       [...timers.values()]

@@ -4,15 +4,20 @@ import type { FleetBarSession } from './types';
 
 function setupTest() {
   const sessions: FleetBarSession[] = [
-    { daemon: 'lab', state: 'done', place: { key: 'k-laptop', label: 'laptop' } },
-    { daemon: 'lab', state: 'running', place: { key: 'k-laptop', label: 'laptop' } },
-    { daemon: 'lab', state: 'needs_you', place: { key: 'k-laptop', label: 'laptop' } },
-    { daemon: 'lab', state: 'exited', place: { key: 'k-laptop', label: 'laptop' } },
-    { daemon: 'lab', state: 'running', place: { key: 'k-laptop', label: 'laptop' } },
-    { daemon: 'lab', state: 'done', place: { key: 'k-laptop', label: 'laptop' } },
-    { daemon: 'lab', state: 'running', place: { key: 'k-docker', label: 'docker' } },
-    { daemon: 'lab', state: 'needs_you', place: { key: 'k-ink', label: 'ink' } },
-    { daemon: 'lab', state: 'done', place: { key: 'k-ink', label: 'ink' } },
+    { daemon: 'lab', state: 'done', target: 'box', place: { key: 'k-laptop', label: 'laptop' } },
+    { daemon: 'lab', state: 'running', target: 'box', place: { key: 'k-laptop', label: 'laptop' } },
+    {
+      daemon: 'lab',
+      state: 'needs_you',
+      target: 'box',
+      place: { key: 'k-laptop', label: 'laptop' },
+    },
+    { daemon: 'lab', state: 'exited', target: 'box', place: { key: 'k-laptop', label: 'laptop' } },
+    { daemon: 'lab', state: 'running', target: 'box', place: { key: 'k-laptop', label: 'laptop' } },
+    { daemon: 'lab', state: 'done', target: 'box', place: { key: 'k-laptop', label: 'laptop' } },
+    { daemon: 'lab', state: 'running', target: 'box', place: { key: 'k-docker', label: 'docker' } },
+    { daemon: 'lab', state: 'needs_you', target: 'box', place: { key: 'k-ink', label: 'ink' } },
+    { daemon: 'lab', state: 'done', target: 'box', place: { key: 'k-ink', label: 'ink' } },
   ];
 
   return { sessions, options: { leaderLabel: 'ctrl+space', attachedPlaceKey: null } };
@@ -56,6 +61,7 @@ test('#buildFleetBar moves a needs_you glyph into the rest only past 4 of them',
     Array.from({ length: 5 }, () => ({
       daemon: 'lab',
       state: 'needs_you' as const,
+      target: 'box',
       place: { key: 'k', label: 'big' },
     })),
     { leaderLabel: 'ctrl+space', attachedPlaceKey: null, cols: 120 },
@@ -102,7 +108,7 @@ test('#buildFleetBar marks a place unreachable while a daemon that serves it is 
 
 test('#buildFleetBar turns the spinner with the frame', () => {
   const sessions: FleetBarSession[] = [
-    { daemon: 'lab', state: 'running', place: { key: 'k', label: 'one' } },
+    { daemon: 'lab', state: 'running', target: 'box', place: { key: 'k', label: 'one' } },
   ];
 
   const options = { leaderLabel: 'ctrl+space', attachedPlaceKey: null, cols: 120 };

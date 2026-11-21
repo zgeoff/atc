@@ -68,7 +68,10 @@ export function createFrameClock(deps: FrameClockDeps): FrameClock {
       const nowMs = deps.clock.now();
 
       if (pending !== null) {
+        // an overdue frame runs at once, and a request that joins it makes it draw even late
         if (pending.dueAtMs <= nowMs) {
+          pending = { ...pending, isTick: false };
+
           return;
         }
 

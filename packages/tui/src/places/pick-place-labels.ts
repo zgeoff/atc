@@ -4,18 +4,21 @@ import type { SessionPlace } from './types';
 
 interface PlacedSession {
   readonly daemon: DaemonName;
+  readonly target: string;
   readonly place: SessionPlace;
 }
 
 interface Candidate {
-  readonly daemon: DaemonName;
   readonly rank: number;
   readonly label: string;
+
+  // what tells two places with one label apart, in the order the label takes them
+  readonly qualifiers: readonly string[];
 }
 
-// One label for each place key. Daemons that give one place different labels lose to the daemon on
-// this computer, then to the daemon listed first in the config. Two places that end up with one
-// label each take `<label> · <daemon name>`, with the name of the daemon whose label shows.
+// One label for each place key. The daemon on this computer wins a disagreement, then the daemon
+// listed first in the config. Two places with one label add the daemon name, then the target id,
+// then the place key, until they differ.
 export function pickPlaceLabels(
   sessions: readonly PlacedSession[],
   daemonOrder: readonly DaemonName[],
@@ -23,10 +26,14 @@ export function pickPlaceLabels(
   const chosen = new Map<string, Candidate>();
 
   for (const session of sessions) {
+    const label = session.place.label;
+
     const candidate: Candidate = {
-      daemon: session.daemon,
       rank: rankDaemon(session.daemon, daemonOrder),
-      label: session.place.label,
+      label,
+      qualifiers: [toDaemonLabel(session.daemon), session.target, session.place.key].filter(
+        (qualifier) => qualifier !== label,
+      ),
     };
 
     const held = chosen.get(session.place.key);
@@ -36,22 +43,10 @@ export function pickPlaceLabels(
     }
   }
 
-  const keysByLabel = new Map<string, number>();
-
-  for (const candidate of chosen.values()) {
-    keysByLabel.set(candidate.label, (keysByLabel.get(candidate.label) ?? 0) + 1);
-  }
-
   const labels = new Map<string, string>();
 
   for (const [key, candidate] of chosen) {
-    const isShared = (keysByLabel.get(candidate.label) ?? 0) > 1;
-
-    const label = isShared
-      ? `${candidate.label} · ${toDaemonLabel(candidate.daemon)}`
-      : candidate.label;
-
-    labels.set(key, label);
+    labels.set(key, pickDistinctLabel(candidate, [...chosen.values()]));
   }
 
   return labels;
@@ -65,4 +60,23 @@ function rankDaemon(daemon: DaemonName, daemonOrder: readonly DaemonName[]): num
   const index = daemonOrder.indexOf(daemon);
 
   return index === -1 ? daemonOrder.length : index;
+}
+
+// the shortest label, with qualifiers added one at a time, that no other place shares
+function pickDistinctLabel(candidate: Candidate, all: readonly Candidate[]): string {
+  const others = all.filter((other) => other !== candidate);
+
+  for (let depth = 0; depth < candidate.qualifiers.length; depth++) {
+    const label = formatLabel(candidate, depth);
+
+    if (others.every((other) => formatLabel(other, depth) !== label)) {
+      return label;
+    }
+  }
+
+  return formatLabel(candidate, candidate.qualifiers.length);
+}
+
+function formatLabel(candidate: Candidate, depth: number): string {
+  return [candidate.label, ...candidate.qualifiers.slice(0, depth)].join(' · ');
 }

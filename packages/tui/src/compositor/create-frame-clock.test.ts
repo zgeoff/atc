@@ -54,6 +54,39 @@ test('#request keeps drawing at the earliest answer while a layer animates', () 
   expect(ctx.frames.slice(0, 3)).toStrictEqual([1000, 1016, 1032]);
 });
 
+test('#request draws a frame asked for while an animation tick is overdue', () => {
+  const ctx = setupTest();
+  const spinner = { isSpinning: true };
+
+  ctx.layers.push({
+    draw: () => {},
+    nextFrameAt: (nowMs) => (spinner.isSpinning ? nowMs + 100 : null),
+  });
+
+  ctx.frameClock.request();
+  ctx.clock.advance(0);
+  ctx.clock.stall(150);
+
+  spinner.isSpinning = false;
+
+  ctx.frameClock.request();
+  ctx.clock.advance(1000);
+
+  expect(ctx.frames).toStrictEqual([1000, 1150]);
+});
+
+test('#request drops an animation tick that runs late with no request joined to it', () => {
+  const ctx = setupTest();
+
+  ctx.layers.push({ draw: () => {}, nextFrameAt: (nowMs) => (nowMs < 1100 ? nowMs + 100 : null) });
+  ctx.frameClock.request();
+  ctx.clock.advance(0);
+  ctx.clock.stall(150);
+  ctx.clock.advance(0);
+
+  expect(ctx.frames).toStrictEqual([1000]);
+});
+
 test('#stop draws no frame after it', () => {
   const ctx = setupTest();
 

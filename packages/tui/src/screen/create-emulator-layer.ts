@@ -26,8 +26,19 @@ export function createEmulatorLayer(deps: EmulatorLayerDeps): Layer {
           continue;
         }
 
-        for (let col = 0; col < Math.min(size.cols, frame.cols); col++) {
+        const lastCol = Math.min(size.cols, frame.cols) - 1;
+
+        for (let col = 0; col <= lastCol; col++) {
           buffer.set(col, row, emulator.readCell(col, row));
+        }
+
+        // a terminal wraps a wide grapheme that starts in its last column onto the next row
+        if (
+          lastCol >= 0 &&
+          lastCol + 1 < size.cols &&
+          emulator.readCell(lastCol + 1, row).ch === ''
+        ) {
+          buffer.set(lastCol, row, { ...emulator.readCell(lastCol, row), ch: ' ' });
         }
       }
     },

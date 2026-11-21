@@ -230,7 +230,8 @@ z.object({
   at the earliest answer. When every layer answers null, the clock stops, and the TUI draws a frame
   only when a session writes, a key arrives, the fleet changes or the window resizes.
 - A layer that animates answers `now + 16`, so the clock runs at 60 Hz while it moves.
-- A frame that takes longer than 16 ms drops the next tick. The clock never queues ticks.
+- A frame that takes longer than 16 ms drops the next tick. The clock never queues ticks. A frame
+  that an event asked for always draws, even when it joins a late tick.
 - The session list's open and close are decorative motion. When the config's `animations` is
   `false`, they take one frame, and the layer answers null.
 - A spinner shows state, so it turns at 10 Hz whatever `animations` says: a layer with a spinner

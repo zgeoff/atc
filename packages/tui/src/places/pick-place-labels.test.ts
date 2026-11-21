@@ -4,15 +4,15 @@ import { pickPlaceLabels } from './pick-place-labels';
 test.each([
   {
     title: 'the one label of a place on one daemon',
-    sessions: [{ daemon: 'lab', place: { key: 'k1', label: 'cloud' } }],
+    sessions: [{ daemon: 'lab', target: 'box', place: { key: 'k1', label: 'cloud' } }],
     order: ['lab'],
     expected: [['k1', 'cloud']],
   },
   {
     title: 'the label of the daemon on this computer over the others',
     sessions: [
-      { daemon: 'lab', place: { key: 'k1', label: 'cloud' } },
-      { daemon: null, place: { key: 'k1', label: 'cloud' } },
+      { daemon: 'lab', target: 'box', place: { key: 'k1', label: 'cloud' } },
+      { daemon: null, target: 'box', place: { key: 'k1', label: 'cloud' } },
     ],
     order: ['lab'],
     expected: [['k1', 'cloud']],
@@ -20,8 +20,8 @@ test.each([
   {
     title: 'the label of the daemon listed first when none is local',
     sessions: [
-      { daemon: 'box', place: { key: 'k1', label: 'second' } },
-      { daemon: 'lab', place: { key: 'k1', label: 'first' } },
+      { daemon: 'box', target: 'box', place: { key: 'k1', label: 'second' } },
+      { daemon: 'lab', target: 'box', place: { key: 'k1', label: 'first' } },
     ],
     order: ['lab', 'box'],
     expected: [['k1', 'first']],
@@ -29,8 +29,8 @@ test.each([
   {
     title: 'the daemon name on two places with one label',
     sessions: [
-      { daemon: 'lab', place: { key: 'k1', label: 'docker' } },
-      { daemon: 'box', place: { key: 'k2', label: 'docker' } },
+      { daemon: 'lab', target: 'box', place: { key: 'k1', label: 'docker' } },
+      { daemon: 'box', target: 'box', place: { key: 'k2', label: 'docker' } },
     ],
     order: ['lab', 'box'],
     expected: [
@@ -41,13 +41,37 @@ test.each([
   {
     title: 'local as the daemon name of the daemon on this computer',
     sessions: [
-      { daemon: null, place: { key: 'k1', label: 'docker' } },
-      { daemon: 'box', place: { key: 'k2', label: 'docker' } },
+      { daemon: null, target: 'box', place: { key: 'k1', label: 'docker' } },
+      { daemon: 'box', target: 'box', place: { key: 'k2', label: 'docker' } },
     ],
     order: ['box'],
     expected: [
       ['k1', 'docker · local'],
       ['k2', 'docker · box'],
+    ],
+  },
+  {
+    title: 'the target id on two places with one label on one daemon',
+    sessions: [
+      { daemon: 'lab', target: 'east', place: { key: 'k1', label: 'box' } },
+      { daemon: 'lab', target: 'west', place: { key: 'k2', label: 'box' } },
+    ],
+    order: ['lab'],
+    expected: [
+      ['k1', 'box · lab · east'],
+      ['k2', 'box · lab · west'],
+    ],
+  },
+  {
+    title: 'the place key on two places with one label on one target',
+    sessions: [
+      { daemon: 'lab', target: 'vm', place: { key: 'k1', label: 'vm' } },
+      { daemon: 'lab', target: 'vm', place: { key: 'k2', label: 'vm' } },
+    ],
+    order: ['lab'],
+    expected: [
+      ['k1', 'vm · lab · k1'],
+      ['k2', 'vm · lab · k2'],
     ],
   },
 ])('#pickPlaceLabels gives $title', (row) => {

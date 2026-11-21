@@ -8,6 +8,9 @@ export type FleetBarLevel = 'glyphs' | 'counts' | 'short';
 export interface FleetBarSession {
   readonly daemon: DaemonName;
   readonly state: SessionViewState;
+
+  // the target id, which tells apart two places with one label on one daemon
+  readonly target: string;
   readonly place: SessionPlace;
 }
 
