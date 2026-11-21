@@ -3,17 +3,18 @@
 - **Status:** draft
 
 Each session descriptor, the session record that a daemon sends its clients, carries the session's
-place: where its agent runs, such as one imp service, one docker host or one machine. The
-[session list](./session-list.md) and the [fleet bar](./fleet-bar.md) group sessions by place. A
-target, in the config, is one daemon's route to a place, so when two daemons each have a target that
+place: where its agent runs, either one remote service that several daemons can reach, such as an
+imp service, or one daemon's target. The [session list](./session-list.md) and the
+[fleet bar](./fleet-bar.md) group sessions by place. When two daemons each have a target that
 reaches the same imp service, their sessions share one place and one group.
 
 ## Shape
 
 ```mermaid
 flowchart LR
-  cfg["target config: provider, options, label"] --> rule["provider's place(options)"]
+  cfg["target config: provider, options"] --> rule["provider's place(options)"]
   rule --> key[place key]
+  label["target's label, else its id"] --> desc
   key --> desc["session descriptor: place, canDestroyHost"]
   desc --> tui[TUI groups by place.key]
 ```
@@ -76,8 +77,9 @@ type PlaceParts =
   depth, then JSON, then sha256. The sort compares code units, so two daemons with different locales
   still sort alike. A shared place key is `<provider>:<version>:<hash>`, where `<hash>` is the first
   16 hex characters.
-- Before hashing, a provider writes each URL in `parts` in one form, so `https://imp.example.dev/`,
-  `https://IMP.example.dev:443` and `https://imp.example.dev./` give one key. The provider:
+- Before hashing, a provider writes each URL it puts in `parts` through `formatPlaceURL` in
+  `@atc/plugin-api`, so `https://imp.example.dev/`, `https://IMP.example.dev:443` and
+  `https://imp.example.dev./` give one key. `formatPlaceURL`:
   - lowercases the scheme and the host;
   - drops a default port, such as 443 for `https`;
   - drops a trailing dot from the host;
@@ -89,9 +91,9 @@ type PlaceParts =
 
 - Daemon scope means the place belongs to one daemon and one target, and never merges with a place
   on another daemon. Its key is `daemon:<daemonID>:<target id>`, where `daemonID` is the id that
-  `atc daemon id` prints. atc percent-encodes each part, so a colon in a target id becomes `%3A` and
-  never splits the key into other parts. A sprites target has daemon scope though its machines run
-  remotely.
+  `atc daemon id` prints. atc percent-encodes the daemon id and the target id, so a colon in a
+  target id becomes `%3A` and never reads as a separator. A sprites target has daemon scope though
+  its machines run remotely.
 - A provider with no `place` rule gets daemon scope.
 
 ### The target's label
@@ -106,24 +108,28 @@ type PlaceParts =
 - The daemon fills `place` and `canDestroyHost` in every descriptor it sends: in the answers to
   `session.list`, `session.get` and `session.spawn`, and in each event that carries a descriptor.
 - The gateway passes `place` and `canDestroyHost` through unchanged.
-- `canDestroyHost` rides beside `place` because the [session list](./session-list.md#end) needs it
-  to word its end prompt. It is true only when forgetting the session would delete its machine: this
-  session's spawn created the machine, and the daemon would let the session's target destroy it. It
-  is false in these cases:
-  - another session's spawn created the machine;
-  - the provider cannot delete machines (its `capabilities.destroy` is false);
-  - the daemon refuses the session's binding to its target, because the target changed since the
-    session started or restore could not confirm its unversioned binding, so `session.forget` fails
-    with `target_changed`.
+- The daemon sends `canDestroyHost` for the [session list](./session-list.md#end), which words its
+  end prompt from it. It is true only when forgetting the session would delete its host, the machine
+  or container the session runs on: this session's spawn created the host, and the check that
+  `session.forget` runs allows the delete. It is false in these cases:
+  - the session's provider has no hosts to delete, as for a local session;
+  - another session's spawn created the host;
+  - the provider cannot delete hosts (its `capabilities.destroy` is false);
+  - `session.forget` refuses the session with `target_changed`: the session was saved under an
+    earlier config of its target, or its saved binding to the target has no version and fleet
+    restore could not confirm it.
+- A session that `session.forget` refuses with `target_changed` gets the key
+  `daemon:<daemonID>:<target id>:<saved target identity>`, so it never joins the place its target
+  has now.
 
 ### In the TUI
 
-- When a descriptor has no `place`, because its daemon runs an older atc, the TUI uses key
-  `daemon:<daemon name>:<target id>` and label `<target id>`, where `<daemon name>` is the daemon's
-  name in the TUI's config. Those sessions group by daemon and target. When that daemon upgrades,
-  its places get daemon-scope or shared keys, and their colours can change.
+- When a descriptor has no `place`, because its daemon was built before the field existed, the TUI
+  uses key `daemon:<daemon name>:<target id>` and label `<target id>`, where `<daemon name>` is the
+  daemon's name in the TUI's config. Those sessions group by daemon and target. When that daemon
+  upgrades, its places get daemon-scope or shared keys, and their colours can change.
 - When the daemons in one place give it different labels, the TUI shows the label from the daemon on
-  its own machine, else from the daemon listed first in its config's `daemons`.
+  the TUI's own computer, else from the daemon listed first in the TUI config's `daemons`.
 - When two different places have the same label, the TUI writes each as `<label> · <daemon name>`,
   with the name of the daemon whose label it shows, in group headers and in the fleet bar.
 - The TUI picks a place's colour from its key, so a place has the same colour on every daemon that
@@ -141,8 +147,8 @@ type PlaceParts =
   match across those daemons, so it hashes only what names the service.
 - **sprites targets have daemon scope.** A sprites target's options name the API, not the account's
   org, so a key built from them would put every sprites account in one place.
-- **Two imp accounts on one imp service are one place.** Imp's parts hold only `url`. A user who
-  wants them apart gives each target its own `label`; they still share one group.
+- **Two imp accounts on one imp service are one place.** Imp's parts hold only `url`, so the two
+  accounts' sessions share one group under one label.
 
 ## Builder decides
 

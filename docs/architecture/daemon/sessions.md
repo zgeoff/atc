@@ -105,29 +105,35 @@ from.
 
 ## The place a session runs in
 
-Every descriptor carries `place` and `canDestroyHost`, in the answers to `session.list`,
-`session.get` and `session.spawn` and in each event that carries a descriptor. The gateway passes
-both through unchanged. A daemon that predates places sends neither field.
+A session's place is where its agent runs: one remote service, such as an imp service, or one
+daemon's execution target. A client groups sessions by place, so sessions that two daemons run on
+one imp service show as one group. Every descriptor carries `place` and `canDestroyHost`, in the
+answers to `session.list`, `session.get` and `session.spawn` and in each event that carries a
+descriptor. The gateway passes both through unchanged. Both fields are optional in the contract.
 
-| Field            | Holds                                                                                                                                                      |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `place.key`      | the id a client groups sessions by; two daemons that reach one remote service send one key                                                                 |
-| `place.label`    | the `label` of the session's target in the config, else the target id                                                                                      |
-| `canDestroyHost` | whether forgetting the session would delete its machine: this session's spawn made the machine, and the daemon lets the target destroy it for this session |
+| Field            | Holds                                                                                                          |
+| ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| `place.key`      | the id a client groups sessions by; two daemons that reach one remote service send one key                     |
+| `place.label`    | the `label` of the session's [target](../execution/targets.md) in the config, else the target id               |
+| `canDestroyHost` | whether forgetting the session would delete its host: this session's spawn made the host, and forget allows it |
 
-The provider's `place` rule decides the key. A provider with no rule, and a provider whose rule
-answers daemon scope, gets `daemon:<daemon id>:<target id>`, with each part percent-encoded so that
-a colon inside a part never reads as a separator. A shared rule gives `<provider>:<version>:<hash>`,
-where the hash covers only the options that name the remote service.
-[Places](../../design/tui-redesign/places.md) holds the rules for each provider, the key and the
+Each execution provider can declare a `place` rule for its targets. A target whose provider declares
+a shared place gets the key `<provider id>:<rule version>:<hash>`, where the hash covers only the
+options that name the remote service. Every other target gets `daemon:<daemon id>:<target id>`. atc
+percent-encodes each part, so a colon inside a part never reads as a separator.
+[Places](../../design/tui-redesign/places.md) gives the rule for each provider, the key and the
 target label.
 
-The daemon fills both fields from the check that `session.forget` runs before it deletes a machine.
-When that check refuses the session with `target_changed`, `canDestroyHost` is false and the session
-keeps out of the target's current place. The check refuses a session saved on an earlier config of
-its target, and a session whose unversioned binding restore could not confirm. The place key of such
-a refused session is `daemon:<daemon id>:<target id>:<saved identity>`, each part percent-encoded,
-so it never equals the key of a target whose id holds the saved identity.
+The daemon fills both fields from the same check that `session.forget` runs before it deletes a
+host. The check refuses a session with `target_changed` in two cases:
+
+- the session was saved under an earlier config of its target, so its saved target identity differs
+  from the target's identity now;
+- the session's binding has no version, and fleet restore could not confirm it against the host.
+
+For a session the check refuses, `canDestroyHost` is false, and the session gets the place key
+`daemon:<daemon id>:<target id>:<saved target identity>`, so it never joins the place its target has
+now.
 
 ## Sub-sessions
 
