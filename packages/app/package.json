@@ -1,6 +1,6 @@
 {
   "name": "@atc/app",
-  "version": "7.21.1",
+  "version": "7.22.0",
   "private": true,
   "description": "The atc and atc-gateway entrypoints and the modules they wire together",
   "type": "module",

@@ -1,5 +1,18 @@
 # Changelog
 
+## [7.22.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.21.1...@zgeoff/atc@7.22.0) (2026-11-21)
+
+
+### Features
+
+* send each session's place in its descriptor ([#1346](https://github.com/zgeoff/atc/issues/1346)) ([b1a584f](https://github.com/zgeoff/atc/commit/b1a584f5aead8497eadcebe57ee46e20f1215933))
+* **tui:** draw every screen through a compositor, with a fleet bar ([#1349](https://github.com/zgeoff/atc/issues/1349)) ([ba0d638](https://github.com/zgeoff/atc/commit/ba0d6389526b97ef172ad8702db717ea9a2a383c))
+
+
+### Bug Fixes
+
+* **daemon:** replace a leftover log config when stderr log starts ([#1345](https://github.com/zgeoff/atc/issues/1345)) ([ba5d2b3](https://github.com/zgeoff/atc/commit/ba5d2b3463b3e350b8685258746beb8e613d7d54))
+
 ## [7.21.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.21.0...@zgeoff/atc@7.21.1) (2026-11-20)
 
 ### Bug Fixes
