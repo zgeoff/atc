@@ -1,0 +1,48 @@
+import { blendRGB } from '../compositor/blend-rgb';
+import type { RGB } from '../compositor/types';
+import { WORDMARK_BASE, WORDMARK_TOP } from './constants';
+import type { Coverage } from './types';
+
+// One cell of a wordmark. A null colour leaves the terminal's own.
+export interface WordmarkCell {
+  readonly ch: string;
+  readonly fg: RGB | null;
+  readonly bg: RGB | null;
+}
+
+// Turns pixel coverage into cells, two pixels to a cell: `▀` for a top pixel, `▄` for a bottom
+// one, and `▀` over a background for both. The colour runs from top to base, and a part-covered
+// pixel blends toward the terminal's background.
+export function buildWordmarkCells(
+  coverage: Coverage,
+  background: RGB,
+): readonly (readonly WordmarkCell[])[] {
+  const height = coverage.length;
+
+  const toPixel = (row: number, col: number): RGB | null => {
+    const share = coverage[row]?.[col] ?? 0;
+
+    if (share === 0) {
+      return null;
+    }
+
+    const rowShare = height < 2 ? 0 : row / (height - 1);
+
+    return blendRGB(background, blendRGB(WORDMARK_TOP, WORDMARK_BASE, rowShare), share);
+  };
+
+  const buildRow = (cellRow: number): WordmarkCell[] =>
+    Array.from({ length: coverage[0]?.length ?? 0 }, (_, col) =>
+      buildCell(toPixel(cellRow * 2, col), toPixel(cellRow * 2 + 1, col)),
+    );
+
+  return Array.from({ length: height / 2 }, (_, cellRow) => buildRow(cellRow));
+}
+
+function buildCell(top: RGB | null, bottom: RGB | null): WordmarkCell {
+  if (top !== null) {
+    return { ch: '▀', fg: top, bg: bottom };
+  }
+
+  return bottom === null ? { ch: ' ', fg: null, bg: null } : { ch: '▄', fg: bottom, bg: null };
+}

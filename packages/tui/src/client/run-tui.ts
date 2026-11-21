@@ -20,6 +20,8 @@ import { toSessionKey } from '../fleet/session-key';
 import type { DaemonName, SessionKey } from '../fleet/session-key';
 import { toMirrorSession } from '../fleet/to-mirror-session';
 import type { MirrorSession } from '../fleet/to-mirror-session';
+import { createHomeDeps } from '../home/create-home-deps';
+import { isHomeShown } from '../home/is-home-shown';
 import { createEjectScreen } from '../overlay/create-eject-screen';
 import { createOverlayScreen } from '../overlay/create-overlay-screen';
 import { matchLeaderKey } from '../overlay/match-leader-key';
@@ -27,7 +29,6 @@ import { createSpawnPicker } from '../picker/create-spawn-picker';
 import { createTUIScreen } from '../screen/create-tui-screen';
 import { cols } from '../terminal/cols';
 import { drawHelp } from '../terminal/draw-help';
-import { drawHome } from '../terminal/draw-home';
 import { ptyRows } from '../terminal/pty-rows';
 import { restoreTerminal } from '../terminal/restore-terminal';
 import { rows } from '../terminal/rows';
@@ -39,13 +40,12 @@ import type { RestartConsent } from './build-client-machine';
 import { createAttachment } from './create-attachment';
 import { createLinkReactions } from './create-link-reactions';
 import { createSessionActions } from './create-session-actions';
+import { createStatusNotices } from './create-status-notices';
 import { createStatusScheduler } from './create-status-scheduler';
 import { drawModeScreen } from './draw-mode-screen';
 import { handleResize } from './handle-resize';
 import { isOverSession } from './is-over-session';
 import type { TUIHost } from './tui-host';
-
-const STATUS_NOTICE_MS = 8000;
 
 export async function runTUI(host: TUIHost): Promise<void> {
   const [primary] = host.daemons;
@@ -67,11 +67,13 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const mirror = createFleetMirror(primaryName);
   let focusedKey: SessionKey | null = null;
   let lastUsedAgent: AgentID = host.readConfig().defaultAgent;
-  let statusNotice: string | null = null;
-  let cancelStatusNotice: (() => void) | null = null;
 
-  // the status notice that belongs to home, which the next opening of the list drops
-  let homeNotice: string | null = null;
+  // the scheduler comes later, because it reads what the notices and the screen hold
+  const notices = createStatusNotices({
+    clock: systemClock,
+    scheduleStatus: () => scheduleStatus(),
+  });
+
   const stdout = process.stdout;
   const leader = host.readConfig().leader;
   const isShowingSession = () => isOverSession(getMode(), findRestartConsent(), findFocused());
@@ -98,8 +100,19 @@ export async function runTUI(host: TUIHost): Promise<void> {
       links: () => links,
       leaderLabel: leader.label,
       findFocused: () => findFocused(),
-      isShown: () => isShowingSession() && statusNotice === null && !isAttachedLinkDown(),
+      isShown: () => isShowingSession() && notices.read() === null && !isAttachedLinkDown(),
     }),
+    home: createHomeDeps({
+      mirror,
+      leaderLabel: leader.label,
+      readNoticeSource: () => ({
+        notice: notices.read(),
+        isWaiting: isDaemonWaiting(),
+        isRestarting: isDaemonRestarting(),
+        isStale: getBoot().stale,
+      }),
+    }),
+    isHomeShown: () => isHomeShown(getMode(), isShowingSession()),
     sendSessionReply: (key, bytes) => {
       void sendInput(key, bytes);
     },
@@ -115,7 +128,8 @@ export async function runTUI(host: TUIHost): Promise<void> {
 
     focusedKey = null;
 
-    drawHome(mirror.count, leader.label);
+    screen.writeScreen(ansi.clear + ansi.hideCursor);
+
     scheduleStatus();
   };
 
@@ -132,13 +146,14 @@ export async function runTUI(host: TUIHost): Promise<void> {
     leaderLabel: leader.label,
     isOverSession: isShowingSession,
     isListOpen: () => getMode() === 'overlay',
+    isHome: () => getMode() === 'home',
     getBoot: () => getBoot(),
     findFocused,
     listVisible: () => overlay.listVisible(),
     isAttachedLinkDown: () => isAttachedLinkDown(),
     isDaemonRestarting: () => isDaemonRestarting(),
     isDaemonWaiting: () => isDaemonWaiting(),
-    findNotice: () => statusNotice,
+    findNotice: notices.read,
     requestFrame: screen.requestFrame,
   });
 
@@ -148,41 +163,11 @@ export async function runTUI(host: TUIHost): Promise<void> {
     focusedKey.daemon !== primaryName &&
     links.stateOf(focusedKey.daemon).kind !== 'up';
 
-  const showStatusNotice = (text: string) => {
-    statusNotice = text;
-    cancelStatusNotice?.();
-
-    cancelStatusNotice = systemClock.schedule(() => {
-      statusNotice = null;
-      cancelStatusNotice = null;
-
-      scheduleStatus();
-    }, STATUS_NOTICE_MS);
-
-    scheduleStatus();
-  };
-
-  const showHomeNotice = (text: string) => {
-    homeNotice = text;
-
-    showStatusNotice(text);
-  };
-
-  const dropHomeNotice = () => {
-    if (homeNotice !== null && statusNotice === homeNotice) {
-      cancelStatusNotice?.();
-      statusNotice = null;
-      cancelStatusNotice = null;
-    }
-
-    homeNotice = null;
-  };
-
   const reportFailure = (daemon: DaemonName, error: unknown) => {
     const text = formatDaemonFailure(daemon, error);
 
     if (text !== null) {
-      showStatusNotice(text);
+      notices.show(text);
     }
   };
 
@@ -214,7 +199,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     findFocused,
     readSize: () => ({ cols: cols(), rows: ptyRows() }),
     sendQuiet,
-    showStatusNotice,
+    showStatusNotice: notices.show,
     reportFailure,
   });
 
@@ -295,8 +280,6 @@ export async function runTUI(host: TUIHost): Promise<void> {
   const drawMode = () => {
     drawModeScreen({
       mode: getMode(),
-      sessionCount: mirror.count,
-      leaderLabel: leader.label,
       overlay,
       picker,
       eject,
@@ -355,11 +338,8 @@ export async function runTUI(host: TUIHost): Promise<void> {
       openHome,
       openAttached,
       openOverlay: () => {
-        // Home waits under the session too, so the list keeps a screen behind it when that
-        // session dies while the list is open.
-        drawHome(mirror.count, leader.label);
-        dropHomeNotice();
-
+        screen.writeScreen(ansi.clear + ansi.hideCursor);
+        notices.dropHome();
         overlay.open();
       },
       openHelp,
@@ -396,7 +376,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     ptyRows,
     findFocusedKey,
     reportFailure,
-    showHomeNotice,
+    showHomeNotice: notices.showHome,
   });
 
   const eject = createEjectScreen({
@@ -462,7 +442,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     write: screen.writeScreen,
     reattach,
     sendQuiet,
-    showStatusNotice,
+    showStatusNotice: notices.show,
     scheduleStatus,
   });
 

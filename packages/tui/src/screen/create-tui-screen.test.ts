@@ -6,7 +6,7 @@ import { createTUIScreen } from './create-tui-screen';
 function setupTest() {
   const clock = buildStubClock(1000);
   const written: string[] = [];
-  const state = { isFocused: false, isBarShown: false };
+  const state = { isFocused: false, isBarShown: false, isHomeShown: false };
 
   const screen = createTUIScreen({
     clock,
@@ -49,6 +49,15 @@ function setupTest() {
         leaderLabel: 'ctrl+space',
       }),
     },
+    home: {
+      readInput: () => ({
+        sessionCount: 3,
+        needYouCount: 1,
+        leaderLabel: 'ctrl+space',
+        notices: [],
+      }),
+    },
+    isHomeShown: () => state.isHomeShown,
     sendSessionReply: () => {},
   });
 

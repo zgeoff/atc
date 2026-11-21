@@ -17,6 +17,9 @@ export interface StatusSchedulerDeps {
 
   // true while the session list is open, which has no status bar of its own to show
   readonly isListOpen: () => boolean;
+
+  // true while home shows, which draws what the bar carries in the home layer
+  readonly isHome: () => boolean;
   readonly isDaemonRestarting: () => boolean;
   readonly isDaemonWaiting: () => boolean;
 
@@ -39,6 +42,12 @@ export function createStatusScheduler(deps: StatusSchedulerDeps): () => void {
       timer = null;
 
       deps.requestFrame();
+
+      if (deps.isHome()) {
+        isBarDrawn = false;
+
+        return;
+      }
 
       const notice = deps.findNotice();
       const isOverAttached = deps.isOverSession() && !deps.isAttachedLinkDown();
