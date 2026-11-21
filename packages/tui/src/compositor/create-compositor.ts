@@ -1,10 +1,10 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import { buildCellBuffer } from './build-cell-buffer';
 import { renderFlush } from './render-flush';
 import type { CellBuffer, CursorPlacement, FrameInfo, Layer, TerminalFacts } from './types';
 
 export interface CompositorDeps {
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly write: (chunk: string) => void;
   readonly readSize: () => { readonly cols: number; readonly rows: number };
   readonly readFacts: () => TerminalFacts;

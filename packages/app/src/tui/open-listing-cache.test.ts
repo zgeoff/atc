@@ -3,9 +3,9 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildStubSkipClock } from '@atc/core/test-utils/build-stub-skip-clock';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { LISTING_CACHE_LIFETIME_MS } from '@atc/tui';
+import { waitFor } from '@zgeoff/testing';
+import { run } from '@zgeoff/testing/process';
 import { openListingCache } from './open-listing-cache';
 
 // Abort any wait still polling the folder before the folder is deleted.
@@ -222,7 +222,7 @@ test('it keeps every write from writers in several processes, and the latest req
   const ctx = setupTest();
 
   const writers = Array.from({ length: 4 }, (_, writer) =>
-    runCommand([
+    run([
       process.execPath,
       '-e',
       `const { openListingCache } = await import(${JSON.stringify(join(import.meta.dir, 'open-listing-cache.ts'))});
@@ -266,7 +266,7 @@ for (let round = 0; round < 6; round += 1) {
 
   const cache = openListingCache(ctx.file);
 
-  expect(runs.map((run) => run.exitCode)).toStrictEqual([0, 0, 0, 0]);
+  expect(runs.map((outcome) => outcome.exitCode)).toStrictEqual([0, 0, 0, 0]);
 
   expect(
     Array.from({ length: 24 }, (_, index) =>
@@ -349,7 +349,7 @@ test('it keeps every write when writers in several processes take over one stale
   writeFileSync(join(lockPath, `${exitedPid}-dead-writer`), '');
 
   const writers = Array.from({ length: 4 }, (_, writer) =>
-    runCommand([
+    run([
       process.execPath,
       '-e',
       `const { openListingCache } = await import(${JSON.stringify(join(import.meta.dir, 'open-listing-cache.ts'))});
@@ -388,7 +388,7 @@ for (let round = 0; round < 6; round += 1) {
 
   const cache = openListingCache(ctx.file);
 
-  expect(runs.map((run) => run.exitCode)).toStrictEqual([0, 0, 0, 0]);
+  expect(runs.map((outcome) => outcome.exitCode)).toStrictEqual([0, 0, 0, 0]);
 
   expect(
     Array.from({ length: 24 }, (_, index) =>

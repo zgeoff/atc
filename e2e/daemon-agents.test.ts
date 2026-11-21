@@ -5,15 +5,15 @@ import { createStubComposer } from '@atc/app/test-utils/create-stub-composer';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createStubClaude } from '@atc/harness-claude/test-utils/create-stub-claude';
 import { startDaemonProcess } from '@atc/lifecycle/test-utils/start-daemon-process';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 // The atc-bridge mod folder is written by the daemon command from the build
 // it runs as, so these cases start the real command.
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-agents-');
+  const temporaryDirectory = createTempDir('atc-e2e-agents-');
   const atc = resolveATCCommand();
   const composer = createStubComposer(temporaryDirectory.path);
   const configDir = join(temporaryDirectory.path, '.config', 'atc');

@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildStubRecordingGit } from './build-stub-recording-git';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-recording-git-');
+  const temporaryDirectory = createTempDir('atc-stub-recording-git-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -15,15 +15,13 @@ function setupTest() {
 test('it records each run and exits 0 without output', async () => {
   const ctx = setupTest();
 
-  const git = createStubBin(
-    ctx.directory,
-    'git',
-    buildStubRecordingGit(join(ctx.directory, 'git-ran')),
-  );
+  const git = createStubBin(ctx.directory, 'git', {
+    script: buildStubRecordingGit(join(ctx.directory, 'git-ran')),
+  }).path;
 
-  await runCommand([git, 'ls-remote', 'https://example.invalid/app.git']);
+  await run([git, 'ls-remote', 'https://example.invalid/app.git']);
 
-  const second = await runCommand([git, 'version']);
+  const second = await run([git, 'version']);
 
   expect({ exitCode: second.exitCode, stdout: second.stdout }).toStrictEqual({
     exitCode: 0,

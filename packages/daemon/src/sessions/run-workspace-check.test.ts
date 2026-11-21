@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { runWorkspaceCheck } from './run-workspace-check';
 
@@ -401,7 +401,7 @@ test('it reports a folder that is gone as missing', async () => {
 
 test('it reports a folder that is not a git checkout as foreign', () => {
   const ctx = setupTest();
-  const temporaryDirectory = setupTempDir('atc-workspace-check-plain-');
+  const temporaryDirectory = createTempDir('atc-workspace-check-plain-');
 
   expect(
     runWorkspaceCheck({

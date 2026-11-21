@@ -2,19 +2,19 @@ import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import { systemClock } from '@atc/core';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openATCAuth } from '@atc/mcp';
 import { seedOwnerClient } from '@atc/mcp/test-utils/seed-owner-client';
 import { seedOwnerGrant } from '@atc/mcp/test-utils/seed-owner-grant';
 import { seedOwnerSchema } from '@atc/mcp/test-utils/seed-owner-schema';
+import { systemClock } from '@zgeoff/std';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
 
 function setupTest(grantID: string) {
-  const home = setupTempDir('atc-e2e-grants-').path;
+  const home = createTempDir('atc-e2e-grants-').path;
   const dbPath = resolvePaths({ HOME: home }).mcpAuthDBFile;
 
   mkdirSync(join(dbPath, '..'), { recursive: true });
@@ -48,7 +48,7 @@ function setupTest(grantID: string) {
 test('it revokes a grant whose id starts with a dash with --revoke=<id> so its access token stops working', async () => {
   const ctx = setupTest('-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc');
 
-  const revoked = await runCommand(
+  const revoked = await run(
     [...ctx.atc, 'grants', '--revoke=-yZRPpyZlelRN38oFXCrOzyQv3VRUBE1m3h_yIrJvhc'],
     { env: ctx.env },
   );

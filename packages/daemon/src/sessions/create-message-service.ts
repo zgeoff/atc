@@ -1,4 +1,3 @@
-import type { Clock } from '@atc/core';
 import type { DaemonAnswer } from '@atc/protocol';
 import type { EventMsg } from '@atc/protocol/wire';
 import type {
@@ -9,6 +8,7 @@ import type {
   TrailEntry,
 } from '@atc/store';
 import type { MessageID, SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { EventSignal } from '../transport/create-event-signal';
@@ -50,7 +50,7 @@ interface MessageServiceDeps {
     | 'updateDeliveredMessagesUnanswered'
     | 'updateUnsettledMessagesUnanswered'
   >;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly ledger: Pick<IdempotencyLedger, 'run'>;
   readonly taps: TapRegistry<TapClient>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;

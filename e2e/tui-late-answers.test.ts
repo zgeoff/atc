@@ -5,16 +5,15 @@ import { openAgentStep } from '@atc/app/test-utils/open-agent-step';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { tabToRepoRows } from '@atc/app/test-utils/tab-to-repo-rows';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startGitHTTPServer } from '@atc/daemon/test-utils/start-git-http-server';
 import { createDaemonClient } from '@atc/protocol/client';
 import { buildStubHeldZoxide } from '@atc/source-dirs/test-utils/build-stub-held-zoxide';
 import { buildStubHeldGH } from '@atc/source-github/test-utils/build-stub-held-gh';
 import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-signed-out-gh';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
 import { $ } from 'bun';
 
 function setupTest() {
@@ -27,7 +26,7 @@ test('it stops a repository listing on esc to the agent step and lists again on 
   const fixture = await createGitFixture();
 
   writeFileSync(join(ctx.home, 'gh-hold'), '');
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubHeldGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubHeldGH() });
 
   ctx.boot();
 
@@ -68,7 +67,7 @@ test('it cancels a probe in flight on esc and drops its answer', async () => {
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   const gate = Promise.withResolvers<void>();
 
@@ -127,7 +126,7 @@ test('it keeps the ref the user moved to when a repository listing answers late'
   await $`git push --quiet origin main:feat`.env(fixture.env).cwd(fixture.work).quiet();
 
   writeFileSync(join(ctx.home, 'gh-hold'), '');
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubHeldGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubHeldGH() });
 
   ctx.boot();
 
@@ -165,7 +164,7 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   const gate = Promise.withResolvers<void>();
   let hold = Promise.resolve();
@@ -244,10 +243,10 @@ test('it leaves the picker when esc stops waiting on a spawn, and the spawn list
 test('it stays where the user moved when a directory listing answers late', async () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   // The daemon runs zoxide from the PATH the client gives it.
-  createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
+  createStubBin(join(ctx.home, 'bin'), 'zoxide', { script: buildStubHeldZoxide() });
   writeFileSync(join(ctx.home, 'zoxide-hold'), '');
 
   ctx.boot();
@@ -285,8 +284,8 @@ test('it keeps a probe of a typed URL while the directory listing answers, spawn
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
-  createStubBin(join(ctx.home, 'bin'), 'zoxide', buildStubHeldZoxide());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
+  createStubBin(join(ctx.home, 'bin'), 'zoxide', { script: buildStubHeldZoxide() });
   writeFileSync(join(ctx.home, 'zoxide-hold'), '');
 
   const gate = Promise.withResolvers<void>();

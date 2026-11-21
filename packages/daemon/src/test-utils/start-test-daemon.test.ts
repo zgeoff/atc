@@ -2,15 +2,13 @@ import { expect, onTestFinished, test } from 'bun:test';
 import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { toAgentID } from '@atc/core';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import type { HookEvent } from '@atc/protocol/session';
 import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { startTestDaemon } from './start-test-daemon';
 
@@ -440,7 +438,7 @@ test('it keeps the stored fleet across a restart', async () => {
 });
 
 test("it boots the daemon on a copy of the run's migrated database", async () => {
-  const directory = setupTempDir('atc-marked-template-').path;
+  const directory = createTempDir('atc-marked-template-').path;
   const runTemplate = process.env['ATC_TEST_STATE_TEMPLATE'];
   const template = join(directory, 'template.db');
 

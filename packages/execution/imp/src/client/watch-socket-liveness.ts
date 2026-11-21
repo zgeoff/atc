@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 
 const PING_INTERVAL_MS = 10_000;
 const SILENCE_LIMIT_MS = 30_000;
@@ -6,7 +6,10 @@ const SILENCE_LIMIT_MS = 30_000;
 // A network path that drops every packet leaves a socket open with nothing
 // to read, and impd's own ping timeout closes only impd's side, so only a
 // ping from this side ends it.
-export function watchSocketLiveness(socket: WebSocket, clock: Clock): WebSocket {
+export function watchSocketLiveness(
+  socket: WebSocket,
+  clock: Pick<Clock, 'now' | 'schedule'>,
+): WebSocket {
   const state: { heardAt: number; cancel: (() => void) | null } = {
     heardAt: clock.now(),
     cancel: null,

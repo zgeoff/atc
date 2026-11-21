@@ -3,11 +3,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
 import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-statusline-');
+  const temporaryDirectory = createTempDir('atc-statusline-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -31,8 +31,8 @@ test('it prints the user statusline command and nothing else', async () => {
     JSON.stringify({ needs_you: 2, running: 1, done: 0, exited: 0, urgent: 'auth-bug' }),
   );
 
-  const subprocess = await runCommand([process.execPath, readSourceEntry('atc'), 'statusline'], {
-    stdin: JSON.stringify({ session_id: 'sl-1' }),
+  const subprocess = await run([process.execPath, readSourceEntry('atc'), 'statusline'], {
+    input: JSON.stringify({ session_id: 'sl-1' }),
     env: { ...process.env, HOME: ctx.directory, PATH: '/usr/sbin:/usr/bin:/bin' },
   });
 
@@ -53,8 +53,8 @@ test.each([
     JSON.stringify({ statusLine: { type: 'command', command: row.command } }),
   );
 
-  const subprocess = await runCommand([process.execPath, readSourceEntry('atc'), 'statusline'], {
-    stdin: JSON.stringify({ session_id: 'sl-1' }),
+  const subprocess = await run([process.execPath, readSourceEntry('atc'), 'statusline'], {
+    input: JSON.stringify({ session_id: 'sl-1' }),
     env: { ...process.env, HOME: ctx.directory, PATH: '/usr/sbin:/usr/bin:/bin' },
   });
 
@@ -77,8 +77,8 @@ test('it chains the user statusline from the Claude config folder CLAUDE_CONFIG_
     JSON.stringify({ statusLine: { type: 'command', command: 'echo CONFIG-DIR-SEGMENT' } }),
   );
 
-  const subprocess = await runCommand([process.execPath, readSourceEntry('atc'), 'statusline'], {
-    stdin: JSON.stringify({ session_id: 'sl-2' }),
+  const subprocess = await run([process.execPath, readSourceEntry('atc'), 'statusline'], {
+    input: JSON.stringify({ session_id: 'sl-2' }),
     env: {
       ...process.env,
       HOME: ctx.directory,

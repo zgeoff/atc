@@ -1,5 +1,5 @@
 import type { AgentID } from '@atc/core';
-import { systemClock, toAgentID } from '@atc/core';
+import { toAgentID } from '@atc/core';
 import type { AdapterEvent } from '@atc/protocol';
 import type { HookEvent } from '@atc/protocol/session';
 import type {
@@ -12,6 +12,7 @@ import type {
 } from '@atcx/contract';
 import { toDaemonID } from '@atcx/contract';
 import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
+import { systemClock } from '@zgeoff/std';
 import { Kysely } from 'kysely';
 import type { CompiledQuery, LogEvent } from 'kysely';
 import type {

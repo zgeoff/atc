@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readPidFilePID } from './read-pid-file-pid';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-pid-file-');
+  const temporaryDirectory = createTempDir('atc-pid-file-');
 
   return { directory: temporaryDirectory.path };
 }

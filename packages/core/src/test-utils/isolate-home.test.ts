@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from './run-command';
-import { setupTempDir } from './setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 // A nested `bun test` picks up the preload from Bun's config only when it runs from the
 // repository root, so the fixture runs there rather than in the temp directory.
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-isolate-home-');
+  const temporaryDirectory = createTempDir('atc-isolate-home-');
   const repo = join(import.meta.dir, '..', '..', '..', '..');
 
   return { directory: temporaryDirectory.path, repo };
@@ -35,7 +35,7 @@ test('it resolves the databases under the home', () => {
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: process.env,
   });
@@ -68,7 +68,7 @@ test('it resolves the events socket and the daemon record under the runtime dire
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: process.env,
   });
@@ -101,7 +101,7 @@ test('it resolves the codex home under the home', () => {
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: process.env,
   });
@@ -134,7 +134,7 @@ test('it runs without an inherited Claude config folder', () => {
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: {
       ...process.env,
@@ -166,7 +166,7 @@ test('it runs without the session socket', () => {
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: {
       ...process.env,
@@ -208,7 +208,7 @@ test('it sets the XDG state and cache homes under the home', () => {
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: process.env,
   });
@@ -231,23 +231,23 @@ test('it runs git in a test without the git config of the host XDG config home',
   writeFileSync(
     fixture,
     `import { expect, test } from 'bun:test';
-import { runCommand } from '${join(ctx.repo, 'packages', 'core', 'src', 'test-utils', 'run-command')}';
+import { run } from '${join(ctx.repo, 'node_modules', '@zgeoff', 'testing', 'src', 'process')}';
 
 test('it reads no value for the host canary key', async () => {
-  const read = await runCommand(['git', 'config', '--get', 'atc.canary']);
+  const read = await run(['git', 'config', '--get', 'atc.canary']);
 
   expect(read.stdout).toBe('');
 });
 
 test('it finds no host canary key at all', async () => {
-  const read = await runCommand(['git', 'config', '--get', 'atc.canary']);
+  const read = await run(['git', 'config', '--get', 'atc.canary']);
 
   expect(read.exitCode).toBe(1);
 });
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: { ...process.env, XDG_CONFIG_HOME: host },
   });
@@ -291,7 +291,7 @@ test('it holds the state directory under the home', () => {
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: process.env,
   });
@@ -327,7 +327,7 @@ test('it writes the mod again to the same directory', () => {
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: process.env,
   });
@@ -345,7 +345,7 @@ test("it puts back an environment override before the run's next test", async ()
   writeFileSync(
     fixture,
     `import { expect, test } from 'bun:test';
-import { updateEnv } from '${join(ctx.repo, 'packages', 'core', 'src', 'test-utils', 'update-env')}';
+import { updateEnv } from '${join(ctx.repo, 'node_modules', '@zgeoff', 'testing', 'src')}';
 
 test('it overrides a variable', () => {
   updateEnv('ATC_TEST_PRELOAD_RESTORE_PROBE', 'overridden');
@@ -359,7 +359,7 @@ test('it starts without the override', () => {
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: process.env,
   });
@@ -388,11 +388,9 @@ test('it reports the second test ran', () => {
 `,
   );
 
-  const { ATC_TEST_HOME: _marker, ...outer } = process.env;
-
-  const nested = await runCommand(['bun', 'test', fixture], {
+  const nested = await run(['bun', 'test', fixture], {
     cwd: ctx.repo,
-    env: outer,
+    env: { ATC_TEST_HOME: undefined },
   });
 
   expect({
@@ -424,7 +422,7 @@ test('it reports the second test ran', () => {
 `,
   );
 
-  const nested = await runCommand(['bun', 'test', fixture], {
+  const nested = await run(['bun', 'test', fixture], {
     cwd: ctx.repo,
     env: {
       ...process.env,
@@ -461,7 +459,7 @@ test('it reports the second test ran', () => {
 `,
   );
 
-  const nested = await runCommand(['bun', 'test', fixture], {
+  const nested = await run(['bun', 'test', fixture], {
     cwd: ctx.repo,
     env: {
       ...process.env,
@@ -498,7 +496,7 @@ test('it reports the second test ran', () => {
 `,
   );
 
-  const nested = await runCommand(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
+  const nested = await run(['bash', 'scripts/with-test-home.sh', 'bun', 'test', fixture], {
     cwd: ctx.repo,
     env: { ...process.env, TMPDIR: `${ctx.directory}/` },
   });

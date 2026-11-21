@@ -1,13 +1,13 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { HarnessRelay } from '@atc/plugin-api';
 import { openBridgeSocket } from '@atc/protocol/session';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStubRelayProvider } from './create-stub-relay-provider';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-relay-');
+  const temporaryDirectory = createTempDir('atc-stub-relay-');
 
   return { directory: temporaryDirectory.path };
 }

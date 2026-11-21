@@ -2,11 +2,11 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { buildTarArchive } from '@atc/core';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readGuestATCArchive } from './read-guest-atc-archive';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-guest-atc-archive-');
+  const temporaryDirectory = createTempDir('atc-guest-atc-archive-');
 
   return { directory: temporaryDirectory.path };
 }

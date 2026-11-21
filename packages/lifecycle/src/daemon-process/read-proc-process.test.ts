@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readProcProcess } from './read-proc-process';
 
 function setupTest() {
-  const procRoot = setupTempDir('read-proc-process-').path;
+  const procRoot = createTempDir('read-proc-process-').path;
 
   return { procRoot };
 }

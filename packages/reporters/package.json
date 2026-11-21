@@ -13,11 +13,13 @@
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atcx/contract": "workspace:*",
+    "@zgeoff/std": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@atc/daemon": "workspace:*",
     "@atc/plugin-api": "workspace:*",
+    "@zgeoff/testing": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

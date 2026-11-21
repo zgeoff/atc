@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { buildSeeder } from '../test-utils/build-seeder';
 import { openTestEventDatabase } from '../test-utils/open-test-event-database';
 import { answerUnsubscribeRequest } from './answer-unsubscribe-request';

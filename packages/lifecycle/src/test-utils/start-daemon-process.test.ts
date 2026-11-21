@@ -2,19 +2,18 @@ import { expect, mock, onTestFinished, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readDaemonRecord } from '../daemon-files/read-daemon-record';
 import { probeProcessAlive } from '../daemon-process/probe-process-alive';
 import { buildStubHandoffDaemon } from './build-stub-handoff-daemon';
 import { startDaemonProcess } from './start-daemon-process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-daemon-process-');
+  const temporaryDirectory = createTempDir('atc-daemon-process-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -175,11 +174,9 @@ test('it opens a client on the socket a replacement holds when the daemon exits 
 
   const paths = resolvePaths({ HOME: ctx.directory, XDG_RUNTIME_DIR: ctx.directory });
 
-  const atc = createStubBin(
-    join(ctx.directory, 'bin'),
-    'atc',
-    buildStubHandoffDaemon(nextPath, paths.daemonSocketPath),
-  );
+  const atc = createStubBin(join(ctx.directory, 'bin'), 'atc', {
+    script: buildStubHandoffDaemon(nextPath, paths.daemonSocketPath),
+  }).path;
 
   const daemon = startDaemonProcess({ command: [atc], home: ctx.directory });
 

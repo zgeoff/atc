@@ -1,13 +1,12 @@
 import { expect, test } from 'bun:test';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { spawn } from 'bun-pty';
 import { createStubComposer } from './create-stub-composer';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-composer-');
+  const temporaryDirectory = createTempDir('atc-stub-composer-');
 
   const pty = spawn(process.execPath, [createStubComposer(temporaryDirectory.path)], {
     name: 'xterm-256color',

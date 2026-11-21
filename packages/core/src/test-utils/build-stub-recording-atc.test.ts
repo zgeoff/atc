@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildStubRecordingATC } from './build-stub-recording-atc';
-import { createStubBin } from './create-stub-bin';
-import { runCommand } from './run-command';
-import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-recording-atc-');
+  const temporaryDirectory = createTempDir('atc-stub-recording-atc-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -15,14 +15,12 @@ function setupTest() {
 test('it records its arguments, its atc session, and its input in the log', async () => {
   const ctx = setupTest();
 
-  const atc = createStubBin(
-    ctx.directory,
-    'atc',
-    buildStubRecordingATC(join(ctx.directory, 'atc.log')),
-  );
+  const atc = createStubBin(ctx.directory, 'atc', {
+    script: buildStubRecordingATC(join(ctx.directory, 'atc.log')),
+  }).path;
 
-  const result = await runCommand([atc, 'note'], {
-    stdin: Buffer.from('half way'),
+  const result = await run([atc, 'note'], {
+    input: 'half way',
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
 
@@ -36,19 +34,17 @@ test('it records its arguments, its atc session, and its input in the log', asyn
 test('it appends each run after the runs before it', async () => {
   const ctx = setupTest();
 
-  const atc = createStubBin(
-    ctx.directory,
-    'atc',
-    buildStubRecordingATC(join(ctx.directory, 'atc.log')),
-  );
+  const atc = createStubBin(ctx.directory, 'atc', {
+    script: buildStubRecordingATC(join(ctx.directory, 'atc.log')),
+  }).path;
 
-  await runCommand([atc, 'first'], {
-    stdin: Buffer.from(''),
+  await run([atc, 'first'], {
+    input: '',
     env: { ...process.env, ATC_SESSION_ID: 's-1' },
   });
 
-  await runCommand([atc, 'second'], {
-    stdin: Buffer.from(''),
+  await run([atc, 'second'], {
+    input: '',
     env: { ...process.env, ATC_SESSION_ID: 's-2' },
   });
 

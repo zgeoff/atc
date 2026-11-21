@@ -8,8 +8,6 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { startTUIDaemon } from '@atc/app/test-utils/start-tui-daemon';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { takeFreePort } from '@atc/core/test-utils/take-free-port';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildStubAttentionAdapter } from '@atc/daemon/test-utils/build-stub-attention-adapter';
 import type { StartedTestDaemon, TestDaemonConfig } from '@atc/daemon/test-utils/start-test-daemon';
 import { buildMockAgentProfile } from '@atc/plugin-api/test-utils/build-mock-agent-profile';
@@ -19,6 +17,8 @@ import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legac
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import { buildDirsSource } from '@atc/source-dirs';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { waitFor } from '@zgeoff/testing';
+import { claimFreePorts } from '@zgeoff/testing/process';
 
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: createMigratedStateDB });
@@ -247,7 +247,7 @@ test('it sends typed lines and the answer to a needs-you prompt to the attached 
 test('it shows one line for a remote daemon that is down, and the local fleet stays usable', async () => {
   const ctx = await setupTest();
 
-  ctx.writeEntry(`127.0.0.1:${takeFreePort()}`);
+  ctx.writeEntry(`127.0.0.1:${claimFreePorts(1).take()}`);
   ctx.tui.boot();
 
   await ctx.tui.waitFor('atc — control tower');
@@ -321,7 +321,7 @@ test('it shows one line for a remote daemon on another protocol, and the local f
 test('it hides the rows of a remote daemon that stops and shows its refreshed rows once it starts again', async () => {
   const ctx = await setupTest();
 
-  const port = takeFreePort();
+  const port = claimFreePorts(1).take();
 
   const remote = await startRemoteTestDaemon(port);
 
@@ -600,7 +600,7 @@ test('it opens the picker at the daemon step, lists the remote directories and s
 test('it opens the picker at the agent step when the remote daemon is not up', async () => {
   const ctx = await setupTest();
 
-  ctx.writeEntry(`127.0.0.1:${takeFreePort()}`);
+  ctx.writeEntry(`127.0.0.1:${claimFreePorts(1).take()}`);
   ctx.tui.boot();
 
   await ctx.tui.waitFor('atc — control tower');

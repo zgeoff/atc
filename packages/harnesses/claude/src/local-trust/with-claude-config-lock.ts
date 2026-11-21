@@ -1,14 +1,15 @@
 import { mkdir, rmdir, stat, utimes } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { Clock } from '@atc/core';
-import { systemClock, waitUntil } from '@atc/core';
+import { waitUntil } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 
 const REFRESH_MS = 1000;
 const WAIT_MS = 5000;
 const RETRY_MS = 50;
 
 export interface ClaudeConfigLockOptions {
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
   readonly onBusy?: () => void;
 }
 
@@ -90,7 +91,10 @@ export async function withClaudeConfigLock<T>(
 // refreshes a held lock's age well inside it.
 const STALE_MS = 10_000;
 
-async function tryCreateLockDir(lockPath: string, clock: Clock): Promise<OwnedLock | null> {
+async function tryCreateLockDir(
+  lockPath: string,
+  clock: Pick<Clock, 'now' | 'schedule'>,
+): Promise<OwnedLock | null> {
   try {
     await mkdir(lockPath);
 

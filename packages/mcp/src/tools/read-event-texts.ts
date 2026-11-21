@@ -1,5 +1,6 @@
-import { isRecord, systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
+import { isRecord } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { formatToolError } from './format-tool-error';
 import type { FleetCaller } from './types';
 
@@ -13,7 +14,7 @@ export async function readEventTexts(
   caller: FleetCaller,
   page: Readonly<Record<string, unknown>>,
   deadlineMs: number = TEXT_READ_DEADLINE_MS,
-  clock: Clock = systemClock,
+  clock: Pick<Clock, 'now' | 'schedule'> = systemClock,
 ): Promise<Readonly<Record<string, unknown>>> {
   const raw: unknown = page['events'];
   const events = Array.isArray(raw) ? raw.filter((event) => isRecord(event)) : [];
@@ -49,7 +50,7 @@ interface ReadPageTextsOptions {
   readonly events: readonly Readonly<Record<string, unknown>>[];
   readonly endsAt: number;
   readonly timeout: Readonly<Promise<TextRead>>;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 }
 
 async function readPageTexts(

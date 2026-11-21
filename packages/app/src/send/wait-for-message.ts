@@ -1,5 +1,5 @@
-import type { Clock } from '@atc/core';
 import { MESSAGE_VIEW_SCHEMA } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { MessageView, SendConnection } from './types';
 
 const SLICE_MS = 30_000;
@@ -7,7 +7,7 @@ const ANSWER_GRACE_MS = 10_000;
 
 interface MessageWait {
   readonly connection: Pick<SendConnection, 'request'>;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly message: string;
 
   readonly timeoutSeconds: number | null;

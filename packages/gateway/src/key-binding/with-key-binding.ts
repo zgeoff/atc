@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { Clock } from '@atc/core';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
 import { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
 import invariant from 'tiny-invariant';
 import { match } from 'ts-pattern';
 import type { DaemonPool } from '../daemons/create-daemon-pool';
@@ -20,7 +20,7 @@ interface KeyBindingDeps {
   readonly registry: GatewayRegistry;
   readonly pool: DaemonPool;
   readonly store: GatewayStore;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 }
 
 export async function withKeyBinding(

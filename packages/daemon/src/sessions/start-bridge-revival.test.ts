@@ -1,10 +1,9 @@
 import { expect, mock, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { buildMockSession } from '../test-utils/build-mock-session';
 import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';

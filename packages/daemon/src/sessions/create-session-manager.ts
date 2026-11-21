@@ -1,7 +1,6 @@
 import type { TargetConfigError } from '@atc/config';
 import { socketPath, statusFile } from '@atc/config';
-import type { AgentID, Clock } from '@atc/core';
-import { systemClock } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import type {
   AgentAdapter,
   ExecutionCapability,
@@ -15,6 +14,8 @@ import type { HookEvent } from '@atc/protocol/session';
 import type { FleetEntry, FleetStore } from '@atc/store';
 import type { PublishedRecord, SessionDescriptor, SessionID } from '@atcx/contract';
 import type { AtcError } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { createAuthSetup } from '../auth/create-auth-setup';
 import type { RuntimeAuthBinder } from '../auth/create-runtime-auth-binder';
 import type { BridgeBinding } from '../auth/is-binding-current';
@@ -87,7 +88,7 @@ export interface SessionManager {
 
   now: () => number;
 
-  clock: Clock;
+  clock: Pick<Clock, 'now' | 'schedule'>;
 
   reporterSocketPath: string;
 
@@ -212,7 +213,7 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
   const events = options.events ?? {};
   let log: (line: string) => void = writeStderrLine;
   let now: () => number = readPerformanceNow;
-  let clock: Clock = systemClock;
+  let clock: Pick<Clock, 'now' | 'schedule'> = systemClock;
   let reporterSocketPath = socketPath;
   let authBinder: RuntimeAuthBinder | null = null;
   let records: PublishedRecords | null = null;
@@ -345,7 +346,7 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
       return clock;
     },
 
-    set clock(next: Clock) {
+    set clock(next: Pick<Clock, 'now' | 'schedule'>) {
       clock = next;
     },
 

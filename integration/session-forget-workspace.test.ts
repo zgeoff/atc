@@ -4,10 +4,10 @@ import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 
 // A git command a test runs in a workspace the daemon clones passes an identity, since the clone holds none under the test home.
@@ -416,7 +416,7 @@ test('it removes a workspace with an unpushed commit under the none check, and l
 test.each([['unpushed' as const], ['none' as const]])(
   'it keeps a folder atc did not create under the %s check',
   async (check) => {
-    const temporaryDirectory = setupTempDir('atc-forget-plain-');
+    const temporaryDirectory = createTempDir('atc-forget-plain-');
 
     const daemon = await startTestDaemon({
       options: () => ({

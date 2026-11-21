@@ -6,11 +6,11 @@ import { buildMockAgentEntry } from '@atc/config/test-utils/build-mock-agent-ent
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { BROKER_PLACEHOLDER, isRecord } from '@atc/core';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { ATC_BRIDGE_FILES } from './bridge/atc-bridge-files';
@@ -19,7 +19,7 @@ import { CLAUDE_PLUGIN } from './plugin/claude-plugin';
 import { buildStubClaudeHeadlessRun } from './test-utils/build-stub-claude-headless-run';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-claude-adapter-');
+  const temporaryDirectory = createTempDir('atc-claude-adapter-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -2111,16 +2111,18 @@ test('it refuses to start a subscription session in a host whose environment set
   invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.directory, 'claude-config-seed.json'), seed);
 
-  const run = await runCommand([plan.bin, ...plan.args], {
+  const result = await run([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env, ANTHROPIC_API_KEY: 'sk-test' },
   });
 
-  expect({ exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr }).toStrictEqual({
-    exitCode: 78,
-    stdout: '',
-    stderr:
-      "atc: ANTHROPIC_API_KEY is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n",
-  });
+  expect({ exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }).toStrictEqual(
+    {
+      exitCode: 78,
+      stdout: '',
+      stderr:
+        "atc: ANTHROPIC_API_KEY is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n",
+    },
+  );
 
   expect(existsSync(join(ctx.directory, 'claude-config'))).toBeFalse();
 });
@@ -2173,11 +2175,11 @@ test.each([
 
     invariant(plan !== null, 'expected a guest spawn plan');
 
-    const run = await runCommand([plan.bin, ...plan.args], {
+    const result = await run([plan.bin, ...plan.args], {
       env: { PATH: process.env['PATH'] ?? '', ...plan.env, [name]: value },
     });
 
-    expect({ exitCode: run.exitCode, stderr: run.stderr }).toStrictEqual({
+    expect({ exitCode: result.exitCode, stderr: result.stderr }).toStrictEqual({
       exitCode: 78,
       stderr: `atc: ${name} is set in this host's environment and overrides the sign-in atc gives this session, so Claude does not start\n`,
     });
@@ -2226,13 +2228,13 @@ test('it starts a subscription session with a seeded config folder in a host who
   invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.directory, 'claude-config-seed.json'), seed);
 
-  const run = await runCommand([plan.bin, ...plan.args], {
+  const result = await run([plan.bin, ...plan.args], {
     env: { PATH: process.env['PATH'] ?? '', ...plan.env },
   });
 
   const seeded = readFileSync(join(ctx.directory, 'claude-config', '.claude.json'), 'utf8');
 
-  expect(run.exitCode).toBe(0);
+  expect(result.exitCode).toBe(0);
 
   expect(JSON.parse(seeded)).toStrictEqual({
     hasCompletedOnboarding: true,

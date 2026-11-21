@@ -1,5 +1,5 @@
 import { createConnection } from 'node:net';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { PROTOCOL_V } from '../wire/index';
 import { buildPeerRequestLine } from './build-peer-request-line';
 

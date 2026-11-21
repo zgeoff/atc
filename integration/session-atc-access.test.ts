@@ -8,21 +8,20 @@ import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildReporterSocketBase, createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createClaudeAdapter } from '@atc/harness-claude';
 import { startInProcessMCP } from '@atc/mcp/test-utils/start-in-process-mcp';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { createDaemonClient } from '@atc/protocol/client';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-access-');
+  const temporaryDirectory = createTempDir('atc-access-');
   const clis = createStubGuestCLIs(join(temporaryDirectory.path, 'bin'));
   const guestDir = join(temporaryDirectory.path, 'g');
   const port = createStubImpPort();

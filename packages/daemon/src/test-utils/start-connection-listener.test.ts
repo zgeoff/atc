@@ -1,13 +1,13 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
 import { toSessionID } from '@atcx/contract';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildStubDaemonContext } from './build-stub-daemon-context';
 import { startConnectionListener } from './start-connection-listener';
 
 test('it serves a connection that answers a client on the socket', async () => {
-  const temporaryDirectory = setupTempDir('atc-connection-listener-');
+  const temporaryDirectory = createTempDir('atc-connection-listener-');
   const socketPath = join(temporaryDirectory.path, 'daemon.sock');
   const connections = startConnectionListener(socketPath, buildStubDaemonContext());
 
@@ -21,7 +21,7 @@ test('it serves a connection that answers a client on the socket', async () => {
 });
 
 test("it serves each connection as the given session's own", async () => {
-  const temporaryDirectory = setupTempDir('atc-connection-listener-');
+  const temporaryDirectory = createTempDir('atc-connection-listener-');
   const socketPath = join(temporaryDirectory.path, 'daemon.sock');
 
   startConnectionListener(socketPath, buildStubDaemonContext(), null, { id: toSessionID('s-1') });
@@ -35,7 +35,7 @@ test("it serves each connection as the given session's own", async () => {
 });
 
 test('it checks a handshake as a TCP connection when given a TCP peer', async () => {
-  const temporaryDirectory = setupTempDir('atc-connection-listener-');
+  const temporaryDirectory = createTempDir('atc-connection-listener-');
   const socketPath = join(temporaryDirectory.path, 'daemon.sock');
 
   startConnectionListener(socketPath, buildStubDaemonContext(), {

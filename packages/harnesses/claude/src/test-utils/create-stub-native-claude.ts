@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
+import { run } from '@zgeoff/testing/process';
 
 const NATIVE_SOURCE = `#include <stdio.h>
 #include <stdlib.h>
@@ -31,7 +31,7 @@ export async function createStubNativeClaude(directory: string, name: string): P
 
   writeFileSync(source, NATIVE_SOURCE);
 
-  const build = await runCommand([cc, '-o', path, source]);
+  const build = await run([cc, '-o', path, source]);
 
   if (build.exitCode !== 0) {
     throw new Error(`cc failed to build the native stand-in: ${build.stderr}`);

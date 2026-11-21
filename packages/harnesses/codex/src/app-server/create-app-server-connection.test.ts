@@ -1,12 +1,12 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startStubCodexAppServer } from '../test-utils/start-stub-codex-app-server';
 import { createAppServerConnection } from './create-app-server-connection';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-app-server-conn-');
+  const temporaryDirectory = createTempDir('atc-app-server-conn-');
 
   return { socket: join(temporaryDirectory.path, 'codex.sock') };
 }

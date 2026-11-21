@@ -1,11 +1,12 @@
 import { tmpdir } from 'node:os';
 import type { InvalidGitTransports } from '@atc/config';
-import type { AgentID, Clock } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import { normalizePluginDir } from '@atc/plugin-api';
 import type { DaemonAnswer } from '@atc/protocol';
 import type { StateStore } from '@atc/store';
 import type { SessionDescriptor, SessionID, SpawnWorkspaceSource } from '@atcx/contract';
 import { AtcError, resolveHomeDir } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { IdempotencyLedger, KeyedRequest } from '../transport/create-idempotency-ledger';
@@ -34,7 +35,7 @@ interface SpawnServiceDeps {
   >;
   readonly store: Pick<StateStore, 'loadFleet' | 'recordSpawnDir'> &
     Parameters<typeof materializeWorkspace>[1]['store'];
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly ledger: Pick<IdempotencyLedger, 'run'>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 

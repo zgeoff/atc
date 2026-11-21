@@ -4,13 +4,13 @@ import { join } from 'node:path';
 import { openAgentStep } from '@atc/app/test-utils/open-agent-step';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { createDaemonClient } from '@atc/protocol/client';
 import { buildStubSignedInGH } from '@atc/source-github/test-utils/build-stub-signed-in-gh';
 import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-signed-out-gh';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
 import { $ } from 'bun';
 
 function setupTest() {
@@ -20,7 +20,7 @@ function setupTest() {
 test('it keeps paths and slash filters in the one list', async () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.boot();
 
@@ -53,7 +53,7 @@ test('it keeps paths and slash filters in the one list', async () => {
 test('it moves tab to the next source with rows and wraps to the directories', async () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.boot();
 
@@ -82,7 +82,7 @@ test('it moves tab to the next source with rows and wraps to the directories', a
 test('it keeps a pasted git URL in the one list as typed text', async () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.boot();
 
@@ -107,7 +107,7 @@ test('it drives a source from its candidates to the confirm screen', async () =>
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedInGH() });
   mkdirSync(join(ctx.home, 'mirror', 'acme'), { recursive: true });
 
   await $`git clone --quiet --bare --template= ${fixture.upstream} ${join(ctx.home, 'mirror', 'acme', 'app.git')}`
@@ -159,7 +159,7 @@ test('it spawns the repository a source reads typed text as, through to its work
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.boot();
 
@@ -221,7 +221,7 @@ test('it spawns the repository a source reads typed text as, through to its work
 test('it lists the scope a source reads from typed text once, with no target step before it', async () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedInGH() });
 
   ctx.writeConfig({
     targets: { local: { provider: 'local-pty' }, alt: { provider: 'local-pty', tag: 'alt' } },
@@ -260,7 +260,7 @@ test('it lists the scope a source reads from typed text once, with no target ste
 test('it refuses a spawn when the config offers no sources', async () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.writeConfig({ workspaces: { sources: [] } });
   ctx.boot();
@@ -280,7 +280,7 @@ test('it refuses a spawn when the config offers no sources', async () => {
 test('it lists an owner typed in the list through the source that reads it', async () => {
   const ctx = setupTest();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedInGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedInGH() });
 
   ctx.boot();
 
@@ -310,7 +310,7 @@ test('it probes a repository typed in the list at the URL its source reads it as
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
   mkdirSync(join(ctx.home, 'mirror', 'acme'), { recursive: true });
 
   await $`git clone --quiet --bare --template= ${fixture.upstream} ${join(ctx.home, 'mirror', 'acme', 'app.git')}`
@@ -351,7 +351,7 @@ test('it offers only the sources the config gives, and returns esc from the ref 
 
   const fixture = await createGitFixture();
 
-  createStubBin(join(ctx.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(ctx.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   ctx.writeConfig({ workspaces: { sources: ['git', 'dirs'] } });
   ctx.boot();

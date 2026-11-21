@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
+import { run } from '@zgeoff/testing/process';
 
 test.each([
   ['a newer published version', '7.10.0\n7.3.1\n', '7.10.0\n'],
@@ -9,8 +9,8 @@ test.each([
   ['a blank line beside one version', '\n7.3.1\n', '7.3.1\n'],
   ['no version', '', ''],
 ])('it prints the newest version given %s', async (_label, stdin, expected) => {
-  const picked = await runCommand(['bash', join(import.meta.dir, 'pick-newest-version.sh')], {
-    stdin,
+  const picked = await run(['bash', join(import.meta.dir, 'pick-newest-version.sh')], {
+    input: stdin,
   });
 
   expect({ exitCode: picked.exitCode, stdout: picked.stdout, stderr: picked.stderr }).toStrictEqual(

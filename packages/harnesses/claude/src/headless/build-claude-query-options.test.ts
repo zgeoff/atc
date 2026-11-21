@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { updateEnv } from '@atc/core/test-utils/update-env';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { updateEnv } from '@zgeoff/testing';
 import { buildClaudeQueryOptions } from './build-claude-query-options';
 
 test('it runs a session turn in its directory, resumed, under the auto permission mode, with its model, effort, and mod', () => {

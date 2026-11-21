@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildHostFiles } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { loadCodexName } from './load-codex-name';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-codex-name-');
+  const temporaryDirectory = createTempDir('atc-codex-name-');
 
   return { codexHome: temporaryDirectory.path };
 }

@@ -14,11 +14,12 @@
     "@atc/protocol": "workspace:*",
     "@atc/store": "workspace:*",
     "@atcx/contract": "workspace:*",
+    "@zgeoff/std": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@faker-js/faker": "catalog:",
-    "@zgeoff/std": "catalog:",
+    "@zgeoff/testing": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

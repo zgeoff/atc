@@ -1,10 +1,10 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import { formatSecurityEvent } from './format-security-event';
 import type { SecurityEvent } from './types';
 
 interface SecurityEventLogOptions {
   readonly print: (line: string) => void;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 }
 
 interface KindWindow {

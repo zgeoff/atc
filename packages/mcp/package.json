@@ -30,6 +30,7 @@
     "@atc/daemon": "workspace:*",
     "@atc/plugin-api": "workspace:*",
     "@faker-js/faker": "catalog:",
-    "@simplewebauthn/server": "catalog:"
+    "@simplewebauthn/server": "catalog:",
+    "@zgeoff/testing": "catalog:"
   }
 }

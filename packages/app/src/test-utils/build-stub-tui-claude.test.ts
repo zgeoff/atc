@@ -1,21 +1,19 @@
 import { expect, test } from 'bun:test';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startOutputCapture } from '@atc/core/test-utils/start-output-capture';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildStubTUIClaude } from './build-stub-tui-claude';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-tui-claude-');
+  const temporaryDirectory = createTempDir('atc-stub-tui-claude-');
   const reporter = startStubReporterSocket(join(temporaryDirectory.path, 'report.sock'));
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     temporaryDirectory.path,
     'claude',
     buildStubTUIClaude(readSourceEntry('atc')),
@@ -260,7 +258,7 @@ test('it reports through the CLI entry it is given, with none in the environment
 
   updateEnv('ATC_CLI_ENTRY', undefined);
 
-  const bin = createStubBin(ctx.directory, 'given-entry', buildStubTUIClaude(entry));
+  const bin = writeStubProgram(ctx.directory, 'given-entry', buildStubTUIClaude(entry));
 
   const subprocess = Bun.spawn([bin], {
     env: {
@@ -298,7 +296,7 @@ test('it runs the message tap for its session when the tap file exists', async (
 
   writeFileSync(join(ctx.directory, 'fake-claude-tap'), '');
 
-  const bin = createStubBin(ctx.directory, 'tapped', buildStubTUIClaude(entry));
+  const bin = writeStubProgram(ctx.directory, 'tapped', buildStubTUIClaude(entry));
 
   const subprocess = Bun.spawn([bin], {
     env: { HOME: ctx.directory, PATH: '/usr/bin:/bin', ATC_SESSION_ID: 's-tap' },
@@ -328,7 +326,7 @@ test('it runs no message tap without the tap file', async () => {
     `import { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(calls)}, process.argv.slice(2).join(' ') + '\\n');\n`,
   );
 
-  const bin = createStubBin(ctx.directory, 'untapped', buildStubTUIClaude(entry));
+  const bin = writeStubProgram(ctx.directory, 'untapped', buildStubTUIClaude(entry));
 
   const subprocess = Bun.spawn([bin], {
     env: { HOME: ctx.directory, PATH: '/usr/bin:/bin', ATC_SESSION_ID: 's-tap' },

@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStubFailingAgentAdapter } from './create-stub-failing-agent-adapter';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-failing-adapter-');
+  const temporaryDirectory = createTempDir('atc-failing-adapter-');
 
   return { directory: temporaryDirectory.path };
 }

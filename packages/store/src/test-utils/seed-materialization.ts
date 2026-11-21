@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import invariant from 'tiny-invariant';
 import type {
   NewMaterialization,

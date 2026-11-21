@@ -1,16 +1,16 @@
 import { expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { GATEWAY_VERSION } from '@atc/gateway/version';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import invariant from 'tiny-invariant';
 import pkg from '../../package.json';
 import { buildGatewayStatePaths } from './build-gateway-state-paths';
 import { runGatewayCLI } from './run-gateway-cli';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-run-gateway-cli-');
+  const temporaryDirectory = createTempDir('atc-run-gateway-cli-');
 
   return {
     directory: temporaryDirectory.path,
@@ -506,7 +506,7 @@ test('it reports the gateway manifest version, not the app manifest version, in 
 
   invariant(pkg.version !== '9.1.0', 'the app manifest must hold another version than 9.1.0');
 
-  const ran = await runCommand(['bun', '--preload', preload, script], { cwd: ctx.directory });
+  const ran = await run(['bun', '--preload', preload, script], { cwd: ctx.directory });
 
   expect({ exitCode: ran.exitCode, stdout: ran.stdout }).toStrictEqual({
     exitCode: 0,

@@ -1,20 +1,20 @@
 import { expect, test } from 'bun:test';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildStubSignedOutGH } from './build-stub-signed-out-gh';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-signed-out-gh-');
+  const temporaryDirectory = createTempDir('atc-stub-signed-out-gh-');
 
   return { directory: temporaryDirectory.path };
 }
 
 test('it refuses every command with the sign-in hint and exit code 4', async () => {
   const ctx = setupTest();
-  const gh = createStubBin(ctx.directory, 'gh', buildStubSignedOutGH());
+  const gh = createStubBin(ctx.directory, 'gh', { script: buildStubSignedOutGH() }).path;
 
-  const result = await runCommand([gh, 'repo', 'list']);
+  const result = await run([gh, 'repo', 'list']);
 
   expect({
     exitCode: result.exitCode,

@@ -3,13 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startStubRecordingListener } from './start-stub-recording-listener';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-recording-listener-');
+  const temporaryDirectory = createTempDir('atc-stub-recording-listener-');
 
   return { path: join(temporaryDirectory.path, 'recording.sock') };
 }

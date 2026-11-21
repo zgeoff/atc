@@ -3,14 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openBridgeSocket } from '../session/index';
 import { startStubSessionBridge } from './start-stub-session-bridge';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-bridge-');
+  const temporaryDirectory = createTempDir('atc-stub-bridge-');
 
   return { path: join(temporaryDirectory.path, 'bridge.sock') };
 }

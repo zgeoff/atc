@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildSQLiteDialect } from '@zgeoff/kysely-bun-sqlite';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { Kysely, sql } from 'kysely';
 import { openSQLite } from './open-sqlite';
 import { withImmediateTransaction } from './with-immediate-transaction';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-immediate-');
+  const temporaryDirectory = createTempDir('atc-immediate-');
   const sqlite = openSQLite(join(temporaryDirectory.path, 'state.db'));
 
   const db = new Kysely<Record<string, never>>({ dialect: buildSQLiteDialect(sqlite) });

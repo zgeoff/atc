@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { resolvePaths } from '@atc/config/host';
-import { systemClock } from '@atc/core';
+import { systemClock } from '@zgeoff/std';
 import { buildMockLifecycleHost } from './build-mock-lifecycle-host';
 
 test('it builds a default lifecycle host on the paths of one home', () => {

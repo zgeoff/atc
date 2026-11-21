@@ -4,8 +4,6 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { buildMockAgentEntry } from '@atc/config/test-utils/build-mock-agent-entry';
 import { isRecord } from '@atc/core';
 import { getString } from '@atc/core/test-utils/get-string';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createClaudeAdapter } from '@atc/harness-claude';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
@@ -13,6 +11,7 @@ import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session'
 import { createStateStore } from '@atc/store';
 import { toMessageID, toSessionID } from '@atcx/contract';
 import type { DaemonEvent } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 
 async function setupTest(
   planSpawn = mock(() => ({ bin: 'sleep', args: ['30'] })),

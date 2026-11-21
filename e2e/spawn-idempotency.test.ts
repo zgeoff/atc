@@ -4,9 +4,6 @@ import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildPayloadHash } from '@atc/daemon';
 import { createStubFailingAgentAdapter } from '@atc/daemon/test-utils/create-stub-failing-agent-adapter';
 import { createStubSoftKillProvider } from '@atc/execution-local/test-utils/create-stub-soft-kill-provider';
@@ -18,6 +15,8 @@ import { buildMockMessageRecord } from '@atc/store/test-utils/build-mock-message
 import { readOnlyEffectRef } from '@atc/store/test-utils/read-only-effect-ref';
 import { seedSweptIdempotencyKeys } from '@atc/store/test-utils/seed-swept-idempotency-keys';
 import { REQUEST_PARAM_SCHEMAS, toMessageID, toSessionID } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 test('it answers a retried keyed spawn with the first session and spawns once', async () => {
   const daemon = await startTestDaemon({
@@ -901,7 +900,7 @@ test('it keeps the key in progress when a failed spawn cannot leave the fleet an
 });
 
 test('it ends a failed spawn that ignores its kill with a forced kill before it answers', async () => {
-  const pids = setupTempDir('atc-idempotency-pid-');
+  const pids = createTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
   const stub = await createStubFailingAgentAdapter({
@@ -940,7 +939,7 @@ test('it ends a failed spawn that ignores its kill with a forced kill before it 
 });
 
 test('it completes the rollback of a failed spawn that ignores its kill, so a retry spawns once', async () => {
-  const pids = setupTempDir('atc-idempotency-pid-');
+  const pids = createTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
   const stub = await createStubFailingAgentAdapter({
@@ -975,7 +974,7 @@ test('it completes the rollback of a failed spawn that ignores its kill, so a re
 });
 
 test('it answers outcome_unknown and keeps the process of a failed spawn whose provider cannot confirm the exit', async () => {
-  const pids = setupTempDir('atc-idempotency-pid-');
+  const pids = createTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
@@ -1040,7 +1039,7 @@ test('it answers outcome_unknown and keeps the process of a failed spawn whose p
 });
 
 test('it answers outcome_unknown for a failed spawn whose killed process outlasts the exit wait it is given', async () => {
-  const pids = setupTempDir('atc-idempotency-pid-');
+  const pids = createTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes a second to exit after SIGHUP, longer than the given wait and shorter than the default one. It ends by itself after the rollback's kill, so nothing outlives the test.
@@ -1088,7 +1087,7 @@ test('it answers outcome_unknown for a failed spawn whose killed process outlast
 });
 
 test('it keeps the key of a failed spawn whose provider cannot confirm the exit as outcome_unknown, so a retry spawns nothing', async () => {
-  const pids = setupTempDir('atc-idempotency-pid-');
+  const pids = createTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child ignores SIGHUP before it writes its pid, and the start fails
@@ -1155,7 +1154,7 @@ test('it keeps the key of a failed spawn whose provider cannot confirm the exit 
 });
 
 test('it keeps a failed spawn whose provider cannot confirm the exit listed and refuses its revive', async () => {
-  const pids = setupTempDir('atc-idempotency-pid-');
+  const pids = createTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child ignores SIGHUP, so a kill sent on a failed start cannot end it.
@@ -1225,7 +1224,7 @@ test('it keeps a failed spawn whose provider cannot confirm the exit listed and 
 });
 
 test('it answers a failed spawn only once its killed process has exited', async () => {
-  const pids = setupTempDir('atc-idempotency-pid-');
+  const pids = createTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP.
@@ -1263,7 +1262,7 @@ test('it answers a failed spawn only once its killed process has exited', async 
 });
 
 test('it lets a retry spawn once after a failed spawn whose killed process took time to exit', async () => {
-  const pids = setupTempDir('atc-idempotency-pid-');
+  const pids = createTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP.
@@ -1297,7 +1296,7 @@ test('it lets a retry spawn once after a failed spawn whose killed process took 
 });
 
 test('it refuses to revive a failed spawn while its rollback waits for the killed process', async () => {
-  const pids = setupTempDir('atc-idempotency-pid-');
+  const pids = createTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP.
@@ -1351,7 +1350,7 @@ test('it refuses to revive a failed spawn while its rollback waits for the kille
 });
 
 test('it leaves no session behind from a failed spawn whose revive was refused during its rollback', async () => {
-  const pids = setupTempDir('atc-idempotency-pid-');
+  const pids = createTempDir('atc-idempotency-pid-');
   const pidPipe = join(pids.path, 'child.pid');
 
   // The child takes 300ms to exit after SIGHUP.

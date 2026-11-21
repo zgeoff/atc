@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import type { ImpCreateSpec } from '../port/imp-port';
 import { createStubImpFleet } from './create-stub-imp-fleet';
 

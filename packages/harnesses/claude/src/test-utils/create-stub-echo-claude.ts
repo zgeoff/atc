@@ -1,7 +1,7 @@
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 
 export function createStubEchoClaude(directory: string): string {
-  return createStubBin(
+  return writeStubProgram(
     directory,
     'fake-claude',
     `#!/usr/bin/env bash

@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import { formatLogField } from '../logging/format-log-field';
 import type { DaemonConnection } from './create-daemon-connection';
 import { createHandshakeThrottle } from './create-handshake-throttle';
@@ -27,7 +27,7 @@ interface TCPListenerOptions {
   readonly log: (line: string) => void;
   readonly refusalLogIntervalMs: number;
 
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   readonly maxRefusalWindows: number;
 }

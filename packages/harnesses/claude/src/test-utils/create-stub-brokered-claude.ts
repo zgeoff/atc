@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 
 const PROXY_VARIABLES = [
   'HTTPS_PROXY',
@@ -22,7 +22,7 @@ export function createStubBrokeredClaude(directory: string, url: string): string
     return value === undefined ? [] : [`export ${name}=${formatShellWord(value)}`];
   });
 
-  return createStubBin(
+  return writeStubProgram(
     directory,
     'fake-claude',
     [

@@ -12,10 +12,9 @@ import {
 import { join, relative } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import invariant from 'tiny-invariant';
 import type { ImpSessionStarted } from '../port/imp-port';
 import { buildMockImpIdentity } from './build-mock-imp-identity';
@@ -23,7 +22,7 @@ import { createStubHarnessGuest } from './create-stub-harness-guest';
 import { createStubImpPort } from './create-stub-imp-port';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-imp-port-');
+  const temporaryDirectory = createTempDir('atc-stub-imp-port-');
   const port = createStubImpPort();
 
   return { port, directory: temporaryDirectory.path };
@@ -1478,7 +1477,7 @@ test('it kills a running command once the port stops', async () => {
 });
 
 test('it reports a command that exited while a child it left holds its output open when the port stops', async () => {
-  const temporaryDirectory = setupTempDir('atc-stub-imp-port-');
+  const temporaryDirectory = createTempDir('atc-stub-imp-port-');
   const reported: string[] = [];
 
   const port = createStubImpPort('token:atc', Date.now, (line) => {
@@ -1548,7 +1547,7 @@ test('it ends a command whose child holds its output open once the port stops', 
 });
 
 test('it reports nothing for a running command the port stop cuts short', async () => {
-  const temporaryDirectory = setupTempDir('atc-stub-imp-port-');
+  const temporaryDirectory = createTempDir('atc-stub-imp-port-');
   const reported: string[] = [];
 
   const port = createStubImpPort('token:atc', Date.now, (line) => {
@@ -4112,7 +4111,7 @@ test('it detaches a live connection as lost and stops its process when the imp s
   const outcome = await connection.outcome;
 
   await waitFor(async () => {
-    const ps = await runCommand(['ps', '-o', 'state=', '-p', pid]);
+    const ps = await run(['ps', '-o', 'state=', '-p', pid]);
 
     expect(ps.stdout).toStartWith('T');
   });
@@ -4158,7 +4157,7 @@ test('it continues a stopped process under the same generation when the imp wake
   await opened.outcome;
 
   await waitFor(async () => {
-    const ps = await runCommand(['ps', '-o', 'state=', '-p', pid]);
+    const ps = await run(['ps', '-o', 'state=', '-p', pid]);
 
     expect(ps.stdout).toStartWith('T');
   });
@@ -4180,7 +4179,7 @@ test('it continues a stopped process under the same generation when the imp wake
   });
 
   await waitFor(async () => {
-    const ps = await runCommand(['ps', '-o', 'state=', '-p', pid]);
+    const ps = await run(['ps', '-o', 'state=', '-p', pid]);
 
     expect(ps.stdout).toStartWith('S');
   });
@@ -4266,7 +4265,7 @@ test('it owns a lease under the principal it was created with', async () => {
 test('it stops every forward once the test finishes without a stop', () => {
   // The directory registers first, so its removal runs after the check
   // below and only the forward's own stop can take the socket away first.
-  const temporaryDirectory = setupTempDir('atc-stub-imp-port-');
+  const temporaryDirectory = createTempDir('atc-stub-imp-port-');
   const guestPath = join(temporaryDirectory.path, 'guest.sock');
   let left: boolean | null = null;
 

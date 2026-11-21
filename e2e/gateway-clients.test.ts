@@ -2,14 +2,14 @@ import { expect, test } from 'bun:test';
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveGatewayCommand } from '@atc/core/test-utils/resolve-gateway-command';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import invariant from 'tiny-invariant';
 import { runClients } from '../packages/app/src/auth/run-clients';
 import { buildGatewayStatePaths } from '../packages/app/src/gateway/build-gateway-state-paths';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-gateway-bin-');
+  const temporaryDirectory = createTempDir('atc-gateway-bin-');
 
   return {
     directory: temporaryDirectory.path,
@@ -28,7 +28,7 @@ function setupTest() {
 test('it adds a client in a state directory relative to where it runs over the environment', async () => {
   const ctx = setupTest();
 
-  const added = await runCommand(
+  const added = await run(
     [
       ...ctx.command,
       '--state-dir',
@@ -74,7 +74,7 @@ test('it lists the clients of a state directory relative to where it runs', asyn
 
   invariant(clientID !== undefined, `no client ID in: ${printed.join('\n')}`);
 
-  const listed = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
+  const listed = await run([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
     cwd: ctx.directory,
     env: ctx.env,
   });
@@ -109,7 +109,7 @@ test('it removes a client from a state directory relative to where it runs', asy
 
   invariant(clientID !== undefined, `no client ID in: ${printed.join('\n')}`);
 
-  const removed = await runCommand(
+  const removed = await run(
     [...ctx.command, 'clients', 'remove', clientID, '--state-dir', 'flagged'],
     { cwd: ctx.directory, env: ctx.env },
   );
@@ -120,7 +120,7 @@ test('it removes a client from a state directory relative to where it runs', asy
 test('it lists no clients and how to add one in a state directory with none', async () => {
   const ctx = setupTest();
 
-  const listed = await runCommand([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
+  const listed = await run([...ctx.command, 'clients', 'list', '--state-dir=flagged'], {
     cwd: ctx.directory,
     env: ctx.env,
   });
@@ -133,7 +133,7 @@ test('it lists no clients and how to add one in a state directory with none', as
 test('it exits 1 on two state directories that differ', async () => {
   const ctx = setupTest();
 
-  const added = await runCommand(
+  const added = await run(
     [
       ...ctx.command,
       '--state-dir=first',

@@ -1,7 +1,7 @@
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import { createImpClient, openExecSession, openReverseForward } from '@impz/client';
 import type { ExecOutcome, ExecSessionOptions, ImpClient } from '@impz/client';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { match } from 'ts-pattern';
 import { z } from 'zod';
 import type { ImpdOutput } from '../impd/impd-procedure';
@@ -28,7 +28,7 @@ type ImpdInfo = Pick<ImpdOutput<'system.info'>, 'version' | 'guest' | 'identity'
 interface ImpClientPortOptions {
   readonly url: string;
   readonly readToken: () => string | null;
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 }
 
 // Reading impd's status report is slow, so one read answers version, scratch folder and

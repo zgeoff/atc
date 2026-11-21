@@ -2,11 +2,11 @@ import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { toAgentID } from '@atc/core';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createClaudeLaunchFiles } from './create-claude-launch-files';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-claude-launch-files-');
+  const temporaryDirectory = createTempDir('atc-claude-launch-files-');
 
   return {
     stateDir: join(temporaryDirectory.path, 'state'),

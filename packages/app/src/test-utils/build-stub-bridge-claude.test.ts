@@ -1,23 +1,20 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startStubSessionBridge } from '@atc/protocol/test-utils/start-stub-session-bridge';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildStubBridgeClaude } from './build-stub-bridge-claude';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-bridge-claude-');
+  const temporaryDirectory = createTempDir('atc-stub-bridge-claude-');
   const guest = join(temporaryDirectory.path, 'guest');
 
-  const bin = createStubBin(
-    temporaryDirectory.path,
-    'claude',
-    buildStubBridgeClaude(resolveATCCommand(), guest),
-  );
+  const bin = createStubBin(temporaryDirectory.path, 'claude', {
+    script: buildStubBridgeClaude(resolveATCCommand(), guest),
+  }).path;
 
   return { directory: temporaryDirectory.path, guest, bin };
 }

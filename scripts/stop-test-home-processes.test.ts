@@ -1,11 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { stopTestHomeProcesses } from './stop-test-home-processes';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stop-test-home-');
+  const temporaryDirectory = createTempDir('atc-stop-test-home-');
 
   return { directory: temporaryDirectory.path };
 }

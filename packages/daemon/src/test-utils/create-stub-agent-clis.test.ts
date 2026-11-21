@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildStubMemoryProvider } from './build-stub-memory-provider';
 import { createStubAgentCLIs } from './create-stub-agent-clis';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-agent-clis-');
+  const temporaryDirectory = createTempDir('atc-stub-agent-clis-');
   const agents = createStubAgentCLIs(temporaryDirectory.path);
   const provider = buildStubMemoryProvider({ onStart: agents.start });
   const socketPath = join(temporaryDirectory.path, 'reporter.sock');

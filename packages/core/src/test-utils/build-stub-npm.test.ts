@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildStubNpm } from './build-stub-npm';
-import { createStubBin } from './create-stub-bin';
-import { runCommand } from './run-command';
-import { setupTempDir } from './setup-temp-dir';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-npm-');
+  const temporaryDirectory = createTempDir('atc-stub-npm-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -15,13 +15,11 @@ function setupTest() {
 test('it fails a view of a version the registry lacks with an E404 and exit code 1', async () => {
   const ctx = setupTest();
 
-  const npm = createStubBin(
-    ctx.directory,
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null),
-  );
+  const npm = createStubBin(ctx.directory, 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  }).path;
 
-  const viewed = await runCommand([npm, 'view', '@atcx/contract@7.1.0', 'version']);
+  const viewed = await run([npm, 'view', '@atcx/contract@7.1.0', 'version']);
 
   expect({
     exitCode: viewed.exitCode,
@@ -37,13 +35,11 @@ test('it fails a view of a version the registry lacks with an E404 and exit code
 test('it answers a view of a version the registry holds with that version', async () => {
   const ctx = setupTest();
 
-  const npm = createStubBin(
-    ctx.directory,
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), '7.1.0'),
-  );
+  const npm = createStubBin(ctx.directory, 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), '7.1.0'),
+  }).path;
 
-  const viewed = await runCommand([npm, 'view', '@atcx/contract@7.1.0', 'version']);
+  const viewed = await run([npm, 'view', '@atcx/contract@7.1.0', 'version']);
 
   expect({
     exitCode: viewed.exitCode,
@@ -55,13 +51,11 @@ test('it answers a view of a version the registry holds with that version', asyn
 test('it succeeds at any other command with no output', async () => {
   const ctx = setupTest();
 
-  const npm = createStubBin(
-    ctx.directory,
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null),
-  );
+  const npm = createStubBin(ctx.directory, 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  }).path;
 
-  const published = await runCommand([npm, 'publish', 'contract.tgz', '--access', 'public']);
+  const published = await run([npm, 'publish', 'contract.tgz', '--access', 'public']);
 
   expect({
     exitCode: published.exitCode,
@@ -73,14 +67,12 @@ test('it succeeds at any other command with no output', async () => {
 test('it records the arguments of each call in order', async () => {
   const ctx = setupTest();
 
-  const npm = createStubBin(
-    ctx.directory,
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null),
-  );
+  const npm = createStubBin(ctx.directory, 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null),
+  }).path;
 
-  await runCommand([npm, 'view', '@atcx/contract@7.1.0', 'version']);
-  await runCommand([npm, 'publish', 'contract.tgz', '--provenance']);
+  await run([npm, 'view', '@atcx/contract@7.1.0', 'version']);
+  await run([npm, 'publish', 'contract.tgz', '--provenance']);
 
   expect(readFileSync(join(ctx.directory, 'npm.log'), 'utf8')).toBe(
     'view @atcx/contract@7.1.0 version\npublish contract.tgz --provenance\n',
@@ -90,19 +82,15 @@ test('it records the arguments of each call in order', async () => {
 test('it runs an install through the npm it is given, after it records the call', async () => {
   const ctx = setupTest();
 
-  const installer = createStubBin(
-    join(ctx.directory, 'real'),
-    'npm',
-    '#!/bin/sh\necho "installed $*"\nexit 3\n',
-  );
+  const installer = createStubBin(join(ctx.directory, 'real'), 'npm', {
+    script: '#!/bin/sh\necho "installed $*"\nexit 3\n',
+  }).path;
 
-  const npm = createStubBin(
-    ctx.directory,
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null, { installWith: installer }),
-  );
+  const npm = createStubBin(ctx.directory, 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null, { installWith: installer }),
+  }).path;
 
-  const installed = await runCommand([npm, 'install', '--prefix', 'consumer', 'contract.tgz']);
+  const installed = await run([npm, 'install', '--prefix', 'consumer', 'contract.tgz']);
 
   expect({
     exitCode: installed.exitCode,
@@ -122,19 +110,15 @@ test('it runs an install through the npm it is given, after it records the call'
 test('it runs a pack through the npm it is given, after it records the call', async () => {
   const ctx = setupTest();
 
-  const packer = createStubBin(
-    join(ctx.directory, 'real'),
-    'npm',
-    '#!/bin/sh\necho "packed $*"\nexit 4\n',
-  );
+  const packer = createStubBin(join(ctx.directory, 'real'), 'npm', {
+    script: '#!/bin/sh\necho "packed $*"\nexit 4\n',
+  }).path;
 
-  const npm = createStubBin(
-    ctx.directory,
-    'npm',
-    buildStubNpm(join(ctx.directory, 'npm.log'), null, { installWith: packer }),
-  );
+  const npm = createStubBin(ctx.directory, 'npm', {
+    script: buildStubNpm(join(ctx.directory, 'npm.log'), null, { installWith: packer }),
+  }).path;
 
-  const packed = await runCommand([npm, 'pack', '--silent']);
+  const packed = await run([npm, 'pack', '--silent']);
 
   expect({ exitCode: packed.exitCode, stdout: packed.stdout }).toStrictEqual({
     exitCode: 4,

@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildStubMessageBridgeHost } from '../test-utils/build-stub-message-bridge-host';
 import { startCodexAppServerBridge } from './start-codex-app-server-bridge';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-codex-app-server-');
+  const temporaryDirectory = createTempDir('atc-codex-app-server-');
 
   // The real CLI refuses a CODEX_HOME that does not exist.
   const codexHome = join(temporaryDirectory.path, 'codex-home');

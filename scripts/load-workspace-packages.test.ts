@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { loadWorkspacePackages } from './load-workspace-packages';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('load-workspace-packages-');
+  const temporaryDirectory = createTempDir('load-workspace-packages-');
 
   return { directory: temporaryDirectory.path };
 }

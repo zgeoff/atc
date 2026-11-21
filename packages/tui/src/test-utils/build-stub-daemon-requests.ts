@@ -1,4 +1,4 @@
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
 
 type DaemonAnswer = Readonly<Record<string, unknown>>;
 
@@ -27,7 +27,7 @@ export function buildStubDaemonRequests(options: StubDaemonRequestsOptions) {
   const waitOptions = {
     timeoutMs: options.timeoutMs ?? 5000,
     now: options.now ?? Date.now,
-    wait: options.wait ?? Bun.sleep,
+    sleep: options.wait ?? Bun.sleep,
   };
 
   const countAll = () => sent.length + options.countReactions();

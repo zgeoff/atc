@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test';
 import { symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('check-contract-compat-');
+  const temporaryDirectory = createTempDir('check-contract-compat-');
   const directory = temporaryDirectory.path;
 
   const git = (...args: string[]) =>
-    runCommand(['git', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...args], {
+    run(['git', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...args], {
       cwd: directory,
     });
 
@@ -49,7 +49,7 @@ async function setupTest() {
       await git('commit', '--quiet', '-m', message);
     },
     check: (env: Record<string, string> = {}) =>
-      runCommand([process.execPath, join(import.meta.dir, 'check-contract-compat.ts'), directory], {
+      run([process.execPath, join(import.meta.dir, 'check-contract-compat.ts'), directory], {
         env: { ...process.env, ...env },
       }),
   };

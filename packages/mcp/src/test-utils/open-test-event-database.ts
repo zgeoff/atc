@@ -1,6 +1,6 @@
-import { systemClock } from '@atc/core';
 import type { MCPAuthAdmin } from '@zgeoff/mcp-auth';
 import { createTestDatabase } from '@zgeoff/mcp-auth/testing';
+import { systemClock } from '@zgeoff/std';
 import type { Kysely } from 'kysely';
 import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
 import type { EventSchema } from '../events/event-schema';

@@ -1,12 +1,12 @@
 import { expect, jest, onTestFinished, test } from 'bun:test';
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStderrSink } from './create-stderr-sink';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stderr-sink-');
+  const temporaryDirectory = createTempDir('atc-stderr-sink-');
   const outputPath = join(temporaryDirectory.path, 'stderr');
   const fd = openSync(outputPath, 'w');
 
@@ -74,7 +74,7 @@ test('it starts the next write with one dropped line that counts the records it 
       expect(readFileSync(ctx.outputPath, 'utf8').split('\n')).toHaveLength(513);
     },
     {
-      wait: () =>
+      sleep: () =>
         new Promise((resolve) => {
           setImmediate(resolve);
         }),
@@ -161,7 +161,7 @@ test('it holds a batch it is given in place of the default one', async () => {
       expect(readFileSync(ctx.outputPath, 'utf8').split('\n')).toHaveLength(5);
     },
     {
-      wait: () =>
+      sleep: () =>
         new Promise((resolve) => {
           setImmediate(resolve);
         }),

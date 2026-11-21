@@ -5,9 +5,9 @@ import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { createDaemonClient } from '@atc/protocol/client';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { registerTestCleanup } from '@zgeoff/testing';
 
 // The client boots its own daemon, so the test's client can only connect once the tower draws.
 async function setupTest() {

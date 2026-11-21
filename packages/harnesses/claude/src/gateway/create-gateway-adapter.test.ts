@@ -5,11 +5,11 @@ import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { isRecord } from '@atc/core';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { ATC_BRIDGE_FILES } from '../bridge/atc-bridge-files';
@@ -19,7 +19,7 @@ import { buildStubClaudeHeadlessRun } from '../test-utils/build-stub-claude-head
 import { createGatewayAdapter } from './create-gateway-adapter';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-gateway-adapter-');
+  const temporaryDirectory = createTempDir('atc-gateway-adapter-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -1994,11 +1994,11 @@ test("it seeds a brokered guest's Claude config with the onboarding state when t
   invariant(typeof seed === 'string', 'expected the seed file');
   writeFileSync(join(ctx.directory, 'claude-config-seed.json'), seed);
 
-  const run = await runCommand([plan.bin, ...plan.args]);
+  const result = await run([plan.bin, ...plan.args]);
 
   const seeded = readFileSync(join(ctx.directory, 'claude-config', '.claude.json'), 'utf8');
 
-  expect(run.exitCode).toBe(0);
+  expect(result.exitCode).toBe(0);
 
   expect(JSON.parse(seeded)).toStrictEqual({
     hasCompletedOnboarding: true,
@@ -2057,11 +2057,11 @@ test("it keeps the state an earlier run left in a brokered guest's Claude config
   mkdirSync(join(ctx.directory, 'claude-config'));
   writeFileSync(join(ctx.directory, 'claude-config', '.claude.json'), earlier);
 
-  const run = await runCommand([plan.bin, ...plan.args]);
+  const result = await run([plan.bin, ...plan.args]);
 
   const merged = readFileSync(join(ctx.directory, 'claude-config', '.claude.json'), 'utf8');
 
-  expect(run.exitCode).toBe(0);
+  expect(result.exitCode).toBe(0);
 
   expect(JSON.parse(merged)).toStrictEqual({
     hasSeenAutoModeOutsideReadPrompt: true,
@@ -2535,11 +2535,11 @@ test.each([
     invariant(typeof seed === 'string', 'expected the seed file');
     writeFileSync(join(ctx.directory, 'claude-config-seed.json'), seed);
 
-    const run = await runCommand([plan.bin, ...plan.args], {
+    const result = await run([plan.bin, ...plan.args], {
       env: { PATH: process.env['PATH'], ...hostEnv, ...plan.env },
     });
 
-    expect(run.exitCode).toBe(exitCode);
+    expect(result.exitCode).toBe(exitCode);
   },
 );
 

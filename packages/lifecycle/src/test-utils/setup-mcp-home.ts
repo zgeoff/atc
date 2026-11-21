@@ -1,25 +1,24 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
-import { systemClock } from '@atc/core';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
+import { systemClock } from '@zgeoff/std';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readPidFilePID } from '../daemon-files/read-pid-file-pid';
 import { stopDaemonProcess } from '../daemon-process/stop-daemon-process';
 import { buildStubMCPClaude } from './build-stub-mcp-claude';
 import { buildStubMCPGrok } from './build-stub-mcp-grok';
 
 export function setupMCPHome() {
-  const temporaryDirectory = setupTempDir('atc-mcp-');
+  const temporaryDirectory = createTempDir('atc-mcp-');
 
   const stack = new AsyncDisposableStack();
 
   const teardown = registerTestCleanup(() => stack.disposeAsync());
 
-  stack.defer(temporaryDirectory.teardown);
+  stack.defer(temporaryDirectory.remove);
 
   const home = temporaryDirectory.path;
   const paths = resolvePaths({ HOME: home, XDG_RUNTIME_DIR: home });
@@ -37,8 +36,13 @@ export function setupMCPHome() {
   mkdirSync(join(home, '.config', 'atc'), { recursive: true });
   mkdirSync(paths.stateDir, { recursive: true });
 
-  const claudeBin = createStubBin(home, 'fake-claude', buildStubMCPClaude(readSourceEntry('atc')));
-  const grokBin = createStubBin(home, 'fake-grok', buildStubMCPGrok(readSourceEntry('atc')));
+  const claudeBin = writeStubProgram(
+    home,
+    'fake-claude',
+    buildStubMCPClaude(readSourceEntry('atc')),
+  );
+
+  const grokBin = writeStubProgram(home, 'fake-grok', buildStubMCPGrok(readSourceEntry('atc')));
 
   writeFileSync(
     join(home, '.config', 'atc', 'config.json'),

@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { ATC_BRIDGE_FILES } from './atc-bridge-files';
 import { writeATCBridge } from './write-atc-bridge';
 
 function setupTest() {
-  const temp = setupTempDir('atc-bridge-');
+  const temp = createTempDir('atc-bridge-');
 
   return { folder: join(temp.path, 'atc-bridge') };
 }

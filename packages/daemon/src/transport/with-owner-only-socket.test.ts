@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { withOwnerOnlySocket } from './with-owner-only-socket';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-owner-only-socket-');
+  const temporaryDirectory = createTempDir('atc-owner-only-socket-');
   const previous = process.umask(0o000);
 
   registerTestCleanup(() => {

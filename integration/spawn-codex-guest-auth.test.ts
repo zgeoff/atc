@@ -3,22 +3,25 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createStubRecordingCodex } from '@atc/harness-codex/test-utils/create-stub-recording-codex';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-codex-guest-auth-');
+  const temporaryDirectory = createTempDir('atc-codex-guest-auth-');
   const guestDir = join(temporaryDirectory.path, 'g');
-  const guestATC = createStubBin(temporaryDirectory.path, 'atc', '#!/bin/sh\necho 1.0.0\n');
+
+  const guestATC = createStubBin(temporaryDirectory.path, 'atc', {
+    script: '#!/bin/sh\necho 1.0.0\n',
+  }).path;
+
   const port = createStubImpPort();
 
   const provider = createImpProvider(

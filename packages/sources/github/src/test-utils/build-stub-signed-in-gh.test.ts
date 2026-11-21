@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildStubSignedInGH } from './build-stub-signed-in-gh';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-signed-in-gh-');
-  const gh = createStubBin(temporaryDirectory.path, 'gh', buildStubSignedInGH());
+  const temporaryDirectory = createTempDir('atc-stub-signed-in-gh-');
+  const gh = createStubBin(temporaryDirectory.path, 'gh', { script: buildStubSignedInGH() }).path;
 
   return { directory: temporaryDirectory.path, gh };
 }
@@ -16,7 +16,7 @@ function setupTest() {
 test('it prints https for the git protocol', async () => {
   const ctx = setupTest();
 
-  const result = await runCommand([ctx.gh, 'config', 'get', 'git_protocol'], {
+  const result = await run([ctx.gh, 'config', 'get', 'git_protocol'], {
     env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 
@@ -26,10 +26,9 @@ test('it prints https for the git protocol', async () => {
 test("it answers the API's list of the signed-in account's repositories with one public repository", async () => {
   const ctx = setupTest();
 
-  const result = await runCommand(
-    [ctx.gh, 'api', 'user/repos?affiliation=owner&per_page=100&page=1'],
-    { env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' } },
-  );
+  const result = await run([ctx.gh, 'api', 'user/repos?affiliation=owner&per_page=100&page=1'], {
+    env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
+  });
 
   expect(JSON.parse(result.stdout)).toStrictEqual([
     {
@@ -45,7 +44,7 @@ test("it answers the API's list of the signed-in account's repositories with one
 test("it lists an owner's one private repository", async () => {
   const ctx = setupTest();
 
-  const result = await runCommand(
+  const result = await run(
     [
       ctx.gh,
       'repo',
@@ -73,11 +72,11 @@ test("it lists an owner's one private repository", async () => {
 test('it records each command line it runs in the home', async () => {
   const ctx = setupTest();
 
-  await runCommand([ctx.gh, 'repo', 'list', '--limit', '100'], {
+  await run([ctx.gh, 'repo', 'list', '--limit', '100'], {
     env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 
-  await runCommand([ctx.gh, 'config', 'get', 'git_protocol'], {
+  await run([ctx.gh, 'config', 'get', 'git_protocol'], {
     env: { HOME: ctx.directory, PATH: '/usr/bin:/bin' },
   });
 

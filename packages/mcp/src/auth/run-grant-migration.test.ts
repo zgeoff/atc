@@ -1,9 +1,9 @@
 import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import type { PasskeyID } from '@zgeoff/mcp-auth';
 import { buildTestRequester, createTestDatabase } from '@zgeoff/mcp-auth/testing';
 import { toTagged } from '@zgeoff/std';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { readTableShapes } from '../test-utils/read-table-shapes';
 import { seedOwnerClient } from '../test-utils/seed-owner-client';
 import { seedOwnerGrant } from '../test-utils/seed-owner-grant';

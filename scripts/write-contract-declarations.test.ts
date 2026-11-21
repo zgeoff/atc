@@ -1,13 +1,13 @@
 import { expect, mock, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { DECLARATION_TOOLS } from './declaration-tools';
 import { writeContractDeclarations } from './write-contract-declarations';
 import type { DeclarationTools } from './write-contract-declarations';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('write-contract-declarations-');
+  const temporaryDirectory = createTempDir('write-contract-declarations-');
 
   return { out: temporaryDirectory.path };
 }

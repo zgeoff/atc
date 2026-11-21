@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { startStubLegacyDaemon } from './start-stub-legacy-daemon';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-peer-probe-');
+  const temporaryDirectory = createTempDir('atc-peer-probe-');
 
   return {
     socketPath: join(temporaryDirectory.path, 'daemon.sock'),
@@ -23,7 +23,7 @@ test('it adds an empty scope to the session after a handshake without a session'
     replies: { 'session.scope.add': { record: {} } },
   });
 
-  await runCommand([process.execPath, ctx.probe, 'scope-add', ctx.socketPath, 's-7', ctx.outPath]);
+  await run([process.execPath, ctx.probe, 'scope-add', ctx.socketPath, 's-7', ctx.outPath]);
 
   expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({ ok: true });
 
@@ -46,7 +46,7 @@ test('it writes the code of a refused request', async () => {
 
   startStubLegacyDaemon(ctx.socketPath);
 
-  await runCommand([process.execPath, ctx.probe, 'scope-add', ctx.socketPath, 's-7', ctx.outPath]);
+  await run([process.execPath, ctx.probe, 'scope-add', ctx.socketPath, 's-7', ctx.outPath]);
 
   expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({ code: 'unknown_method' });
 });
@@ -64,7 +64,7 @@ test('it writes the sender the daemon recorded for the message it sent', async (
     },
   });
 
-  await runCommand([process.execPath, ctx.probe, 'message', ctx.socketPath, 's-7', ctx.outPath]);
+  await run([process.execPath, ctx.probe, 'message', ctx.socketPath, 's-7', ctx.outPath]);
 
   expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({
     from: 'harbor-refactor',
@@ -93,7 +93,7 @@ test('it writes the sender the daemon recorded for a message it sent as a princi
     },
   });
 
-  await runCommand([process.execPath, ctx.probe, 'message-as', ctx.socketPath, 's-7', ctx.outPath]);
+  await run([process.execPath, ctx.probe, 'message-as', ctx.socketPath, 's-7', ctx.outPath]);
 
   expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({
     from: 'Lantern Notes',
@@ -115,7 +115,7 @@ test('it writes the peer session the handshake answer holds, after a handshake w
     },
   });
 
-  await runCommand([process.execPath, ctx.probe, 'peer-session', ctx.socketPath, '-', ctx.outPath]);
+  await run([process.execPath, ctx.probe, 'peer-session', ctx.socketPath, '-', ctx.outPath]);
 
   expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({ peerSession: 's-4' });
 
@@ -136,7 +136,7 @@ test('it gives the session in its handshake', async () => {
   const ctx = setupTest();
   const daemon = startStubLegacyDaemon(ctx.socketPath);
 
-  await runCommand([process.execPath, ctx.probe, 'hello', ctx.socketPath, 's-7', ctx.outPath]);
+  await run([process.execPath, ctx.probe, 'hello', ctx.socketPath, 's-7', ctx.outPath]);
 
   expect(JSON.parse(readFileSync(ctx.outPath, 'utf8'))).toStrictEqual({ ok: true });
 

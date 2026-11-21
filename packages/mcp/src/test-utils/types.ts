@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import type { Kysely } from 'kysely';
 import type { EventSchema } from '../events/event-schema';
 

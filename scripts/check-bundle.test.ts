@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('check-bundle-');
+  const temporaryDirectory = createTempDir('check-bundle-');
 
   await Bun.write(
     join(temporaryDirectory.path, 'packages/execution/local/package.json'),
@@ -74,7 +74,7 @@ test('it passes a bundle that reaches each provider only through the shipped lis
     "import { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
     ctx.directory,
@@ -105,11 +105,11 @@ test('it passes a bundle that reaches each provider only through the shipped lis
     "import { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS);\n",
   );
 
-  const links = setupTempDir('check-bundle-link-');
+  const links = createTempDir('check-bundle-link-');
 
   symlinkSync(ctx.directory, join(links.path, 'root'));
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
     join(links.path, 'root'),
@@ -140,11 +140,11 @@ test('it fails a bundle that carries a provider the shipped list leaves out when
     "import { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\nimport { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS, REMOTE_PLUGIN);\n",
   );
 
-  const links = setupTempDir('check-bundle-link-');
+  const links = createTempDir('check-bundle-link-');
 
   symlinkSync(ctx.directory, join(links.path, 'root'));
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
     join(links.path, 'root'),
@@ -184,7 +184,7 @@ test('it drops a provider that the shipped list imports through its root entry p
     "import { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
     ctx.directory,
@@ -215,7 +215,7 @@ test('it finds a provider outside the shipped list when it runs from a directory
     "import { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\nimport { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS, REMOTE_PLUGIN);\n",
   );
 
-  const checked = await runCommand(
+  const checked = await run(
     [process.execPath, join(import.meta.dir, 'check-bundle.ts'), ctx.directory],
     { cwd: dirname(ctx.directory) },
   );
@@ -240,7 +240,7 @@ test('it fails a local-only bundle that reaches a provider outside the shipped l
     "import { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\nimport { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS, REMOTE_PLUGIN);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
     ctx.directory,
@@ -266,7 +266,7 @@ test('it fails a bundle that carries a provider the shipped list leaves out', as
     "import { REMOTE_PLUGIN } from '@atc/execution-remote/remote-plugin';\nimport { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS, REMOTE_PLUGIN);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
     ctx.directory,
@@ -292,7 +292,7 @@ test('it fails a bundle that keeps a provider but carries none of its files', as
     "import { SHIPPED_EXECUTION_PLUGINS } from './plugins/shipped-execution-plugins';\n\nconsole.log(SHIPPED_EXECUTION_PLUGINS);\n",
   );
 
-  const checked = await runCommand([
+  const checked = await run([
     process.execPath,
     join(import.meta.dir, 'check-bundle.ts'),
     ctx.directory,

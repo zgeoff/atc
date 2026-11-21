@@ -1,8 +1,8 @@
 import type { Database } from 'bun:sqlite';
-import type { Clock } from '@atc/core';
 import { GRANT_SCOPES } from '@atcx/contract';
 import { openMCPAuthAdmin } from '@zgeoff/mcp-auth';
 import type { MCPAuthAdmin } from '@zgeoff/mcp-auth';
+import type { Clock } from '@zgeoff/std';
 import { ATC_AUTH_TABLES } from './constants';
 import { runGrantMigration } from './run-grant-migration';
 

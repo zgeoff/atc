@@ -1,6 +1,6 @@
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { WringerError } from '@wringer/core';
 import type { Endpoints } from '@wringer/core';
+import { waitFor } from '@zgeoff/testing';
 import { collectNamedSessions } from './collect-named-sessions.ts';
 import { parseDockerRunEndpoints } from './docker-run-endpoints.ts';
 import { openDaemonConnection } from './open-daemon-connection.ts';

@@ -1,13 +1,12 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStubRecordingClaude } from './create-stub-recording-claude';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-recording-claude-');
+  const temporaryDirectory = createTempDir('atc-stub-recording-claude-');
 
   return { directory: temporaryDirectory.path };
 }

@@ -16,5 +16,8 @@
     "@atcx/contract": "workspace:*",
     "@fly/sprites": "catalog:",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@zgeoff/testing": "catalog:"
   }
 }

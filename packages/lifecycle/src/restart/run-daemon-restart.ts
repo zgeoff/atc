@@ -8,9 +8,9 @@ import {
   statSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import type { Clock } from '@atc/core';
 import { waitUntil } from '@atc/core';
 import { readSessionEnv } from '@atc/protocol/session';
+import type { Clock } from '@zgeoff/std';
 import { buildATCCommand } from '../boot/build-atc-command';
 import { spawnATCDetached } from '../boot/spawn-atc-detached';
 import type { LifecycleHost } from '../boot/types';
@@ -83,7 +83,7 @@ export async function runDaemonRestart(
 
 const LOG_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
-function removeStaleRestartLogs(restartsDir: string, clock: Clock): void {
+function removeStaleRestartLogs(restartsDir: string, clock: Pick<Clock, 'now' | 'schedule'>): void {
   const cutoff = clock.now() - LOG_RETENTION_MS;
 
   for (const entry of readdirSync(restartsDir)) {
@@ -101,7 +101,7 @@ function removeStaleRestartLogs(restartsDir: string, clock: Clock): void {
   }
 }
 
-function mintRunID(clock: Clock): string {
+function mintRunID(clock: Pick<Clock, 'now' | 'schedule'>): string {
   return `${clock.now().toString(36)}-${crypto.randomUUID().slice(0, 6)}`;
 }
 
@@ -165,7 +165,7 @@ async function printRunLog(
   runID: string,
   logPath: string,
   workerPIDAtStart: number | null,
-  clock: Clock,
+  clock: Pick<Clock, 'now' | 'schedule'>,
 ): Promise<number> {
   const startedAt = clock.now();
   let workerPID = workerPIDAtStart;

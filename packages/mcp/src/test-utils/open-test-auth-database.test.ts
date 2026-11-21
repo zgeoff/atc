@@ -1,11 +1,11 @@
 import { Database } from 'bun:sqlite';
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openTestAuthDatabase } from './open-test-auth-database';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-test-auth-db-');
+  const temporaryDirectory = createTempDir('atc-test-auth-db-');
 
   return { path: join(temporaryDirectory.path, 'mcp-auth.db') };
 }

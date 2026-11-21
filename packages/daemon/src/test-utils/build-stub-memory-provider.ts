@@ -1,5 +1,3 @@
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import type {
   CommandResult,
   CommandSpec,
@@ -13,6 +11,8 @@ import type {
   HostCredentials,
   HostRequest,
 } from '@atc/plugin-api';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 
 export interface StubMemoryHarness extends HarnessHandle {
   readonly spec: HarnessSpec;
@@ -64,7 +64,7 @@ interface StubMemoryProviderConfig {
   readonly suspendHost?: ExecutionProvider['suspendHost'];
   readonly destroyHost?: ExecutionProvider['destroyHost'];
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 }
 
 export interface StubMemoryProvider extends ExecutionProvider {
@@ -193,7 +193,10 @@ export function buildStubMemoryProvider(config: StubMemoryProviderConfig = {}): 
   };
 }
 
-function buildStubMemoryHarness(spec: HarnessSpec, clock: Clock): StubMemoryHarness {
+function buildStubMemoryHarness(
+  spec: HarnessSpec,
+  clock: Pick<Clock, 'now' | 'schedule'>,
+): StubMemoryHarness {
   const dataListeners = new Set<(data: string) => void>();
   const exitListeners = new Set<(exit: HarnessExit) => void>();
   const inputListeners = new Set<(data: string) => void>();

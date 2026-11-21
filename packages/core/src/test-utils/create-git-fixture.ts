@@ -1,7 +1,7 @@
 import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
-import { setupTempDir } from './setup-temp-dir';
 
 interface GitFixtureConfig {
   readonly prefix?: string;
@@ -12,7 +12,7 @@ export async function createGitFixture(config: GitFixtureConfig = {}) {
 
   const template = await resolveTemplate();
 
-  const temporaryDirectory = setupTempDir(config.prefix ?? 'atc-git-fixture-');
+  const temporaryDirectory = createTempDir(config.prefix ?? 'atc-git-fixture-');
   const upstream = join(temporaryDirectory.path, 'upstream.git');
   const work = join(temporaryDirectory.path, 'work');
 
@@ -37,7 +37,7 @@ export async function createGitFixture(config: GitFixtureConfig = {}) {
     upstream,
     work,
     sha: template.sha,
-    remove: temporaryDirectory.teardown,
+    remove: temporaryDirectory.remove,
   };
 }
 

@@ -1,15 +1,15 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { seedOwnerClient } from '@atc/mcp/test-utils/seed-owner-client';
 import { seedOwnerSchema } from '@atc/mcp/test-utils/seed-owner-schema';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
 import { runClients } from './run-clients';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-clients-');
+  const temporaryDirectory = createTempDir('atc-clients-');
   const dbPath = join(temporaryDirectory.path, 'state', 'mcp-auth.db');
 
   return {

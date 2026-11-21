@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { buildStubGH } from '../test-utils/build-stub-gh';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
@@ -13,7 +13,7 @@ import { checkSessionScope } from './check-session-scope';
 async function setupTest() {
   const fixture = await createGitFixture({ prefix: 'atc-scope-check-' });
 
-  const bin = setupTempDir('atc-scope-check-bin-');
+  const bin = createTempDir('atc-scope-check-bin-');
   const provider = buildStubMemoryProvider({ kind: 'local-pty', runCommand: runLocalCommand });
 
   return { fixture, bin: bin.path, provider };
@@ -215,10 +215,8 @@ test('it refuses a branch name git does not take', async () => {
 test('it records a pull request of the repository the entry gives', async () => {
   const ctx = await setupTest();
 
-  const gh = createStubBin(
-    ctx.bin,
-    'gh',
-    buildStubGH({
+  const gh = createStubBin(ctx.bin, 'gh', {
+    script: buildStubGH({
       replies: {
         api: {
           stdout: JSON.stringify({
@@ -231,7 +229,7 @@ test('it records a pull request of the repository the entry gives', async () => 
       },
       argvFile: join(ctx.bin, 'argv'),
     }),
-  );
+  }).path;
 
   const checked = await checkSessionScope(
     {
@@ -256,10 +254,8 @@ test('it records a pull request of the repository the entry gives', async () => 
 test("it takes a pull request's repository from the workspace's GitHub URL when the entry gives none", async () => {
   const ctx = await setupTest();
 
-  const gh = createStubBin(
-    ctx.bin,
-    'gh',
-    buildStubGH({
+  const gh = createStubBin(ctx.bin, 'gh', {
+    script: buildStubGH({
       replies: {
         api: {
           stdout: JSON.stringify({
@@ -271,7 +267,7 @@ test("it takes a pull request's repository from the workspace's GitHub URL when 
         },
       },
     }),
-  );
+  }).path;
 
   const checked = await checkSessionScope(
     {
@@ -292,10 +288,8 @@ test("it takes a pull request's repository from the workspace's GitHub URL when 
 test('it refuses a pull request whose base is another repository', async () => {
   const ctx = await setupTest();
 
-  const gh = createStubBin(
-    ctx.bin,
-    'gh',
-    buildStubGH({
+  const gh = createStubBin(ctx.bin, 'gh', {
+    script: buildStubGH({
       replies: {
         api: {
           stdout: JSON.stringify({
@@ -307,7 +301,7 @@ test('it refuses a pull request whose base is another repository', async () => {
         },
       },
     }),
-  );
+  }).path;
 
   expect(
     checkSessionScope(
@@ -330,13 +324,11 @@ test('it refuses a pull request whose base is another repository', async () => {
 test('it refuses a pull request gh cannot find', async () => {
   const ctx = await setupTest();
 
-  const gh = createStubBin(
-    ctx.bin,
-    'gh',
-    buildStubGH({
+  const gh = createStubBin(ctx.bin, 'gh', {
+    script: buildStubGH({
       replies: { api: { stderr: 'gh: Not Found (HTTP 404)\n', exitCode: 1 } },
     }),
-  );
+  }).path;
 
   expect(
     checkSessionScope(

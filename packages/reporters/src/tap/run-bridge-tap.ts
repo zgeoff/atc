@@ -1,10 +1,10 @@
 import { readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import { openBridgeSocket } from '@atc/protocol/session';
 import type { BridgeSocket } from '@atc/protocol/session';
 import { MESSAGE_SENDER_SCHEMA } from '@atcx/contract/light';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { z } from 'zod';
 import { renderMessageLine } from './render-message-line';
 import { renderNoticeLine } from './render-notice-line';
@@ -31,7 +31,7 @@ const PROCESS_IO: BridgeTapIO = {
 interface RunBridgeTapOptions {
   readonly io?: BridgeTapIO;
   readonly notices?: boolean;
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 }
 
 export async function runBridgeTap(
@@ -109,7 +109,7 @@ interface RunTapConnectionOptions {
   readonly seen: Set<string>;
   readonly io: BridgeTapIO;
   readonly notices: boolean;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 }
 
 async function runTapConnection(options: RunTapConnectionOptions): Promise<TapEnd> {

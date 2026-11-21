@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { readManagedDaemonUnit } from './read-managed-daemon-unit';
 
 function setupTest() {
-  return setupTempDir('atc-managed-unit-');
+  return createTempDir('atc-managed-unit-');
 }
 
 test('it treats an installed inactive user unit as managed', () => {

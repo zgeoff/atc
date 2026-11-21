@@ -1,14 +1,14 @@
 import { expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
 import { startStubSessionBridge } from '@atc/protocol/test-utils/start-stub-session-bridge';
+import { updateEnv } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { runStatusline } from './run-statusline';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-statusline-');
+  const temporaryDirectory = createTempDir('atc-statusline-');
 
   updateEnv('CLAUDE_CONFIG_DIR', temporaryDirectory.path);
 

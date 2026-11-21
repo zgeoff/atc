@@ -1,4 +1,4 @@
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { createDaemonConnection } from '../transport/create-daemon-connection';
 import type { DaemonConnection, PeerSession } from '../transport/create-daemon-connection';
 import type { TCPPeer } from '../transport/tcp-peer';

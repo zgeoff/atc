@@ -1,10 +1,9 @@
 import { expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { HarnessAttachment, HarnessExit, LaunchTicket } from '@atc/plugin-api';
 import { AtcError } from '@atcx/contract/light';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildMockImpSessionRequest } from '../test-utils/build-mock-imp-session-request';
 import { buildStubFailingAttachmentListener } from '../test-utils/build-stub-failing-attachment-listener';
 import { buildStubLaunchAdmission } from '../test-utils/build-stub-launch-admission';
@@ -13,7 +12,7 @@ import { createStubImpPort } from '../test-utils/create-stub-imp-port';
 import { createImpHarness } from './create-imp-harness';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-imp-harness-');
+  const temporaryDirectory = createTempDir('atc-imp-harness-');
   const port = createStubImpPort();
 
   return { directory: temporaryDirectory.path, port };

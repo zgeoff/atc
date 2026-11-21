@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { createTestDatabase } from '@zgeoff/mcp-auth/testing';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { seedOwnerClient } from './seed-owner-client';
 import { seedOwnerSchema } from './seed-owner-schema';
 import { seedOwnerTokens } from './seed-owner-tokens';

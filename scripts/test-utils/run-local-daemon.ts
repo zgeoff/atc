@@ -3,8 +3,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildStubTUIClaude } from '@atc/app/test-utils/build-stub-tui-claude';
 import { resolvePaths } from '@atc/config';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
+import { waitFor } from '@zgeoff/testing';
 import type { Subprocess } from 'bun';
 import { buildGatewayRegistry } from '../verify/build-gateway-registry.ts';
 import { buildLocalConfig } from '../verify/build-local-config.ts';
@@ -23,7 +23,7 @@ export async function runLocalDaemon(env: Env) {
   const home = readRunHome(env);
   const paths = resolvePaths(env);
   const digest = readDigest(env);
-  const stub = createStubBin(home.home, 'fake-claude', buildStubTUIClaude(home.cli));
+  const stub = writeStubProgram(home.home, 'fake-claude', buildStubTUIClaude(home.cli));
 
   mkdirSync(join(home.home, '.config', 'atc'), { recursive: true });
   writeFileSync(paths.configFile, JSON.stringify(buildLocalConfig(home.home, stub)));

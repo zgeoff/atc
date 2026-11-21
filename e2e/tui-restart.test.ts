@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { buildLocalTarget } from '@atc/app/test-utils/build-local-target';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { startDaemon } from '@atc/daemon';
 import { startStubLegacyDaemonProcess } from '@atc/lifecycle/test-utils/start-stub-legacy-daemon-process';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
@@ -13,6 +12,7 @@ import { createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toAgentSessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { createHostServices } from '../packages/app/src/daemon/create-host-services';
 
 function setupTest() {

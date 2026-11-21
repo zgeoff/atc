@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { McpServer } from '@modelcontextprotocol/server';
 import type { GrantID, OAuthClientID } from '@zgeoff/mcp-auth';
 import { toTagged } from '@zgeoff/std';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { createModernMCPHandler } from './create-modern-mcp-handler';
 
 test('it builds the server of each request for the access its token verified to', async () => {

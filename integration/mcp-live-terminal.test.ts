@@ -6,9 +6,6 @@ import { openPTYViewer } from '@atc/app/test-utils/open-pty-viewer';
 import { openTestAuthAdmin } from '@atc/app/test-utils/open-test-auth-admin';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockExecutionTarget } from '@atc/daemon/test-utils/build-mock-execution-target';
 import { buildStubMemoryProvider } from '@atc/daemon/test-utils/build-stub-memory-provider';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
@@ -18,6 +15,8 @@ import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { openWatchChannel } from '../packages/app/src/events/open-watch-channel';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
@@ -29,7 +28,7 @@ interface StackOptions {
 }
 
 function setupTest() {
-  const authRoot = setupTempDir('atc-live-terminal-auth-');
+  const authRoot = createTempDir('atc-live-terminal-auth-');
 
   const startStack = async (options: StackOptions) => {
     const provider = buildStubMemoryProvider({ kind: 'local-pty', capabilities: { resize: true } });
@@ -410,7 +409,7 @@ test('it answers a live-terminal path whose session id holds a broken escape wit
 });
 
 test('it refuses an owner token file on a bind other machines can reach', () => {
-  const dbPath = join(setupTempDir('atc-live-terminal-bind-').path, 'mcp-auth.db');
+  const dbPath = join(createTempDir('atc-live-terminal-bind-').path, 'mcp-auth.db');
 
   const caller = createTransportCaller(join(dbPath, 'no.sock'), 'atc/test-build', (path) =>
     createDaemonClient(path),

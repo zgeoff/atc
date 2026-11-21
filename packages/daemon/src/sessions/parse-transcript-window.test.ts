@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildTranscriptWindowArgs } from './build-transcript-window-args';
 import { NO_TRANSCRIPT_CODE, READ_TRANSCRIPT_WINDOW_SCRIPT } from './constants';
 import { parseTranscriptWindow } from './parse-transcript-window';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-transcript-window-');
+  const temporaryDirectory = createTempDir('atc-transcript-window-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -20,7 +20,7 @@ test('it reads the exact bytes of a window that splits a character', async () =>
 
   writeFileSync(path, 'café\nsecond turn\n');
 
-  const read = await runCommand([
+  const read = await run([
     'sh',
     '-c',
     READ_TRANSCRIPT_WINDOW_SCRIPT,
@@ -40,7 +40,7 @@ test('it reads the exact bytes of a window across a block boundary', async () =>
 
   writeFileSync(path, `${'a'.repeat(65_530)}0123456789${'b'.repeat(4460)}`);
 
-  const read = await runCommand([
+  const read = await run([
     'sh',
     '-c',
     READ_TRANSCRIPT_WINDOW_SCRIPT,
@@ -60,7 +60,7 @@ test('it reads an empty window from an offset past the end of the file', async (
 
   writeFileSync(path, 'first turn\n');
 
-  const read = await runCommand([
+  const read = await run([
     'sh',
     '-c',
     READ_TRANSCRIPT_WINDOW_SCRIPT,
@@ -77,7 +77,7 @@ test('it reads an empty window from an offset past the end of the file', async (
 test('it exits with the missing-file code when there is no file at the path', async () => {
   const ctx = setupTest();
 
-  const read = await runCommand([
+  const read = await run([
     'sh',
     '-c',
     READ_TRANSCRIPT_WINDOW_SCRIPT,
@@ -94,10 +94,10 @@ test('it exits with a failure when the host cannot copy the bytes of the window'
   const bin = join(ctx.directory, 'bin');
 
   writeFileSync(path, 'first turn\n');
-  createStubBin(bin, 'dd', '#!/bin/sh\nexit 1\n');
-  createStubBin(bin, 'tail', '#!/bin/sh\nexit 1\n');
+  createStubBin(bin, 'dd', { script: '#!/bin/sh\nexit 1\n' });
+  createStubBin(bin, 'tail', { script: '#!/bin/sh\nexit 1\n' });
 
-  const read = await runCommand(
+  const read = await run(
     ['sh', '-c', READ_TRANSCRIPT_WINDOW_SCRIPT, 'sh', ...buildTranscriptWindowArgs(path, 0, 10)],
     { env: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` } },
   );

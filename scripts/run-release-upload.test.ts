@@ -1,18 +1,18 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { runReleaseUpload } from './run-release-upload';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('run-release-upload-');
+  const temporaryDirectory = createTempDir('run-release-upload-');
   const root = join(temporaryDirectory.path, 'release');
   const bin = join(temporaryDirectory.path, 'bin');
   const calls = join(temporaryDirectory.path, 'gh-calls');
 
-  createStubBin(bin, 'gh', `#!/bin/sh\nprintf '%s\\n' "$@" >> '${calls}'\n`);
+  createStubBin(bin, 'gh', { script: `#!/bin/sh\nprintf '%s\\n' "$@" >> '${calls}'\n` });
 
   return { root, bin, calls };
 }
@@ -67,17 +67,14 @@ test('it exits 1 and names the refusal when the checkout it runs in holds no bin
   mkdirSync(join(ctx.root, 'dist'), { recursive: true });
   writeFileSync(join(ctx.root, 'package.json'), JSON.stringify({ version: '4.2.0' }));
 
-  const upload = await runCommand(
-    [process.execPath, join(import.meta.dir, 'run-release-upload.ts')],
-    {
-      cwd: ctx.root,
-      env: {
-        ...process.env,
-        GITHUB_REPOSITORY: 'example/tower',
-        PATH: `${ctx.bin}:${process.env['PATH'] ?? ''}`,
-      },
+  const upload = await run([process.execPath, join(import.meta.dir, 'run-release-upload.ts')], {
+    cwd: ctx.root,
+    env: {
+      ...process.env,
+      GITHUB_REPOSITORY: 'example/tower',
+      PATH: `${ctx.bin}:${process.env['PATH'] ?? ''}`,
     },
-  );
+  });
 
   expect({ exitCode: upload.exitCode, stdout: upload.stdout, stderr: upload.stderr }).toStrictEqual(
     {

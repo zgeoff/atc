@@ -1,8 +1,8 @@
-import type { Clock } from '@atc/core';
 import type { SessionState } from '@atc/protocol';
 import { PROTOCOL_V } from '@atc/protocol/wire';
 import type { EventMsg } from '@atc/protocol/wire';
 import type { SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import { createPermissionRegistry } from './create-permission-registry';
 import type { AnswerResult } from './create-permission-registry';
 import type { HookScope } from './make-hook-runner';
@@ -10,7 +10,7 @@ import type { Session } from './session';
 import type { SessionEventKind } from './session-event-kind';
 
 interface PermissionPromptsDeps {
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly emitEvent: (event: EventMsg, scope?: HookScope | null) => void;
   readonly findHookScope: (sessionID: SessionID) => HookScope | null;
 }

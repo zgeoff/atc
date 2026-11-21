@@ -3,13 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { openRawDaemonClient as openDaemonClient } from '@atc/protocol/test-utils/open-raw-daemon-client';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startStubRestoreDaemon } from './start-stub-restore-daemon';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-restore-daemon-');
+  const temporaryDirectory = createTempDir('atc-stub-restore-daemon-');
   const socketPath = join(temporaryDirectory.path, 'daemon.sock');
   const daemon = startStubRestoreDaemon(socketPath);
 

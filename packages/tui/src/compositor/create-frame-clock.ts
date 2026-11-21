@@ -1,11 +1,11 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import { isLateTick, pickNextFrameAt } from './pick-next-frame-at';
 import type { Layer } from './types';
 
 const FRAME_MS = 16;
 
 export interface FrameClockDeps {
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   // false turns decorative motion off; a layer reads it when it builds its next-frame answer
   readonly animations: boolean;

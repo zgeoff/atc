@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createStubSystemd } from '../test-utils/create-stub-systemd';
 import { startSessionScopes } from './start-session-scopes';
 
@@ -132,9 +132,11 @@ test('it starts no scopes when the service manager programs are not on the daemo
 
 test('it starts no scopes with a systemd-run too old to leave arguments unexpanded', () => {
   const ctx = setupTest();
-  const old = setupTempDir('atc-old-systemd-');
+  const old = createTempDir('atc-old-systemd-');
 
-  createStubBin(old.path, 'systemd-run', '#!/bin/sh\n# libsystemd-shared-252.so\nexec "$@"\n');
+  createStubBin(old.path, 'systemd-run', {
+    script: '#!/bin/sh\n# libsystemd-shared-252.so\nexec "$@"\n',
+  });
 
   ctx.systemd.writeUnitCgroup(4242, 'atc-daemon.service');
 

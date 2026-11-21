@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { PasskeyID } from '@atc/mcp';
 import { toTagged } from '@zgeoff/std';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openTestAuthAdmin } from '../test-utils/open-test-auth-admin';
 import { runPasskeys } from './run-passkeys';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-passkeys-');
+  const temporaryDirectory = createTempDir('atc-passkeys-');
   const dbPath = join(temporaryDirectory.path, 'state', 'mcp-auth.db');
 
   const opened = await openTestAuthAdmin(dbPath);

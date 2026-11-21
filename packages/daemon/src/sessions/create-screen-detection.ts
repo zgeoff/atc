@@ -1,5 +1,5 @@
-import type { Clock } from '@atc/core';
 import type { SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 
@@ -11,7 +11,7 @@ interface ScreenDetectionDeps {
     SessionManager,
     'hasScreenDetector' | 'sessions' | 'findAdapter' | 'updateAttention'
   >;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
   readonly recordNeedsInput: (sessionID: SessionID, message: string) => Promise<boolean>;

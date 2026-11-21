@@ -4,9 +4,6 @@ import { dirname, join } from 'node:path';
 import { NODE_TOKEN_FILE_ACCESS, loadListenerTokens } from '@atc/config';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
 import { bootDaemonClient } from '@atc/lifecycle';
 import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
@@ -17,6 +14,8 @@ import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment
 import { sendMCPRequest } from '@atc/mcp/test-utils/send-mcp-request';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { connectNamedDaemon } from '../daemon-connection/connect-named-daemon';
 import { createLocalDaemonConnection } from '../daemon-connection/create-local-daemon-connection';
@@ -30,7 +29,7 @@ import { openMCPAuthDatabase } from './open-mcp-auth-database';
 import { runMCPHTTPServer } from './run-mcp-http-server';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const temporaryDirectory = createTempDir('atc-mcp-http-server-');
   const socketPath = join(temporaryDirectory.path, 'atc-daemon.sock');
 
   const daemon = await startDaemon({
@@ -1031,7 +1030,7 @@ test('it stops serving and exits 0 on SIGTERM', async () => {
 });
 
 test('it exits 1 with the reason when no daemon answers at its daemon paths', async () => {
-  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const temporaryDirectory = createTempDir('atc-mcp-http-server-');
   const errors: string[] = [];
   const codes: number[] = [];
 
@@ -1182,7 +1181,7 @@ test('it streams a snapshot to a viewer that presents the token from its owner-o
 });
 
 test('it exits 1 before it boots a daemon when other users can open its token file', async () => {
-  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const temporaryDirectory = createTempDir('atc-mcp-http-server-');
   const tokenFile = join(temporaryDirectory.path, 'viewer-token');
   const errors: string[] = [];
   const codes: number[] = [];
@@ -1248,7 +1247,7 @@ test('it exits 1 before it boots a daemon when other users can open its token fi
 });
 
 test('it answers a tool call with the sessions of a named daemon it reaches over TCP, starting no local daemon', async () => {
-  const temporaryDirectory = setupTempDir('atc-mcp-http-server-');
+  const temporaryDirectory = createTempDir('atc-mcp-http-server-');
   const tokenFile = join(temporaryDirectory.path, 'box.token');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
 

@@ -2,13 +2,13 @@ import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createStateStore } from '@atc/store';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-state-template-');
+  const temporaryDirectory = createTempDir('atc-state-template-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -18,11 +18,7 @@ test('it writes a database whose migration ledger matches a fresh store', async 
   const templatePath = join(ctx.directory, 'template.db');
   const freshPath = join(ctx.directory, 'fresh.db');
 
-  await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'create-state-template.ts'),
-    templatePath,
-  ]);
+  await run([process.execPath, join(import.meta.dir, 'create-state-template.ts'), templatePath]);
 
   const fresh = await createStateStore(freshPath);
 
@@ -51,11 +47,7 @@ test('it writes a database the store opens without running a migration', async (
   const ctx = setupTest();
   const templatePath = join(ctx.directory, 'template.db');
 
-  await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'create-state-template.ts'),
-    templatePath,
-  ]);
+  await run([process.execPath, join(import.meta.dir, 'create-state-template.ts'), templatePath]);
 
   const before = new Database(templatePath, { readonly: true });
 
@@ -88,7 +80,7 @@ test.each([
 ])('it refuses a run with %s and writes no database', async (_label, args) => {
   const ctx = setupTest();
 
-  const refused = await runCommand(
+  const refused = await run(
     [process.execPath, join(import.meta.dir, 'create-state-template.ts'), ...args],
     { cwd: ctx.directory },
   );
@@ -102,10 +94,7 @@ test.each([
 });
 
 test('it refuses a run without a path', async () => {
-  const refused = await runCommand([
-    process.execPath,
-    join(import.meta.dir, 'create-state-template.ts'),
-  ]);
+  const refused = await run([process.execPath, join(import.meta.dir, 'create-state-template.ts')]);
 
   expect({ exitCode: refused.exitCode, stderr: refused.stderr }).toStrictEqual({
     exitCode: 2,

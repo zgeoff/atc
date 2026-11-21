@@ -1,7 +1,7 @@
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { readDockerLines } from '@atc/execution-docker/test-utils/read-docker-lines';
 import { runDocker } from '@atc/execution-docker/test-utils/run-docker';
 import type { Endpoints } from '@wringer/core';
+import { waitFor } from '@zgeoff/testing';
 import { dockerTokenValue } from './constants.ts';
 import { parseDockerRunEndpoints } from './docker-run-endpoints.ts';
 

@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'bun:test';
-import { systemClock } from '@atc/core';
 import { buildStubSkipClock } from '@atc/core/test-utils/build-stub-skip-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { systemClock } from '@zgeoff/std';
+import { registerTestCleanup } from '@zgeoff/testing';
 import { restartDaemonProcess } from './restart-daemon-process';
 
 test('it stops a daemon no unit runs with SIGTERM', async () => {

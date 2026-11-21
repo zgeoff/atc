@@ -1,9 +1,9 @@
 import { parseRestoreBootTimeoutMs } from '@atc/config';
 import { resolvePaths } from '@atc/config/host';
-import { systemClock } from '@atc/core';
 import type { LifecycleHost } from '@atc/lifecycle';
 import { readManagedDaemonUnit, runSystemctl, tryOpenDaemon } from '@atc/lifecycle';
 import type { HostServices } from '@atc/plugin-api';
+import { systemClock } from '@zgeoff/std';
 import { buildATCInvocation } from '../cli/build-atc-invocation';
 
 export function buildLifecycleHost(

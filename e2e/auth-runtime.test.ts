@@ -2,11 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
-import { systemClock } from '@atc/core';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createRuntimeAuthBinder } from '@atc/daemon';
 import { buildStubBrokeredAgentAdapter } from '@atc/daemon/test-utils/build-stub-brokered-agent-adapter';
 import { buildStubProxiedAgentAdapter } from '@atc/daemon/test-utils/build-stub-proxied-agent-adapter';
@@ -19,6 +15,9 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { buildMockAuthProfile } from '@atc/plugin-api/test-utils/build-mock-auth-profile';
 import { createStateStore } from '@atc/store';
 import { toSessionID } from '@atcx/contract';
+import { systemClock } from '@zgeoff/std';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 
 interface SetupConfig {
@@ -26,7 +25,7 @@ interface SetupConfig {
 }
 
 function setupTest(config?: SetupConfig) {
-  const temporaryDirectory = setupTempDir('atc-runtime-auth-');
+  const temporaryDirectory = createTempDir('atc-runtime-auth-');
   const port = createStubImpPort();
 
   const provider = createImpProvider(

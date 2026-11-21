@@ -1,12 +1,12 @@
 import type { Database } from 'bun:sqlite';
 import { lookup } from 'node:dns/promises';
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import { MAX_LINE } from '@atc/protocol/wire';
 import { GATEWAY_PATHS } from '@atcx/contract';
 import type { GrantScope } from '@atcx/contract';
 import type { ServiceTokenFile } from '@zgeoff/mcp-auth';
 import { createMCPHTTPApp } from '@zgeoff/mcp-auth/elysia';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import type { Server } from 'bun';
 import { Elysia, NotFound } from 'elysia';
 import invariant from 'tiny-invariant';
@@ -87,7 +87,7 @@ interface MCPHTTPServerOptions {
 
   // The time pending approvals, their challenges, the limit on approval
   // starts, and the routes' expiries run on; the system clock when unset.
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 
   // Posts MCP Events webhooks; a sender that reaches only public addresses
   // over https when unset.

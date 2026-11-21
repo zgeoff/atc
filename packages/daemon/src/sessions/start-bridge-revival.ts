@@ -1,8 +1,8 @@
-import type { Clock } from '@atc/core';
 import { buildTarArchive, toTimerClock } from '@atc/core';
 import type { ExecutionProvider, GuestLayout } from '@atc/plugin-api';
 import type { HookEvent } from '@atc/protocol/session';
 import type { SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import { createActor } from 'xstate';
 import type { Actor, SnapshotFrom } from 'xstate';
 import type { TapClient } from '../types';
@@ -15,7 +15,7 @@ import type { Session } from './session';
 interface BridgeRevivalDeps {
   readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'requireExecution' | 'log'>;
   readonly taps: Pick<TapRegistry<TapClient>, 'hasTap' | 'subscribeToDetach' | 'subscribeToAttach'>;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   // The agent process can end before its terminal handle closes, so the handle alone is not enough.
   readonly isProcessEnded: (sessionID: SessionID) => boolean;

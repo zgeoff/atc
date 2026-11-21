@@ -1,16 +1,15 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { resolvePaths } from '@atc/config';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createDaemonClient } from '@atc/protocol/client';
 import { CONTRACT_MAJOR } from '@atcx/contract/light';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-mcp-http-wait-');
+  const temporaryDirectory = createTempDir('atc-mcp-http-wait-');
 
   const env = {
     ...process.env,

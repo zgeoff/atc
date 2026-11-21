@@ -5,8 +5,6 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { loadConfig, parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildStubHeadlessRunner } from '@atc/daemon/test-utils/build-stub-headless-runner';
 import { buildStubTargets } from '@atc/daemon/test-utils/build-stub-targets';
 import { createCodexAdapter } from '@atc/harness-codex';
@@ -14,10 +12,12 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { toSessionID } from '@atcx/contract';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-daemon-config-file-');
+  const temporaryDirectory = createTempDir('atc-daemon-config-file-');
   const configDir = join(temporaryDirectory.path, 'config');
 
   mkdirSync(configDir);

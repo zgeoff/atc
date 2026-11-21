@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { startStubReporterSocket } from '@atc/protocol/test-utils/start-stub-reporter-socket';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { sendReport } from './send-report';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-send-report-');
+  const temporaryDirectory = createTempDir('atc-send-report-');
 
   return { path: join(temporaryDirectory.path, 'reporter.sock') };
 }

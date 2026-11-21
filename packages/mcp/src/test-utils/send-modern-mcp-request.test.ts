@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { createDaemonClient } from '@atc/protocol/client';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
 import { createTransportCaller } from '../tools/create-transport-caller';
 import { buildStubAuthenticator } from './build-stub-authenticator';
@@ -13,7 +13,7 @@ import { runPasskeyEnrollment } from './run-passkey-enrollment';
 import { sendModernMCPRequest } from './send-modern-mcp-request';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-send-modern-mcp-request-');
+  const temporaryDirectory = createTempDir('atc-send-modern-mcp-request-');
   const dbPath = join(temporaryDirectory.path, 'mcp-auth.db');
 
   const caller = createTransportCaller(

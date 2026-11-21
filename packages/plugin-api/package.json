@@ -11,12 +11,13 @@
     "@atc/core": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atcx/contract": "workspace:*",
+    "@zgeoff/std": "catalog:",
     "ts-pattern": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@faker-js/faker": "catalog:",
-    "@zgeoff/std": "catalog:",
+    "@zgeoff/testing": "catalog:",
     "tiny-invariant": "catalog:",
     "type-fest": "catalog:"
   }

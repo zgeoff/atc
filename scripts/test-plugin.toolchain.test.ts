@@ -1,14 +1,14 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('test-plugin-');
+  const temporaryDirectory = createTempDir('test-plugin-');
 
   return { directory: temporaryDirectory.path, repo: join(import.meta.dir, '..') };
 }
@@ -145,7 +145,7 @@ test('it tests a plugin in a workspace of its manifest closure and the test help
     "import { expect, test } from 'bun:test';\nimport { FIXTURE } from '@atc/test-utils';\nimport { DEMO } from './index';\n\ntest('it builds the name', () => {\n  expect([DEMO, FIXTURE]).toStrictEqual(['core-contract-api-demo', 'fixture']);\n});\n",
   );
 
-  const ran = await runCommand([
+  const ran = await run([
     process.execPath,
     join(import.meta.dir, 'test-plugin.ts'),
     'harness-demo',
@@ -264,13 +264,11 @@ test('it type-checks the plugin when the node on PATH fails', async () => {
     "import { expect, test } from 'bun:test';\nimport { DEMO } from './index';\n\ntest('it names the demo', () => {\n  expect(DEMO).toBe('demo');\n});\n",
   );
 
-  createStubBin(
-    join(ctx.directory, 'bin'),
-    'node',
-    "#!/bin/sh\necho 'node: not usable here' >&2\nexit 1\n",
-  );
+  createStubBin(join(ctx.directory, 'bin'), 'node', {
+    script: "#!/bin/sh\necho 'node: not usable here' >&2\nexit 1\n",
+  });
 
-  const ran = await runCommand(
+  const ran = await run(
     [process.execPath, join(import.meta.dir, 'test-plugin.ts'), 'harness-demo', ctx.directory],
     { env: { ...process.env, PATH: `${join(ctx.directory, 'bin')}:${process.env['PATH']}` } },
   );

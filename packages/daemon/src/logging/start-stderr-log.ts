@@ -1,6 +1,6 @@
-import { systemClock } from '@atc/core';
-import type { Clock } from '@atc/core';
 import { configure, dispose } from '@logtape/logtape';
+import type { Clock } from '@zgeoff/std';
+import { systemClock } from '@zgeoff/std';
 import { createStderrSink } from './create-stderr-sink';
 
 const STDERR_FD = 2;
@@ -13,7 +13,7 @@ export interface StderrLog {
 // lines.
 export async function startStderrLog(
   fd: number = STDERR_FD,
-  clock: Clock = systemClock,
+  clock: Pick<Clock, 'now' | 'schedule'> = systemClock,
   batchLines?: number,
 ): Promise<StderrLog> {
   // The daemon is the only owner of LogTape's process-wide configuration, so a configuration
@@ -43,7 +43,7 @@ export async function startStderrLog(
 // An unread stderr pipe blocks writes with no end, so stopping gives up after one second.
 const STOP_TIMEOUT_MS = 1000;
 
-async function stopLog(clock: Clock): Promise<void> {
+async function stopLog(clock: Pick<Clock, 'now' | 'schedule'>): Promise<void> {
   const timedOut = Promise.withResolvers<void>();
   const cancelTimeout = clock.schedule(timedOut.resolve, STOP_TIMEOUT_MS);
 

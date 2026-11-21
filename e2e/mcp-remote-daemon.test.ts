@@ -6,14 +6,14 @@ import { startMCPStdio } from '@atc/app/test-utils/start-mcp-stdio';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { resolvePaths } from '@atc/config';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { buildMockAgentProfile } from '@atc/plugin-api/test-utils/build-mock-agent-profile';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-e2e-mcp-remote-');
+  const temporaryDirectory = createTempDir('atc-e2e-mcp-remote-');
 
   return {
     home: temporaryDirectory.path,

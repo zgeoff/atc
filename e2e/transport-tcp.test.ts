@@ -8,10 +8,7 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { buildDaemonStatePaths, collectTargets } from '@atc/config';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { tryCreateListeners } from '@atc/core/test-utils/try-create-listeners';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { startDaemon } from '@atc/daemon';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { claimDaemonLock } from '@atc/lifecycle';
@@ -19,9 +16,11 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { buildPeerRequestLine } from '@atc/protocol/test-utils/build-peer-request-line';
 import { buildTargetIdentity } from '@atc/store';
 import type { DaemonEvent } from '@atcx/contract';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-daemon-tcp-');
+  const temporaryDirectory = createTempDir('atc-daemon-tcp-');
 
   return {
     directory: temporaryDirectory.path,

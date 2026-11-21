@@ -1,16 +1,16 @@
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 
 export function createStubGuestCLIs(directory: string) {
   const cliPath = readSourceEntry('atc');
 
-  const atc = createStubBin(
+  const atc = writeStubProgram(
     directory,
     'atc',
     `#!/bin/sh\nexec "${process.execPath}" "${cliPath}" "$@"\n`,
   );
 
-  const claude = createStubBin(
+  const claude = writeStubProgram(
     directory,
     'claude',
     `#!/usr/bin/env bash

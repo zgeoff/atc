@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildHostFiles } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { loadGrokName } from './load-grok-name';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-grok-name-');
+  const temporaryDirectory = createTempDir('atc-grok-name-');
 
   return { home: temporaryDirectory.path };
 }

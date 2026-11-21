@@ -1,15 +1,14 @@
 import { expect, test } from 'bun:test';
 import { connect } from 'node:net';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { subscribeToSocketLines } from '@atc/protocol/test-utils/subscribe-to-socket-lines';
 import type { EventMsg } from '@atc/protocol/wire';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startEventsServer } from './start-events-server';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-events-server-');
+  const temporaryDirectory = createTempDir('atc-events-server-');
   const snapshots: (readonly EventMsg[])[] = [];
 
   return {

@@ -1,9 +1,6 @@
 import { expect, mock, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
@@ -13,6 +10,8 @@ import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-sta
 import type { SessionID } from '@atcx/contract';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { createSessionManager } from '../sessions/create-session-manager';
 import { createSessionRuntime } from '../sessions/create-session-runtime';
@@ -30,7 +29,7 @@ import { buildExecutionTargets } from './build-execution-targets';
 import { restoreFleet } from './restore-fleet';
 
 async function setupTest(config: Readonly<{ targets?: readonly ExecutionTarget[] }> = {}) {
-  const temporaryDirectory = setupTempDir('atc-restore-');
+  const temporaryDirectory = createTempDir('atc-restore-');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 
   createMigratedStateDB(dbPath);

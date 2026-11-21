@@ -3,20 +3,20 @@ import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getString } from '@atc/core/test-utils/get-string';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import type { CommandSpec } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { createStateStore } from '@atc/store';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
 import { toSessionID } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { buildStubLocalProvider } from '../test-utils/build-stub-local-provider';
 import { materializeWorkspace } from './materialize-workspace';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-materialize-');
+  const temporaryDirectory = createTempDir('atc-materialize-');
   const scratch = join(temporaryDirectory.path, 'scratch');
   const dbPath = join(temporaryDirectory.path, 'state.db');
 

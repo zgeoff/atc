@@ -1,18 +1,16 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { systemClock } from '@atc/core';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { updateEnv } from '@atc/core/test-utils/update-env';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { systemClock } from '@zgeoff/std';
+import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { createLocalPTYProvider } from './create-local-pty-provider';
 import { createSessionScopes } from './session-scopes/create-session-scopes';
 import { createStubSystemd } from './test-utils/create-stub-systemd';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-local-pty-');
+  const temporaryDirectory = createTempDir('atc-local-pty-');
   const provider = createLocalPTYProvider();
 
   registerTestCleanup(() => provider.dispose());

@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildDirsSource } from './build-dirs-source';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-dirs-source-');
+  const temporaryDirectory = createTempDir('atc-dirs-source-');
 
   return { home: temporaryDirectory.path };
 }

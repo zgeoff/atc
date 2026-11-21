@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { localDigestEnv } from '../verify/constants.ts';
 import { runLocalDaemon } from './run-local-daemon.ts';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-run-local-daemon-');
+  const temporaryDirectory = createTempDir('atc-run-local-daemon-');
 
   const env = {
     ATC_TEST_HOME: temporaryDirectory.path,

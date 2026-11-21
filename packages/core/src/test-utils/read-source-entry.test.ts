@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { updateEnv } from '@zgeoff/testing';
 import { readSourceEntry } from './read-source-entry';
-import { updateEnv } from './update-env';
 
 test('it returns the atc entry the wrapper exports', () => {
   updateEnv('ATC_CLI_ENTRY', '/repo/packages/app/src/cli.ts');

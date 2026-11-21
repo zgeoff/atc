@@ -2,11 +2,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import type { HarnessSpec } from '@atc/plugin-api';
 import { formatRelayFrame, parseDaemonFrame } from '@atc/protocol/relay';
 import type { GuestFrame } from '@atc/protocol/relay';
+import { waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { createDockerProvider } from './create-docker-provider';
 import { READ_HOME_SCRIPT } from './guest-scripts/read-home-script';
 import { UNPACK_ARCHIVE_SCRIPT } from './guest-scripts/unpack-archive-script';
@@ -18,7 +18,7 @@ interface HelloAnswer {
 }
 
 async function setupTest() {
-  const directory = setupTempDir('atc-docker-provider-');
+  const directory = createTempDir('atc-docker-provider-');
   const engine = createInMemoryEngine();
   const runs: { cmd: readonly string[]; stdin: string; workingDir: string | undefined }[] = [];
   const boot = { id: 'boot-1' };

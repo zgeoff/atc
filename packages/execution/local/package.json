@@ -13,9 +13,11 @@
     "@atc/plugin-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atcx/contract": "workspace:*",
+    "@zgeoff/std": "catalog:",
     "bun-pty": "catalog:"
   },
   "devDependencies": {
+    "@zgeoff/testing": "catalog:",
     "tiny-invariant": "catalog:"
   }
 }

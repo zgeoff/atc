@@ -1,6 +1,6 @@
-import type { Clock } from '@atc/core';
 import type { EventScope, StateStore } from '@atc/store';
 import type { RestartResult, SessionDescriptor, SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import { buildFleetEvents } from '../fleet/build-fleet-events';
@@ -33,7 +33,7 @@ interface EventTrailDeps {
     StateStore,
     'readLatestEvents' | 'readEventsAfter' | 'readNote' | 'readAnswer' | 'recordRestart'
   >;
-  readonly clock: Clock;
+  readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   readonly eventSignal: Pick<EventSignal, 'generation' | 'disposed' | 'waitForNext' | 'emit'>;
 }

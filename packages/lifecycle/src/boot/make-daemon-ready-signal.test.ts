@@ -4,13 +4,13 @@ import { once } from 'node:events';
 import { fstatSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { makeDaemonReadySignal } from './make-daemon-ready-signal';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-ready-signal-');
+  const temporaryDirectory = createTempDir('atc-ready-signal-');
 
   return { directory: temporaryDirectory.path };
 }

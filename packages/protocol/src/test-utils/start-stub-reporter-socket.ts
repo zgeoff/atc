@@ -1,5 +1,4 @@
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 
 interface StubReporterSocket {
   readonly lines: readonly string[];

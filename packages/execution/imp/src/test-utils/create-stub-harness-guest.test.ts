@@ -1,14 +1,13 @@
 import { expect, test } from 'bun:test';
 import { statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { createStubHarnessGuest } from './create-stub-harness-guest';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-harness-guest-');
+  const temporaryDirectory = createTempDir('atc-stub-harness-guest-');
 
   return { directory: temporaryDirectory.path };
 }

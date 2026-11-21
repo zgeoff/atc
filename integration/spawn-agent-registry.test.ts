@@ -3,10 +3,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { parseConfig } from '@atc/config';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { buildHookSettingsPath } from '@atc/harness-claude';
 import { createStubRecordingClaude } from '@atc/harness-claude/test-utils/create-stub-recording-claude';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
+import { waitFor } from '@zgeoff/testing';
 import { buildAgentAdapters } from '../packages/app/src/agents/build-agent-adapters';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 

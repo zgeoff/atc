@@ -1,9 +1,9 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { isCompiledBinary, readBuild } from '@atc/config/host';
-import { systemClock } from '@atc/core';
 import { runCommand } from '@atc/lifecycle/run-command';
 import type { HostServices } from '@atc/plugin-api';
+import { systemClock } from '@zgeoff/std';
 import pkg from '../../package.json';
 
 interface HostServicesOptions {

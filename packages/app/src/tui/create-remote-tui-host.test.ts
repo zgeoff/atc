@@ -2,10 +2,10 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolvePaths } from '@atc/config/host';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildMockLifecycleHost } from '@atc/lifecycle/test-utils/build-mock-lifecycle-host';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { PROTOCOL_V } from '@atc/protocol/wire';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildMockRemoteDaemon } from '../test-utils/build-mock-remote-daemon';
 import { buildRemoteListingCachePath } from './build-remote-listing-cache-path';
@@ -21,7 +21,7 @@ test('it holds the one daemon the flag names, as the primary', () => {
 });
 
 test("it keeps the daemon's listings in a cache of its own beside the local one", async () => {
-  const temporaryDirectory = setupTempDir('atc-remote-host-');
+  const temporaryDirectory = createTempDir('atc-remote-host-');
   const paths = resolvePaths({ HOME: temporaryDirectory.path });
 
   mkdirSync(paths.stateDir, { recursive: true });
@@ -42,7 +42,7 @@ test("it keeps the daemon's listings in a cache of its own beside the local one"
 });
 
 test('it boots the remote daemon with the build the invocation reads', () => {
-  const temporaryDirectory = setupTempDir('atc-remote-host-');
+  const temporaryDirectory = createTempDir('atc-remote-host-');
   const tokenFile = join(temporaryDirectory.path, 'box.token');
 
   writeFileSync(tokenFile, `${'a'.repeat(32)}\n`);

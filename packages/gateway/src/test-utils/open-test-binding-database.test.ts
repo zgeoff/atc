@@ -1,10 +1,10 @@
 import { expect, onTestFinished, test } from 'bun:test';
 import { join } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { openTestBindingDatabase } from './open-test-binding-database';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-test-binding-db-');
+  const temporaryDirectory = createTempDir('atc-test-binding-db-');
 
   return { path: join(temporaryDirectory.path, 'gateway.db') };
 }

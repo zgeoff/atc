@@ -1,13 +1,12 @@
 import { expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { buildStubMCPStdioServer } from './build-stub-mcp-stdio-server';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-mcp-stdio-server-');
+  const temporaryDirectory = createTempDir('atc-stub-mcp-stdio-server-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -15,7 +14,7 @@ function setupTest() {
 test('it answers each line it reads with the next reply, as given', async () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.directory,
     'server',
     buildStubMCPStdioServer(['{"jsonrpc":"2.0","id":1,"result":{}}', "not json, it's text"]),
@@ -42,7 +41,7 @@ test('it answers each line it reads with the next reply, as given', async () => 
 test('it prints nothing for the replies left when stdin ends', async () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.directory,
     'server',
     buildStubMCPStdioServer(['first', 'second', 'third']),
@@ -65,7 +64,7 @@ test('it prints nothing for the replies left when stdin ends', async () => {
 
 test('it records its pid beside its script', async () => {
   const ctx = setupTest();
-  const bin = createStubBin(ctx.directory, 'server', buildStubMCPStdioServer([]));
+  const bin = writeStubProgram(ctx.directory, 'server', buildStubMCPStdioServer([]));
   const subprocess = Bun.spawn([bin], { stdin: 'pipe', stdout: 'ignore', stderr: 'ignore' });
 
   registerTestCleanup(() => {

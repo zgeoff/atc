@@ -1,4 +1,4 @@
-import type { Clock } from '@atc/core';
+import type { Clock } from '@zgeoff/std';
 import type { ProtocolMismatch } from '../version-mismatch/format-protocol-mismatch';
 import type { DaemonPaths } from './daemon-paths';
 
@@ -9,7 +9,7 @@ export interface DaemonBootOptions {
 
   readonly onWaitForDaemon?: () => void;
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 
   readonly paths?: DaemonPaths;
 }

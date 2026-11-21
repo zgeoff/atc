@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, copyFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createStubBin } from './create-stub-bin';
-import { registerTestCleanup } from './register-test-cleanup';
-import { runCommand } from './run-command';
-import { setupTempDir } from './setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
+import { writeStubProgram } from './write-stub-program';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-bin-');
+  const temporaryDirectory = createTempDir('atc-stub-program-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -15,32 +15,39 @@ function setupTest() {
 test('it returns the script path under the directory', () => {
   const ctx = setupTest();
 
-  expect(createStubBin(ctx.directory, 'gh', '#!/bin/sh\n')).toBe(join(ctx.directory, 'gh'));
+  expect(writeStubProgram(ctx.directory, 'claude', '#!/bin/sh\n')).toBe(
+    join(ctx.directory, 'claude'),
+  );
 });
 
-test('it writes a script that runs as a command', async () => {
+test('it writes a script that runs as the process itself', async () => {
   const ctx = setupTest();
-  const path = createStubBin(ctx.directory, 'gh', '#!/bin/sh\necho "fake gh $1"\n');
+  const path = writeStubProgram(ctx.directory, 'claude', '#!/bin/sh\necho "fake claude $PPID"\n');
 
-  const result = await runCommand([path, 'auth']);
+  const result = await run([path]);
 
-  expect(result.stdout).toBe('fake gh auth\n');
+  expect(result.stdout).toStartWith('fake claude ');
 });
 
 test('it marks the script executable for every user', () => {
   const ctx = setupTest();
-  const path = createStubBin(ctx.directory, 'gh', '#!/bin/sh\n');
+  const path = writeStubProgram(ctx.directory, 'claude', '#!/bin/sh\n');
 
   expect(statSync(path).mode & 0o777).toBe(0o755);
 });
 
 test('it creates a missing directory', async () => {
   const ctx = setupTest();
-  const path = createStubBin(join(ctx.directory, 'bin', 'nested'), 'zoxide', '#!/bin/sh\necho z\n');
 
-  const run = await runCommand([path]);
+  const path = writeStubProgram(
+    join(ctx.directory, 'bin', 'nested'),
+    'agent',
+    '#!/bin/sh\necho z\n',
+  );
 
-  expect(run.stdout).toBe('z\n');
+  const result = await run([path]);
+
+  expect(result.stdout).toBe('z\n');
 });
 
 test('it replaces an existing file and makes it executable', async () => {
@@ -49,11 +56,11 @@ test('it replaces an existing file and makes it executable', async () => {
 
   writeFileSync(path, 'stale');
   chmodSync(path, 0o644);
-  createStubBin(ctx.directory, 'codex', '#!/bin/sh\necho fresh\n');
+  writeStubProgram(ctx.directory, 'codex', '#!/bin/sh\necho fresh\n');
 
-  const run = await runCommand([path]);
+  const result = await run([path]);
 
-  expect(run.stdout).toBe('fresh\n');
+  expect(result.stdout).toBe('fresh\n');
 });
 
 test('it replaces a file that a running process executes', async () => {
@@ -71,9 +78,9 @@ test('it replaces a file that a running process executes', async () => {
     running.kill();
   });
 
-  createStubBin(ctx.directory, 'agent', '#!/bin/sh\necho fresh\n');
+  writeStubProgram(ctx.directory, 'agent', '#!/bin/sh\necho fresh\n');
 
-  const run = await runCommand([path]);
+  const result = await run([path]);
 
-  expect(run.stdout).toBe('fresh\n');
+  expect(result.stdout).toBe('fresh\n');
 });

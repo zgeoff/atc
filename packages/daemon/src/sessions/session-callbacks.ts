@@ -1,6 +1,6 @@
-import type { Clock } from '@atc/core';
 import type { AgentAdapter, HarnessRelay, SpawnOptions, SpawnPlan } from '@atc/plugin-api';
 import type { SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { RuntimeAuthBinder } from '../auth/create-runtime-auth-binder';
 import type { BridgeBinding } from '../auth/is-binding-current';
 import type { PublishedRecords } from './create-published-records';
@@ -35,7 +35,7 @@ export interface SessionCallbacks {
 
   readonly now: () => number;
 
-  readonly getClock: () => Clock;
+  readonly getClock: () => Pick<Clock, 'now' | 'schedule'>;
 
   readonly getReporterSocketPath: () => string;
 

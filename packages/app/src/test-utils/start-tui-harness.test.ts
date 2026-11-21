@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
 import { buildStubWaitClock } from '@atc/core/test-utils/build-stub-wait-clock';
 import { KEYS } from '@atc/core/test-utils/keys';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { waitFor } from '@zgeoff/testing';
 import { startTUIHarness } from './start-tui-harness';
 
 async function setupTest() {
@@ -114,7 +114,7 @@ test('it rejects a wait for text the client never draws with the tail of the cap
 
   expect(tui.waitFor('never drawn', 100)).rejects.toThrowWithMessage(
     Error,
-    /^timed out waiting for "never drawn"; tail: ".*atc — control tower/su,
+    /^timed out after 100 ms: timed out waiting for "never drawn"; tail: ".*atc — control tower/su,
   );
 });
 

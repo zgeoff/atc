@@ -4,9 +4,10 @@ import type {
   TargetConfigError,
   WorkspaceCleanupConfig,
 } from '@atc/config';
-import type { AgentID, Clock } from '@atc/core';
+import type { AgentID } from '@atc/core';
 import type { AgentAdapter, SourceProvider } from '@atc/plugin-api';
 import type { SessionID } from '@atcx/contract';
+import type { Clock } from '@zgeoff/std';
 import type { ExecutionTarget } from './fleet/build-execution-targets';
 import type { RestoreSettled } from './fleet/restore-fleet';
 import type { MenuTiming } from './sessions/menu-terminal';
@@ -54,7 +55,7 @@ export interface DaemonOptions {
   readonly restoreRetryDelaysMs?: readonly number[];
   readonly tapGraceMs?: number;
 
-  readonly clock?: Clock;
+  readonly clock?: Pick<Clock, 'now' | 'schedule'>;
 
   readonly menuTiming?: MenuTiming;
 
@@ -70,7 +71,7 @@ export interface DaemonOptions {
 
   readonly forgetClock?: () => number;
 
-  readonly eventSweepClock?: Clock;
+  readonly eventSweepClock?: Pick<Clock, 'now' | 'schedule'>;
 
   readonly onLastUsedUnchanged?: (sessionID: SessionID) => void;
 

@@ -14,7 +14,6 @@ import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubPTYProvider } from '@atc/execution-local/test-utils/create-stub-pty-provider';
 import {
@@ -27,6 +26,7 @@ import { createStubRecordingClaude } from '@atc/harness-claude/test-utils/create
 import { getGatewayConfig } from '@atc/harness-claude/test-utils/get-gateway-config';
 import { buildMockHostServices } from '@atc/plugin-api/test-utils/build-mock-host-services';
 import { toSessionID } from '@atcx/contract';
+import { waitFor } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 import { SHIPPED_HARNESS_PLUGINS } from '../packages/app/src/plugins/shipped-harness-plugins';
 

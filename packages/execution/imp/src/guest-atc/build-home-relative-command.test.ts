@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync, realpathSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { buildHomeRelativeCommand } from './build-home-relative-command';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-home-relative-command-');
+  const temporaryDirectory = createTempDir('atc-home-relative-command-');
 
   return { home: realpathSync(temporaryDirectory.path) };
 }
@@ -32,14 +32,13 @@ test('it runs a command with a relative directory in that directory under the ho
     'orchard/pears',
   );
 
-  const result = await runCommand(command.argv, {
+  const result = await run(command.argv, {
     cwd: command.cwd,
     env: { HOME: ctx.home, PATH: process.env['PATH'] },
   });
 
   expect(result).toStrictEqual({
     exitCode: 0,
-    signalCode: null,
     stdout: `${join(ctx.home, 'orchard', 'pears')}\na b||`,
     stderr: '',
   });
@@ -53,7 +52,7 @@ test('it follows a parent step from where a symlink under the home leads, as a s
 
   const command = buildHomeRelativeCommand(['pwd', '-P'], 'link/..');
 
-  const result = await runCommand(command.argv, {
+  const result = await run(command.argv, {
     cwd: command.cwd,
     env: { HOME: ctx.home, PATH: process.env['PATH'] },
   });
@@ -68,14 +67,13 @@ test('it runs a command with a relative directory named - in that directory unde
 
   const command = buildHomeRelativeCommand(['pwd', '-P'], '-');
 
-  const result = await runCommand(command.argv, {
+  const result = await run(command.argv, {
     cwd: command.cwd,
     env: { HOME: ctx.home, PATH: process.env['PATH'] },
   });
 
   expect(result).toStrictEqual({
     exitCode: 0,
-    signalCode: null,
     stdout: `${join(ctx.home, '-')}\n`,
     stderr: '',
   });
@@ -89,14 +87,13 @@ test('it runs a command with a relative directory under the home when a CDPATH e
 
   const command = buildHomeRelativeCommand(['pwd', '-P'], 'orchard');
 
-  const result = await runCommand(command.argv, {
+  const result = await run(command.argv, {
     cwd: command.cwd,
     env: { HOME: ctx.home, PATH: process.env['PATH'], CDPATH: join(ctx.home, 'elsewhere') },
   });
 
   expect(result).toStrictEqual({
     exitCode: 0,
-    signalCode: null,
     stdout: `${join(ctx.home, 'orchard')}\n`,
     stderr: '',
   });
@@ -106,7 +103,7 @@ test('it fails a command whose relative directory is missing under the home, wit
   const ctx = setupTest();
   const command = buildHomeRelativeCommand(['sh', '-c', 'echo ran'], 'missing');
 
-  const result = await runCommand(command.argv, {
+  const result = await run(command.argv, {
     cwd: command.cwd,
     env: { HOME: ctx.home, PATH: process.env['PATH'] },
   });

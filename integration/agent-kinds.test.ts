@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test';
 import { startStubAgentDaemon } from '@atc/app/test-utils/start-stub-agent-daemon';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
+import { waitFor } from '@zgeoff/testing';
 
 function setupTest() {
   return startStubAgentDaemon({

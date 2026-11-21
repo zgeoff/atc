@@ -1,4 +1,4 @@
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 
 interface StubCodexConfig {
   readonly atc: readonly string[];
@@ -9,7 +9,7 @@ interface StubCodexConfig {
 export function createStubCodex(directory: string, config: StubCodexConfig): string {
   const report = `${config.atc.map((part) => `"${part}"`).join(' ')} hook-report --agent codex`;
 
-  return createStubBin(
+  return writeStubProgram(
     directory,
     'fake-codex',
     `#!/usr/bin/env bash

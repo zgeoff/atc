@@ -1,4 +1,4 @@
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
+import { registerTestCleanup } from '@zgeoff/testing';
 import type { Socket } from 'bun';
 
 interface StubStallingProxy {

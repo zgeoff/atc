@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { resolveGatewayCommand } from '@atc/core/test-utils/resolve-gateway-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { registerTestCleanup } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildGatewayStatePaths } from '../packages/app/src/gateway/build-gateway-state-paths';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-gateway-bin-');
+  const temporaryDirectory = createTempDir('atc-gateway-bin-');
 
   return {
     directory: temporaryDirectory.path,

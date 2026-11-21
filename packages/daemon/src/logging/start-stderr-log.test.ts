@@ -8,18 +8,17 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { runCommand } from '@atc/core/test-utils/run-command';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
 import { createDaemonClient } from '@atc/protocol/client';
 import { configure, getLogger, reset } from '@logtape/logtape';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
+import { run } from '@zgeoff/testing/process';
 import { sendLinesBeforeHandshake } from '../test-utils/send-lines-before-handshake';
 import { writeUntilPipeFull } from '../test-utils/write-until-pipe-full';
 import { startStderrLog } from './start-stderr-log';
 
 async function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-non-blocking-log-');
+  const temporaryDirectory = createTempDir('atc-non-blocking-log-');
   const fifoPath = join(temporaryDirectory.path, 'stderr');
 
   // The listener refuses to start without a token file.
@@ -27,7 +26,7 @@ async function setupTest() {
 
   // A pipe made by the spawn never fills, because the runtime reads it as it fills. The test
   // needs a named pipe so the daemon's writes can block.
-  await runCommand(['mkfifo', fifoPath]);
+  await run(['mkfifo', fifoPath]);
 
   // A blocking open of a named pipe waits for a writer, and this process opens the writer later.
   // The non-blocking flag keeps the read open from hanging.
@@ -239,7 +238,7 @@ test('it writes every line it holds at SIGTERM, and the count of the ones it dro
 });
 
 test('it resolves a second stop that overlaps the first only once every line it holds is written', async () => {
-  const temporaryDirectory = setupTempDir('atc-stderr-log-');
+  const temporaryDirectory = createTempDir('atc-stderr-log-');
   const outputPath = join(temporaryDirectory.path, 'stderr');
   const fd = openSync(outputPath, 'w');
 
@@ -275,7 +274,7 @@ test('it resolves a second stop that overlaps the first only once every line it 
 });
 
 test('it writes its lines when an earlier owner of the process left LogTape configured', async () => {
-  const temporaryDirectory = setupTempDir('atc-stderr-log-');
+  const temporaryDirectory = createTempDir('atc-stderr-log-');
   const outputPath = join(temporaryDirectory.path, 'stderr');
   const fd = openSync(outputPath, 'w');
 

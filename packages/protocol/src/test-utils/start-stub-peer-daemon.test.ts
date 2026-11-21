@@ -1,15 +1,14 @@
 import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
-import { waitFor } from '@atc/core/test-utils/wait-for';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { openRawDaemonClient as openDaemonClient } from './open-raw-daemon-client';
 import { startStubPeerDaemon } from './start-stub-peer-daemon';
 import type { StubPeerAnswer, StubPeerRequest } from './start-stub-peer-daemon';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-stub-peer-');
+  const temporaryDirectory = createTempDir('atc-stub-peer-');
 
   return { socketPath: join(temporaryDirectory.path, 'daemon.sock') };
 }

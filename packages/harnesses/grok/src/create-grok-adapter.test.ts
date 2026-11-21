@@ -3,17 +3,17 @@ import { statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConfig } from '@atc/config';
 import { getAgentEntry } from '@atc/config/test-utils/get-agent-entry';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
 import { buildAgentEnvFilePath, buildHostFiles } from '@atc/plugin-api';
 import { runLocalCommand } from '@atc/plugin-api/test-utils/run-local-command';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
+import { createStubBin } from '@zgeoff/testing/bin';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { createGrokAdapter } from './create-grok-adapter';
 import { GROK_PLUGIN } from './grok-plugin';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-grok-home-');
+  const temporaryDirectory = createTempDir('atc-grok-home-');
 
   return { directory: temporaryDirectory.path };
 }
@@ -203,7 +203,7 @@ test("it builds a grok resume command that runs grok with the entry's env", asyn
   const ctx = setupTest();
   const binDir = join(ctx.directory, 'bin');
 
-  createStubBin(binDir, 'grok', '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n');
+  createStubBin(binDir, 'grok', { script: '#!/bin/sh\nprintf "%s %s" "$NOTES_VAULT" "$*"\n' });
 
   const config = parseConfig([GROK_PLUGIN], {
     agents: { grok: { env: { NOTES_VAULT: "desk/it's-key" } } },

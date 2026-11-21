@@ -1,11 +1,11 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
 import { buildStubMCPStdioServer } from '@atc/mcp/test-utils/build-stub-mcp-stdio-server';
+import { createTempDir } from '@zgeoff/testing/fs';
 import { startMCPStdio } from './start-mcp-stdio';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-mcp-stdio-');
+  const temporaryDirectory = createTempDir('atc-mcp-stdio-');
 
   return { home: temporaryDirectory.path };
 }
@@ -13,7 +13,7 @@ function setupTest() {
 test('it rejects a tool call whose response holds no result', async () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.home,
     'no-result',
     buildStubMCPStdioServer([
@@ -33,7 +33,7 @@ test('it rejects a tool call whose response holds no result', async () => {
 test('it rejects a tool call whose result holds no text item', async () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.home,
     'no-item',
     buildStubMCPStdioServer([
@@ -53,7 +53,7 @@ test('it rejects a tool call whose result holds no text item', async () => {
 test('it rejects a tool call whose result holds two text items', async () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.home,
     'two-items',
     buildStubMCPStdioServer([
@@ -73,7 +73,7 @@ test('it rejects a tool call whose result holds two text items', async () => {
 test('it rejects a tool call whose structured content is not an object', async () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.home,
     'scalar-structured',
     buildStubMCPStdioServer([
@@ -93,7 +93,7 @@ test('it rejects a tool call whose structured content is not an object', async (
 test('it rejects a pending request once the server prints a line that is not JSON', async () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.home,
     'not-json',
     buildStubMCPStdioServer(['{"jsonrpc":"2.0","id":1,"result":{}}', 'not json']),
@@ -110,7 +110,7 @@ test('it rejects a pending request once the server prints a line that is not JSO
 test('it resolves a second stop', async () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.home,
     'stub-mcp',
     buildStubMCPStdioServer(['{"jsonrpc":"2.0","id":1,"result":{}}']),
@@ -125,7 +125,7 @@ test('it resolves a second stop', async () => {
 
 test('it stops a server whose initialize fails before rejecting', async () => {
   const ctx = setupTest();
-  const bin = createStubBin(ctx.home, 'bad-init', buildStubMCPStdioServer(['not json']));
+  const bin = writeStubProgram(ctx.home, 'bad-init', buildStubMCPStdioServer(['not json']));
   const starting = startMCPStdio({ home: ctx.home, command: [bin] });
 
   expect(starting).rejects.toThrowWithMessage(Error, 'atc mcp stopped answering before request 1');
@@ -140,7 +140,7 @@ test('it stops a server whose initialize fails before rejecting', async () => {
 test('it stops a server that answers its initialize with an error before rejecting', async () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.home,
     'refused-init',
     buildStubMCPStdioServer([
@@ -165,7 +165,7 @@ test('it stops a server that answers its initialize with an error before rejecti
 test('it stops the server once the test finishes without a stop', async () => {
   const ctx = setupTest();
 
-  const bin = createStubBin(
+  const bin = writeStubProgram(
     ctx.home,
     'stub-mcp',
     buildStubMCPStdioServer([JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} })]),

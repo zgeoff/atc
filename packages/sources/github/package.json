@@ -13,7 +13,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@atc/core": "workspace:*",
-    "@faker-js/faker": "catalog:"
+    "@faker-js/faker": "catalog:",
+    "@zgeoff/testing": "catalog:"
   }
 }

@@ -1,14 +1,14 @@
 import { join } from 'node:path';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
-import { runCommand } from '@atc/core/test-utils/run-command';
+import { writeStubProgram } from '@atc/core/test-utils/write-stub-program';
+import { run } from '@zgeoff/testing/process';
 
 // The burst of 300000 bytes is more than impd's ring keeps.
 export async function createStubHarnessGuest(directory: string) {
   const burstPath = join(directory, 'burst');
 
-  await runCommand(['mkfifo', burstPath]);
+  await run(['mkfifo', burstPath]);
 
-  const path = createStubBin(
+  const path = writeStubProgram(
     directory,
     'harness',
     `#!/usr/bin/env bash

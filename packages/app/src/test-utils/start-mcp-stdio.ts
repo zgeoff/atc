@@ -1,7 +1,7 @@
 import { isRecord } from '@atc/core';
 import { readSourceEntry } from '@atc/core/test-utils/read-source-entry';
-import { registerTestCleanup } from '@atc/core/test-utils/register-test-cleanup';
 import { buildMCPToolCalls } from '@atc/mcp/test-utils/build-mcp-tool-calls';
+import { registerTestCleanup } from '@zgeoff/testing';
 
 interface MCPStdioOptions {
   readonly home: string;

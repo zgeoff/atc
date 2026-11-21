@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { setupTempDir } from '@atc/core/test-utils/setup-temp-dir';
+import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
 import { buildAgentEnvFilePath } from './build-agent-env-file-path';
 import { makeAgentEnvFileSyncer } from './make-agent-env-file-syncer';
 
 function setupTest() {
-  const temporaryDirectory = setupTempDir('atc-agent-env-syncer-');
+  const temporaryDirectory = createTempDir('atc-agent-env-syncer-');
 
   return { directory: temporaryDirectory.path };
 }

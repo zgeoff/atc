@@ -4,17 +4,17 @@ import { join } from 'node:path';
 import { startTUIHarness } from '@atc/app/test-utils/start-tui-harness';
 import { tabToRepoRows } from '@atc/app/test-utils/tab-to-repo-rows';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
-import { createStubBin } from '@atc/core/test-utils/create-stub-bin';
 import { KEYS } from '@atc/core/test-utils/keys';
 import { buildStubSignedOutGH } from '@atc/source-github/test-utils/build-stub-signed-out-gh';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
+import { createStubBin } from '@zgeoff/testing/bin';
 import { $ } from 'bun';
 
 async function setupTest() {
   const tui = startTUIHarness({ createStateDB: createMigratedStateDB });
 
   // A signed-out gh keeps the list from reaching the host's own gh.
-  createStubBin(join(tui.home, 'bin'), 'gh', buildStubSignedOutGH());
+  createStubBin(join(tui.home, 'bin'), 'gh', { script: buildStubSignedOutGH() });
 
   const fixture = await createGitFixture();
 
