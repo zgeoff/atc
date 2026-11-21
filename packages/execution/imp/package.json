@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@faker-js/faker": "catalog:",
+    "@impz/testing": "catalog:",
     "bun-pty": "catalog:"
   }
 }

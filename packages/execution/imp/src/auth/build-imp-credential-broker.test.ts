@@ -1,7 +1,7 @@
-import { expect, test } from 'bun:test';
+import { expect, onTestFinished, test } from 'bun:test';
+import { TEST_TOKEN, startTestImpd } from '@impz/testing';
 import { createImpClientPort } from '../client/create-imp-client-port';
 import { createStubImpPort } from '../test-utils/create-stub-imp-port';
-import { startStubImpdInfo } from '../test-utils/start-stub-impd-info';
 import { buildImpCredentialBroker } from './build-imp-credential-broker';
 
 function setupTest() {
@@ -131,12 +131,12 @@ test('it rejects a grant removal impd forbids as forbidden', async () => {
   expect(ctx.broker.removeGrant('atc-s1', 'glm')).rejects.toMatchObject({ code: 'forbidden' });
 });
 
-test('it rejects the version check of an outdated impd as too old after one system info call', () => {
-  const impd = startStubImpdInfo();
+test('it rejects the version check of an outdated impd as too old after one system info call', async () => {
+  const impd = await startTestImpd({ version: '2.1.0' });
 
-  impd.info.version = '2.1.0';
+  onTestFinished(impd.stop);
 
-  const port = createImpClientPort({ url: impd.url, readToken: () => 'token' });
+  const port = createImpClientPort({ url: impd.url, readToken: () => TEST_TOKEN });
 
   const broker = buildImpCredentialBroker(port, {
     impPrefix: 'atc-',
@@ -146,10 +146,8 @@ test('it rejects the version check of an outdated impd as too old after one syst
     destroyImp: (hostKey) => port.destroyImp(`atc-${hostKey}`),
   });
 
-  expect(broker.verifyVersion()).rejects.toMatchObject({
-    code: 'too_old',
-    brokerCode: 'IMPD_OUTDATED',
-  });
+  const failure = await broker.verifyVersion().catch((error: unknown) => error);
 
-  expect(impd.paths).toStrictEqual(['/rpc/system/info']);
+  expect(failure).toMatchObject({ code: 'too_old', brokerCode: 'IMPD_OUTDATED' });
+  expect(impd.calls.map((call) => call.procedure)).toStrictEqual(['system/info']);
 });

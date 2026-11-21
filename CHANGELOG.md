@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.21.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.21.0...@zgeoff/atc@7.21.1) (2026-11-20)
+
+### Bug Fixes
+
+- **execution:** start the compiled daemon with a sprites target
+  ([#1332](https://github.com/zgeoff/atc/issues/1332))
+  ([23779aa](https://github.com/zgeoff/atc/commit/23779aa88b3aebf23c619b79ace79d7582bd58e4))
+
 ## [7.21.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.20.0...@zgeoff/atc@7.21.0) (2026-11-20)
 
 ### Features
