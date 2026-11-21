@@ -6,6 +6,7 @@ export type * from './types';
 export * from './fleet/build-execution-targets';
 export * from './fleet/restore-fleet';
 export * from './sessions/build-guest-session-directory';
+export * from './sessions/create-screen-model';
 export * from './logging/start-stderr-log';
 export * from './transport/build-payload-hash';
 export * from './transport/create-daemon-connection';

@@ -1,6 +1,6 @@
 import { expect, onTestFinished, test } from 'bun:test';
-import { createScreenModel } from '../packages/daemon/src/sessions/create-screen-model';
-import { createSessionEmulator } from '../packages/tui/src/emulator/create-session-emulator';
+import { createScreenModel } from '@atc/daemon';
+import { createSessionEmulator } from '@atc/tui';
 
 function setupTest() {
   const size = { cols: 20, rows: 6 };

@@ -2,7 +2,7 @@ import { isRecord } from '@atc/core';
 import type { Terminal } from '@xterm/headless';
 import type { Pen } from './render-pen';
 
-export interface ScrollRegion {
+interface ScrollRegion {
   readonly top: number;
   readonly bottom: number;
 }
