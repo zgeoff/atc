@@ -14,23 +14,25 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
   "hooks": {},
   "leader": "ctrl-space",
   "restoreFleetOnRestart": true,
-  "animations": true
+  "animations": true,
+  "list": { "grouping": "flat" }
 }
 ```
 
-| Field                   | Default          | Meaning                                                                                                                                                |
-| ----------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `agents`                | `{ claude: {} }` | The agents atc offers, keyed by agent id. The [agents guide](./configuration/agents.md) covers the fields of an entry.                                 |
-| `sources`               | see above        | The workspace sources the spawn picker offers, keyed by source id. The [sources guide](./configuration/workspaces.md#sources) covers it.               |
-| `authProfiles`          | unset            | Credential references an agent's `auth` selects from. The [brokered credentials guide](./configuration/brokered-credentials.md) covers them.           |
-| `hooks`                 | `{}`             | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                                    |
-| `leader`                | `"ctrl-space"`   | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                                  |
-| `targets`               | unset            | Where sessions run, keyed by target id. The [targets guide](./configuration/targets.md) covers it.                                                     |
-| `defaultTarget`         | unset            | The target a spawn without a target runs on.                                                                                                           |
-| `workspaces`            | see above        | Where workspaces come from and land. The [workspaces guide](./configuration/workspaces.md#git-transports) covers it.                                   |
-| `restoreFleetOnRestart` | `true`           | Whether the daemon restores the fleet by itself after a restart. The [fleet restore](#fleet-restore) section covers it.                                |
-| `animations`            | `true`           | Whether the TUI animates its transitions. `false` makes each one instant. A spinner shows state, so it keeps turning.                                  |
-| `daemons`               | unset            | Daemons on other hosts that `atc`, `atc --daemon <name>` and `atc mcp --daemon <name>` reach. The [remote daemons](#remote-daemons) section covers it. |
+| Field                   | Default                | Meaning                                                                                                                                                |
+| ----------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `agents`                | `{ claude: {} }`       | The agents atc offers, keyed by agent id. The [agents guide](./configuration/agents.md) covers the fields of an entry.                                 |
+| `sources`               | see above              | The workspace sources the spawn picker offers, keyed by source id. The [sources guide](./configuration/workspaces.md#sources) covers it.               |
+| `authProfiles`          | unset                  | Credential references an agent's `auth` selects from. The [brokered credentials guide](./configuration/brokered-credentials.md) covers them.           |
+| `hooks`                 | `{}`                   | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                                    |
+| `leader`                | `"ctrl-space"`         | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                                  |
+| `targets`               | unset                  | Where sessions run, keyed by target id. The [targets guide](./configuration/targets.md) covers it.                                                     |
+| `defaultTarget`         | unset                  | The target a spawn without a target runs on.                                                                                                           |
+| `workspaces`            | see above              | Where workspaces come from and land. The [workspaces guide](./configuration/workspaces.md#git-transports) covers it.                                   |
+| `restoreFleetOnRestart` | `true`                 | Whether the daemon restores the fleet by itself after a restart. The [fleet restore](#fleet-restore) section covers it.                                |
+| `animations`            | `true`                 | Whether the TUI animates its transitions. `false` makes each one instant. A spinner shows state, so it keeps turning.                                  |
+| `list`                  | `{ grouping: "flat" }` | How the session list starts: `grouping` is `flat`, `repo` or `place`. `g` in the list cycles through them until the TUI exits.                         |
+| `daemons`               | unset                  | Daemons on other hosts that `atc`, `atc --daemon <name>` and `atc mcp --daemon <name>` reach. The [remote daemons](#remote-daemons) section covers it. |
 
 ## Guides by task
 
