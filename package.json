@@ -55,7 +55,7 @@
       "@zgeoff/kysely-bun-sqlite": "0.3.3",
       "@zgeoff/mcp-auth": "0.3.0",
       "@zgeoff/oxlint-config": "0.10.7",
-      "@zgeoff/rig": "0.2.6",
+      "@zgeoff/rig": "0.3.0",
       "@zgeoff/std": "0.4.4",
       "bun-pty": "0.6.0",
       "elysia": "2.0.0-rc.3",
