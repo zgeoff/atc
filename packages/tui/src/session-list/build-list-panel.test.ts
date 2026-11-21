@@ -430,6 +430,63 @@ test.each([
   ]);
 });
 
+test.each([
+  {
+    size: { cols: 32, rows: 10 },
+    prompt:
+      'end builder? stops the agent and deletes its sprite machine, with every session on it, and removes its 3 ended sub-sessions · y / n',
+    expected: { bottomRow: 8, hasKeys: true, hasAction: true },
+  },
+  {
+    size: { cols: 40, rows: 4 },
+    prompt: 'kill s0? · y / n',
+    expected: { bottomRow: 2, hasKeys: true, hasAction: true },
+  },
+  {
+    size: { cols: 24, rows: 4 },
+    prompt: 'end builder? stops the agent and deletes its sprite machine · y / n',
+    expected: { bottomRow: 2, hasKeys: true, hasAction: false },
+  },
+])('it keeps a prompt above the fleet bar in a $size.cols x $size.rows window', (row) => {
+  const rows = Array.from({ length: 3 }, () => ({
+    kind: 'session' as const,
+    session: buildMockMirrorSession(),
+    via: null,
+  }));
+
+  const plan = buildListPanel(buildMockPanelInput({ rows, selected: 0, prompt: row.prompt }), {
+    cols: row.size.cols,
+    rows: row.size.rows,
+  });
+
+  const text = renderPanelText(plan);
+
+  expect({
+    bottomRow: plan.top + text.length - 1,
+    hasKeys: text.join('\n').includes('y / n'),
+    hasAction: text.join('\n').includes(row.prompt.split('?')[0] ?? ''),
+  }).toStrictEqual(row.expected);
+});
+
+test.each([
+  { rows: 5, expected: ['╭─ 3 session', '├───────────', '│ kill s0? ·', '╰───────────'] },
+  { rows: 4, expected: ['╭─ 3 session', '│ kill s0? ·', '╰───────────'] },
+  { rows: 3, expected: ['╭─ 3 session', '│ kill s0? ·'] },
+])('it drops the list lines, then the borders, for a prompt in $rows rows', (row) => {
+  const rows = Array.from({ length: 3 }, () => ({
+    kind: 'session' as const,
+    session: buildMockMirrorSession(),
+    via: null,
+  }));
+
+  const plan = buildListPanel(
+    buildMockPanelInput({ rows, selected: 0, prompt: 'kill s0? · y / n' }),
+    { cols: 40, rows: row.rows },
+  );
+
+  expect(renderPanelText(plan).map((line) => line.slice(0, 12))).toStrictEqual([...row.expected]);
+});
+
 test('it wraps a prompt over lines so the keys that confirm it still show', () => {
   const plan = buildListPanel(
     buildMockPanelInput({

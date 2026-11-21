@@ -24,10 +24,6 @@ import type { ListRow, PanelInput, PanelLine, PanelPlan, PanelSpan, SessionRow }
 
 const MIN_PANEL_WIDTH = 24;
 
-// the lines of the panel's frame besides its last lines: the top border, the divider and the
-// bottom border
-const FRAME_LINES = 3;
-
 interface Size {
   readonly cols: number;
   readonly rows: number;
@@ -45,23 +41,28 @@ export function buildListPanel(input: Readonly<PanelInput>, size: Size): PanelPl
   const plan = planColumns(input, sessions, width);
   const content = buildContentLines(input, sessions, plan, width);
   const selected = sessions[input.selected]?.session;
-  const lastLines = buildLastLines(input, { sessions, selected, width });
-  const capacity = Math.max(1, size.rows - PANEL_MARGIN_ROWS - FRAME_LINES - lastLines.length);
-  const window = planListWindow(content.lines.length, capacity, content.selectedLine);
+
+  const budget = planLineBudget(
+    buildLastLines(input, { sessions, selected, width }),
+    size.rows - PANEL_MARGIN_ROWS,
+    size.rows - 1,
+  );
+
+  const window = planListWindow(content.lines.length, budget.capacity, content.selectedLine);
 
   const shown = content.lines.slice(window.start, window.end).map((line) => ({
     spans: [...buildEdges(width), ...line.spans],
     isSelected: line.isSelected,
   }));
 
-  const height = shown.length + FRAME_LINES + lastLines.length;
+  const height = shown.length + budget.borders + budget.lastLines.length;
 
   const frame = buildPanelFrame({
     input,
     sessions,
     selected,
     width,
-    lastLines,
+    lastLines: budget.lastLines,
     hiddenAbove: countSessionLines(content.sessionLines.slice(0, window.start)),
     hiddenBelow: countSessionLines(content.sessionLines.slice(window.end)),
   });
@@ -72,7 +73,10 @@ export function buildListPanel(input: Readonly<PanelInput>, size: Size): PanelPl
     width,
     isSpinning: sessions.some((row) => row.session.state === 'running'),
     content: shown,
-    ...frame,
+    topBorder: budget.borders >= 1 ? frame.topBorder : null,
+    divider: budget.borders >= 3 ? frame.divider : null,
+    lastLines: frame.lastLines,
+    bottomBorder: budget.borders >= 2 ? frame.bottomBorder : null,
   };
 }
 
@@ -201,6 +205,34 @@ function pickHeaderColour(
   }
 
   return toRGB(pickPlaceColour(next.session.place.key));
+}
+
+interface LineBudget {
+  readonly lastLines: readonly PanelLine[];
+
+  // how many of the top border, the bottom border and the divider show, in that order
+  readonly borders: number;
+  readonly capacity: number;
+}
+
+// the lines of the panel's frame besides its last lines: the top border, the divider and the
+// bottom border
+const FRAME_LINES = 3;
+
+// How the panel's lines share the rows above the fleet bar. Short of rows, the last lines win over
+// the list, then the divider, the bottom border and the top border, in that order. A prompt longer
+// than every row keeps its end, which holds the keys that confirm it.
+function planLineBudget(
+  lastLines: readonly PanelLine[],
+  preferredRows: number,
+  availableRows: number,
+): LineBudget {
+  const kept = lastLines.slice(Math.max(0, lastLines.length - Math.max(0, availableRows)));
+  const frameRoom = Math.max(0, availableRows - kept.length);
+  const borders = Math.min(FRAME_LINES, frameRoom);
+  const preferred = Math.max(1, preferredRows - FRAME_LINES - kept.length);
+
+  return { lastLines: kept, borders, capacity: Math.min(preferred, frameRoom - borders) };
 }
 
 function countSessionLines(sessionLines: readonly boolean[]): number {

@@ -4,6 +4,7 @@ import { dimCell } from '../compositor/dim-cell';
 import { resolveColour } from '../compositor/resolve-colour';
 import type { CellBuffer, RGB, TerminalFacts } from '../compositor/types';
 import { splitGraphemes } from '../terminal/split-graphemes';
+import { collectPanelLines } from './collect-panel-lines';
 import { BLUE, CONTENT_COL, PANEL_BACKGROUND, PANEL_OPACITY, SELECTED_TINT } from './constants';
 import type { ListMotion } from './pick-list-motion';
 import type { PanelLine, PanelPlan } from './types';
@@ -21,25 +22,14 @@ export interface PaintOptions {
 export function paintPanel(buffer: CellBuffer, plan: PanelPlan, options: PaintOptions): void {
   dimBackdrop(buffer, options);
 
-  const lines = [
-    plan.topBorder,
-    ...plan.content,
-    plan.divider,
-    ...plan.lastLines,
-    plan.bottomBorder,
-  ];
-
-  const lastContent = plan.content.length;
-
-  for (const [index, line] of lines.entries()) {
+  for (const [index, { line, listIndex }] of collectPanelLines(plan).entries()) {
     const row = plan.top + index;
 
     if (row >= buffer.rows - 1) {
       break;
     }
 
-    const isContent = index >= 1 && index <= lastContent;
-    const textOpacity = isContent ? options.motion.row(index - 1) : options.motion.frame;
+    const textOpacity = listIndex === null ? options.motion.frame : options.motion.row(listIndex);
 
     paintLine(buffer, { line, plan, row, textOpacity, edgeOpacity: options.motion.frame, options });
   }
