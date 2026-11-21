@@ -8,8 +8,10 @@ sessions in your session list and the ones that need you, and the keys you press
 
 - `Ctrl-Space` opens the [session list](#the-session-list).
 - `n` [spawns a session](#spawning-a-session).
-- `R` [restores the fleet](#restarting-the-daemon). Home lists `R` only while a session of the fleet
-  has stopped and a restore would start it again.
+- `R` [restores the fleet](#restarting-the-daemon): it starts again each session that your local
+  daemon saved and that has stopped. Home lists `R` only while such a session exists.
+
+`u` restarts the daemon when home shows `⟳ update ready`.
 
 Below the keys, home shows atc's notices on one line, such as `⟳ update ready` or
 `⟳ waiting for daemon`. When you opened a daemon other than your local one, the line starts with its
