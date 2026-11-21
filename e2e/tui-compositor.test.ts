@@ -67,6 +67,7 @@ test('it shows the main screen again after a reattach when the session left the 
   ctx.tui.write(KEYS.enter);
 
   await ctx.tui.waitFor('ALT_ONLY');
+  await ctx.tui.waitForGone('╭─ ');
 
   ctx.tui.resetScreen();
   ctx.tui.write(`${KEYS.esc}[?1049l${KEYS.enter}`);

@@ -11,7 +11,7 @@ test.each([
   {
     title: 'a long text broken at spaces',
     text: 'end orders? stops the agent · y / n',
-    width: 16,
+    width: 17,
     expected: ['end orders? stops', 'the agent · y / n'],
   },
   {

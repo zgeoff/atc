@@ -1,10 +1,16 @@
 // The one printable character a key press holds, or null for a control key, an escape sequence or
 // a paste of several characters.
 export function readTypedCharacter(buf: Buffer): string | null {
-  const characters = [...buf.toString()];
-  const [character] = characters;
+  const text = buf.toString();
+  const codePoint = text.codePointAt(0);
 
-  if (characters.length !== 1 || character === undefined) {
+  if (codePoint === undefined) {
+    return null;
+  }
+
+  const character = String.fromCodePoint(codePoint);
+
+  if (character.length !== text.length) {
     return null;
   }
 

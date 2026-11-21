@@ -6,7 +6,7 @@ const LETTERS = 'asdfghjklqwertyuiopzxcvbnm';
 export function pickJumpLabels(names: readonly string[], typed: string): (string | null)[] {
   const needle = typed.toLowerCase();
   const blocked = collectExtendingLetters(names, needle);
-  const free = [...LETTERS].filter((letter) => !blocked.has(letter));
+  const free = LETTERS.split('').filter((letter) => !blocked.has(letter));
 
   if (names.length <= free.length) {
     return names.map((_name, index) => free[index] ?? null);
