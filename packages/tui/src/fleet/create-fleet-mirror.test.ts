@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { toSessionID } from '@atcx/contract';
 import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session';
@@ -107,4 +108,57 @@ test('it keeps the rows of a daemon whose list request fails', () => {
 
   expect(mirror.refresh('box', refusing)).rejects.toThrow('the connection dropped');
   expect(mirror.find({ daemon: 'box', id: 's-1' })).toBeDefined();
+});
+
+test('it sets the state time when an upsert moves a session to another state', () => {
+  const clock = buildStubClock(1000);
+  const mirror = createFleetMirror(null, clock);
+
+  mirror.upsert(buildMockMirrorSession({ id: 's-1', state: 'running' }));
+  clock.advance(500);
+  mirror.upsert(buildMockMirrorSession({ id: 's-1', state: 'done' }));
+
+  expect(mirror.find({ daemon: null, id: 's-1' })?.stateSince).toBe(1500);
+});
+
+test('it keeps the state time when an upsert leaves the state as it was', () => {
+  const clock = buildStubClock(1000);
+  const mirror = createFleetMirror(null, clock);
+
+  mirror.upsert(buildMockMirrorSession({ id: 's-1', state: 'done', stateSince: 700 }));
+  clock.advance(500);
+  mirror.upsert(buildMockMirrorSession({ id: 's-1', state: 'done', lastMsg: 'again' }));
+
+  expect(mirror.find({ daemon: null, id: 's-1' })?.stateSince).toBe(700);
+});
+
+test.each([
+  { title: 'keeps the time of a session in the state it was in', listed: 'done', expected: 700 },
+  { title: 'starts the time of a session in a new state', listed: 'exited', expected: 2000 },
+])('#refresh $title', async (row) => {
+  const clock = buildStubClock(2000);
+  const mirror = createFleetMirror(null, clock);
+
+  mirror.upsert(buildMockMirrorSession({ id: 's-1', state: 'done', stateSince: 700 }));
+
+  const descriptor = buildMockSessionDescriptor({ id: toSessionID('s-1'), state: row.listed });
+
+  await mirror.refresh(
+    null,
+    buildStubRequestClient({ 'session.list': { sessions: [descriptor] } }),
+  );
+
+  expect(mirror.find({ daemon: null, id: 's-1' })?.stateSince).toBe(row.expected);
+});
+
+test('#refresh leaves the state time null for a session the TUI had not seen', async () => {
+  const mirror = createFleetMirror(null, buildStubClock(2000));
+  const descriptor = buildMockSessionDescriptor({ id: toSessionID('s-9') });
+
+  await mirror.refresh(
+    null,
+    buildStubRequestClient({ 'session.list': { sessions: [descriptor] } }),
+  );
+
+  expect(mirror.find({ daemon: null, id: 's-9' })?.stateSince).toBeNull();
 });

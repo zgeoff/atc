@@ -1,6 +1,6 @@
 # Session list
 
-- **Status:** draft
+- **Status:** built
 
 The leader key opens the session list. The config's `leader` sets the leader key, for example
 `"leader": "ctrl+space"`. The list is a see-through panel that the [compositor](./compositor.md)
@@ -39,8 +39,14 @@ constraint holds.
 
 ## Contracts
 
+`collectListRows` takes the daemon names as a third option, because place mode labels a group by the
+place's own name and needs the daemon list to tell a place that spans daemons. A session whose
+machine sleeps (`hostAsleep`) shows `asleep` in the message column, and `X` on it shows a notice to
+attach first. The daemon accepts `session.forget` on a live session without `refuseLive`. When the
+stale-daemon advice shows, it takes the whole last line in place of the key bar.
+
 ```ts
-const rows = collectListRows(sessions, { grouping: 'place', filter: '' });
+const rows = collectListRows(sessions, { grouping: 'place', filter: '', daemons });
 // → [
 //   { kind: 'header', label: 'imp', count: 6, needYou: 0 },
 //   { kind: 'session', session: builderAPI, via: 'nixbox' },
@@ -171,8 +177,8 @@ interface OverlaySessionView {
   to restore. On a dead session, `K` does nothing, and the key bar shows `X end` in place of
   `K kill`.
 - `X` is the only key that deletes a machine.
-- `esc` leaves jump mode, the filter or a prompt, and leaves the panel open. The leader key closes
-  the panel from any of them.
+- `esc` leaves jump mode, the filter or a prompt and leaves the panel open. With none of them
+  active, `esc` closes the panel. The leader key closes the panel from any of them.
 
 ### Jump mode
 

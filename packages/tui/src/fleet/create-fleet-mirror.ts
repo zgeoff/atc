@@ -1,3 +1,5 @@
+import { systemClock } from '@atc/core';
+import type { Clock } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
 import { createSessionMap } from './create-session-map';
 import type { SessionMap } from './create-session-map';
@@ -24,7 +26,10 @@ export interface FleetMirror {
   ) => Promise<void>;
 }
 
-export function createFleetMirror(primary: DaemonName): FleetMirror {
+export function createFleetMirror(
+  primary: DaemonName,
+  clock: Pick<Clock, 'now'> = systemClock,
+): FleetMirror {
   const self: FleetMirror = {
     sessions: [],
     doneAt: createSessionMap<number>(),
@@ -41,6 +46,11 @@ export function createFleetMirror(primary: DaemonName): FleetMirror {
         existing.parent = session.parent;
         existing.lastAttachedAt = session.lastAttachedAt;
         existing.repoRoot = session.repoRoot;
+
+        if (existing.state !== session.state) {
+          existing.stateSince = clock.now();
+        }
+
         existing.state = session.state;
         existing.unread = session.unread;
         existing.lastMsg = session.lastMsg;
@@ -48,11 +58,13 @@ export function createFleetMirror(primary: DaemonName): FleetMirror {
         existing.alive = session.alive;
         existing.resumable = session.resumable;
         existing.canEject = session.canEject;
+        existing.canDestroyHost = session.canDestroyHost;
         existing.agent = session.agent;
         existing.target = session.target;
         existing.place = session.place;
         existing.model = session.model;
         existing.harness = session.harness;
+        existing.hostAsleep = session.hostAsleep;
       }
     },
 
@@ -67,13 +79,18 @@ export function createFleetMirror(primary: DaemonName): FleetMirror {
       if (Array.isArray(sessions)) {
         const gone = self.sessions.filter((session) => session.daemon === daemon);
 
+        const known = new Map(gone.map((session) => [session.id, session]));
+
         self.sessions = self.sessions.filter((session) => session.daemon !== daemon);
 
         for (const raw of sessions) {
           const session = toMirrorSession(raw, daemon);
 
           if (session !== null) {
-            self.upsert(session);
+            self.upsert({
+              ...session,
+              stateSince: pickStateSince(known.get(session.id), session, clock),
+            });
           }
         }
 
@@ -99,4 +116,18 @@ export function createFleetMirror(primary: DaemonName): FleetMirror {
   };
 
   return self;
+}
+
+// A session the TUI already knew keeps the time it saw its state begin, so a reconnect does not
+// reset it. A session in another state than the TUI last saw began that state just now.
+function pickStateSince(
+  known: Readonly<MirrorSession> | undefined,
+  listed: Readonly<MirrorSession>,
+  clock: Pick<Clock, 'now'>,
+): number | null {
+  if (known === undefined) {
+    return null;
+  }
+
+  return known.state === listed.state ? known.stateSince : clock.now();
 }

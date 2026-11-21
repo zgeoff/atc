@@ -61,11 +61,13 @@ protocols.
 
 ## The screen emulator
 
-The TUI's own screens draw with escape sequences. They all write through one function into a second
-emulator, the screen emulator, which is as large as the user's terminal. One layer, the screen
-layer, copies the screen emulator's cells into the cell buffer. A screen that clears the terminal
-makes the next frame repaint every cell. While a session has focus, the screen layer copies only the
-last row of the screen emulator, where the TUI draws a notice over the session.
+The TUI's own screens, home, help and the spawn picker, draw with escape sequences. They all write
+through one function into a second emulator, the screen emulator, which is as large as the user's
+terminal. One layer, the screen layer, copies the screen emulator's cells into the cell buffer. A
+screen that clears the terminal makes the next frame repaint every cell. While a session has focus,
+the screen layer copies only the last row of the screen emulator, where the TUI draws a notice over
+the session. The session list does not draw through the screen emulator:
+[its panel](./session-list.md) is a layer that writes cells into the cell buffer.
 
 ## The session stream
 
@@ -135,7 +137,9 @@ The frame clock decides when the compositor draws:
   earliest one. A frame the clock schedules this way is a tick. When every layer answers null, the
   clock stops.
 - A tick that fires more than one frame interval late is skipped, so a busy event loop never draws a
-  backlog of ticks. The clock never queues a second tick behind the first.
+  backlog of ticks. The clock never queues a second tick behind the first. When a skipped tick ends
+  the motion, so that no layer asks for a later frame, the clock draws one frame at once, so the
+  screen shows the end state.
 - When an event asks for a frame while a tick is overdue, the tick becomes a requested frame, and it
   draws however late it runs.
 

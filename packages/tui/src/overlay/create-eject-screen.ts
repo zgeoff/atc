@@ -5,7 +5,7 @@ import type { SessionActions } from '../client/create-session-actions';
 import { sendToDaemon } from '../daemon-link/send-to-daemon';
 import type { RequestLinks } from '../daemon-link/send-to-daemon';
 import type { SessionKey } from '../fleet/session-key';
-import { drawPicker } from '../terminal/draw-overlay';
+import { drawPicker } from '../terminal/draw-picker';
 import { planTextEdit } from '../terminal/key';
 import { writeOut } from '../terminal/write-out';
 

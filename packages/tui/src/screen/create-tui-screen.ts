@@ -9,6 +9,8 @@ import { createFleetBarLayer } from '../fleet-bar/create-fleet-bar-layer';
 import type { FleetBarLayerDeps } from '../fleet-bar/create-fleet-bar-layer';
 import type { SessionKey } from '../fleet/session-key';
 import { filterMouseReports } from '../input-modes/filter-mouse-reports';
+import { createSessionListLayer } from '../session-list/create-session-list-layer';
+import type { SessionListLayerDeps } from '../session-list/create-session-list-layer';
 import { createTerminalAnswerFilter } from '../terminal-facts/create-terminal-answer-filter';
 import { createTerminalFacts } from '../terminal-facts/create-terminal-facts';
 import { createEmulatorLayer } from './create-emulator-layer';
@@ -26,6 +28,10 @@ export interface TUIScreenDeps {
   readonly env: { readonly colorterm: string | undefined; readonly term: string | undefined };
   readonly animations: boolean;
   readonly isSessionFocused: () => boolean;
+
+  // true while a session is on screen, whether it has focus or sits behind the session list
+  readonly isSessionShown: () => boolean;
+  readonly sessionList: Omit<SessionListLayerDeps, 'clock' | 'animations'>;
   readonly fleetBar: FleetBarLayerDeps;
   readonly sendSessionReply: (key: SessionKey, bytes: string) => void;
 }
@@ -104,12 +110,26 @@ export function createTUIScreen(deps: TUIScreenDeps): TUIScreen {
 
   const barLayer = createFleetBarLayer(deps.fleetBar);
 
-  // the bar draws after the notice layer, which blanks the last row, and only when no notice shows;
-  // it also draws over a screen, such as the session list, that leaves the last row blank
-  const collectLayers = (): readonly Layer[] =>
-    deps.isSessionFocused() ? [sessionLayer, noticeLayer, barLayer] : [screenLayer, barLayer];
+  const listLayer = createSessionListLayer({
+    ...deps.sessionList,
+    clock: deps.clock,
+    animations: deps.animations,
+  });
+
+  // The panel draws over the session or over the screen below it, and fades out over the screen
+  // that replaced it. The bar draws after the notice layer, which blanks the last row, and only
+  // when no notice shows. It also draws over the panel, which leaves the last row alone.
+  const collectLayers = (): readonly Layer[] => {
+    const base = deps.isSessionShown() ? [sessionLayer, noticeLayer] : [screenLayer];
+
+    return listLayer.isVisible() ? [...base, listLayer, barLayer] : [...base, barLayer];
+  };
 
   const readCursor = (): CursorPlacement | null => {
+    if (listLayer.isVisible()) {
+      return null;
+    }
+
     const emulator = deps.isSessionFocused() ? stream.readEmulator() : screenEmulator;
 
     return emulator === null ? null : emulator.readCursor();

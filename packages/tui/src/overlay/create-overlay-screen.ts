@@ -1,21 +1,24 @@
 import type { Config } from '@atc/config';
 import type { AgentID } from '@atc/core';
-import { ansi } from '@atc/core';
 import type { DaemonClient } from '@atc/protocol/client';
 import type { ClientMode } from '../client/build-client-machine';
 import type { DaemonLinks } from '../daemon-link/create-daemon-links';
 import { formatLinkState } from '../daemon-link/daemon-link-state';
-import { collectSessionRows } from '../fleet/collect-session-rows';
 import type { FleetMirror } from '../fleet/create-fleet-mirror';
 import { resolveAgentMetadata } from '../fleet/resolve-agent-metadata';
 import type { AgentMetadata } from '../fleet/resolve-agent-metadata';
 import { isSameSessionKey } from '../fleet/session-key';
 import type { DaemonName, SessionKey } from '../fleet/session-key';
 import type { MirrorSession } from '../fleet/to-mirror-session';
-import { drawOverlay } from '../terminal/draw-overlay';
-import { collectTargetPicks } from './collect-target-picks';
+import { collectListRows } from '../session-list/collect-list-rows';
+import { countEndedSubSessions } from '../session-list/count-ended-sub-sessions';
+import { formatListPrompt } from '../session-list/format-list-prompt';
+import { narrowListRows } from '../session-list/narrow-list-rows';
+import { pickJumpLabels } from '../session-list/pick-jump-labels';
+import type { JumpState } from '../session-list/step-jump';
+import type { Grouping, ListRow, OverlaySessionView, PanelInput } from '../session-list/types';
 
-export type OverlayConfirm = 'none' | 'kill' | 'destroy';
+export type OverlayConfirm = 'none' | 'kill' | 'end' | 'destroy';
 
 export interface OverlayScreenDeps {
   readonly mirror: FleetMirror;
@@ -29,32 +32,41 @@ export interface OverlayScreenDeps {
   readonly findConfirmKey: () => SessionKey | null;
   readonly isBootStale: () => boolean;
   readonly isDaemonRestarting: () => boolean;
+  readonly isDaemonWaiting: () => boolean;
   readonly scheduleStatus: () => void;
-  readonly write: (chunk: string) => void;
+  readonly requestFrame: () => void;
 }
 
 export interface OverlayScreen {
+  // the selected session among the rows the list shows
   selected: number;
 
   filter: string | null;
 
-  grouped: boolean;
+  grouping: Grouping;
+
+  // jump mode, or null while it is off
+  jump: JumpState | null;
 
   notice: string | null;
 
   agentLabels: Readonly<Record<AgentID, string>>;
 
-  agentModels: Readonly<Record<AgentID, Readonly<Record<string, string>>>>;
-
-  availableTargets: number;
-
   readonly remoteAgents: Map<string, AgentMetadata>;
 
+  // the session rows the list shows, after the filter and the jump letters
   readonly pickSessions: () => MirrorSession[];
 
   readonly listVisible: () => MirrorSession[];
 
-  readonly render: (confirm?: OverlayConfirm) => void;
+  // Selects a row by its place among `pickSessions`, and holds the session itself, so the
+  // selection follows it when the rows reorder.
+  readonly select: (index: number) => void;
+
+  // the panel the list draws, for the frame at `nowMs`
+  readonly readInput: (nowMs: number, spinnerFrame: number) => PanelInput;
+
+  readonly render: () => void;
 
   // target availability moves as remote hosts wake and sleep, so each overlay refresh
   // rereads it rather than trusting the boot-time answer.
@@ -65,73 +77,121 @@ export interface OverlayScreen {
   readonly open: () => void;
 }
 
+const DAEMON_LINE_SEPARATOR = '  ·  ';
+
 export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
   const daemons = deps.links.listDaemons();
   const primary = daemons[0] ?? null;
+  let selectedKey: SessionKey | null = null;
 
   // The primary's rows stay even while it is not up, since its wait for the daemon is shown elsewhere.
   const isShown = (daemon: DaemonName): boolean =>
     daemon === primary || deps.links.stateOf(daemon).kind === 'up';
 
-  const collectDaemonLines = (): string[] =>
-    daemons
+  const collectDaemonLines = (): string[] => [
+    ...daemons
       .filter((daemon) => !isShown(daemon))
-      .map((daemon) => formatLinkState(daemon, deps.links.stateOf(daemon)));
+      .map((daemon) => formatLinkState(daemon, deps.links.stateOf(daemon))),
+    ...(deps.isDaemonWaiting() ? ['⟳ waiting for daemon'] : []),
+    ...(deps.isDaemonRestarting() ? ['⟳ restarting daemon'] : []),
+  ];
+
+  const readAgentLabel = (session: Readonly<OverlaySessionView>): string => {
+    const labels =
+      (session.daemon === null ? undefined : self.remoteAgents.get(session.daemon)?.labels) ??
+      self.agentLabels;
+
+    return Object.hasOwn(labels, session.agent)
+      ? (labels[session.agent] ?? session.agent)
+      : session.agent;
+  };
+
+  const pickRows = (): ListRow[] => {
+    const rows = collectListRows(self.listVisible(), {
+      grouping: self.grouping,
+      filter: self.filter,
+      daemons,
+    });
+
+    return narrowListRows(rows, self.jump?.typed ?? '');
+  };
 
   const self: OverlayScreen = {
     selected: 0,
     filter: null,
-    grouped: false,
+    grouping: deps.readConfig().list.grouping,
+    jump: null,
     notice: null,
     agentLabels: deps.bootMetadata.labels,
-    agentModels: deps.bootMetadata.models,
-    availableTargets: 0,
     remoteAgents: new Map<string, AgentMetadata>(),
 
     listVisible: () => deps.mirror.sessions.filter((session) => isShown(session.daemon)),
 
-    pickSessions: () =>
-      collectSessionRows(self.listVisible(), {
-        daemons: deps.links.listDaemons(),
-        grouped: self.grouped,
-        filter: self.filter,
-      }),
+    pickSessions: () => pickRows().flatMap((row) => (row.kind === 'session' ? [row.session] : [])),
 
-    render: (confirm = deps.getConfirm()) => {
-      const sessions = self.pickSessions();
+    select: (index) => {
+      self.selected = index;
+      selectedKey = self.pickSessions()[index] ?? null;
+    },
+
+    readInput: (nowMs, spinnerFrame) => {
+      const rows = pickRows();
+      const sessions = rows.flatMap((row) => (row.kind === 'session' ? [row.session] : []));
+      const confirm = deps.getConfirm();
       const confirmKey = confirm === 'none' ? null : deps.findConfirmKey();
+      const target = confirmKey ?? selectedKey;
 
-      const confirmIndex = sessions.findIndex(
-        (session) => confirmKey !== null && isSameSessionKey(session, confirmKey),
+      const targetIndex = sessions.findIndex(
+        (session) => target !== null && isSameSessionKey(session, target),
       );
 
-      if (confirmIndex !== -1) {
-        self.selected = confirmIndex;
+      if (targetIndex !== -1) {
+        self.selected = targetIndex;
       }
 
       self.selected = Math.max(0, Math.min(self.selected, sessions.length - 1));
 
-      drawOverlay(
-        {
-          sessions,
-          agentLabels: self.agentLabels,
-          agentModels: self.agentModels,
-          remoteAgents: self.remoteAgents,
-          showDaemon: daemons.length > 1,
-          daemonLines: collectDaemonLines(),
-          showTarget: self.availableTargets >= 2,
-          selected: self.selected,
-          confirmKill: confirm === 'kill',
-          confirmDestroy: confirm === 'destroy',
-          filter: self.filter,
-          notice: self.notice,
-          stale: deps.isBootStale() && !deps.isDaemonRestarting(),
-          grouped: self.grouped,
-        },
-        deps.write,
-      );
+      const subject = confirmKey === null ? undefined : deps.mirror.find(confirmKey);
+      const daemonLines = collectDaemonLines();
 
-      deps.scheduleStatus();
+      return {
+        rows,
+        selected: sessions.length === 0 ? -1 : self.selected,
+        grouping: self.grouping,
+        filter: self.filter,
+        jump:
+          self.jump === null
+            ? null
+            : {
+                labels: pickJumpLabels(
+                  sessions.map((session) => session.name),
+                  self.jump.typed,
+                ),
+                typed: self.jump.typed,
+              },
+        prompt:
+          confirm === 'none' || subject === undefined
+            ? null
+            : formatListPrompt(
+                confirm,
+                subject,
+                countEndedSubSessions(subject, deps.mirror.sessions),
+              ),
+        notice: self.notice,
+        daemonLine: daemonLines.length === 0 ? null : daemonLines.join(DAEMON_LINE_SEPARATOR),
+        updateAdvice:
+          deps.isBootStale() && !deps.isDaemonRestarting()
+            ? 'daemon runs an older build · u update daemon'
+            : null,
+        showDaemon: daemons.length > 1,
+        nowMs,
+        spinnerFrame,
+        readAgentLabel,
+      };
+    },
+
+    render: () => {
+      deps.requestFrame();
     },
 
     readAgents: async (daemon, client) => {
@@ -140,14 +200,8 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
 
         const meta = resolveAgentMetadata(deps.readConfig(), answer);
 
-        // the target column follows the daemon the picker spawns on.
         if (daemon === primary) {
           self.agentLabels = meta.labels;
-          self.agentModels = meta.models;
-
-          self.availableTargets = collectTargetPicks(answer).filter(
-            (target) => target.available,
-          ).length;
         } else if (daemon !== null) {
           self.remoteAgents.set(daemon, meta);
         }
@@ -174,6 +228,7 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
 
     open: () => {
       self.filter = null;
+      self.jump = null;
       void self.refreshAgents();
       const focused = deps.findFocusedKey();
 
@@ -181,10 +236,9 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
         .pickSessions()
         .findIndex((session) => focused !== null && isSameSessionKey(session, focused));
 
-      self.selected = Math.max(0, focusedIndex);
-
-      deps.write(ansi.resetInputModes + ansi.clear);
-      self.render('none');
+      self.select(Math.max(0, focusedIndex));
+      deps.scheduleStatus();
+      self.render();
     },
   };
 

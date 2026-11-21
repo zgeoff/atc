@@ -24,6 +24,9 @@ export interface MirrorSession {
   alive: boolean;
   resumable: boolean;
   canEject: boolean;
+
+  // null: the daemon runs an older atc that does not send it
+  canDestroyHost: boolean | null;
   agent: AgentID;
   parent: string | null;
 
@@ -33,6 +36,13 @@ export interface MirrorSession {
   model: string | null;
 
   harness: HarnessLifecycle;
+
+  // true while the session's machine is asleep
+  hostAsleep: boolean;
+
+  // when this TUI saw the session enter its current state; null when it was in that state at the
+  // TUI's first listing
+  stateSince: number | null;
 }
 
 const REQUIRED_MIRROR_FIELDS_SCHEMA = z.looseObject({
@@ -73,12 +83,15 @@ export function toMirrorSession(value: unknown, daemon: DaemonName): MirrorSessi
     alive: record.alive,
     resumable: typeof record['agentSessionID'] === 'string',
     canEject: record['canEject'] === true,
+    canDestroyHost: typeof record['canDestroyHost'] === 'boolean' ? record['canDestroyHost'] : null,
     agent: toAgentID(record['agent']),
     parent: typeof record['parent'] === 'string' ? record['parent'] : null,
     target,
     place: toSessionPlace(record['place'], daemon, target),
     model: typeof record['model'] === 'string' ? record['model'] : null,
     harness: parseHarnessLifecycle(record['lifecycle'], record.alive),
+    hostAsleep: isHostAsleep(record['lifecycle']),
+    stateSince: null,
   };
 }
 
@@ -107,4 +120,8 @@ function parseHarnessLifecycle(lifecycle: unknown, alive: boolean): HarnessLifec
   }
 
   return alive ? 'running' : 'exited';
+}
+
+function isHostAsleep(lifecycle: unknown): boolean {
+  return isRecord(lifecycle) && lifecycle['vm'] === 'asleep';
 }

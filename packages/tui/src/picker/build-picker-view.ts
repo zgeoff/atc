@@ -3,8 +3,8 @@ import { formatHomePath } from '@atc/core';
 import type { GitRef } from '@atcx/contract';
 import { match } from 'ts-pattern';
 import type { TargetPick } from '../overlay/collect-target-picks';
-import { getPickerWidth } from '../terminal/draw-overlay';
-import type { PickerView } from '../terminal/draw-overlay';
+import { getPickerWidth } from '../terminal/draw-picker';
+import type { PickerView } from '../terminal/draw-picker';
 import { formatDirName } from '../terminal/pick-matches';
 import { splitToWidth } from '../terminal/split-to-width';
 import {

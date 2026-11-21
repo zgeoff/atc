@@ -44,7 +44,7 @@ export function applyDaemonEvent(daemon: DaemonName, raw: RawDaemonEvent, deps: 
       },
     )
     .with({ ev: 'SessionAdded' }, (added) => {
-      mirror.upsert(added.session);
+      mirror.upsert({ ...added.session, stateSince: deps.clock.now() });
 
       refreshScreens(deps);
     })
@@ -85,6 +85,11 @@ export function applyDaemonEvent(daemon: DaemonName, raw: RawDaemonEvent, deps: 
 
       if (focused !== null && isSameSessionKey(focused, key)) {
         deps.setFocusedKey(null);
+
+        // the session behind the list is gone, so the list closes on home
+        if (deps.getMode() === 'overlay') {
+          deps.service.send({ type: 'HOME' });
+        }
       }
 
       refreshScreens(deps);
