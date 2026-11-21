@@ -1,17 +1,23 @@
-const URL_PARTS =
-  /^(?<scheme>[a-z][a-z0-9+.-]*):\/\/(?<userInfo>[^/?#@]*@)?(?<host>[^/?#]*)(?<rest>.*)$/iu;
+const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//iu;
 
-// A place key must match across daemons, so two spellings of one service URL have to agree:
-// the scheme and host lose their case, and the URL loses its trailing slashes.
+// A place key must match across daemons, so two spellings of one service URL have to agree.
+// The URL parser lowercases only the host of a scheme it knows, such as https, and parses a
+// string with no `scheme://`, such as `host:443`, as a scheme and a path.
 export function formatPlaceURL(url: string): string {
-  const parts = URL_PARTS.exec(url.trim())?.groups;
+  const trimmed = url.trim();
+  const parsed = HAS_SCHEME.test(trimmed) ? URL.parse(trimmed) : null;
 
-  if (parts === undefined) {
-    return url.trim();
+  if (parsed === null) {
+    return trimmed;
   }
 
-  const scheme = (parts['scheme'] ?? '').toLowerCase();
-  const host = (parts['host'] ?? '').toLowerCase();
+  const credentials =
+    parsed.password === '' ? parsed.username : `${parsed.username}:${parsed.password}`;
 
-  return `${scheme}://${parts['userInfo'] ?? ''}${host}${(parts['rest'] ?? '').replace(/\/+$/u, '')}`;
+  const userInfo = credentials === '' ? '' : `${credentials}@`;
+  const host = parsed.hostname.toLowerCase().replace(/\.$/u, '');
+  const port = parsed.port === '' ? '' : `:${parsed.port}`;
+  const path = parsed.pathname.replace(/\/+$/u, '');
+
+  return `${parsed.protocol}//${userInfo}${host}${port}${path}${parsed.search}${parsed.hash}`;
 }

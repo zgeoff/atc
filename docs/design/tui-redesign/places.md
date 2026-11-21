@@ -76,8 +76,17 @@ type PlaceParts =
   depth, then JSON, then sha256. The sort compares code units, so two daemons with different locales
   still sort alike. A shared place key is `<provider>:<version>:<hash>`, where `<hash>` is the first
   16 hex characters.
-- Before hashing, a provider writes each URL in `parts` with a lowercase scheme and host and no
-  trailing slash, so `https://imp.example.dev/` and `https://IMP.example.dev` give one key.
+- Before hashing, a provider writes each URL in `parts` in one form, so `https://imp.example.dev/`,
+  `https://IMP.example.dev:443` and `https://imp.example.dev./` give one key. The provider:
+  - lowercases the scheme and the host;
+  - drops a default port, such as 443 for `https`;
+  - drops a trailing dot from the host;
+  - drops trailing slashes from the path, including a `/` just before `?` or `#`;
+  - keeps the query, and drops an empty fragment.
+
+  A string that does not parse as a URL with a `scheme://` keeps its own spelling, trimmed of
+  spaces.
+
 - Daemon scope means the place belongs to one daemon and one target, and never merges with a place
   on another daemon. Its key is `daemon:<daemonID>:<target id>`, where `daemonID` is the id that
   `atc daemon id` prints. A sprites target has daemon scope though its machines run remotely.
