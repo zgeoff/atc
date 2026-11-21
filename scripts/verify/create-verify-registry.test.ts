@@ -11,14 +11,14 @@ test('it uploads the evidence of the launch targets to the file host and keeps t
 });
 
 test('it reads the file host and its token from the variables the verify skill tells agents to set', () => {
-  updateEnv('VERIFY_UPLOAD_URL', 'https://files.example.test/api/files');
-  updateEnv('VERIFY_UPLOAD_TOKEN', 'test-upload-token');
+  updateEnv('CLOUD_FILES_URL', 'https://files.example.test/api/files');
+  updateEnv('CLOUD_FILES_TOKEN', 'test-upload-token');
 
   const uploader = createVerifyRegistry().hooks.upload;
 
   expect(uploader?.linkHosts).toStrictEqual(['files.example.test']);
 
   expect(uploader?.readSecrets?.()).toStrictEqual([
-    { name: 'VERIFY_UPLOAD_TOKEN', value: 'test-upload-token', origin: 'collected' },
+    { name: 'CLOUD_FILES_TOKEN', value: 'test-upload-token', origin: 'collected' },
   ]);
 });

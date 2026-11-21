@@ -144,7 +144,7 @@ export function createVerifyRegistry(): Wringer {
       // `bun verify publish` reads the host's URL and token from these variables when it uploads
       .hook(
         'upload',
-        createHostUploader({ urlEnv: 'VERIFY_UPLOAD_URL', tokenEnv: 'VERIFY_UPLOAD_TOKEN' }),
+        createHostUploader({ urlEnv: 'CLOUD_FILES_URL', tokenEnv: 'CLOUD_FILES_TOKEN' }),
       )
       .action({
         name: 'spawn-session',
