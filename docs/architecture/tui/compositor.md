@@ -149,8 +149,9 @@ The frame clock decides when the compositor draws:
 
 The config key `animations` reaches each layer through the clock, and a layer drops its decorative
 motion when the key is false. Two layers ask for frames: the [session list](./session-list.md), for
-its fades and spinners, and the [fleet bar](./fleet-bar.md), for its spinner. A spinner shows that a
-session is running, so it spins whatever `animations` says.
+its fades, spinners and row ages, and the [fleet bar](./fleet-bar.md), for its spinner. A spinner
+shows that a session is running, and an age shows how long a session has been in its state, so both
+change whatever `animations` says.
 
 ## Colour
 
