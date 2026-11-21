@@ -241,6 +241,50 @@ test('#buildHomeLayout lists the restore key while the last fleet has sessions t
   ]);
 });
 
+test.each([10, 11, 12])(
+  '#buildHomeLayout leaves the stack where it is when a notice shows in a %i row window',
+  (rows) => {
+    const layOut = (notices: readonly string[]) =>
+      buildHomeLayout(
+        { cols: 30, rows },
+        { kind: 'bitmap' },
+        { cols: 21, rows: 4 },
+        {
+          sessionCount: 1,
+          needYouCount: 0,
+          leaderLabel: 'ctrl+space',
+          notices,
+          restorableCount: 0,
+        },
+      );
+
+    const plain = layOut([]);
+    const noticed = layOut(['⟳ update ready']);
+
+    expect([noticed.wordmarkAt, noticed.runs.slice(0, plain.runs.length)]).toStrictEqual([
+      plain.wordmarkAt,
+      [...plain.runs],
+    ]);
+  },
+);
+
+test('#buildHomeLayout drops the notice when no row is left below the keys', () => {
+  const layout = buildHomeLayout(
+    { cols: 30, rows: 10 },
+    { kind: 'bitmap' },
+    { cols: 21, rows: 4 },
+    {
+      sessionCount: 1,
+      needYouCount: 0,
+      leaderLabel: 'ctrl+space',
+      notices: ['daemon down'],
+      restorableCount: 2,
+    },
+  );
+
+  expect(layout.runs.filter((run) => run.text === 'daemon down')).toStrictEqual([]);
+});
+
 test.each([
   [10, 30],
   [11, 30],
