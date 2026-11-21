@@ -83,6 +83,7 @@ function setupTest() {
       return Promise.resolve();
     },
     restoreFleet: () => Promise.resolve(),
+    paste: { isOpen: false },
     restartDaemonOnce: () => Promise.resolve(),
     logClientEvent: () => {},
     quit: () => {},
@@ -174,6 +175,23 @@ test('it sends the session the keys typed before a leader in the same chunk', ()
   expect({ sent: ctx.sent, mode: ctx.service.getSnapshot().value.mode }).toStrictEqual({
     sent: ['input:api:"hi"'],
     mode: 'overlay',
+  });
+});
+
+test('it sends the session a leader byte in a later chunk of a paste', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'api', name: 'api' }));
+  ctx.service.send({ type: 'ATTACH', key: { daemon: null, id: 'api' } });
+  ctx.press(`${KEYS.pasteOpen}a`);
+  ctx.press(`${KEYS.ctrlSpace}b${KEYS.pasteClose}`);
+
+  expect({ sent: ctx.sent, mode: ctx.service.getSnapshot().value.mode }).toStrictEqual({
+    sent: [
+      `input:api:${JSON.stringify(`${KEYS.pasteOpen}a`)}`,
+      `input:api:${JSON.stringify(`${KEYS.ctrlSpace}b${KEYS.pasteClose}`)}`,
+    ],
+    mode: 'attached',
   });
 });
 

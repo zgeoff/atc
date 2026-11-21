@@ -63,6 +63,7 @@ test('it opens the list over an attached session that keeps drawing', async () =
   });
 
   expect(ctx.tui.readScreen()).toInclude('╭─ ');
+  expect(ctx.tui.readScreen()).not.toInclude('atc — control tower');
 });
 
 test('it cycles the grouping with g, and shows the place groups with their headers', async () => {

@@ -533,6 +533,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     attach,
     sendInput,
     restoreFleet,
+    paste: { isOpen: false },
     restartDaemonOnce,
     logClientEvent,
     quit,

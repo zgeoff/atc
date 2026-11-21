@@ -18,6 +18,16 @@ test.each([
   { title: 'two lone escapes', chunk: '\u001B\u001B', keys: ['\u001B', '\u001B'] },
   { title: 'an alt key and a letter', chunk: '\u001Bxj', keys: ['\u001Bx', 'j'] },
   { title: 'characters of several bytes', chunk: 'é界🍐', keys: ['é', '界', '🍐'] },
+  {
+    title: 'an OSC answer ended by BEL and a letter',
+    chunk: `\u001B]52;c;Kx${KEYS.bel}j`,
+    keys: [`\u001B]52;c;Kx${KEYS.bel}`, 'j'],
+  },
+  {
+    title: 'a DCS answer ended by ST and a letter',
+    chunk: '\u001BP1$r0m\u001B\\j',
+    keys: ['\u001BP1$r0m\u001B\\', 'j'],
+  },
 ])('#splitKeys splits $title into one piece per key', (row) => {
   expect(splitKeys(Buffer.from(row.chunk)).map((key) => key.toString())).toStrictEqual([
     ...row.keys,

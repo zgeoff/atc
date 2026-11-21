@@ -19,6 +19,10 @@ const ESC = 0x1b;
 const CSI_OPENER = 0x5b;
 const SS3_OPENER = 0x4f;
 
+// OSC, DCS and APC, the string sequences a terminal answers with, so a late answer never reads as
+// typed letters
+const STRING_OPENERS = new Set([0x5d, 0x50, 0x5f]);
+
 function measureKey(chunk: Buffer, start: number): number {
   if (chunk[start] !== ESC) {
     return Math.min(measureCharacter(chunk[start] ?? 0), chunk.length - start);
@@ -32,6 +36,10 @@ function measureKey(chunk: Buffer, start: number): number {
 
   if (next === CSI_OPENER) {
     return measureCSI(chunk, start);
+  }
+
+  if (STRING_OPENERS.has(next)) {
+    return measureString(chunk, start);
   }
 
   if (next === SS3_OPENER) {
@@ -64,6 +72,24 @@ function measureCSI(chunk: Buffer, start: number): number {
 
     if (byte < 0x20 || byte > 0x3f) {
       return index - start;
+    }
+  }
+
+  return chunk.length - start;
+}
+
+const BEL = 0x07;
+const ST_FINAL = 0x5c;
+
+// a string sequence ends at BEL, or at ESC \ (ST)
+function measureString(chunk: Buffer, start: number): number {
+  for (let index = start + 2; index < chunk.length; index += 1) {
+    if (chunk[index] === BEL) {
+      return index - start + 1;
+    }
+
+    if (chunk[index] === ESC && chunk[index + 1] === ST_FINAL) {
+      return index - start + 2;
     }
   }
 

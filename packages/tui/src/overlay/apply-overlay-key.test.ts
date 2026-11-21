@@ -239,16 +239,35 @@ test.each([
   expect(ctx.sent).toStrictEqual([...row.expected]);
 });
 
-test('it asks to kill the selected session after a fleet change moved its row', () => {
+test.each(['K', 'X'])(
+  'it asks about the selected session with %s after a fleet change moved its row',
+  (key) => {
+    const ctx = setupTest();
+
+    ctx.mirror.upsert(buildMockMirrorSession({ id: 'api', name: 'api', lastAttachedAt: 3 }));
+    ctx.mirror.upsert(buildMockMirrorSession({ id: 'app', name: 'app', lastAttachedAt: 2 }));
+    ctx.overlay.select(1);
+    ctx.mirror.upsert(buildMockMirrorSession({ id: 'app', name: 'app', lastAttachedAt: 10 }));
+    ctx.press(key);
+
+    expect(ctx.service.getSnapshot().context.confirmKey).toStrictEqual({
+      daemon: null,
+      id: 'app',
+    });
+  },
+);
+
+test('it moves up from the selected session with k after a fleet change moved its row', () => {
   const ctx = setupTest();
 
   ctx.mirror.upsert(buildMockMirrorSession({ id: 'api', name: 'api', lastAttachedAt: 3 }));
   ctx.mirror.upsert(buildMockMirrorSession({ id: 'app', name: 'app', lastAttachedAt: 2 }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'web', name: 'web', lastAttachedAt: 1 }));
   ctx.overlay.select(1);
-  ctx.mirror.upsert(buildMockMirrorSession({ id: 'app', name: 'app', lastAttachedAt: 10 }));
-  ctx.press('K');
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'web', name: 'web', lastAttachedAt: 10 }));
+  ctx.press('k');
 
-  expect(ctx.service.getSnapshot().context.confirmKey).toStrictEqual({ daemon: null, id: 'app' });
+  expect(ctx.overlay.pickSessions()[ctx.overlay.selected]?.id).toBe('api');
 });
 
 test('it moves down from the selected session with j after a fleet change moved its row', () => {

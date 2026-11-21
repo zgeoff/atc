@@ -17,6 +17,9 @@ export interface InputKeyDeps extends OverlayKeyDeps {
   readonly sendInput: (key: SessionKey, data: string) => Promise<void>;
   readonly findRestartConsent: () => RestartConsent | null;
   readonly restoreFleet: () => Promise<void>;
+
+  // a bracketed paste to the attached session that an earlier chunk opened and none closed yet
+  readonly paste: { isOpen: boolean };
 }
 
 export function applyInputKey(buf: Buffer, deps: InputKeyDeps) {
@@ -77,7 +80,11 @@ function applyModeKeys(keys: readonly Buffer[], deps: InputKeyDeps): readonly Bu
 
 // The session takes every key before the leader, and the list the keys after it.
 function applyAttachedKeys(keys: readonly Buffer[], deps: InputKeyDeps): readonly Buffer[] {
-  const leaderIndex = findLeaderIndex(keys, deps);
+  const scan = scanForLeader(keys, deps.paste.isOpen, deps.isLeaderKey);
+  const leaderIndex = scan.leaderIndex;
+
+  deps.paste.isOpen = scan.isInPaste;
+
   const sessionKeys = leaderIndex === null ? keys : keys.slice(0, leaderIndex);
   const focused = deps.findFocusedKey();
 
@@ -100,21 +107,32 @@ function applyAttachedKeys(keys: readonly Buffer[], deps: InputKeyDeps): readonl
 const PASTE_OPEN = '\u001B[200~';
 const PASTE_CLOSE = '\u001B[201~';
 
-// A leader byte inside a paste is text for the session.
-function findLeaderIndex(keys: readonly Buffer[], deps: InputKeyDeps): number | null {
-  let isInPaste = false;
+interface LeaderScan {
+  readonly leaderIndex: number | null;
+
+  // whether a paste is still open after the keys the scan read
+  readonly isInPaste: boolean;
+}
+
+// A leader byte inside a paste is text for the session, and a paste can span several chunks.
+function scanForLeader(
+  keys: readonly Buffer[],
+  wasInPaste: boolean,
+  isLeaderKey: (key: Buffer) => boolean,
+): LeaderScan {
+  let isInPaste = wasInPaste;
 
   for (const [index, key] of keys.entries()) {
     const text = key.toString();
 
     if (text === PASTE_OPEN || text === PASTE_CLOSE) {
       isInPaste = text === PASTE_OPEN;
-    } else if (!isInPaste && deps.isLeaderKey(key)) {
-      return index;
+    } else if (!isInPaste && isLeaderKey(key)) {
+      return { leaderIndex: index, isInPaste };
     }
   }
 
-  return null;
+  return { leaderIndex: null, isInPaste };
 }
 
 function applyHomeKey(buf: Buffer, deps: InputKeyDeps) {
