@@ -1,7 +1,8 @@
 # Using atc
 
-Run `atc` in a terminal. The first run starts the daemon, which hosts every session you spawn, so
-quitting atc leaves your sessions running.
+Run `atc` in a terminal. The first run starts the daemon, unless a systemd unit runs it as the end
+of this guide says. The daemon hosts every session you spawn, so quitting atc leaves your sessions
+running.
 
 With no session attached, atc shows home. Home shows the `atc` wordmark, a line that counts the
 sessions in your session list and the ones that need you, and the keys you press next:

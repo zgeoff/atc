@@ -41,7 +41,7 @@ daemon's listing. `pickPlaceColour` picks a place's colour from its key alone, s
 same colour on every daemon that sends the same key, and in every run.
 
 A daemon older than the place field sends no `place`. For its sessions the TUI uses the key
-`daemon:<daemon name>:<target id>` and the label `<target id>`, where the target id names the
+`daemon:<daemon name>:<target id>` and the label `<target id>`, where the target id is the id of the
 execution target in the daemon's config that runs the session. The daemon on the TUI's own computer
 has no name in the config, and the TUI writes its name as `local`. This fallback key differs from
 the [place key](../daemon/sessions.md#the-place-a-session-runs-in) that a current daemon sends, so a

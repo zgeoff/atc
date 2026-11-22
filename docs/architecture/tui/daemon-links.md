@@ -80,10 +80,10 @@ daemon's agent list, which each link reads when it comes `up`.
 ## Actions and confirmations
 
 An action on a row goes through `clientFor` for the row's daemon, which returns nothing unless the
-link is `up`. In that case the TUI sends nothing and shows the daemon's name and state on the status
-bar. A refusal from a remote daemon shows on the status bar with the daemon's name and the refusal.
-`u` (restart the daemon), `R` (restore the stored fleet) and the stored-fleet count act on the
-primary daemon only.
+link is `up`. When it returns nothing, the TUI sends nothing and shows the daemon's name and state
+on the status bar. A refusal from a remote daemon shows on the status bar with the daemon's name and
+the refusal. `u` (restart the daemon), `R` (restore the stored fleet) and the stored-fleet count act
+on the primary daemon only.
 
 A confirmation holds the key of the session it opened on. Its `y` acts on that key, never on the row
 selected now. It cancels when that session leaves the list or its daemon's link leaves `up`, so a
@@ -111,5 +111,6 @@ picker through the client state machine. The step builds its list each time it o
 it when any link changes while it is open, so it offers the daemons that are `up` now. Picking
 another daemon than before clears the target and listing of the previous one.
 
-[The client protocol](../protocol/protocol.md) covers the handshake and the events each link
-consumes, and [principals](../protocol/principals.md) covers what a remote principal may do.
+For the handshake and the events each link consumes, read
+[the client protocol](../protocol/protocol.md). For what a remote principal may do, read
+[principals](../protocol/principals.md).

@@ -4,8 +4,8 @@ atc runs many coding-agent sessions behind one terminal. Each session is a stock
 Claude Code, Grok Build or Codex CLI, running in a pseudo-terminal that a per-user daemon hosts, on
 the daemon's own machine or on a remote host. A thin TUI client shows one session at a time on the
 whole terminal, and a keyboard overlay lists the rest, sorted by which one needs the owner. The bet
-is that the hard part of running many agents is knowing which one is waiting, not arranging windows,
-so atc has no panes and no layout engine.
+is that the hard part of running many agents is knowing which one is waiting, so atc has no panes
+and no layout engine.
 
 The daemon owns every part of a session that must outlive a client: the sessions, their screens, the
 fleet it restores after a restart, and every message and event. Clients are disposable, and the

@@ -161,7 +161,7 @@ machines run remotely, because its options name the API and not the account's or
 them would put every sprites account in one place. Two imp accounts on one imp service are one
 place, because imp's key covers only `url`.
 
-atc hashes the options a rule names the way it hashes a target's options for the target's
+atc hashes the options in a place rule the way it hashes a target's options for the target's
 [identity](../execution/targets.md#binding-to-a-target): keys sorted at every depth by code unit, so
 two daemons with different locales sort alike, then JSON, then sha256. The key keeps the first 16
 hex characters. The place key stays separate from the target's identity, because the identity hashes

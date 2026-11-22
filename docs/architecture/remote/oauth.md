@@ -47,9 +47,9 @@ endpoint, and the Host and origin checks below. atc adds the per-tool grant scop
 subscriptions a revoke ends, the live terminals and the probes beside the package's routes, and the
 request line.
 
-A client is a public client the owner adds by hand, with no client secret and PKCE with S256
-required. atc offers no dynamic client registration and fetches no client metadata documents, so a
-client the owner never added cannot start an authorization.
+A client that signs in through a browser is a public client the owner adds by hand, with no client
+secret and PKCE with S256 required. atc offers no dynamic client registration and fetches no client
+metadata documents, so a client the owner never added cannot start an authorization.
 
 ## Connecting a client
 

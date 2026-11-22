@@ -3,9 +3,9 @@
 atc-gateway serves the MCP tools and the OAuth server for several daemons at once, so one hosted
 assistant can reach fleets on several machines through one connector. It is a hub with spokes: the
 gateway keeps at most one connection to each daemon in its registry, over that daemon's TCP
-listener, and routes every tool call to exactly one daemon. Daemons never talk to each other. The
-gateway never starts a daemon or a session on its own machine, so a call to a daemon that does not
-answer fails.
+listener, and routes every tool call that acts to exactly one daemon. Daemons never talk to each
+other. The gateway never starts a daemon or a session on its own machine, so a call to a daemon that
+does not answer fails.
 
 [The MCP servers](./mcp.md) covers the tools, [OAuth](./oauth.md) covers the authorization server
 the gateway runs, and the [gateway guide](../../guides/gateway.md) covers running it.

@@ -113,7 +113,7 @@ with a dash, which the `=` form always passes as the value.
 ## Service clients
 
 An agent with no person present signs in with the OAuth `client_credentials` grant. It needs no
-browser, passkey or grant.
+browser, passkey or approved connection.
 
 1. Make a secret and its digest. The secret prints once, to stdout, and no file holds it:
 

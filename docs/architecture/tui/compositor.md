@@ -13,9 +13,9 @@ One layer at a time has focus, and the keys the user types go to it. The attache
 until the user opens another screen, such as the session list, and gets it back when that screen
 closes. A session can stay attached without focus, drawn behind the screen that has it.
 
-[The decision record](../../decisions/0003-the-tui-composites-attached-sessions.md) gives the reason
-the TUI composites the attached session. atc never uses a TUI framework: the compositor is written
-by hand, and the `hand-rolled-tui` lint rule refuses a framework import.
+Read [the decision record](../../decisions/0003-the-tui-composites-attached-sessions.md) for why the
+TUI composites the attached session. atc never uses a TUI framework: the compositor is written by
+hand, and the `hand-rolled-tui` lint rule refuses a framework import.
 
 ```mermaid
 flowchart LR
@@ -138,10 +138,10 @@ cursor is, with its shape. While another layer has focus, the cursor is hidden.
 The frame clock decides when the compositor draws:
 
 - An event that needs a frame, such as session output, a key or a resize, asks the clock for one,
-  and the clock draws it at once, after any pending emulator write as
-  [The session stream](#the-session-stream) says.
+  and the clock draws it at once, after any pending emulator write (see
+  [The session stream](#the-session-stream)).
 - After each frame, the clock collects each layer's next-frame time, and schedules a frame at the
-  earliest one. A frame the clock schedules this way is a tick. When every layer answers null, the
+  earliest one. A frame the clock schedules this way is a tick. When every layer gives null, the
   clock stops.
 - A tick that fires more than one frame interval late is skipped, so a busy event loop never draws a
   backlog of ticks. The clock never queues a second tick behind the first.
@@ -155,7 +155,7 @@ The config key `animations` reaches each layer through the clock, and a layer dr
 motion when the key is false. Two layers ask for frames: the [session list](./session-list.md), for
 its fades, spinners and row ages, and the [fleet bar](./fleet-bar.md), for its spinner. A spinner
 shows that a session is running, and an age shows how long a session has been in its state, so both
-change whatever `animations` says.
+run whatever `animations` is set to.
 
 ## Colour
 

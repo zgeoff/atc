@@ -35,13 +35,14 @@ reach. The SDK skips the output schema for an error result, so this shape needs 
 server's `instructions` in the handshake describe it once. An error with no atc code, such as an
 argument the input schema refuses, has text alone.
 
-A server lists every tool and every input, because the daemon it reaches passed a handshake on the
-same major version ([the protocol](../protocol/protocol.md#versions)). Only the gateway adds the
-daemons tool and the inputs that name a daemon.
+A server lists every tool and every input but the gateway's own, because the daemon it reaches
+passed a handshake on the same major version ([the protocol](../protocol/protocol.md#versions)).
+Only the gateway adds the daemons tool and the inputs that name a daemon.
 
 ## Scopes
 
-A grant holds one or more of four scopes, and each tool needs exactly one of them:
+A grant holds one or more of four scopes, and each tool needs exactly one of them, with the one
+exception for a session's own atc access below:
 
 - `read` reads the fleet, a session, its terminal, its transcript and the event feed, and changes
   nothing.

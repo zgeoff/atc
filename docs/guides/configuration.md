@@ -25,7 +25,7 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 | `sources`               | see above              | The workspace sources the spawn picker offers, keyed by source id. The [sources guide](./configuration/workspaces.md#sources) covers it.                   |
 | `authProfiles`          | unset                  | Credential references an agent's `auth` selects from. The [brokered credentials guide](./configuration/brokered-credentials.md) covers them.               |
 | `hooks`                 | `{}`                   | Commands the daemon runs on wire events — the [events guide](./events.md#daemon-hooks) covers them.                                                        |
-| `leader`                | `"ctrl-space"`         | The overlay toggle: `ctrl-` plus a letter or one of `\` `]` `^` `_`, e.g. `"ctrl-]"`.                                                                      |
+| `leader`                | `"ctrl-space"`         | The overlay toggle: `ctrl-space`, `ctrl-` plus a letter, or `ctrl-` plus one of `\` `]` `^` `_`.                                                           |
 | `targets`               | unset                  | Where sessions run, keyed by target id. The [targets guide](./configuration/targets.md) covers it.                                                         |
 | `defaultTarget`         | unset                  | The target a spawn without a target runs on.                                                                                                               |
 | `workspaces`            | see above              | Where workspaces land. `workspaces.targets` sets a root per target, apart from `targets`. The [workspaces guide](./configuration/workspaces.md) covers it. |

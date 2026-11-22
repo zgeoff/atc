@@ -109,7 +109,7 @@ it when the socket drains. What happens on overflow depends on what overflows:
   a hostile peer, so the daemon closes the connection.
 - **A headless session has no stream to attach to.** The daemon refuses an attach to a session with
   no pseudo-terminal, so a caller reads a headless run through its transcript and its latest result.
-  The transcript on disk is the durable copy, and the socket is no durability layer.
+  The transcript on disk is the durable copy.
 
 Control and output share one ordered socket, so ordering between input, resize and output holds by
 construction. The daemon splits large output into chunks under the line cap, and a response waits
@@ -117,7 +117,7 @@ behind every chunk queued before it.
 
 ## Several clients on one session
 
-Any number of clients can attach to one session and type into it. Three rules cover the conflicts
+Any number of clients can attach to one session and type into it. These rules cover the conflicts
 that occur in practice, without a write-lock protocol:
 
 - **Input atomicity.** A client sends one complete key event or paste per input request, and the
@@ -135,9 +135,9 @@ session's screen model follows the attached clients.
 ## Submitting a line
 
 Raw input goes to the pseudo-terminal exactly as sent. Submitting a line instead types text as one
-line and submits it the way the session's agent accepts a line, which the agent's adapter plans. The
-plan differs per agent because every agent CLI treats a newline that arrives inside a burst of input
-as part of the text, so a line typed with its own newline stays unsent in the composer:
+line and submits it the way the session's agent accepts a line, which the agent's adapter plans.
+Every agent CLI treats a newline that arrives inside a burst of input as part of the text, so a line
+typed with its own newline stays unsent in the composer. The plan differs per agent:
 
 - **Claude Code and gateway agents** get the text between bracketed paste markers, then a carriage
   return as a second write. The markers make the text one paste, so the carriage return reads as
