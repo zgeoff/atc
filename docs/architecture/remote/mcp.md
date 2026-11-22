@@ -7,8 +7,8 @@ assistant. Each server is a client of the daemon, and each tool call becomes one
 atc-gateway serves the same tools, plus a daemons tool, for several daemons
 ([the gateway](./gateway.md)).
 
-[OAuth](./oauth.md) covers how a remote client gets a grant, and the
-[remote MCP guide](../../guides/remote-mcp.md) covers running the HTTP server.
+For how a remote client gets a grant, read [OAuth](./oauth.md). To run the HTTP server, follow the
+[remote MCP guide](../../guides/remote-mcp.md).
 
 ## Tools
 
@@ -25,15 +25,15 @@ A tool's name is `atc_<noun>_<verb>`, where the noun is the channel the tool rea
 A tool result holds its output as text, and a result that is data also holds it as structured
 content with an output schema. Both servers run on the MCP TypeScript SDK, so they speak each
 protocol revision the SDK supports and check each call's arguments against the tool's input schema
-before the tool runs. The `tool-contract` skill holds the rules for naming and describing a tool.
+before the tool runs. Follow the `tool-contract` skill to name and describe a tool.
 
 A failed call returns `isError: true` with the error as text, and a daemon error also as structured
 content `{ code, problem? }`: `code` is the atc error code, and `problem` is present only when the
 error's `data.problem` is a string, such as `host_asleep` under `unsupported_operation`. No other
 field of the error's data passes, because it can describe sessions or targets outside the caller's
 reach. The SDK skips the output schema for an error result, so this shape needs no schema. The
-server's `instructions` in the handshake describe it once. An error with no atc code, such as an
-argument the input schema refuses, has text alone.
+server describes it once, in the `instructions` it sends in the handshake. An error with no atc
+code, such as an argument the input schema refuses, has text alone.
 
 A server lists every tool and every input but the gateway's own, because the daemon it reaches
 passed a handshake on the same major version ([the protocol](../protocol/protocol.md#versions)).
