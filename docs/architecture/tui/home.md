@@ -20,7 +20,8 @@ geometry of the wordmark.
 
 ## When home shows
 
-Home is the bottom layer of the compositor whenever no session is on screen:
+Home is the bottom layer of the compositor whenever no session is on screen and no screen of the
+screen emulator covers it:
 
 - when the client has no session attached;
 - when the [session list](./session-list.md) is open and no live session is behind it, such as a

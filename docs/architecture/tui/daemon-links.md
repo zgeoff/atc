@@ -67,11 +67,12 @@ confirmations. A map that takes the key encodes it in one place, so no caller bu
 
 The mirror keeps a daemon's rows while its link is down, with their finished times, and replaces
 them wholesale on that daemon's next refresh, which also drops the finished time of each session the
-daemon no longer holds. The list hides the rows of a remote daemon that is not `up` and draws one
-line with the daemon's name and state in their place, so a daemon never reads as one with no
-sessions. The primary's rows stay visible while it waits. Each daemon's rows sort and nest on their
-own, the primary's first, because a sub-session nests under a parent on its own daemon even when
-another daemon holds a session of the same id.
+daemon no longer holds. The list hides the rows of a non-primary daemon that is not `up` and draws
+one line with the daemon's name and state in their place, so a daemon never reads as one with no
+sessions. The primary's rows stay visible while it waits, even when the primary is a remote daemon
+under `atc --daemon <name>`. Each daemon's rows sort and nest on their own, the primary's first,
+because a sub-session nests under a parent on its own daemon even when another daemon holds a
+session of the same id.
 
 An event from a link changes only that daemon's rows. The agent labels on a row come from its own
 daemon's agent list, which each link reads when it comes `up`.
