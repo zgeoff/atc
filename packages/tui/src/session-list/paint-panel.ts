@@ -107,6 +107,12 @@ function paintLine(buffer: CellBuffer, paint: LinePaint): void {
     const isEdge = span.col === 0 || span.col === plan.width - 1;
     const opacity = isEdge ? paint.edgeOpacity : paint.textOpacity * fadeShare;
 
+    // a glyph blended to nothing would take the guessed background colour, which shows on a
+    // terminal that never answers the colour query
+    if (opacity <= 0) {
+      continue;
+    }
+
     for (const grapheme of splitGraphemes(span.text)) {
       const background = backgrounds[offset];
 

@@ -122,7 +122,7 @@ test('it draws the panel with no visible text in the first frame of the open', (
 
   const corner = ctx.frames[0]?.buffer.get(4, 7);
 
-  expect(corner?.fg).toStrictEqual(corner?.bg);
+  expect([corner?.ch, corner?.bg]).toStrictEqual([' ', { kind: 'default' }]);
 });
 
 test('it draws the panel whole once the open has finished', () => {

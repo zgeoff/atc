@@ -205,8 +205,9 @@ The panel dims the screen behind it, apart from the terminal's last row, so the
 Each of its cells takes the terminal's default background, apart from the tint on the selected row.
 While the panel fades in or out, a cell over an explicit background blends from that colour toward
 the terminal's background colour, the OSC 11 answer or its fallback, as
-[Colour](./compositor.md#colour) says. A cell over a default background keeps the default at every
-step, so the fallback never shows on a terminal that doesn't answer.
+[Colour](./compositor.md#colour) says, and takes the default background once the fade ends. A cell
+over a default background keeps the default at every step, so the fallback never shows on a terminal
+that doesn't answer.
 
 ## Motion
 
