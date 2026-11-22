@@ -55,8 +55,8 @@ the session it runs in.
 Claude Code ends a turn with its `Stop` hook, which the adapter maps to a turn-done report. A turn
 that ends in an API error, such as a usage limit, runs the `StopFailure` hook in its place. The
 adapter maps `StopFailure` to a needs-input report that carries the error text and a flag that the
-turn failed. On that report, the daemon moves the session to `needs_you`, sets the error text as the
-session's message, the status line that clients show beside it, and marks the session as failed.
+turn failed. On that report, the daemon moves the session to `needs_you` and marks it as failed. The
+error text becomes the session's message, the status line that clients show beside it.
 
 After a failed turn, the agent waits at its input line with no question open, so no later hook would
 move the session out of `needs_you`. While the failed mark holds:
