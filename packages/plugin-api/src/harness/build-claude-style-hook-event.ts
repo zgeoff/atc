@@ -50,6 +50,7 @@ export function buildClaudeStyleHookEvent<P extends ClaudeStyleHookPayload>(
     .with('TurnFailed', () => ({
       ...buildNeedsInputEvent(named, pickTurnFailureMessage(payload)),
       permissionPending: false,
+      turnFailed: true,
     }))
     .with('UserPromptSubmit', () => buildPromptSubmittedEvent(named, payload.prompt))
     .with('SessionEnd', (): AdapterEvent => ({ ...base, kind: 'ended' }))

@@ -22,6 +22,9 @@ export interface Session {
   lastDetail?: string;
 
   permissionPending?: boolean;
+
+  // Kept out of the fleet row, since a revive brings the session back done.
+  turnFailed?: boolean;
   agentSessionID?: AgentSessionID;
   agent: AgentID;
   transcriptSource?: string;

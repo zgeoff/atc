@@ -166,6 +166,7 @@ test('it flags a turn that ends in an API error as needing the user, with the er
     message: "API Error: You've hit your weekly limit",
     detail: "API Error: You've hit your weekly limit",
     permissionPending: false,
+    turnFailed: true,
   });
 });
 
@@ -182,5 +183,6 @@ test('it falls back to the error type when a failed turn carries no text', () =>
     message: 'server_error',
     detail: 'server_error',
     permissionPending: false,
+    turnFailed: true,
   });
 });

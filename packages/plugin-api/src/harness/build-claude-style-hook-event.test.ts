@@ -154,6 +154,7 @@ test.each([
     message: row.message,
     detail: row.message,
     permissionPending: false,
+    turnFailed: true,
   });
 });
 
@@ -179,5 +180,9 @@ test('it flags a failed turn with no message when every error field is blank', (
     },
   );
 
-  expect(event).toStrictEqual({ kind: 'needs-input', permissionPending: false });
+  expect(event).toStrictEqual({
+    kind: 'needs-input',
+    permissionPending: false,
+    turnFailed: true,
+  });
 });

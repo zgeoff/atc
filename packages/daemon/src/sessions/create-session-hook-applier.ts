@@ -162,6 +162,10 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
       session.permissionPending = false;
     }
 
+    if (ev.kind !== 'heartbeat' && ev.kind !== 'started') {
+      session.turnFailed = ev.turnFailed === true;
+    }
+
     const changed = match(ev.kind)
       .with('started', () => {
         // Clearing or resuming inside a live terminal ends the old agent session and starts a new one

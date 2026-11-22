@@ -2,6 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { join } from 'node:path';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import type { AdapterEvent } from '@atc/protocol';
 import { buildTargetIdentity, createStateStore } from '@atc/store';
 import { buildMockFleetEntry } from '@atc/store/test-utils/build-mock-fleet-entry';
 import { createMigratedStateDB } from '@atc/store/test-utils/create-migrated-state-db';
@@ -973,4 +974,157 @@ test("it reports a session's harness as running while a failed spawn's kill of i
   const ended = await manager.probeHarnessEnded(session.id);
 
   expect(ended).toBeFalse();
+});
+
+test('it moves a session whose turn failed to done on attach and keeps the error text', async () => {
+  const ctx = await setupTest();
+
+  const events: Readonly<Record<string, AdapterEvent>> = {
+    StopFailure: {
+      kind: 'needs-input',
+      message: 'API Error: weekly limit reached',
+      permissionPending: false,
+      turnFailed: true,
+    },
+  };
+
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
+      buildMockAgentAdapter({
+        planHookEvents: (hook) => ({ events: [events[hook.event] ?? { kind: 'heartbeat' }] }),
+      }),
+    ],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  });
+
+  registerTestCleanup(() => {
+    manager.detachAll();
+  });
+
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+  });
+
+  manager.applyHook({ atcId: session.id, event: 'StopFailure', payload: {} });
+  manager.attach(session.id);
+
+  expect({ state: session.state, lastMsg: session.lastMsg }).toStrictEqual({
+    state: 'done',
+    lastMsg: 'API Error: weekly limit reached',
+  });
+});
+
+test('it moves a session waiting on a prompt to running on attach', async () => {
+  const ctx = await setupTest();
+
+  const events: Readonly<Record<string, AdapterEvent>> = {
+    Notification: { kind: 'needs-input', message: 'Allow the edit?', permissionPending: true },
+  };
+
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
+      buildMockAgentAdapter({
+        planHookEvents: (hook) => ({ events: [events[hook.event] ?? { kind: 'heartbeat' }] }),
+      }),
+    ],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  });
+
+  registerTestCleanup(() => {
+    manager.detachAll();
+  });
+
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+  });
+
+  manager.applyHook({ atcId: session.id, event: 'Notification', payload: {} });
+  manager.attach(session.id);
+
+  expect({ state: session.state, lastMsg: session.lastMsg }).toStrictEqual({
+    state: 'running',
+    lastMsg: 'attached',
+  });
+});
+
+test('it moves a session to running on attach when the screen raised a prompt after a failed turn cleared', async () => {
+  const ctx = await setupTest();
+
+  const events: Readonly<Record<string, AdapterEvent>> = {
+    StopFailure: {
+      kind: 'needs-input',
+      message: 'API Error: weekly limit reached',
+      permissionPending: false,
+      turnFailed: true,
+    },
+  };
+
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
+      buildMockAgentAdapter({
+        planHookEvents: (hook) => ({ events: [events[hook.event] ?? { kind: 'heartbeat' }] }),
+      }),
+    ],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  });
+
+  registerTestCleanup(() => {
+    manager.detachAll();
+  });
+
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+  });
+
+  manager.applyHook({ atcId: session.id, event: 'StopFailure', payload: {} });
+  manager.updateAttention(session.id, 'done', 'turn done');
+  manager.updateAttention(session.id, 'needs_you', 'Allow the edit?');
+  manager.attach(session.id);
+
+  expect({ state: session.state, lastMsg: session.lastMsg }).toStrictEqual({
+    state: 'running',
+    lastMsg: 'attached',
+  });
 });

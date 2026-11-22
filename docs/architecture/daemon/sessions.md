@@ -32,13 +32,15 @@ A session lists as `exited` whenever its harness is not running, a harness suspe
 sleeping host included, and otherwise with the attention its hooks last reported. An end report from
 a live terminal never marks the session exited, because resuming inside Claude Code ends one agent
 session and starts another in the same process: only the pseudo-terminal closing does. Attaching to
-a session that needs the owner moves it back to `running`, since the owner is now looking, and the
+a session that waits on a prompt moves it back to `running`, since the owner is now looking, and the
 agent's next notification flags it again when the prompt still waits.
 
 A Claude turn that ends in an API error, such as a usage limit, runs the stop failure hook instead
 of the stop hook. The adapter maps it to a needs-input report that carries the error text, so the
-session moves to `needs_you` with that text as its message, and the next submitted prompt moves it
-back to `running`.
+session moves to `needs_you` with that text as its message. The agent then sits idle at its prompt,
+so attaching moves the session to `done` and keeps the error text, and the next submitted prompt
+moves it back to `running`. The daemon keeps the mark of a failed turn in memory only, because a
+revive brings the session back `done` anyway.
 
 A needs-input or turn-done report marks the session unread, and attaching, an acknowledgement or a
 submitted prompt clears it. The overlay sorts unread sessions that need the owner first, which is
