@@ -26,9 +26,9 @@ skills are in `.agents/skills/`, and `.claude/skills` links to that folder.
 
 When you write or edit a skill:
 
-1. Load the `skill-writing`, `cold-read` and `deslop` skills from `.agents/skills/`. repo-sync
-   delivers them there at the `zgeoff/skills` commit that `zgeoff/tools` pins, so install none of
-   them yourself.
+1. Load `skill-writing` from `.agents/skills/` before you start, and `cold-read` and `deslop` from
+   the same folder before the PR. repo-sync delivers all three there at the `zgeoff/skills` commit
+   that `zgeoff/tools` pins, so install none of them yourself.
 2. Do every step in the "Check it" section of `.agents/skills/skill-writing/SKILL.md`. In the PR
    template's Checks section, tick the Deslop and Cold read lines, each with the short hash of the
    commit you checked, and leave the chex line for CI.
@@ -100,7 +100,8 @@ docs/
 - `bun run lint:full` adds the type-aware pass and the type check. oxlint runs both through
   `tsrs-lint`, which the `tsrs` package ships and oxlint finds on its own, in tsgolint's place,
   because stock tsgolint runs out of memory under 2 GiB. The script sets `TSRS_FAST=1`, tsrs's fast
-  mode. `lint:full` runs in CI only, so never run it locally.
+  mode. Never run `lint:full` locally: like the other larger checks, it runs in CI only, because the
+  host may have little memory.
 - `bun run build:atc-bridge` regenerates the mod's embedded copy after a change to
   `mods/atc-bridge/`.
 - lefthook runs the light checks before a commit and a push. Leave the larger checks to CI, because
