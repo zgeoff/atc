@@ -530,7 +530,7 @@
     "@zgeoff/agent-hooks": "0.3.2",
     "@zgeoff/bun-test-extended": "0.2.4",
     "@zgeoff/chex": "0.4.5",
-    "@zgeoff/diet": "0.3.0",
+    "@zgeoff/diet": "0.3.2",
     "@zgeoff/format-codemod": "0.3.6",
     "@zgeoff/kysely-bun-sqlite": "0.3.3",
     "@zgeoff/mcp-auth": "0.3.0",
@@ -1110,7 +1110,7 @@
 
     "@zgeoff/chex": ["@zgeoff/chex@0.4.5", "", { "dependencies": { "@zgeoff/std": "0.4.5", "oxc-parser": "0.158.0", "ts-pattern": "5.9.2" }, "bin": { "chex": "src/cli.ts" } }, "sha512-xqJYNxg7jJeaer7Jf7dQ2ic728qDxyf6H+3OkQ+6rBr3I/+hZ4stY+tR+jZifKvRnwCKD6Ld0gl9iPWxqr5KAA=="],
 
-    "@zgeoff/diet": ["@zgeoff/diet@0.3.0", "", { "bin": { "diet": "diet.sh" } }, "sha512-CgvLXgWCMMjrWN1foqfoZV7aE3wTAE/Z8NW5Ttf64tfafw6EoE6dhVkBDGtwb3VyxcSpx/WtTOTih9lfWosDtQ=="],
+    "@zgeoff/diet": ["@zgeoff/diet@0.3.2", "", { "bin": { "diet": "diet.sh" } }, "sha512-WTr8W2oOHfGFSASJgy/8LFHmiW5vRu2jduhsM5ixsMi7gAiTcERG7JhdLcIwksuyGTmOVxlCf7cRP6crAPDOig=="],
 
     "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.3.6", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.158.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-hoa6JerU9JHgikqumdtu23VE8wemOgkTr1zrwBFGnLyBns59bTt7Z3kkV6IBxc07CveYKtPT94IDTWFmFj5qHA=="],
 
