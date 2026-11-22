@@ -73,9 +73,9 @@ it `--public-url http://localhost:<port>` to sign in from a browser on the same 
    sign in.
 3. Select **Sign in with a passkey** and verify yourself. Five failed sign-ins end the request, and
    a request expires after 10 minutes.
-4. Tick the scopes to grant on the consent page. Only `read` is ticked to start. `message` lets the
-   client instruct your agents, which can run commands. It also lets the client rename, pin and mark
-   your sessions read. For the tools each scope allows, read
+4. Tick the scopes to grant on the consent page. The page starts with no scope ticked. `message`
+   lets the client instruct your agents, which can run commands. It also lets the client rename, pin
+   and mark your sessions read. For the tools each scope allows, read
    [Scopes](../architecture/remote/mcp.md#scopes).
 
 The client then holds a grant. To widen it, connect again and approve the larger set. Each
