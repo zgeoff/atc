@@ -27,8 +27,8 @@ your own:
 - Every other key in the entry is an option for that provider.
 - A target whose provider kind this atc does not have still lists, as unavailable, and a spawn to it
   fails with `target_unavailable`.
-- A `targets` map without `local` turns local sessions off: a spawn to `local` fails with
-  `unknown_target`.
+- A non-empty `targets` map without `local` turns local sessions off: a spawn to `local` fails with
+  `unknown_target`. An empty map is a config error, as the end of this guide says.
 - A spawn without a target runs on `defaultTarget`. Without `defaultTarget`, it runs on `local` when
   the map holds it, and fails with `target_config_invalid` otherwise.
 
@@ -79,7 +79,8 @@ for repositories you trust. It changes no tool permission mode.
   clone root to the session's own Codex config; see
   [Codex subscription on imps](./codex-subscription.md).
 
-atc refuses trust for any other agent or target, and for a launch without a workspace source.
+atc refuses trust for any other agent or target, and for a launch without a workspace source, except
+for the sub-sessions below.
 
 A sub-session on an imp target takes its parent's trust when it runs in its parent's imp, uses an
 agent that takes trust there, and starts in the exact clone root that its parent's guest config
