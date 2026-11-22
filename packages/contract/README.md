@@ -17,7 +17,7 @@ The schemas and constants a program needs to talk to an atc daemon and read what
 atc hosts coding-agent sessions in a daemon, and this package holds the daemon's side of the
 conversation: the oRPC request contract, the event and session record schemas, the hello answer, the
 error codes, the session environment names, and the paths of the daemon's sockets and state. The
-daemon and every atc client build on the same package, and each atc release publishes it at its own
+daemon and every atc client build on the same package, and each atc release publishes it at atc's
 version. To start, resolve the daemon's socket with `resolveAtcPaths`, send `daemon.hello`, and pass
 the answer to `checkDaemon` to learn whether the daemon speaks your version of the contract.
 

@@ -87,7 +87,7 @@ Hand a stuck cloud agent to your orchestrator:
 import { connect } from '@atcx/client';
 
 await using local = await connect();
-await using cloud = await connect({ ... });
+await using cloud = await connect({ address, token, principal });
 
 const listed = await local.session.list({});
 
