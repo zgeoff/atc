@@ -102,7 +102,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
 
 ## Design
 
-Designs, each with the spikes behind it. Each design gives its status, built or not.
+Designs and the spikes run for them. Each design gives its status, built or not, and each spike
+gives its runs and a recommendation.
 
 - [Codex App Server queue spike](design/codex-app-server-bridge/spikes/server-queue/README.md) —
   whether the App Server's own queue can hold atc messages for Codex sessions, with the runs and a

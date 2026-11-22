@@ -71,8 +71,8 @@ follows it.
   `written`, `queued`, `delivered` or `answered`. An agent reads a result word in its strongest
   meaning, so a message atc holds before the agent takes it is `queued`, never "sent".
 - When the caller needs more, name the tool that shows it. `atc_terminal_type` returns
-  `written: true`, and says to check with `atc_terminal_read` or `atc_events_read` whether the agent
-  took the line.
+  `written: true`, and its description sends the caller to `atc_terminal_read` or `atc_events_read`
+  to check whether the agent took the line.
 
 ## Destructive tools
 

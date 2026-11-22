@@ -46,9 +46,9 @@ None.
 - Run tests only through `bun run test` and the other test scripts. Each starts Bun through
   [`with-test-home.sh`](../../../scripts/with-test-home.sh), which points `HOME`, the XDG folders
   and the agent CLIs' homes at a new temp folder, and kills any process a test left behind. A bare
-  `bun test` fails before any test runs: a home set in a preload never reaches a test's
-  subprocesses, so the [`isolate-home`](../../../packages/core/src/test-utils/isolate-home.ts)
-  preload refuses the run.
+  `bun test` fails before any test runs, because the
+  [`isolate-home`](../../../packages/core/src/test-utils/isolate-home.ts) preload refuses the run: a
+  home set in a preload never reaches a test's subprocesses.
 - Get a home path from [`resolveHomeDir`](../../../packages/contract/src/light/resolve-home-dir.ts),
   never from `os.homedir()`. Bun reads `HOME` for `os.homedir()` once, at startup.
 - Change an environment variable through `updateEnv` from `@zgeoff/testing`. The kit's preload puts
@@ -74,8 +74,8 @@ None.
 ## Lanes
 
 Put a suite in a lane when it needs something outside the test process, such as a CLI on the machine
-or a real `bun install`. The Needs column below gives what each lane needs. Each lane has a test
-script of its own. The unit run, `bun run test`, leaves out every lane's files.
+or a real `bun install`. Each lane has a test script of its own. The unit run, `bun run test`,
+leaves out every lane's files.
 
 The unit run and the Codex and toolchain lanes run through
 [`@zgeoff/rig`](https://github.com/zgeoff/tools/tree/main/packages/rig), the shared test runner,
@@ -97,8 +97,9 @@ pass its path to `bun run test` or a lane's script. Otherwise rig finds no match
   [`checks.yml`](../../../.github/workflows/checks.yml) pins.
 - Never give a lane test a timeout of its own. Each lane's runner sets the limit in the table.
 - Run one e2e suite with `bun run test:e2e e2e/<file>.test.ts`. Pass only e2e files and the options
-  that [`with-e2e-paths.sh`](../../../scripts/with-e2e-paths.sh) lists. The script refuses any other
-  file. A unit test run there would get the e2e lane's 15 s limit in place of the unit run's 5 s.
+  that [`with-e2e-paths.sh`](../../../scripts/with-e2e-paths.sh) accepts. The script refuses any
+  other file. A unit test run there would get the e2e lane's 15 s limit in place of the unit run's 5
+  s.
 - Write each `e2e/` suite to pass in any order. CI's test job runs every suite that has no `daemon-`
   or `gateway-` prefix from source, in random order.
 

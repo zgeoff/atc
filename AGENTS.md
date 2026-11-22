@@ -76,13 +76,13 @@ docs/
 
 - Every workspace package is private and named `@atc/<name>`. Two exceptions: `@atcx/contract` and
   `@atcx/client` are published to npm at atc's version. The contract depends on no other workspace
-  package, and the client depends only on the contract.
-  [The published contract](docs/architecture/protocol/contract.md) and
-  [the published client](docs/architecture/protocol/client.md) cover what each holds. A daemon
+  package, and the client depends only on the contract. See
+  [the published contract](docs/architecture/protocol/contract.md) and
+  [the published client](docs/architecture/protocol/client.md) for what each holds. A daemon
   connection of atc's own opens through the client, and `bun run check:daemon-sockets` fails on
-  another opener. The `zgeoff/import-zones` rule in `.oxlintrc.zones.json` gives each package a
-  zone, the internal packages it may depend on, the folder rules inside the daemon, and the files
-  that may import each confined external package.
+  another opener. The `zgeoff/import-zones` rule enforces `.oxlintrc.zones.json`, which sets each
+  package's zone: the internal packages it may depend on, the folder rules inside the daemon, and
+  the files that may import each confined external package.
 - Give a package a second entry point only for a reason, never one per file. The usual reason is
   start-up time: a hook or statusline reporter starts once per event, so it imports a light entry
   that skips the Zod schemas, the protocol contract, and the store.
@@ -174,7 +174,7 @@ prints its own reason, and the rules live where each bullet points.
 
 ## Agent integration contract
 
-[Agent integration](docs/architecture/agents/agent-integration.md) describes how each agent is
+See [Agent integration](docs/architecture/agents/agent-integration.md) for how each agent is
 instrumented. These rules hold for any change to it:
 
 - Everything specific to one agent CLI lives in its adapter behind the `AgentAdapter` interface. A
@@ -195,8 +195,8 @@ instrumented. These rules hold for any change to it:
   helper command supplies its credential, which never goes in the generated file.
 - Hook and statusline reporters run inside the wrangled session and always exit 0, so a broken
   reporter never breaks the session it reports on.
-- The agent is the naming authority for sessions: `/rename` custom titles beat user-typed names,
-  which beat auto-summaries.
+- The agent is the naming authority for sessions: a `/rename` custom title beats a user-typed name,
+  which beats an auto-summary.
 - Before you merge a change to this contract, check it by hand against real Claude Code. The check
   also confirms that the pinned Claude Code version refreshes a held config lock well inside the age
   at which atc takes a lock over as stale, because the lock's test runs against `proper-lockfile`
@@ -204,12 +204,12 @@ instrumented. These rules hold for any change to it:
 
 ## State
 
-State lives in `~/.local/state/atc/`, and the [architecture overview](docs/architecture/overview.md)
-covers its stores.
+State lives in `~/.local/state/atc/`. See the [architecture overview](docs/architecture/overview.md)
+for its stores.
 
 - `status.json` stays a plain file, because a script can read it without speaking the protocol.
-- A session death the owner never asked for rewrites nothing in the fleet, so a crash leaves a
-  restorable fleet. [Fleet and restore](docs/architecture/daemon/fleet-and-restore.md) holds the
+- When a session dies without the owner asking, rewrite nothing in the fleet, so a crash leaves a
+  restorable fleet. See [Fleet and restore](docs/architecture/daemon/fleet-and-restore.md) for the
   rules for each rewrite.
 
 ## Banned words

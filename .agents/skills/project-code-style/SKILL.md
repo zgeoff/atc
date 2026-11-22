@@ -12,7 +12,7 @@ metadata:
 ## Departures
 
 - In `mods/`, skip code-style's rules. Each folder there, such as `mods/atc-bridge/`, is a Claude
-  Code mod, and Claude Code's mod API decides how its code looks.
+  Code mod, so write its code the way Claude Code's mod API requires.
 - In place of code-style, `bun run lint:mods` checks every mod for which packages it imports and
   how, by the rules in [`.oxlintrc.mods.json`](../../../.oxlintrc.mods.json). lefthook runs it
   before each push, and CI runs it too.
