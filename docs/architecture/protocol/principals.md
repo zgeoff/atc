@@ -1,11 +1,11 @@
 # Principals
 
-A request on the daemon's unix socket acts as the daemon's owner, who reaches every session. A
-principal is a named caller with less: the config's `principals` key grants each principal a set of
-targets, and a request that acts as a principal sees and touches only the sessions on those targets.
-Every request on the TCP listener must act as a principal, so a remote client never acts as the
-owner. `atc mcp --http` and atc-gateway act as the OAuth client that made each call
-([MCP](../remote/mcp.md#remote-callers)).
+A request on the daemon's unix socket acts as the daemon's owner, who reaches every session, unless
+it names a principal. A principal is a named caller with less: the config's `principals` key grants
+each principal a set of targets, and a request that acts as a principal sees and touches only the
+sessions on those targets. Every request on the TCP listener must act as a principal, so a remote
+client never acts as the owner. `atc mcp --http` and atc-gateway act as the OAuth client that made
+each call ([MCP](../remote/mcp.md#remote-callers)).
 
 A session on a remote host can hold atc access of its own, which its spawn grants and which reaches
 only the session, the sessions below it and its parent
@@ -18,11 +18,12 @@ only the session, the sessions below it and its parent
 
 A request acts as a principal when its `x-atc-as` header holds one, and its `x-atc-as-name` header
 holds that principal's display name. A whole connection acts as one when its handshake holds
-`principal`. A request with neither acts as the owner. A request's principal can only narrow its
-connection's: on a connection that acts as one principal, a request that acts as another reaches
-only the targets both may use. The daemon refuses a request whose `x-atc-as` header is empty or
-repeated with `bad_args` rather than ignore the value, because ignoring it would leave the request
-with the connection's full reach.
+`principal`. On the unix socket, a request with neither acts as the owner; on the TCP listener it
+gets `unauthorized`, as [The TCP listener](#the-tcp-listener) says. A request's principal can only
+narrow its connection's: on a connection that acts as one principal, a request that acts as another
+reaches only the targets both may use. The daemon refuses a request whose `x-atc-as` header is empty
+or repeated with `bad_args` rather than ignore the value, because ignoring it would leave the
+request with the connection's full reach.
 
 ## Who a caller is
 
