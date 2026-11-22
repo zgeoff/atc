@@ -70,20 +70,21 @@ test('#buildFleetBar moves a needs_you glyph into the rest only past 4 of them',
   expect([bar.places[0]?.glyphs, bar.places[0]?.more]).toStrictEqual([['◆', '◆', '◆', '◆'], 1]);
 });
 
-// the right end is 25 columns from 90 columns up and 16 below, and the bar keeps 3 columns of gap;
-// the places need 36 columns at glyphs, 33 at counts and 27 at short, and 17 and 6 with the …
+// the right end is 25 columns from 90 columns up and 16 below, the bar keeps 4 columns of margin
+// and 3 of gap; the places need 36 columns at glyphs, 29 at counts and 23 at short, and 15 and 6
+// with the …
 test.each([
   { cols: 100, level: 'glyphs', dropped: 0 },
-  { cols: 55, level: 'glyphs', dropped: 0 },
-  { cols: 54, level: 'counts', dropped: 0 },
+  { cols: 59, level: 'glyphs', dropped: 0 },
+  { cols: 58, level: 'counts', dropped: 0 },
   { cols: 52, level: 'counts', dropped: 0 },
   { cols: 51, level: 'short', dropped: 0 },
   { cols: 46, level: 'short', dropped: 0 },
   { cols: 45, level: 'short', dropped: 1 },
-  { cols: 36, level: 'short', dropped: 1 },
-  { cols: 35, level: 'short', dropped: 2 },
-  { cols: 25, level: 'short', dropped: 2 },
-  { cols: 24, level: 'short', dropped: 3 },
+  { cols: 38, level: 'short', dropped: 1 },
+  { cols: 37, level: 'short', dropped: 2 },
+  { cols: 29, level: 'short', dropped: 2 },
+  { cols: 28, level: 'short', dropped: 3 },
 ])('#buildFleetBar picks $level and drops $dropped places at $cols columns', (row) => {
   const ctx = setupTest();
   const bar = buildFleetBar(ctx.sessions, { ...ctx.options, cols: row.cols });

@@ -3,7 +3,7 @@ import { measureWidth } from '../terminal/measure-width';
 import { buildPlaceRuns } from './build-place-runs';
 import type { PlaceRun } from './build-place-runs';
 import { buildRightEnd } from './build-right-end';
-import { PLACE_SEPARATOR } from './constants';
+import { BAR_MARGIN, PLACE_SEPARATOR } from './constants';
 import type { FleetBar, PlaceSummary } from './types';
 
 export interface FleetBarRun {
@@ -20,7 +20,7 @@ const MUTED = rgb(0x6e, 0x76, 0x81);
 // The runs of text the bar draws on its row, each with its start column and its colour.
 export function formatFleetBar(bar: FleetBar, cols: number): readonly FleetBarRun[] {
   const runs: FleetBarRun[] = [];
-  let col = 0;
+  let col = BAR_MARGIN;
 
   for (const [index, place] of bar.places.entries()) {
     if (index > 0) {
@@ -41,7 +41,7 @@ export function formatFleetBar(bar: FleetBar, cols: number): readonly FleetBarRu
   }
 
   const right = buildRightEnd(bar.needYou, bar.leaderLabel, cols);
-  const rightCol = Math.max(0, cols - right.width);
+  const rightCol = Math.max(0, cols - BAR_MARGIN - right.width);
 
   if (right.needYouText !== '') {
     runs.push({ col: rightCol, text: right.needYouText, fg: AMBER, bold: false });

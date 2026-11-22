@@ -18,8 +18,7 @@ export function buildPlaceRuns(place: PlaceSummary, level: FleetBarLevel): reado
   if (level === 'glyphs') {
     return [
       label,
-      { text: ' ', kind: 'plain' },
-      ...place.glyphs.map((glyph) => ({ text: glyph, kind: 'glyph' as const })),
+      ...place.glyphs.map((glyph) => ({ text: ` ${glyph}`, kind: 'glyph' as const })),
       ...(place.more > 0 ? [{ text: ` +${place.more}`, kind: 'plain' as const }] : []),
     ];
   }

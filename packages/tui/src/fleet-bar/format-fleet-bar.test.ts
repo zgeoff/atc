@@ -23,22 +23,22 @@ test.each([
   {
     title: 'glyphs',
     cols: 100,
-    expected: `docker ⠋    ink ◆✓    laptop ◆⠋⠋✓ +2${' '.repeat(39)}◆ 2 need you   ctrl+space`,
+    expected: `  docker ⠋  ink ◆ ✓  laptop ◆ ⠋ ⠋ ✓ +2${' '.repeat(35)}◆ 2 need you   ctrl+space  `,
   },
   {
     title: 'counts',
     cols: 54,
-    expected: `docker 1    ink 2 ◆    laptop 6 ◆${' '.repeat(5)}◆ 2   ctrl+space`,
+    expected: `  docker 1  ink 2 ◆  laptop 6 ◆${' '.repeat(5)}◆ 2   ctrl+space  `,
   },
   {
     title: 'short',
     cols: 48,
-    expected: `doc 1    ink 2 ◆    lap 6 ◆${' '.repeat(5)}◆ 2   ctrl+space`,
+    expected: `  doc 1  ink 2 ◆  lap 6 ◆${' '.repeat(5)}◆ 2   ctrl+space  `,
   },
   {
     title: 'short with … for the places that dropped',
     cols: 30,
-    expected: `doc 1…${' '.repeat(8)}◆ 2   ctrl+space`,
+    expected: `  doc 1…${' '.repeat(4)}◆ 2   ctrl+space  `,
   },
 ])('#formatFleetBar draws the $title level on one row', (row) => {
   const ctx = setupTest();
@@ -71,13 +71,13 @@ test('#formatFleetBar writes the need-you count in amber and the leader in bold 
 
   expect(formatFleetBar(bar, 100).slice(-2)).toStrictEqual([
     {
-      col: 75,
+      col: 73,
       text: '◆ 2 need you',
       fg: { kind: 'rgb', red: 0xf0, green: 0xb4, blue: 0x5a },
       bold: false,
     },
     {
-      col: 90,
+      col: 88,
       text: 'ctrl+space',
       fg: { kind: 'rgb', red: 0x7a, green: 0xa2, blue: 0xf7 },
       bold: true,
@@ -108,7 +108,7 @@ test('#formatFleetBar draws every glyph of an unreachable place in #3a414b', () 
   });
 
   const colours = formatFleetBar(bar, 100)
-    .filter((run) => run.text === '◆' || run.text === '⠋')
+    .filter((run) => run.text === ' ◆' || run.text === ' ⠋')
     .map((run) => run.fg);
 
   expect(colours.length).toBeGreaterThan(0);
@@ -130,11 +130,10 @@ test('#formatFleetBar starts the next run after the two columns of a wide label'
 
   expect(
     formatFleetBar(bar, 100)
-      .slice(0, 3)
+      .slice(0, 2)
       .map((run) => [run.col, run.text]),
   ).toStrictEqual([
-    [0, '界界'],
-    [4, ' '],
-    [5, '✓'],
+    [2, '界界'],
+    [6, ' ✓'],
   ]);
 });
