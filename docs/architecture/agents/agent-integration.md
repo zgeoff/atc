@@ -5,7 +5,7 @@ sends the event to the daemon's reporter socket. How the hooks get into the agen
 under one rule: atc never writes hooks into an agent's own config. Claude Code takes everything but
 folder trust per invocation, through files atc writes and passes on the command line. Grok and Codex
 take hooks only from their own config, so atc prints the hook file and the owner installs it once.
-atc writes into an agent's config in three cases:
+atc writes into an agent's config in these cases:
 
 - A Codex session that signs in through impd's broker gets a Codex home of its own, and atc writes
   the hooks there ([Grok and Codex](#grok-and-codex)).
@@ -71,8 +71,7 @@ Every Claude Code session starts with files atc wrote for it:
 
 - **A generated settings file**, passed with `--settings`, holds the atc hooks for start, end,
   prompt submit, notification, stop and stop failure, and a statusline reporter. Hooks that an
-  entry's extra session settings add run after atc's own, so they join the reporter rather than
-  replacing it.
+  entry's extra session settings add run after atc's own, alongside the reporter.
 - **The `atc-bridge` mod**, passed with `--plugin-dir`, connects the session to its inbox and gives
   the model a `note` tool and an `answer` tool.
 - **A scratch folder of its own**, passed as an added directory and as `TMPDIR`, so a session's
@@ -127,14 +126,14 @@ turn otherwise. The envelope holds the message id, the sender's name and the sen
 session id when the sender is a session ([messages](../protocol/messages.md#who-a-message-is-from)).
 A tap line without a kind gets an envelope with the name alone.
 
-In a section it adds to the system prompt, the mod tells the model what the envelope means, so the
-model treats a relayed message as one from another tool rather than the owner's own words. In the
-same section, the mod tells the model to answer each message with the `answer` tool, because the
-final reply of a turn is meant for the person at the terminal. The mod reports an `answer` call at
-once, as the answer to that one message. When a turn that carried messages ends with a reply, the
-mod reports every message the turn carried that has no answer as answered with that reply and the
-turn's id, in one call. The mod reports a turn that ends without a reply as unanswered for those
-messages, with the cause ([messages](../protocol/messages.md#answers)).
+The mod adds a section to the system prompt that explains the envelope, so the model treats a
+relayed message as one from another tool rather than the owner's own words. The same section
+instructs the model to answer each message with the `answer` tool, because the final reply of a turn
+is meant for the person at the terminal. The mod reports an `answer` call at once, as the answer to
+that one message. When a turn that carried messages ends with a reply, the mod reports every message
+the turn carried that has no answer as answered with that reply and the turn's id, in one call. The
+mod reports a turn that ends without a reply as unanswered for those messages, with the cause
+([messages](../protocol/messages.md#answers)).
 
 The mod's tap also asks for answer notices, and the mod hands each one to the model in an
 `<atc-answer>` envelope that holds the outcome of a message the session sent. The model learns from

@@ -9,10 +9,10 @@ model sends with the mod's `answer` tool or, if none, the final reply of the tur
 which the mod reports when the turn ends. A turn that saw the message and ends without a reply
 leaves it unanswered. When the sender is itself a session that takes messages, the daemon queues an
 answer notice in the sender's inbox, so the outcome reaches the sender's conversation without a
-read. [Delivering answers](#delivering-answers) gives the sends that get no notice.
+read. See [Delivering answers](#delivering-answers) for the sends that get no notice.
 
-[Agent integration](../agents/agent-integration.md#the-atc-bridge-mod) covers the mod, and
-[events](./events.md) covers the trail that records each status change.
+For the mod, see [agent integration](../agents/agent-integration.md#the-atc-bridge-mod). For the
+trail that records each status change, see [events](./events.md).
 
 ```mermaid
 stateDiagram-v2
@@ -145,7 +145,7 @@ sender to send the message again. When a live fleet row on a remote target holds
 session id, the daemon touches only the messages sent to the local session's own atc id, because
 that row's session may still run there and hold its own.
 
-Three ends mark nothing, because the process may still run:
+These ends mark nothing, because the process may still run:
 
 - A host that goes to sleep with the process inside, which a wake resumes.
 - A connection to a remote host that is lost for good, since a revive can attach to the same
@@ -194,8 +194,8 @@ message id and wakes the model to read it.
 
 ## Sending from the command line
 
-`atc send` and `atc message get` use the `session.message` and `message.get` requests that the MCP
-message tools use, so a script can send and read without speaking the protocol. They share one
+`atc send` and `atc message get` let a script send and read without speaking the protocol. They use
+the `session.message` and `message.get` requests that the MCP message tools use, and share one
 exit-status table and one set of rules:
 
 - A send makes one `session.message` request, with `session`, `text`, `idempotencyKey` and, for a

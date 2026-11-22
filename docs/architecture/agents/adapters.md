@@ -1,10 +1,10 @@
 # Adapters
 
 An adapter is everything atc knows about one agent CLI. The daemon's session core never sees past
-the adapter interface, so a new agent CLI is a new adapter, not a change to the core. Each adapter
-plans how its agent starts on a local or a remote host, maps the agent's hook reports to atc's
-attention kinds, reads the agent's session names, builds its resume command, and declares what it
-supports: transcript reads, a headless runner, a message tap, and how a submitted line is typed.
+the adapter interface, so a new agent CLI needs only a new adapter. Each adapter plans how its agent
+starts on a local or a remote host, maps the agent's hook reports to atc's attention kinds, reads
+the agent's session names, builds its resume command, and declares what it supports: transcript
+reads, a headless runner, a message tap, and how a submitted line is typed.
 
 [Agent integration](./agent-integration.md) covers how each agent reports to atc, and
 [sessions](../daemon/sessions.md) covers what the core does with the reports.
@@ -15,8 +15,8 @@ The config's `agents` map is the registry. It holds exactly the agents atc offer
 entry in file order, keyed by the entry's id, and each entry's kind picks the CLI it drives: Claude
 Code, Codex or Grok. Several entries can share a kind, such as two Codex entries with different
 arguments. A session records its agent by id, so the daemon finds the session's adapter by that id
-for every later step, and a fleet row whose id the registry no longer holds refuses to revive rather
-than coming back under another agent.
+for every later step, and a fleet row whose id the registry no longer holds refuses to revive and
+never comes back under another agent.
 
 A Claude Code entry with a base URL is a gateway agent: the Claude Code CLI pointed at a
 Claude-compatible backend. It gets its own picker row, its own fleet rows and its own generated
@@ -81,7 +81,7 @@ alike:
 1. The config check and the spawn check take a path that is absolute or starts with `~/`, holds no
    control character, and has no `..` segment. After a symlink, the filesystem takes `..` to the
    parent of the link's target, while a reading of the text drops the link, and Claude Code may read
-   either way, so atc refuses the segment rather than guess.
+   either way, so atc refuses the segment.
 2. The daemon expands a leading `~/` to its user's home and drops empty and `.` segments, so a
    folder written two ways loads once. It reads no symlink while it does so, so each launch loads
    the folder a symlink points at when that launch runs.
