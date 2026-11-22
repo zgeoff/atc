@@ -153,11 +153,78 @@ test('it separates two groups with one blank line', () => {
   ]);
 });
 
+test('it hides the daemon and place columns when every row reads the same in them', () => {
+  const rows = [
+    {
+      kind: 'session',
+      session: buildMockMirrorSession({
+        name: 'api',
+        daemon: 'harbor',
+        place: { key: 'k', label: 'sprite' },
+      }),
+      via: null,
+    },
+    {
+      kind: 'session',
+      session: buildMockMirrorSession({
+        name: 'web',
+        daemon: 'harbor',
+        place: { key: 'k', label: 'sprite' },
+      }),
+      via: null,
+    },
+  ] as const;
+
+  const plan = buildListPanel(buildMockPanelInput({ rows, showDaemon: true }), {
+    cols: 120,
+    rows: 30,
+  });
+
+  expect(renderPanelText(plan).slice(1, 3)).toSatisfyAll(
+    (line: string) => !line.includes('harbor') && !line.includes('sprite'),
+  );
+});
+
+test('it shows the daemon and place columns when one row differs from the rest', () => {
+  const rows = [
+    {
+      kind: 'session',
+      session: buildMockMirrorSession({
+        name: 'api',
+        daemon: 'harbor',
+        place: { key: 'k', label: 'sprite' },
+      }),
+      via: null,
+    },
+    {
+      kind: 'session',
+      session: buildMockMirrorSession({
+        name: 'web',
+        daemon: 'quay',
+        place: { key: 'j', label: 'kettle' },
+      }),
+      via: null,
+    },
+  ] as const;
+
+  const plan = buildListPanel(buildMockPanelInput({ rows, showDaemon: true }), {
+    cols: 120,
+    rows: 30,
+  });
+
+  expect(renderPanelText(plan)[1]).toIncludeMultiple(['harbor', 'sprite']);
+});
+
 test('it shows the daemon column only with more than one daemon', () => {
   const rows = [
     {
       kind: 'session',
       session: buildMockMirrorSession({ name: 'api', daemon: 'harbor' }),
+      via: null,
+    },
+    {
+      kind: 'session',
+      session: buildMockMirrorSession({ name: 'web', daemon: 'quay' }),
       via: null,
     },
   ] as const;
@@ -181,11 +248,16 @@ test('it never shows the daemon column in place mode, and puts via in the place 
       grouping: 'place',
       showDaemon: true,
       rows: [
-        { kind: 'header', label: 'cloud', count: 1, needYou: 0 },
+        { kind: 'header', label: 'cloud', count: 2, needYou: 0 },
         {
           kind: 'session',
           session: buildMockMirrorSession({ name: 'api', daemon: 'harbor' }),
           via: 'harbor',
+        },
+        {
+          kind: 'session',
+          session: buildMockMirrorSession({ name: 'web', daemon: 'quay' }),
+          via: 'quay',
         },
       ],
     }),
@@ -205,7 +277,16 @@ test('it drops the place column in place mode and the repository column in repo 
     repoRoot: '/work/shop',
   });
 
-  const rows = [{ kind: 'session', session, via: null }] as const;
+  const other = buildMockMirrorSession({
+    name: 'web',
+    place: { key: 'j', label: 'kettle' },
+    repoRoot: '/work/mill',
+  });
+
+  const rows = [
+    { kind: 'session', session, via: null },
+    { kind: 'session', session: other, via: 'quay' },
+  ] as const;
 
   const place = buildListPanel(buildMockPanelInput({ rows, grouping: 'place' }), {
     cols: 140,

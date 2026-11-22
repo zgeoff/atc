@@ -67,8 +67,10 @@ because two daemons can each hold a session with the same id.
 
 The columns change with the grouping and the terminal's width:
 
-- The daemon column shows only when the sessions come from more than one daemon, and never `place`
-  grouping.
+- The daemon column shows only when the client connects to more than one daemon, and never in the
+  `place` grouping.
+- The list hides the daemon column and the place column when every listed session has the same value
+  in it, so a fleet that runs on one daemon and one place shows neither.
 - The `repo` grouping drops the repository column.
 - In the `place` grouping, the group header names the place. A place can hold sessions that reach
   the client through different daemons. In such a place, every row shows `via <daemon>` in the place
