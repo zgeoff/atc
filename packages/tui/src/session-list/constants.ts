@@ -13,6 +13,9 @@ export const DONE: RGB = { red: 0x9e, green: 0xce, blue: 0x6a };
 // how far the selected row's background moves toward blue
 export const SELECTED_TINT = 0.11;
 
+// how much of its colour a row that jump mode found no match in keeps
+export const FADED_TEXT_SHARE = 0.3;
+
 // how far the layers below the panel move toward the terminal's background
 export const DIM_OVER_SESSION = 0.62;
 export const DIM_OVER_HOME = 0.5;

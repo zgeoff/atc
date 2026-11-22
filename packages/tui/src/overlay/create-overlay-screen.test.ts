@@ -105,18 +105,22 @@ test('it puts the pinned sessions of every daemon under one pinned header at the
   expect(labels).toStrictEqual(['pinned', 'atlas']);
 });
 
-test('it narrows the rows to the names that hold the typed jump letters', () => {
+test('it keeps every row while jump letters are typed, and marks the ones that match', () => {
   const ctx = setupTest();
 
-  ctx.mirror.upsert(buildMockMirrorSession({ id: 'a', name: 'api' }));
-  ctx.mirror.upsert(buildMockMirrorSession({ id: 'b', name: 'web' }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'a', name: 'api', lastAttachedAt: 2 }));
+  ctx.mirror.upsert(buildMockMirrorSession({ id: 'b', name: 'web', lastAttachedAt: 1 }));
 
   ctx.overlay.jump = { typed: 'w', prefix: '' };
 
-  expect(ctx.overlay.pickSessions().map((session) => session.name)).toStrictEqual(['web']);
+  expect(ctx.overlay.readInput(0, 0).jump).toStrictEqual({
+    matches: [false, true],
+    labels: [null, 'a'],
+    typed: 'w',
+  });
 });
 
-test('it labels each row while jump mode runs', () => {
+test('it gives no row a label until a letter is typed in jump mode', () => {
   const ctx = setupTest();
 
   ctx.mirror.upsert(buildMockMirrorSession({ id: 'a', name: 'api', lastAttachedAt: 2 }));
@@ -124,7 +128,7 @@ test('it labels each row while jump mode runs', () => {
 
   ctx.overlay.jump = { typed: '', prefix: '' };
 
-  expect(ctx.overlay.readInput(0, 0).jump?.labels).toStrictEqual(['s', 'd']);
+  expect(ctx.overlay.readInput(0, 0).jump?.labels).toStrictEqual([null, null]);
 });
 
 test('it words a line for a daemon that is down and the advice to update', () => {

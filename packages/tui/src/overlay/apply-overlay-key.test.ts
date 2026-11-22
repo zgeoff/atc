@@ -352,16 +352,16 @@ test('it closes the list on the leader key, and drops a question that was open',
 });
 
 test.each([
-  { title: 'a single-letter label', keys: ['f', 'd'], expected: ['attach:local/app'] },
+  { title: 'the one row a typed letter matches', keys: ['f', 'w'], expected: ['attach:local/web'] },
   {
-    title: 'a label of the rows that a typed letter narrowed',
+    title: 'a label of the rows that a typed letter matched',
     keys: ['f', 'p', 's'],
     expected: ['attach:local/app'],
   },
   {
     title: 'a backspace that takes the typed letter back',
-    keys: ['f', 'p', '\u007F', 'd'],
-    expected: ['attach:local/app'],
+    keys: ['f', 'p', '\u007F', 'w'],
+    expected: ['attach:local/web'],
   },
   { title: 'no attach for a letter that matches no row', keys: ['f', 'q', 'q'], expected: [] },
 ])('it jumps with $title', (row) => {
@@ -378,7 +378,7 @@ test.each([
   expect(ctx.sent).toStrictEqual([...row.expected]);
 });
 
-test('it moves the selection to a dead row a jump label names, and attaches nothing', () => {
+test('it moves the selection to a dead row that a typed letter matches alone, and attaches nothing', () => {
   const ctx = setupTest();
 
   ctx.mirror.upsert(buildMockMirrorSession({ id: 'api', name: 'api', lastAttachedAt: 3 }));
@@ -388,7 +388,7 @@ test('it moves the selection to a dead row a jump label names, and attaches noth
   );
 
   ctx.press('f');
-  ctx.press('f');
+  ctx.press('o');
 
   expect({
     sent: ctx.sent,

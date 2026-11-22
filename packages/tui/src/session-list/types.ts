@@ -68,6 +68,9 @@ export interface PanelLine {
 
   // true for the row that the user has selected, whose background is tinted
   readonly isSelected: boolean;
+
+  // true for a session row that jump mode found no match in, which shows faded
+  readonly isFaded?: boolean | undefined;
 }
 
 export interface PanelPlan {
@@ -101,8 +104,13 @@ export interface PanelInput {
   readonly grouping: Grouping;
   readonly filter: string | null;
 
-  // one label for each session row, in order, while jump mode runs
-  readonly jump: { readonly labels: readonly (string | null)[]; readonly typed: string } | null;
+  // while jump mode runs, for each session row in order: whether it matches the typed letters, and
+  // its label
+  readonly jump: {
+    readonly matches: readonly boolean[];
+    readonly labels: readonly (string | null)[];
+    readonly typed: string;
+  } | null;
   readonly prompt: string | null;
   readonly notice: string | null;
   readonly daemonLine: string | null;

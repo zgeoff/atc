@@ -3,7 +3,7 @@ import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session'
 import { buildMockPanelInput } from '../test-utils/build-mock-panel-input';
 import { renderPanelText } from '../test-utils/render-panel-text';
 import { buildListPanel } from './build-list-panel';
-import { AMBER } from './constants';
+import { BLUE } from './constants';
 
 test('it centres a panel of min(112, cols - 8) columns', () => {
   const wide = buildListPanel(buildMockPanelInput(), { cols: 200, rows: 30 });
@@ -371,21 +371,37 @@ test('it says no sessions for an empty list and no matches under a filter', () =
   ]);
 });
 
-test('it puts a jump label in place of the state glyph of each row', () => {
+test('it writes a jump label over the letter after the first match, and fades the rows with none', () => {
   const plan = buildListPanel(
     buildMockPanelInput({
       rows: [
-        { kind: 'session', session: buildMockMirrorSession({ name: 'api' }), via: null },
+        { kind: 'session', session: buildMockMirrorSession({ name: 'tui' }), via: null },
+        { kind: 'session', session: buildMockMirrorSession({ name: 'cat' }), via: null },
         { kind: 'session', session: buildMockMirrorSession({ name: 'web' }), via: null },
       ],
-      jump: { labels: ['s', 'd'], typed: '' },
+      jump: { matches: [true, true, false], labels: ['a', 's', null], typed: 't' },
     }),
     { cols: 120, rows: 30 },
   );
 
   const text = renderPanelText(plan);
 
-  expect([text[1]?.slice(2, 4), text[2]?.slice(2, 4)]).toStrictEqual(['▎s', '▎d']);
+  expect({
+    names: [text[1]?.slice(5, 9), text[2]?.slice(5, 9), text[3]?.slice(5, 9)],
+    faded: plan.content.map((line) => line.isFaded),
+  }).toStrictEqual({ names: ['tai ', 'cats', 'web '], faded: [false, false, true] });
+});
+
+test('it leaves the state glyph on each row while jump mode runs', () => {
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      rows: [{ kind: 'session', session: buildMockMirrorSession({ name: 'api' }), via: null }],
+      jump: { matches: [true], labels: [null], typed: '' },
+    }),
+    { cols: 120, rows: 30 },
+  );
+
+  expect(renderPanelText(plan)[1]?.slice(2, 4)).toMatch(/^▎[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]$/u);
 });
 
 test('it drops the age and shortens the name of a row in a 14-column window', () => {
@@ -416,14 +432,14 @@ test.each([
     buildMockPanelInput({
       rows: [{ kind: 'session', session: buildMockMirrorSession({ name: 'İstanbul' }), via: null }],
       selected: 0,
-      jump: { labels: ['a'], typed: row.typed },
+      jump: { matches: [true], labels: [null], typed: row.typed },
     }),
     { cols: 120, rows: 20 },
   );
 
   const nameSpans = plan.content[0]?.spans.slice(4, 7) ?? [];
 
-  expect(nameSpans.map((span) => [span.text.trimEnd(), span.fg === AMBER])).toStrictEqual([
+  expect(nameSpans.map((span) => [span.text.trimEnd(), span.fg === BLUE])).toStrictEqual([
     [row.expected[0], false],
     [row.expected[1], true],
     [row.expected[2], false],

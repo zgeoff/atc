@@ -2,7 +2,7 @@ export interface LastLineInput {
   readonly prompt: string | null;
   readonly filter: string | null;
 
-  // true while jump mode has narrowed the rows to none
+  // true while the typed letters of jump mode match no row
   readonly isJumpEmpty: boolean;
   readonly notice: string | null;
   readonly daemonLine: string | null;

@@ -149,7 +149,8 @@ export function buildLastLines(
   const last = pickLastLine({
     prompt: input.prompt,
     filter: input.filter,
-    isJumpEmpty: input.jump !== null && frame.sessions.length === 0,
+    isJumpEmpty:
+      input.jump !== null && input.jump.typed !== '' && !input.jump.matches.includes(true),
     notice: input.notice,
     daemonLine: input.daemonLine,
     updateAdvice: input.updateAdvice,

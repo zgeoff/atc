@@ -5,7 +5,7 @@ import { resolveColour } from '../compositor/resolve-colour';
 import type { CellBuffer, RGB, TerminalFacts } from '../compositor/types';
 import { splitGraphemes } from '../terminal/split-graphemes';
 import { collectPanelLines } from './collect-panel-lines';
-import { BLUE, CONTENT_COL, SELECTED_TINT } from './constants';
+import { BLUE, CONTENT_COL, FADED_TEXT_SHARE, SELECTED_TINT } from './constants';
 import type { ListMotion } from './pick-list-motion';
 import type { PanelLine, PanelPlan } from './types';
 
@@ -66,6 +66,7 @@ function paintLine(buffer: CellBuffer, paint: LinePaint): void {
   const plan = paint.plan;
   const terminal = paint.options.terminal;
   const backgrounds: RGB[] = [];
+  const fadeShare = paint.line.isFaded === true ? FADED_TEXT_SHARE : 1;
 
   clearWideEdges(buffer, paint);
 
@@ -101,7 +102,7 @@ function paintLine(buffer: CellBuffer, paint: LinePaint): void {
 
     // a span in the panel's first or last column is its side border, which fades with the frame
     const isEdge = span.col === 0 || span.col === plan.width - 1;
-    const opacity = isEdge ? paint.edgeOpacity : paint.textOpacity;
+    const opacity = isEdge ? paint.edgeOpacity : paint.textOpacity * fadeShare;
 
     for (const grapheme of splitGraphemes(span.text)) {
       const background = backgrounds[offset];

@@ -54,6 +54,7 @@ export function buildListPanel(input: Readonly<PanelInput>, size: Size): PanelPl
   const shown = content.lines.slice(window.start, window.end).map((line) => ({
     spans: [...buildEdges(width), ...line.spans],
     isSelected: line.isSelected,
+    isFaded: line.isFaded,
   }));
 
   const height = shown.length + budget.borders + budget.lastLines.length;
@@ -159,8 +160,12 @@ function buildContentLines(
     }
 
     const label = input.jump?.labels[sessionIndex] ?? null;
+    const isFaded = input.jump !== null && input.jump.matches[sessionIndex] === false;
 
-    lines.push(buildSessionLine(row, { input, plan, width, isSelected, label, all: sessions }));
+    lines.push(
+      buildSessionLine(row, { input, plan, width, isSelected, isFaded, label, all: sessions }),
+    );
+
     lineSessions.push(row);
 
     sessionIndex += 1;

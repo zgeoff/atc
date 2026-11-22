@@ -9,7 +9,7 @@ export function drawHelp() {
   const lines = [
     '⏎  attach the selected session',
     '⇥  attach the most urgent needs-you, else latest done',
-    'f  jump: a letter on each row, then that letter attaches it',
+    'f  jump: type a letter of a name, then the label that shows, to attach it',
     'i  go home, and let the session behind the list go',
     'H  eject to a headless run (Claude only)',
     'P  revive a dead or headless session',

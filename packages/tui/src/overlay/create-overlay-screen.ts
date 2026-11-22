@@ -10,11 +10,10 @@ import type { AgentMetadata } from '../fleet/resolve-agent-metadata';
 import { isSameSessionKey } from '../fleet/session-key';
 import type { DaemonName, SessionKey } from '../fleet/session-key';
 import type { MirrorSession } from '../fleet/to-mirror-session';
+import { buildJumpPlan } from '../session-list/build-jump-plan';
 import { collectListRows } from '../session-list/collect-list-rows';
 import { countEndedSubSessions } from '../session-list/count-ended-sub-sessions';
 import { formatListPrompt } from '../session-list/format-list-prompt';
-import { narrowListRows } from '../session-list/narrow-list-rows';
-import { pickJumpLabels } from '../session-list/pick-jump-labels';
 import type { JumpState } from '../session-list/step-jump';
 import type { Grouping, ListRow, OverlaySessionView, PanelInput } from '../session-list/types';
 
@@ -54,7 +53,7 @@ export interface OverlayScreen {
 
   readonly remoteAgents: Map<string, AgentMetadata>;
 
-  // the session rows the list shows, after the filter and the jump letters
+  // the session rows the list shows, after the filter
   readonly pickSessions: () => MirrorSession[];
 
   readonly listVisible: () => MirrorSession[];
@@ -110,15 +109,12 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
       : session.agent;
   };
 
-  const pickRows = (): ListRow[] => {
-    const rows = collectListRows(self.listVisible(), {
+  const pickRows = (): ListRow[] =>
+    collectListRows(self.listVisible(), {
       grouping: self.grouping,
       filter: self.filter,
       daemons,
     });
-
-    return narrowListRows(rows, self.jump?.typed ?? '');
-  };
 
   const moveSelectionTo = (sessions: readonly MirrorSession[], target: SessionKey | null) => {
     const targetIndex = sessions.findIndex(
@@ -178,7 +174,7 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
           self.jump === null
             ? null
             : {
-                labels: pickJumpLabels(
+                ...buildJumpPlan(
                   sessions.map((session) => session.name),
                   self.jump.typed,
                 ),

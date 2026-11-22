@@ -93,7 +93,7 @@ function setupTest(animations: boolean) {
   return { clock, state, frames, layer, frameClock };
 }
 
-test('it draws the open frame by frame until its one row has faded in at 260 ms, then asks for no more', () => {
+test('it draws the open frame by frame until its one row has faded in at 180 ms, then asks for no more', () => {
   const ctx = setupTest(true);
 
   ctx.state.isOpen = true;
@@ -109,7 +109,7 @@ test('it draws the open frame by frame until its one row has faded in at 260 ms,
     firstAt: ctx.frames[0]?.at,
     lastAt: ctx.frames.at(-1)?.at,
     stopped: ctx.frames.length === drawn,
-  }).toStrictEqual({ firstAt: 1000, lastAt: expect.toBeWithin(1260, 1290), stopped: true });
+  }).toStrictEqual({ firstAt: 1000, lastAt: expect.toBeWithin(1180, 1210), stopped: true });
 });
 
 test('it draws the panel with no visible text in the first frame of the open', () => {
