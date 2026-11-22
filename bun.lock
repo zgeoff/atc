@@ -65,7 +65,7 @@
     },
     "packages/app": {
       "name": "@atc/app",
-      "version": "7.23.0",
+      "version": "7.24.0",
       "dependencies": {
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
@@ -105,7 +105,7 @@
     },
     "packages/client": {
       "name": "@atcx/client",
-      "version": "7.23.0",
+      "version": "7.24.0",
       "dependencies": {
         "@atcx/contract": "workspace:*",
         "@orpc/client": "catalog:",
@@ -132,7 +132,7 @@
     },
     "packages/contract": {
       "name": "@atcx/contract",
-      "version": "7.23.0",
+      "version": "7.24.0",
       "dependencies": {
         "@orpc/contract": "catalog:",
         "zod": "catalog:",
@@ -1703,8 +1703,6 @@
     "@types/node/undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
 
     "@wringer/gunshi/gunshi": ["gunshi@0.37.3", "", {}, "sha512-uwm23bguqDcleEetknuQnF5okLcgmQPM3iv4aWVHTPDbiSs9shh02F079NCY0mWkrIRjHqNhgmzW6k0FCXhy1g=="],
-
-    "@zgeoff/rig/@zgeoff/diet": ["@zgeoff/diet@0.3.2", "", { "bin": { "diet": "diet.sh" } }, "sha512-WTr8W2oOHfGFSASJgy/8LFHmiW5vRu2jduhsM5ixsMi7gAiTcERG7JhdLcIwksuyGTmOVxlCf7cRP6crAPDOig=="],
 
     "better-call/rou3": ["rou3@0.9.2", "", {}, "sha512-3SOzvaAg8rkHrXtRjpCvCvbyO5to9oOO27Z/XqHEYXfMRVSw/qMIVdmaOk9W2lcRLtR6dlqTjo9hDeJk70QBYQ=="],
 
