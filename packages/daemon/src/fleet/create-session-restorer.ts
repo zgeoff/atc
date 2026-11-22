@@ -1,8 +1,7 @@
 import { LOCAL_TARGET } from '@atc/config';
-import type { AttentionKind, FleetEntry } from '@atc/store';
+import type { FleetEntry } from '@atc/store';
 import type { SessionID, SessionLifecycle } from '@atcx/contract';
 import type { ErrorCode } from '@atcx/contract/light';
-import { match } from 'ts-pattern';
 import { LOCAL_TARGET_IDENTITY } from '../sessions/create-session-registry';
 import type { SessionRegistry } from '../sessions/create-session-registry';
 import { resolveRepoRoot } from '../sessions/resolve-repo-root';
@@ -15,7 +14,7 @@ import { resolveRestoredTargetIdentity } from './resolve-restored-target-identit
 export interface SessionRestorer {
   readonly resolveRestoredEntry: (entry: FleetEntry) => Promise<FleetEntry>;
 
-  readonly restore: (entry: FleetEntry, attention: AttentionKind | null) => Session;
+  readonly restore: (entry: FleetEntry) => Session;
 
   readonly isUnrestored: (id: SessionID) => boolean;
 
@@ -96,7 +95,7 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
         : { ...entry, targetIdentity };
     },
 
-    restore: (entry, attention) => {
+    restore: (entry) => {
       const target = entry.target ?? LOCAL_TARGET.id;
       const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
       const targetRefusal = findTargetRefusal(entry);
@@ -127,7 +126,7 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
         cwd: entry.cwd,
         kind: 'headless',
         pty: null,
-        state: exited ? 'exited' : pickRestoredState(attention),
+        state: exited ? 'exited' : 'done',
         unread: false,
         lastMsg,
         ...(entry.agentSessionID === undefined ? {} : { agentSessionID: entry.agentSessionID }),
@@ -230,13 +229,4 @@ function formatTargetRefusal(code: ErrorCode, target: string, isUnconfirmed: boo
   }
 
   return `target '${target}' cannot start a terminal`;
-}
-
-// A relaunched agent does not redraw a prompt shown before the restart, so a prompt restores as
-// done. With no attention event the session may be mid-turn, so it lists as running.
-function pickRestoredState(attention: AttentionKind | null): 'running' | 'done' {
-  return match(attention)
-    .with('turn-done', 'needs-input', () => 'done' as const)
-    .with('prompt-submitted', null, () => 'running' as const)
-    .exhaustive();
 }

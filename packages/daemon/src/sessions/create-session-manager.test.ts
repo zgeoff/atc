@@ -70,7 +70,6 @@ test('it pins a sub-session on its own and leaves its parent unpinned', async ()
       agentSessionID: toAgentSessionID('c-parent'),
       agent: 'claude',
     }),
-    null,
   );
 
   const child = manager.restore(
@@ -82,7 +81,6 @@ test('it pins a sub-session on its own and leaves its parent unpinned', async ()
       agent: 'claude',
       parent: toSessionID('s-c-parent'),
     }),
-    null,
   );
 
   const pinned = manager.updateSession(child.id, { pinned: true });
@@ -124,7 +122,6 @@ test("it refuses to pin a sub-session that runs in its parent's host and leaves 
       agentSessionID: toAgentSessionID('c-parent'),
       agent: 'claude',
     }),
-    null,
   );
 
   const child = manager.restore(
@@ -137,7 +134,6 @@ test("it refuses to pin a sub-session that runs in its parent's host and leaves 
       parent: toSessionID('s-c-parent'),
       hostKey: toSessionID('s-c-parent'),
     }),
-    null,
   );
 
   const pinned = manager.updateSession(child.id, { pinned: true });
@@ -179,7 +175,6 @@ test('it detaches a sub-session and leaves its former parent pinned', async () =
       agent: 'claude',
       pinned: true,
     }),
-    null,
   );
 
   const child = manager.restore(
@@ -191,7 +186,6 @@ test('it detaches a sub-session and leaves its former parent pinned', async () =
       agent: 'claude',
       parent: toSessionID('s-c-parent'),
     }),
-    null,
   );
 
   const detached = manager.updateSession(child.id, { parent: null });
@@ -234,7 +228,6 @@ test("it refuses to detach a sub-session that runs in its parent's host and leav
       agentSessionID: toAgentSessionID('c-parent'),
       agent: 'claude',
     }),
-    null,
   );
 
   const child = manager.restore(
@@ -247,7 +240,6 @@ test("it refuses to detach a sub-session that runs in its parent's host and leav
       parent: toSessionID('s-c-parent'),
       hostKey: toSessionID('s-c-parent'),
     }),
-    null,
   );
 
   const detached = manager.updateSession(child.id, { parent: null, pinned: true });
@@ -289,7 +281,6 @@ test('it pins a sub-session in the update that detaches it', async () => {
       agentSessionID: toAgentSessionID('c-parent'),
       agent: 'claude',
     }),
-    null,
   );
 
   const child = manager.restore(
@@ -301,7 +292,6 @@ test('it pins a sub-session in the update that detaches it', async () => {
       agent: 'claude',
       parent: toSessionID('s-c-parent'),
     }),
-    null,
   );
 
   const updated = manager.updateSession(child.id, { parent: null, pinned: true });
@@ -342,7 +332,6 @@ test('it persists a detached sub-session as top-level', async () => {
       agentSessionID: toAgentSessionID('c-parent'),
       agent: 'claude',
     }),
-    null,
   );
 
   const child = manager.restore(
@@ -354,7 +343,6 @@ test('it persists a detached sub-session as top-level', async () => {
       agent: 'claude',
       parent: toSessionID('s-c-parent'),
     }),
-    null,
   );
 
   manager.updateSession(child.id, { parent: null });
@@ -419,7 +407,6 @@ test('it pins a parent that has a sub-session', async () => {
       agentSessionID: toAgentSessionID('c-parent'),
       agent: 'claude',
     }),
-    null,
   );
 
   manager.restore(
@@ -431,7 +418,6 @@ test('it pins a parent that has a sub-session', async () => {
       agent: 'claude',
       parent: toSessionID('s-c-parent'),
     }),
-    null,
   );
 
   expect(manager.updateSession(parent.id, { pinned: true })).toBeTrue();
@@ -936,7 +922,6 @@ test('it gives the event handler it was built with a session restored at daemon 
       agentSessionID: toAgentSessionID('c-harbor'),
       agent: 'claude',
     }),
-    null,
   );
 
   expect(onEvent).toHaveBeenCalledExactlyOnceWith('added', restored);

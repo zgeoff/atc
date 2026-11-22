@@ -141,6 +141,17 @@ test('it hands a gateway entry the settings folder, home and mod folder it is gi
           ],
         },
       ],
+      StopFailure: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"/opt/atc/bin/atc" hook-report --agent='zai'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
       UserPromptSubmit: [
         {
           hooks: [

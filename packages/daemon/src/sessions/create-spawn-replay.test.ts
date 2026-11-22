@@ -58,7 +58,6 @@ test('it answers with the listed session as it stands now', async () => {
       target: 'local',
       targetIdentity: 'local-pty:test',
     }),
-    null,
   );
 
   const stored = { session: buildMockSessionDescriptor({ name: 'first name' }) };
@@ -114,7 +113,6 @@ test('it answers a replay whose session the access reaches', async () => {
       target: 'local',
       targetIdentity: 'local-pty:test',
     }),
-    null,
   );
 
   const answer = await ctx.replay.loadReplay(

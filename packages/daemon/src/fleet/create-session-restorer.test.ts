@@ -55,7 +55,6 @@ test('it restores an entry whose agent id is registered as waiting for its termi
       agentSessionID: toAgentSessionID('c-1'),
       agent: 'claude',
     }),
-    null,
   );
 
   expect(session.lastMsg).toBe('waiting to restore');
@@ -82,7 +81,6 @@ test('it restores an entry whose agent id is unregistered with a message that th
       agentSessionID: toAgentSessionID('z-1'),
       agent: 'zai',
     }),
-    null,
   );
 
   expect(session.lastMsg).toBe("no adapter for 'zai'");
@@ -109,7 +107,6 @@ test('it links a restored sub-session to the parent already registered under its
       agentSessionID: toAgentSessionID('c-parent'),
       agent: 'claude',
     }),
-    null,
   );
 
   const child = ctx.restorer.restore(
@@ -121,7 +118,6 @@ test('it links a restored sub-session to the parent already registered under its
       agent: 'claude',
       parent: toSessionID('s-c-parent'),
     }),
-    null,
   );
 
   expect(child.parent).toBe(parent.id);
@@ -149,7 +145,6 @@ test('it restores a sub-session whose parent is absent as a top-level session', 
       agent: 'claude',
       parent: toSessionID('s-c-gone'),
     }),
-    null,
   );
 
   expect(child.parent).toBeNull();
@@ -179,7 +174,6 @@ test("it restores an entry's prompt, result, and transcript path onto the sessio
       result: 'done',
       transcriptPath: '/t.jsonl',
     }),
-    null,
   );
 
   expect(session).toMatchObject({ prompt: 'go', result: 'done', transcriptPath: '/t.jsonl' });
@@ -205,7 +199,6 @@ test("it restores an entry's agent home onto the session", () => {
       agent: 'claude',
       agentHome: '/tmp/atc/sessions/s-c-1/codex-home',
     }),
-    null,
   );
 
   expect(session.agentHome).toBe('/tmp/atc/sessions/s-c-1/codex-home');
@@ -230,7 +223,6 @@ test("it restores an entry's trusted clone root onto the session", () => {
       agent: 'claude',
       trustedRoot: '/home/agent/workspaces/kiln',
     }),
-    null,
   );
 
   expect(session.trustedRoot).toBe('/home/agent/workspaces/kiln');
@@ -257,7 +249,6 @@ test('it restores an entry under the session id its row holds', () => {
       agentSessionID: toAgentSessionID('c-1'),
       agent: 'claude',
     }),
-    null,
   );
 
   expect(session.id).toBe(toSessionID('7d3f0c1e-2b4a-4c5d-8e9f-0a1b2c3d4e5f'));
@@ -276,15 +267,12 @@ test('it restores an entry with no agent session id as exited', () => {
     ],
   });
 
-  const session = ctx.restorer.restore(
-    {
-      sessionID: toSessionID('s-booting'),
-      name: 'booting',
-      cwd: '/work/proj',
-      agent: 'claude',
-    },
-    null,
-  );
+  const session = ctx.restorer.restore({
+    sessionID: toSessionID('s-booting'),
+    name: 'booting',
+    cwd: '/work/proj',
+    agent: 'claude',
+  });
 
   expect(session.state).toBe('exited');
   expect(session.lastMsg).toBe('nothing to resume');
@@ -313,7 +301,6 @@ test('it restores an entry on a target this daemon lacks as exited with the targ
       target: 'box',
       targetIdentity: 'imp-like:test',
     }),
-    null,
   );
 
   expect(session.state).toBe('exited');
@@ -345,7 +332,6 @@ test('it lists an exited entry left asleep as asleep on a target whose host can 
       target: 'box',
       targetIdentity: 'imp-like:test',
     }),
-    null,
   );
 
   expect(session).toMatchObject({
@@ -382,7 +368,6 @@ test('it lists an exited entry whose host went to sleep on its own as asleep whi
       target: 'box',
       targetIdentity: 'imp-like:test',
     }),
-    null,
   );
 
   expect(session).toMatchObject({
@@ -416,7 +401,6 @@ test('it marks a restored live session as still waiting for its terminal', () =>
       agentSessionID: toAgentSessionID('c-1'),
       agent: 'claude',
     }),
-    null,
   );
 
   expect(ctx.restorer.isUnrestored(toSessionID('s-c-1'))).toBeTrue();
@@ -444,7 +428,6 @@ test('it leaves a restored exited session unmarked', () => {
       agent: 'claude',
       exited: true,
     }),
-    null,
   );
 
   expect(ctx.restorer.isUnrestored(toSessionID('s-c-1'))).toBeFalse();
@@ -471,7 +454,6 @@ test('it counts a restored session as live once its mark is removed', () => {
       agentSessionID: toAgentSessionID('c-1'),
       agent: 'claude',
     }),
-    null,
   );
 
   ctx.restorer.removeUnrestoredMark(toSessionID('s-c-1'));

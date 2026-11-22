@@ -122,68 +122,47 @@ test('it lists every restored session under the session id its row holds', async
 });
 
 test.each([
-  { before: 'a finished turn', kinds: ['prompt-submitted', 'turn-done'], state: 'done' },
-  {
-    before: 'a heartbeat after a finished turn',
-    kinds: ['prompt-submitted', 'turn-done', 'heartbeat'],
-    state: 'done',
-  },
-  {
-    before: 'an idle notice',
-    kinds: ['prompt-submitted', 'turn-done', 'needs-input'],
-    state: 'done',
-  },
-  {
-    before: 'a permission prompt',
-    kinds: ['prompt-submitted', 'needs-input'],
-    state: 'done',
-  },
-  {
-    before: 'a turn still under way',
-    kinds: ['prompt-submitted', 'turn-done', 'prompt-submitted'],
-    state: 'running',
-  },
-  { before: 'no turn', kinds: ['started'], state: 'running' },
-] as const)(
-  'it revives a session whose agent last reported $before in state $state',
-  async (row) => {
-    const ctx = await setupTest();
+  { saved: 'a finished turn', kinds: ['prompt-submitted', 'turn-done'] },
+  { saved: 'a permission prompt', kinds: ['prompt-submitted', 'needs-input'] },
+  { saved: 'a turn still under way', kinds: ['prompt-submitted'] },
+  { saved: 'no turn', kinds: ['started'] },
+] as const)('it revives a session saved after $saved as done', async (row) => {
+  const ctx = await setupTest();
 
-    await ctx.store.writeFleet([
-      buildMockFleetEntry({
-        sessionID: toSessionID('s-quiet'),
-        cwd: ctx.directory,
-        agentSessionID: toAgentSessionID('c-quiet'),
-      }),
-    ]);
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-quiet'),
+      cwd: ctx.directory,
+      agentSessionID: toAgentSessionID('c-quiet'),
+    }),
+  ]);
 
-    for (const [index, kind] of row.kinds.entries()) {
-      await ctx.store.recordEvent(
-        { atcId: toSessionID('s-quiet'), event: 'Hook', payload: { session_id: 'c-quiet' } },
-        { kind },
-        1_700_000_000_000 + index,
-      );
-    }
+  for (const [index, kind] of row.kinds.entries()) {
+    await ctx.store.recordEvent(
+      { atcId: toSessionID('s-quiet'), event: 'Hook', payload: { session_id: 'c-quiet' } },
+      { kind },
+      1_700_000_000_000 + index,
+    );
+  }
 
-    await restoreFleet({
-      manager: ctx.manager,
-      store: ctx.store,
-      findRuntime: ctx.findRuntime,
-      cols: 80,
-      rows: 24,
-      capMs: 0,
-    });
+  await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+  });
 
-    expect(
-      ctx.manager.sessions.map((session) => [
-        session.id,
-        session.kind,
-        session.state,
-        session.lastMsg,
-      ]),
-    ).toStrictEqual([['s-quiet', 'pty', row.state, 'revived']]);
-  },
-);
+  expect(
+    ctx.manager.sessions.map((session) => [
+      session.id,
+      session.kind,
+      session.state,
+      session.lastMsg,
+    ]),
+  ).toStrictEqual([['s-quiet', 'pty', 'done', 'revived']]);
+});
 
 test('it revives a listed dead session in place instead of listing its id twice', async () => {
   const ctx = await setupTest();
@@ -254,7 +233,6 @@ test('it keeps a sub-session under the session that resumed its parent agent ses
       agentSessionID: toAgentSessionID('c-parent'),
       exited: true,
     }),
-    null,
   );
 
   const child = await ctx.manager.spawn({
@@ -327,7 +305,6 @@ test('it keeps a sub-session under a sub-session that resumed their parent agent
       agentSessionID: toAgentSessionID('c-parent'),
       exited: true,
     }),
-    null,
   );
 
   const child = await ctx.manager.spawn({
@@ -406,7 +383,6 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
       agentSessionID: toAgentSessionID('c-a'),
       exited: true,
     }),
-    null,
   );
 
   const second = ctx.manager.restore(
@@ -417,7 +393,6 @@ test('it restores two crossed resumes with the earlier one top-level and the lat
       agentSessionID: toAgentSessionID('c-b'),
       exited: true,
     }),
-    null,
   );
 
   const resumedFirst = await ctx.manager.spawn({
@@ -761,7 +736,7 @@ test('it restores sessions stored before the providers moved into packages by ta
       session.lastMsg,
     ]),
   ).toStrictEqual([
-    ['s-on-local', 'local', 'local-pty:44136fa355b3678a', 'running', 'revived'],
+    ['s-on-local', 'local', 'local-pty:44136fa355b3678a', 'done', 'revived'],
     ['s-on-cloud', 'cloud', 'imp:reach-v1:c97f60aac21db24e', 'exited', 'killed'],
   ]);
 });
@@ -935,7 +910,7 @@ test('it restores a stored session on its own target config revision after anoth
       session.state,
       session.lastMsg,
     ]),
-  ).toStrictEqual([['s-on-local', 'local-pty:44136fa355b3678a', 'running', 'revived']]);
+  ).toStrictEqual([['s-on-local', 'local-pty:44136fa355b3678a', 'done', 'revived']]);
 });
 
 test('it restores the fleet with no terminal for each session whose agent is not signed in on its imp', async () => {
@@ -1379,7 +1354,7 @@ test('it lists and logs the refusal of a session whose imp refuses it with no re
   const refusal = `imp ${ctx.impProvider.getImpName('s-busy')} cannot be used: impd refused the lease (UNAVAILABLE)`;
 
   expect(manager.sessions).toMatchObject([
-    { id: 's-busy', kind: 'headless', state: 'running', pty: null, lastMsg: refusal },
+    { id: 's-busy', kind: 'headless', state: 'done', pty: null, lastMsg: refusal },
   ]);
 
   await waitFor(() => {
@@ -1825,7 +1800,7 @@ test('it restores and persists a live legacy cloud session after an image change
     {
       id: entry.sessionID,
       targetIdentity: identity,
-      state: 'running',
+      state: 'done',
     },
   ]);
 
@@ -1886,7 +1861,7 @@ test('it keeps a cloud session usable after the image changes under a versioned 
 
   await restored.settled;
 
-  expect(manager.sessions).toMatchObject([{ id: entry.sessionID, state: 'running' }]);
+  expect(manager.sessions).toMatchObject([{ id: entry.sessionID, state: 'done' }]);
   expect(manager.sessions[0]?.pty?.detach).toBeFunction();
 
   expect(

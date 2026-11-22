@@ -194,6 +194,17 @@ test('it writes a backend settings file that carries the base URL and no credent
           ],
         },
       ],
+      StopFailure: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: expect.toEndWith(" hook-report --agent='zai'"),
+              timeout: 5,
+            },
+          ],
+        },
+      ],
       UserPromptSubmit: [
         {
           hooks: [

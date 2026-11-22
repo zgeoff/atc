@@ -35,6 +35,11 @@ session and starts another in the same process: only the pseudo-terminal closing
 a session that needs the owner moves it back to `running`, since the owner is now looking, and the
 agent's next notification flags it again when the prompt still waits.
 
+A Claude turn that ends in an API error, such as a usage limit, runs the stop failure hook instead
+of the stop hook. The adapter maps it to a needs-input report that carries the error text, so the
+session moves to `needs_you` with that text as its message, and the next submitted prompt moves it
+back to `running`.
+
 A needs-input or turn-done report marks the session unread, and attaching, an acknowledgement or a
 submitted prompt clears it. The overlay sorts unread sessions that need the owner first, which is
 the whole of atc's attention routing.

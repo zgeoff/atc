@@ -579,6 +579,17 @@ test("it runs a headless turn with the gateway's settings file, its permission h
           ],
         },
       ],
+      StopFailure: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"/opt/atc/bin/atc" hook-report --agent='manual-hook'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
       UserPromptSubmit: [
         {
           hooks: [
@@ -851,6 +862,17 @@ test("it starts a gateway with auth and a credential helper on the daemon's mach
         },
       ],
       Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"/opt/atc/bin/atc" hook-report --agent='glm-local'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      StopFailure: [
         {
           hooks: [
             {
@@ -1332,6 +1354,17 @@ test('it plans a brokered guest spawn with its own settings file, Claude config 
           ],
         },
       ],
+      StopFailure: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
       UserPromptSubmit: [
         {
           hooks: [
@@ -1502,6 +1535,17 @@ test("it keeps the gateway's permission hook and mode in a brokered guest's sett
         },
       ],
       Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      StopFailure: [
         {
           hooks: [
             {
@@ -1736,6 +1780,17 @@ test('it carries an extra placeholder variable and the gateway args into a broke
         },
       ],
       Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      StopFailure: [
         {
           hooks: [
             {
@@ -2674,6 +2729,17 @@ test("it sets a profile's variables in a brokered guest's settings env and spawn
         },
       ],
       Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'glm\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      StopFailure: [
         {
           hooks: [
             {

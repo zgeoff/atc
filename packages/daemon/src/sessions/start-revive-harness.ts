@@ -69,8 +69,8 @@ export function startReviveHarness(
   session.kind = 'pty';
   session.lastMsg = 'revived';
 
-  // A revive starts no turn, so a restored session keeps the state its agent last reported.
-  // Forcing running would hide that state until the agent reports again.
+  // A revive starts no turn, so a restored session keeps the done state the restore gave it.
+  // Forcing running would show a spinner for a turn that never runs.
   const isRestored = registry.unrestored.delete(session.id);
 
   if (!isRestored || session.state === 'exited') {
