@@ -120,9 +120,9 @@ To add a lane named `<lane>`, for files that end in `.<lane>.test.ts`:
   on, so a plugin that imports past its rule fails. Without `TEST_WORKERS`, all three pick up to 4
   workers, and 1 when the host or its container has less than 4 GiB of memory. The Codex and
   toolchain lanes run one file at a time.
-- The unit run takes that default from rig, and `test:e2e` and `test:plugin` take it from
-  [`read-worker-count.ts`](../../../scripts/read-worker-count.ts). Change that file to change their
-  default.
+- To change the default of `test:e2e` and `test:plugin`, change
+  [`read-worker-count.ts`](../../../scripts/read-worker-count.ts). The unit run takes its default
+  from rig.
 
 ## The PTY harness
 
