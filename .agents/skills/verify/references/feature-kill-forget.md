@@ -13,8 +13,7 @@ failed. The cleanup lines leave the daemon with no session for the next journey.
 - `up` installs a fake claude CLI, the stand-in, as the only agent, under the agent name `claude`.
   It prints a line that starts `FAKE_CLAUDE_UP`, then asks for one permission.
 - In the session list, which `ctrl+space` opens, `K` then `y` at `kill wv-kill? · y / n` acts on the
-  selected row. The journey sends `K` with `terminal type`, because `terminal press` refuses a
-  capital letter.
+  selected row.
 - On a live session, it kills the agent. The row stays, marked `○`, and its row in the `fleet` table
   of the daemon's database, which `db query` reads, gets `exited` 1.
 - On an exited session, `K` asks nothing. `X` then `y` at `end wv-kill? · y / n` ends the session:
