@@ -181,7 +181,8 @@ instrumented. These rules hold for any change to it:
   new agent CLI is an adapter, not a refactor.
 - Claude sessions are instrumented only through files atc writes and passes per invocation: the
   generated `--settings` file, the `atc-bridge` mod passed as `--plugin-dir`, and the per-session
-  folders the doc lists.
+  folders the doc lists. The folder-trust entries below are the only other change atc makes for a
+  Claude session.
 - Never write into the user's own agent config. Instrumentation an agent cannot take per invocation
   is a documented self-install step (`atc grok-hooks`, `atc codex-hooks`). Two exceptions, both
   under Claude's own lock, since Claude takes trust no other way:
