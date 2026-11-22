@@ -54,8 +54,8 @@ Read a feature's file before you run its journey.
 | ------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | docker-target       | Run a session in docker containers, wake it after a kill, and forget it                   | [references/feature-docker-target.md](references/feature-docker-target.md)             |
 | spawn-session       | Spawn a session from the TUI picker, and see it start                                     | [references/feature-spawn-session.md](references/feature-spawn-session.md)             |
-| session-list-leader | Open the session list with the leader key, group it by repo, and filter it                | [references/feature-session-list-leader.md](references/feature-session-list-leader.md) |
-| kill-forget         | Kill a session from the session list, then end it                                         | [references/feature-kill-forget.md](references/feature-kill-forget.md)                 |
+| session-list-leader | Open the session list with the leader key, ack a session, and filter the list             | [references/feature-session-list-leader.md](references/feature-session-list-leader.md) |
+| kill-forget         | Kill a session from the session list, then forget it                                      | [references/feature-kill-forget.md](references/feature-kill-forget.md)                 |
 | events-stream       | Follow the fleet with `atc events` while a session starts and stops                       | [references/feature-events-stream.md](references/feature-events-stream.md)             |
 | mcp-fleet-tools     | Spawn, type into, read and stop a session with the tools of `atc mcp`                     | [references/feature-mcp-fleet-tools.md](references/feature-mcp-fleet-tools.md)         |
 | session-messages    | Send a session a message with `atc mcp`, see it reach the session, and read it            | [references/feature-session-messages.md](references/feature-session-messages.md)       |

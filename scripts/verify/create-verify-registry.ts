@@ -288,12 +288,12 @@ export function createVerifyRegistry(): Wringer {
         },
         {
           name: 'session-list-leader',
-          summary: 'Open the session list with the leader key, group it by repo, and filter it',
+          summary: 'Open the session list with the leader key, ack a session, and filter the list',
           paths: featurePaths['session-list-leader'],
         },
         {
           name: 'kill-forget',
-          summary: 'Kill a session from the session list, then end it',
+          summary: 'Kill a session from the session list, then forget it',
           paths: featurePaths['kill-forget'],
         },
         {
