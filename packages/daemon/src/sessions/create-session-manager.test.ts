@@ -1128,3 +1128,179 @@ test('it moves a session to running on attach when the screen raised a prompt af
     lastMsg: 'attached',
   });
 });
+
+test('it keeps the error text of a failed turn through a later idle notification', async () => {
+  const ctx = await setupTest();
+
+  const events: Readonly<Record<string, AdapterEvent>> = {
+    StopFailure: {
+      kind: 'needs-input',
+      message: 'API Error: weekly limit reached',
+      detail: 'API Error: weekly limit reached',
+      permissionPending: false,
+      turnFailed: true,
+    },
+    Notification: {
+      kind: 'needs-input',
+      message: 'Claude is waiting for your input',
+      detail: 'Claude is waiting for your input',
+      permissionPending: false,
+    },
+  };
+
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
+      buildMockAgentAdapter({
+        planHookEvents: (hook) => ({ events: [events[hook.event] ?? { kind: 'heartbeat' }] }),
+      }),
+    ],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  });
+
+  registerTestCleanup(() => {
+    manager.detachAll();
+  });
+
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+  });
+
+  manager.applyHook({ atcId: session.id, event: 'StopFailure', payload: {} });
+  manager.applyHook({ atcId: session.id, event: 'Notification', payload: {} });
+
+  expect({
+    state: session.state,
+    lastMsg: session.lastMsg,
+    lastDetail: session.lastDetail,
+  }).toStrictEqual({
+    state: 'needs_you',
+    lastMsg: 'API Error: weekly limit reached',
+    lastDetail: 'API Error: weekly limit reached',
+  });
+});
+
+test('it shows a permission notification that follows a failed turn', async () => {
+  const ctx = await setupTest();
+
+  const events: Readonly<Record<string, AdapterEvent>> = {
+    StopFailure: {
+      kind: 'needs-input',
+      message: 'API Error: weekly limit reached',
+      permissionPending: false,
+      turnFailed: true,
+    },
+    Notification: { kind: 'needs-input', message: 'Allow the edit?', permissionPending: true },
+  };
+
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
+      buildMockAgentAdapter({
+        planHookEvents: (hook) => ({ events: [events[hook.event] ?? { kind: 'heartbeat' }] }),
+      }),
+    ],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  });
+
+  registerTestCleanup(() => {
+    manager.detachAll();
+  });
+
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+  });
+
+  manager.applyHook({ atcId: session.id, event: 'StopFailure', payload: {} });
+  manager.applyHook({ atcId: session.id, event: 'Notification', payload: {} });
+
+  expect({ state: session.state, lastMsg: session.lastMsg }).toStrictEqual({
+    state: 'needs_you',
+    lastMsg: 'Allow the edit?',
+  });
+});
+
+test('it shows an idle notification once a prompt after a failed turn has been submitted', async () => {
+  const ctx = await setupTest();
+
+  const events: Readonly<Record<string, AdapterEvent>> = {
+    StopFailure: {
+      kind: 'needs-input',
+      message: 'API Error: weekly limit reached',
+      permissionPending: false,
+      turnFailed: true,
+    },
+    UserPromptSubmit: { kind: 'prompt-submitted', message: 'try again' },
+    Notification: {
+      kind: 'needs-input',
+      message: 'Claude is waiting for your input',
+      permissionPending: false,
+    },
+  };
+
+  const manager = createSessionManager({
+    fallback: buildMockAgentAdapter(),
+    store: ctx.store,
+    statusPath: ctx.statusPath,
+    adapters: [
+      buildMockAgentAdapter({
+        planHookEvents: (hook) => ({ events: [events[hook.event] ?? { kind: 'heartbeat' }] }),
+      }),
+    ],
+    targets: [
+      buildMockExecutionTarget({
+        id: 'local',
+        kind: 'local-pty',
+        identity: buildTargetIdentity('local-pty', {}),
+        provider: ctx.local,
+      }),
+    ],
+  });
+
+  registerTestCleanup(() => {
+    manager.detachAll();
+  });
+
+  const session = await manager.spawn({
+    cwd: ctx.directory,
+    name: 'worker',
+    prompt: 'go',
+    cols: 80,
+    rows: 24,
+  });
+
+  manager.applyHook({ atcId: session.id, event: 'StopFailure', payload: {} });
+  manager.applyHook({ atcId: session.id, event: 'UserPromptSubmit', payload: {} });
+  manager.applyHook({ atcId: session.id, event: 'Notification', payload: {} });
+
+  expect({ state: session.state, lastMsg: session.lastMsg }).toStrictEqual({
+    state: 'needs_you',
+    lastMsg: 'Claude is waiting for your input',
+  });
+});

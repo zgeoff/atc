@@ -37,10 +37,10 @@ agent's next notification flags it again when the prompt still waits.
 
 A Claude turn that ends in an API error, such as a usage limit, runs the stop failure hook instead
 of the stop hook. The adapter maps it to a needs-input report that carries the error text, so the
-session moves to `needs_you` with that text as its message. The agent then sits idle at its prompt,
-so attaching moves the session to `done` and keeps the error text, and the next submitted prompt
-moves it back to `running`. The daemon keeps the mark of a failed turn in memory only, because a
-revive brings the session back `done` anyway.
+session moves to `needs_you` with that text as its message, which a later idle notification leaves
+in place. The agent then sits idle at its prompt, so attaching moves the session to `done` and keeps
+the error text, and the next submitted prompt moves it back to `running`. The daemon keeps the mark
+of a failed turn in memory only, because a revive brings the session back `done` anyway.
 
 A needs-input or turn-done report marks the session unread, and attaching, an acknowledgement or a
 submitted prompt clears it. The overlay sorts unread sessions that need the owner first, which is

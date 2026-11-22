@@ -148,7 +148,14 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
       }
     }
 
-    if (ev.detail !== undefined) {
+    const isIdleAfterFailedTurn =
+      ev.kind === 'needs-input' &&
+      ev.turnFailed !== true &&
+      ev.permissionPending === false &&
+      session.state === 'needs_you' &&
+      session.turnFailed === true;
+
+    if (ev.detail !== undefined && !isIdleAfterFailedTurn) {
       session.lastDetail = ev.detail;
     }
 
@@ -162,7 +169,7 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
       session.permissionPending = false;
     }
 
-    if (ev.kind !== 'heartbeat' && ev.kind !== 'started') {
+    if (ev.kind !== 'heartbeat' && ev.kind !== 'started' && !isIdleAfterFailedTurn) {
       session.turnFailed = ev.turnFailed === true;
     }
 
@@ -185,6 +192,10 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
         return false;
       })
       .with('needs-input', () => {
+        if (isIdleAfterFailedTurn) {
+          return false;
+        }
+
         session.state = 'needs_you';
         session.unread = !focused;
         session.lastMsg = ev.message ?? 'needs input';
