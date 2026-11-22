@@ -152,7 +152,7 @@ function pickGlyph(
 function buildNameSpans(name: string, col: number, style: NameStyle, jump: NameJump): PanelSpan[] {
   const typed = jump.typed;
   const label = jump.label;
-  const range = typed === '' ? null : findMatchedGraphemes(name, typed.toLowerCase());
+  const range = typed === '' ? null : findMatchedGraphemes(name, typed);
 
   if (range === null) {
     return [{ col, text: name, fg: style.fg, bold: style.bold }];

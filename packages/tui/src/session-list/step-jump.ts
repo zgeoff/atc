@@ -1,4 +1,5 @@
 import { buildJumpPlan } from './build-jump-plan';
+import { toFoldedGraphemes } from './to-folded-graphemes';
 
 export interface JumpState {
   // the letters that matched the rows
@@ -16,7 +17,7 @@ export type JumpStep =
 // index counts into them. A letter that is a label picks its row; any other letter joins the typed
 // letters, and the one row that then matches is picked at once.
 export function stepJump(state: JumpState, character: string, names: readonly string[]): JumpStep {
-  const letter = character.toLowerCase();
+  const letter = toFoldedGraphemes(character).join('');
   const labels = buildJumpPlan(names, state.typed).labels;
   const picked = labels.indexOf(`${state.prefix}${letter}`);
 

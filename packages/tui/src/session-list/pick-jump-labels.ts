@@ -1,16 +1,20 @@
+import { toFoldedGraphemes } from './to-folded-graphemes';
+
 const LETTERS = 'asdfghjklqwertyuiopzxcvbnm';
 
 // A label for each name that matches what the user typed, or null where none is due. Free letters,
 // which never extend the search, come first. With more names than free letters, a label grows to
 // two letters only when no further typing would split the rows.
 export function pickJumpLabels(names: readonly string[], typed: string): (string | null)[] {
-  const needle = typed.toLowerCase();
+  const needle = toFoldedGraphemes(typed).join('');
 
   if (needle === '') {
     return names.map(() => null);
   }
 
-  const extensions = names.map((name) => collectExtensions(name.toLowerCase(), needle));
+  const extensions = names.map((name) =>
+    collectExtensions(toFoldedGraphemes(name).join(''), needle),
+  );
 
   const blocked = new Set(
     extensions.flatMap((texts) => [...texts].filter((text) => text.length === 1)),

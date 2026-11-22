@@ -8,7 +8,7 @@ import type { NameJump } from './types';
 // matched letters and the label after them in view, and drops the start of the name for an `…`
 // when it must.
 export function fitNameAroundMatch(name: string, width: number, jump: NameJump): string {
-  const range = jump.typed === '' ? null : findMatchedGraphemes(name, jump.typed.toLowerCase());
+  const range = jump.typed === '' ? null : findMatchedGraphemes(name, jump.typed);
 
   if (range === null) {
     return fitText(name, width, true);

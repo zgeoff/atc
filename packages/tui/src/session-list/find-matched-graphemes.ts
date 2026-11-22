@@ -1,22 +1,23 @@
-import { splitGraphemes } from '../terminal/split-graphemes';
+import { toFoldedGraphemes } from './to-folded-graphemes';
 
-// The graphemes, from `start` up to but not including `end`, whose lowercase holds the first match
-// of `needle`. A letter's lowercase can be longer than the letter, as `İ` is.
+// The graphemes, from `start` up to but not including `end`, whose folded text holds the first
+// match of the folded `typed`, or null when the name does not match.
 export function findMatchedGraphemes(
   name: string,
-  needle: string,
+  typed: string,
 ): { readonly start: number; readonly end: number } | null {
-  const lowered = splitGraphemes(name).map((grapheme) => grapheme.text.toLowerCase());
-  const at = lowered.join('').indexOf(needle);
+  const folded = toFoldedGraphemes(name);
+  const needle = toFoldedGraphemes(typed).join('');
+  const at = folded.join('').indexOf(needle);
 
-  if (at === -1) {
+  if (at === -1 || needle === '') {
     return null;
   }
 
   let offset = 0;
   let start = -1;
 
-  for (const [index, text] of lowered.entries()) {
+  for (const [index, text] of folded.entries()) {
     const next = offset + text.length;
 
     if (start === -1 && at < next) {

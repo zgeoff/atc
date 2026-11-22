@@ -1,3 +1,4 @@
+import { findMatchedGraphemes } from './find-matched-graphemes';
 import { pickJumpLabels } from './pick-jump-labels';
 
 export interface JumpPlan {
@@ -9,10 +10,9 @@ export interface JumpPlan {
 }
 
 // What jump mode shows for the typed letters: the names that match them, as one substring with
-// case ignored, and a label for each of those.
+// case folded, and a label for each of those.
 export function buildJumpPlan(names: readonly string[], typed: string): JumpPlan {
-  const needle = typed.toLowerCase();
-  const matches = names.map((name) => name.toLowerCase().includes(needle));
+  const matches = names.map((name) => typed === '' || findMatchedGraphemes(name, typed) !== null);
   const matched = names.filter((_name, index) => matches[index] === true);
   const matchedLabels = pickJumpLabels(matched, typed);
   let next = 0;

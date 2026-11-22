@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session';
 import { buildMockPanelInput } from '../test-utils/build-mock-panel-input';
 import { renderPanelText } from '../test-utils/render-panel-text';
+import { buildJumpPlan } from './build-jump-plan';
 import { buildListPanel } from './build-list-panel';
 import { BLUE } from './constants';
 
@@ -539,3 +540,37 @@ test('it wraps a prompt over lines so the keys that confirm it still show', () =
   expect(text).toInclude('· y / n');
   expect(text).toInclude('deletes its sprite machine');
 });
+
+test.each([{ typed: 'ς' }, { typed: 'σ' }])(
+  'it draws the match and label of a final sigma typed as $typed where the plan finds it',
+  (row) => {
+    const names = ['ΟΔΟΣ', 'ΛΟΓΟΣ'];
+    const jump = { ...buildJumpPlan(names, row.typed), typed: row.typed };
+
+    const plan = buildListPanel(
+      buildMockPanelInput({
+        rows: names.map((name) => ({
+          kind: 'session' as const,
+          session: buildMockMirrorSession({ name }),
+          via: null,
+        })),
+        jump,
+      }),
+      { cols: 120, rows: 30 },
+    );
+
+    const text = renderPanelText(plan);
+
+    expect({
+      matches: jump.matches,
+      names: [text[1]?.slice(5, 11), text[2]?.slice(5, 11)],
+      blue: plan.content.map((line) =>
+        line.spans.filter((span) => span.fg === BLUE).map((span) => span.text),
+      ),
+    }).toStrictEqual({
+      matches: [true, true],
+      names: ['ΟΔΟΣa ', 'ΛΟΓΟΣs'],
+      blue: [['Σ'], ['Σ']],
+    });
+  },
+);
