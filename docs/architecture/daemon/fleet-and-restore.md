@@ -115,12 +115,14 @@ terminal beside the turn.
    - **A reattached agent process.** A remote host, such as an imp, can keep the agent running while
      the daemon restarts, and the revive then attaches to that process. The session takes the state
      the event trail last recorded: `running` after a submitted prompt, `needs_you` after a prompt
-     for input, and `done` otherwise. When the agent reports a hook before the daemon learns that
-     the revive reattached, the hook's state stands.
+     for input, and `done` otherwise. The daemon applies the trail's state once the target confirms
+     the reattach. When the agent reports a hook before then, the daemon keeps the hook's state and
+     drops the trail's.
 
    For a reattached Claude agent that still shows a prompt, the daemon's screen check, which reads
    the agent's terminal for prompts that no hook reports, moves the session to `needs_you` until the
-   prompt closes, then back to `done`.
+   prompt closes. The session then goes back to `done` when it was `done` before the prompt, and to
+   `running` otherwise.
 
 A row whose agent id the config no longer registers keeps its place and refuses to revive, so a
 backend dropped from the config never comes back as plain Claude. A row whose target cannot run it
@@ -135,10 +137,10 @@ again after a delay, a few times, once the rest of the fleet is through.
 
 Between registering and getting its terminal, a session holds no pseudo-terminal: it lists as
 "waiting to restore", and the daemon describes it to clients as a live headless session in the
-`done` state. A reattached session takes its trail state only once its terminal attaches. Input sent
-to a Claude Code session in that window starts a headless turn rather than waiting for the terminal.
-The restore then starts no terminal for that session. It checks for such a turn before each try at
-the session, and again while the session's remote host wakes.
+`done` state, until step 4 sets its state. Input sent to a Claude Code session in that window starts
+a headless turn rather than waiting for the terminal. The restore then starts no terminal for that
+session. It checks for such a turn before each try at the session, and again while the session's
+remote host wakes.
 
 ## Harness fates
 
