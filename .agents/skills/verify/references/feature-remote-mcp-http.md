@@ -14,8 +14,8 @@ lines in order, and check each value in End state when its command returns.
 - After a failed line, run the last line, `action forget-session`, as
   [Journey commands](journey-commands.md#sessions) says, and skip `done` on this pass. Then go on as
   step 5 of Check a change says.
-- Add no token or secret to any command. `http request` sends none, and
-  [Journey commands](journey-commands.md#mcp-servers) says how `--server remote` signs in.
+- Add no token or secret to any command. `http request` sends none. For how `--server remote` signs
+  in, see [Journey commands](journey-commands.md#mcp-servers).
 
 ## Journey
 
@@ -30,7 +30,7 @@ bun verify action forget-session --name wv-remote
 
 ## End state
 
-Each bullet names a command, and each value sits under that command's `data`.
+Each bullet starts with a command. Read each value under that command's `data`.
 
 - `http request` gives `status` 401, and `headers["www-authenticate"]` holds a `resource_metadata`
   URL.

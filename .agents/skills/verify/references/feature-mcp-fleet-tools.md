@@ -7,8 +7,9 @@ Run the journey on a `local` run where `doctor` has succeeded. Steps 2 and 3 of
 [Check a change](../SKILL.md#check-a-change) start one, and each later journey reuses it. Run the
 lines in order, and check each value in End state when its command returns.
 
-- A line fails when its command exits non-zero, or when `mcp call` gives `data.isError: true`.
-  `bun verify mcp call` exits 0 when the tool fails, and puts the tool's reason in `data.content`.
+- Treat a line as failed when its command exits non-zero, or when `mcp call` gives
+  `data.isError: true`. `bun verify mcp call` exits 0 when the tool fails, and puts the tool's
+  reason in `data.content`.
 - After a failed line, run the last line, `action forget-session`, as
   [Journey commands](journey-commands.md#sessions) says, and skip `done` on this pass. Then go on as
   step 5 of Check a change says.
@@ -32,7 +33,7 @@ bun verify action forget-session --name wv-mcp
 
 ## End state
 
-Each bullet names an `mcp call`, and each value sits under that call's `data`.
+Each bullet starts from one `mcp call`. Read its values under that call's `data`.
 
 - Each `mcp call` gives `isError: false`.
 - The spawn gives `structuredContent.name` `wv-mcp` and `structuredContent.state` `running`.
