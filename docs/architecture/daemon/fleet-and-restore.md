@@ -107,15 +107,20 @@ terminal beside the turn.
 4. **Resume each agent.** The adapter builds the resume command for the stored agent session id, and
    the session comes back under its stored atc session id, so a client that held the id before the
    restart reaches the same session after it. A terminal starts at a default size until the first
-   attach resizes it. A resumed agent starts no turn, so a revive that starts a new agent process
-   brings the session back `done`, whatever state the fleet saved it in, and the session keeps that
-   state until the agent reports again. On a target whose host kept the agent running across the
-   restart, the revive reattaches to that process instead, and the session takes the state the event
-   trail last recorded: `running` after a submitted prompt, `needs_you` after a prompt for input,
-   and `done` otherwise. A hook the agent reports before the reattach is known wins over the trail.
-   A relaunched agent no longer shows a prompt it showed before the restart. For an attached Claude
-   agent that still shows one, the screen check moves the session to `needs_you` until the prompt
-   closes, then back to `done`.
+   attach resizes it. The session's state after the revive depends on whether its agent process
+   survived the restart:
+   - **A new agent process.** A resumed agent starts no turn, so the session comes back `done`,
+     whatever the event trail recorded before the restart. It keeps that state until the agent
+     reports again. The new agent no longer shows any prompt the old one showed.
+   - **A reattached agent process.** A remote host, such as an imp, can keep the agent running while
+     the daemon restarts, and the revive then attaches to that process. The session takes the state
+     the event trail last recorded: `running` after a submitted prompt, `needs_you` after a prompt
+     for input, and `done` otherwise. When the agent reports a hook before the daemon learns that
+     the revive reattached, the hook's state stands.
+
+   For a reattached Claude agent that still shows a prompt, the daemon's screen check, which reads
+   the agent's terminal for prompts that no hook reports, moves the session to `needs_you` until the
+   prompt closes, then back to `done`.
 
 A row whose agent id the config no longer registers keeps its place and refuses to revive, so a
 backend dropped from the config never comes back as plain Claude. A row whose target cannot run it
@@ -129,10 +134,11 @@ can lift by itself, such as an imp that cannot take a lease yet, the restore tri
 again after a delay, a few times, once the rest of the fleet is through.
 
 Between registering and getting its terminal, a session holds no pseudo-terminal: it lists as
-"waiting to restore", and its descriptor reads as a live headless session, in the state that step 4
-gives it. Input sent to a Claude Code session in that window starts a headless turn rather than
-waiting for the terminal. The restore then starts no terminal for that session. It checks for such a
-turn before each try at the session, and again while the session's remote host wakes.
+"waiting to restore", and the daemon describes it to clients as a live headless session in the
+`done` state. A reattached session takes its trail state only once its terminal attaches. Input sent
+to a Claude Code session in that window starts a headless turn rather than waiting for the terminal.
+The restore then starts no terminal for that session. It checks for such a turn before each try at
+the session, and again while the session's remote host wakes.
 
 ## Harness fates
 
