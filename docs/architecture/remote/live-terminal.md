@@ -8,16 +8,16 @@ one server issued opens nothing on another.
 
 A viewer is a [watcher](../daemon/terminals.md#watching) on a daemon connection of its own. The
 server opens that connection as the caller's principal, so the daemon decides what the viewer may
-see, exactly as it does for a tool call. A viewer that falls behind loses output rather than slowing
-the session, and it catches up from a fresh snapshot.
+see, exactly as it does for a tool call. A viewer that falls behind drops output and catches up from
+a fresh snapshot. It never slows the session.
 
 The [remote MCP guide](../../guides/remote-mcp.md#watching-a-terminal-in-a-browser) covers serving a
 viewer page, and [`live-terminal.html`](../../guides/live-terminal.html) is a working page.
 
 ## Opening the socket
 
-A browser cannot set an `Authorization` header on a WebSocket, so the page offers its bearer token
-as a subprotocol. The page offers two subprotocols:
+Offer the bearer token as a subprotocol, because a browser cannot set an `Authorization` header on a
+WebSocket. Offer two subprotocols:
 
 - `atc.pty.v1`, the frame format in [Frames](#frames). The server selects it in its answer.
 - `atc.bearer.<token>`, where `<token>` is the bearer token in unpadded base64url, because a
@@ -36,11 +36,11 @@ The server accepts two kinds of bearer token:
   with `read`. It ends the stream on the first check that fails, so a revoked grant or an expired
   token ends it even while another grant of the same client still reads. The browser page then
   reconnects with a fresh token and gets a fresh snapshot.
-- **An owner token** from the file `--token-file` names, which acts as the daemon's owner and opens
-  every session. The file holds one token per line, and the server reads it once at startup. The
-  server refuses to start when other users can open the file, and when it binds an address beyond
-  loopback, because an owner token over the network would bypass the passkey that guards every OAuth
-  grant.
+- **An owner token** from the file you pass to `--token-file`, which acts as the daemon's owner and
+  opens every session. The file holds one token per line, and the server reads it once at startup.
+  The server refuses to start when other users can open the file, and when it binds an address
+  beyond loopback, because an owner token over the network would bypass the passkey that guards
+  every OAuth grant.
 
 ## Request checks
 
@@ -70,7 +70,7 @@ MCP request does ([security events](./oauth.md#security-events)).
 
 The server sends two kinds of frame, and the browser sends none that the server reads. A binary
 frame holds terminal output: the bytes the agent printed, in order, ready for a terminal emulator to
-write. A text frame holds one JSON control object, whose `type` field names it:
+write. A text frame holds one JSON control object, with its kind in the `type` field:
 
 | `type`     | Fields                                 | Meaning                                                                                       |
 | ---------- | -------------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -79,8 +79,8 @@ write. A text frame holds one JSON control object, whose `type` field names it:
 | `state`    | `state`                                | the session's state changed, such as to `needs_you`                                           |
 | `closed`   | `reason`                               | the stream ended, and the server closes the socket next                                       |
 
-The first frame is a snapshot. One exception: when the stream ends before the browser's socket
-opens, such as when the session exits or the daemon connection drops in between, the only frame is a
+The first frame is a snapshot, except when the stream ends before the browser's socket opens, such
+as when the session exits or the daemon connection drops in between: then the only frame is a
 `closed` frame. Every binary frame after a snapshot continues that snapshot's screen with no gap and
 no repeat, so a page that resets on each snapshot and writes each binary frame shows the session's
 screen. `seq` is the sequence number of the last output the snapshot holds; a page needs it only to

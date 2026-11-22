@@ -92,7 +92,7 @@ after. The owner types the token on the enrollment page, which mints a challenge
 token, and the registration that verifies against the challenge stores the passkey and spends the
 token in one transaction, so one token enrolls one passkey. Enrolling signs nobody in. No route
 adds, removes or resets a passkey without a token, and an installation with no passkey refuses every
-sign-in rather than letting the first visitor claim it.
+sign-in, so the first visitor cannot claim it.
 
 More than one passkey may be enrolled, so a second device covers a lost one. Removing a passkey, or
 the reset that `--reset` runs before it prints a new token, deletes every owner session, and a reset
