@@ -69,12 +69,13 @@ The columns change with the grouping and the terminal's width:
 
 - The daemon column shows only when the client connects to more than one daemon, and never in the
   `place` grouping.
-- The list hides the daemon column and the place column when every listed session has the same value
-  in it, so a fleet that runs on one daemon and one place shows neither.
+- The list checks the daemon column and the place column one at a time, over the rows the filter
+  leaves. It hides a column when every row has the same value in it. On one daemon and one place,
+  the list shows neither column, and a filter can hide or show a column as you type.
 - The `repo` grouping drops the repository column.
 - In the `place` grouping, the group header names the place. A place can hold sessions that reach
   the client through different daemons. In such a place, every row shows `via <daemon>` in the place
-  column. In a place that one daemon reaches, the place column stays blank.
+  column. When one daemon reaches every listed session, the list hides the place column.
 - When the terminal is narrower than 90 columns, a row shows only the state glyph, the name, the
   message and the age.
 
