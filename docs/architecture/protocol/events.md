@@ -43,11 +43,11 @@ that reads the trail when the broadcast arrives finds the event there.
 The daemon prunes the trail when it starts and then on a timer, so `atc.db` stops growing on a
 daemon that runs for months. Each sweep drops every event older than the retention window, and every
 heartbeat or unclassified hook event at any age, because a reader needs only the newest of those.
-The sweep keeps the newest row under each atc session id and under each agent session id, so a
-session's last activity time and its place in the restore order survive. Past the retention window
-it keeps that row only while a fleet entry holds the session. The trail never reuses a row id, so a
-cursor that points at a dropped event still reads every later event, and a note read for a dropped
-note finds nothing.
+The one exception is the newest row under each atc session id and under each agent session id,
+whatever its kind: the sweep keeps it, so a session's last activity time and its place in the
+restore order survive. Past the retention window, the sweep keeps that row only while a fleet entry
+holds the session. The trail never reuses a row id, so a cursor that points at a dropped event still
+reads every later event, and a note read for a dropped note finds nothing.
 
 A caller reads the trail from a cursor, an opaque string it passes back and never builds. A read
 without a cursor returns the newest events. A read with `from: 'start'` returns the oldest event the

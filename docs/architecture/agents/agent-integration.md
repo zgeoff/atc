@@ -4,8 +4,8 @@ atc learns what an agent is doing from the agent's own hooks: each hook runs a s
 sends the event to the daemon's reporter socket. How the hooks get into the agent differs per agent,
 under one rule: atc never writes into an agent's own config. Claude Code takes everything per
 invocation, through files atc writes and passes on the command line. Grok and Codex take hooks only
-from their own config, so atc prints the hook file and the owner installs it once. The rule has two
-exceptions:
+from their own config, so atc prints the hook file and the owner installs it once. atc writes into
+an agent's config in three cases:
 
 - A Codex session that signs in through impd's broker gets a Codex home of its own, and atc writes
   the hooks there ([Grok and Codex](#grok-and-codex)).
@@ -98,16 +98,17 @@ prompt for. The folder also holds a sign-in file whose access token is the broke
 Claude Code removes its credential variables from the environment of every tool it runs, so a Claude
 Code CLI that a tool starts finds its sign-in only in that file. A stock Claude Code session there
 also takes an allow-listed copy of the daemon host's own Claude Code config at each launch, which
-atc reads and never writes. Two writes break the rule that atc never writes an agent's config, both
-under Claude Code's own lock, since Claude Code takes trust no other way:
+atc reads and never writes. atc writes folder-trust entries into a Claude Code config, under Claude
+Code's own lock, since Claude Code takes trust no other way:
 
 - A local launch that opts into clone trust adds one folder-trust entry for its verified clone to
   the owner's Claude Code config.
 - Every local launch adds one folder-trust entry for the session's scratch folder, the exact path
   atc passes with `--add-dir`, because Claude Code 2.1.328 asks for trust on each such folder. The
   entry stays for the session's life, including restarts. A gateway entry whose `env` sets
-  `CLAUDE_CONFIG_DIR` gets the entry in that folder's `.claude.json`. A session that signs in
-  through impd's broker gets the same entry in its own seeded config.
+  `CLAUDE_CONFIG_DIR` gets the entry in that folder's `.claude.json`.
+- A session on an imp that signs in through impd's broker gets the scratch folder's entry in its own
+  seeded config.
 
 ## The atc-bridge mod
 

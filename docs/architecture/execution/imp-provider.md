@@ -2,13 +2,13 @@
 
 The `imp` provider runs each top-level session in an imp of its own, a VM that impd hosts, and each
 sub-session on the same target in its parent's imp. An imp can sleep with its processes inside and
-wake later from memory, so a kill puts the imp to sleep rather than ending the session, and a revive
-finds the agent exactly as it was. The provider declares every capability except headless runs. The
-daemon reaches impd only through an imp port, an interface the tests drive with a fixture port that
-runs real pseudo-terminals. The fixture port builds every answer and refusal in the shape that
-impd's published client types give it, then passes it through the translations the real port uses. A
-change to impd's contract that the fixture no longer matches therefore fails the type check, and
-bumping the pinned client reruns that check.
+wake later from memory, so a kill of a top-level session puts its imp to sleep rather than ending
+the session, and a revive finds the agent exactly as it was. The provider declares every capability
+except headless runs. The daemon reaches impd only through an imp port, an interface the tests drive
+with a fixture port that runs real pseudo-terminals. The fixture port builds every answer and
+refusal in the shape that impd's published client types give it, then passes it through the
+translations the real port uses. A change to impd's contract that the fixture no longer matches
+therefore fails the type check, and bumping the pinned client reruns that check.
 
 [Targets](./targets.md) covers the checks every provider shares, and
 [runtime auth](./runtime-auth.md) covers the broker grants an imp can hold.
@@ -162,7 +162,7 @@ impd's answer to the reconnect decides how the harness ended:
 
 The session bridge's socket comes back on a reconnect of its own. impd ends the reverse forward
 behind it for good when the forward's tunnel socket closes, while the harness runs on. The provider
-therefore listens on the same socket again until the harness ends. A hook that runs in the gap finds
-no socket and is lost, while a note waits in the outbox beside the socket for the next connection. A
-forward that the imp's sleep ended stays ended, because a listen wakes a sleeping imp; the harness
-that a wake revives opens a forward of its own.
+therefore listens on the same socket again while the imp is awake, until the harness ends. A hook
+that runs in the gap finds no socket and is lost, while a note waits in the outbox beside the socket
+for the next connection. A forward that the imp's sleep ended stays ended, because a listen wakes a
+sleeping imp; the harness that a wake revives opens a forward of its own.

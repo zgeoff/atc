@@ -53,11 +53,11 @@ a log line.
 
 ## How atc uses it
 
-atc's packages open a daemon connection only through `@atcx/client`. `@atc/protocol/client` wraps
-`openDaemonConnection()` in the shape the older callers use: `createDaemonClient()` opens nothing,
-and `sendHello` opens the connection, so a daemon that is not there fails the hello with
-`no_daemon`. `atc send` calls `connect()`. A test of the daemon's own handling of an early request,
-a bad hello or a foreign protocol version opens a raw client from
+Outside tests, atc's packages open a daemon connection only through `@atcx/client`.
+`@atc/protocol/client` wraps `openDaemonConnection()` in the shape the older callers use:
+`createDaemonClient()` opens nothing, and `sendHello` opens the connection, so a daemon that is not
+there fails the hello with `no_daemon`. `atc send` calls `connect()`. A test of the daemon's own
+handling of an early request, a bad hello or a foreign protocol version opens a raw client from
 `@atc/protocol/test-utils/open-raw-daemon-client`, which skips the client's checks.
 
 `bun run check:daemon-sockets` lists the files that open a socket, a `connect` import from

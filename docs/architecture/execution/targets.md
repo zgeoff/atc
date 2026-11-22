@@ -1,11 +1,11 @@
 # Execution targets
 
 A session's harness, the agent CLI process that atc hosts, runs on an execution target: the daemon's
-own machine, or a remote host such as an imp, a VM that impd runs. Each target in the config names a
-provider, and the daemon starts, feeds and ends every harness only through that provider's
-interface. A session binds to its target when it spawns and runs nowhere else for its whole life, so
-the daemon refuses a request that cannot run on the session's target, and never runs it on its own
-machine in place of the target.
+own machine, a container on it, or a remote host such as an imp, a VM that impd runs. Each target in
+the config names a provider, and the daemon starts, feeds and ends every harness only through that
+provider's interface. A session binds to its target when it spawns and runs nowhere else for its
+whole life, so the daemon refuses a request that cannot run on the session's target, and never runs
+it on its own machine in place of the target.
 
 [The imp provider](./imp-provider.md), [the docker provider](./docker-provider.md) and
 [the sprites provider](./sprites-provider.md) cover the remote providers,
@@ -164,7 +164,8 @@ Before a harness starts, the daemon asks the provider to ready its host. The pro
 remote host or wakes it, and refuses with `host_unavailable` when it cannot. The daemon waits for
 that step, then starts the harness and follows its output from the first byte.
 
-A provider is local or remote, and the two differ in what environment a harness gets. A local
+A provider is local or remote, and the two differ in what environment a harness gets. Only
+`local-pty` is local; `docker` is remote, though its containers run on the daemon's machine. A local
 harness inherits the daemon's environment, with the variables atc sets for the session on top. A
 remote harness gets only those atc variables and the host's own terminal type, locale and `PATH`, so
 nothing from the daemon's environment, a credential included, reaches the remote host.

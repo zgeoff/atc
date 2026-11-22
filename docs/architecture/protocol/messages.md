@@ -6,9 +6,10 @@ takes it, so a message survives a daemon restart and a fleet restore. The daemon
 message into the session's terminal: a process inside the session takes it through a tap, and the
 `atc-bridge` mod inside Claude Code hands it to the model. The answer to a message is the text the
 model sends with the mod's `answer` tool or, if none, the final reply of the turn that carried it,
-which the mod reports when the turn ends. A turn that ends without a reply leaves the message
-unanswered. When the sender is itself a session that takes messages, the daemon queues an answer
-notice in the sender's inbox, so the outcome reaches the sender's conversation without a read.
+which the mod reports when the turn ends. A turn that saw the message and ends without a reply
+leaves it unanswered. When the sender is itself a session that takes messages, the daemon queues an
+answer notice in the sender's inbox, so the outcome reaches the sender's conversation without a
+read. [Delivering answers](#delivering-answers) gives the sends that get no notice.
 
 [Agent integration](../agents/agent-integration.md#the-atc-bridge-mod) covers the mod, and
 [events](./events.md) covers the trail that records each status change.
@@ -50,7 +51,7 @@ label holds a kind, an id and a name:
 
 | Kind        | Caller                                                           | Id                  | Name                                         |
 | ----------- | ---------------------------------------------------------------- | ------------------- | -------------------------------------------- |
-| `connector` | an OAuth client that atc-gateway or `atc mcp --http` vouches for | its OAuth client id | its client name                              |
+| `connector` | an OAuth client that atc-gateway or `atc mcp --http` vouches for | its OAuth client id | its client name, or the principal's name     |
 | `session`   | a process inside an atc session                                  | the session's id    | the session's name as the message is written |
 | `local`     | a program outside every session that is not an atc client        | none                | its `from`, else its handshake's client name |
 | `owner`     | an atc client outside every session                              | none                | `owner`                                      |
