@@ -115,11 +115,14 @@ To add a lane named `<lane>`, for files that end in `.<lane>.test.ts`:
 ## Worker count
 
 - Set `TEST_WORKERS` to choose how many workers the unit run, `test:e2e` and `test:plugin` use, for
-  one run or in CI. Without it, each picks up to 4, and 1 when the host or its container has less
-  than 4 GiB of memory. The Codex and toolchain lanes run one file at a time.
-- To change the default of `test:e2e` and `test:plugin`, change
-  [`read-worker-count.ts`](../../../scripts/read-worker-count.ts). The unit run takes its default
-  from rig.
+  one run or in CI. `bun run test:plugin <plugin>` runs the tests of one plugin package, a harness,
+  an execution provider or a source, in a workspace that holds only that package and what it depends
+  on, so a plugin that imports past its rule fails. Without `TEST_WORKERS`, all three pick up to 4
+  workers, and 1 when the host or its container has less than 4 GiB of memory. The Codex and
+  toolchain lanes run one file at a time.
+- The unit run takes that default from rig, and `test:e2e` and `test:plugin` take it from
+  [`read-worker-count.ts`](../../../scripts/read-worker-count.ts). Change that file to change their
+  default.
 
 ## The PTY harness
 

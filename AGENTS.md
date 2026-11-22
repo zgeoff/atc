@@ -100,12 +100,12 @@ docs/
 - `bun run lint:full` adds the type-aware pass and the type check. oxlint runs both through
   `tsrs-lint`, which the `tsrs` package ships and oxlint finds on its own, in tsgolint's place,
   because stock tsgolint runs out of memory under 2 GiB. The script sets `TSRS_FAST=1`, tsrs's fast
-  mode. Never run `lint:full` locally: like the other larger checks, it runs in CI only, because the
-  host may have little memory.
+  mode. Never run `lint:full` locally: it runs in CI only, because the host may have little memory.
 - `bun run build:atc-bridge` regenerates the mod's embedded copy after a change to
   `mods/atc-bridge/`.
-- lefthook runs the light checks before a commit and a push. Leave the larger checks to CI, because
-  the host may have little memory.
+- lefthook runs the light checks: formatting and lint before a commit, and most `check:*` scripts
+  and the related unit tests before a push. Leave `test:e2e` and the lane suites to CI, because the
+  host may have little memory.
 
 ## Checks
 
