@@ -22,6 +22,9 @@ export interface Session {
   lastDetail?: string;
 
   permissionPending?: boolean;
+
+  // Kept out of the fleet row, since a revive brings the session back done.
+  turnFailed?: boolean;
   agentSessionID?: AgentSessionID;
   agent: AgentID;
   transcriptSource?: string;
@@ -86,4 +89,8 @@ export interface Session {
   // The code and message of the refusal that ended the last restore attempt at a terminal.
   // It applies only while the session's listed message still equals this message.
   restoreRefusal?: { readonly code: string; readonly message: string };
+
+  // The state a restored session takes when its revive reattaches to an agent the host kept
+  // running. A revive that starts a new agent leaves the session done.
+  reattachedState?: 'running' | 'needs_you' | 'done';
 }

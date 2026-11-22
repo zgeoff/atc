@@ -30,6 +30,7 @@ export function updateSessionAttention(
 
   session.state = state;
   session.lastMsg = message;
+  session.turnFailed = false;
 
   if (state === 'needs_you') {
     session.unread = deps.registry.focusedId !== session.id;

@@ -58,6 +58,17 @@ test('it points the settings at the credential helper command', () => {
           ],
         },
       ],
+      StopFailure: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
       UserPromptSubmit: [
         {
           hooks: [
@@ -129,6 +140,7 @@ test('it reports every hook the fleet needs to track a session', () => {
     'SessionStart',
     'Notification',
     'Stop',
+    'StopFailure',
     'UserPromptSubmit',
     'SessionEnd',
   ]);
@@ -232,6 +244,7 @@ test('it keeps its own hooks when the configured ones are malformed', () => {
     'SessionStart',
     'Notification',
     'Stop',
+    'StopFailure',
     'UserPromptSubmit',
     'SessionEnd',
   ]);
@@ -270,6 +283,17 @@ test('it gives every command it registers the agent id of its session', () => {
         },
       ],
       Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/usr/local/bin/atc" hook-report --agent=\'zai\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      StopFailure: [
         {
           hooks: [
             {

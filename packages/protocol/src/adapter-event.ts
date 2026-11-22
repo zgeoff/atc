@@ -7,6 +7,8 @@ export interface AdapterEvent {
 
   permissionPending?: boolean;
 
+  turnFailed?: boolean;
+
   detail?: string;
 
   nameSource?: string;

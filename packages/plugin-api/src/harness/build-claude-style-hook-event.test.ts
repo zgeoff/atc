@@ -105,3 +105,84 @@ test('it reads an event the harness does not register as a heartbeat', () => {
 
   expect(event).toStrictEqual({ kind: 'heartbeat', agentSessionID: toAgentSessionID('c-1') });
 });
+
+test.each([
+  {
+    blank: 'an empty last message',
+    payload: { last_assistant_message: '', error_details: '529 Overloaded', error: 'overloaded' },
+    message: '529 Overloaded',
+  },
+  {
+    blank: 'a whitespace last message',
+    payload: {
+      last_assistant_message: ' \n',
+      error_details: '529 Overloaded',
+      error: 'overloaded',
+    },
+    message: '529 Overloaded',
+  },
+  {
+    blank: 'an empty last message and empty details',
+    payload: { last_assistant_message: '', error_details: '', error: 'overloaded' },
+    message: 'overloaded',
+  },
+  {
+    blank: 'a whitespace last message and whitespace details',
+    payload: { last_assistant_message: '\t', error_details: '  ', error: 'overloaded' },
+    message: 'overloaded',
+  },
+])('it names a failed turn by the next error field past $blank', (row) => {
+  const event = buildClaudeStyleHookEvent(
+    { atcId: toSessionID('s1'), event: 'Failed', payload: row.payload },
+    {
+      hooks: { Failed: 'TurnFailed' },
+      parsePayload: (payload) =>
+        z
+          .object({
+            last_assistant_message: z.string(),
+            error_details: z.string(),
+            error: z.string(),
+          })
+          .parse(payload),
+      buildNeedsInput: (base) => ({ ...base, kind: 'needs-input' }),
+      buildSources: () => ({}),
+    },
+  );
+
+  expect(event).toStrictEqual({
+    kind: 'needs-input',
+    message: row.message,
+    detail: row.message,
+    permissionPending: false,
+    turnFailed: true,
+  });
+});
+
+test('it flags a failed turn with no message when every error field is blank', () => {
+  const event = buildClaudeStyleHookEvent(
+    {
+      atcId: toSessionID('s1'),
+      event: 'Failed',
+      payload: { last_assistant_message: '', error_details: ' ', error: '\n' },
+    },
+    {
+      hooks: { Failed: 'TurnFailed' },
+      parsePayload: (payload) =>
+        z
+          .object({
+            last_assistant_message: z.string(),
+            error_details: z.string(),
+            error: z.string(),
+          })
+          .parse(payload),
+      buildNeedsInput: (base) => ({ ...base, kind: 'needs-input' }),
+      buildSources: () => ({}),
+    },
+  );
+
+  expect(event).toStrictEqual({
+    kind: 'needs-input',
+    permissionPending: false,
+    turnFailed: true,
+  });
+});

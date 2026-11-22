@@ -63,7 +63,6 @@ test('it reads the latest events under the session that recorded them', async ()
       target: 'local',
       targetIdentity: 'local-pty:test',
     }),
-    null,
   );
 
   await ctx.store.recordEvent(
@@ -170,7 +169,6 @@ test('it reads none of the events of a session whose target the access may not u
       target: 'local',
       targetIdentity: 'local-pty:test',
     }),
-    null,
   );
 
   await ctx.store.recordEvent(
@@ -260,7 +258,6 @@ test('it reads no restart under an access that reaches every session', async () 
       target: 'local',
       targetIdentity: 'local-pty:test',
     }),
-    null,
   );
 
   await ctx.trail.recordRestart(buildMockRestartResult());

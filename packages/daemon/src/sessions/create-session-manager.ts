@@ -523,11 +523,16 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
       session.lastAttachedAt = clock.now();
       void fleet.tryWriteFleet(session.id);
 
-      // A prompt that is still pending flags the session again on the next notification.
-      if (session.state === 'needs_you') {
+      // A prompt that is still pending flags the session again on the next notification. A failed
+      // turn leaves the agent idle at its prompt, so that session is done.
+      if (session.state === 'needs_you' && session.turnFailed === true) {
+        session.state = 'done';
+      } else if (session.state === 'needs_you') {
         session.state = 'running';
         session.lastMsg = 'attached';
       }
+
+      session.turnFailed = false;
 
       onEvent('state', session);
 

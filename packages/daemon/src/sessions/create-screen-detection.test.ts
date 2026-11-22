@@ -429,7 +429,6 @@ test('it moves a done session to needs_you once its screen shows a menu', async 
       target: 'local',
       targetIdentity: 'local-pty:test',
     }),
-    'turn-done',
   );
 
   await ctx.manager.adoptTerminal(restored.id, 80, 24);
@@ -468,7 +467,6 @@ test('it moves a done session the screen flagged back to done with its earlier m
       target: 'local',
       targetIdentity: 'local-pty:test',
     }),
-    'turn-done',
   );
 
   await ctx.manager.adoptTerminal(restored.id, 80, 24);
@@ -509,7 +507,6 @@ test('it moves a done session the screen flagged back to done when its agent sta
       target: 'local',
       targetIdentity: 'local-pty:test',
     }),
-    'turn-done',
   );
 
   await ctx.manager.adoptTerminal(restored.id, 80, 24);

@@ -605,6 +605,17 @@ test('it restores an unbrokered remote session in the mode its settings set', ()
           ],
         },
       ],
+      StopFailure: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
       UserPromptSubmit: [
         {
           hooks: [
@@ -744,6 +755,17 @@ test('it plans a remote spawn in the permission mode its configured arguments se
           ],
         },
       ],
+      StopFailure: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
       UserPromptSubmit: [
         {
           hooks: [
@@ -846,6 +868,17 @@ test('it carries the settings file in the resume command of an entry with its ow
         },
       ],
       Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      StopFailure: [
         {
           hooks: [
             {
@@ -1237,6 +1270,17 @@ test('it plans a subscription guest spawn with its own config folder, the placeh
           ],
         },
       ],
+      StopFailure: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
       UserPromptSubmit: [
         {
           hooks: [
@@ -1393,6 +1437,17 @@ test("it ships the host's Claude config as the session's user settings and keeps
         },
       ],
       Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      StopFailure: [
         {
           hooks: [
             {
@@ -1861,6 +1916,17 @@ test('it plans a guest spawn without a broker binding in the config of the host 
         },
       ],
       Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      StopFailure: [
         {
           hooks: [
             {
@@ -2383,6 +2449,17 @@ test("it sets a profile's variables in a subscription guest's settings env and s
           ],
         },
       ],
+      StopFailure: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: '"/opt/atc/bin/atc" hook-report --agent=\'claude\'',
+              timeout: 5,
+            },
+          ],
+        },
+      ],
       UserPromptSubmit: [
         {
           hooks: [
@@ -2502,6 +2579,17 @@ test("it leaves a profile's variables out of the local plan of an entry with a p
         },
       ],
       Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command: `"/opt/atc/bin/atc" hook-report --agent='claude'`,
+              timeout: 5,
+            },
+          ],
+        },
+      ],
+      StopFailure: [
         {
           hooks: [
             {

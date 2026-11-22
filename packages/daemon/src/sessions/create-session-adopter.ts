@@ -292,6 +292,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
 
     let launch: HarnessLaunch;
     let pty: HarnessHandle;
+    let reattachedState: Session['reattachedState'];
 
     try {
       if (
@@ -344,6 +345,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       }
 
       launch = { provider, plan, recordPath, cols, rows };
+      reattachedState = registry.unrestored.has(id) ? session.reattachedState : undefined;
 
       try {
         pty = startReviveHarness(deps, session, launch);
@@ -352,6 +354,8 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
 
         throw error;
       }
+
+      delete session.reattachedState;
     } finally {
       adopting.delete(id);
     }
@@ -392,20 +396,42 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       void fleet.tryWriteFleet(session.id);
     };
 
-    const followAgentHome = async (): Promise<void> => {
+    // The revive lists the session done until the start shows whether the host kept the agent
+    // running, and a hook the agent reports in between wins over the saved trail.
+    const updateReattachedState = (harnessStart: HarnessStart | undefined): void => {
+      if (
+        reattachedState === undefined ||
+        harnessStart?.created !== false ||
+        session.pty !== startedPty ||
+        session.state !== 'done' ||
+        session.lastMsg !== 'revived' ||
+        reattachedState === session.state
+      ) {
+        return;
+      }
+
+      session.state = reattachedState;
+
+      callbacks.onEvent('state', session);
+      fleet.emitChange();
+    };
+
+    const followHarnessStart = async (): Promise<void> => {
       try {
         const harnessStart = await startedPty.waitForStart?.();
 
         updateAgentHome(harnessStart);
+        updateReattachedState(harnessStart);
       } catch {
         // a harness that never starts runs no agent, so the home it would have used stays unread
       }
     };
 
     if (start === undefined && pty.waitForStart !== undefined) {
-      void followAgentHome();
+      void followHarnessStart();
     } else {
       updateAgentHome(start);
+      updateReattachedState(start);
     }
 
     if (plan.admission !== null) {

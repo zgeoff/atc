@@ -70,8 +70,9 @@ to add by hand. Set the variable in the daemon's environment, where atc appends 
 Every Claude Code session starts with files atc wrote for it:
 
 - **A generated settings file**, passed with `--settings`, holds the atc hooks for start, end,
-  prompt submit, notification and stop, and a statusline reporter. Hooks that an entry's extra
-  session settings add run after atc's own, so they join the reporter rather than replacing it.
+  prompt submit, notification, stop and stop failure, and a statusline reporter. Hooks that an
+  entry's extra session settings add run after atc's own, so they join the reporter rather than
+  replacing it.
 - **The `atc-bridge` mod**, passed with `--plugin-dir`, connects the session to its inbox and gives
   the model a `note` tool and an `answer` tool.
 - **A scratch folder of its own**, passed as an added directory and as `TMPDIR`, so a session's

@@ -30,6 +30,7 @@ export function updateSessionSurfaceState(
 
   session.state = update.state;
   session.lastMsg = update.message;
+  session.turnFailed = false;
   session.unread = deps.registry.focusedId !== session.id;
 
   if (update.result !== undefined) {

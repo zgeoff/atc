@@ -12,6 +12,8 @@ const CLAUDE_HOOK_PAYLOAD_SCHEMA = z.object({
   notification_type: buildOptionalString(),
   last_assistant_message: buildOptionalString(),
   prompt: buildOptionalString(),
+  error: buildOptionalString(),
+  error_details: buildOptionalString(),
 });
 
 type ClaudeHookPayload = z.infer<typeof CLAUDE_HOOK_PAYLOAD_SCHEMA>;

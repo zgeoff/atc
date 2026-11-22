@@ -22,6 +22,7 @@ stateDiagram-v2
     running --> needs_you: needs input
     running --> done: turn done
     needs_you --> running: prompt submitted, or attach
+    needs_you --> done: attach after a failed turn
     done --> running: prompt submitted
     running --> exited: harness ends
     needs_you --> exited: harness ends
@@ -32,8 +33,9 @@ A session lists as `exited` whenever its harness is not running, a harness suspe
 sleeping host included, and otherwise with the attention its hooks last reported. An end report from
 a live terminal never marks the session exited, because resuming inside Claude Code ends one agent
 session and starts another in the same process: only the pseudo-terminal closing does. Attaching to
-a session that needs the owner moves it back to `running`, since the owner is now looking, and the
-agent's next notification flags it again when the prompt still waits.
+a session in `needs_you` moves it back to `running`, since the owner is now looking. When a question
+such as a permission request still waits, Claude Code's next notification hook moves the session to
+`needs_you` again. A [failed turn](#a-failed-turn) is the one exception to this attach rule.
 
 A needs-input or turn-done report marks the session unread, and attaching, an acknowledgement or a
 submitted prompt clears it. The overlay sorts unread sessions that need the owner first, which is
@@ -48,6 +50,27 @@ The daemon drops a hook report whose agent differs from the session's agent. A h
 a session inherits the session's environment, so without that check a nested agent would report as
 the session it runs in.
 
+### A failed turn
+
+Claude Code ends a turn with its `Stop` hook, which the adapter maps to a turn-done report. A turn
+that ends in an API error, such as a usage limit, runs the `StopFailure` hook in its place. The
+adapter maps `StopFailure` to a needs-input report that carries the error text and a flag that the
+turn failed. On that report, the daemon moves the session to `needs_you` and marks it as failed. The
+error text becomes the session's message, the status line that clients show beside it.
+
+After a failed turn, the agent waits at its input line with no question open, so no later hook would
+move the session out of `needs_you`. While the failed mark holds:
+
+- Attaching moves the session to `done`, and the error text stays its message.
+- An idle notification, which Claude Code sends while it waits for the owner to type, leaves the
+  state and the error text as they are.
+
+The next submitted prompt clears the mark and moves the session back to `running`, as for any
+session. The daemon keeps the mark in memory only, so a daemon restart drops it.
+[Restoring the fleet](./fleet-and-restore.md#restoring-the-fleet) gives the state a revived session
+comes back in. A revived session that comes back in `needs_you` has no mark, so an attach moves it
+to `running`.
+
 ### Waits before the agent starts
 
 Claude Code runs no hook while a dialog it shows before its start waits on the owner, such as the
@@ -57,9 +80,10 @@ daemon reads its screen each time the output goes quiet. A menu on the screen mo
 as the session waiting on the owner. A screen without a menu moves it back to `running`. The start
 report ends the screen reads, and it moves a session that the screen put in `needs_you` back to
 `running`, since every dialog before the start is answered by then. A session that the screen moved
-from `done` goes back to `done` in both cases, with its earlier message, because the dialog started
-no turn. A [restore](./fleet-and-restore.md#restoring-the-fleet) lists a revived session as `done`
-when its agent was out of a turn before the daemon restarted.
+from `done` goes back to `done` when the menu leaves the screen and when the start report arrives,
+with its earlier message, because the dialog started no turn.
+[Restoring the fleet](./fleet-and-restore.md#restoring-the-fleet) gives the state a revived session
+comes back in.
 
 ## Names
 

@@ -147,3 +147,42 @@ test('it reads an event the settings file does not register as a heartbeat', () 
     }),
   ).toStrictEqual({ kind: 'heartbeat', agentSessionID: toAgentSessionID('c-1') });
 });
+
+test('it flags a turn that ends in an API error as needing the user, with the error text', () => {
+  expect(
+    buildClaudeHookEvent({
+      atcId: toSessionID('s1'),
+      event: 'StopFailure',
+      payload: {
+        session_id: 'c-1',
+        error: 'rate_limit',
+        error_details: '429 Too Many Requests',
+        last_assistant_message: "API Error: You've hit your weekly limit",
+      },
+    }),
+  ).toStrictEqual({
+    kind: 'needs-input',
+    agentSessionID: toAgentSessionID('c-1'),
+    message: "API Error: You've hit your weekly limit",
+    detail: "API Error: You've hit your weekly limit",
+    permissionPending: false,
+    turnFailed: true,
+  });
+});
+
+test('it falls back to the error type when a failed turn carries no text', () => {
+  expect(
+    buildClaudeHookEvent({
+      atcId: toSessionID('s1'),
+      event: 'StopFailure',
+      payload: { session_id: 'c-1', error: 'server_error' },
+    }),
+  ).toStrictEqual({
+    kind: 'needs-input',
+    agentSessionID: toAgentSessionID('c-1'),
+    message: 'server_error',
+    detail: 'server_error',
+    permissionPending: false,
+    turnFailed: true,
+  });
+});
