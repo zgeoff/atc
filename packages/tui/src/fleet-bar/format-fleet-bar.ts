@@ -36,7 +36,7 @@ export function formatFleetBar(bar: FleetBar, cols: number): readonly FleetBarRu
     }
   }
 
-  if (bar.dropped > 0) {
+  if (bar.dropped > 0 && bar.places.length > 0) {
     runs.push({ col, text: '…', fg: MUTED, bold: false });
   }
 

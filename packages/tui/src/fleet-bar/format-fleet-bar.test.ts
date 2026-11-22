@@ -137,3 +137,42 @@ test('#formatFleetBar starts the next run after the two columns of a wide label'
     [6, ' ✓'],
   ]);
 });
+
+test.each([
+  ...Array.from({ length: 6 }, (_, index) => ({
+    cols: 17 + index,
+    expected: `${' '.repeat(5 + index)}ctrl+space  `,
+  })),
+  ...Array.from({ length: 6 }, (_, index) => ({
+    cols: 23 + index,
+    expected: `  box 2…${' '.repeat(3 + index)}ctrl+space  `,
+  })),
+])(
+  '#formatFleetBar draws no bare … and keeps a gap before the right end at $cols columns',
+  (row) => {
+    const sessions: FleetBarSession[] = [
+      { daemon: null, state: 'done', target: 'box', place: { key: 'l', label: 'local' } },
+      { daemon: null, state: 'done', target: 'box', place: { key: 'l', label: 'local' } },
+      { daemon: null, state: 'done', target: 'box', place: { key: 'l', label: 'local' } },
+      { daemon: null, state: 'done', target: 'box', place: { key: 'b', label: 'box-1' } },
+      { daemon: null, state: 'done', target: 'box', place: { key: 'b', label: 'box-1' } },
+      { daemon: null, state: 'done', target: 'box', place: { key: 'z', label: 'zed' } },
+    ];
+
+    const bar = buildFleetBar(sessions, {
+      cols: row.cols,
+      leaderLabel: 'ctrl+space',
+      attachedPlaceKey: null,
+    });
+
+    const text = Array.from({ length: row.cols }, () => ' ');
+
+    for (const run of formatFleetBar(bar, row.cols)) {
+      run.text.split('').forEach((ch, index) => {
+        text[run.col + index] = ch;
+      });
+    }
+
+    expect(text.join('')).toBe(row.expected);
+  },
+);
