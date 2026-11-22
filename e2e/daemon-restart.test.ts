@@ -401,7 +401,7 @@ test('it exits 1 and names a row whose agent is gone while the good row comes ba
   ).toStrictEqual([{ id: 's-good', alive: true }]);
 
   expect(restart.stdout).toInclude(
-    'failed: dropped (s-dropped): listed in state running without a terminal: no adapter for',
+    'failed: dropped (s-dropped): listed in state done without a terminal: no adapter for',
   );
 
   expect(restart.stdout).toInclude('restored 1 of 2');
