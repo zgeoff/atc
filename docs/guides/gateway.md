@@ -1,8 +1,8 @@
 # Running atc-gateway
 
 atc-gateway serves atc's MCP tools for several daemons through one OAuth connector. Each daemon runs
-a TCP listener for the gateway, and the gateway routes each tool call to one of them.
-[The gateway](../architecture/remote/gateway.md) covers how it routes.
+a TCP listener for the gateway, and the gateway routes each tool call to one of them. For how it
+routes, see [the gateway](../architecture/remote/gateway.md).
 
 ## The daemon listener
 
@@ -29,7 +29,7 @@ Run `atc daemon id` on the daemon's host to print its daemon ID for the registry
 3. Remove the old token from the file.
 4. Send `SIGHUP` again. The daemon closes every connection that used the old token.
 
-A reload of a file that is invalid refuses every handshake until a reload succeeds, and the daemon
+When a reload finds an invalid file, the daemon refuses every handshake until a reload succeeds, and
 logs the reason to stderr.
 
 ### Listener log lines
@@ -47,13 +47,13 @@ atc log dropped=212
 The `reason` is one of `missing_token`, `unauthorized`, `delay_cap_full`, `closed_during_delay`,
 `unexpected_line` and `line_too_long`. The first refusal of one kind from one peer logs at once, and
 later ones within a minute are counted onto the next line, so the counts sum to every refusal. Past
-the number of peers the daemon tracks, refusals count as `peer=overflow`. `atc log dropped=N` holds
-how many lines were lost while stderr took no more.
+the number of peers the daemon tracks, refusals count as `peer=overflow`. `atc log dropped=N` counts
+the lines lost while stderr took no more.
 
 ## The registry
 
-The registry file lists each daemon by name with its TCP address and its daemon ID, plus the daemon
-a spawn without one goes to:
+In the registry file, list each daemon by name with its TCP address and its daemon ID, and name the
+daemon that gets a spawn without one:
 
 ```json
 {
@@ -89,8 +89,8 @@ atc-gateway serve --host 0.0.0.0 --port 8414 --public-url https://atc.example.co
 | `--trust-forwarded-from` | a proxy address whose `CF-Connecting-IP` header security events mark `trusted`; repeat for more | none                     |
 | `--service-token-file`   | a [service token file](#service-tokens) that `/mcp` accepts beside OAuth tokens                 | none                     |
 
-The gateway speaks plain HTTP: `--public-url` names the https origin clients use and enables no TLS.
-A host other than loopback, as in this example, needs an https public URL and a TLS-terminating
+The gateway speaks plain HTTP: set `--public-url` to the https origin clients use, and it enables no
+TLS. A host other than loopback, as in this example, needs an https public URL and a TLS-terminating
 proxy or tunnel in front of the gateway. The gateway prints the same startup line as
 `atc mcp --http`, with `atc-gateway:` in place of `atc mcp --http:`. Without a state directory it
 exits 1, since it has no default under a home directory. It also exits 1 before it opens a database
@@ -99,9 +99,9 @@ separate value is missing or starts with `-`; write such a value as `--<flag>=<v
 
 `/healthz` and `/readyz` return 200 for a request whose `Host` header is the public URL's host, and
 403 for any other host, so an orchestrator's probe sets that header. Request lines and
-`atc security` events for sign-ins and refused tokens go to stderr, and a log shipper matches the
-events by their prefix ([security events](../architecture/remote/oauth.md#security-events)). No line
-holds a value that signs in. SIGTERM stops the gateway and exits 0.
+`atc security` events for sign-ins and refused tokens go to stderr. Match the events by their prefix
+in a log shipper ([security events](../architecture/remote/oauth.md#security-events)). No line holds
+a value that signs in. SIGTERM stops the gateway and exits 0.
 
 ## Service tokens
 
@@ -120,7 +120,7 @@ token. Write the tokens to a JSON file and pass it with `--service-token-file`:
 
 - `resource` is `<public URL>/mcp`. The gateway exits 1 at start when it differs from the resource
   it serves.
-- Each client name matches `[a-z][a-z0-9-]{0,31}`. `scopes` names at least one of `read`, `message`,
+- Each client name matches `[a-z][a-z0-9-]{0,31}`. Give `scopes` at least one of `read`, `message`,
   `spawn` and `kill`.
 - `tokens` holds one or two tokens. Each is `atcs_` followed by 32 or more of `A-Z`, `a-z`, `0-9`,
   `_` and `-`. A token appears once in the file.
@@ -141,19 +141,18 @@ one, then remove the old one and send SIGHUP again.
 
 Run `atc mcp service-secret` to print a new secret and its digest. The secret goes to stdout and
 appears only then, so copy it to the service's own secret store. Put the digest in the client's
-`secretDigests`, then send SIGHUP. The service sends its client ID `service:<name>` and the secret
-in a `client_secret_basic` header, with `grant_type=client_credentials`, to
+`secretDigests`, then send SIGHUP. Have the service send its client ID `service:<name>` and the
+secret in a `client_secret_basic` header, with `grant_type=client_credentials`, to
 `<public URL>/oauth2/token`. It gets an access token that lasts 600 seconds and holds the client's
 scopes, and it sends that token as the bearer on `/mcp`. A digest that a SIGHUP dropped gets
 `invalid_client` on the next token request. When the new file holds no digest at all, the token
 endpoint answers `400 unsupported_grant_type` instead, because the server then has no service client
 with a secret.
 
-The service sends the header `Authorization: Bearer <token>` and the public `Host` header. Its
+Have the service send the header `Authorization: Bearer <token>` and the public `Host` header. Its
 principal ID is `service:<name>`; list that ID under the daemon's
-[`principals`](./configuration/principals.md) key to give it targets. The
-[architecture doc](../architecture/remote/oauth.md#service-tokens) covers how the gateway checks the
-token.
+[`principals`](./configuration/principals.md) key to give it targets. For how the gateway checks the
+token, see the [architecture doc](../architecture/remote/oauth.md#service-tokens).
 
 ## Clients
 

@@ -2,10 +2,10 @@
 
 atc learns what an agent is doing from the agent's own hooks: each hook runs a short atc helper that
 sends the event to the daemon's reporter socket. How the hooks get into the agent differs per agent,
-under one rule: atc never writes into an agent's own config. Claude Code takes everything per
-invocation, through files atc writes and passes on the command line. Grok and Codex take hooks only
-from their own config, so atc prints the hook file and the owner installs it once. atc writes into
-an agent's config in three cases:
+under one rule: atc never writes hooks into an agent's own config. Claude Code takes everything but
+folder trust per invocation, through files atc writes and passes on the command line. Grok and Codex
+take hooks only from their own config, so atc prints the hook file and the owner installs it once.
+atc writes into an agent's config in three cases:
 
 - A Codex session that signs in through impd's broker gets a Codex home of its own, and atc writes
   the hooks there ([Grok and Codex](#grok-and-codex)).

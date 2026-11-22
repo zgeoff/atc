@@ -1,7 +1,7 @@
 # Development
 
-atc is a Bun workspace with the app in `packages/app`. The repo's [AGENTS.md](../../AGENTS.md) holds
-the layout and the runtime rules, and this runbook covers setting up a checkout and running it.
+atc is a Bun workspace with the app in `packages/app`. Read [AGENTS.md](../../AGENTS.md) for the
+layout and the runtime rules. This runbook covers setting up a checkout and running it.
 
 ## Setting up
 
@@ -28,20 +28,20 @@ commitlint on the message. Before a push it runs atc's own checks, such as the g
 and the import check, and then the
 [pre-push baseline](https://github.com/zgeoff/tools/blob/main/docs/architecture/pre-push-baseline.md)
 that `@zgeoff/chex` ships, which `lefthook.yml` extends from `node_modules`: the format check, the
-type check, the docs checks that `check:docs` names, and the lint and shell lint for what the branch
-changes. atc runs the unit tests for what the branch changes itself, through `test:related`, in the
-test home, in place of the baseline's test job. The hook runs one job at a time, each under a memory
-cap set to the host's memory, and prints each job's peak memory. A push that only deletes remote
-branches, such as `git push origin --delete <branch>`, carries no content, so the hook skips atc's
-own checks and the tests. CI runs the shell lint (`bun run lint:shell`) over every tracked shell
-script, with shfmt's settings in `.editorconfig`, and leaves out the skill scripts that are synced
-from another repo. The guest script check (`bun run check:guest-scripts`) runs shellcheck over the
-shell scripts that atc holds as strings, which the shell lint cannot see.
+type check, the docs checks that the `check:docs` script runs, and the lint and shell lint for what
+the branch changes. atc runs the unit tests for what the branch changes itself, through
+`test:related`, in the test home, in place of the baseline's test job. The hook runs one job at a
+time, each under a memory cap set to the host's memory, and prints each job's peak memory. A push
+that only deletes remote branches, such as `git push origin --delete <branch>`, carries no content,
+so the hook skips atc's own checks and the tests. CI runs the shell lint (`bun run lint:shell`) over
+every tracked shell script, with shfmt's settings in `.editorconfig`, and leaves out the skill
+scripts that are synced from another repo. The guest script check (`bun run check:guest-scripts`)
+runs shellcheck over the shell scripts that atc holds as strings, which the shell lint cannot see.
 
-A squash merge makes the PR title the commit subject, so `.github/workflows/pr-title.yml`, a
-workflow that the tools repo's sync writes, runs commitlint on the title each time a PR opens,
-changes its title, or takes a push. When it fails, rename the PR as its log says; the rename runs it
-again.
+`.github/workflows/pr-title.yml`, a workflow that the tools repo's sync writes, runs commitlint on
+the PR title each time a PR opens, changes its title, or takes a push, because a squash merge makes
+the PR title the commit subject. When it fails, read its log and rename the PR to match; the rename
+runs it again.
 
 ## Running from source
 
@@ -66,7 +66,7 @@ release binary never reads one.
 ## Tests
 
 `bun run test` runs the suite in parallel inside a throwaway home, so no test touches your real
-state. The `testing` and `project-testing` skills hold the conventions. No test spawns the real
+state. Follow the conventions in the `testing` and `project-testing` skills. No test spawns the real
 `claude` binary, except the mod checks below, which start no session.
 
 | Script                                   | Runs                                                                  |
@@ -90,8 +90,8 @@ files the branch changes, and leaves `e2e/` and the codex lane to CI.
 `bun run build:binaries` compiles the release binaries into `dist/`, and `bun run build:atc-bridge`
 regenerates the mod's embedded copy after a change to `mods/atc-bridge/`. `bun run demo:record`
 records `docs/assets/demo.gif` against two throwaway daemons whose agents are stand-ins, so it
-spends no model usage, and needs vhs, ttyd, ffmpeg and jq. The comment at the top of
-`docs/assets/demo.tape` gives how each beat of the recording waits for the last one.
+spends no model usage, and needs vhs, ttyd, ffmpeg and jq. Read the comment at the top of
+`docs/assets/demo.tape` for how each beat of the recording waits for the last one.
 
 `bun run storyboard` writes the README hero, `docs/assets/hero-dark.svg` and
 `docs/assets/hero-light.svg`, from the scene in `scripts/storyboard/hero/`. Commit the two files

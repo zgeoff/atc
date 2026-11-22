@@ -96,8 +96,9 @@ no imp and no grant behind:
 
 The daemon sends every read these checks need, and the read of the imp's name, to impd in one round
 trip, and still refuses in the order of the list. impd reports its version only in a full status
-report, its slowest read, so the target's client caches the version it read last for a while. An
-impd replaced by an older one inside that window still passes the check.
+report, its slowest read, so the target's client caches the version it read last for a while. The
+check is only as fresh as that cache: an impd replaced by an older one inside the window still
+passes it.
 
 The spawn then records the binding and creates a new imp. When an imp already exists under the name,
 the daemon removes the binding it recorded and refuses the spawn with `auth_runtime_exists`, so a

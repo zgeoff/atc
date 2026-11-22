@@ -1,11 +1,11 @@
 # Execution targets
 
 A session's harness, the agent CLI process that atc hosts, runs on an execution target: the daemon's
-own machine, a container on it, or a remote host such as an imp, a VM that impd runs. Each target in
-the config names a provider, and the daemon starts, feeds and ends every harness only through that
-provider's interface. A session binds to its target when it spawns and runs nowhere else for its
-whole life, so the daemon refuses a request that cannot run on the session's target, and never runs
-it on its own machine in place of the target.
+own machine, a Docker container, or a remote host such as an imp, a VM that impd runs. Each target
+in the config names a provider, and the daemon starts, feeds and ends every harness only through
+that provider's interface. A session binds to its target when it spawns and runs nowhere else for
+its whole life, so the daemon refuses a request that cannot run on the session's target, and never
+runs it on its own machine in place of the target.
 
 [The imp provider](./imp-provider.md), [the docker provider](./docker-provider.md) and
 [the sprites provider](./sprites-provider.md) cover the remote providers,

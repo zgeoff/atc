@@ -1,9 +1,10 @@
 # Session record
 
 atc publishes one record for each session it runs. The record holds what atc vouches for about the
-session. Its first field is the record scope: the workspace the session runs in and the worktrees,
-branches, and pull requests a trusted caller declared. atc owns the record's format, and the session
-never writes it. A reader inside the session finds the record at the path in `ATC_SESSION_RECORD`.
+session. Its `scope` field holds the record scope: the workspace the session runs in and the
+worktrees, branches, and pull requests a trusted caller declared. atc owns the record's format, and
+the session never writes it. A reader inside the session finds a copy of the record at the path in
+`ATC_SESSION_RECORD`, and the daemon's state store holds the record itself.
 
 ## Format
 

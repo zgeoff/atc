@@ -18,7 +18,7 @@ read. [Delivering answers](#delivering-answers) gives the sends that get no noti
 stateDiagram-v2
     [*] --> queued: message sent
     queued --> delivered: tap prints it and acks
-    delivered --> answered: the carrying turn ends with a reply
+    delivered --> answered: the model answers it, or its turn ends with a reply
     queued --> unanswered: the carrying turn ends without a reply
     delivered --> unanswered: the carrying turn ends without a reply
     delivered --> unanswered: the session's process ends
