@@ -34,7 +34,7 @@ export function pickJumpLabels(
   );
 
   const needed = names.filter(
-    (_name, index) => isShown[index] === true && !isIsolated[index],
+    (_name, index) => isShown[index] === true && isIsolated[index] !== true,
   ).length;
 
   if (shownCount > free.length && needed > free.length) {
