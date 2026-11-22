@@ -1,14 +1,14 @@
 # The session list
 
-The session list is a see-through panel that the user opens with the leader key, `ctrl+space` unless
-the config's `leader` sets another. The panel opens over the attached session, or over home when no
+The session list is a panel that the user opens with the leader key, `ctrl+space` unless the
+config's `leader` sets another. The panel opens over the attached session, or over home when no
 session is attached.
 
-The panel is a layer of the [compositor](./compositor.md). It writes its cells into the cell buffer,
-blends them over the layers below, and dims those layers. The TUI's other screens, such as help and
-the spawn picker, draw into the screen emulator, which covers the whole terminal and hides the
-session while a screen uses it. The panel never draws there, so the session behind the panel keeps
-drawing while the list is open.
+The panel is a layer of the [compositor](./compositor.md). It writes its cells into the cell buffer
+over the layers below, and dims those layers. The TUI's other screens, such as help and the spawn
+picker, draw into the screen emulator, which covers the whole terminal and hides the session while a
+screen uses it. The panel never draws there, so the session behind the panel keeps drawing while the
+list is open.
 
 ## The attachment outlives the list
 
@@ -78,23 +78,29 @@ other group's label, so two groups never share a label.
 
 ## Jump mode
 
-`f` labels each visible row with a letter, and typing a label picks its row. The labels take the
-keyboard's home row first (`asdfghjkl`), then the other letters.
+`f` starts jump mode, and it shows no label yet. The user looks at the name they want and types a
+letter they can see in it.
 
-In jump mode the user can also type part of a name, which filters the rows to the names that hold
-it. So that a typed letter is never read both ways, the client keeps a letter out of the labels when
-typing it would grow the filter:
+A typed letter matches anywhere in a session's name, with case ignored, and each further letter
+narrows the match the way a search does: `t`, then `u`, keeps the names that hold `tu`. Rows that
+match stay lit, and the rows that do not fade as the rest of the panel fades. The matched letters
+show in blue. When no row matches, the last line reads `no match`, and Backspace takes the last
+typed letter back.
 
-- With nothing typed, the labels leave out every letter that appears in a visible name.
-- After the user types text, the labels leave out each letter that comes right after the typed text
-  in a visible name.
+- When one row matches, the client picks it at once, with no label.
+- When several rows match, each gets a label written over the letter right after its first match, in
+  amber. With `t` typed, `tui-beautiful` shows as `tai-beautiful`, so the user presses `a`. A name
+  that holds the match more than once gets one label, at its first match. A match that ends the name
+  has no letter to write over, so its label sits right after the name.
 
-When the single letters run out, the rows past them take two-letter labels, each starting with a
-letter the rules leave free. When those run out too, a two-letter label can start with a letter that
-would grow the filter, and typing that letter then starts the label.
+A label never clashes with typing one more letter of a name: the client takes label letters only
+from letters that never follow a match in any lit row. When those letters run out, the user keeps
+typing letters of the name to narrow the rows, and no row shows a label until the free letters cover
+the rows. Labels grow to two letters only when no further letter can split the rows, such as names
+that match the same way to their ends. The first letter of a two-letter label is then typed first.
 
 Typing a label on a live session attaches it. Typing a label on an exited session selects its row
-and attaches nothing.
+and attaches nothing. Esc leaves jump mode and keeps the list open.
 
 ## Ending a session
 
@@ -145,7 +151,7 @@ The panel's bottom line shows the key bar, unless one of these needs it. When se
 in this list wins:
 
 1. a prompt;
-2. the filter the user is typing, or `no match` when jump mode has filtered the rows to none;
+2. the filter the user is typing, or `no match` when the letters typed in jump mode match no row;
 3. a notice, such as the result of an action;
 4. the daemons that are down, all on one line;
 5. the advice to update a daemon that runs an older build.
@@ -157,18 +163,21 @@ and a prompt taller than the window keeps its last lines, which hold the keys.
 
 ## Motion
 
-The panel fades in, and the rows fade in one after another, each starting a fixed step after the row
-above it. The close is a shorter fade when the list closes back to a session or to home. When a
-screen such as the spawn picker replaces the list, the list closes at once. A close that starts
-during the open fade, or an open that starts during the close fade, starts from the levels the other
-fade had reached, so the panel never jumps. With the config's `animations` off, the panel opens and
-closes in one frame. The durations are constants in
-[`constants.ts`](../../../packages/tui/src/session-list/constants.ts).
+The panel fades in, and the rows fade in one after another, each starting a step after the row above
+it. The whole open, the last row included, ends within a fixed time whatever the row count, so the
+step shrinks as the list grows, and a short list keeps a visible stagger. The close is a shorter
+fade when the list closes back to a session or to home. When a screen such as the spawn picker
+replaces the list, the list closes at once. A close that starts during the open fade, or an open
+that starts during the close fade, starts from the levels the other fade had reached, so the panel
+never jumps. With the config's `animations` off, the panel opens and closes in one frame. The
+durations are constants in [`constants.ts`](../../../packages/tui/src/session-list/constants.ts).
 
-The panel dims the screen behind it, apart from the terminal's last row, so the
-[fleet bar](./fleet-bar.md) stays readable. The panel lays itself out again on each frame while it
-is open. While it fades out, it keeps the input it last drew, because the list's state can be gone
-by then, and lays that input out again when the terminal's size changes.
+The panel paints no fill of its own: every cell of the panel keeps the terminal's default
+background, apart from the border and the tint on the selected row. The panel dims the screen behind
+it, apart from the terminal's last row, so the [fleet bar](./fleet-bar.md) stays readable. The panel
+lays itself out again on each frame while it is open. While it fades out, it keeps the input it last
+drew, because the list's state can be gone by then, and lays that input out again when the
+terminal's size changes.
 
 The panel asks the [frame clock](./compositor.md) for frames only while something on it moves:
 

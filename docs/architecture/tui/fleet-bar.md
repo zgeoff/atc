@@ -60,9 +60,11 @@ daemon that sends its key, and in every run.
 
 ## Layout
 
-The attached session's place comes first, then the other places in label order. Places are 4 columns
-apart, and the bar keeps 3 columns between the last place and the right end. The bar paints no
-background.
+The attached session's place comes first, then the other places in label order. The bar keeps two
+blank columns at its left end and two at its right end, the width of the margin that Claude Code's
+own status line keeps on the left. Inside a place, one space separates the label and each glyph, as
+in `local ◆ ⠿ ⠿`. Two spaces separate one place from the next, and the bar keeps 3 columns between
+the last place and the right end. The bar paints no background.
 
 A session's glyph follows its state: `◆` for `needs_you`, a braille spinner for `running`, `✓` for
 `done`, `○` for `exited` and `?` for a state a newer daemon added. Glyphs sort in that order, so a
@@ -72,7 +74,7 @@ The bar uses the most detailed level that fits the width:
 
 | Level    | Each place shows                                                     |
 | -------- | -------------------------------------------------------------------- |
-| `glyphs` | its label, up to 4 glyphs, and ` +<n>` for the rest                  |
+| `glyphs` | its label, up to 4 glyphs, and `+<n>` for the rest                   |
 | `counts` | its label, its session count, and `◆` when a session in it needs you |
 | `short`  | as `counts`, with the label cut to 3 letters                         |
 

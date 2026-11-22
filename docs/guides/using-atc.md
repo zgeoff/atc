@@ -85,7 +85,7 @@ you sort to the top:
 | `Enter`      | attach the selected session                                   |
 | `/`          | filter by name or directory                                   |
 | `g`          | group by repository, then by place, then list flat again      |
-| `f`          | jump: type the letter on a row to attach it                   |
+| `f`          | jump: type a letter of a name, then the label that shows      |
 | `i`          | go home                                                       |
 | `K`          | kill the selected live session; it stays listed as exited     |
 | `X`          | end the selected session: stop it and remove it from the list |
