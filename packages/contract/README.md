@@ -53,10 +53,10 @@ bun add -d @opentelemetry/api
 
 ## Configuration
 
-`CONFIG_FILE_SCHEMA` parses the top-level keys of atc's `config.json`, and the
-[configuration guide](../../docs/guides/configuration.md) describes each key.
+`CONFIG_FILE_SCHEMA` parses the top-level keys of atc's `config.json`. See the
+[configuration guide](../../docs/guides/configuration.md) for each key.
 
 ## Documentation
 
-[The published contract](../../docs/architecture/protocol/contract.md) covers what the package holds
-and how its version moves with atc's.
+Read [the published contract](../../docs/architecture/protocol/contract.md) for what the package
+holds and how its version moves with atc's.
