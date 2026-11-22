@@ -107,11 +107,15 @@ terminal beside the turn.
 4. **Resume each agent.** The adapter builds the resume command for the stored agent session id, and
    the session comes back under its stored atc session id, so a client that held the id before the
    restart reaches the same session after it. A terminal starts at a default size until the first
-   attach resizes it. A resumed agent starts no turn, so the session comes back `done`, whatever
-   state the fleet saved it in, and keeps that state until the agent reports again. A relaunched
-   agent no longer shows a prompt it showed before the restart. For an attached Claude agent that
-   still shows one, the screen check moves the session to `needs_you` until the prompt closes, then
-   back to `done`.
+   attach resizes it. A resumed agent starts no turn, so a revive that starts a new agent process
+   brings the session back `done`, whatever state the fleet saved it in, and the session keeps that
+   state until the agent reports again. On a target whose host kept the agent running across the
+   restart, the revive reattaches to that process instead, and the session takes the state the event
+   trail last recorded: `running` after a submitted prompt, `needs_you` after a prompt for input,
+   and `done` otherwise. A hook the agent reports before the reattach is known wins over the trail.
+   A relaunched agent no longer shows a prompt it showed before the restart. For an attached Claude
+   agent that still shows one, the screen check moves the session to `needs_you` until the prompt
+   closes, then back to `done`.
 
 A row whose agent id the config no longer registers keeps its place and refuses to revive, so a
 backend dropped from the config never comes back as plain Claude. A row whose target cannot run it

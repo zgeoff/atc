@@ -437,7 +437,7 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
 
     resolveRestoredEntry: (entry) => restorer.resolveRestoredEntry(entry),
 
-    restore: (entry) => restorer.restore(entry),
+    restore: (entry, attention) => restorer.restore(entry, attention),
 
     isUnrestored: (id) => restorer.isUnrestored(id),
 

@@ -47,6 +47,7 @@ import { runMigrations } from '../sqlite/run-migrations';
 import type { StateStoreSchema } from '../sqlite/state-store-schema';
 import { createAuthBindingStore } from './create-auth-binding-store';
 import { createEventTrailStore } from './create-event-trail-store';
+import type { AttentionKind } from './create-event-trail-store';
 import { createFleetStore } from './create-fleet-store';
 import { createIdempotencyStore } from './create-idempotency-store';
 import { createMaterializationStore } from './create-materialization-store';
@@ -98,6 +99,10 @@ export interface StateStore {
     atcID: SessionID,
     agentSessionID: AgentSessionID | undefined,
   ) => Promise<number | null>;
+  readonly readLatestAttention: (
+    atcID: SessionID,
+    agentSessionID: AgentSessionID | undefined,
+  ) => Promise<AttentionKind | null>;
   readonly removeExpiredEvents: (before: number) => Promise<void>;
   readonly recordSpawnDir: (cwd: string, grant: SpawnTarget, at: number) => Promise<void>;
   readonly readSpawnDirs: () => Promise<SpawnDir[]>;
@@ -294,6 +299,7 @@ export async function createStateStore(
     readAnswer: (id, scope = null) => trail.readAnswer(id, scope),
     readLatestEvents: (limit, scope = null) => trail.readLatestEvents(limit, scope),
     loadLastActivityAt: (atcID, agentSessionID) => trail.loadLastActivityAt(atcID, agentSessionID),
+    readLatestAttention: trail.readLatestAttention,
     removeExpiredEvents: (before) => trail.removeExpiredEvents(before),
 
     recordSpawnDir: async (cwd, grant, at) => {

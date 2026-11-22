@@ -143,7 +143,12 @@ export async function restoreFleet(params: RestoreFleetParams): Promise<RestoreF
       }
 
       if (listed === undefined) {
-        registered.push({ session: manager.restore(resolved), revive: false });
+        const attention = await store.readLatestAttention(
+          resolved.sessionID,
+          resolved.agentSessionID,
+        );
+
+        registered.push({ session: manager.restore(resolved, attention), revive: false });
       } else {
         registered.push({ session: listed, revive: true });
       }

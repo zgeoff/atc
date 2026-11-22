@@ -1,4 +1,5 @@
 export * from './fleet/build-target-identity';
+export type { AttentionKind } from './stores/create-event-trail-store';
 export * from './stores/create-state-store';
 export type * from './fleet/fleet-entry';
 export type * from './idempotency/idempotency-record';

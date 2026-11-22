@@ -2530,6 +2530,121 @@ test('it retries a refused local session while a remote session queued before it
   expect(remote.harnesses).toStrictEqual([]);
 });
 
+test.each([
+  { saved: 'a turn still under way', kinds: ['prompt-submitted'], state: 'running' },
+  { saved: 'a pending prompt', kinds: ['prompt-submitted', 'needs-input'], state: 'needs_you' },
+  { saved: 'a finished turn', kinds: ['prompt-submitted', 'turn-done'], state: 'done' },
+  { saved: 'no turn', kinds: ['started'], state: 'done' },
+] as const)(
+  'it revives a remote session saved after $saved in state $state when its host kept the agent running',
+  async (row) => {
+    const remote = buildStubMemoryProvider({
+      kind: 'imp-like',
+      remote: true,
+      guest: { directory: '/guest/atc', atc: null },
+      harnessStart: { created: false },
+    });
+
+    const ctx = await setupTest({
+      targets: [
+        { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+      ],
+    });
+
+    await ctx.store.writeFleet([
+      buildMockFleetEntry({
+        sessionID: toSessionID('s-busy'),
+        cwd: '/work',
+        target: 'box',
+        targetIdentity: 'imp-like:test',
+        agentSessionID: toAgentSessionID('c-busy'),
+      }),
+    ]);
+
+    for (const [index, kind] of row.kinds.entries()) {
+      await ctx.store.recordEvent(
+        { atcId: toSessionID('s-busy'), event: 'Hook', payload: { session_id: 'c-busy' } },
+        { kind },
+        1_700_000_000_000 + index,
+      );
+    }
+
+    const restored = await restoreFleet({
+      manager: ctx.manager,
+      store: ctx.store,
+      findRuntime: ctx.findRuntime,
+      cols: 80,
+      rows: 24,
+      capMs: 0,
+      retryDelaysMs: [],
+    });
+
+    await restored.settled;
+
+    await ctx.manager.sessions[0]?.pty?.waitForStart?.();
+
+    expect(
+      ctx.manager.sessions.map((session) => ({
+        id: session.id,
+        kind: session.kind,
+        state: session.state,
+      })),
+    ).toStrictEqual([{ id: toSessionID('s-busy'), kind: 'pty', state: row.state }]);
+  },
+);
+
+test('it revives a remote session saved mid-turn as done when its host starts a new agent', async () => {
+  const remote = buildStubMemoryProvider({
+    kind: 'imp-like',
+    remote: true,
+    guest: { directory: '/guest/atc', atc: null },
+    harnessStart: { created: true },
+  });
+
+  const ctx = await setupTest({
+    targets: [
+      { id: 'box', kind: 'imp-like', options: {}, identity: 'imp-like:test', provider: remote },
+    ],
+  });
+
+  await ctx.store.writeFleet([
+    buildMockFleetEntry({
+      sessionID: toSessionID('s-busy'),
+      cwd: '/work',
+      target: 'box',
+      targetIdentity: 'imp-like:test',
+      agentSessionID: toAgentSessionID('c-busy'),
+    }),
+  ]);
+
+  await ctx.store.recordEvent(
+    { atcId: toSessionID('s-busy'), event: 'Hook', payload: { session_id: 'c-busy' } },
+    { kind: 'prompt-submitted' },
+  );
+
+  const restored = await restoreFleet({
+    manager: ctx.manager,
+    store: ctx.store,
+    findRuntime: ctx.findRuntime,
+    cols: 80,
+    rows: 24,
+    capMs: 0,
+    retryDelaysMs: [],
+  });
+
+  await restored.settled;
+
+  await ctx.manager.sessions[0]?.pty?.waitForStart?.();
+
+  expect(
+    ctx.manager.sessions.map((session) => ({
+      id: session.id,
+      kind: session.kind,
+      state: session.state,
+    })),
+  ).toStrictEqual([{ id: toSessionID('s-busy'), kind: 'pty', state: 'done' }]);
+});
+
 test('it starts the next remote session once the one before it attaches to an agent its host still runs', async () => {
   const remote = buildStubMemoryProvider({
     kind: 'imp-like',

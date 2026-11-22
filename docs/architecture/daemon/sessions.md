@@ -40,7 +40,8 @@ of the stop hook. The adapter maps it to a needs-input report that carries the e
 session moves to `needs_you` with that text as its message, which a later idle notification leaves
 in place. The agent then sits idle at its prompt, so attaching moves the session to `done` and keeps
 the error text, and the next submitted prompt moves it back to `running`. The daemon keeps the mark
-of a failed turn in memory only, because a revive brings the session back `done` anyway.
+of a failed turn in memory only, because a revive that starts a new agent brings the session back
+`done` anyway.
 
 A needs-input or turn-done report marks the session unread, and attaching, an acknowledgement or a
 submitted prompt clears it. The overlay sorts unread sessions that need the owner first, which is
@@ -66,7 +67,8 @@ report ends the screen reads, and it moves a session that the screen put in `nee
 `running`, since every dialog before the start is answered by then. A session that the screen moved
 from `done` goes back to `done` in both cases, with its earlier message, because the dialog started
 no turn. A [restore](./fleet-and-restore.md#restoring-the-fleet) lists a revived session as `done`
-when its agent was out of a turn before the daemon restarted.
+when the revive starts a new agent process, and in the state its event trail implies when the revive
+reattaches to an agent the host kept running.
 
 ## Names
 

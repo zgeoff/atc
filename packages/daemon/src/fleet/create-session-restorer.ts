@@ -1,7 +1,8 @@
 import { LOCAL_TARGET } from '@atc/config';
-import type { FleetEntry } from '@atc/store';
+import type { AttentionKind, FleetEntry } from '@atc/store';
 import type { SessionID, SessionLifecycle } from '@atcx/contract';
 import type { ErrorCode } from '@atcx/contract/light';
+import { match } from 'ts-pattern';
 import { LOCAL_TARGET_IDENTITY } from '../sessions/create-session-registry';
 import type { SessionRegistry } from '../sessions/create-session-registry';
 import { resolveRepoRoot } from '../sessions/resolve-repo-root';
@@ -14,7 +15,7 @@ import { resolveRestoredTargetIdentity } from './resolve-restored-target-identit
 export interface SessionRestorer {
   readonly resolveRestoredEntry: (entry: FleetEntry) => Promise<FleetEntry>;
 
-  readonly restore: (entry: FleetEntry) => Session;
+  readonly restore: (entry: FleetEntry, attention?: AttentionKind | null) => Session;
 
   readonly isUnrestored: (id: SessionID) => boolean;
 
@@ -95,7 +96,7 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
         : { ...entry, targetIdentity };
     },
 
-    restore: (entry) => {
+    restore: (entry, attention = null) => {
       const target = entry.target ?? LOCAL_TARGET.id;
       const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
       const targetRefusal = findTargetRefusal(entry);
@@ -161,6 +162,7 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
         ...(entry.authRevision === undefined ? {} : { authRevision: entry.authRevision }),
         ...(entry.agentHome === undefined ? {} : { agentHome: entry.agentHome }),
         ...(entry.trustedRoot === undefined ? {} : { trustedRoot: entry.trustedRoot }),
+        ...(exited ? {} : { reattachedState: pickReattachedState(attention) }),
       };
 
       registry.sessions.push(session);
@@ -229,4 +231,14 @@ function formatTargetRefusal(code: ErrorCode, target: string, isUnconfirmed: boo
   }
 
   return `target '${target}' cannot start a terminal`;
+}
+
+// An agent the host kept running across the restart still holds the turn or prompt the trail last
+// recorded, so a revive that reattaches to it lists that state.
+function pickReattachedState(attention: AttentionKind | null): 'running' | 'needs_you' | 'done' {
+  return match(attention)
+    .with('prompt-submitted', () => 'running' as const)
+    .with('needs-input', () => 'needs_you' as const)
+    .with('turn-done', null, () => 'done' as const)
+    .exhaustive();
 }
