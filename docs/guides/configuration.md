@@ -119,7 +119,7 @@ as its own `principal`, and atc reads the token again on each retry of a refused
 
 Set exactly one of `tokenFile` and `tokenCommand`. atc refuses an entry that holds the token itself
 under `token`, so the config file never holds a credential. The remote daemon serves a TCP request
-only as a principal its config lists, so atc sees the sessions on the targets that principal may
+only as a principal its config lists, and atc sees the sessions on the targets that principal may
 use. Under `atc mcp --http --daemon <name>`, each OAuth client acts as its own principal as well, so
 the remote daemon's `principals` key must list every client that connects
 ([remote callers](../architecture/remote/mcp.md#remote-callers)).

@@ -26,15 +26,17 @@ repository, give it a name, and type a first prompt if you have one. The session
 screen, and you work in it as you would in a plain terminal.
 
 The agent picker lists only the agents whose binary the daemon finds and that some target can start,
-and opens only when it lists more than one. After the agent, the picker shows one list that holds
-every directory and repository the daemon's sources offer, grouped by source in the order of the
-`sources` map in `config.json`. The directories come first in their group: the directory you ran
-`atc` from, then atc's spawn history, every project under the roots in `config.json`, and your
-[zoxide](https://github.com/ajeetdsouza/zoxide) list when zoxide is installed. A repository row
-starts with its source id, such as `github:acme/app`. While a source lists, the list shows the grey
-row `<source id>: listing…` in place of its rows, where `<source id>` is the source's key in
-`sources`, and a failed listing shows its error in that row. A daemon that offers no source gets a
-refusal in place of a list, as the [sources guide](./configuration/workspaces.md#sources) describes.
+and opens only when it lists more than one.
+
+After the agent, the picker shows one list that holds every directory and repository the daemon's
+sources offer, grouped by source in the order of the `sources` map in `config.json`. The directories
+come first in their group: the directory you ran `atc` from, then atc's spawn history, every project
+under the roots in `config.json`, and your [zoxide](https://github.com/ajeetdsouza/zoxide) list when
+zoxide is installed. A repository row starts with its source id, such as `github:acme/app`. While a
+source lists, the list shows the grey row `<source id>: listing…` in place of its rows, where
+`<source id>` is the source's key in `sources`, and a failed listing shows its error in that row. A
+daemon that offers no source gets a refusal in place of a list, as the
+[sources guide](./configuration/workspaces.md#sources) describes.
 
 Typed text filters every row of the list. `Tab` moves the selection to the next source's first row,
 or, while you type, to that source's best match, and wraps from the last source to the first. A
@@ -202,10 +204,10 @@ signs in with, a coordinating agent calls `atc_session_stop` and then `atc_sessi
 does what `P` does in the list. The stop ends the process, and the adopt starts a new one with the
 conversation resumed. On an imp, the same two calls suspend and resume instead: a stop of a session
 that owns its imp puts the host to sleep with the agent process inside, and the adopt wakes the host
-and attaches that same process, so it keeps the login it started with. One exception: when the
-host's runtime auth moved to a newer revision after that process started, such as through
-`atc_session_auth_rebind`, the adopt ends the process and starts a new one, with the conversation
-resumed, under the new revision's settings.
+and attaches that same process, so it keeps the login it started with. When the host's runtime auth
+moved to a newer revision after that process started, such as through `atc_session_auth_rebind`, the
+adopt instead ends the process and starts a new one, with the conversation resumed, under the new
+revision's settings.
 
 Around a stop and an adopt:
 

@@ -2,9 +2,10 @@
 
 Every change to the fleet broadcasts as a wire event — sessions added, state changes, attaches,
 renames, permission requests, and each daemon restart with its result. Each event is one JSON line,
-identical for every consumer; the [protocol](../architecture/protocol/protocol.md#events) defines
-the event names and shapes. Three consumers ride the stream: daemon hooks for running your own
-commands, `atc events` for a stdout feed, and the events socket for a direct subscription.
+identical for every consumer. The event names and shapes are in the
+[protocol](../architecture/protocol/protocol.md#events). Three consumers ride the stream: daemon
+hooks for running your own commands, `atc events` for a stdout feed, and the events socket for a
+direct subscription.
 
 ## Daemon hooks
 
@@ -60,6 +61,6 @@ watch.
 
 A subscriber written against one atc version keeps working across upgrades: every line carries the
 protocol version, and unknown fields are ignored by contract. The
-[protocol](../architecture/protocol/events.md#the-events-socket) covers the delivery contract —
-bounded per-subscriber queues, disconnect on overflow with a fresh snapshot on reconnect, and no
+[protocol](../architecture/protocol/events.md#the-events-socket) has the delivery contract: bounded
+per-subscriber queues, disconnect on overflow with a fresh snapshot on reconnect, and no
 `SessionOutput` (screen bytes stay attach-scoped).
