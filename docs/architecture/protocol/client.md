@@ -38,8 +38,8 @@ without them. A caller that routes calls by method name, such as the gateway, us
 - **Output cap.** A connection stops sending once its socket holds more unwritten output than the
   client allows, and the call fails with `internal`.
 - **No reconnect and no resend.** A dropped socket rejects each pending call with `connection_lost`.
-  Its `data` names the procedure, and says whether the call was read-only and whether it carried an
-  idempotency key, which is what a caller needs to decide on a resend. See
+  Its `data` holds the procedure, whether the call was read-only and whether it carried an
+  idempotency key, which a caller needs to decide on a resend. See
   [idempotent requests](./idempotency.md).
 - **Deadline.** The connect and the hello share `timeoutMs`, which has a default. A late hello fails
   with `timeout`, and an abort signal cancels the open.

@@ -54,14 +54,13 @@ A new input field that changes what a call does gets a feature name and an entry
 and the feature a daemon must list. The connection layer checks the map before it sends a call: when
 a listed field is present and not `undefined`, and the daemon's hello lacks the feature, the call
 fails with `feature_missing` and sends nothing. `atc mcp` advertises every tool and input whatever
-the daemon serves, and returns the same error with a message that says to restart the daemon on a
-newer atc.
+the daemon serves, and returns the same error with a message to restart the daemon on a newer atc.
 
 The check runs only after a handshake the daemon accepts. Every client sends its major version in
 its hello, a client outside atc included, and a daemon on another major version refuses the hello
 with `protocol_mismatch` before the client sees any features ([versions](./protocol.md#versions)).
-The refusal's data holds `daemonMajor`, so a client reads which side is older from it and never
-retries with another value.
+Read which side is older from `daemonMajor` in the refusal's data, and never retry with another
+value.
 
 ## Versions
 

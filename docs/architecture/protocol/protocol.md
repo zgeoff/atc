@@ -6,16 +6,16 @@ then carries requests, one response per request, and the event stream the client
 Client and daemon talk when their major versions match, and a peer never breaks on a field or an
 event kind it does not know.
 
-[Principals](./principals.md) covers who a request acts as, [idempotency](./idempotency.md) covers
-retrying a spawn or a message, [messages](./messages.md) covers the inbox, and [events](./events.md)
-covers the event trail and the events socket.
+For who a request acts as, see [principals](./principals.md). For retrying a spawn or a message, see
+[idempotency](./idempotency.md). For the inbox, see [messages](./messages.md). For the event trail
+and the events socket, see [events](./events.md).
 
 ## Why JSON lines
 
 The protocol has no binary frame. The pseudo-terminal library delivers output as decoded strings, so
 byte-level transparency is gone before the protocol sees the data, and binary framing would buy size
 but no fidelity. One dialect also serves every peer: the session helpers, the MCP tools and the
-Agent SDK all speak JSON already.
+Agent SDK all speak JSON.
 
 ## Messages
 
@@ -34,7 +34,7 @@ procedure is named `noun.verb`, and a request names it as a path, so `session.sp
 ```
 
 Events are `PascalCase`, and the MCP tools map procedure and event names onto their own
-mechanically. The protocol module's error list defines every code.
+mechanically. Every code is in the protocol module's error list.
 
 The daemon runs each request on its own, so responses can arrive in another order than their
 requests, and a client matches each response to its request by message id. Only the responses can
@@ -52,8 +52,7 @@ An error holds a code from a closed list that grows by addition, a human message
   message.
 - An answer that fails its procedure's schema is an `internal` error, so a client never reads an
   answer outside the contract.
-- Every field a peer does not know is ignored, in any message but the hello, which the next section
-  covers.
+- Every field a peer does not know is ignored, in any message but the hello (see the next section).
 - A peer decodes an error code it does not know as `internal` and keeps the message.
 
 A line that is no peer message, or one longer than the line cap, means a buggy or hostile peer,
@@ -85,8 +84,8 @@ nothing, the major version included.
 The answer holds the daemon's build, its line limits, how long it keeps a completed idempotency key,
 the last agent the owner spawned, and the daemon id. The daemon mints that id into its store the
 first time it opens it, so the id stays the same across restarts, and every session descriptor holds
-a locator of the daemon id and the session's target, which tells a client routing across several
-daemons where a session lives.
+a locator of the daemon id and the session's target, so a client routing across several daemons
+knows where a session lives.
 
 The answer also holds the peer session: the session that the daemon found from the kernel's pid for
 the connecting process, or null when the process runs inside no session, on the TCP listener, and
@@ -104,7 +103,7 @@ first one gave.
 
 ## Connection lifecycle
 
-A connection moves through six states, and only an open connection runs requests and receives
+A connection moves through these states, and only an open connection runs requests and receives
 events:
 
 ```mermaid
@@ -148,8 +147,8 @@ Each client sends its major version in the hello as `major`, and the daemon acce
 or with none, gets `protocol_mismatch`. The error holds both builds, and its data holds the daemon's
 major version as `daemonMajor` and its protocol number as `daemonProtocol`. A client reads
 `daemonMajor` to decide which side is older, and treats a refusal without it as one from a daemon of
-an older release. [The daemon](../daemon/daemon.md#builds-and-major-versions) covers how each client
-handles it.
+an older release. For how each client handles it, see
+[the daemon](../daemon/daemon.md#builds-and-major-versions).
 
 Inside one major version every change to a procedure, an input field, an answer field or an event is
 additive, and `bun run check:contract-compat` fails a pull request that is not. A peer ignores an
@@ -183,7 +182,7 @@ inbox events go only to the session's message tap ([messages](./messages.md#the-
 that acts as a principal reaches only the sessions on the targets that principal may use, and an
 owner's connection reaches every session.
 
-A permission prompt broadcasts with a flag that says whether a client can answer it through the
+A permission prompt broadcasts with a flag that is true when a client can answer it through the
 protocol. Every prompt from a terminal session carries false, because the agent takes its answer as
 keys in its terminal. A session that takes a structured answer raises the same event with the flag
 set, and the first answer wins: it broadcasts the resolution, so every client dismisses its prompt,
