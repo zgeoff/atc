@@ -2,10 +2,11 @@
 
 ## [7.25.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.25.0...@zgeoff/atc@7.25.1) (2026-11-22)
 
-
 ### Bug Fixes
 
-* **tui:** keep a default background default while the session list fades ([#1390](https://github.com/zgeoff/atc/issues/1390)) ([9cb8906](https://github.com/zgeoff/atc/commit/9cb8906c2601e661ea761c1ab8c9ad50f75df428))
+- **tui:** keep a default background default while the session list fades
+  ([#1390](https://github.com/zgeoff/atc/issues/1390))
+  ([9cb8906](https://github.com/zgeoff/atc/commit/9cb8906c2601e661ea761c1ab8c9ad50f75df428))
 
 ## [7.25.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.24.0...@zgeoff/atc@7.25.0) (2026-11-22)
 
