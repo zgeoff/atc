@@ -86,32 +86,47 @@ test('it cycles the grouping with g, and shows the place groups with their heade
   expect(ctx.tui.readScreen()).toMatch(/^\s*│ local {2}1/mu);
 });
 
-test('it attaches the session a jump label names', async () => {
+test('it fades the rows a typed letter misses, labels the rest, and attaches the label key', async () => {
   const ctx = await setupTest();
 
-  await spawnDaemonSession(ctx.tui, 'alpha');
+  await spawnDaemonSession(ctx.tui, 'tango');
 
-  const bravoID = await spawnDaemonSession(ctx.tui, 'bravo');
+  const kiteID = await spawnDaemonSession(ctx.tui, 'kite');
+
+  await spawnDaemonSession(ctx.tui, 'mango');
 
   ctx.tui.write(KEYS.ctrlSpace);
 
-  // Both rows settle in their last order before a label is read, since a state change reorders them.
+  // The rows settle in their last order before a letter is typed, since a state change reorders them.
   await waitFor(() => {
-    expect(ctx.tui.readScreen().match(/needs you: /gu)).toHaveLength(2);
+    expect(ctx.tui.readScreen().match(/needs you: /gu)).toHaveLength(3);
   });
 
   ctx.tui.write('f');
 
-  // The jump label stands in the place of the state glyph
-  const label = await waitFor(() => {
-    const match = /[▌▎](?<label>\p{L}) bravo/u.exec(ctx.tui.readScreen());
+  await waitFor(() => {
+    expect(ctx.tui.readScreen()).toInclude('tango');
+  });
 
-    if (match?.groups?.['label'] === undefined) {
-      throw new Error('no jump label on the bravo row');
+  ctx.tui.write('t');
+
+  // The label stands over the letter after each first t, and the row without a t stays as it was.
+  const label = await waitFor(() => {
+    const screen = ctx.tui.readScreen();
+    const match = /kit(?<label>[a-z])(?!\p{L})/u.exec(screen);
+
+    if (
+      match?.groups?.['label'] === undefined ||
+      !/t[a-z]ngo/u.test(screen) ||
+      screen.includes('tango')
+    ) {
+      throw new Error('no labels over the rows that hold a t');
     }
 
     return match.groups['label'];
   });
+
+  expect(ctx.tui.readScreen()).toInclude('mango');
 
   ctx.tui.write(label);
 
@@ -120,7 +135,36 @@ test('it attaches the session a jump label names', async () => {
   ctx.tui.write(`hello${KEYS.enter}`);
 
   await waitFor(async () => {
-    const screen = await ctx.readSessionScreen(bravoID);
+    const screen = await ctx.readSessionScreen(kiteID);
+
+    expect(screen).toInclude('GOT:hello');
+  });
+});
+
+test('it attaches at once the one session a typed letter matches', async () => {
+  const ctx = await setupTest();
+
+  await spawnDaemonSession(ctx.tui, 'tango');
+
+  const kiteID = await spawnDaemonSession(ctx.tui, 'kite');
+
+  await spawnDaemonSession(ctx.tui, 'mango');
+
+  ctx.tui.write(KEYS.ctrlSpace);
+
+  await waitFor(() => {
+    expect(ctx.tui.readScreen().match(/needs you: /gu)).toHaveLength(3);
+  });
+
+  ctx.tui.write('f');
+  ctx.tui.write('k');
+
+  await ctx.tui.waitForGone('╭─ ');
+
+  ctx.tui.write(`hello${KEYS.enter}`);
+
+  await waitFor(async () => {
+    const screen = await ctx.readSessionScreen(kiteID);
 
     expect(screen).toInclude('GOT:hello');
   });

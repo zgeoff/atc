@@ -99,5 +99,5 @@ test('it keeps the fleet bar on the last row while the session list is open over
 
   await ctx.tui.waitFor('╭─ ');
 
-  expect(ctx.readLastRow()).toMatch(/^local \S+ +\^Space$/u);
+  expect(ctx.readLastRow()).toMatch(/^ {2}local(?: \S)+ +\^Space\s*$/u);
 });
