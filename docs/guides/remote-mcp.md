@@ -3,7 +3,7 @@
 `atc mcp --http` serves atc's MCP tools over HTTP behind OAuth, so a hosted assistant such as
 ChatGPT or Claude.ai can reach your sessions with the grant scopes you approve. Nothing listens on
 HTTP unless you run it, and stopping the server, with Ctrl-C or with its service, ends remote
-access. [OAuth](../architecture/remote/oauth.md) covers how the server works.
+access. For how the server works, read [OAuth](../architecture/remote/oauth.md).
 
 ## Starting the server
 
@@ -25,9 +25,9 @@ URL. To serve a tailnet, keep the loopback bind and let the tailnet's own TLS fr
 `tailscale serve`, carry the https origin.
 
 Add `--daemon <name>` to serve a daemon from the config's
-[`daemons` key](./configuration.md#remote-daemons) instead of your local one. That daemon's own
-`principals` key must then list every client you add, or it refuses the client's calls with an error
-that holds the client's principal and the daemon's name
+[`daemons` key](./configuration.md#remote-daemons) instead of your local one. Then list every client
+you add in that daemon's own `principals` key, or the daemon refuses the client's calls with an
+error that holds the client's principal and the daemon's name
 ([remote callers](../architecture/remote/mcp.md#remote-callers)).
 
 ## Adding a client
@@ -75,8 +75,8 @@ it `--public-url http://localhost:<port>` to sign in from a browser on the same 
    a request expires after 10 minutes.
 4. Tick the scopes to grant on the consent page. Only `read` is ticked to start. `message` lets the
    client instruct your agents, which can run commands. It also lets the client rename, pin and mark
-   your sessions read. [Scopes](../architecture/remote/mcp.md#scopes) lists the tools each scope
-   allows.
+   your sessions read. For the tools each scope allows, read
+   [Scopes](../architecture/remote/mcp.md#scopes).
 
 The client then holds a grant. To widen it, connect again and approve the larger set. Each
 connection needs a fresh sign-in, so a browser that signed in before approves nothing by itself.
@@ -150,17 +150,17 @@ the new file holds no digest at all. When the new file fails to load, the server
 secret, add its new digest beside the old one, send SIGHUP, move the client to the new secret, then
 drop the old digest and send SIGHUP again.
 
-A client's `scopes` limit its tools: a client without `spawn` cannot call `atc_session_spawn`.
-[The gateway guide](./gateway.md#service-tokens) lists every field of the file, and the
-[architecture doc](../architecture/remote/oauth.md#service-tokens) covers how the server checks it.
+A client's `scopes` limit its tools: a client without `spawn` cannot call `atc_session_spawn`. For
+every field of the file, read [the gateway guide](./gateway.md#service-tokens). For how the server
+checks it, read the [architecture doc](../architecture/remote/oauth.md#service-tokens).
 
 ## Watching a terminal in a browser
 
-The server streams a session's live terminal to a web page over a WebSocket, read-only.
-[Live terminals](../architecture/remote/live-terminal.md) holds the URL, the token step and every
-frame. A page you host reaches it with an OAuth token that has the `read` scope, or, from a server
-bound to loopback on your own machine, with an owner token from a file. These steps run the example
-page with an owner token:
+The server streams a session's live terminal to a web page over a WebSocket, read-only. For the URL,
+the token step and every frame, read [Live terminals](../architecture/remote/live-terminal.md). A
+page you host reaches it with an OAuth token that has the `read` scope, or, from a server bound to
+loopback on your own machine, with an owner token from a file. These steps run the example page with
+an owner token:
 
 1. Make a token file that only you can read:
 
@@ -195,12 +195,12 @@ page with an owner token:
    Expect the session's screen, followed by its state, such as `running`. A session's ID is
    `$ATC_SESSION_ID` inside the session, and the `atc_sessions_list` tool lists every one.
 
-The browser never sends a fragment to a server, so the token stays out of the page server's log. Two
-separate rules decide whether the page connects. The page's host sets its origin, which must be on
-the allowed list: add `--allowed-origin` once per origin, or list the origins in the config's
-`mcpHTTP.allowedOrigins`. The server's bind address sets which token works: a server bound to
-loopback takes an owner token, even from a page hosted elsewhere, and a server bound beyond loopback
-refuses an owner token file, so a page that watches it takes an OAuth token.
+The browser never sends a fragment to a server, so the token stays out of the page server's log. The
+page connects when its origin is on the allowed list and its token suits the server's bind address.
+The page's host sets its origin. Add `--allowed-origin` once per origin, or list the origins in the
+config's `mcpHTTP.allowedOrigins`. A server bound to loopback takes an owner token, even from a page
+hosted elsewhere, and a server bound beyond loopback refuses an owner token file, so a page that
+watches it takes an OAuth token.
 
 ## Running under systemd
 

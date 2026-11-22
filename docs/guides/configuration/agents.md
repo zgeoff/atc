@@ -76,11 +76,11 @@ name that starts with `ATC_`, since atc keeps those names for the variables it s
 
 atc also leaves out an entry with `auth` when its `env` sets a variable that would override the
 sign-in or route the CLI around impd's broker: a proxy or CA variable, a credential variable of the
-CLI, or a variable that a selected profile sets.
+CLI, or a variable that a selected profile sets. The variables for each kind are in
 [Claude subscription on imps](./claude-subscription.md) and
-[Codex subscription on imps](./codex-subscription.md) list these variables for each kind, and
-[brokered gateways](./brokered-gateways.md) lists them for a gateway. A Grok entry takes no `auth`,
-so this check never applies to it.
+[Codex subscription on imps](./codex-subscription.md), and those for a gateway are in
+[brokered gateways](./brokered-gateways.md). A Grok entry takes no `auth`, so this check never
+applies to it.
 
 A stock Claude entry also takes an `env` block in its [`settings`](#extra-session-settings). atc
 merges the two blocks, and `env` wins for a key that both set.
@@ -195,13 +195,13 @@ backend, under its own agent id. Claude and GLM sessions then sit side by side i
 ```
 
 A spawn through `atc_session_spawn` or `session.spawn` can pick a model and an effort per session;
-the [protocol](../../architecture/agents/adapters.md#spawn-options) lists what each agent takes. A
+see the [protocol](../../architecture/agents/adapters.md#spawn-options) for what each agent takes. A
 gateway offers each tier its `env` maps as a model, and passes an effort on to the CLI, which its
 provider may ignore.
 
 atc writes one settings file per id and passes it as `--settings`, on the terminal spawn and on a
-headless turn alike, so a gateway session reaches its own backend rather than whatever the terminal
-exported. Two entries may be given the same `mark`; atc does not check, and a clash makes them
+headless turn alike, so a gateway session reaches its own backend whatever the terminal exported.
+Two entries may be given the same `mark`; atc does not check, and a clash makes them
 indistinguishable in the overlay column.
 
 A gateway that signs in through impd's credential broker on an imp takes `auth`, and the
@@ -216,8 +216,7 @@ list joins the fleet reporter on that event rather than replacing it. A stock Cl
 
 A permission classifier is the case this exists for. Claude Code's auto mode judges nothing in a
 session pointed at another backend, so a gateway session asks about every write and every command
-until something else answers. A hook that answers them belongs to the gateway rather than to your
-global settings:
+until something else answers. Give the gateway a hook that answers them:
 
 ```json
 {
