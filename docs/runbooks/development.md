@@ -69,15 +69,16 @@ release binary never reads one.
 state. The `testing` and `project-testing` skills hold the conventions. No test spawns the real
 `claude` binary, except the mod checks below, which start no session.
 
-| Script                                   | Runs                                                                 |
-| ---------------------------------------- | -------------------------------------------------------------------- |
-| `bun run test:related`                   | the unit tests beside the files you pass                             |
-| `bun run test:e2e e2e/tui-*.test.ts`     | the e2e suites you pass, under the e2e lane limit of 15 s            |
-| `bun run test:e2e e2e/daemon-*.test.ts`  | the daemon suite against a compiled binary, with `ATC_BIN` set       |
-| `bun run test:e2e e2e/gateway-*.test.ts` | the gateway suite against a compiled gateway, with `ATC_GATEWAY_BIN` |
-| `bun run test:atc-bridge`                | `claude plugin validate` and `claude plugin test` on the mod         |
-| `bun run test:isolation`                 | the suite in a canary home, failing when a test touches a real home  |
-| `bun run test:timings`                   | the suite, rewriting the timings that start the slowest files first  |
+| Script                                   | Runs                                                                  |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| `bun run test:related`                   | the unit tests beside the files you pass                              |
+| `bun run test:e2e e2e/tui-*.test.ts`     | the e2e suites you pass, under the e2e lane limit of 15 s             |
+| `bun run test:e2e e2e/daemon-*.test.ts`  | the daemon suite against a compiled binary, with `ATC_BIN` set        |
+| `bun run test:e2e e2e/gateway-*.test.ts` | the gateway suite against a compiled gateway, with `ATC_GATEWAY_BIN`  |
+| `bun run test:atc-bridge`                | `claude plugin validate` and `claude plugin test` on the mod          |
+| `bun run test:browser`                   | the README hero's frame checks, in Chrome, through rig's browser lane |
+| `bun run test:isolation`                 | the suite in a canary home, failing when a test touches a real home   |
+| `bun run test:timings`                   | the suite, rewriting the timings that start the slowest files first   |
 
 The unit run and the e2e run take their worker count from the
 [worker helper](https://github.com/zgeoff/tools/blob/main/docs/architecture/memory-caps.md#the-worker-count):
@@ -91,6 +92,11 @@ regenerates the mod's embedded copy after a change to `mods/atc-bridge/`. `bun r
 records `docs/assets/demo.gif` against two throwaway daemons whose agents are stand-ins, so it
 spends no model usage, and needs vhs, ttyd, ffmpeg and jq. The comment at the top of
 `docs/assets/demo.tape` gives how each beat of the recording waits for the last one.
+
+`bun run storyboard` writes the README hero, `docs/assets/hero-dark.svg` and
+`docs/assets/hero-light.svg`, from the scene in `scripts/storyboard/hero/`. Commit the two files
+with the scene: the unit run fails when they differ from what the build writes, and
+`bun run test:browser` checks their frames for overlapping text.
 
 ## Checking a change to the agent integration
 

@@ -78,6 +78,18 @@
       }
     },
     {
+      // @zgeoff/storyboard sets the shape of a scene folder: its two suites sit beside no module and
+      // call one function at module level, and tokens.ts, kit.ts and scene.tsx export what a call
+      // returns
+      "files": ["scripts/storyboard/**"],
+      "rules": {
+        "zgeoff/test-beside-module": "off",
+        "zgeoff/setup-test-only": "off",
+        "zgeoff/file-named-for-export": "off",
+        "zgeoff/no-pick-destructuring": "off"
+      }
+    },
+    {
       // an integration flow crosses packages, so no one module sits beside it
       "files": ["integration/**"],
       "rules": { "zgeoff/test-beside-module": "off" }

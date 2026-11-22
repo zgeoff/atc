@@ -36,6 +36,7 @@ minimumReleaseAgeExcludes = [
   "@zgeoff/oxlint-config",
   "@zgeoff/rig",
   "@zgeoff/std",
+  "@zgeoff/storyboard",
   "@zgeoff/testing",
 ]
 

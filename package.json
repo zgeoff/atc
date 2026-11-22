@@ -57,6 +57,7 @@
       "@zgeoff/oxlint-config": "0.11.3",
       "@zgeoff/rig": "0.3.2",
       "@zgeoff/std": "0.4.5",
+      "@zgeoff/storyboard": "0.1.3",
       "@zgeoff/testing": "0.4.2",
       "bun-pty": "0.6.0",
       "elysia": "2.0.0-rc.3",
@@ -115,6 +116,7 @@
     "test:related": "bash scripts/with-test-home.sh rig related",
     "test:timings": "bash scripts/with-test-home.sh rig unit --timings=bun-test-timings.json --update-timings",
     "test:e2e": "workers=$(bun scripts/read-worker-count.ts) && bash scripts/with-test-home.sh bash scripts/with-e2e-paths.sh bun test --parallel=$workers --no-isolate --timeout 15000 --path-ignore-patterns='mods/**' --",
+    "test:browser": "bash scripts/with-test-home.sh rig browser",
     "test:codex": "bash scripts/with-test-home.sh rig codex",
     "test:toolchain": "bash scripts/with-test-home.sh rig toolchain",
     "test:atc-bridge": "bash scripts/with-test-home.sh sh -c 'claude plugin validate --strict mods/atc-bridge && claude plugin test mods/atc-bridge'",
@@ -128,7 +130,8 @@
     "prepare": "command -v git > /dev/null 2>&1 && lefthook install --force || true",
     "check:agent-hooks": "agent-hooks init && git diff --exit-code -- .claude/settings.json .codex/hooks.json",
     "check:atc-bridge-drift": "bun run build:atc-bridge && git diff --exit-code packages/harnesses/claude/src/bridge/atc-bridge-files.ts",
-    "check:docs": "chex prose length links readmes skill"
+    "check:docs": "chex prose length links readmes skill",
+    "storyboard": "storyboard build"
   },
   "devDependencies": {
     "@atc/app": "workspace:*",
@@ -175,6 +178,7 @@
     "@zgeoff/oxlint-config": "catalog:",
     "@zgeoff/rig": "catalog:",
     "@zgeoff/std": "catalog:",
+    "@zgeoff/storyboard": "catalog:",
     "@zgeoff/testing": "catalog:",
     "bun-pty": "catalog:",
     "knip": "catalog:",

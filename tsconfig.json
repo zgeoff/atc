@@ -1,6 +1,8 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "@zgeoff/storyboard",
     "types": ["bun", "@zgeoff/bun-test-extended"]
   },
   "include": [
@@ -9,6 +11,7 @@
     "e2e/**/*.ts",
     "integration/**/*.ts",
     "scripts/**/*.ts",
+    "scripts/**/*.tsx",
     "rig.config.ts"
   ]
 }
