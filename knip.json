@@ -7,6 +7,7 @@
         "e2e/**/*.test.ts",
         "integration/**/*.test.ts",
         "scripts/**/*.test.ts",
+        "scripts/storyboard/*/scene.tsx",
         "scripts/create-state-template.ts",
         "scripts/pack-contract.ts",
         "scripts/serve-stub-daemon.ts",
@@ -18,7 +19,7 @@
         "scripts/test-utils/run-local-daemon.ts",
         "scripts/test-utils/run-docker-daemon.ts"
       ],
-      "project": ["e2e/**/*.ts", "integration/**/*.ts", "scripts/**/*.ts"]
+      "project": ["e2e/**/*.ts", "integration/**/*.ts", "scripts/**/*.ts", "scripts/**/*.tsx"]
     },
     "packages/app": {
       "entry": ["src/gateway.ts", "src/**/*.test.ts"],
