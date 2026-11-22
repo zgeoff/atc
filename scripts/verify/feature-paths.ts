@@ -77,6 +77,9 @@ export const ignoredPaths = [
   'scripts/{build,check,collect,declaration,find,install,load,pack,pick,probe,publish,read,record,restore,run,stage,test,write}-*',
   'scripts/{deadcode.ts,with-e2e-paths.sh,disable-baseline.json}',
   'scripts/verify-gate/**',
+
+  // The README hero builds from these files; no journey runs them.
+  'scripts/storyboard/**',
   'scripts/{harmless-input-fields,is-breaking-marked}.ts',
   'scripts/test-utils/build-contract-schemas.ts',
 
