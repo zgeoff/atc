@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.24.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.23.0...@zgeoff/atc@7.24.0) (2026-11-22)
+
+
+### Features
+
+* **tui:** jump by the letters you see, and fit the list and bar ([#1380](https://github.com/zgeoff/atc/issues/1380)) ([ead1877](https://github.com/zgeoff/atc/commit/ead187759366577474cb147bb8a77ece0848e8a3))
+
+
+### Bug Fixes
+
+* **daemon:** flag api-error turns and revive sessions as done ([#1381](https://github.com/zgeoff/atc/issues/1381)) ([eb9b36f](https://github.com/zgeoff/atc/commit/eb9b36fae4972a28b5819d333dd3b4f0d5eab814))
+
 ## [7.23.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.22.0...@zgeoff/atc@7.23.0) (2026-11-21)
 
 ### Features
