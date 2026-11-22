@@ -15,8 +15,8 @@ Run this journey after the journeys on `local`:
 2. Run `bun verify down`. Then run `bun verify use --target docker`, `bun verify up` and
    `bun verify doctor`. Expect from `up`: `ok: true`, after about 10 seconds.
 3. Run the lines of [Journey](#journey) in order. When a line exits non-zero, run the
-   `action forget-docker-session` line, then do what step 5 of the verify skill's
-   [Check a change](../SKILL.md#check-a-change) says.
+   `action forget-docker-session` line, then follow step 5 of the verify skill's
+   [Check a change](../SKILL.md#check-a-change).
 4. When you are done with this journey, run `bun verify down`. Expect: `ok: true`. `down` removes
    every container, volume and image of the run.
 
@@ -24,8 +24,8 @@ Run this journey after the journeys on `local`:
 
 - `up` compiles the atc binary, builds an image with a stand-in `claude`, and writes a fake token
   into the run's sign-in volume.
-- `bun verify` names each Docker object of the run with one prefix, `atcverify<random>-`.
-  `inspect-docker-session` reads only the objects with that prefix.
+- Each Docker object of the run has the prefix `atcverify<random>-`, and `inspect-docker-session`
+  reads only the objects with that prefix.
 - The run's daemon has one execution target in its config, `box`, of the `docker` provider. Each
   action starts its session on `box`. The word "target" in the rest of this file means a verify
   target.
