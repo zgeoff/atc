@@ -79,8 +79,9 @@ The bar uses the most detailed level that fits the width:
 | `short`  | as `counts`, with the label cut to 3 letters                         |
 
 - When `short` leaves no room for every place, the bar drops places from the end of the order, and
-  writes `…` after the last place it kept. When no place fits, the bar writes no `…`. The right end
-  always shows.
+  writes `…` after the last place it kept. When no place fits, the bar writes no `…`.
+- The bar never writes in its blank end columns. When the right end does not fit between them, the
+  bar drops the leader key's label first, then the need-you count.
 - The bar measures every width in terminal columns per grapheme, so a wide character such as `界`
   takes two columns.
 

@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
+import { measureWidth } from '../terminal/measure-width';
 import { buildFleetBar } from './build-fleet-bar';
 import { formatFleetBar } from './format-fleet-bar';
+import type { FleetBarRun } from './format-fleet-bar';
 import type { FleetBarSession } from './types';
 
 function setupTest() {
@@ -136,6 +138,46 @@ test('#formatFleetBar starts the next run after the two columns of a wide label'
     [2, '界界'],
     [6, ' ✓'],
   ]);
+});
+
+test.each(Array.from({ length: 25 }, (_, cols) => ({ cols })))(
+  '#formatFleetBar keeps the two columns at each end blank at $cols columns',
+  (row) => {
+    const ctx = setupTest();
+
+    const bar = buildFleetBar(ctx.sessions, {
+      cols: row.cols,
+      leaderLabel: 'ctrl+space',
+      attachedPlaceKey: null,
+    });
+
+    expect(formatFleetBar(bar, row.cols)).toSatisfyAll(
+      (run: FleetBarRun) => run.col >= 2 && run.col + measureWidth(run.text) <= row.cols - 2,
+    );
+  },
+);
+
+test.each([
+  { cols: 12, expected: `${' '.repeat(7)}◆ 2  ` },
+  { cols: 6, expected: ' '.repeat(6) },
+])('#formatFleetBar drops the leader label, then the need-you count, at $cols columns', (row) => {
+  const ctx = setupTest();
+
+  const bar = buildFleetBar(ctx.sessions, {
+    cols: row.cols,
+    leaderLabel: 'ctrl+space',
+    attachedPlaceKey: null,
+  });
+
+  const text = Array.from({ length: row.cols }, () => ' ');
+
+  for (const run of formatFleetBar(bar, row.cols)) {
+    run.text.split('').forEach((ch, index) => {
+      text[run.col + index] = ch;
+    });
+  }
+
+  expect(text.join('')).toBe(row.expected);
 });
 
 test.each([

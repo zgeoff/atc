@@ -41,18 +41,20 @@ export function formatFleetBar(bar: FleetBar, cols: number): readonly FleetBarRu
   }
 
   const right = buildRightEnd(bar.needYou, bar.leaderLabel, cols);
-  const rightCol = Math.max(0, cols - BAR_MARGIN - right.width);
+  const rightCol = cols - BAR_MARGIN - right.width;
 
   if (right.needYouText !== '') {
     runs.push({ col: rightCol, text: right.needYouText, fg: AMBER, bold: false });
   }
 
-  runs.push({
-    col: rightCol + measureWidth(right.needYouText) + right.gap,
-    text: right.leaderLabel,
-    fg: BLUE,
-    bold: true,
-  });
+  if (right.leaderLabel !== '') {
+    runs.push({
+      col: rightCol + measureWidth(right.needYouText) + right.gap,
+      text: right.leaderLabel,
+      fg: BLUE,
+      bold: true,
+    });
+  }
 
   return runs;
 }
