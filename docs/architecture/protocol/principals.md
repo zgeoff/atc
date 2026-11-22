@@ -18,12 +18,13 @@ only the session, the sessions below it and its parent
 
 A request acts as a principal when its `x-atc-as` header holds one, and its `x-atc-as-name` header
 holds that principal's display name. A whole connection acts as one when its handshake holds
-`principal`. On the unix socket, a request with neither acts as the owner; on the TCP listener it
-gets `unauthorized`, as [The TCP listener](#the-tcp-listener) says. A request's principal can only
-narrow its connection's: on a connection that acts as one principal, a request that acts as another
-reaches only the targets both may use. The daemon refuses a request whose `x-atc-as` header is empty
-or repeated with `bad_args` rather than ignore the value, because ignoring it would leave the
-request with the connection's full reach.
+`principal`. On the unix socket, a request with neither acts as the owner. On the TCP listener,
+every request but the event subscription needs the `x-atc-as` header, as
+[The TCP listener](#the-tcp-listener) says. A request's principal can only narrow its connection's:
+on a connection that acts as one principal, a request that acts as another reaches only the targets
+both may use. The daemon refuses a request whose `x-atc-as` header is empty or repeated with
+`bad_args` rather than ignore the value, because ignoring it would leave the request with the
+connection's full reach.
 
 ## Who a caller is
 

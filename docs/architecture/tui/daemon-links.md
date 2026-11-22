@@ -33,8 +33,8 @@ the events that move the machine in and out of it, belong to the primary link al
 boot of the primary ends the client, because the local daemon starts on demand and a failure means a
 broken install the owner should see at once.
 
-Every other link stays out of the state machine. It opens after the primary's first boot, does not
-wait on another link, never ends the client, and never offers a restart. It connects as its entry's
+Every other link stays out of the state machine. It opens once the primary's first boot ends, waits
+on no link after that, never ends the client, and never offers a restart. It connects as its entry's
 principal, so the owner sees on a remote daemon only what that principal's key grants, and the link
 carries no owner power across the network. It passes no `viewer`.
 

@@ -55,7 +55,7 @@ command clears a key.
 
 A daemon that stops mid-request leaves its key in progress. At start, before it serves a request,
 the next daemon marks every such key `outcome_unknown`, then completes each one whose effect it can
-see: a spawn key whose session is in the fleet, and a message key whose message row exists. A spawn
+see: a spawn key whose session has a fleet row, and a message key whose message row exists. A spawn
 key completed this way has no stored answer, so a retry gets `no_such_session` with the effect's id
 until a fleet restore lists the session, and the session's descriptor after that.
 

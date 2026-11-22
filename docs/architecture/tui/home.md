@@ -38,11 +38,11 @@ The text of an earlier screen then never shows through, and the cursor never sho
 
 ## What home draws
 
-Home keeps no state of its own, apart from a cache of each wordmark's pixels. On each frame it reads
-the client's copy of the sessions on each daemon. Home never asks the compositor for a frame, so it
-never animates. It redraws when the compositor draws a frame for another reason: a change to the
-sessions, a notice, or the window size. The compositor writes only the cells that changed, so a
-frame that changes nothing on home writes nothing.
+Home keeps no state of its own, apart from a cache of each wordmark's pixels and its last read of
+the saved fleet. On each frame it reads the client's copy of the sessions on each daemon. Home never
+asks the compositor for a frame, so it never animates. It redraws when the compositor draws a frame
+for another reason: a change to the sessions, a notice, or the window size. The compositor writes
+only the cells that changed, so a frame that changes nothing on home writes nothing.
 
 Home stacks [the wordmark](#the-wordmark), the fleet line and the keys, and centres the stack in the
 window from top to bottom. It leaves two blank rows under an outline wordmark and one under the

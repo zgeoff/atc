@@ -32,9 +32,9 @@ that one of them parses reads the same way in every parser.
 
 npm installs only the contract's own dependencies, Zod and oRPC's contract library, beside it.
 `bun run check:reach` therefore refuses any module that one of the three entries reaches outside the
-package, and any import of another package, type-only imports included. A committed snapshot holds
-the declarations the package publishes, and `bun run check:contract` fails when they differ from it,
-so a change to the published types shows in the pull request that makes it.
+package, and any import of a package other than those two, type-only imports included. A committed
+snapshot holds the declarations the package publishes, and `bun run check:contract` fails when they
+differ from it, so a change to the published types shows in the pull request that makes it.
 
 ## Checking a daemon
 

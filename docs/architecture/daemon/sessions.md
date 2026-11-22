@@ -30,6 +30,9 @@ stateDiagram-v2
     done --> exited: harness ends
 ```
 
+The diagram shows the hook-driven moves. A menu on the screen and a host that sleeps also move a
+session, as the rest of this section says.
+
 A session lists as `exited` whenever its harness is not running, a harness suspended inside a
 sleeping host included, and otherwise with the attention its hooks last reported. The agent's end
 report never marks the session exited while its harness runs, because resuming inside Claude Code
@@ -201,7 +204,7 @@ only from a client that names it as the parent. The parent link holds a set of s
   moves the parent's row.
 - It pins with its parent, so a forget that refuses pinned sessions refuses it while the parent is
   pinned, unless the forget comes from the parent itself. A kill of the parent ends its live
-  sub-sessions.
+  sub-sessions, or, on a host that can sleep, suspends them with the host.
 - The set stays one level deep: a spawn whose parent is itself a sub-session lands beside it.
 - The fleet stores the link by the parent's atc session id, so a restore brings the whole set back.
 

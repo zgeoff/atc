@@ -62,7 +62,7 @@ live session, the rows under its agent session id, because rows written under an
 for the same agent session stay part of its history. Cursors are positions in the whole trail, so a
 narrowed read and a full read take each other's cursors.
 
-Two other reads follow the same cursor rules. A session's transcript read returns a Claude Code
+Three other reads follow the same cursor rules. A session's transcript read returns a Claude Code
 transcript as user and assistant rows, a page at a time, and a cursor from an earlier transcript
 file, such as one from before `/clear`, restarts at the top of the current file. Grok and Codex have
 no transcript reader. A note read takes a note event's cursor and returns the note's whole text, and

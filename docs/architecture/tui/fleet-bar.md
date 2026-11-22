@@ -38,7 +38,7 @@ changes state, redraws the bar.
 
 The TUI reads each session's place, a `key` and a `label`, from the session's descriptor in the
 daemon's listing. `pickPlaceColour` picks a place's colour from its key alone, so a place has the
-same colour on every daemon that sends its key, and in every run.
+same colour on every daemon that sends the same key, and in every run.
 
 A daemon older than the place field sends no `place`. For its sessions the TUI uses the key
 `daemon:<daemon name>:<target id>` and the label `<target id>`, where the target id names the

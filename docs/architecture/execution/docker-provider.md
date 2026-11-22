@@ -19,7 +19,7 @@ such as Docker Desktop's, and the daemon lists a `docker` target as unavailable 
 `compiled_binary_required` when it runs from source.
 
 The provider runs Claude only, because the sign-in volume holds a Claude token. The daemon refuses
-an agent that names no sign-in file, such as Codex, with the problem `sign_in_unsupported`.
+an agent that reads no sign-in file, such as Codex, with the problem `sign_in_unsupported`.
 
 ## The objects on the Engine
 
@@ -62,14 +62,14 @@ the host's id.
 
 A kill on this target suspends the host: the containers pause, and the session sleeps.
 
-- **Spawn.** `prepareHost` checks the Engine, the image and the sign-in volume, then creates the
-  host and relay volumes. The harness container starts once the sidecar's relay answers.
-- **Kill.** `suspendHost` pauses every running container of the host, harnesses first.
-- **Revive.** The provider unpauses a paused container and attaches to it again. When the harness
+- On spawn, `prepareHost` checks the Engine, the image and the sign-in volume, then creates the host
+  and relay volumes. The harness container starts once the sidecar's relay answers.
+- On kill, `suspendHost` pauses every running container of the host, harnesses first.
+- On revive, the provider unpauses a paused container and attaches to it again. When the harness
   container exited, the provider removes it and starts the resume command in a new container on the
   same volume. When a sidecar stopped while its harness runs, a new sidecar replaces it, and the
-  relay resets as [the relay](./targets.md#the-relay) says.
-- **Forget.** `destroyHost` removes the host's containers, its volumes and its records folder. It
+  relay resets (see [the relay](./targets.md#the-relay)).
+- On forget, `destroyHost` removes the host's containers, its volumes and its records folder. It
   keeps the sign-in volume.
 
 After a daemon restart, the daemon asks `readHarnessFates` about each sleeping session, whose

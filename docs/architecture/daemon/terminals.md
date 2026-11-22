@@ -186,7 +186,7 @@ below it, so the reader treats it as one that may scroll and the read walks it t
 the session's other input while it runs and never presses Enter or Escape.
 
 The daemon keeps the whole menu for the session, and numbers each later read that shows part of it
-by the option's place in the whole list. A read or a choice made while the list sits scrolled
+by the option's place in the whole list. A later read or a choice made while the list sits scrolled
 therefore presses no key to learn the numbers. A read that finds no menu, or a menu that is not part
 of the kept one, drops it, and so does a new terminal for the session, so a list that closes and
 opens again is read afresh. A choice drops it too before it presses Enter or Escape, and so does any
@@ -215,5 +215,5 @@ the last one:
    scrolls past the screen is read whole first, so its token is the one the next choice carries.
 
 Every refusal comes before Enter, so a refused choice never picks an option. Escape is the one other
-key a client can press, and it carries the token too, because Escape on Claude Code's folder-trust
-dialog exits the agent.
+key a client can press through a menu choice, and it carries the token too, because Escape on Claude
+Code's folder-trust dialog exits the agent.

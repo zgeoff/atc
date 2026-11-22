@@ -39,8 +39,8 @@ mechanically. The protocol module's error list defines every code.
 The daemon runs each request on its own, so responses can arrive in another order than their
 requests, and a client matches each response to its request by message id. Only the responses can
 come out of order: one socket carries one ordered stream, so input, resize and output stay in order
-by construction. A state-changing request always gets a response, but a client need not wait for
-one, as the TUI does not for keystrokes.
+by construction. A state-changing request always gets a response while its connection lasts, but a
+client need not wait for one, as the TUI does not for keystrokes.
 
 ## Errors
 
@@ -154,11 +154,11 @@ handles it.
 Inside one major version every change to a procedure, an input field, an answer field or an event is
 additive, and `bun run check:contract-compat` fails a pull request that is not. A peer ignores an
 answer field it does not know, a client skips an event kind it does not know, and the daemon drops a
-field it does not know from the top level of a call. A new input field that changes what a call does
-needs a feature in the hello answer, so a client checks the daemon's features before it sends the
-field ([the published contract](./contract.md#checking-a-daemon)). A client offers every tool and
-input whatever the daemon serves, and a call that needs a missing feature fails with
-`feature_missing`.
+field it does not know from the top level of any call but the hello. A new input field that changes
+what a call does needs a feature in the hello answer, so a client checks the daemon's features
+before it sends the field ([the published contract](./contract.md#checking-a-daemon)). A client
+offers every tool and input whatever the daemon serves, and a call that needs a missing feature
+fails with `feature_missing`.
 
 The hello also carries a protocol number, `PROTOCOL_V`. It stays 15 until the next major release
 drops it, and the daemon refuses a hello that holds another number. Each event holds it as

@@ -1,11 +1,13 @@
 # The compositor
 
-The TUI draws every screen into one grid of cells, the cell buffer, and writes to the user's
-terminal only the cells that changed since the last frame. The bottom layer is the session the user
-is attached to. The TUI feeds that session's output to a terminal emulator of its own and copies the
-emulator's screen into the grid, so the session's bytes never reach the user's terminal directly.
-The TUI's own screens, such as home (the screen the TUI shows with no session attached), the session
-list, help, the spawn picker and the prompts, draw in layers over the session layer.
+The TUI draws every screen into one grid of cells, the cell buffer, and each frame writes to the
+user's terminal only the cells that changed since the last frame. Between frames, the TUI writes
+only the few sequences this doc names: passed-on sequences, probes and input modes. The bottom layer
+is the session the user is attached to. The TUI feeds that session's output to a terminal emulator
+of its own and copies the emulator's screen into the grid, so the session's bytes never reach the
+user's terminal directly. The TUI's own screens, such as home (the screen the TUI shows with no
+session attached), the session list, help, the spawn picker and the prompts, draw in layers over the
+session layer.
 
 One layer at a time has focus, and the keys the user types go to it. The attached session has focus
 until the user opens another screen, such as the session list, and gets it back when that screen
@@ -104,7 +106,7 @@ xterm's same write queue, so a `SessionResized` that arrives behind a replay or 
 applies after them.
 
 When the frame clock asks for a frame while a write to either emulator is pending, the TUI waits for
-the write, so a frame never shows a screen halfway through a chunk. Two cases change the wait:
+the write, so a frame never shows a screen halfway through a chunk. Two cases end the wait early:
 
 - A session that writes without a pause always has a write pending. A frame then waits one frame
   interval, at 60 Hz, and draws anyway.
