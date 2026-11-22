@@ -1,7 +1,8 @@
 # Docker targets
 
 A `docker` target runs each session in containers on the Docker Engine of the machine the daemon
-runs on. Every session signs in with one Claude token that you store in a Docker volume once.
+runs on. Every session signs in with one Claude token that you store in a Docker volume, once a
+year.
 
 The daemon must be a compiled release binary, because each container runs it. A daemon run from
 source lists the target as unavailable with the problem `compiled_binary_required`. The Engine must

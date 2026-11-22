@@ -3,8 +3,9 @@
 Claude needs no install step: atc instruments each spawned Claude session through a generated
 `--settings` file, and your global Claude settings are untouched. Grok and Codex take their
 instrumentation from your own agent config, so it is a one-time self-install — atc prints the hooks
-and never writes them. The daemon runs the commands in the `hooks` key of config.json on its own
-events, and the [events guide](../events.md#daemon-hooks) covers that key.
+and never writes them into your config. A brokered Codex entry on an imp is the exception, below.
+The daemon runs the commands in the `hooks` key of config.json on its own events, and the
+[events guide](../events.md#daemon-hooks) covers that key.
 
 Install the Grok hook file at `$GROK_HOME/hooks/atc-reporter.json` (`~/.grok` when `GROK_HOME` is
 unset):
@@ -26,10 +27,10 @@ Codex hooks live in `$CODEX_HOME/hooks.json` (`~/.codex` when `CODEX_HOME` is un
 A Codex entry with `auth` needs neither step on an imp target: atc writes the hooks into the
 session's own Codex home ([Codex subscription on imps](./codex-subscription.md)).
 
-The installed hook files print `--agent codex` or `--agent grok` for every entry of that kind. A
-second Codex entry, such as `codex-fast`, therefore needs no extra install: the daemon accepts the
-lines carrying the kind for the session of every entry of that kind. A Claude entry's generated
-settings file prints the entry's id instead.
+The hook files the current atc prints pass `--agent codex` or `--agent grok` for every entry of that
+kind. A second Codex entry, such as `codex-fast`, therefore needs no extra install: the daemon
+accepts the lines carrying the kind for the session of every entry of that kind. A Claude entry's
+generated settings file prints the entry's id instead.
 
 Sessions you start outside atc report events too; the reporter exits immediately when no atc session
 id is present.

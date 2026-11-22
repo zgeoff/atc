@@ -4,7 +4,8 @@ atc serves its fleet as MCP tools, so an agent can spawn, drive and read other a
 share one dispatcher and one tool set: `atc mcp`, a stdio server an agent CLI starts, and
 `atc mcp --http`, which serves the same tools over streamable HTTP behind OAuth to a hosted
 assistant. Each server is a client of the daemon, and each tool call becomes one daemon request.
-atc-gateway serves the same tools for several daemons ([the gateway](./gateway.md)).
+atc-gateway serves the same tools, plus a daemons tool, for several daemons
+([the gateway](./gateway.md)).
 
 [OAuth](./oauth.md) covers how a remote client gets a grant, and the
 [remote MCP guide](../../guides/remote-mcp.md) covers running the HTTP server.
@@ -89,12 +90,13 @@ A test compares this table with the tool definitions, so a tool added without a 
 ## The stdio server
 
 `atc mcp` boots the daemon when none answers, and serves every grant scope to its caller, since the
-caller is an agent the owner started. Started inside a session, it reads that session's id from its
-environment and hands it to the daemon in its handshake, so a spawn makes a sub-session of the
-caller ([sessions](../daemon/sessions.md#sub-sessions)) and a message is from that session. Started
-outside every session, its messages are from the owner. When the calling session is gone, a spawn
-falls back to a top-level session. The fallback has different params from the call, so it runs under
-an idempotency key derived from the caller's, and a retry derives the same key.
+caller is an agent the owner started. A session's own atc access, below, is the exception. Started
+inside a session, it reads that session's id from its environment and hands it to the daemon in its
+handshake, so a spawn makes a sub-session of the caller
+([sessions](../daemon/sessions.md#sub-sessions)) and a message is from that session. Started outside
+every session, its messages are from the owner. When the calling session is gone, a spawn falls back
+to a top-level session. The fallback has different params from the call, so it runs under an
+idempotency key derived from the caller's, and a retry derives the same key.
 
 Inside a remote session, `atc mcp` connects through the session's bridge socket and never boots a
 daemon. The daemon serves it with the atc access the session's spawn granted, so it reaches only
@@ -116,7 +118,7 @@ daemon, and the named daemon labels its messages as from the connector of the en
 
 ## Remote callers
 
-`atc mcp --http` checks a bearer token on every request and serves only the tools its grant's scopes
+`atc mcp --http` checks a bearer token on every request and runs only the tools its grant's scopes
 allow. The tool listing returns every tool whatever the token holds, and a call outside the token's
 scopes gets HTTP 403 with `insufficient_scope` and the missing scope, so a client learns what to ask
 for. A token without `read` gets tool descriptions that list no agent, since listing agents is a

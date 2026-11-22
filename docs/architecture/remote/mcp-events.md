@@ -3,11 +3,11 @@
 `atc mcp --http` and atc-gateway let a hosted assistant subscribe to the fleet's events by webhook,
 under the draft MCP Events extension, so that atc wakes the assistant when a session finishes a
 turn, ends, sends a note or waits on its owner. A delivery is only a wake: it carries the event's
-name, its session and a cursor, and the assistant reads what happened from the event trail with
-`atc_events_read`. The server stores each subscription in the authorization server's database and
-delivers from the trail, so a restart of the server or of the daemon loses no event the trail still
-holds. Events is a draft that ChatGPT implemented ahead of its final form, so where the draft and
-ChatGPT differ, atc serves both.
+id, type and time, its session and a cursor, and the assistant reads what happened from the event
+trail with `atc_events_read`. The server stores each subscription in the authorization server's
+database and delivers from the trail, so a restart of the server or of the daemon loses no event the
+trail still holds. Events is a draft that ChatGPT implemented ahead of its final form, so where the
+draft and ChatGPT differ, atc serves both.
 
 [The MCP servers](./mcp.md) cover the tools and grant scopes, and
 [the event trail](../protocol/events.md#the-event-trail) covers the cursors a delivery points into.

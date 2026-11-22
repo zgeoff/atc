@@ -34,10 +34,11 @@ host's side, to requests an imp sends to the backend. The config holds secret na
 }
 ```
 
-A variable that stands in for a credential holds `broker-placeholder`. impd sets the credential
-header on each request it brokers, whatever the header held, so the placeholder only gets a tool
-past its own check for a credential. atc reads `imp-broker-placeholder` as `broker-placeholder`, and
-the daemon prints a deprecation warning when it starts with a config that holds that value.
+A variable that atc or your config sets in place of a credential holds `broker-placeholder`; impd's
+own `github` variables, below, hold impd's value. impd sets the credential header on each request it
+brokers, whatever the header held, so the placeholder only gets a tool past its own check for a
+credential. atc reads `imp-broker-placeholder` as `broker-placeholder`, and the daemon prints a
+deprecation warning when it starts with a config that holds that value.
 
 Each profile in `authProfiles` holds a reference to a secret impd holds and the rule impd applies
 with it:

@@ -1,6 +1,6 @@
 # Events
 
-Everything the fleet does broadcasts as a wire event — sessions added, state changes, attaches,
+Every change to the fleet broadcasts as a wire event — sessions added, state changes, attaches,
 renames, permission requests, and each daemon restart with its result. Each event is one JSON line,
 identical for every consumer; the [protocol](../architecture/protocol/protocol.md#events) defines
 the event names and shapes. Three consumers ride the stream: daemon hooks for running your own

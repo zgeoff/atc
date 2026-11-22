@@ -34,8 +34,8 @@ The server accepts two kinds of bearer token:
   opens only a session that principal reaches ([principals](../protocol/principals.md)). While the
   stream is open, the server checks on a timer that the token the stream opened with still verifies
   with `read`. It ends the stream on the first check that fails, so a revoked grant or an expired
-  token ends it even while another grant of the same client still reads. The viewer then reconnects
-  with a fresh token and gets a fresh snapshot.
+  token ends it even while another grant of the same client still reads. The browser page then
+  reconnects with a fresh token and gets a fresh snapshot.
 - **An owner token** from the file `--token-file` names, which acts as the daemon's owner and opens
   every session. The file holds one token per line, and the server reads it once at startup. The
   server refuses to start when other users can open the file, and when it binds an address beyond
@@ -44,8 +44,9 @@ The server accepts two kinds of bearer token:
 
 ## Request checks
 
-The server makes every check before it upgrades the request, so a refused page never holds a socket.
-A refusal answers with an HTTP status and no body:
+The server makes every check below before it upgrades the request, so a refused page never holds a
+socket. Only the token check repeats once the stream is open. A refusal answers with an HTTP status
+and no body:
 
 | Status | When                                                                                          |
 | ------ | --------------------------------------------------------------------------------------------- |
@@ -61,9 +62,9 @@ A refusal answers with an HTTP status and no body:
 | 503    | the server has no daemon connection                                                           |
 
 The allowed origins come from `--allowed-origin` and the `mcpHTTP.allowedOrigins` config. A request
-with no `Origin` header comes from no browser page, such as a script, so only its token gates it. A
-refused host, origin or token records a security event, as an MCP request does
-([security events](./oauth.md#security-events)).
+with no `Origin` header comes from no browser page, such as a script, so it skips the origin check,
+and the other checks still apply. A refused host, origin or token records a security event, as an
+MCP request does ([security events](./oauth.md#security-events)).
 
 ## Frames
 

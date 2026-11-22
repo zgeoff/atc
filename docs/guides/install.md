@@ -1,7 +1,8 @@
 # Installing atc
 
 atc ships as a prebuilt binary for macOS and Linux, on arm64 and x64. It needs at least one of the
-`claude`, `grok` or `codex` CLIs on your `PATH`.
+`claude`, `grok` or `codex` CLIs on your `PATH`. Once it is installed, run `atc`, as
+[using atc](./using-atc.md) describes.
 
 ## Homebrew
 

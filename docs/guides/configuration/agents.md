@@ -6,10 +6,9 @@ gateway that runs the Claude CLI against another backend. The
 credentials with, and the [configuration guide](../configuration.md) covers the other top-level
 keys.
 
-`agents` holds exactly the agents atc offers, keyed by agent id. An entry that is not listed does
-not exist: `"agents": {}` offers no agent, and every spawn fails with
-`no adapter for agent 'claude'`. The first run writes `{ "claude": {} }`, so a machine with Grok or
-Codex adds an entry for each:
+`agents` holds every agent atc can offer, keyed by agent id. An entry that is not listed does not
+exist: `"agents": {}` offers no agent, and every spawn fails with `no adapter for agent 'claude'`.
+The first run writes `{ "claude": {} }`, so a machine with Grok or Codex adds an entry for each:
 
 ```json
 {
@@ -104,8 +103,9 @@ grace ends.
 
 ## Several entries per harness
 
-Each entry has its own id, binary, arguments, settings, and generated settings file, so several
-entries of one kind run side by side. Two Claude entries differ in model and settings:
+Each entry has its own id, binary and arguments, and a Claude entry its own settings and generated
+settings file, so several entries of one kind run side by side. Two Claude entries differ in model
+and settings:
 
 ```json
 {

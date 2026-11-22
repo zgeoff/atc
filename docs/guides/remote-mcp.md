@@ -2,8 +2,8 @@
 
 `atc mcp --http` serves atc's MCP tools over HTTP behind OAuth, so a hosted assistant such as
 ChatGPT or Claude.ai can reach your sessions with the grant scopes you approve. Nothing listens on
-HTTP unless you run it, and Ctrl-C ends remote access. [OAuth](../architecture/remote/oauth.md)
-covers how the server works.
+HTTP unless you run it, and stopping the server, with Ctrl-C or with its service, ends remote
+access. [OAuth](../architecture/remote/oauth.md) covers how the server works.
 
 ## Starting the server
 
@@ -158,8 +158,9 @@ A client's `scopes` limit its tools: a client without `spawn` cannot call `atc_s
 
 The server streams a session's live terminal to a web page over a WebSocket, read-only.
 [Live terminals](../architecture/remote/live-terminal.md) holds the URL, the token step and every
-frame. A page you host reaches it with an OAuth token that has the `read` scope, or, on your own
-machine, with an owner token from a file. These steps run the example page with an owner token:
+frame. A page you host reaches it with an OAuth token that has the `read` scope, or, from a server
+bound to loopback on your own machine, with an owner token from a file. These steps run the example
+page with an owner token:
 
 1. Make a token file that only you can read:
 

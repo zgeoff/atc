@@ -4,7 +4,7 @@
 file by putting it in place of the database while no daemon runs. The database is `atc.db` in the
 state directory, `~/.local/state/atc/`. It holds the fleet, the event trail, the inbox, the
 idempotency keys and the daemon id, so a daemon that starts on a restored database lists every
-session the backup held and restores them.
+session the backup held and restores them, as [Restoring a backup](#restoring-a-backup) describes.
 
 ## Taking a backup
 

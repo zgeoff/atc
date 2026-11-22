@@ -49,7 +49,8 @@ since atc never builds a workspace as one, and enters it through any symlink in 
 5. `git worktree list` names no linked worktree whose folder still exists. A linked worktree keeps
    its git data inside the workspace, and the other checks never look inside it.
 6. The index holds no submodule, since the other checks never look inside one either.
-7. The host answers. A host that fails the command keeps the directory as unchecked.
+7. The host answers. A host that fails the command keeps the directory as unchecked, under either
+   `check` value.
 
 The script reads no system or global git config and turns off an fsmonitor that the repository's own
 config names, since `git status` would start it. It refuses a directory that is not the top of a git
@@ -69,8 +70,8 @@ line, so it never notices one of those missing.
 | The session's target changed since it started           | `kept`, and no check runs        |
 | Another listed session's directory lies inside it       | `kept`, `in use by session <id>` |
 | A forgotten session not yet seen to end runs inside it  | `kept`, `in use by session <id>` |
-| A check fails, under `check: "unpushed"`                | `kept`, one reason per check     |
-| A check fails, under `check: "none"`                    | `removed`, with `found`          |
+| One of checks 1 to 6 fails, under `check: "unpushed"`   | `kept`, one reason per check     |
+| One of checks 1 to 6 fails, under `check: "none"`       | `removed`, with `found`          |
 | The host does not answer, or the directory is not atc's | `kept`, under either check       |
 | Every check passes                                      | `removed`                        |
 
@@ -85,7 +86,8 @@ describes, and on the daemon's own machine from its landing. From before the che
 ends, a claim on that shared host, or one on the daemon's machine that overlaps the directory, is
 refused as `workspace_overlap`. So no session starts inside a directory after the check has found it
 clean. The session's state folder on the daemon's host goes after the workspace step, whatever that
-step decided, unless cleanup is off or atc saw no exit of the session's process.
+step decided, unless cleanup is off or one of the cases in [Cleanup on forget](#cleanup-on-forget)
+keeps it.
 
 ## Prune
 

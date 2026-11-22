@@ -12,11 +12,11 @@ atc-gateway runs the same server ([the gateway](./gateway.md)).
 
 ## The process
 
-`atc mcp --http` is a foreground process beside the daemon and a client of the daemon's socket. It
-speaks plain HTTP and terminates no TLS, so plain HTTP must never cross an untrusted network: a
-listener bound beyond loopback refuses to start without an https public URL, which a TLS-terminating
-proxy or tunnel serves. The public URL's origin is the OAuth issuer, and `<origin>/mcp` is the one
-resource every token is bound to.
+`atc mcp --http` is a foreground process beside the daemon and a client of the daemon's socket,
+which boots the daemon when none answers. It speaks plain HTTP and terminates no TLS, so plain HTTP
+must never cross an untrusted network: a listener bound beyond loopback refuses to start without an
+https public URL, which a TLS-terminating proxy or tunnel serves. The public URL's origin is the
+OAuth issuer, and `<origin>/mcp` is the one resource every token is bound to.
 
 The server keeps its state in `mcp-auth.db`, a SQLite file separate from `atc.db`. atc creates it
 readable by its owner only and sets that mode again on every open. The daemon never opens it: the
@@ -128,7 +128,8 @@ The first characters of the bearer pick the check:
 
 - A bearer that starts with `atcs_` is compared with the file's tokens alone, and never reaches the
   database. With no file loaded it is refused as `invalid_token`.
-- Any other bearer is checked against the database alone, as an OAuth access token.
+- Any other bearer is checked against the database alone, as an OAuth access token. An access token
+  from the `client_credentials` grant below is one of these.
 
 A match gives the access an OAuth token gives, with the scopes the file lists for that client, and
 tool listing, scope checks and event methods then behave as for an OAuth token with those scopes. A

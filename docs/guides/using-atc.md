@@ -268,9 +268,9 @@ transcript. Set `restoreFleetOnRestart` to `false` to wait for `R` on the home s
 
 After you upgrade atc, home shows `⟳ update ready` below its keys, and `u` restarts the daemon and
 restores the fleet when you are ready. When the running daemon runs an older major version, atc asks
-before it restarts the daemon, since the restart ends every session the daemon hosts. When your
-client is the older side, such as a TUI you opened before the upgrade, atc exits and tells you to
-reopen it, and the daemon keeps running.
+before it restarts the daemon, since the restart ends every local session's process and each running
+turn with it. When your client is the older side, such as a TUI you opened before the upgrade, atc
+exits and tells you to reopen it, and the daemon keeps running.
 
 To restart from a script or from inside a session, run:
 

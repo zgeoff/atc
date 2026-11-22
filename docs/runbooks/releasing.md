@@ -78,8 +78,9 @@ hand before step 1.
   2. Merge a commit with the footer `Release-As: <next patch version>`.
   3. Merge no pull request that changes `.github/workflows/` until the new release PR has merged and
      its run has tagged it.
-- **The release is tagged, but its binaries, formula or npm package are missing.** Run the ship
-  steps again at the tag, so the binaries build from the tagged commit:
+- **The release is tagged, but its binaries, formula or npm package are still missing after the run
+  dispatched at the tag.** Run the ship steps again at the tag, so the binaries build from the
+  tagged commit:
 
   ```bash
   gh workflow run main.yml --ref '@zgeoff/atc@<version>'

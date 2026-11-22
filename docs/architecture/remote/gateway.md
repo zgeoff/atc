@@ -2,9 +2,10 @@
 
 atc-gateway serves the MCP tools and the OAuth server for several daemons at once, so one hosted
 assistant can reach fleets on several machines through one connector. It is a hub with spokes: the
-gateway holds one connection to each daemon in its registry, over that daemon's TCP listener, and
-routes every tool call to exactly one daemon. Daemons never talk to each other. The gateway never
-starts a daemon or a session on its own machine, so a call to a daemon that does not answer fails.
+gateway keeps at most one connection to each daemon in its registry, over that daemon's TCP
+listener, and routes every tool call to exactly one daemon. Daemons never talk to each other. The
+gateway never starts a daemon or a session on its own machine, so a call to a daemon that does not
+answer fails.
 
 [The MCP servers](./mcp.md) covers the tools, [OAuth](./oauth.md) covers the authorization server
 the gateway runs, and the [gateway guide](../../guides/gateway.md) covers running it.
@@ -57,11 +58,12 @@ replaced daemon answers as unknown rather than reaching a new daemon under the s
 method, a rule says which fields of the request and the answer hold ids, and the gateway refuses a
 method that has no rule, so a new daemon method never passes through with its ids unrewritten.
 
-A call goes to the daemon its ids name, then to the daemon its params name, then to the default
-daemon. A call whose ids and params name two different daemons is refused with `bad_args`. A call
-never fails over to another daemon. Listings of sessions and agents fan out to every daemon and
-report each daemon's state beside the merged answer: up, down, unauthorized, refused, changed when
-its identity no longer matches the registry, or mismatched when the gateway refused its version.
+A call goes to the daemon its ids name. A call whose ids name none goes to the daemon its params
+name, and a call that names none at all goes to the default daemon. A call whose ids and params name
+two different daemons is refused with `bad_args`. A call never fails over to another daemon.
+Listings of sessions and agents fan out to every daemon and report each daemon's state beside the
+merged answer: up, down, unauthorized, refused, changed when its identity no longer matches the
+registry, or mismatched when the gateway refused its version.
 
 An event read merges every daemon's trail under one gateway cursor that keeps each daemon's place,
 so a daemon that did not answer resumes from where it stopped on the next call. Each merged event
