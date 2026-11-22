@@ -1,8 +1,10 @@
 import { BLANK_CELL } from '../compositor/blank-cell';
 import { blendRGB } from '../compositor/blend-rgb';
 import { dimCell } from '../compositor/dim-cell';
+import { fadeBackground } from '../compositor/fade-background';
 import { resolveColour } from '../compositor/resolve-colour';
-import type { CellBuffer, RGB, TerminalFacts } from '../compositor/types';
+import { toRGBColour } from '../compositor/to-rgb-colour';
+import type { CellBuffer, Colour, RGB, TerminalFacts } from '../compositor/types';
 import { splitGraphemes } from '../terminal/split-graphemes';
 import { collectPanelLines } from './collect-panel-lines';
 import { BLUE, CONTENT_COL, FADED_TEXT_SHARE, SELECTED_TINT } from './constants';
@@ -73,27 +75,28 @@ function paintLine(buffer: CellBuffer, paint: LinePaint): void {
   for (let offset = 0; offset < plan.width; offset++) {
     const col = plan.left + offset;
     const below = buffer.get(col, paint.row);
-    const shownBackground = below.inverse ? below.fg : below.bg;
-    const underlying = resolveColour(shownBackground, terminal.background);
-    const frame = paint.options.motion.frame;
-    const covered = blendRGB(underlying, terminal.background, frame);
+
+    const shownBackground = below.inverse
+      ? toRGBColour(resolveColour(below.fg, terminal.foreground))
+      : below.bg;
+
+    const covered = fadeBackground(shownBackground, terminal, paint.options.motion.frame);
+    const coveredRGB = resolveColour(covered, terminal.background);
 
     const isTinted =
       paint.line.isSelected && offset >= CONTENT_COL && offset < plan.width - CONTENT_COL;
 
     const background = isTinted
-      ? blendRGB(covered, BLUE, SELECTED_TINT * paint.textOpacity)
-      : covered;
+      ? blendRGB(coveredRGB, BLUE, SELECTED_TINT * paint.textOpacity)
+      : coveredRGB;
 
     backgrounds.push(background);
 
-    const isRGB = terminal.depth !== '16' && (isTinted || frame < 1);
+    const cellBackground = isTinted ? toRGBColour(background) : covered;
 
     buffer.set(col, paint.row, {
       ...BLANK_CELL,
-      bg: isRGB
-        ? { kind: 'rgb', red: background.red, green: background.green, blue: background.blue }
-        : { kind: 'default' },
+      bg: pickPanelBackground(terminal, cellBackground),
     });
   }
 
@@ -144,4 +147,8 @@ function clearWideEdges(buffer: CellBuffer, paint: LinePaint): void {
   if (right < buffer.cols && buffer.get(right, paint.row).ch === '') {
     buffer.set(right, paint.row, { ...buffer.get(right, paint.row), ch: ' ' });
   }
+}
+
+function pickPanelBackground(terminal: TerminalFacts, colour: Colour): Colour {
+  return terminal.depth === '16' ? { kind: 'default' } : colour;
 }

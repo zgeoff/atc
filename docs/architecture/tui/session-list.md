@@ -203,6 +203,9 @@ prompt taller than the window keeps its last lines, which hold the keys.
 The panel dims the screen behind it, apart from the terminal's last row, so the
 [fleet bar](./fleet-bar.md) stays readable. Inside its border, the panel covers what lies behind it.
 Each of its cells takes the terminal's default background, apart from the tint on the selected row.
+While the panel fades in or out, a cell over an explicit background blends from that colour toward
+the terminal's background, and a cell over a default background keeps it at every step, because the
+terminal's real colour is known only when it answers OSC 11.
 
 ## Motion
 

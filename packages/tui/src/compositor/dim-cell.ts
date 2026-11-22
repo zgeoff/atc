@@ -1,6 +1,8 @@
 import { blendRGB } from './blend-rgb';
+import { fadeBackground } from './fade-background';
 import { resolveColour } from './resolve-colour';
-import type { Cell, Colour, RGB, TerminalFacts } from './types';
+import { toRGBColour } from './to-rgb-colour';
+import type { Cell, TerminalFacts } from './types';
 
 // Blends the cell toward the terminal's background by a share from 0 to 1. A default background
 // stays default, so a transparent terminal stays transparent. At 16 colours the cell keeps its
@@ -11,25 +13,21 @@ export function dimCell(cell: Cell, terminal: TerminalFacts, share: number): Cel
   }
 
   const fg = resolveColour(cell.fg, terminal.foreground);
-  const bg = resolveColour(cell.bg, terminal.background);
 
   if (cell.inverse) {
+    const bg = resolveColour(cell.bg, terminal.background);
+
     return {
       ...cell,
       inverse: false,
       fg: toRGBColour(blendRGB(bg, terminal.background, share)),
-      bg: toRGBColour(blendRGB(fg, terminal.background, share)),
+      bg: fadeBackground(toRGBColour(fg), terminal, share),
     };
   }
 
   return {
     ...cell,
     fg: toRGBColour(blendRGB(fg, terminal.background, share)),
-    bg:
-      cell.bg.kind === 'default' ? cell.bg : toRGBColour(blendRGB(bg, terminal.background, share)),
+    bg: fadeBackground(cell.bg, terminal, share),
   };
-}
-
-function toRGBColour(rgb: RGB): Colour {
-  return { kind: 'rgb', red: rgb.red, green: rgb.green, blue: rgb.blue };
 }
