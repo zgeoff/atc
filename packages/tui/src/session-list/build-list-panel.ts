@@ -49,7 +49,13 @@ export function buildListPanel(input: Readonly<PanelInput>, size: Size): PanelPl
     size.rows - 1,
   );
 
-  const window = planListWindow(content.lines.length, budget.capacity, content.selectedLine);
+  const window = planListWindow(
+    content.lines.length,
+    budget.capacity,
+    pickFocusLine(input, content, budget.capacity),
+  );
+
+  const windowSessions = new Set(content.lineSessions.slice(window.start, window.end));
 
   const shown = content.lines.slice(window.start, window.end).map((line) => ({
     spans: [...buildEdges(width), ...line.spans],
@@ -79,6 +85,7 @@ export function buildListPanel(input: Readonly<PanelInput>, size: Size): PanelPl
         ? findEarliestAgeChange(content.lineSessions.slice(window.start, window.end), input.nowMs)
         : null,
     content: shown,
+    shownSessions: sessions.map((row) => windowSessions.has(row)),
     topBorder: budget.borders >= 1 ? frame.topBorder : null,
     divider: budget.borders >= 3 ? frame.divider : null,
     lastLines: frame.lastLines,
@@ -243,6 +250,29 @@ function planLineBudget(
   const preferred = Math.max(1, preferredRows - FRAME_LINES - kept.length);
 
   return { lastLines: kept, borders, capacity: Math.min(preferred, frameRoom - borders) };
+}
+
+// The line the window centres on: the selected line, or while jump letters are typed, the line that
+// puts the first lit row at the top of the window, so that the lit rows show and take labels.
+function pickFocusLine(
+  input: Readonly<PanelInput>,
+  content: ContentLines,
+  capacity: number,
+): number {
+  const jump = input.jump;
+  let sessionIndex = -1;
+
+  const firstLit = content.lineSessions.findIndex((row) => {
+    if (row === null) {
+      return false;
+    }
+
+    sessionIndex += 1;
+
+    return jump !== null && jump.typed !== '' && jump.matches[sessionIndex] === true;
+  });
+
+  return firstLit === -1 ? content.selectedLine : firstLit + Math.floor(capacity / 2);
 }
 
 function countSessionLines(lineSessions: readonly (SessionRow | null)[]): number {

@@ -6,7 +6,10 @@ import type { OverlayScreen } from './create-overlay-screen';
 import { readTypedCharacter } from './read-typed-character';
 
 export interface JumpKeyDeps {
-  readonly overlay: Pick<OverlayScreen, 'jump' | 'pickSessions' | 'select' | 'render'>;
+  readonly overlay: Pick<
+    OverlayScreen,
+    'jump' | 'pickSessions' | 'readShownSessions' | 'select' | 'render'
+  >;
   readonly attach: (key: SessionKey) => Promise<void>;
 }
 
@@ -51,6 +54,7 @@ export function applyJumpKey(buf: Buffer, deps: JumpKeyDeps): void {
     jump,
     character,
     sessions.map((session) => session.name),
+    overlay.readShownSessions(),
   );
 
   if (step.kind === 'continue') {

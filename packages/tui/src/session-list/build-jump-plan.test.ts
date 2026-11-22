@@ -36,5 +36,11 @@ test.each([
     expected: { matches: [true, true], labels: ['aa', 'as'] },
   },
 ])('#buildJumpPlan gives $title', (row) => {
-  expect(buildJumpPlan(row.names, row.typed)).toStrictEqual(row.expected);
+  expect(
+    buildJumpPlan(
+      row.names,
+      row.typed,
+      row.names.map(() => true),
+    ),
+  ).toStrictEqual(row.expected);
 });

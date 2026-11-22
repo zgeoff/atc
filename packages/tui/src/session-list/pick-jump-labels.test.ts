@@ -51,15 +51,20 @@ test.each([
     expected: ['sa', 'ss', 'sd'],
   },
 ])('#pickJumpLabels gives $title', (row) => {
-  expect(pickJumpLabels(row.names, row.typed).slice(0, row.expected.length)).toStrictEqual([
-    ...row.expected,
-  ]);
+  expect(
+    pickJumpLabels(
+      row.names,
+      row.typed,
+      row.names.map(() => true),
+    ).slice(0, row.expected.length),
+  ).toStrictEqual([...row.expected]);
 });
 
 test('#pickJumpLabels gives each of 30 rows that no letter splits its own label', () => {
   const labels = pickJumpLabels(
     Array.from({ length: 30 }, () => 'same-name'),
     's',
+    Array.from({ length: 30 }, () => true),
   );
 
   expect(new Set(labels).size).toBe(30);
@@ -70,5 +75,15 @@ test('#pickJumpLabels gives two-letter labels from a blocked letter when no lett
     Array.from('asdfghjklqwertyuiopzxcvbnm', (letter) => `s${letter}`).join(''),
   );
 
-  expect(pickJumpLabels(names, 's').slice(0, 2)).toStrictEqual(['aa', 'as']);
+  expect(
+    pickJumpLabels(
+      names,
+      's',
+      names.map(() => true),
+    ).slice(0, 2),
+  ).toStrictEqual(['aa', 'as']);
+});
+
+test('#pickJumpLabels gives no label to a row off screen, and never labels with a letter that narrows to it', () => {
+  expect(pickJumpLabels(['tab', 'tsd'], 't', [true, false])).toStrictEqual(['d', null]);
 });

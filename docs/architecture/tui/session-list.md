@@ -87,18 +87,22 @@ match stay lit, and the rows that do not fade as the rest of the panel fades. Th
 show in blue. When no row matches, the last line reads `no match`, and Backspace takes the last
 typed letter back.
 
-- When one row matches, the client picks it at once, with no label.
+- When one row matches, the client picks it at once, with no label, whether or not the list shows
+  its row.
 - When several rows match, each gets a label written over the letter right after its first match, in
   amber. With `t` typed, `tui-beautiful` shows as `tai-beautiful`, so the user presses `a`. A name
   that holds the match more than once gets one label, at its first match. A match that ends the name
   has no letter to write over, so its label sits right after the name.
+- While letters are typed, the list scrolls so that the first lit row is the top row it shows. Only
+  a lit row that the list shows gets a label. A lit row past the last shown row gets none until more
+  letters narrow the rows.
 
 A label never clashes with typing one more letter of a name: the client takes label letters only
 from letters that never follow a match in any lit row. A row that no further typing can single out,
 such as `ab` among `aba`, `abb` and the rest once `ab` is typed, always gets a label. When the free
 letters run out, the other rows show none, and the user keeps typing letters of the name to narrow
-them. When the rows that typing cannot single out outnumber the free letters, every lit row gets a
-two-letter label, whose first letter is typed first.
+them. When the rows that typing cannot single out outnumber the free letters, every shown lit row
+gets a two-letter label, whose first letter is typed first.
 
 Typing a label on a live session attaches it. Typing a label on an exited session selects its row
 and attaches nothing. Esc leaves jump mode and keeps the list open.

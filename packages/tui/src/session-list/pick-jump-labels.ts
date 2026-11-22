@@ -2,10 +2,14 @@ import { toFoldedGraphemes } from './to-folded-graphemes';
 
 const LETTERS = 'asdfghjklqwertyuiopzxcvbnm';
 
-// A label for each name that matches what the user typed, or null where none is due. Labels come
-// from free letters, which never extend the search. A row that no typing can isolate always gets one;
-// past the free letters, every row gets two letters.
-export function pickJumpLabels(names: readonly string[], typed: string): (string | null)[] {
+// A label for each name that matches what the user typed and shows on screen, or null where none is
+// due. Free letters, which never extend the search in any matching name, come first. A shown row that
+// no typing can isolate always gets one; past the free letters, every shown row gets two letters.
+export function pickJumpLabels(
+  names: readonly string[],
+  typed: string,
+  isShown: readonly boolean[],
+): (string | null)[] {
   const needle = toFoldedGraphemes(typed).join('');
 
   if (needle === '') {
@@ -21,10 +25,7 @@ export function pickJumpLabels(names: readonly string[], typed: string): (string
   );
 
   const free = LETTERS.split('').filter((letter) => !blocked.has(letter));
-
-  if (names.length <= free.length) {
-    return names.map((_name, index) => free[index] ?? null);
-  }
+  const shownCount = isShown.filter(Boolean).length;
 
   const isIsolated = extensions.map((texts, index) =>
     [...texts].some((text) =>
@@ -32,16 +33,22 @@ export function pickJumpLabels(names: readonly string[], typed: string): (string
     ),
   );
 
-  const needed = isIsolated.filter((isolated) => !isolated).length;
+  const needed = names.filter(
+    (_name, index) => isShown[index] === true && !isIsolated[index],
+  ).length;
 
-  if (needed > free.length) {
-    return pickTwoLetterLabels(names.length, free, blocked);
+  if (shownCount > free.length && needed > free.length) {
+    return toRowLabels(isShown, buildTwoLetterLabels(shownCount, free, blocked));
   }
 
-  let spare = free.length - needed;
+  let spare = shownCount > free.length ? free.length - needed : shownCount;
 
-  const isLabelled = isIsolated.map((isolated) => {
-    if (!isolated) {
+  const isLabelled = names.map((_name, index) => {
+    if (isShown[index] !== true) {
+      return false;
+    }
+
+    if (isIsolated[index] !== true) {
       return true;
     }
 
@@ -50,17 +57,7 @@ export function pickJumpLabels(names: readonly string[], typed: string): (string
     return spare >= 0;
   });
 
-  let next = 0;
-
-  return isLabelled.map((labelled) => {
-    if (!labelled) {
-      return null;
-    }
-
-    next += 1;
-
-    return free[next - 1] ?? null;
-  });
+  return toRowLabels(isLabelled, free);
 }
 
 // the text that can follow each occurrence of the needle in the name, from one letter to the end of
@@ -79,18 +76,33 @@ function collectExtensions(name: string, needle: string): Set<string> {
   return texts;
 }
 
+// Hands the labels out in order, one to each row that takes one.
+function toRowLabels(isLabelled: readonly boolean[], labels: readonly string[]): (string | null)[] {
+  let next = 0;
+
+  return isLabelled.map((labelled) => {
+    if (!labelled) {
+      return null;
+    }
+
+    next += 1;
+
+    return labels[next - 1] ?? null;
+  });
+}
+
 // Two letters for each of `count` rows. The first letter is a free one while any is left, so that
 // typing a blocked letter still narrows the rows.
-function pickTwoLetterLabels(
+function buildTwoLetterLabels(
   count: number,
   free: readonly string[],
   blocked: ReadonlySet<string>,
-): (string | null)[] {
+): string[] {
   const firsts = [...free, ...LETTERS.split('').filter((letter) => blocked.has(letter))];
 
-  return Array.from({ length: count }, (_, index) => {
-    const first = firsts[Math.floor(index / LETTERS.length)];
+  return Array.from({ length: Math.min(count, firsts.length * LETTERS.length) }, (_, index) => {
+    const first = firsts[Math.floor(index / LETTERS.length)] ?? '';
 
-    return first === undefined ? null : `${first}${LETTERS[index % LETTERS.length] ?? ''}`;
+    return `${first}${LETTERS[index % LETTERS.length] ?? ''}`;
   });
 }

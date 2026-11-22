@@ -67,7 +67,14 @@ test.each([
     expected: { kind: 'picked', index: 2 },
   },
 ])('#stepJump gives $title', (row) => {
-  expect(stepJump(row.state, row.character, row.names)).toStrictEqual(row.expected);
+  expect(
+    stepJump(
+      row.state,
+      row.character,
+      row.names,
+      row.names.map(() => true),
+    ),
+  ).toStrictEqual(row.expected);
 });
 
 test('#stepJump reaches every row from no typed letters, with letters and label keys', () => {
@@ -81,7 +88,13 @@ test('#stepJump reaches every row from no typed letters, with letters and label 
 
   for (let state = queue.shift(); state !== undefined; state = queue.shift()) {
     for (const character of 'abcdefghijklmnopqrstuvwxyz'.split('')) {
-      const step = stepJump(state, character, names);
+      const step = stepJump(
+        state,
+        character,
+        names,
+        names.map(() => true),
+      );
+
       const next = step.kind === 'continue' ? step.state : null;
       const key = next === null ? '' : `${next.typed}/${next.prefix}`;
       const index = step.kind === 'picked' ? step.index : -1;

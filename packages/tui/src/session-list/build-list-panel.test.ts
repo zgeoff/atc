@@ -545,7 +545,7 @@ test.each([{ typed: 'ς' }, { typed: 'σ' }])(
   'it draws the match and label of a final sigma typed as $typed where the plan finds it',
   (row) => {
     const names = ['ΟΔΟΣ', 'ΛΟΓΟΣ'];
-    const jump = { ...buildJumpPlan(names, row.typed), typed: row.typed };
+    const jump = { ...buildJumpPlan(names, row.typed, [true, true]), typed: row.typed };
 
     const plan = buildListPanel(
       buildMockPanelInput({
@@ -593,7 +593,7 @@ test.each([
     expected: ['…defghijklmnopqrstuvwxa…', '…defghijklmnopqrstuvwxs…'],
   },
 ])('it keeps the end of a long match and its label inside the name column, for $title', (row) => {
-  const jump = { ...buildJumpPlan(row.names, row.typed), typed: row.typed };
+  const jump = { ...buildJumpPlan(row.names, row.typed, [true, true]), typed: row.typed };
 
   const plan = buildListPanel(
     buildMockPanelInput({
@@ -618,7 +618,7 @@ test.each([
 test('it matches a sub-session by its name, after the mark in front of it', () => {
   const parent = buildMockMirrorSession({ id: 'p', name: 'my app' });
   const child = buildMockMirrorSession({ id: 'c', name: 'my app', parent: 'p' });
-  const jump = { ...buildJumpPlan(['my app', 'my app'], ' '), typed: ' ' };
+  const jump = { ...buildJumpPlan(['my app', 'my app'], ' ', [true, true]), typed: ' ' };
 
   const plan = buildListPanel(
     buildMockPanelInput({

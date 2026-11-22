@@ -33,6 +33,7 @@ function setupTest(file: Record<string, unknown> = {}) {
     requestFrame: () => {
       state.frames += 1;
     },
+    readSize: () => ({ cols: 120, rows: 40 }),
   });
 
   return { mirror, confirm, state, overlay };

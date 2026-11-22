@@ -94,6 +94,9 @@ export interface PanelPlan {
 
   // when the first age on a shown row next changes, or null when no shown row has an age
   readonly nextAgeChangeAtMs: number | null;
+
+  // for each session row in order, whether the window of list lines draws it
+  readonly shownSessions: readonly boolean[];
 }
 
 export interface PanelInput {

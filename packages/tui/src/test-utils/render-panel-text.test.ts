@@ -32,6 +32,7 @@ test('#renderPanelText lays each span at its column and gives one string for eac
     },
     isSpinning: false,
     nextAgeChangeAtMs: null,
+    shownSessions: [],
   });
 
   expect(text).toStrictEqual([' top', '  a界', 'mid', '   last', '     end']);
@@ -54,6 +55,7 @@ test('#renderPanelText leaves out the borders a plan dropped', () => {
     bottomBorder: null,
     isSpinning: false,
     nextAgeChangeAtMs: null,
+    shownSessions: [],
   });
 
   expect(text).toStrictEqual([' last']);

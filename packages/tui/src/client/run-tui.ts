@@ -275,8 +275,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     process.exit(code);
   };
 
-  // A fullscreen session can leave the terminal in an enhanced keyboard
-  // encoding, so the leader arrives as a CSI chord instead of its bare byte.
+  // a session can leave an enhanced keyboard encoding on, so the leader can come as a CSI chord
   const isLeaderKey = (buf: Buffer): boolean =>
     matchLeaderKey(leader.code, buf.toString()) === 'press';
 
@@ -374,6 +373,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     isDaemonWaiting,
     scheduleStatus,
     requestFrame: screen.requestFrame,
+    readSize: () => ({ cols: cols(), rows: rows() }),
   });
 
   const actions = createSessionActions({

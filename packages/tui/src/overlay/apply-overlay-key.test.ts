@@ -6,6 +6,8 @@ import { buildClientMachine } from '../client/build-client-machine';
 import type { DaemonLinkState } from '../daemon-link/daemon-link-state';
 import { createFleetMirror } from '../fleet/create-fleet-mirror';
 import type { DaemonName, SessionKey } from '../fleet/session-key';
+import { buildListPanel } from '../session-list/build-list-panel';
+import { AMBER } from '../session-list/constants';
 import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session';
 import { buildStubClientScreens } from '../test-utils/build-stub-client-screens';
 import { applyOverlayKey } from './apply-overlay-key';
@@ -24,7 +26,7 @@ function setupTest() {
 
   const mirror = createFleetMirror(null);
   const sent: string[] = [];
-  const state = { isLeader: false, baseShown: 0 };
+  const state = { isLeader: false, baseShown: 0, size: { cols: 120, rows: 40 } };
 
   const states = new Map<DaemonName, DaemonLinkState>([[null, { kind: 'up' }]]);
 
@@ -54,6 +56,7 @@ function setupTest() {
     isDaemonWaiting: () => false,
     scheduleStatus: () => {},
     requestFrame: () => {},
+    readSize: () => state.size,
   });
 
   const deps: OverlayKeyDeps = {
@@ -408,4 +411,61 @@ test('it leaves jump mode on escape and keeps the list open', () => {
     jump: null,
     closed: 0,
   });
+});
+
+test.each([
+  {
+    title: 'two lit rows below the window',
+    names: [...Array.from({ length: 18 }, (_, index) => `web${index}`), 'tango18', 'tango19'],
+    expected: ['d', 's'],
+  },
+  {
+    title: 'more lit rows than the window holds',
+    names: Array.from({ length: 20 }, (_, index) => `tango${index}`),
+    expected: ['d', 'f', 'g', 'h', 's'],
+  },
+])('it draws every jump label it gives, for $title in a 15-row window', (row) => {
+  const ctx = setupTest();
+
+  ctx.state.size = { cols: 120, rows: 15 };
+
+  for (const [index, name] of row.names.entries()) {
+    ctx.mirror.upsert(buildMockMirrorSession({ id: name, name, lastAttachedAt: 100 - index }));
+  }
+
+  ctx.press('f');
+  ctx.press('t');
+
+  const input = ctx.overlay.readInput(0, 0);
+  const plan = buildListPanel(input, ctx.state.size);
+
+  expect({
+    given: (input.jump?.labels ?? []).filter((label) => label !== null).toSorted(),
+    drawn: plan.content
+      .flatMap((line) => line.spans.filter((span) => span.fg === AMBER && span.bold))
+      .map((span) => span.text.trim())
+      .toSorted(),
+  }).toStrictEqual({ given: [...row.expected], drawn: [...row.expected] });
+});
+
+test('it attaches no session for the label a row outside the window would have had', () => {
+  const ctx = setupTest();
+
+  ctx.state.size = { cols: 120, rows: 15 };
+
+  for (const index of Array.from({ length: 20 }, (_, at) => at)) {
+    ctx.mirror.upsert(
+      buildMockMirrorSession({
+        id: `tango${index}`,
+        name: `tango${index}`,
+        lastAttachedAt: 100 - index,
+      }),
+    );
+  }
+
+  ctx.press('f');
+  ctx.press('t');
+  ctx.press('w');
+
+  expect(ctx.sent).toStrictEqual([]);
 });

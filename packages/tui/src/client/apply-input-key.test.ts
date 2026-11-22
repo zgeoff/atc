@@ -51,6 +51,7 @@ function setupTest() {
     isDaemonWaiting: () => false,
     scheduleStatus: () => {},
     requestFrame: () => {},
+    readSize: () => ({ cols: 120, rows: 40 }),
   });
 
   const deps: InputKeyDeps = {
