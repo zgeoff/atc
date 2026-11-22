@@ -131,3 +131,9 @@ export interface FadeLevels {
   // each row by its index; a row past the end is at the frame's level
   readonly rows: readonly number[];
 }
+
+// What jump mode shows in a name: the letters typed so far, and the label of the row, if it has one.
+export interface NameJump {
+  readonly typed: string;
+  readonly label: string | null;
+}

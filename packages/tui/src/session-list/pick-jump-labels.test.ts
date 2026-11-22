@@ -39,6 +39,12 @@ test.each([
     expected: Array.from({ length: 27 }, () => null),
   },
   {
+    title: 'no label while more typing would still split the rows, past the next letter',
+    names: Array.from({ length: 27 }, (_, index) => `ta${index}`),
+    typed: 't',
+    expected: Array.from({ length: 27 }, () => null),
+  },
+  {
     title: 'two-letter labels when no typed letter can split the rows',
     names: Array.from({ length: 30 }, () => 'same-name'),
     typed: 's',

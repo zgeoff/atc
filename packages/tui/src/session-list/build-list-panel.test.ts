@@ -392,6 +392,28 @@ test('it writes a jump label over the letter after the first match, and fades th
   }).toStrictEqual({ names: ['tai ', 'cats', 'web '], faded: [false, false, true] });
 });
 
+test('it keeps a jump label in view on a name too long for its column', () => {
+  const longName = `${'z'.repeat(24)}-tango`;
+
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      rows: [
+        { kind: 'session', session: buildMockMirrorSession({ name: longName }), via: null },
+        { kind: 'session', session: buildMockMirrorSession({ name: 'kite' }), via: null },
+      ],
+      jump: { matches: [true, true], labels: ['s', 'd'], typed: 't' },
+    }),
+    { cols: 50, rows: 30 },
+  );
+
+  const text = renderPanelText(plan);
+
+  expect([text[1]?.slice(5, 20), text[2]?.slice(5, 20)]).toStrictEqual([
+    '…zzzzzzzzzz-ts…',
+    'kitd           ',
+  ]);
+});
+
 test('it leaves the state glyph on each row while jump mode runs', () => {
   const plan = buildListPanel(
     buildMockPanelInput({

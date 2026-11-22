@@ -6,13 +6,22 @@ import { measureWidth } from '../terminal/measure-width';
 import { formatDir } from '../terminal/pick-matches';
 import { splitGraphemes } from '../terminal/split-graphemes';
 import { AMBER, BLUE, CONTENT_COL, DONE, FAINT, MUTED, RUNNING, TEXT } from './constants';
+import { findMatchedGraphemes } from './find-matched-graphemes';
+import { fitNameAroundMatch } from './fit-name-around-match';
 import { fitText } from './fit-text';
 import { formatAge } from './format-age';
 import { COLUMN_GAP } from './plan-list-columns';
 import type { ColumnPlan } from './plan-list-columns';
 import { span } from './span';
 import { toRGB } from './to-rgb';
-import type { OverlaySessionView, PanelInput, PanelLine, PanelSpan, SessionRow } from './types';
+import type {
+  NameJump,
+  OverlaySessionView,
+  PanelInput,
+  PanelLine,
+  PanelSpan,
+  SessionRow,
+} from './types';
 
 export interface SessionLineContext {
   readonly input: Readonly<PanelInput>;
@@ -59,11 +68,10 @@ export function buildSessionLine(row: SessionRow, context: SessionLineContext): 
   ];
 
   let col = CONTENT_COL + 3;
-  const name = fitText(formatName(session, context.all), plan.name, true);
+  const jump: NameJump = { typed: input.jump?.typed ?? '', label: context.label };
+  const name = fitNameAroundMatch(formatName(session, context.all), plan.name, jump);
 
-  spans.push(
-    ...buildNameSpans(name, col, style, { typed: input.jump?.typed ?? '', label: context.label }),
-  );
+  spans.push(...buildNameSpans(name, col, style, jump));
 
   col += plan.name + COLUMN_GAP;
 
@@ -139,11 +147,6 @@ function pickGlyph(
     .exhaustive();
 }
 
-interface NameJump {
-  readonly typed: string;
-  readonly label: string | null;
-}
-
 // The name, with the letters that jump mode matched in blue. The label, when the row has one, takes
 // the place of the letters right after the match, or of the padding when the match ends the name.
 function buildNameSpans(name: string, col: number, style: NameStyle, jump: NameJump): PanelSpan[] {
@@ -183,39 +186,6 @@ function buildNameSpans(name: string, col: number, style: NameStyle, jump: NameJ
   });
 
   return spans;
-}
-
-// The graphemes, from `start` up to but not including `end`, whose lowercase holds the first match
-// of `needle`. A letter's lowercase can be longer than the letter, as `İ` is.
-function findMatchedGraphemes(
-  name: string,
-  needle: string,
-): { readonly start: number; readonly end: number } | null {
-  const lowered = splitGraphemes(name).map((grapheme) => grapheme.text.toLowerCase());
-  const at = lowered.join('').indexOf(needle);
-
-  if (at === -1) {
-    return null;
-  }
-
-  let offset = 0;
-  let start = -1;
-
-  for (const [index, text] of lowered.entries()) {
-    const next = offset + text.length;
-
-    if (start === -1 && at < next) {
-      start = index;
-    }
-
-    if (at + needle.length <= next) {
-      return { start, end: index + 1 };
-    }
-
-    offset = next;
-  }
-
-  return null;
 }
 
 export function formatName(

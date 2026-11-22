@@ -1,8 +1,8 @@
 const LETTERS = 'asdfghjklqwertyuiopzxcvbnm';
 
 // A label for each name that matches what the user typed, or null where none is due. Free letters,
-// which never extend the search, come first. With more names than free letters, the user keeps
-// typing to narrow the rows, and a label grows to two letters only when no letter would split them.
+// which never extend the search, come first. With more names than free letters, a label grows to
+// two letters only when no further typing would split the rows.
 export function pickJumpLabels(names: readonly string[], typed: string): (string | null)[] {
   const needle = typed.toLowerCase();
 
@@ -10,9 +10,11 @@ export function pickJumpLabels(names: readonly string[], typed: string): (string
     return names.map(() => null);
   }
 
-  const continuations = names.map((name) => collectContinuations(name.toLowerCase(), needle));
+  const extensions = names.map((name) => collectExtensions(name.toLowerCase(), needle));
 
-  const blocked = new Set(continuations.flatMap((letters) => [...letters]));
+  const blocked = new Set(
+    extensions.flatMap((texts) => [...texts].filter((text) => text.length === 1)),
+  );
 
   const free = LETTERS.split('').filter((letter) => !blocked.has(letter));
 
@@ -20,9 +22,9 @@ export function pickJumpLabels(names: readonly string[], typed: string): (string
     return names.map((_name, index) => free[index] ?? null);
   }
 
-  const canSplit = [...blocked].some((letter) =>
-    continuations.some((letters) => !letters.has(letter)),
-  );
+  const everyExtension = new Set(extensions.flatMap((texts) => [...texts]));
+
+  const canSplit = extensions.some((texts) => [...everyExtension].some((text) => !texts.has(text)));
 
   if (canSplit) {
     return names.map(() => null);
@@ -37,17 +39,18 @@ export function pickJumpLabels(names: readonly string[], typed: string): (string
   });
 }
 
-// the letters that follow each occurrence of the needle in the name
-function collectContinuations(name: string, needle: string): Set<string> {
-  const letters = new Set<string>();
+// the text that can follow each occurrence of the needle in the name, from one letter to the end of
+// the name, which is each way the user can keep typing and still match the name
+function collectExtensions(name: string, needle: string): Set<string> {
+  const texts = new Set<string>();
 
   for (let from = name.indexOf(needle); from !== -1; from = name.indexOf(needle, from + 1)) {
-    const next = name[from + needle.length];
+    const rest = name.slice(from + needle.length);
 
-    if (next !== undefined) {
-      letters.add(next);
+    for (let length = 1; length <= rest.length; length++) {
+      texts.add(rest.slice(0, length));
     }
   }
 
-  return letters;
+  return texts;
 }

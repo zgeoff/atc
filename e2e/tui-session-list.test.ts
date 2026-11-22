@@ -128,6 +128,16 @@ test('it fades the rows a typed letter misses, labels the rest, and attaches the
 
   expect(ctx.tui.readScreen()).toInclude('mango');
 
+  // The row without a t draws its name in a dimmer colour than a row with one.
+  await waitFor(() => {
+    const matching = ctx.tui.readTextColour('ki');
+    const faded = ctx.tui.readTextColour('mang');
+
+    expect(matching).not.toBeNull();
+    expect(faded).not.toBeNull();
+    expect(faded).not.toBe(matching);
+  });
+
   ctx.tui.write(label);
 
   await ctx.tui.waitForGone('╭─ ');

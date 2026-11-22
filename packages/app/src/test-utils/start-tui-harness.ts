@@ -187,6 +187,13 @@ export function startTUIHarness(options: TUIHarnessOptions) {
       return readScreenText(screen);
     },
 
+    // The foreground colour of the first cell of the text on the screen, as its mode and value, or
+    // null when the screen shows no such text. Two texts drawn in the same colour give the same
+    // string.
+    readTextColour(text: string): string | null {
+      return readTextColourOf(screen, text);
+    },
+
     reset() {
       out = '';
     },
@@ -360,6 +367,24 @@ function readScreenText(screen: Terminal | null): string {
   }
 
   return lines.join('\n');
+}
+
+function readTextColourOf(screen: Terminal | null, text: string): string | null {
+  if (screen === null) {
+    return null;
+  }
+
+  for (let row = 0; row < screen.rows; row++) {
+    const line = screen.buffer.active.getLine(row);
+    const col = line?.translateToString(true).indexOf(text) ?? -1;
+    const cell = col === -1 ? undefined : line?.getCell(col);
+
+    if (cell !== undefined) {
+      return `${cell.getFgColorMode()}:${cell.getFgColor()}`;
+    }
+  }
+
+  return null;
 }
 
 // The client creates this file only when it first writes to its log, so a missing file means no
