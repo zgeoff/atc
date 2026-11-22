@@ -7,19 +7,19 @@ pins it to a commit, materializes that commit into a new directory on the sessio
 it, and only then starts the session there. No client ever lists a session over a partial checkout,
 and the checkout never holds a credential.
 
-[Targets](./targets.md) covers where the workspace lands, and [sources](#sources) covers how the
-spawn picker finds what to check out. [Workspace cleanup](./workspace-cleanup.md) covers how a
-forget or a prune removes a workspace.
+For where the workspace lands, see [targets](./targets.md). For how the spawn picker finds what to
+check out, see [sources](#sources). For how a forget or a prune removes a workspace, see
+[workspace cleanup](./workspace-cleanup.md).
 
 ## Sources of a workspace
 
-- **A path source** of a workspace spawn is a git checkout on the daemon's host. The picker's
-  directory listing, under [Sources](#sources), also offers folders that are not checkouts. It
-  resolves to its origin's URL, stripped of any credential, and to HEAD, which origin must already
-  hold, so the session gets a commit anyone can fetch. Uncommitted and untracked changes stay
-  behind: the daemon clones HEAD, leaves the checkout as it was, and warns with the count of paths
-  it left. A spawn can refuse a dirty checkout instead. A dirty checkout whose HEAD origin lacks is
-  refused, so the daemon never clones an older commit in its place.
+- **A path source** of a workspace spawn is a git checkout on the daemon's host. It resolves to its
+  origin's URL, stripped of any credential, and to HEAD, which origin must already hold, so the
+  session gets a commit anyone can fetch. Uncommitted and untracked changes stay behind: the daemon
+  clones HEAD, leaves the checkout as it was, and warns with the count of paths it left. A spawn can
+  refuse a dirty checkout instead. A dirty checkout whose HEAD origin lacks is refused, so the
+  daemon never clones an older commit in its place. The picker's directory listing, under
+  [Sources](#sources), also offers folders that are not checkouts.
 - **A git source** is a repository URL with a branch or tag, a commit, or both. With both, the
   daemon checks out the commit, on the named branch when the upstream has it, and records the ref
   without checking that it still points at the commit. A source can name a daemon environment
