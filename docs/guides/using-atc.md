@@ -104,21 +104,22 @@ session, as [targets](./configuration/targets.md) describes. Set `list.grouping`
 
 To jump to a session, press `f`, then type a letter you can see in its name. Rows without that
 letter fade, and each further letter you type narrows the rows. When one row is left, atc attaches
-it. When several are left, each shows an amber letter just after your match, such as `tai-beautiful`
-after `t`: press that letter to attach the row. `Esc` leaves jump and keeps the list open.
+it. When several are left, atc writes an amber letter over the letter just after your match: after
+`t`, `tui-beautiful` shows as `tai-beautiful`, with `a` in amber. Press that letter to attach the
+row. `Esc` leaves jump and keeps the list open.
 
 `K` kills a session after you answer `y` to its question: its agent stops, and the session stays in
 the list as exited, so you can attach it again later. On an imp, `K` puts the imp to sleep with the
 agent inside, and attaching the session again wakes it where it left off.
 
-`X` ends a session: atc stops it and removes it from the list. atc first asks `end <name>?`, and you
-answer `y` to go ahead or any other key to keep the session. When ending the session also deletes
-its machine, such as an imp, the question names the machine. atc refuses `X` on a session you pinned
-with `p` until you unpin it. When the session's machine sleeps, atc tells you to attach the session
-to wake the machine, then end it.
+`X` ends a session: it does what `K` does, then removes the session from the list for good. atc
+first asks `end <name>?`, and you answer `y` to go ahead or any other key to keep the session. When
+ending the session also deletes its machine, such as an imp, the question names the machine. atc
+refuses `X` on a session you pinned with `p` until you unpin it. When the session's machine sleeps,
+atc tells you to attach the session to wake the machine, then end it.
 
-When you end a session, atc takes it off the list and removes the workspace folder that atc cloned
-for it. atc keeps a workspace folder that holds work found nowhere else, such as an unpushed commit.
+When you end a session, atc also removes the workspace folder that atc cloned for it. atc keeps a
+workspace folder that holds work found nowhere else, such as an unpushed commit.
 [Cleanup when you forget a session](./configuration/workspaces.md#cleanup-when-you-forget-a-session)
 lists every reason atc keeps one, and where the list shows it.
 
