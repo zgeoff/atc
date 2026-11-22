@@ -130,9 +130,10 @@ on disk is the durable copy of a session.
 - **One major version.** Client and daemon must run the same major version, whatever their minor
   versions, and a daemon refuses the handshake of a client on another major version
   ([protocol](./protocol/protocol.md#versions)).
-- **Principals.** A request on the owner's unix socket acts as the owner. A request can act as a
-  named principal, which narrows it to the targets that principal may use, and every request on the
-  TCP listener must ([principals](./protocol/principals.md)).
+- **Principals.** A request on the owner's unix socket acts as the owner unless it names a
+  principal. A request that names a principal acts as it, which narrows it to the targets that
+  principal may use, and every request on the TCP listener must
+  ([principals](./protocol/principals.md)).
 - **Grant scopes.** Each MCP tool needs one of four grant scopes, and a remote MCP client calls only
   the tools its grant holds ([MCP](./remote/mcp.md)). A grant scope differs from a session record's
   scope, which lists the worktrees and branches a session may touch.

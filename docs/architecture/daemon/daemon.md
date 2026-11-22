@@ -59,7 +59,7 @@ none, so two daemons never compete for one state directory. The check reads the 
 directories rather than asking systemd, so it holds while the service manager is unreachable.
 `atc mcp --http --wait-for-daemon` makes the same choice for one process: it waits a fixed time for
 a daemon without starting one, serves once one answers, and exits when none answers in that time, so
-a service manager starts it again.
+a service manager starts it again. That fixed time holds even when the unit file is installed.
 
 ## Builds and major versions
 
@@ -76,9 +76,9 @@ and the client compares it with its own:
 
 - A non-interactive client, such as `atc mcp`, exits with an error that holds both builds, both
   major versions, the daemon's pid and how to restart it.
-- The TUI shows the same facts and asks before it restarts the daemon, even when the daemon hosts no
-  session, because it cannot tell. On a yes, it stops the daemon and boots one from its own build,
-  which restores the fleet itself.
+- A TUI newer than the daemon shows the same facts and asks before it restarts the daemon, even when
+  the daemon hosts no session, because it cannot tell. On a yes, it stops the daemon and boots one
+  from its own build, which restores the fleet itself.
 - A client older than the daemon offers no restart, because the daemon would come back on its own
   build. It exits and prints how to update atc and reopen the client.
 

@@ -14,12 +14,13 @@ each journey line acts on that daemon.
   session.
 - End each journey that spawns a session with an `action forget-session` line for that session.
   These last lines, with any `terminal stop` before them, are the journey's cleanup lines. When a
-  journey line fails, run them before you go on. `forget-session` stops the session if it still
-  runs, removes it from the daemon, and does nothing when no session has the name. A session you
-  leave behind shows up in the session lists of every later journey in the same `up`.
+  journey line still fails after the step below, run them before you go on. `forget-session` stops
+  the session if it still runs, removes it from the daemon, and does nothing when no session has the
+  name. A session you leave behind shows up in the session lists of every later journey in the same
+  `up`.
 - When a line exits with a code other than 0 or 1, do what its row in [Exit codes](./exit-codes.md)
-  says first, such as one retry after a `timeout`. A line that fails its check, with exit 1 or an
-  End state value that differs, takes the failure steps of its feature's file.
+  says before the cleanup lines, such as one retry after a `timeout`. A line that fails its check,
+  with exit 1 or an End state value that differs, takes the failure steps of its feature's file.
 
 ## Keys and the database
 
