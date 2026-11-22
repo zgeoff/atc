@@ -69,9 +69,15 @@ export function buildSessionLine(row: SessionRow, context: SessionLineContext): 
 
   let col = CONTENT_COL + 3;
   const jump: NameJump = { typed: input.jump?.typed ?? '', label: context.label };
-  const name = fitNameAroundMatch(formatName(session, context.all), plan.name, jump);
+  const mark = formatNameMark(session, context.all);
+  const markWidth = measureWidth(mark);
+  const name = fitNameAroundMatch(session.name, plan.name - markWidth, jump);
 
-  spans.push(...buildNameSpans(name, col, style, jump.label));
+  if (mark !== '') {
+    spans.push({ col, text: mark, fg: style.fg, bold: style.bold });
+  }
+
+  spans.push(...buildNameSpans(name, col + markWidth, style, jump.label));
 
   col += plan.name + COLUMN_GAP;
 
@@ -147,6 +153,15 @@ function pickGlyph(
     .exhaustive();
 }
 
+// the mark in front of a sub-session's name, or nothing for a session
+function formatNameMark(session: Readonly<OverlaySessionView>, all: readonly SessionRow[]): string {
+  const isSub =
+    session.parent !== null &&
+    all.some((row) => row.session.id === session.parent && row.session.daemon === session.daemon);
+
+  return isSub ? '↳ ' : '';
+}
+
 // The name, with the letters that jump mode matched in blue. The label, when the row has one, takes
 // the place of the letters right after the match, or of the padding when the match ends the name.
 function buildNameSpans(
@@ -195,11 +210,7 @@ export function formatName(
   session: Readonly<OverlaySessionView>,
   all: readonly SessionRow[],
 ): string {
-  const isSub =
-    session.parent !== null &&
-    all.some((row) => row.session.id === session.parent && row.session.daemon === session.daemon);
-
-  return isSub ? `↳ ${session.name}` : session.name;
+  return `${formatNameMark(session, all)}${session.name}`;
 }
 
 export function formatVia(row: SessionRow): string {

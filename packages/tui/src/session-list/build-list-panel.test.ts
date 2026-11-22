@@ -614,3 +614,24 @@ test.each([
     row.expected.map((name) => `${name}  `),
   );
 });
+
+test('it matches a sub-session by its name, after the mark in front of it', () => {
+  const parent = buildMockMirrorSession({ id: 'p', name: 'my app' });
+  const child = buildMockMirrorSession({ id: 'c', name: 'my app', parent: 'p' });
+  const jump = { ...buildJumpPlan(['my app', 'my app'], ' '), typed: ' ' };
+
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      rows: [
+        { kind: 'session', session: parent, via: null },
+        { kind: 'session', session: child, via: null },
+      ],
+      jump,
+    }),
+    { cols: 120, rows: 30 },
+  );
+
+  const text = renderPanelText(plan);
+
+  expect([text[1]?.slice(5, 13), text[2]?.slice(5, 13)]).toStrictEqual(['my spp  ', '↳ my dpp']);
+});
